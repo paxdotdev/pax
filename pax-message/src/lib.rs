@@ -30,7 +30,7 @@ pub enum NativeMessage {
 #[derive(Deserialize)]
 #[repr(C)]
 pub enum NativeInterrupt {
-    Jab(JabInterruptArgs),
+    Clap(ClapInterruptArgs),
     Scroll(ScrollInterruptArgs),
     TouchStart(TouchStartInterruptArgs),
     TouchMove(TouchMoveInterruptArgs),
@@ -61,7 +61,7 @@ pub struct FormCheckboxToggleArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct JabInterruptArgs {
+pub struct ClapInterruptArgs {
     pub x: f64,
     pub y: f64,
 }

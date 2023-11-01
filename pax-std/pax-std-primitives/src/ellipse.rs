@@ -29,7 +29,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
         self.instance_id
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 

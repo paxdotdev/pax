@@ -21,7 +21,7 @@ fill={Fill::linearGradient(
 
 @handlers {
     mount: handle_mount,
-    jab: handle_jab,
+    clap: handle_clap,
     scroll: handle_scroll,
     touch_start: handle_touch_start,
     touch_move: handle_touch_move,

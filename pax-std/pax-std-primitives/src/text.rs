@@ -54,7 +54,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         ret
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
@@ -173,7 +173,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         self.common_properties.compute_properties(rtc);
     }
 
-    fn compute_native_patches(
+    fn handle_native_patches(
         &mut self,
         rtc: &mut RenderTreeContext<R>,
         computed_size: (f64, f64),

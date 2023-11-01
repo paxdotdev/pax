@@ -1355,13 +1355,13 @@ var Pax = (() => {
         }
       };
       chassis.interrupt(JSON.stringify(clickEvent), []);
-      let jabEvent = {
-        "Jab": {
+      let clapEvent = {
+        "Clap": {
           "x": evt.clientX,
           "y": evt.clientY
         }
       };
-      chassis.interrupt(JSON.stringify(jabEvent), []);
+      chassis.interrupt(JSON.stringify(clapEvent), []);
     }, true);
     layer.addEventListener("dblclick", (evt) => {
       let event = {
@@ -1462,13 +1462,13 @@ var Pax = (() => {
         lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
       });
       chassis.interrupt(JSON.stringify(event), []);
-      let jabEvent = {
-        "Jab": {
+      let clapEvent = {
+        "Clap": {
           "x": evt.touches[0].clientX,
           "y": evt.touches[0].clientY
         }
       };
-      chassis.interrupt(JSON.stringify(jabEvent), []);
+      chassis.interrupt(JSON.stringify(clapEvent), []);
     }, { "passive": true, "capture": true });
     layer.addEventListener("touchmove", (evt) => {
       let touches = getTouchMessages(evt.touches);

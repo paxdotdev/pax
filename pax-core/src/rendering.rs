@@ -26,7 +26,7 @@ pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(input_
 
     for node in input_nodes.borrow().iter() {
         if node.borrow().is_invisible_to_slot() {
-            let children = node.borrow().get_rendering_children();
+            let children = node.borrow().get_instance_children();
             let flattened_children = flatten_slot_invisible_nodes_recursive(children);
             output_nodes.extend(flattened_children.borrow().iter().cloned());
         } else {
@@ -50,8 +50,6 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub children: Option<InstanceNodePtrList<R>>,
     pub component_template: Option<InstanceNodePtrList<R>>,
     pub scroller_args: Option<ScrollerArgs>,
-
-
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation
@@ -179,21 +177,31 @@ pub enum NodeType {
     Primitive,
 }
 
-/// The base trait for a RenderNode, representing any node that can
-/// be rendered by the engine.
-/// T: a member of PropertiesCoproduct, representing the type of the set of properites
-/// associated with this node.
+/// Central runtime representation of a properties-computable and renderable node.
+/// `InstanceNode`s are conceptually stateless, and rely on `ExpandedNode`s for stateful representations.
+///
+/// An `InstanceNode` sits in between a [`pax_compiler::TemplateNodeDefinition`], the
+/// compile-time `definition` analogue to this `instance`, and `ExpandedNode`, the stateful
+///
+/// There is a 1:1 relationship between [`pax_compiler::TemplateNodeDefinition`]s and `InstanceNode`s.
+/// There is a one-to-many relationship between one `InstanceNode` and possibly many variant [`ExpandedNode`]s,
+/// due to duplication via `for`.
+///
+/// (See [`RepeatInstance#handle_compute_properties`] where we visit a singular `InstanceNode` several times, producing multiple `ExpandedNode`s.)
 pub trait InstanceNode<R: 'static + RenderContext> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized;
 
-    /// Return the list of nodes that are children of this node at render-time.
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R>;
+    /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
+    /// instance nodes mapping exactly to the template node definitions.
+    /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
+    /// (see [`get_slot_children`] for the way to retrieve the latter.)
+    fn get_instance_children(&self) -> InstanceNodePtrList<R>;
 
     /// For Components only, return the slot children passed into that Component.  For example, for `<Stacker><Group /></Stacker>`,
-    /// Stacker#get_slot_children would return the `<Group />` that was passed in by the component that authored both the `<Stacker>` and the `<Group>` in its template.
-    /// Note that `get_rendering_children`, in contrast, would return the root of Stacker's own template, not the `<Group />`.
+    /// Stacker#get_slot_children would return the `<Group />` that was passed in by the component-template where both the `<Stacker>` and the `<Group>` were defined.
+    /// Note that `get_instance_children`, in contrast, would return the root of Stacker's own template, not the `<Group />`.
     /// This is used when computing properties, in order to compute, for example, both Stacker and Group in the context of the same parent
     /// component and its runtime stack, instead of evaluating Group in the context of Stacker's internal template + runtime stack.
     fn get_slot_children(&self) -> Option<InstanceNodePtrList<R>> {
@@ -205,71 +213,12 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         NodeType::Primitive
     }
 
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        //need to refactor signature and pass in id_chain + either rtc + registry or just registry
-        todo!("Look up ExpandedNode via id_chain + registry; return clone of stored PropertiesCoproduct")
-    }
-
-    fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
-        todo!("Look up ExpandedNode via id_chain + registry; return clone of stored CommonProperties")
-    }
-
-    /// Determines whether the provided ray, orthogonal to the view plane,
-    /// intersects this rendernode. `tab` must also be passed because these are specific
-    /// to a ExpandedNode
-    fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
-        //short-circuit fail for Group and other size-None elements.
-        //This doesn't preclude event handlers on Groups and size-None elements --
-        //it just requires the event to "bubble".  otherwise, `Component A > Component B` will
-        //never allow events to be bound to `B` — they will be vacuously intercepted by `A`
-        if let None = self.get_size() {
-            return false;
-        }
-
-        let inverted_transform = tab.transform.inverse();
-        let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
-
-        let relevant_bounds = match tab.clipping_bounds {
-            None => tab.bounds,
-            Some(cp) => cp,
-        };
-
-        //Default implementation: rectilinear bounding hull
-        transformed_ray.x > 0.0
-            && transformed_ray.y > 0.0
-            && transformed_ray.x < relevant_bounds.0
-            && transformed_ray.y < relevant_bounds.1
-    }
-
-
-
+    /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
+    /// Each node that can handle events is responsible for implementing this; Component instances generate
+    /// the necessary code to wire up userland events like `<SomeNode @click=self.handler>`. Primitives must handle
+    /// this explicitly, see e.g. `[pax_std_primitives::RectangleInstance#get_handler_registry]`.
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
-    }
-
-    /// Used at least by ray-casting; only nodes that clip content (and thus should
-    /// not allow outside content to respond to ray-casting) should return true
-    fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
-        None
-    }
-
-    /// Returns the size of this node, or `None` if this node
-    /// doesn't have a size (e.g. `Group`)
-    fn get_size(&self) -> Option<(Size, Size)> {
-        Some((
-            self.get_common_properties()
-                .width
-                .as_ref()
-                .borrow()
-                .get()
-                .clone(),
-            self.get_common_properties()
-                .height
-                .as_ref()
-                .borrow()
-                .get()
-                .clone(),
-        ))
     }
 
     /// Returns unique integer ID of this RenderNode instance.  Note that
@@ -285,55 +234,31 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         false
     }
 
-    /// Returns the size of this node in pixels, requiring
-    /// parent bounds for calculation of `Percent` values
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        match self.get_size() {
-            None => bounds,
-            Some(size_raw) => (
-                size_raw.0.evaluate(bounds, Axis::X),
-                size_raw.1.evaluate(bounds, Axis::Y),
-            ),
-        }
-    }
-
-    /// Returns the clipping bounds of this node in pixels, requiring
-    /// parent bounds for calculation of `Percent` values
-    fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        match self.get_clipping_bounds() {
-            None => bounds,
-            Some(size_raw) => (
-                size_raw.0.evaluate(bounds, Axis::X),
-                size_raw.1.evaluate(bounds, Axis::Y),
-            ),
-        }
-    }
-
     /// Lifecycle method used by at least Component to introduce a properties stack frame
     #[allow(unused_variables)]
-    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
+    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         //no-op default implementation
     }
 
     /// Lifecycle method used by at least Component to pop a properties stack frame
     #[allow(unused_variables)]
-    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
+    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         //no-op default implementation
     }
 
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.  Returns an ExpandedNode for the
     #[allow(unused_variables)]
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
-    /// Called by engine after `compute_properties`, passed calculated size and transform matrix coefficients for convenience
+    /// Called by engine after [`handle_compute_properties`], passed calculated size and transform matrix coefficients for convenience
     /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
     ///
-    /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
+    /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
     #[allow(unused_variables)]
-    fn compute_native_patches(
+    fn handle_native_patches(
         &mut self,
         rtc: &mut RenderTreeContext<R>,
         computed_size: (f64, f64),
@@ -349,10 +274,11 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// Example use-case: perform side-effects to the drawing contexts.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
+    #[allow(unused_variables)]
     fn handle_pre_render(
         &mut self,
-        _rtc: &mut RenderTreeContext<R>,
-        _rcs: &mut HashMap<String, R>,
+        rtc: &mut RenderTreeContext<R>,
+        rcs: &mut HashMap<String, R>,
     ) {
         //no-op default implementation
     }
@@ -361,7 +287,8 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// after all descendents have been rendered.
     /// Occurs in a post-order traversal of the render tree. Most primitives
     /// are expected to draw their contents to the rendering context during this event.
-    fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    #[allow(unused_variables)]
+    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //no-op default implementation
     }
 
@@ -370,10 +297,11 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing contexts
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
+    #[allow(unused_variables)]
     fn handle_post_render(
         &mut self,
-        _rtc: &mut RenderTreeContext<R>,
-        _rcs: &mut HashMap<String, R>,
+        rtc: &mut RenderTreeContext<R>,
+        rcs: &mut HashMap<String, R>,
     ) {
         //no-op default implementation
     }
@@ -382,32 +310,32 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// this event fires by all nodes on the global first tick, and by all nodes in a subtree
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
-    fn handle_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
+    #[allow(unused_variables)]
+    fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
         //no-op default implementation
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
-    fn handle_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    #[allow(unused_variables)]
+    fn handle_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 
     /// Returns the layer type (`Layer::Native` or `Layer::Canvas`) for this RenderNode.
-    /// Default is `Layer::Canvas`, and must be overwritten for native rendering
+    /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
+    /// content.
     fn get_layer_type(&mut self) -> Layer {
         Layer::Canvas
     }
 
     /// Invoked by event interrupts to pass scroll information to render node
-    fn handle_scroll(&mut self, _args_scroll: ArgsScroll) {
+    #[allow(unused_variables)]
+    fn handle_scroll(&mut self, args_scroll: ArgsScroll) {
         //no-op default implementation
     }
 
-    /// Returns the scroll offset from a Scroller component
-    /// Used by the engine to transform its children
-    fn get_scroll_offset(&mut self) -> (f64, f64) {
-        (0.0, 0.0)
-    }
+
 
     fn handle_form_event(&mut self, event: FormEvent) {
         panic!("form event sent to non-compatible component: {:?}", event)

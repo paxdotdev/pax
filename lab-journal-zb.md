@@ -235,6 +235,72 @@ common.GeoPoint{ latitude: 10.0, longitude: -5.5 }
 
 
 
+### On polymorphic data + stack frames
+_Date of authoring unknown; moved from pax-core/src/repeat.rs on Oct 31 2023_
+---------------
+
+To support polymorphic data <T> inside stack frames,
+we need a `dyn SomeTrait` contract that stack frame data
+can adhere to (instead of arbitrary `T`)
+
+ex. `repeat` element stackframe data:
+{
+    index: usize,
+    datum: T
+}
+
+We could have any stack frame abide by this contract:
+
+StackFrameData<T> {
+    get_index() -> usize;
+    get_datum() -> Box<dyn T>;
+}
+...but how does the consumer know it's dealing with `T`?  Where does `T` come from?
+
+Ultimately, it's userland.  E.g. consider the user-provided data:
+cats = [{fur_color: Colors.WHITE, eye_color: Colors.BLUE}, {fur_color: Colors.BROWN, eye_color: Colors.GREEN}]
+describes a schema and thus `T` of {fur_color: Color, eye_color: Color}
+
+Perhaps this gets easier if we introduce our `scope` object here, and deal with a string:value (dynamic) lookup?
+
+This turns our StackFrameData approach into:
+
+StackFrame {
+    get_scope() -> Scope;
+}
+
+along with
+
+Scope {
+    get_type(key: &str) -> PolymorphicType // used for unsafe unboxing of value
+    get_value(key: &str) -> PolymorphicValue
+}
+
+When working with a Scope inside a `repeat`, the user looks up values & types by (string) key.
+
+Seems like a suitable solution.
+
+*/
+
+//Can we operate on a guarantee that for `n` elements in a repeat, the consumer (expression)
+//will be invoked exactly `n` times?  If so, we could push a stackframe for each datum (in reverse)
+//so that each invocation consumes a new stack frame, in order.  The tricky piece of this is
+//a need to introduce stack frame `pop`s somewhere before the did_eval_properties_in_place lifecycle
+//method, in a way that's unique to `repeat`.
+
+//An alternative approach to this problem, which operates with the grain of "one stack frame
+//per component instance," is to add an iterator to a new RepeatPropertiesContainer, which
+//yields the next `RepeatProperties` on each invocation.  This may require simply modifying
+//the inject_and_evaluate logic.  Perhaps we can introduce a `.next` method on Evaluator, with
+//a default implementation that's a no-op, but which Repeat can override to step through
+//an iterator.
+
+// rtc.runtime.borrow_mut().push_stack_frame(
+//     Rc::clone(&self.children),
+//       Box::new(Scope {
+//           properties: Rc::clone(&self.properties) as Rc<dyn Any>
+//       })
+// );
 
 
 ### untangling Definitions, Values, and Patches
@@ -1148,7 +1214,7 @@ Refer to the following comment copied from the definition of `RenderNode`:
 /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
 /// "Children" may indicate a.) a template root, b.) slot_children, c.) primitive children
 /// Each RenderNode is responsible for determining at render-time which of these concepts
-/// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
+/// to pass to the engine for rendering, and that distinction occurs inside `get_instance_children`
 ```
 
 Perhaps it is worth revisiting these concepts in order to compact
@@ -1868,7 +1934,7 @@ stack frames γ0-γn:
   
 ```
 
-Note that get_rendering_children for Stacker will return E, so we first need to
+Note that get_instance_children for Stacker will return E, so we first need to
 first visit B's non-rendering children, C and D
 
 To pull this off[1], we will need to perform two separate passes of the render tree.
@@ -1876,7 +1942,7 @@ To pull this off[1], we will need to perform two separate passes of the render t
 The first will be to perform properties computation, and it will recurse via `get_adopted_children`
 and `get_template_children`.
 
-The second pass will be a rendering pass, which will recurse by `get_rendering_children`
+The second pass will be a rendering pass, which will recurse by `get_instance_children`
 
 
 
@@ -1886,8 +1952,8 @@ tangles that introduces to pulling values out of the runtime stack)
 
 
 
-//maybe:  introduce distinction between get_rendering_children and
-//        ... get_(what exactly?)  get_rendering_children_that_aren't_slot_children
+//maybe:  introduce distinction between get_instance_children and
+//        ... get_(what exactly?)  get_instance_children_that_aren't_slot_children
 //        maybe this can be solved with lifecycle?  traverse node/property tree before
 //        slot_children are linked as rendering_children?
 //Another possibility: link a reference to stack frame to node — then it doesn't matter when it's
@@ -1901,7 +1967,7 @@ tangles that introduces to pulling values out of the runtime stack)
         // - compute properties
         //    - special-cases slot_children (calcs first) recurses via get_natural_children
         // - render
-        //    - recurse via get_rendering_children
+        //    - recurse via get_instance_children
 
 
 #### Cont. 2022-04-02
@@ -3892,7 +3958,7 @@ One other option is to "reinstantiate" a node — store the instantiationargs pa
 re-retrieve them as a way of deep-cloning (this would need to be recursive, for child/slot nodes)
 -
 in service of deep-cloning, consider our APIs for getting nodes:
-get_rendering_children expects expanded children
+get_instance_children expects expanded children
 ExpandedNode represents expanded nodes
 Perhaps we should attach computed properties to ExpandedNodes?  That's already the right shape of container for these properties.
 
@@ -3922,7 +3988,7 @@ ExpandedNodes.
 
 
 1. We have a strong divide between `instance nodes` and `expanded nodes`.  An instance node is an instantiated version of what is declared in a template.  An expanded node both accounts for repeat (e.g. it is id-ed by `id_chain`) _and_ includes a unique stamp of `properties`, computed in the context of repeat.
-2. How do we get `ExpandedNode`s from an instance node?  Currently we have `get_rendering_children` — should this be supplanted by `get_expanded_children`, and if so, how does a RenderNode
+2. How do we get `ExpandedNode`s from an instance node?  Currently we have `get_instance_children` — should this be supplanted by `get_expanded_children`, and if so, how does a RenderNode
     become knowledgeable about its ExpandedNode children?
 
 Unpacking:  during properties computation, we can create ExpandedNodes, because we both have knowledge of ancestral repeats for `id_chain`, and have
@@ -3985,7 +4051,7 @@ and computing properties on them? e.g. via `get_expanded_children` or `get_expan
 
 We do know that Repeat is special.  It needs to somehow signal that it does `n` of things, where most nodes do 1, and Conditional does either 0 or 1.
 
-Also, get_rendering_children is already _quite close_ to `get_expanded_children` in practice.  E.g. Slot already handles this correctly, with the main difference that
+Also, get_instance_children is already _quite close_ to `get_expanded_children` in practice.  E.g. Slot already handles this correctly, with the main difference that
 we should be iterating over ExpandedNodes instead of dyn InstanceNodes (and again, in the current state of things where these are mashed into a single concept, that is essentially what we are doing.)
 
 So what can Repeat do `n` of?
@@ -4139,19 +4205,23 @@ Let's store a prototypical clone of the original properties on each InstanceNode
         [ ] Same with `get_common_properties`
         [ ] (?) Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
     [ ] Upsert `ExpandedNode` during `compute_properties_recursive`, along with computed properties "stamp".
-        [ ] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
-        [ ] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
+        [x] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
+            [ ] Refactor one handler to figure out quite what this looks like on the handler side [maybe it just returns a PropertiesCoproduct instead??]
+            [ ] Refactor all remaining handlers to match
+        [x] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
+        [ ] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
     [ ] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
     [ ] Manage wrapping/unwrapping polymorphic properties (PropertiesCoproduct) via `get_properties` and individual `dyn InstanceNode`s
 [x] Unplug most of pax_std to reduce iterative surface area
     [ ] Come back at the end, plug back in, and normalize the rest
 [ ] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
-    [ ] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
-    [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each
-[ ] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
+    [x] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
+        start with internal; punch through trait methods if that becomes necessary
+    [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each of properties and commonproperties
 [ ] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
-    [ ] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
+    [x] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
+    [x] Refactor file boundaries along the way
 [ ] Refactor Repeat & Conditional properties computation
     [ ] Refactor each of `Repeat`, `Slot`, and `Conditional` to be stateless (so that stateful expansions with ExpandedNodes actually work)
         [x] Figure out in particular how to store:
@@ -4172,7 +4242,8 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             [ ] Conditional
                 [ ] Piecewise-recurse into `compute_properties_recursive`, a la Repeat
             [ ] Slot
-                [ ] Probably doesn't need to do anything special properties-compute-wise; slot-children are handled ahead-of-time, and 
+                [ ] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
+                    For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
                 [ ] Make sure we handle "is_invisible" (née flattening) correctly
 [ ] Refactor "component template frame" computation order; support recursing mid-frame
     [ ] Handle slot children: compute properties first, before recursing into next component template subtree
@@ -4184,3 +4255,13 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [ ] Refactor unmounting to be id_chain-specific rather than instance_id specific
     [ ] Refactor NodeRegistry
     [ ] Refactor lifecycle hooks/call site for unmounting
+[ ] Refactor `get_rendering_children` => `get_instance_children`, plus ensure there's a means of traversing expanded children
+    Perhaps we just assume one ExpandedNode per visit of an InstanceNode (meaning we iterate+recurse through `get_instance_children` in `recurse_compute_properties`).  Then,
+    the only places we get many or zero expandednodes is within Conditional + Repeat.
+[ ] Decide: `ExpandedNode` vs. `RealizedNode` vs ?
+[ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
+    [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
+        [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
+            ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
+    [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
+[ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG

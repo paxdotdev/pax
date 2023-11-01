@@ -60,18 +60,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
         }
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.cached_computed_children)
     }
 
-    fn get_size(&self) -> Option<(Size, Size)> {
-        None
-    }
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        bounds
-    }
-
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         if let Some(index) = ptc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Numeric(v) = index {
                 v

@@ -99,7 +99,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         }
     }
 
-    fn compute_native_patches(
+    fn handle_native_patches(
         &mut self,
         rtc: &mut RenderTreeContext<R>,
         computed_size: (f64, f64),
@@ -215,7 +215,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         }
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.children)
     }
 

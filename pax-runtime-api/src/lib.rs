@@ -80,12 +80,12 @@ pub struct RuntimeContext {
 
 // Unified events
 
-/// A Jab describes either a "click" (mousedown followed by mouseup), OR a
+/// A Clap describes either a "click" (mousedown followed by mouseup), OR a
 /// "tap" with one finger (singular fingerdown event).
-/// Jabs are a useful alternative to most kinds of `Click` or `Tap` events,
+/// Claps are a useful alternative to most kinds of `Click` or `Tap` events,
 /// when you want the same behavior for both to be contained in one place.
 #[derive(Clone)]
-pub struct ArgsJab {
+pub struct ArgsClap {
     pub x: f64,
     pub y: f64,
 }

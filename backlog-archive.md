@@ -618,7 +618,7 @@ MED
     [ ] CLI hookups (--target)
 [ ] Touch support
     [ ] tap / swipe support
-    [ ] `jab` event, for "click or tap"
+    [ ] `clap` event, for "click or tap"
 ```
 
 

@@ -50,13 +50,13 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(clickEvent), []);
-        let jabEvent = {
-            "Jab": {
+        let clapEvent = {
+            "Clap": {
                 "x": evt.clientX,
                 "y": evt.clientY,
             }
         };
-        chassis.interrupt(JSON.stringify(jabEvent), []);
+        chassis.interrupt(JSON.stringify(clapEvent), []);
     }, true);
     // @ts-ignore
     layer.addEventListener('dblclick', (evt) => {
@@ -167,13 +167,13 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         });
         chassis.interrupt(JSON.stringify(event), []);
 
-        let jabEvent = {
-            "Jab": {
+        let clapEvent = {
+            "Clap": {
                 "x": evt.touches[0].clientX,
                 "y": evt.touches[0].clientY,
             }
         };
-        chassis.interrupt(JSON.stringify(jabEvent), []);
+        chassis.interrupt(JSON.stringify(clapEvent), []);
     }, {"passive": true, "capture": true});
     // @ts-ignore
     layer.addEventListener('touchmove', (evt) => {

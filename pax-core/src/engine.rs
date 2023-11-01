@@ -1,25 +1,16 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-
 use std::rc::{Rc, Weak};
 
-use kurbo::Vec2;
-
-use pax_message::NativeMessage;
-
+use kurbo::{Point, Vec2};
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext};
+use pax_message::NativeMessage;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
+use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex, Axis};
 
-use pax_runtime_api::{
-    ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown,
-    ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
-    ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
-    CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D,
-    TransitionManager, ZIndex,
-};
+use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -45,9 +36,8 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub clipping_stack: Vec<Vec<u32>>,
     /// Similar to clipping stack but for scroller containers
     pub scroller_stack: Vec<Vec<u32>>,
-
-
-
+    /// A pointer to the current expanded node, the atomic unit of traversal when rendering.
+    pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
 
 }
 
@@ -85,12 +75,12 @@ macro_rules! handle_vtable_update_optional {
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
 //so that it can use the type RenderTreeContext (defined in pax_core, which depends on pax_runtime_api, which
 //defines CommonProperties, and which can thus not depend on pax_core due to a would-be circular dependency.)
-pub trait PropertiesComputable {
-    fn compute_properties(&mut self, rtc: &mut PropertiesTreeContext);
+pub trait PropertiesComputable<R: 'static + RenderContext> {
+    fn compute_properties(&mut self, rtc: &mut PropertiesTreeContext<R>);
 }
 
-impl PropertiesComputable for CommonProperties {
-    fn compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
+impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
+    fn compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         handle_vtable_update!(ptc, self.width, Size);
         handle_vtable_update!(ptc, self.height, Size);
         handle_vtable_update!(ptc, self.transform, Transform2D);
@@ -107,7 +97,6 @@ impl PropertiesComputable for CommonProperties {
 }
 
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
-
 
     pub fn distill_userland_node_context(&self) -> RuntimeContext {
         RuntimeContext {
@@ -139,7 +128,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     pub fn get_current_scroller_ids(&self) -> Vec<Vec<u32>> {
         self.scroller_stack.clone()
     }
-
 
     pub fn compute_eased_value<T: Clone + Interpolatable>(
         &self,
@@ -186,7 +174,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 
 pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub scroll_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsScroll)>,
-    pub jab_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsJab)>,
+    pub clap_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsClap)>,
     pub touch_start_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchStart)>,
     pub touch_move_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchMove)>,
     pub touch_end_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchEnd)>,
@@ -211,7 +199,7 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
     fn default() -> Self {
         HandlerRegistry {
             scroll_handlers: Vec::new(),
-            jab_handlers: Vec::new(),
+            clap_handlers: Vec::new(),
             touch_start_handlers: Vec::new(),
             touch_move_handlers: Vec::new(),
             touch_end_handlers: Vec::new(),
@@ -233,6 +221,8 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
         }
     }
 }
+
+/// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
 /// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
@@ -259,12 +249,107 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     node_context: RuntimeContext,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
-    computed_properties: PropertiesCoproduct,
-    /// Each ExpandedNode has unique `CommonProperties`
-    computed_common_properties: CommonProperties,
+    computed_properties: Rc<RefCell<PropertiesCoproduct>>,
+
+    /// Each ExpandedNode has unique, computed `CommonProperties`
+    computed_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        //need to refactor signature and pass in id_chain + either rtc + registry or just registry
+        Rc::clone(&self.computed_properties)
+    }
+
+    pub fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
+        Rc::clone(&self.computed_common_properties)
+    }
+
+    /// Determines whether the provided ray, orthogonal to the view plane,
+    /// intersects this `ExpandedNode`.
+    pub fn ray_cast_test(&self, ray: &(f64, f64)/*Can we get the following from `self`?, tab: &TransformAndBounds*/) -> bool {
+        //short-circuit fail for Group and other size-None elements.
+        //This doesn't preclude event handlers on Groups and size-None elements --
+        //it just requires the event to "bubble".  otherwise, `Component A > Component B` will
+        //never allow events to be bound to `B` — they will be vacuously intercepted by `A`
+        if let None = self.get_size() {
+            return false;
+        }
+
+        let inverted_transform = tab.transform.inverse();
+        let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
+
+        let relevant_bounds = match tab.clipping_bounds {
+            None => tab.bounds,
+            Some(cp) => cp,
+        };
+
+        //Default implementation: rectilinear bounding hull
+        transformed_ray.x > 0.0
+            && transformed_ray.y > 0.0
+            && transformed_ray.x < relevant_bounds.0
+            && transformed_ray.y < relevant_bounds.1
+    }
+
+    /// Used at least by ray-casting; only nodes that clip content (and thus should
+    /// not allow outside content to respond to ray-casting) should return true
+    pub fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
+        None
+    }
+
+    /// Returns the size of this node, or `None` if this node
+    /// doesn't have a size (e.g. `Group`)
+    pub fn get_size(&self) -> Option<(Size, Size)> {
+        Some((
+            self.get_common_properties()
+                .width
+                .as_ref()
+                .borrow()
+                .get()
+                .clone(),
+            self.get_common_properties()
+                .height
+                .as_ref()
+                .borrow()
+                .get()
+                .clone(),
+        ))
+    }
+
+    /// Returns the size of this node in pixels, requiring
+    /// parent bounds for calculation of `Percent` values
+    pub fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+        match self.get_size() {
+            None => bounds,
+            Some(size_raw) => (
+                size_raw.0.evaluate(bounds, Axis::X),
+                size_raw.1.evaluate(bounds, Axis::Y),
+            ),
+        }
+    }
+
+    /// Returns the clipping bounds of this node in pixels, requiring
+    /// parent bounds for calculation of `Percent` values
+    pub fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+        match self.get_clipping_bounds() {
+            None => bounds,
+            Some(size_raw) => (
+                size_raw.0.evaluate(bounds, Axis::X),
+                size_raw.1.evaluate(bounds, Axis::Y),
+            ),
+        }
+    }
+
+    /// Returns the scroll offset from a Scroller component
+    /// Used by the engine to transform its children
+    pub fn get_scroll_offset(&mut self) -> (f64, f64) {
+        // (0.0, 0.0)
+        todo!("patch into an ExpandedNode-friendly way to track this state");
+        // Perhaps we simply add scroll_offset_x and scroll_offset_y globally to `ExpandedNode`?  The alternative
+        // seems to be to store them inside PropertiesCoproduct and deal with un/wrapping.
+    }
+
     pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().scroll_handlers;
@@ -284,20 +369,20 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
     }
 
-    pub fn dispatch_jab(&self, args_jab: ArgsJab) {
+    pub fn dispatch_clap(&self, args_clap: ArgsClap) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().jab_handlers;
+            let handlers = &(*registry).borrow().clap_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
                     Rc::clone(&self.instance_node),
                     self.node_context.clone(),
-                    args_jab.clone(),
+                    args_clap.clone(),
                 );
             });
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_jab(args_jab);
+            parent.upgrade().unwrap().dispatch_clap(args_clap);
         }
     }
 
@@ -715,7 +800,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     a. find lowest node (last child of last node), accumulating transform along the way
         //     b. start rendering, from lowest node on-up
 
-        let cast_component_rc: InstanceNodePtr<R> = self.main_component.clone();
+        let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
 
         let mut z_index = ZIndex::new(None);
 
@@ -723,11 +808,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             native_message_queue: Default::default(),
             timeline_playhead_position: 0,
             current_z_index: 0,
+            current_containing_component: Rc::clone(&root_component_instance),
+            current_containing_component_slot_children: Rc::new(RefCell::new(vec![])),
+            current_instance_node: Rc::clone(&root_component_instance),
+            current_expanded_node: None,
+            parent_expanded_node: None,
         };
 
-        if true {
-            todo!("handle recursive properties compute workhorse here")
-        }
+
 
         let mut rtc = RenderTreeContext {
             engine: &self,
@@ -736,19 +824,19 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_tab.bounds,
             clipping_stack: vec![],
             scroller_stack: vec![],
-            current_containing_component: Rc::clone(&cast_component_rc),
+            current_containing_component: Rc::clone(&root_component_instance),
             current_containing_component_slot_children: Rc::clone(
-                &cast_component_rc.borrow().get_slot_children().unwrap(),
+                &root_component_instance.borrow().get_slot_children().unwrap(),
             ),
-            current_instance_node: Rc::clone(&cast_component_rc),
+            current_instance_node: Rc::clone(&root_component_instance),
             parent_expanded_node: None,
             current_expanded_node: None,
         };
 
-        self.recurse_traverse_render_tree(
+        self.recurse_render(
             &mut rtc,
             rcs,
-            Rc::clone(&cast_component_rc),
+            Rc::clone(&root_component_instance),
             &mut z_index,
             false,
         );
@@ -759,50 +847,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
-    fn compute_properties_recursive(&self, ptc: &mut PropertiesTreeContext, node: InstanceNodePtr<R>) {
-        //When recursively computing properties:
-        // Compute properties for current node
-        // If node is_component, compute properties for its slot_children
-        // Otherwise, compute properties for its rendering children
-
-        let mut node_borrowed = node.borrow_mut();
-
-
-        // What if we pass the ID chain here?  Then each component is in charge of storing its own
-        // "parallel versions" of itself (ExpandedNodes.)  This is nicely aligned with the typed nature of
-        // properties; each implementor of `dyn InstanceNode` would be responsible for storing a HashMap<Vec<u64>, T>,
-        // where T is the type of properties stored within that component
-        
-        node_borrowed.handle_compute_properties(ptc);
-
-        if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
-            node_borrowed.handle_pre_compute_properties(ptc);
-        }
-
-        let children_to_recurse = match node_borrowed.get_node_type() {
-            NodeType::Component => node_borrowed.get_slot_children().unwrap(),
-            _ => node_borrowed.get_rendering_children(),
-        };
-
-        for child in (*children_to_recurse).borrow().iter() {
-            self.compute_properties_recursive(ptc, Rc::clone(child));
-        }
-
-        if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
-            node_borrowed.handle_post_compute_properties(ptc);
-        }
-    }
 
     /// Helper method to fire `pre_render` handlers for the node attached to the `rtc`
-    fn manage_handlers_pre_render(ptc: &mut PropertiesTreeContext) {
+    fn manage_handlers_pre_render(rtc: &mut RenderTreeContext<R>) {
         //fire `pre_render` handlers
-        let node = Rc::clone(&ptc.current_instance_node);
-        let registry = (*ptc.current_instance_node).borrow().get_handler_registry();
+        let node = Rc::clone(&rtc.current_expanded_node);
+        let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
         if let Some(registry) = registry {
             for handler in (*registry).borrow().pre_render_handlers.iter() {
                 handler(
                     node.borrow_mut().get_properties(),
-                    ptc.distill_userland_node_context(),
+                    rtc.distill_userland_node_context(),
                 );
             }
         }
@@ -847,7 +902,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    fn recurse_traverse_render_tree(
+    fn recurse_render(
         &self,
         rtc: &mut RenderTreeContext<R>,
         rcs: &mut HashMap<String, R>,
@@ -888,7 +943,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 node_borrowed.handle_pre_compute_properties(rtc);
                 //Note that we do NOT compute properties on the component root itself.
                 //Its properties have already been computed in the context of its containing component.
-                let template_children = node_borrowed.get_rendering_children();
+                let template_children = node_borrowed.get_instance_children();
                 for template_child in (*template_children).borrow().iter() {
                     self.compute_properties_recursive(rtc, Rc::clone(template_child));
                 }
@@ -1030,7 +1085,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         Self::manage_handlers_pre_render(rtc);
 
         //create the `expanded_node` for the current node
-        let rendering_children = node.borrow_mut().get_rendering_children();
+        let rendering_children = node.borrow_mut().get_instance_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let clipping = node
             .borrow_mut()
@@ -1110,7 +1165,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 let mut new_rtc = rtc.clone();
                 new_rtc.parent_expanded_node = Some(Rc::downgrade(&expanded_node));
                 // if it's a scroller reset the z-index context for its children
-                self.recurse_traverse_render_tree(
+                self.recurse_render(
                     &mut new_rtc,
                     rcs,
                     Rc::clone(child),
@@ -1124,10 +1179,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let is_viewport_culled = !expanded_node_tab.intersects(&self.viewport_tab);
 
-        //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+        //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
         //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
         if let Some(cb) = clipping_bounds {
-            node.borrow_mut().compute_native_patches(
+            node.borrow_mut().handle_native_patches(
                 rtc,
                 cb,
                 new_scroller_normalized_accumulated_transform
@@ -1137,7 +1192,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 subtree_depth,
             );
         } else {
-            node.borrow_mut().compute_native_patches(
+            node.borrow_mut().handle_native_patches(
                 rtc,
                 new_accumulated_bounds,
                 new_scroller_normalized_accumulated_transform
