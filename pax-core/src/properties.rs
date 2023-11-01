@@ -7,18 +7,17 @@ use pax_message::NativeMessage;
 use pax_runtime_api::Timeline;
 use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry};
 
-
 /// Recursive workhorse method for computing properties.  Visits all instance nodes in tree, stitching
 /// together an expanded tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
 /// Properties computation is handled within this pass, and computed properties are stored in individual ExpandedNodes.
 /// Rendering is then a function of these ExpandedNodes.
-pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>, node: InstanceNodePtr<R>) {
+pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
     //When recursively computing properties:
     // Compute properties for current node
     // If node is_component, compute properties for its slot_children
     // Otherwise, compute properties for its rendering children
 
-    let mut node_borrowed = node.borrow_mut();
+    let mut node_borrowed = ptc.current_instance_node.borrow_mut();
 
 
     // What if we pass the ID chain here?  Then each component is in charge of storing its own
@@ -27,23 +26,16 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     // where T is the type of properties stored within that component
 
     node_borrowed.handle_pre_compute_properties(ptc);
-    let upserted_expanded_node = node_borrowed.handle_compute_properties(ptc);
+    let this_expanded_node = node_borrowed.handle_compute_properties(ptc);
 
-    //
-    // if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
-    //     node_borrowed.handle_pre_compute_properties(ptc);
-    // }
-
-    // let children_to_recurse = match node_borrowed.get_node_type() {
-    //     NodeType::Component => node_borrowed.get_slot_children().unwrap(),
-    //     _ => node_borrowed.get_instance_children(),
-    // };
-
-
-
+    // First compute slot_children — that is, the children templated _inside_ a component.
+    // For example, in `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
+    // starting at `for` is the subtree of slot_children for the described instance of `Stacker`.
+    // Read more about slot children at [`InstanceNode#get_slot_children`]
     if let Some(slot_children) = node_borrowed.get_slot_children() {
         for child in (*slot_children).borrow().iter() {
-            recurse_compute_properties(ptc, Rc::clone(child));
+            let child_expanded_node = recurse_compute_properties(ptc, Rc::clone(child));
+            this_expanded_node.borrow_mut().append_child(child_expanded_node);
         }
     }
 
@@ -54,16 +46,14 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     //been properties-computed, thus expanded by Repeat and Conditional.
     let children_to_recurse = node_borrowed.get_instance_children();
 
-    for child in (*children_to_recurse).borrow().iter() {
-        recurse_compute_properties(ptc, Rc::clone(child));
+    for _child in (*children_to_recurse).borrow().iter() {
+        recurse_compute_properties(ptc);
     }
 
-    // if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
     node_borrowed.handle_post_compute_properties(ptc);
-    // }
+
+    this_expanded_node
 }
-
-
 
 /// Shared context for properties pass recursion
 pub struct PropertiesTreeContext<R: 'static + RenderContext> {
@@ -72,7 +62,6 @@ pub struct PropertiesTreeContext<R: 'static + RenderContext> {
     pub native_message_queue: VecDeque<NativeMessage>,
     pub timeline_playhead_position: usize,
     pub current_z_index: u32,
-
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
     pub current_containing_component: InstanceNodePtr<R>,
@@ -86,7 +75,6 @@ pub struct PropertiesTreeContext<R: 'static + RenderContext> {
     pub current_expanded_node: Option<Rc<RefCell<ExpandedNode<R>>>>,
     /// A pointer to the current expanded node's parent expanded node
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
-
 }
 
 impl<R: 'static + RenderContext> PropertiesTreeContext<R> {
