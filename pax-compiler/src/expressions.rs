@@ -9,9 +9,12 @@ use std::slice::IterMut;
 
 use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable, Token};
 use crate::parsing::escape_identifier;
-use crate::source_map::{self, SourceMap};
+use crate::errors::source_map::SourceMap;
+use color_eyre::eyre;
+use color_eyre::eyre::eyre;
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use color_eyre::eyre::Report;
 
 const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
     ("transform", "Transform2D"),
@@ -28,48 +31,48 @@ const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
     ("rotate", "Rotation"),
 ];
 
-pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest, source_map: &'a mut SourceMap) {
+pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest, source_map: &'a mut SourceMap) -> eyre::Result<(), Report> {
     let mut swap_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
     let mut all_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
 
     let mut new_components = manifest.components.clone();
     let mut uid_track = 0;
 
-    new_components
-        .values_mut()
-        .for_each(|component_def: &mut ComponentDefinition| {
-            let mut new_component_def = component_def.clone();
-            let read_only_component_def = component_def.clone();
-
-            if let Some(ref mut template) = new_component_def.template {
-                let mut active_node_def = TemplateNodeDefinition::default();
-                std::mem::swap(&mut active_node_def, template.index_mut(0));
-
-                let mut ctx = ExpressionCompilationContext {
-                    template,
-                    active_node_def,
-                    scope_stack: vec![component_def
-                        .get_property_definitions(&manifest.type_table)
-                        .iter()
-                        .map(|pd| (pd.name.clone(), pd.clone()))
-                        .collect()],
-                    uid_gen: uid_track..,
-                    all_components: manifest.components.clone(),
-                    expression_specs: &mut swap_expression_specs,
-                    component_def: &read_only_component_def,
-                    type_table: &manifest.type_table,
-                };
-
-                ctx = recurse_compile_expressions(ctx, source_map);
-                uid_track = ctx.uid_gen.next().unwrap();
-                all_expression_specs.extend(ctx.expression_specs.to_owned());
-                std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
-            }
-
-            std::mem::swap(component_def, &mut new_component_def);
-        });
+    for component_def in new_components.values_mut() {
+        let mut new_component_def = component_def.clone();
+        let read_only_component_def = component_def.clone();
+    
+        if let Some(ref mut template) = new_component_def.template {
+            let mut active_node_def = TemplateNodeDefinition::default();
+            std::mem::swap(&mut active_node_def, template.index_mut(0));
+    
+            let mut ctx = ExpressionCompilationContext {
+                template,
+                active_node_def,
+                scope_stack: vec![component_def
+                    .get_property_definitions(&manifest.type_table)
+                    .iter()
+                    .map(|pd| (pd.name.clone(), pd.clone()))
+                    .collect()],
+                uid_gen: uid_track..,
+                all_components: manifest.components.clone(),
+                expression_specs: &mut swap_expression_specs,
+                component_def: &read_only_component_def,
+                type_table: &manifest.type_table,
+            };
+    
+            ctx = recurse_compile_expressions(ctx, source_map)?;
+            uid_track = ctx.uid_gen.next().unwrap();
+            all_expression_specs.extend(ctx.expression_specs.to_owned());
+            std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
+        }
+    
+        std::mem::swap(component_def, &mut new_component_def);
+    }
+    
     manifest.components = new_components;
     manifest.expression_specs = Some(swap_expression_specs);
+    Ok(())
 }
 
 fn pull_matched_identifiers_from_inline(
@@ -286,7 +289,7 @@ fn recurse_compile_literal_block<'a>(
 fn recurse_compile_expressions<'a>(
     mut ctx: ExpressionCompilationContext<'a>,
     mut source_map: &mut SourceMap,
-) -> ExpressionCompilationContext<'a> {
+) -> eyre::Result<ExpressionCompilationContext<'a>, Report> {
     let incremented = false;
 
     let cloned_settings_block = ctx.component_def.settings.clone();
@@ -573,7 +576,7 @@ fn recurse_compile_expressions<'a>(
         ctx.active_node_def = active_node_def;
 
         //Recurse
-        ctx = recurse_compile_expressions(ctx, source_map);
+        ctx = recurse_compile_expressions(ctx, source_map)?;
 
         //Pull the (presumably mutated) active_node_def back out of ctx and attach it back into `template`
         std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(*id).unwrap());
@@ -585,7 +588,7 @@ fn recurse_compile_expressions<'a>(
     if incremented {
         ctx.scope_stack.pop();
     }
-    ctx
+    Ok(ctx)
 }
 
 /// From a symbol like `num_clicks` or `self.num_clicks`, populate an ExpressionSpecInvocation

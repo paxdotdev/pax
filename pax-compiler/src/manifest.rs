@@ -414,7 +414,29 @@ pub struct LiteralBlockDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Token {
     pub token_value: String,
+    // Non-pratt parsed string
+    pub raw_value: String,
+    pub token_type: TokenType,
+    pub source_line: Option<String>,
     pub token_location: Option<LocationInfo>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub enum TokenType {
+    Expression,
+    Identifier,
+    LiteralValue,
+    IfExpression,
+    ForPredicate,
+    ForSource,
+    SlotExpression,
+    EventId,
+    Handler,
+    SettingKey,
+    Selector,
+    PascalIdentifier,
+    #[default]
+    Unknown,
 }
 
 impl PartialEq for Token {
@@ -428,6 +450,36 @@ impl Eq for Token {}
 impl Hash for Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.token_value.hash(state);
+    }
+}
+
+
+fn get_line(s: &str, line_number: usize) -> Option<&str> {
+    s.lines().nth(line_number)
+}
+
+impl Token {
+    pub fn new(token_value: String, token_type: TokenType, token_location: LocationInfo, pax: &str) -> Self{
+        let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
+        let raw_value = token_value.clone();
+        Self {
+            token_value,
+            raw_value,
+            token_type,
+            source_line,
+            token_location: Some(token_location),
+        }
+    }
+
+    pub fn new_with_raw_value(token_value: String, raw_value: String, token_type: TokenType, token_location: LocationInfo, pax: &str) -> Self{
+        let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
+        Self {
+            token_value,
+            raw_value,
+            token_type,
+            source_line,
+            token_location: Some(token_location),
+        }
     }
 }
 

@@ -9,7 +9,7 @@ use crate::manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
     ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, EventDefinition,
     LiteralBlockDefinition, PropertyDefinition, SettingsSelectorBlockDefinition,
-    TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition, LocationInfo, Token,
+    TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition, LocationInfo, Token, TokenType,
 };
 
 extern crate pest;
@@ -302,6 +302,7 @@ fn recurse_pratt_parse_to_string<'a>(
         .parse(expression)
 }
 
+
 fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseContext, pax: &str) {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
@@ -321,7 +322,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
                 ctx.child_id_tracking_stack.push(vec![]);
                 let next_id = ctx.uid_gen.peek().unwrap();
                 roots_ids.push(*next_id);
-                recurse_visit_tag_pairs_for_template(ctx, pair.into_inner().next().unwrap());
+                recurse_visit_tag_pairs_for_template(ctx, pair.into_inner().next().unwrap(), pax);
             }
             _ => {}
         });
@@ -361,6 +362,7 @@ pub static TYPE_ID_SLOT: &str = "SLOT";
 fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
     any_tag_pair: Pair<Rule>,
+    pax: &str,
 ) {
     let new_id = ctx.uid_gen.next().unwrap();
     //insert blank placeholder
@@ -393,7 +395,7 @@ fn recurse_visit_tag_pairs_for_template(
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
                     inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                        recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                        recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
                     })
                 }
                 _ => {
@@ -409,7 +411,7 @@ fn recurse_visit_tag_pairs_for_template(
                     .get(pascal_identifier)
                     .expect(&format!("Template key not found {}", &pascal_identifier))
                     .to_string(),
-                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
@@ -430,7 +432,7 @@ fn recurse_visit_tag_pairs_for_template(
                     .get(pascal_identifier)
                     .expect(&format!("Template key not found {}", &pascal_identifier))
                     .to_string(),
-                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
@@ -451,15 +453,12 @@ fn recurse_visit_tag_pairs_for_template(
                     let mut statement_if = any_tag_pair.into_inner();
                     let expression_body = statement_if.next().unwrap();
                     let expression_body_location = span_to_location(&expression_body.as_span());
-                    let expression_body_token = Token {
-                        token_value: expression_body.as_str().to_string(),
-                        token_location: Some(expression_body_location),
-                    };
+                    let expression_body_token = Token::new(expression_body.as_str().to_string(), TokenType::IfExpression, expression_body_location, pax);
                     let prospective_inner_nodes = statement_if.next();
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
                         inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
                         })
                     }
 
@@ -492,17 +491,10 @@ fn recurse_visit_tag_pairs_for_template(
                         //tuple, like the `elem, i` in `for (elem, i) in self.some_list`
                         let elem = predicate_declaration.next().unwrap();
                         let elem_location = span_to_location(&elem.as_span());
-                        let elem_token = Token {
-                            token_value: elem.as_str().to_string(),
-                            token_location: Some(elem_location),
-                        };
+                        let elem_token = Token::new(elem.as_str().to_string(), TokenType::ForPredicate, elem_location, pax);
                         let index = predicate_declaration.next().unwrap();
                         let index_location = span_to_location(&index.as_span());
-                        let index_token = Token {
-                            token_value: index.as_str().to_string(),
-                            token_location: Some(index_location),
-                        };
-
+                        let index_token = Token::new(index.as_str().to_string(), TokenType::ForPredicate, index_location, pax);
                         cfavd.repeat_predicate_definition =
                             Some(ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
                                 elem_token,
@@ -512,10 +504,7 @@ fn recurse_visit_tag_pairs_for_template(
                         let elem = predicate_declaration.next().unwrap();
                         //single identifier, like the `elem` in `for elem in self.some_list`
                         let predicate_declaration_location = span_to_location(&elem.as_span());
-                        let predicate_declaration_token = Token {
-                            token_value: elem.as_str().to_string(),
-                            token_location: Some(predicate_declaration_location),
-                        };
+                        let predicate_declaration_token = Token::new(elem.as_str().to_string(), TokenType::ForPredicate, predicate_declaration_location, pax);
                         cfavd.repeat_predicate_definition =
                             Some(ControlFlowRepeatPredicateDefinition::ElemId(
                                 predicate_declaration_token,
@@ -524,10 +513,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     let inner_source = source.into_inner().next().unwrap();
                     let inner_source_location = span_to_location(&inner_source.as_span());
-                    let mut inner_source_token = Token {
-                        token_value: inner_source.as_str().to_string(),
-                        token_location: Some(inner_source_location),
-                    };
+                    let mut inner_source_token = Token::new(inner_source.as_str().to_string(), TokenType::ForSource, inner_source_location, pax);
                     /* statement_for_source = { xo_range | xo_symbol } */
                     let repeat_source_definition = match inner_source.as_rule() {
                         Rule::xo_range => {
@@ -556,7 +542,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
                         inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
                         })
                     }
 
@@ -574,15 +560,13 @@ fn recurse_visit_tag_pairs_for_template(
                     let mut statement_slot = any_tag_pair.into_inner();
                     let expression_body = statement_slot.next().unwrap();
                     let expression_body_location = span_to_location(&expression_body.as_span());
-                    let expression_body_token = Token {
-                        token_value: expression_body.as_str().to_string(),
-                        token_location: Some(expression_body_location),
-                    };
+                    let expression_body_token = Token::new(expression_body.as_str().to_string(),
+                        TokenType::SlotExpression, expression_body_location, pax);
                     let prospective_inner_nodes = statement_slot.next();
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
                         inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
                         })
                     }
 
@@ -624,6 +608,7 @@ fn recurse_visit_tag_pairs_for_template(
 
 fn parse_inline_attribute_from_final_pairs_of_tag(
     final_pairs_of_tag: Pairs<Rule>,
+    pax: &str,
 ) -> Option<Vec<(Token, ValueDefinition)>> {
     let vec: Vec<(Token, ValueDefinition)> = final_pairs_of_tag
         .map(|attribute_key_value_pair| {
@@ -645,10 +630,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         .last()
                         .unwrap();
                     let event_id_location = span_to_location(&event_id.as_span());
-                    let event_id_token = Token {
-                        token_value: event_id.as_str().to_string(),
-                        token_location: Some(event_id_location),
-                    };
+                    let event_id_token = Token::new(event_id.as_str().to_string(), TokenType::EventId, event_id_location, pax);
 
                     let literal_function = attribute_event_binding
                         .next()
@@ -658,10 +640,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         .unwrap();
 
                     let location_info = span_to_location(&literal_function.as_span());
-                    let literal_function_token = Token {
-                        token_value: literal_function.as_str().to_string(),
-                        token_location: Some(location_info),
-                    };
+                    let literal_function_token = Token::new(literal_function.as_str().to_string(), TokenType::Handler, location_info, pax);
                     (
                         event_id_token,
                         ValueDefinition::EventBindingTarget(literal_function_token),
@@ -673,10 +652,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     let mut kv = attribute_key_value_pair.into_inner();
                     let key = kv.next().unwrap();
                     let key_location = span_to_location(&key.as_span());
-                    let key_token = Token {
-                        token_value: key.as_str().to_string(),
-                        token_location: Some(key_location),
-                    };
+                    let key_token = Token::new(key.as_str().to_string(), TokenType::SettingKey, key_location, pax);
                     let raw_value = kv.next().unwrap().into_inner().next().unwrap();
                     let location_info = span_to_location(&raw_value.as_span());
                     let value = match raw_value.as_rule() {
@@ -684,27 +660,18 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
                             let (output_string, _) =
                                 crate::parsing::run_pratt_parser(raw_value.as_str());
-                            let literal_value_token = Token {
-                                token_value: output_string,
-                                token_location: Some(location_info),
-                            };
+                            let literal_value_token = Token::new_with_raw_value(output_string, raw_value.as_str().to_string(), TokenType::LiteralValue, location_info, pax);
                             ValueDefinition::LiteralValue(literal_value_token)
                         }
                         Rule::literal_object => ValueDefinition::Block(
-                            derive_value_definition_from_literal_object_pair(raw_value),
+                            derive_value_definition_from_literal_object_pair(raw_value, pax),
                         ),
                         Rule::expression_body => {
-                            let expression_token = Token {
-                                token_value: raw_value.as_str().to_string(),
-                                token_location: Some(location_info),
-                            };
+                            let expression_token = Token::new(raw_value.as_str().to_string(), TokenType::Expression, location_info, pax);
                             ValueDefinition::Expression(expression_token, None)
                         }
                         Rule::identifier => {
-                            let identifier_token = Token {
-                                token_value: raw_value.as_str().to_string(),
-                                token_location: Some(location_info),
-                            };
+                            let identifier_token = Token::new(raw_value.as_str().to_string(), TokenType::Identifier, location_info, pax);
                             ValueDefinition::Identifier(identifier_token, None)
                         }
                         _ => {
@@ -726,6 +693,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 
 fn derive_value_definition_from_literal_object_pair(
     literal_object: Pair<Rule>,
+    pax: &str,
 ) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
@@ -733,10 +701,7 @@ fn derive_value_definition_from_literal_object_pair(
         Rule::pascal_identifier => {
             let raw_value = literal_object_pairs.next().unwrap();
             let raw_value_location = span_to_location(&raw_value.as_span());
-            let token = Token  {
-                token_value: raw_value.as_str().to_string(),
-                token_location: Some(raw_value_location),
-            };
+            let token = Token::new(raw_value.as_str().to_string(), TokenType::PascalIdentifier, raw_value_location, pax);
             Some(token)
         },
         _ => None,
@@ -754,10 +719,7 @@ fn derive_value_definition_from_literal_object_pair(
                     .next()
                     .unwrap();
                 let setting_key_location = span_to_location(&setting_key.as_span());
-                let setting_key_token = Token {
-                    token_value: setting_key.as_str().to_string(),
-                    token_location: Some(setting_key_location),
-                };
+                let setting_key_token = Token::new(setting_key.as_str().to_string(), TokenType::SettingKey, setting_key_location, pax);
                 let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
                 let location_info = span_to_location(&raw_value.as_span());
                 let setting_value = match raw_value.as_rule() {
@@ -765,24 +727,18 @@ fn derive_value_definition_from_literal_object_pair(
                         //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
                         let (output_string, _) =
                             crate::parsing::run_pratt_parser(raw_value.as_str());
-                        let token = Token {
-                            token_value: output_string,
-                            token_location: Some(location_info),
-                        };
+                        let token = Token::new_with_raw_value(output_string, raw_value.as_str().to_string(), TokenType::LiteralValue, location_info, pax);
                         ValueDefinition::LiteralValue(token)
                     }
                     Rule::literal_object => {
                         ValueDefinition::Block(
                             //Recurse
-                            derive_value_definition_from_literal_object_pair(raw_value),
+                            derive_value_definition_from_literal_object_pair(raw_value, pax),
                         )
                     }
                     // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
                     Rule::expression_body => {
-                        let token = Token {
-                            token_value: raw_value.as_str().to_string(),
-                            token_location: Some(location_info),
-                        };
+                        let token = Token::new(raw_value.as_str().to_string(), TokenType::Expression, location_info, pax);
                         ValueDefinition::Expression(token, None )
                     }
                     _ => {
@@ -825,17 +781,14 @@ fn parse_settings_from_component_definition_string(
                                 .chars()
                                 .filter(|c| !c.is_whitespace())
                                 .collect();
-                                let token = Token {
-                                    token_value: selector,
-                                    token_location: Some(raw_value_location),
-                                };
-
+                                let token = Token::new(selector, TokenType::Selector, raw_value_location, pax);
                                 let literal_object = selector_block_pairs.next().unwrap();
 
                                 SettingsSelectorBlockDefinition {
                                     selector: token,
                                     value_block: derive_value_definition_from_literal_object_pair(
                                         literal_object,
+                                        pax
                                     ),
                                 }
                             })
@@ -879,10 +832,7 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventD
                             Rule::literal_function => {
                                 let raw_value = raw_values.into_inner().next().unwrap();
                                 let raw_value_location = span_to_location(&raw_value.as_span());
-                                let token = Token {
-                                    token_value: raw_value.as_str().to_string(),
-                                    token_location: Some(raw_value_location),
-                                };
+                                let token = Token::new(raw_value.as_str().to_string(), TokenType::Handler, raw_value_location, pax);
                                 vec![token]
                             }
                             Rule::function_list => raw_values
@@ -893,10 +843,7 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventD
                                         .next()
                                         .unwrap();
                                     let raw_value_location = span_to_location(&raw_value.as_span());
-                                    let token = Token {
-                                        token_value: raw_value.as_str().to_string(),
-                                        token_location: Some(raw_value_location),
-                                    };
+                                    let token = Token::new(raw_value.as_str().to_string(), TokenType::Handler, raw_value_location, pax);
                                     token
                                 })
                                 .collect(),
@@ -904,8 +851,7 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventD
                                 unreachable!("Parsing error: {:?}", raw_values.as_rule());
                             }
                         };
-                        EventDefinition { key: Token { token_value: key_value, 
-                            token_location: Some(key_location) }, value }
+                        EventDefinition { key: Token::new(key_value, TokenType::EventId, key_location, pax), value }
                     })
                     .collect();
 

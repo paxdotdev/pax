@@ -5,8 +5,12 @@ pub mod manifest;
 pub mod parsing;
 pub mod templating;
 mod helpers;
-mod source_map;
+pub mod errors;
 
+use cargo_metadata::Message;
+use cargo_metadata::diagnostic::DiagnosticLevel;
+use color_eyre::eyre;
+use log::Level;
 use manifest::{PaxManifest, Token};
 use pax_runtime_api::CommonProperties;
 use serde::de::value;
@@ -15,7 +19,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::Write;
+use std::io::{Write, Cursor, BufReader};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -32,6 +36,8 @@ use tar::Archive;
 
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
+use eyre::eyre;
+use color_eyre::eyre::Report;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
@@ -41,7 +47,7 @@ use crate::manifest::{
     TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition,
 };
 
-use crate::source_map::SourceMap;
+use crate::errors::source_map::SourceMap;
 use crate::templating::{
     press_template_codegen_cartridge_component_factory,
     press_template_codegen_cartridge_render_node_literal,
@@ -243,8 +249,7 @@ fn generate_and_overwrite_properties_coproduct(
     fs::write(
         &target_cargo_full_path,
         &target_cargo_toml_contents.to_string(),
-    )
-    .unwrap();
+    ).unwrap();
 
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples: Vec<(String, String)> = manifest
@@ -1131,7 +1136,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
-pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
+pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
 
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
@@ -1163,8 +1168,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
         .unwrap();
 
     if !output.status.success() {
-        println!("Parsing failed — there is likely a syntax error in the provided pax");
-        return Err(());
+        return Err(eyre!("Parsing failed — there is likely a syntax error in the provided pax"));
     }
 
     let out = String::from_utf8(output.stdout).unwrap();
@@ -1177,7 +1181,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let mut source_map = SourceMap::new();
 
     println!("{} 🧮 Compiling expressions", *PAX_BADGE);
-    expressions::compile_all_expressions(&mut manifest, &mut source_map);
+    expressions::compile_all_expressions(&mut manifest, &mut source_map)?;
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
@@ -1186,11 +1190,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
-    let res = build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), &source_map);
-    if let Err(()) = res {
-        return Err(());
-    }
-
+    build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), &source_map)?;
     Ok(())
 }
 
@@ -1283,7 +1283,7 @@ pub fn build_chassis_with_cartridge(
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     source_map: &SourceMap
-) -> Result<(), ()> {
+) -> eyre::Result<(), Report>{
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -1476,13 +1476,12 @@ pub fn build_chassis_with_cartridge(
             }
 
             if should_abort {
-                eprintln!("Failed to build one or more targets with Cargo. Aborting.");
-                return Err(());
+                return Err(eyre!("Failed to build one or more targets with Cargo. Aborting."));
             }
 
             // Update the `install name` of each Rust-built .dylib, instead of the default-output absolute file paths
             // embedded in each .dylib.  This allows our .dylibs to be portably embedded into an SPM module.
-            let result = results.iter().try_for_each(|res| {
+            let result = results.iter().try_for_each(|res: (&u32, &(String, String, Output))| {
                 let dylib_path = &res.1.1;
                 let mut cmd = Command::new("install_name_tool");
                 cmd
@@ -1497,16 +1496,15 @@ pub fn build_chassis_with_cartridge(
                 let child = cmd.spawn().unwrap();
                 let output = wait_with_output(&process_child_ids, child);
                 if !output.status.success() {
-                    println!("Failed to rewrite dynamic library install name with install_name_tool.  Aborting.");
-                    return Err(());
+                    return Err(eyre!("Failed to rewrite dynamic library (path:{}) install name with install_name_tool.  Aborting.", dylib_path));
                 }
 
                 Ok(())
             });
 
             match result {
-                Err(_) => {
-                    return Err(());
+                Err(r) => {
+                    return Err(r);
                 }
                 _ => {}
             };
@@ -1580,8 +1578,7 @@ pub fn build_chassis_with_cartridge(
                     let output = wait_with_output(&process_child_ids, child);
 
                     if !output.status.success() {
-                        println!("Failed to combine packages with lipo. Aborting.");
-                        return Err(());
+                        return Err(eyre!("Failed to combine packages with lipo. Aborting."));
                     }
                 } else {
                     // For iOS, we want to:
@@ -1623,8 +1620,7 @@ pub fn build_chassis_with_cartridge(
                     let child = lipo_command.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
-                        eprintln!("Failed to combine dylibs with lipo. Aborting.");
-                        return Err(());
+                        return Err(eyre!("Failed to combine dylibs with lipo. Aborting."));
                     }
 
                     //Copy singular device build (iOS, not simulator)
@@ -1766,8 +1762,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             }
 
             if !output.status.success() {
-                eprintln!("Failed to build project with xcodebuild. Aborting.");
-                return Err(());
+                return Err(eyre!("Failed to build project with xcodebuild. Aborting."));
             }
 
             //Copy build artifacts & packages into `build`
@@ -1872,15 +1867,14 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
 
-                    let output_str = std::str::from_utf8(&output.stdout).map_err(|_| ())?;
-                    let parsed: Value = serde_json::from_str(&output_str).map_err(|_| ())?;
+                    let output_str = std::str::from_utf8(&output.stdout).map_err(|_| eyre!("Failed to parse stdout for xcrun"))?;
+                    let parsed: Value = serde_json::from_str(&output_str).map_err(|_| eyre!("Failed to deserialize xcrun."))?;
 
                     // Extract devices
                     let devices = parsed["devices"]
                         .as_object()
                         .ok_or_else(|| {
-                            eprintln!("Invalid JSON format for devices.");
-                            ()
+                            return eyre!("Invalid JSON format for devices.");
                         })?;
 
                     let mut max_iphone_number = 0;
@@ -1908,8 +1902,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let device_udid = match desired_udid {
                         Some(udid) => udid,
                         None => {
-                            eprintln!("No installed iOS simulators found on this system. Install at least one iPhone simulator through xcode and try again.");
-                            return Err(());
+                            return Err(eyre!("No installed iOS simulators found on this system. Install at least one iPhone simulator through xcode and try again."));
                         }
                     };
 
@@ -1927,8 +1920,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
-                        eprintln!("Error opening iOS simulator. Aborting.");
-                        return Err(());
+                        return Err(eyre!("Error opening iOS simulator. Aborting."));
                     }
 
                     // Boot current device
@@ -1964,8 +1956,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
-                        eprintln!("Error spawning iOS simulator. Aborting.");
-                        return Err(());
+                        return Err(eyre!("Error spawning iOS simulator. Aborting."));
                     }
                     // ^ Note that we don't handle errors on this particular command; it will return an error by default
                     // if the simulator isn't running, which isn't an "error" for us.  Instead, defer to the following
@@ -1985,10 +1976,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     }
 
                     if retries == max_retries {
-                        eprintln!(
-                            "Failed to boot the simulator within the expected time. Aborting."
-                        );
-                        return Err(());
+                        return Err(eyre!("Failed to boot the simulator within the expected time. Aborting."));
                     }
 
                     // Install and run app on simulator
@@ -2013,8 +2001,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
-                        eprintln!("Error installing app on iOS simulator. Aborting.");
-                        return Err(());
+                        return Err(eyre!("Error installing app on iOS simulator. Aborting."));
                     }
 
                     let mut cmd = Command::new("xcrun");
@@ -2032,8 +2019,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
-                        eprintln!("Error launching app on iOS simulator. Aborting.");
-                        return Err(());
+                        return Err(eyre!("Error launching app on iOS simulator. Aborting."));
                     }
                     let status = output.status.code().unwrap();
 
@@ -2051,6 +2037,50 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             }
         }
         RunTarget::Web => {
+            let mut cmd = Command::new("cargo");
+            cmd.current_dir(&chassis_path)
+                .arg("build")
+                .arg("--target")
+                .arg("wasm32-unknown-unknown")
+                .arg("--message-format=json")
+                .env("PAX_DIR", &pax_dir)
+                .stdout(std::process::Stdio::piped()) 
+                .stderr(std::process::Stdio::piped());
+            
+            if is_release {
+                cmd.arg("--release");
+            }
+            
+            #[cfg(unix)]
+            unsafe {
+                cmd.pre_exec(pre_exec_hook);
+            }
+            
+            let child = cmd.spawn().expect(ERR_SPAWN);
+            let output = wait_with_output(&process_child_ids, child);
+            if !output.status.success() {
+                errors::process_messages(output, source_map)?;
+                // let stderr_stream = Cursor::new(output.stdout);
+                // let reader = BufReader::new(stderr_stream);
+                
+                // for message in Message::parse_stream(reader) {
+                //     match message {
+                //         Ok(Message::CompilerMessage(msg)) => {
+                //             if msg.message.level == DiagnosticLevel::Error {
+                //                 if msg.message.spans.len() > 0 {
+                //                     let line = msg.message.spans[0].line_start;
+                //                     eprintln!("The issue message was {:?}", msg.message.message);
+                //                     if let Some(range_data) = source_map.get_range_for_line(line) {
+                //                         eprintln!("The original token that caused it: {:?}", range_data.token);
+                //                     }
+                //                 }
+                //             }
+                //         },
+                //         _ => {}
+                //     }
+                // }
+            }
+
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
@@ -2066,18 +2096,15 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                         .to_str()
                         .unwrap(),
                 )
-                .env("PAX_DIR", &pax_dir);
-                //.stdout(std::process::Stdio::inherit())
-                //.stderr(std::process::Stdio::inherit());
+                .env("PAX_DIR", &pax_dir)
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit());
 
             if is_release {
                 cmd.arg("--release");
             } else {
                 cmd.arg("--dev");
             }
-
-            cmd.arg("--message-format=json");
-
             #[cfg(unix)]
             unsafe {
                 cmd.pre_exec(pre_exec_hook);
@@ -2088,18 +2115,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             // Execute wasm-pack build
             let output = wait_with_output(&process_child_ids, child);
             if !output.status.success() {
-                eprintln!("Failed to build project with wasm-pack. Aborting.");
-    
-                // Capture the stdout as a String
-                let stdout_str = String::from_utf8_lossy(&output.stdout);
-            
-                // Parse the stdout string as JSON
-                let json_result: serde_json::Value = serde_json::from_str(&stdout_str)
-                    .expect("Failed to parse JSON output");
-            
-                // Now you can work with the json_result
-                println!("{:#?}", json_result);
-            
+                return Err(eyre!("Failed to build project with wasm-pack. Aborting."));
             }
 
             // Copy assets
@@ -2108,16 +2124,14 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             // Create target assets directory
             if let Err(e) = fs::create_dir_all(&asset_dest) {
-                eprintln!("Error creating directory {:?}: {}", asset_dest, e);
-                return Err(());
+                return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
             }
 
             // Check if the asset_src directory exists before attempting the copy
             if asset_src.exists() {
                 // Perform recursive copy from userland `assets/` to built `assets/`
                 if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
-                    eprintln!("Error copying assets: {}", e);
-                    return Err(());
+                    return Err(eyre!("Error copying assets: {}", e));
                 }
             }
 

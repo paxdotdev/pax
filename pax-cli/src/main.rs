@@ -12,9 +12,12 @@ mod http;
 
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
+use color_eyre::eyre::Result;
+use color_eyre::eyre::Report;
 
 /// `pax-cli` entrypoint
-fn main() -> Result<(), ()> {
+fn main() -> Result<(), Report> {
+    let _ = color_eyre::install();
 
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
@@ -133,19 +136,20 @@ fn main() -> Result<(), ()> {
                 Arc::clone(&cloned_version_info),
                 Arc::clone(&cloned_process_child_ids),
                 is_libdev_mode,
+                true
             );
         }
     });
 
     let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
-    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode);
+    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
     res
 }
 
 fn perform_nominal_action(
     matches: ArgMatches<'_>,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Result<(), ()> {
+) -> Result<(), Report> {
     match matches.subcommand() {
         ("run", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -153,7 +157,7 @@ fn perform_nominal_action(
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
 
-            pax_compiler::perform_build(&RunContext {
+            let res = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 verbose,
@@ -161,7 +165,8 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release: false,
-            })
+            });
+            res
         }
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -237,6 +242,7 @@ fn perform_cleanup(
     new_version_info: Arc<Mutex<Option<String>>>,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     is_libdev_mode: bool,
+    force_end_process: bool,
 ) {
     //1. kill any running child processes
     if let Ok(process_child_ids_lock) = process_child_ids.lock() {
@@ -311,8 +317,9 @@ fn perform_cleanup(
             }
         }
     }
-
-    process::exit(0);
+    if force_end_process {
+        process::exit(0);
+    }
 }
 
 #[cfg(unix)]
