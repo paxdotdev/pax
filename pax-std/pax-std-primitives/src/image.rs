@@ -28,7 +28,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
         self.instance_id
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
@@ -74,7 +74,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
         self.common_properties.compute_properties(rtc);
     }
 
-    fn compute_native_patches(
+    fn handle_native_patches(
         &mut self,
         rtc: &mut RenderTreeContext<R>,
         _computed_size: (f64, f64),

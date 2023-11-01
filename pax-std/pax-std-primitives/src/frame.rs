@@ -74,7 +74,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         Layer::DontCare
     }
 
-    fn compute_native_patches(
+    fn handle_native_patches(
         &mut self,
         rtc: &mut RenderTreeContext<R>,
         computed_size: (f64, f64),
@@ -136,7 +136,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         }
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.primitive_children)
     }
 

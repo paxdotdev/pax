@@ -55,7 +55,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance {
         ret
     }
 
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         // if let Some(boolean_expression) =
         //     ptc.compute_vtable_value(self.boolean_expression._get_vtable_id())
         // {
@@ -87,7 +87,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance {
     fn is_invisible_to_slot(&self) -> bool {
         true
     }
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         // if *self.boolean_expression.get() {
         //     Rc::clone(&self.true_branch_children)
         // } else {
@@ -95,12 +95,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance {
         // }
         todo!()
     }
-    fn get_size(&self) -> Option<(Size, Size)> {
-        None
-    }
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        bounds
-    }
+    // fn get_size(&self) -> Option<(Size, Size)> {
+    //     None
+    // }
+    // fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+    //     bounds
+    // }
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
