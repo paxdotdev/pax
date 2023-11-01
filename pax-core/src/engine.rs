@@ -10,7 +10,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex, Axis};
 
-use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext};
+use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext, recurse_compute_properties};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -38,6 +38,8 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub scroller_stack: Vec<Vec<u32>>,
     /// A pointer to the current expanded node, the atomic unit of traversal when rendering.
     pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
+    /// A pointer to the current expanded node, the atomic unit of traversal when rendering.
+    pub current_instance_node: InstanceNodePtr<R>,
 
 }
 
@@ -236,6 +238,9 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// this one.  Used for e.g. event propagation.
     parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
+    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
+    children_expanded_nodes: Vec<Weak<RefCell<ExpandedNode<R>>>>,
+
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
     instance_node: InstanceNodePtr<R>,
 
@@ -257,7 +262,11 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
 
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+    pub fn append_child(&mut self, child: Rc<RefCell<ExpandedNode<R>>>) {
+        self.children_expanded_nodes.push(Rc::downgrade(&child));
+    }
+
+    pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
         //need to refactor signature and pass in id_chain + either rtc + registry or just registry
         Rc::clone(&self.computed_properties)
     }
@@ -277,11 +286,11 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             return false;
         }
 
-        let inverted_transform = tab.transform.inverse();
+        let inverted_transform = self.tab.transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
-        let relevant_bounds = match tab.clipping_bounds {
-            None => tab.bounds,
+        let relevant_bounds = match self.tab.clipping_bounds {
+            None => self.tab.bounds,
             Some(cp) => cp,
         };
 
@@ -302,13 +311,13 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     /// doesn't have a size (e.g. `Group`)
     pub fn get_size(&self) -> Option<(Size, Size)> {
         Some((
-            self.get_common_properties()
+            self.get_common_properties().borrow()
                 .width
                 .as_ref()
                 .borrow()
                 .get()
                 .clone(),
-            self.get_common_properties()
+            self.get_common_properties().borrow()
                 .height
                 .as_ref()
                 .borrow()
@@ -736,6 +745,8 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
         values
     }
 
+    /// Remove an instance from the instance_node_map.  This roughly only decrements the `Rc` surrounding
+    /// the instance and is exposed to enable complete deletion of an Rc where the final reference may have been in the instance_node_map.
     pub fn deregister(&mut self, instance_id: u32) {
         self.instance_node_map.remove(&instance_id);
     }
@@ -765,6 +776,10 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     }
 }
 
+
+/// Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
+/// Contains all rendering and runtime logic.
+///
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
         main_component_instance: Rc<RefCell<ComponentInstance<R>>>,
@@ -788,7 +803,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    fn traverse_render_tree(
+    /// Enact primary workhorse methods of a tick:
+    /// 1. Compute properties recursively, expanding control flow and storing computed properties in `ExpandedNodes`.
+    /// 2. Render the computed `ExpandedNode`s.
+    fn compute_properties_and_render(
         &self,
         rcs: &mut HashMap<String, R>,
     ) -> Vec<NativeMessage> {
@@ -801,9 +819,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     b. start rendering, from lowest node on-up
 
         let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
-
         let mut z_index = ZIndex::new(None);
 
+        // COMPUTE PROPERTIES
         let mut ptc = PropertiesTreeContext {
             native_message_queue: Default::default(),
             timeline_playhead_position: 0,
@@ -814,9 +832,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_expanded_node: None,
             parent_expanded_node: None,
         };
+        let root_expanded_node = recurse_compute_properties(&mut ptc);
 
-
-
+        // RENDER
         let mut rtc = RenderTreeContext {
             engine: &self,
             transform_global: Affine::default(),
@@ -824,19 +842,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_tab.bounds,
             clipping_stack: vec![],
             scroller_stack: vec![],
-            current_containing_component: Rc::clone(&root_component_instance),
-            current_containing_component_slot_children: Rc::clone(
-                &root_component_instance.borrow().get_slot_children().unwrap(),
-            ),
-            current_instance_node: Rc::clone(&root_component_instance),
-            parent_expanded_node: None,
-            current_expanded_node: None,
+            current_expanded_node: Rc::clone(&root_expanded_node),
+            current_instance_node: Rc::clone(&root_expanded_node.borrow().instance_node)
         };
 
         self.recurse_render(
             &mut rtc,
             rcs,
-            Rc::clone(&root_component_instance),
             &mut z_index,
             false,
         );
@@ -852,7 +864,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     fn manage_handlers_pre_render(rtc: &mut RenderTreeContext<R>) {
         //fire `pre_render` handlers
         let node = Rc::clone(&rtc.current_expanded_node);
-        let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
+        let registry = (*rtc.current_expanded_node).borrow().instance_node.borrow().get_handler_registry();
         if let Some(registry) = registry {
             for handler in (*registry).borrow().pre_render_handlers.iter() {
                 handler(
@@ -865,25 +877,28 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     /// Helper method to fire `mount` event if this is this node's first frame
     /// Note that this must happen after initial `compute_properties`, which performs the
-    /// necessary side-effect of creating the `self` that must be passed to handlers
+    /// necessary side-effect of creating the `self` that must be passed to handlers.
+
     fn manage_handlers_mount(rtc: &mut RenderTreeContext<R>) {
         {
-            let id = (*rtc.current_instance_node).borrow().get_instance_id();
+            // let id = (*rtc.current_expanded_node).borrow().instance_node.borrow().get_instance_id();
             let mut node_registry = (*rtc.engine.node_registry).borrow_mut();
+            //
+            // //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
+            // let mut repeat_indices = (*rtc.engine.runtime)
+            //     .borrow()
+            //     .get_list_of_repeat_indicies_from_stack();
+            // let id_chain = {
+            //     let mut i = vec![id];
+            //     i.append(&mut repeat_indices);
+            //     i
+            // };
 
-            //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
-            let mut repeat_indices = (*rtc.engine.runtime)
-                .borrow()
-                .get_list_of_repeat_indicies_from_stack();
-            let id_chain = {
-                let mut i = vec![id];
-                i.append(&mut repeat_indices);
-                i
-            };
+            let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
             if !node_registry.is_mounted(&id_chain) {
                 //Fire primitive-level mount lifecycle method
-                let node = Rc::clone(&rtc.current_instance_node);
-                node.borrow_mut().handle_mount(rtc, rtc.current_z_index);
+                let mut instance_node = Rc::clone(&rtc.current_instance_node);
+                instance_node.borrow_mut().handle_mount(rtc, rtc.current_expanded_node.borrow().z_index);
 
                 //Fire registered mount events
                 let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
@@ -892,7 +907,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     //on instance in order to dispatch cartridge method
                     for handler in (*registry).borrow().mount_handlers.iter() {
                         handler(
-                            node.borrow_mut().get_properties(),
+                            rtc.current_expanded_node.borrow_mut().get_properties(),
                             rtc.distill_userland_node_context(),
                         );
                     }
@@ -906,7 +921,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         &self,
         rtc: &mut RenderTreeContext<R>,
         rcs: &mut HashMap<String, R>,
-        node: InstanceNodePtr<R>,
         z_index_info: &mut ZIndex,
         marked_for_unmount: bool,
     ) {
@@ -920,58 +934,59 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let accumulated_transform = rtc.transform_global;
         let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
         let accumulated_bounds = rtc.bounds;
+        let node = Rc::clone(&rtc.current_expanded_node);
 
-        //populate a pointer to this (current) `RenderNode` onto `rtc`
-        rtc.current_instance_node = Rc::clone(&node);
+
+        rtc.current_instance_node = Rc::clone(&node.borrow().instance_node);
+
         //populate current_z_index to `rtc`
-        let node_type = node.borrow_mut().get_layer_type();
-
-        z_index_info.update_z_index(node_type.clone());
-        rtc.current_z_index = z_index_info.get_level();
+        // let layer_type = node.borrow_mut().get_layer_type();
+        // z_index_info.update_z_index(layer_type.clone());
+        // rtc.current_z_index = z_index_info.get_level();
 
         //Compute properties:
         // If this node is a component:
         //    Kick off a recursive evaluation of properties for all nodes in this component's template
         //    Otherwise, presume we have already computed properties in the process of recursively evaluating the containing component's properties, and proceed with rendering
-        {
-            let mut node_borrowed = node.borrow_mut();
-            if let NodeType::Component = node_borrowed.get_node_type() {
-                rtc.current_containing_component = Rc::clone(&node);
-                rtc.current_containing_component_slot_children =
-                    node_borrowed.get_slot_children().unwrap();
-
-                node_borrowed.handle_pre_compute_properties(rtc);
-                //Note that we do NOT compute properties on the component root itself.
-                //Its properties have already been computed in the context of its containing component.
-                let template_children = node_borrowed.get_instance_children();
-                for template_child in (*template_children).borrow().iter() {
-                    self.compute_properties_recursive(rtc, Rc::clone(template_child));
-                }
-
-                node_borrowed.handle_post_compute_properties(rtc);
-            }
-        }
+        // {
+        //     let mut node_borrowed = node.borrow_mut();
+        //     if let NodeType::Component = node_borrowed.get_node_type() {
+        //         rtc.current_containing_component = Rc::clone(&node);
+        //         rtc.current_containing_component_slot_children =
+        //             node_borrowed.get_slot_children().unwrap();
+        //
+        //         node_borrowed.handle_pre_compute_properties(rtc);
+        //         //Note that we do NOT compute properties on the component root itself.
+        //         //Its properties have already been computed in the context of its containing component.
+        //         let template_children = node_borrowed.get_instance_children();
+        //         for template_child in (*template_children).borrow().iter() {
+        //             self.compute_properties_recursive(rtc, Rc::clone(template_child));
+        //         }
+        //
+        //         node_borrowed.handle_post_compute_properties(rtc);
+        //     }
+        // }
 
         Self::manage_handlers_mount(rtc);
 
         //scroller IDs are used by chassis, for identifying native scrolling containers
-        let scroller_ids = (*rtc.engine.runtime).borrow().get_current_scroller_ids();
+        let scroller_ids = rtc.get_current_scroller_ids();
         let scroller_id = match scroller_ids.last() {
             None => None,
             Some(v) => Some(v.clone()),
         };
-        let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), rtc.current_z_index);
+        let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), rtc.current_expanded_node.borrow().z_index);
 
         //peek at the current stack frame and set a scoped playhead position as needed
-        match rtc.peek_stack_frame() {
-            Some(stack_frame) => {
-                rtc.timeline_playhead_position = stack_frame
-                    .borrow_mut()
-                    .get_timeline_playhead_position()
-                    .clone();
-            }
-            None => (),
-        }
+        // match rtc.peek_stack_frame() {
+        //     Some(stack_frame) => {
+        //         rtc.timeline_playhead_position = stack_frame
+        //             .borrow_mut()
+        //             .get_timeline_playhead_position()
+        //             .clone();
+        //     }
+        //     None => (),
+        // }
 
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
@@ -979,15 +994,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let new_accumulated_bounds = node
             .borrow_mut()
             .compute_size_within_bounds(accumulated_bounds);
+
         #[allow(unused)]
         let mut node_size: (f64, f64) = (0.0, 0.0);
 
         // From the `transform` property
         let node_transform_property_computed = {
-            let node_borrowed = rtc.current_instance_node.borrow_mut();
+            let node_borrowed = rtc.current_expanded_node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let computed_transform2d_matrix = node_borrowed
-                .get_common_properties()
+                .get_common_properties().borrow()
                 .transform
                 .borrow_mut()
                 .get()
@@ -999,8 +1015,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
         let desugared_transform = {
             //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-            let node_borrowed = rtc.current_instance_node.borrow();
-            let cp = node_borrowed.get_common_properties();
+            let node_borrowed = rtc.current_expanded_node.borrow();
+            let cp = node_borrowed.get_common_properties().borrow();
             let mut desugared_transform2d = Transform2D::default();
 
             let translate = [
@@ -1085,7 +1101,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         Self::manage_handlers_pre_render(rtc);
 
         //create the `expanded_node` for the current node
-        let rendering_children = node.borrow_mut().get_instance_children();
+        let rendering_children = &node.borrow_mut().children_expanded_nodes;
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let clipping = node
             .borrow_mut()
@@ -1330,7 +1346,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// Workhorse method to advance rendering and property calculation by one discrete tick
     /// Will be executed synchronously up to 240 times/second.
     pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-        let native_render_queue = self.traverse_render_tree(rcs);
+        let native_render_queue = self.compute_properties_and_render(rcs);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }
