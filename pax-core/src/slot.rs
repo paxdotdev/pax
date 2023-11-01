@@ -20,16 +20,16 @@ use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 /// the outside.  Inside Stacker's template, there are a number of Slots — this primitive —
 /// that become the final rendered home of those slot_children.  This same technique
 /// is portable and applicable elsewhere via Slot.
-pub struct SlotInstance<R: 'static + RenderContext> {
+pub struct SlotInstance {
     pub instance_id: u32,
-    pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
-    cached_computed_children: InstanceNodePtrList<R>,
+    // pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
+    // cached_computed_children: InstanceNodePtrList<R>,
 
     instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
+impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
 
     fn get_instance_id(&self) -> u32 {
         self.instance_id
@@ -44,8 +44,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
             instance_id,
             instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
             instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
-            index: args.slot_index.expect("index required for Slot"),
-            cached_computed_children: Rc::new(RefCell::new(vec![])),
+            // index: args.slot_index.expect("index required for Slot"),
+            // cached_computed_children: Rc::new(RefCell::new(vec![])),
         }));
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
@@ -53,26 +53,28 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
 
 
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-        self.cached_computed_children = if let Some(sc) = rtc.current_containing_component.borrow().get_slot_children() {
-            flatten_slot_invisible_nodes_recursive(sc)
-        } else {
-            Rc::new(RefCell::new(vec![]))
-        }
+        // self.cached_computed_children = if let Some(sc) = rtc.current_containing_component.borrow().get_slot_children() {
+        //     flatten_slot_invisible_nodes_recursive(sc)
+        // } else {
+        //     Rc::new(RefCell::new(vec![]))
+        // }
     }
 
+
+    /// Slot has strictly zero instance_children, but will likely have ExpandedNode children
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::clone(&self.cached_computed_children)
+        Rc::new(RefCell::new(vec![]))
     }
 
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        if let Some(index) = ptc.compute_vtable_value(self.index._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Numeric(v) = index {
-                v
-            } else {
-                unreachable!()
-            };
-            self.index.set(new_value);
-        }
+        // if let Some(index) = ptc.compute_vtable_value(self.index._get_vtable_id()) {
+        //     let new_value = if let TypesCoproduct::Numeric(v) = index {
+        //         v
+        //     } else {
+        //         unreachable!()
+        //     };
+        //     self.index.set(new_value);
+        // }
 
         todo!()
     }
