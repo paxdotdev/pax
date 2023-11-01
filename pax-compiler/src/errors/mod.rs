@@ -66,8 +66,12 @@ impl fmt::Display for PaxTemplateError {
 
             // Check if there's a source_line and underline the issue in red
             if let Some(source_line) = &self.token.source_line {
-                let underline = " ".repeat(loc.start_line_col.1) + 
-                                &"^".repeat((loc.end_line_col.1 - loc.start_line_col.1).max(1));
+                let underline_len = if loc.start_line_col.1 <= loc.end_line_col.1 {
+                    (loc.end_line_col.1 - loc.start_line_col.1).max(1)
+                } else {
+                    1
+                };
+                let underline = " ".repeat(loc.start_line_col.1) + &"^".repeat(underline_len);
                 write!(f, "\n{}", source_line)?;
                 write!(f, "\n{}", underline.red())?;
             }
