@@ -81,7 +81,7 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance
         {% if handler.source_map_start_marker %}
             {{handler.source_map_start_marker}}
         {% endif %}
-         {%- if key.content in ['will_render','did_mount'] -%}
+         {%- if entry.0.content in ['will_render','did_mount'] -%}
              |properties, ctx|{
              let properties = &mut *properties.as_ref().borrow_mut();
              let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
