@@ -1,9 +1,9 @@
-use std::{fmt::{self, Display}, error::Error};
+use std::{fmt::{self}, error::Error};
 use cargo_metadata::{Message, diagnostic::DiagnosticLevel};
 use colored::*;
 use std::io::Cursor;
 use std::io::BufReader;
-use color_eyre::eyre::{self, WrapErr, Report, eyre};
+use color_eyre::eyre::{self, Report, eyre};
 use color_eyre::Result;
 use std::process::Output;
 use regex::Regex;
@@ -13,6 +13,8 @@ use crate::manifest::{Token, TokenType};
 
 use self::source_map::SourceMap;
 
+/// PaxTemplateError is a custom error type used to template errors in a user-friendly way.
+/// It makes use of the source_map to display the error location in the original template.
 
 #[derive(Debug)]
 pub struct PaxTemplateError {
@@ -111,7 +113,7 @@ pub fn process_messages(output: Output, source_map: &SourceMap) -> Result<(), Re
 
 // Transforms the rust trait message from underlying code gen into relevant user-facing error
 fn transform_error_message(error: String) -> String {
-    // Typical type mismatch error given by rust c
+    // Typical type mismatch error given by rustc
     let re = Regex::new(r"the trait bound `([^:]+)::([^:]+): From<([^:]+)::([^>]+)>` is not satisfied").unwrap();
 
     if let Some(captures) = re.captures(&error) {

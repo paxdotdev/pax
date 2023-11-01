@@ -160,7 +160,7 @@ fn perform_nominal_action(
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
 
-            let res = pax_compiler::perform_build(&RunContext {
+            pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 verbose,
@@ -168,8 +168,7 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release: false,
-            });
-            res
+            })
         }
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
