@@ -1,4 +1,5 @@
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
+use color_eyre::config::HookBuilder;
 use colored::{ColoredString, Colorize};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
@@ -17,7 +18,9 @@ use color_eyre::eyre::Report;
 
 /// `pax-cli` entrypoint
 fn main() -> Result<(), Report> {
-    let _ = color_eyre::install();
+    HookBuilder::default()
+    .display_location_section(false) 
+    .install()?;
 
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));

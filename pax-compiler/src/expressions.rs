@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use std::slice::IterMut;
 
+use crate::errors::PaxTemplateError;
 use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable, Token};
 use crate::parsing::escape_identifier;
 use crate::errors::source_map::SourceMap;
@@ -159,13 +160,13 @@ fn merge_inline_settings_with_settings_block(
 }
 
 fn recurse_compile_literal_block<'a>(
-    settings_pairs: IterMut<(Token, ValueDefinition)>,
+    settings_pairs: &mut IterMut<(Token, ValueDefinition)>,
     ctx: &mut ExpressionCompilationContext,
     current_property_definitions: Vec<PropertyDefinition>,
     type_id: String,
     source_map: &mut SourceMap,
-) {
-    settings_pairs.for_each(|pair| {
+) -> Result<(), eyre::Report>{
+    settings_pairs.try_for_each(|pair| {
         match &mut pair.1 {
             // LiteralValue:       no need to compile literal values
             // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
@@ -174,24 +175,24 @@ fn recurse_compile_literal_block<'a>(
                 let type_def = (current_property_definitions
                     .iter()
                     .find(|property_def| property_def.name == pair.0.token_value))
-                .expect(&format!(
-                    "Property `{}` not found on `{}`",
-                    &pair.0.token_value, type_id
-                ))
-                .get_type_definition(ctx.type_table);
-                recurse_compile_literal_block(
-                    block.settings_key_value_pairs.iter_mut(),
-                    ctx,
-                    type_def.property_definitions.clone(),
-                    type_def.type_id_escaped.clone(),
-                    source_map,
-                );
+                    .ok_or::<eyre::Report>(
+                        PaxTemplateError::new(Some(format!("Property `{}` not found on `{}`", &pair.0.token_value, type_id))
+                                            ,pair.0.clone())
+                    )?
+                    .get_type_definition(ctx.type_table);
+                    recurse_compile_literal_block(
+                        &mut block.settings_key_value_pairs.iter_mut(),
+                        ctx,
+                        type_def.property_definitions.clone(),
+                        type_def.type_id_escaped.clone(),
+                        source_map,
+                    )?;
             }
             ValueDefinition::Expression(input, manifest_id) => {
                 // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                 let id = ctx.uid_gen.next().unwrap();
 
-                let (output_statement, invocations) = compile_paxel_to_ril(&input.token_value, &ctx);
+                let (output_statement, invocations) = compile_paxel_to_ril(input.clone(), &ctx)?;
 
                 let pascalized_return_type = if let Some(type_string) = BUILTIN_TYPES
                     .iter()
@@ -203,10 +204,10 @@ fn recurse_compile_literal_block<'a>(
                     (current_property_definitions
                         .iter()
                         .find(|property_def| property_def.name == pair.0.token_value)
-                        .expect(&format!(
-                            "Property `{}` not found on component `{}`",
-                            &pair.0.token_value, type_id
-                        ))
+                        .ok_or::<eyre::Report>(
+                            PaxTemplateError::new(Some(format!("Property `{}` not found on `{}`", &pair.0.token_value, type_id))
+                                                ,pair.0.clone())
+                        )?
                         .get_type_definition(ctx.type_table)
                         .type_id_escaped)
                         .clone()
@@ -250,7 +251,7 @@ fn recurse_compile_literal_block<'a>(
 
                     //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
                     //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier.token_value, &ctx);
+                    let (output_statement, invocations) = compile_paxel_to_ril(identifier.clone(), &ctx)?;
 
                     let source_map_id = source_map.insert(identifier.clone());
                     let input_statement = source_map.generate_mapped_string( identifier.token_value.clone(), source_map_id);
@@ -283,7 +284,9 @@ fn recurse_compile_literal_block<'a>(
                 unreachable!()
             }
         }
-    })
+        Ok::<(), eyre::Report>(())
+    })?;
+    Ok(())
 }
 
 fn recurse_compile_expressions<'a>(
@@ -314,12 +317,12 @@ fn recurse_compile_expressions<'a>(
         }
 
         recurse_compile_literal_block(
-            inline_settings.iter_mut(),
+            &mut inline_settings.iter_mut(),
             &mut ctx,
             property_def.clone(),
             pascal_identifier,
             &mut source_map,
-        );
+        )?;
     } else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
         //Our purpose here is broadly twofold:
@@ -355,7 +358,7 @@ fn recurse_compile_expressions<'a>(
                 )
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let inner_iterable_type_id = ctx
-                    .resolve_symbol_as_prop_def(&symbolic_binding.token_value)
+                    .resolve_symbol_as_prop_def(&symbolic_binding.token_value, symbolic_binding.clone())?
                     .unwrap()
                     .last()
                     .unwrap()
@@ -382,7 +385,7 @@ fn recurse_compile_expressions<'a>(
             //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
             //This is because we are inferring the return type of this expression based on the declared-and-known
             //type of property `self.foo`
-            let (output_statement, invocations) = compile_paxel_to_ril(&paxel.token_value, &ctx);
+            let (output_statement, invocations) = compile_paxel_to_ril(paxel.clone(), &ctx)?;
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
@@ -425,8 +428,11 @@ fn recurse_compile_expressions<'a>(
                             &repeat_source_definition.symbolic_binding
                         {
                             let pd = ctx
-                                .resolve_symbol_as_prop_def(&symbolic_binding.token_value)
-                                .expect(&format!("Property not found: {}", symbolic_binding.token_value))
+                                .resolve_symbol_as_prop_def(&symbolic_binding.token_value, symbolic_binding.clone())?
+                                .ok_or::<eyre::Report>(
+                                    PaxTemplateError::new(Some(format!("Property not found: {}", symbolic_binding.token_value))
+                                                        ,symbolic_binding.clone())
+                                )?
                                 .last()
                                 .unwrap()
                                 .clone();
@@ -497,7 +503,7 @@ fn recurse_compile_expressions<'a>(
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
             let (output_statement, invocations) =
-                compile_paxel_to_ril(&condition_expression_paxel.token_value, &ctx);
+                compile_paxel_to_ril(condition_expression_paxel.clone(), &ctx)?;
             let id = ctx.uid_gen.next().unwrap();
 
             cfa.condition_expression_vtable_id = Some(id);
@@ -523,7 +529,7 @@ fn recurse_compile_expressions<'a>(
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
             let (output_statement, invocations) =
-                compile_paxel_to_ril(&slot_index_expression_paxel.token_value, &ctx);
+                compile_paxel_to_ril(slot_index_expression_paxel.clone(), &ctx)?;
             let id = ctx.uid_gen.next().unwrap();
 
             cfa.slot_index_expression_vtable_id = Some(id);
@@ -595,14 +601,17 @@ fn recurse_compile_expressions<'a>(
 fn resolve_symbol_as_invocation(
     sym: &str,
     ctx: &ExpressionCompilationContext,
-) -> ExpressionSpecInvocation {
+    token: Token
+) -> Result<ExpressionSpecInvocation, eyre::Report> {
     //Handle built-ins, like $container
     if BUILTIN_MAP.contains_key(sym) {
         unimplemented!("Built-ins like $bounds are not yet supported")
     } else {
         let prop_def_chain = ctx
-            .resolve_symbol_as_prop_def(&sym)
-            .expect(&format!("symbol not found: {}", &sym));
+            .resolve_symbol_as_prop_def(&sym, token.clone())?
+            .ok_or::<eyre::Report>(
+                PaxTemplateError::new(Some(format!("symbol not found: {}", &sym)), token.clone())
+            )?;
 
         let nested_prop_def = prop_def_chain.last().unwrap();
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
@@ -642,7 +651,9 @@ fn resolve_symbol_as_invocation(
 
         let stack_offset = found_depth.unwrap();
 
-        let found_val = found_val.expect(&format!("Property not found {}", sym));
+        let found_val = found_val.ok_or::<eyre::Report>(
+            PaxTemplateError::new(Some(format!("Property not found {}", sym)), token.clone())
+        )?;
         let property_flags = found_val.flags;
         let property_properties_coproduct_type = &root_prop_def
             .get_type_definition(ctx.type_table)
@@ -665,7 +676,7 @@ fn resolve_symbol_as_invocation(
             nested_symbol_tail_literal += ".clone()"
         }
 
-        ExpressionSpecInvocation {
+        Ok(ExpressionSpecInvocation {
             root_identifier,
             is_numeric: ExpressionSpecInvocation::is_numeric(&property_properties_coproduct_type),
             is_bool: ExpressionSpecInvocation::is_primitive_bool(
@@ -681,28 +692,36 @@ fn resolve_symbol_as_invocation(
             property_flags,
             nested_symbol_tail_literal,
             is_nested_numeric,
-        }
+        })
     }
 }
 
 /// Returns (RIL string, list of invocation specs for any symbols used)
 fn compile_paxel_to_ril<'a>(
-    paxel: &str,
+    paxel: Token,
     ctx: &ExpressionCompilationContext<'a>,
-) -> (String, Vec<ExpressionSpecInvocation>) {
+) -> Result<(String, Vec<ExpressionSpecInvocation>), eyre::Report> {
     //1. run Pratt parser; generate output RIL and collected symbolic_ids
-    let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(paxel);
+    let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(&paxel.token_value);
 
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
-    let invocations = symbolic_ids
-        .iter()
-        .map(|sym| resolve_symbol_as_invocation(&sym.trim(), ctx))
-        .unique_by(|esi| esi.escaped_identifier.clone())
-        .sorted_by(|esi0, esi1| esi0.escaped_identifier.cmp(&esi1.escaped_identifier))
-        .collect();
+    let invocations_result: Result<Vec<_>, _> = symbolic_ids
+    .iter()
+    .map(|sym| resolve_symbol_as_invocation(&sym.trim(), ctx, paxel.clone()))
+    .collect();
+
+    let invocations = match invocations_result {
+        Ok(mut invocations) => {
+            invocations.sort_by(|esi0, esi1| esi0.escaped_identifier.cmp(&esi1.escaped_identifier));
+            invocations.dedup_by(|esi0, esi1| esi0.escaped_identifier == esi1.escaped_identifier);
+            invocations
+        },
+        Err(e) => return Err(e), 
+    };
+
 
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
-    (output_string, invocations)
+    Ok((output_string, invocations))
 }
 
 pub struct ExpressionCompilationContext<'a> {
@@ -763,7 +782,7 @@ impl<'a> ExpressionCompilationContext<'a> {
     /// traverse the self-attached `scope_stack`
     /// and return a copy of the related `PropertyDefinition`, if found.
     /// For
-    pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<Vec<PropertyDefinition>> {
+    pub fn resolve_symbol_as_prop_def(&self, symbol: &str, token: Token) -> Result<Option<Vec<PropertyDefinition>>, eyre::Report> {
         let split_symbols = clean_and_split_symbols(symbol);
         let mut split_symbols = split_symbols.iter();
 
@@ -794,23 +813,25 @@ impl<'a> ExpressionCompilationContext<'a> {
         };
 
         // handle nested symbols like `foo.bar`.
-        root_symbol_pd.map(|root_symbol_pd| {
+        if let Some(root_symbol_pd) = root_symbol_pd {
             let mut ret = vec![root_symbol_pd];
             for atomic_symbol in split_symbols {
                 let td = ret.last().unwrap().get_type_definition(self.type_table);
-                //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
-                let next_pd = td
-                    .property_definitions
-                    .iter()
+                // return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
+                let next_pd = td.property_definitions.iter()
                     .find(|pd| pd.name == *atomic_symbol)
-                    .expect(&format!(
-                        "Unable to resolve nested symbol `{}` while evaluating `{}`.",
-                        atomic_symbol, symbol
-                    ))
+                    .ok_or::<eyre::Report>(
+                        PaxTemplateError::new(Some(format!(
+                            "Unable to resolve nested symbol `{}` while evaluating `{}`.",
+                            atomic_symbol, symbol
+                        )), token.clone())
+                    )?
                     .clone();
                 ret.push(next_pd);
             }
-            ret
-        })
+            Ok(Some(ret))
+        } else {
+            Ok(None)
+        }
     }
 }
