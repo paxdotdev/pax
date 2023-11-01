@@ -6,9 +6,9 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RangeData {
-    end: usize,
-    id: usize,
-    token: Token,
+    pub end: usize,
+    pub id: usize,
+    pub token: Token,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,7 +61,7 @@ impl SourceMap {
         let start_regex = Regex::new(r"/\* source_map_start_(\d+) \*/").unwrap();
         let end_regex = Regex::new(r"/\* source_map_end_(\d+) \*/").unwrap();
     
-        let mut start_positions: HashMap<usize, (usize, usize)> = HashMap::new();
+        let mut start_positions: HashMap<usize, usize> = HashMap::new();
         let mut processed_content = String::new();
     
         for (line_num, res) in reader.lines().enumerate() {
@@ -70,7 +70,7 @@ impl SourceMap {
             
             if let Some(captures) = start_regex.captures(&line) {
                 let id: usize = captures[1].parse().unwrap();
-                let start_pos = (line_num + 1, line.find(&captures[0]).unwrap() + 1);
+                let start_pos = line_num + 1;
                 start_positions.insert(id, start_pos);
                 line_processed = line_processed.replace(&captures[0], "");
             }
@@ -78,10 +78,10 @@ impl SourceMap {
             if let Some(captures) = end_regex.captures(&line) {
                 let id: usize = captures[1].parse().unwrap();
                 if let Some(start_pos) = start_positions.remove(&id) {
-                    let end_pos = (line_num + 1, line.find(&captures[0]).unwrap() + 1);
+                    let end_pos = line_num + 1;
                     let token = self.sources.get(&id).cloned().unwrap_or_else(|| Token::default());
-                    let range_data = RangeData { end: end_pos.1, id, token };
-                    self.ranges.insert(start_pos.1, range_data);
+                    let range_data = RangeData { end: end_pos, id, token };
+                    self.ranges.insert(start_pos, range_data);
                 }
                 line_processed = line_processed.replace(&captures[0], "");
             }
@@ -92,5 +92,14 @@ impl SourceMap {
     
         let mut file = OpenOptions::new().write(true).truncate(true).open(file_path).expect("Failed to open file in write mode");
         write!(file, "{}", processed_content).expect("Failed to write to file");
+    }
+
+    pub fn get_range_for_line(&self, line: usize) -> Option<&RangeData> {
+        let (_, range) = self.ranges.range(..=line).next_back()?;
+        if line <= range.end {
+            Some(range)
+        } else {
+            None
+        }
     }
 }
