@@ -5,7 +5,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
 use pax_runtime_api::Timeline;
-use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry};
+use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, PaxEngine};
 
 /// Recursive workhorse method for computing properties.  Visits all instance nodes in tree, stitching
 /// together an expanded tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
@@ -34,7 +34,7 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     // Read more about slot children at [`InstanceNode#get_slot_children`]
     if let Some(slot_children) = node_borrowed.get_slot_children() {
         for child in (*slot_children).borrow().iter() {
-            let child_expanded_node = recurse_compute_properties(ptc, Rc::clone(child));
+            let child_expanded_node = recurse_compute_properties(ptc);
             this_expanded_node.borrow_mut().append_child(child_expanded_node);
         }
     }
@@ -56,7 +56,9 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 }
 
 /// Shared context for properties pass recursion
-pub struct PropertiesTreeContext<R: 'static + RenderContext> {
+pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
+
+    pub engine: &'a PaxEngine<R>,
     /// Queue for native "CRUD" message (e.g. TextCreate), populated during properties
     /// computation and passed across native bridge each tick after canvas rendering
     pub native_message_queue: VecDeque<NativeMessage>,
@@ -75,9 +77,11 @@ pub struct PropertiesTreeContext<R: 'static + RenderContext> {
     pub current_expanded_node: Option<Rc<RefCell<ExpandedNode<R>>>>,
     /// A pointer to the current expanded node's parent expanded node
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
+
+    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
 }
 
-impl<R: 'static + RenderContext> PropertiesTreeContext<R> {
+impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     // NOTE: this value could be cached on stackframes, registered & cached during engine rendertree traversal (specifically: when stackframes are pushed)
     //       This would make id_chain resolution essentially free, O(1) instead of O(log(n))
     //       Profile first to understand the impact before optimizing
@@ -105,7 +109,7 @@ impl<R: 'static + RenderContext> PropertiesTreeContext<R> {
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
+    pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         if self.runtime_properties_stack.len() > 0 {
             Some(Rc::clone(&self.runtime_properties_stack[&self.runtime_properties_stack.len() - 1]))
         } else {
@@ -146,9 +150,7 @@ impl<R: 'static + RenderContext> PropertiesTreeContext<R> {
     /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
     /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
     pub fn get_id_chain(&self, id: u32) -> Vec<u32> {
-        let mut indices = (*self.runtime)
-            .borrow()
-            .get_list_of_repeat_indicies_from_stack();
+        let mut indices = (&self.get_list_of_repeat_indicies_from_stack()).clone();
         indices.insert(0, id);
         indices
     }
@@ -160,7 +162,7 @@ impl<R: 'static + RenderContext> PropertiesTreeContext<R> {
                 let ec = ExpressionContext {
                     engine: self.engine,
                     stack_frame: Rc::clone(
-                        &(*self.runtime).borrow_mut().peek_stack_frame().unwrap(),
+                        &self.peek_stack_frame().unwrap(),
                     ),
                 };
                 return Some((**evaluator)(ec));
