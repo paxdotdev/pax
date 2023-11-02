@@ -4201,23 +4201,24 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [x] Rename dyn RenderNode => dyn InstanceNode
     [x] Move properties to ExpandedNodes
         [x] Also move `CommonProperties` into `ExpandedNode`
-    [ ] Refactor properties lookup: requires ID chain
-        [ ] Same with `get_common_properties`
-        [x] (?) Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
+    [x] Refactor properties lookup: requires awareness of expanded node / id_chain
+        [x] Same with `get_common_properties`
+        [x] Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
     [ ] Upsert `ExpandedNode` during `compute_properties_recursive`, along with computed properties "stamp".
         [x] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
-            [ ] Refactor one handler to figure out quite what this looks like on the handler side [maybe it just returns a PropertiesCoproduct instead??]
+            [x] Refactor one handler to figure out quite what this looks like on the handler side
             [ ] Refactor all remaining handlers to match
         [x] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
         [x] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
     [x] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
         Decision: move `get_properties` to ExpandedNode
-    [ ] Manage wrapping/unwrapping polymorphic properties (PropertiesCoproduct) via `get_properties` and individual `dyn InstanceNode`s
-        [ ] Decide how to manage shared mutability.  Probably we need to wrap in Rc<RefCell<>>, but 
+    [x] Manage wrapping/unwrapping polymorphic properties (PropertiesCoproduct) via `get_properties` and individual `dyn InstanceNode`s
+        [x] Decide how to manage shared mutability.  Probably we need to wrap in Rc<RefCell<>>, but 
             (1) this requires special handling with unsafe_unwrap! — especially, this introduces surface area for disappearing properties for any primitive that doesn't "repack" a PropertiesCoproduct after `taking` from the Rc<RefCell<>>.
                 this could be guard-railed with some sort of macro that takes, executes a block with the taken PropertiesCoproduct in scope, then repacks after the block
             (2) this also requires special handling around invoking userland event handlers, where `&mut self` _is_ a given properties stamp.  Essentially we will need to 
-                `take` from the Rc<RefCell<>>, then `replace` back in after the user has presumably mtuated it
+                `take` from the Rc<RefCell<>>, then `replace` back in after the user has presumably mutated it
+        [x] build `with_properties_unsafe` macro
 [x] Unplug most of pax_std to reduce iterative surface area
     [ ] Come back at the end, plug back in, and normalize the rest
 [ ] Handled prototypical / instantiation properties
@@ -4251,17 +4252,22 @@ Let's store a prototypical clone of the original properties on each InstanceNode
                 [ ] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
                     For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
                 [ ] Make sure we handle "is_invisible" (née flattening) correctly
-[ ] Refactor "component template frame" computation order; support recursing mid-frame
-    [ ] Handle slot children: compute properties first, before recursing into next component template subtree
+[x] Refactor "component template frame" computation order; support recursing mid-frame
+    [x] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
 [x] Refactor `did_` and `will_` naming conventions, drop where unnecessary (e.g. mount/unmount)
 [ ] Revisit cleanup children — may not be necessary in light of changes to properties compute, instances, and control-flow-internal-recursion of properties computation + node expansion
     [x] Start by ripping it out
     [ ] Come back and rebuild if/as needed
-[ ] Refactor unmounting to be id_chain-specific rather than instance_id specific
-    [ ] Refactor NodeRegistry
+[x] Refactor unmounting to be id_chain-specific rather than instance_id specific
+    [x] Refactor NodeRegistry
     [ ] Refactor lifecycle hooks/call site for unmounting
-[ ] Refactor `get_rendering_children` => `get_instance_children`, plus ensure there's a means of traversing expanded children
+        [ ] Revisit how we `mark_for_unmount`.  We currently special-case this inside Repeat and Conditional.  Rather than require Repeat and Conditional to deal with stateful caches / diffs
+            of their own subtrees, we could instead track the entire expanded tree.  If, after finishing properties computation, there's not an expanded node with
+            (this could vaguely be considered a garbage collector of sorts.  If an ExpandedNode isn't used any more, we manage unmount.  We might even be able to handle
+            this by hooking into `Drop` on `ExpandedNode`!  However, this would be error prone and require very careful management of ExpandedNode instances.  Probably
+            better to be explicit on this one, feels like "C++ operator overloading"-style footgunning.
+[x] Refactor `get_rendering_children` => `get_instance_children`, plus ensure there's a means of traversing expanded children
     Perhaps we just assume one ExpandedNode per visit of an InstanceNode (meaning we iterate+recurse through `get_instance_children` in `recurse_compute_properties`).  Then,
     the only places we get many or zero expandednodes is within Conditional + Repeat.
 [ ] Decide: `ExpandedNode` vs. `RealizedNode` vs ?
@@ -4275,3 +4281,8 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     (1) compute native patches is dependent on these calculations
     (2) intuitively, these are property calculations, and rendering could/should be a pure function of these (just like all other properties)
     (3) bounds / size / etc. will be members of dirty-dag, and knowing if they change will be important for evaluation thereof
+[ ] Manual testing 
+    [ ] all of the examples    
+    [ ] Test some of the broken code from userland, e.g. `pax_gol`
+    [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.  
+
