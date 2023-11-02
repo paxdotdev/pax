@@ -4242,6 +4242,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             sit on ExpandedNodes as PropertiesCoproduct, we either need to refactor control-flow properties to fit into PropertiesCoproduct (cleaner),
             or special-case control flow properties as Optional fields on ExpandedNodes (similar in shape to InstantiationArgs)
         [ ] Punch through the above refactor into codegen, templates, and specs
+            [ ] In particular, manage control flow + instantiation args; pack into PropertiesCoproduct instead of special flags
         [ ] Refactor internals of control-flow to be stateless + expansion-friendly, patching into the new PropertiesCoproduct variants:
             [ ] Repeat
                 [x] Remove ComponentInstance from Repeat
@@ -4252,6 +4253,10 @@ Let's store a prototypical clone of the original properties on each InstanceNode
                 [ ] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
                     For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
                 [ ] Make sure we handle "is_invisible" (née flattening) correctly
+[ ] Refactor scroller
+    [ ] Make instance node stateless
+    [ ] Handle instantiation args => PropertiesCoproduct
+    [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
 [x] Refactor "component template frame" computation order; support recursing mid-frame
     [x] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
@@ -4270,7 +4275,8 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [x] Refactor `get_rendering_children` => `get_instance_children`, plus ensure there's a means of traversing expanded children
     Perhaps we just assume one ExpandedNode per visit of an InstanceNode (meaning we iterate+recurse through `get_instance_children` in `recurse_compute_properties`).  Then,
     the only places we get many or zero expandednodes is within Conditional + Repeat.
-[ ] Decide: `ExpandedNode` vs. `RealizedNode` vs ?
+[-] Decide: `ExpandedNode` vs. `RealizedNode` vs `ComputedNode`
+    Expanded is pretty clear, even if imperfect vis-a-vis its relationship to InstanceNode 
 [ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
     [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
         [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
@@ -4286,3 +4292,109 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [ ] Test some of the broken code from userland, e.g. `pax_gol`
     [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.  
 
+
+
+### On computing properties + dirty DAG
+Nov 2 2023
+
+When we compute properties:
+
+handle_compute_properties is responsible for returning in `ExpandedNode`.
+that `ExpandedNode` either already exists (and should be retrieved, and updated as relevant)
+or it doesn't yet exist, in which case it should be created, computed, and registered
+
+we need access to the NodeRegistry here — and we have it: `ptc.engine.node_registry`
+    this allows us to upsert ExpandedNodes by id_chain
+we also need the current id_chain: ptc.get_id_chain(self.instance_id);
+
+once we create/retrieve an ExpandedNode, we need to determine whether each property is dirty
+and then re-evaluate its vtable entry if so, storing the calculated value
+
+When do we mark a property no longer dirty? after the entire pass?  We need to make sure we
+traverse the DAG — which would require possibly many passes if we don't traverse that order intelligently
+(e.g. if the last node traversed marks dirty the first node traversed.)
+
+Perhaps we could traverse the dirty DAG entirely first?  And mark the nodes needing re-computation as dirty
+    The problem is, even if we do this, but still traverse property computation in-order, we run into an ordering problem,
+    because dependencies must be evaluated before dependents.
+    (worth double-checking:  are there some ordering guarantees baked into our domain, i.e. the way ancestors can reach into
+    descendent properties but not vice-versa, that let us take some kind of shortcut(s) here?)
+    Also worth noting — we have already had this problem!  It's almost certain that it takes up to `n` frames for properties computation to "settle"
+    when there are complex chains of dependencies, where those deps run contrary to the order of the tree traversal
+
+Effectively, we need to topologically sort the DAG and evaluate properties in that order.  This suggests some sort of self-encapsulated "calculate myself"
+logic on a property, which requires unpacking the PropertiesCoproduct in the context of the containing struct (unsafe_unwrap or similar)
+and then computing the vtable value, storing in that unwrapped property, and making sure it gets back into the containing struct.  Currently,
+the only reasonably elegant place to do that is in the `impl InstanceNode` block for a given InstanceNode, where we know what type we're dealing with.
+If properties kept a pointer to their InstanceNode, then they'd be able to call out to a type-aware handler within that InstanceNode,
+One challenge this introduces:  we can elegantly "stitch together" our ExpandedNode tree by visiting our instance nodes in rendering/recursion order.  Perhaps we still need to do this?
+    This suggests that properties compute becomes two differently shaped passes: 
+    (1) traversal of DAG to compute properties, and (2) traversal of tree to stitch together ExpandedNodes.  
+    The order of these might best be reversed (2, 1), where newly inserted properties stamps are simply clones of the prototypical properties, marked dirty, and then computed in the DAG pass
+
+This seems to converge on managing all properties in some sort of table, so that we can refer to that table and express edges (ROM-transistor-like in spirit)
+One possible approach is to unwrap all properties into a table each tick (either sharing memory, which might get sketch, or unpacking & repacking like `with_properties_unsafe`)
+Another possible approach is to wrap PropertyInstances in Rc<RefCell<>> instead of Box<>, which would solve the "unpacking" problem, because Rc<RefCell<>> gives us
+exactly such a table.
+    - This seems feasible at first glance... (but see conclusion in this paragraph.)  We'd need to do some refactoring around `Clone` and `Default` and make sure we appease Rust's `orphan rule` (third party trait impl constraints)
+      but it seems like if we keep a propertyinstance table, then refactor all PropertiesCoproduct entries to keep pointers to those same properties instances,
+      instead of the instances themselves, then we
+      (As an aside... this would drastically normalize the shape of PropertiesCoproduct structs; they would all be effectively lists of smart pointers
+      instead of heterogeneous blobs of data.  I wonder if it would be feasible to eliminate PropertiesCoproduct entirely by this approach, using
+      HashMap<String, Rc<RefCell<PropertyInstance>> to manage the properties of a given ExpandedNode ... would we be able to `self.foo.set()`, though?
+       Indeed, the whole refactor to `Rc<RefCell<PropertyInstance>>` would harsh the ergonomics of userland properties.  Any .set or .get would require
+       wrangling the Rc<RefCell<>>, which would be unlikely to be a crowd-pleaser.  This seems to be an impasse regarding Rc<RefCell<dyn PropertyInstance>)
+Our table could also be gatekept by instance or expanded nodes — in other words, the edges go between ExpandedNode, with a property id passed along as a param
+Instead of computing properties in a recursive tree order, we compute them in the order of the property DAG
+and instead of computing all properties on each visit, we only compute the one(s) parameterized (by ID, probably)
+This requires ExpandedNodes to be able to address their properties by ID.  this could be brute-forced by unwrapping properties and calling `get_property_id` on each until we find a match — there's certainly a path to making this more elegant.
+
+How do we assemble the dirty dag in the first place?  This is probably a compile-time concern — during expression compilation
+we know the relationships between properties
+    (unpack what that means, to know the relationships between properties — can we boil this down to some sort of unique ID per property instance?)
+    (we probably do need some sort of unique ID per property — we have this with vtable ids, but we need these for literal properties too, because
+    they can be dependencies in dirty DAG)
+    We _do_ already have unambiguous relationships between symbols and properties at compile-time — we resolve each symbol such a `self.foo` statically to determine e.g. the stack offset. We could
+    elegantly register `self.foo` (the property found when we are determining stack offset) as a dependency of the expression in question at this time, and forward that graph to runtime. (probably codegen a HashMap<u64, Vec<u64>> as the "ROM" LUT of this graph.)
+    Dirty DAG is baked at compile time, and edges cannot be _added_ (because expressions require compilation,) but they can be _removed_
+    (because you can .set an expression value to a literal.  ways this might bend:
+        - if we support reverting to original value, which would restore the vtable ID + expression definition
+        - if we support interpreting PAXEL, which would enable runtime expression definitions and would require runtime manip. of dirty-DAG)
+So at compile time, when we compile an expression (because only expressions will have dependencies), when we resolve a symbol like `self.foo`, we
+need to establish an edge on the _instance_ (PropertyDefinition) graph
+Then, when we expand those definitions into instances (roughly, during the act of copying the "prototypical properties" into ExpandedNodes)
+we need to map those instance edges into expansion-aware edges
+    Double-check this:  is there ever a case where a "parallel version" of a property can be dirty (and require downstream updates) independently
+    of its other parallel versions?   One case that comes to mind is tactical / addressed changes e.g. to a vec of data, where some Repeat subtree should be updated while the others are not.
+    Another variant is a Component inside a Repeat, where that Component has a simple instance representation, but has completely independent ExpandedNode + properties instances.  This latter case is clearer,
+    that those _expanded_ property instances are indeed what should be "DAGged" between, as opposed to the definitions.
+    It follows, then, that we would need to expand the static instance dag to an expanded dag.
+
+When do we mark properties "clean" again?
+    Probably after the DAG pass.  Then, when properties may be set imperatively during subsequent lifecycle methods, they are marked `dirty` along the way, and by the next tick 
+    they're accurately considered `dirty` for that DAG pass.
+    
+How do we handle built-ins like `$tick`?  Perhaps we handle these as special kinds of dyn PropertyInstance (`PropertyBuiltin`?)
+We would need to figure out if they also sit on some kind of synthetic ExpandedNode, or whether we have another way to address these (provided that the properties-update DAG passes through ExpandedNodes as its nodes)
+Either we would set $tick on every frame from a special spot in the lifecycle (whereby the act of `set`ting would mark it dirty), or we would 
+
+Native patches;
+    keep a `patch` object on the ExpandedNode (??) the problem with this is patches are polymorphic and ExpandedNodes are currently type-blind.  This would mean doing something like  
+    PropertiesCoproduct or dyn Any for storing patches
+    If we can solve this reasonably, though, we can keep a running patch as a register for freshly computed values, punching new values onto it as they're computed
+    we could also keep a flag `needs_to_send_update_patch`, which we set true any time we punch one of these values, and then we set false again after sending the patch
+
+How far can we get without dirty DAG?  Re-compute every property on every tick, like we do today
+And continue to keep a cache of `last_patches`, but move them over to the stateful ExpandedNode#properties ?
+    (we might also be able to get away without last_patches, and just sending a firehose of `*Update` messages
+    across native bridges — this would reduce the need to double down on last_patches hacking, and would elegantly
+    be solved with dirty dag, but it might introduce unacceptable perf drag in the meantime, e.g. especially if either of
+    DOM or SwiftUI doesn't elegantly handle properties constantly "changing" to the same value )
+
+Decision: remove last_patches for hacked dirty-checking; send native patches greedily; step back into dirty-DAG as the optimization mechanism if we find the flood of native patches incurs too much of a perf hit
+    We still need a stateful mechanism for storing the "patch-in-progress" as we compute properties.
+    We could couple this to the computation of a property.  I.e. as we compute a property (as we do in one sweeping pass, pre-dirty-DAG) we populate that computed property to the patch.
+    As long as we're committing to sending that patch every frame, without checking dirtiness, then we should populate all literal values along the way, too, as they may have been changed during handlers.
+Since we're going so far as to keep a patch-in-progress on the ExpandedNode, it would be pretty straight-forward to keep a last-patch, too, to continue our hacked dirty-check...
+    (this could be a low-hanging alternative to full-blown dirty-DAG if indeed we hit a perf wall with firehose-patches.)
+    
