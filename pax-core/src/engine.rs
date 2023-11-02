@@ -35,9 +35,9 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub clipping_stack: Vec<Vec<u32>>,
     /// Similar to clipping stack but for scroller containers
     pub scroller_stack: Vec<Vec<u32>>,
-    /// A pointer to the current expanded node, the atomic unit of traversal when rendering.
+    /// A pointer to the current expanded node, the stateful atomic unit of traversal when rendering.
     pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
-    /// A pointer to the current expanded node, the atomic unit of traversal when rendering.
+    /// A pointer to the current instance node, the stateless, instantiated representation of a template node.
     pub current_instance_node: InstanceNodePtr<R>,
 }
 
@@ -247,26 +247,26 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
     /// and the subsequent u32s represent addresses within an expanded tree via Repeat.
-    id_chain: Vec<u32>,
+    pub id_chain: Vec<u32>,
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
-    parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
+    pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    children_expanded_nodes: Vec<Weak<RefCell<ExpandedNode<R>>>>,
+    pub children_expanded_nodes: Vec<Weak<RefCell<ExpandedNode<R>>>>,
 
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
-    instance_node: InstanceNodePtr<R>,
+    pub instance_node: InstanceNodePtr<R>,
 
     /// Computed transform and size of this ExpandedNode
-    tab: TransformAndBounds,
+    pub tab: TransformAndBounds,
 
     /// A copy of the calculated z_index for this ExpandedNode
-    z_index: u32,
+    pub z_index: u32,
 
     /// A copy of the RuntimeContext appropriate for this ExpandedNode
-    node_context: RuntimeContext,
+    pub node_context: RuntimeContext,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     computed_properties: Rc<RefCell<PropertiesCoproduct>>,
@@ -912,10 +912,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             // };
 
             let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
+            let z_index = rtc.current_expanded_node.borrow().z_index;
             if !node_registry.is_mounted(&id_chain) {
                 //Fire primitive-level mount lifecycle method
                 let mut instance_node = Rc::clone(&rtc.current_instance_node);
-                instance_node.borrow_mut().handle_mount(rtc, rtc.current_expanded_node.borrow().z_index);
+                instance_node.borrow_mut().handle_mount(rtc, z_index);
 
                 //Fire registered mount events
                 let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
@@ -1033,16 +1034,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let desugared_transform = {
             //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
             let node_borrowed = rtc.current_expanded_node.borrow();
-            let cp = node_borrowed.get_common_properties().borrow();
+            let comm = node_borrowed.get_common_properties();
+            let comm = comm.borrow();
             let mut desugared_transform2d = Transform2D::default();
 
             let translate = [
-                if let Some(ref val) = cp.x {
+                if let Some(ref val) = comm.x {
                     val.borrow().get().clone()
                 } else {
                     Size::ZERO()
                 },
-                if let Some(ref val) = cp.y {
+                if let Some(ref val) = comm.y {
                     val.borrow().get().clone()
                 } else {
                     Size::ZERO()
@@ -1051,12 +1053,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             desugared_transform2d.translate = Some(translate);
 
             let anchor = [
-                if let Some(ref val) = cp.anchor_x {
+                if let Some(ref val) = comm.anchor_x {
                     val.borrow().get().clone()
                 } else {
                     Size::ZERO()
                 },
-                if let Some(ref val) = cp.anchor_y {
+                if let Some(ref val) = comm.anchor_y {
                     val.borrow().get().clone()
                 } else {
                     Size::ZERO()
@@ -1065,12 +1067,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             desugared_transform2d.anchor = Some(anchor);
 
             let scale = [
-                if let Some(ref val) = cp.scale_x {
+                if let Some(ref val) = comm.scale_x {
                     val.borrow().get().clone()
                 } else {
                     Size::Percent(pax_runtime_api::Numeric::from(100.0))
                 },
-                if let Some(ref val) = cp.scale_y {
+                if let Some(ref val) = comm.scale_y {
                     val.borrow().get().clone()
                 } else {
                     Size::Percent(pax_runtime_api::Numeric::from(100.0))
@@ -1079,12 +1081,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             desugared_transform2d.scale = Some(scale);
 
             let skew = [
-                if let Some(ref val) = cp.skew_x {
+                if let Some(ref val) = comm.skew_x {
                     val.borrow().get().get_as_float()
                 } else {
                     0.0
                 },
-                if let Some(ref val) = cp.skew_y {
+                if let Some(ref val) = comm.skew_y {
                     val.borrow().get().get_as_float()
                 } else {
                     0.0
@@ -1092,7 +1094,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             ];
             desugared_transform2d.skew = Some(skew);
 
-            let rotate = if let Some(ref val) = cp.rotate {
+            let rotate = if let Some(ref val) = comm.rotate {
                 val.borrow().get().clone()
             } else {
                 Rotation::ZERO()
@@ -1223,17 +1225,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             new_accumulated_bounds
         };
 
-        //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
-        //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-        node.borrow_mut().instance_node.borrow_mut().handle_native_patches(
-            rtc,
-            clipping_aware_bounds,
-            new_scroller_normalized_accumulated_transform
-                .as_coeffs()
-                .to_vec(),
-            node.borrow().z_index,
-            subtree_depth,
-        );
+
 
         if let Some(rc) = rcs.get_mut(&canvas_id) {
             //lifecycle: render

@@ -4203,15 +4203,21 @@ Let's store a prototypical clone of the original properties on each InstanceNode
         [x] Also move `CommonProperties` into `ExpandedNode`
     [ ] Refactor properties lookup: requires ID chain
         [ ] Same with `get_common_properties`
-        [ ] (?) Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
+        [x] (?) Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
     [ ] Upsert `ExpandedNode` during `compute_properties_recursive`, along with computed properties "stamp".
         [x] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
             [ ] Refactor one handler to figure out quite what this looks like on the handler side [maybe it just returns a PropertiesCoproduct instead??]
             [ ] Refactor all remaining handlers to match
         [x] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
-        [ ] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
-    [ ] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
+        [x] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
+    [x] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
+        Decision: move `get_properties` to ExpandedNode
     [ ] Manage wrapping/unwrapping polymorphic properties (PropertiesCoproduct) via `get_properties` and individual `dyn InstanceNode`s
+        [ ] Decide how to manage shared mutability.  Probably we need to wrap in Rc<RefCell<>>, but 
+            (1) this requires special handling with unsafe_unwrap! — especially, this introduces surface area for disappearing properties for any primitive that doesn't "repack" a PropertiesCoproduct after `taking` from the Rc<RefCell<>>.
+                this could be guard-railed with some sort of macro that takes, executes a block with the taken PropertiesCoproduct in scope, then repacks after the block
+            (2) this also requires special handling around invoking userland event handlers, where `&mut self` _is_ a given properties stamp.  Essentially we will need to 
+                `take` from the Rc<RefCell<>>, then `replace` back in after the user has presumably mtuated it
 [x] Unplug most of pax_std to reduce iterative surface area
     [ ] Come back at the end, plug back in, and normalize the rest
 [ ] Handled prototypical / instantiation properties
@@ -4265,3 +4271,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
     [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
 [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
+[ ] Port sizing / bounds calculations over to the properties pass
+    (1) compute native patches is dependent on these calculations
+    (2) intuitively, these are property calculations, and rendering could/should be a pure function of these (just like all other properties)
+    (3) bounds / size / etc. will be members of dirty-dag, and knowing if they change will be important for evaluation thereof

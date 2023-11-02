@@ -1,7 +1,4 @@
-use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr,
-    InstanceNodePtrList, RenderTreeContext, TransformAndBounds,
-};
+use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, TransformAndBounds, PropertiesTreeContext, ExpandedNode};
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -60,22 +57,24 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
 
     /// Can never hit a Group directly -- can only hit elements inside of it.
     /// Events can still be propagated to a group.
-    fn ray_cast_test(&self, _ray: &(f64, f64), _tab: &TransformAndBounds) -> bool {
-        false
-    }
+    // fn ray_cast_test(&self, _ray: &(f64, f64), _tab: &TransformAndBounds) -> bool {
+    //     false
+    // }
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
     }
 
-    fn get_size(&self) -> Option<(Size, Size)> {
-        None
-    }
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        bounds
+    // fn get_size(&self) -> Option<(Size, Size)> {
+    //     None
+    // }
+    // fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+    //     bounds
+    // }
+
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        // self.common_properties.compute_properties(ptc);
+        todo!()
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        self.common_properties.compute_properties(rtc);
-    }
 }
