@@ -22,3 +22,9 @@ jobs:
       run: sudo apt update && sudo apt install -y libgtk-4-dev
     - name: Run tests
       run: cargo test --verbose
+    - name: Check formatting
+      run: cargo fmt -- --check
+    - name: Check for linting errors
+      run: |
+        rustup component add clippy
+        cargo clippy -- -D warnings
