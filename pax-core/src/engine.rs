@@ -243,6 +243,8 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
 /// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
+/// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
+/// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
 pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID

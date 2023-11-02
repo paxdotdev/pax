@@ -178,16 +178,19 @@ pub enum NodeType {
 }
 
 /// Central runtime representation of a properties-computable and renderable node.
-/// `InstanceNode`s are conceptually stateless, and rely on `ExpandedNode`s for stateful representations.
+/// `InstanceNode`s are conceptually stateless, and rely on [`ExpandedNode`]s for stateful representations.
 ///
 /// An `InstanceNode` sits in between a [`pax_compiler::TemplateNodeDefinition`], the
-/// compile-time `definition` analogue to this `instance`, and `ExpandedNode`, the stateful
+/// compile-time `definition` analogue to this `instance`, and [`ExpandedNode`].
 ///
 /// There is a 1:1 relationship between [`pax_compiler::TemplateNodeDefinition`]s and `InstanceNode`s.
 /// There is a one-to-many relationship between one `InstanceNode` and possibly many variant [`ExpandedNode`]s,
 /// due to duplication via `for`.
 ///
-/// (See [`RepeatInstance#handle_compute_properties`] where we visit a singular `InstanceNode` several times, producing multiple `ExpandedNode`s.)
+/// `InstanceNode`s are architecturally "type-aware" — they can perform type-specific operations e.g. on the state stored in [`ExpandedNode`], while
+/// [`ExpandedNode`]s are "type-blind".  The latter store polymorphic data but cannot operate on it without the type-aware assistance of their linked `InstanceNode`.
+///
+/// (See [`RepeatInstance#handle_compute_properties`] where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode<R: 'static + RenderContext> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
