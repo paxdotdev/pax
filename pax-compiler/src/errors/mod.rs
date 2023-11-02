@@ -13,8 +13,8 @@ use crate::manifest::{Token, TokenType};
 
 use self::source_map::SourceMap;
 
-/// PaxTemplateError is a custom error type used to template errors in a user-friendly way.
-/// It makes use of the source_map to display the error location in the original template.
+/// PaxTemplateError is a custom error type for returning template errors.
+/// Given a token and an optional custom message, it will display a user-friendly error message.
 
 #[derive(Debug)]
 pub struct PaxTemplateError {
