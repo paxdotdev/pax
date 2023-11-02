@@ -117,7 +117,7 @@ pub extern "C" fn pax_interrupt(
                 }
                 _ => {}
             };
-        },
+        }
         NativeInterrupt::Scroll(args) => {
             let prospective_hit = engine.get_focused_element();
             match prospective_hit {
@@ -130,7 +130,7 @@ pub extern "C" fn pax_interrupt(
                 }
                 _ => {}
             };
-        },
+        }
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(ref_args) => {
                 let ptr = ref_args.image_data as *const u8;

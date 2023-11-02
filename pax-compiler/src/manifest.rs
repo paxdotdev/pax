@@ -1,7 +1,9 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::hash::Hasher;
+use std::{cmp::Ordering, hash::Hash};
 
 use crate::parsing::escape_identifier;
+use crate::templating::MappedString;
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
@@ -52,7 +54,7 @@ pub struct ExpressionSpec {
     pub output_statement: String,
 
     /// String representation of the original input statement
-    pub input_statement: String,
+    pub input_statement: MappedString,
 
     /// Special-handling for Repeat codegen
     pub is_repeat_source_iterable_expression: bool,
@@ -181,7 +183,7 @@ pub struct TemplateNodeDefinition {
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
-    pub settings: Option<Vec<(String, ValueDefinition)>>,
+    pub settings: Option<Vec<(Token, ValueDefinition)>>,
     /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
 }
@@ -345,13 +347,21 @@ impl TypeDefinition {
 pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
-    LiteralValue(String),
+    LiteralValue(Token),
     Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
-    Expression(String, Option<usize>),
+    Expression(Token, Option<usize>),
     /// (Expression contents, vtable id binding)
-    Identifier(String, Option<usize>),
-    EventBindingTarget(String),
+    Identifier(Token, Option<usize>),
+    EventBindingTarget(Token),
+}
+
+/// Container for holding metadata about original Location in Pax Template
+/// Used for source-mapping
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct LocationInfo {
+    pub start_line_col: (usize, usize),
+    pub end_line_col: (usize, usize),
 }
 
 /// Container for holding parsed data describing a Repeat (`for`)
@@ -359,8 +369,8 @@ pub enum ValueDefinition {
 /// the `elem` in `for elem in foo`
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateDefinition {
-    ElemId(String),
-    ElemIdIndexId(String, String),
+    ElemId(Token),
+    ElemIdIndexId(Token, Token),
 }
 
 /// Container for storing parsed control flow information, for
@@ -368,9 +378,9 @@ pub enum ControlFlowRepeatPredicateDefinition {
 /// expressions and the related vtable ids (for "punching" during expression compilation)
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowSettingsDefinition {
-    pub condition_expression_paxel: Option<String>,
+    pub condition_expression_paxel: Option<Token>,
     pub condition_expression_vtable_id: Option<usize>,
-    pub slot_index_expression_paxel: Option<String>,
+    pub slot_index_expression_paxel: Option<Token>,
     pub slot_index_expression_vtable_id: Option<usize>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
@@ -380,23 +390,107 @@ pub struct ControlFlowSettingsDefinition {
 /// — namely a range expression in PAXEL or a symbolic binding
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
-    pub range_expression_paxel: Option<String>,
+    pub range_expression_paxel: Option<Token>,
     pub vtable_id: Option<usize>,
-    pub symbolic_binding: Option<String>,
+    pub symbolic_binding: Option<Token>,
 }
 
 /// Container for parsed Settings blocks (inside `@settings`)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {
-    pub selector: String,
+    pub selector: Token,
     pub value_block: LiteralBlockDefinition,
 }
 
 /// Container for a parsed
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LiteralBlockDefinition {
-    pub explicit_type_pascal_identifier: Option<String>,
-    pub settings_key_value_pairs: Vec<(String, ValueDefinition)>,
+    pub explicit_type_pascal_identifier: Option<Token>,
+    pub settings_key_value_pairs: Vec<(Token, ValueDefinition)>,
+}
+
+/// Container for parsed values with optional location information
+/// Location is optional in case this token was generated dynamically
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Token {
+    pub token_value: String,
+    // Non-pratt parsed string
+    pub raw_value: String,
+    pub token_type: TokenType,
+    pub source_line: Option<String>,
+    pub token_location: Option<LocationInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub enum TokenType {
+    Expression,
+    Identifier,
+    LiteralValue,
+    IfExpression,
+    ForPredicate,
+    ForSource,
+    SlotExpression,
+    EventId,
+    Handler,
+    SettingKey,
+    Selector,
+    PascalIdentifier,
+    #[default]
+    Unknown,
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.token_value == other.token_value
+    }
+}
+
+impl Eq for Token {}
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.token_value.hash(state);
+    }
+}
+
+fn get_line(s: &str, line_number: usize) -> Option<&str> {
+    s.lines().nth(line_number)
+}
+
+impl Token {
+    pub fn new(
+        token_value: String,
+        token_type: TokenType,
+        token_location: LocationInfo,
+        pax: &str,
+    ) -> Self {
+        let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
+        let raw_value = token_value.clone();
+        Self {
+            token_value,
+            raw_value,
+            token_type,
+            source_line,
+            token_location: Some(token_location),
+        }
+    }
+
+    pub fn new_with_raw_value(
+        token_value: String,
+        raw_value: String,
+        token_type: TokenType,
+        token_location: LocationInfo,
+        pax: &str,
+    ) -> Self {
+        let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
+        Self {
+            token_value,
+            raw_value,
+            token_type,
+            source_line,
+            token_location: Some(token_location),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -413,6 +507,6 @@ pub enum Unit {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventDefinition {
-    pub key: String,
-    pub value: Vec<String>,
+    pub key: Token,
+    pub value: Vec<Token>,
 }

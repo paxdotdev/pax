@@ -149,7 +149,6 @@ impl<R: 'static + RenderContext> Runtime<R> {
     }
 }
 
-
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame, a list of `adoptees` for
 /// prospective [`Slot`] consumption, and `properties` for

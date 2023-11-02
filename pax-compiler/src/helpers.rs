@@ -32,8 +32,15 @@ pub fn set_path_on_pax_dependencies(full_path: &Path) {
         for key in keys {
             let dep_entry = deps.get_mut(&key).unwrap();
 
-            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) = dep_entry {
-                dep_table.insert("path", toml_edit::Value::String(toml_edit::Formatted::new(".pax/pkg/".to_string() + &key)));
+            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) =
+                dep_entry
+            {
+                dep_table.insert(
+                    "path",
+                    toml_edit::Value::String(toml_edit::Formatted::new(
+                        ".pax/pkg/".to_string() + &key,
+                    )),
+                );
             }
         }
     }
@@ -71,7 +78,9 @@ pub fn remove_path_from_pax_dependencies(full_path: &Path) {
         for key in keys {
             let dep_entry = deps.get_mut(&key).unwrap();
 
-            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) = dep_entry {
+            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) =
+                dep_entry
+            {
                 dep_table.remove("path");
             }
         }
@@ -103,8 +112,13 @@ pub fn update_pax_dependency_versions(doc: &mut Document, ctx_version: &str) {
         for key in keys {
             let dep_entry = deps.get_mut(&key).unwrap();
 
-            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) = dep_entry {
-                dep_table.insert("version", toml_edit::Value::String(toml_edit::Formatted::new(ctx_version.to_string())));
+            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) =
+                dep_entry
+            {
+                dep_table.insert(
+                    "version",
+                    toml_edit::Value::String(toml_edit::Formatted::new(ctx_version.to_string())),
+                );
             } else {
                 let dep_string = format!("version = \"{}\"", ctx_version);
                 *dep_entry = toml_edit::Item::from_str(&dep_string).unwrap_or_default();
