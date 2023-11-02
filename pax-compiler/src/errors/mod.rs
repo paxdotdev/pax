@@ -1,12 +1,15 @@
-use std::{fmt::{self}, error::Error};
-use cargo_metadata::{Message, diagnostic::DiagnosticLevel};
-use colored::*;
-use std::io::Cursor;
-use std::io::BufReader;
-use color_eyre::eyre::{self, Report, eyre};
+use cargo_metadata::{diagnostic::DiagnosticLevel, Message};
+use color_eyre::eyre::{self, eyre, Report};
 use color_eyre::Result;
-use std::process::Output;
+use colored::*;
 use regex::Regex;
+use std::io::BufReader;
+use std::io::Cursor;
+use std::process::Output;
+use std::{
+    error::Error,
+    fmt::{self},
+};
 
 pub mod source_map;
 use crate::manifest::{Token, TokenType};
@@ -61,7 +64,8 @@ impl fmt::Display for PaxTemplateError {
             let location = format!(
                 "\nLine {} : Col {}",
                 loc.start_line_col.0, loc.start_line_col.1
-            ).green();
+            )
+            .green();
             write!(f, "{}", location)?;
 
             // Check if there's a source_line and underline the issue in red
@@ -80,8 +84,6 @@ impl fmt::Display for PaxTemplateError {
         Ok(())
     }
 }
-
-
 
 impl Error for PaxTemplateError {}
 
@@ -118,7 +120,9 @@ pub fn process_messages(output: Output, source_map: &SourceMap) -> Result<(), Re
 // Transforms the rust trait message from underlying code gen into relevant user-facing error
 fn transform_error_message(error: String) -> String {
     // Typical type mismatch error given by rustc
-    let re = Regex::new(r"the trait bound `([^:]+)::([^:]+): From<([^:]+)::([^>]+)>` is not satisfied").unwrap();
+    let re =
+        Regex::new(r"the trait bound `([^:]+)::([^:]+): From<([^:]+)::([^>]+)>` is not satisfied")
+            .unwrap();
 
     if let Some(captures) = re.captures(&error) {
         let module1 = &captures[1];
@@ -126,7 +130,10 @@ fn transform_error_message(error: String) -> String {
         let module2 = &captures[3];
         let type2 = &captures[4];
 
-        return format!("Expected {}::{} but found {}::{}.", module1, type1, module2, type2);
+        return format!(
+            "Expected {}::{} but found {}::{}.",
+            module1, type1, module2, type2
+        );
     }
 
     // If the message doesn't match the expected format, return it as is

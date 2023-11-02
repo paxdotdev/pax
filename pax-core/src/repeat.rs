@@ -113,7 +113,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             self.cached_old_value_range = Some(new_value.clone());
             let normalized_vec_of_props = new_value
                 .into_iter()
-                .map(| elem| Rc::new(PropertiesCoproduct::isize(elem)))
+                .map(|elem| Rc::new(PropertiesCoproduct::isize(elem)))
                 .collect();
             (is_dirty, normalized_vec_of_props)
         } else {

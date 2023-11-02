@@ -11,16 +11,16 @@ extern crate pax_language_server;
 
 mod http;
 
+use color_eyre::eyre::Report;
+use color_eyre::eyre::Result;
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
-use color_eyre::eyre::Result;
-use color_eyre::eyre::Report;
 
 /// `pax-cli` entrypoint
 fn main() -> Result<(), Report> {
     HookBuilder::default()
-    .display_location_section(false) 
-    .install()?;
+        .display_location_section(false)
+        .install()?;
 
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
@@ -46,7 +46,7 @@ fn main() -> Result<(), Report> {
         .long("verbose")
         .takes_value(false);
 
-    const DEFAULT_TARGET : &str = "web";
+    const DEFAULT_TARGET: &str = "web";
     #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
@@ -56,7 +56,7 @@ fn main() -> Result<(), Report> {
         .takes_value(true);
 
     #[allow(non_snake_case)]
-        let ARG_RELEASE = Arg::with_name("release")
+    let ARG_RELEASE = Arg::with_name("release")
         .long("release")
         .takes_value(false)
         .help("Build in Release mode, with appropriate platform-specific optimizations.");
@@ -139,7 +139,7 @@ fn main() -> Result<(), Report> {
                 Arc::clone(&cloned_version_info),
                 Arc::clone(&cloned_process_child_ids),
                 is_libdev_mode,
-                true
+                true,
             );
         }
     });
@@ -283,8 +283,8 @@ fn perform_cleanup(
                         current_version_formatted,
                         width = TOTAL_LENGTH
                     )
-                        .bright_white()
-                        .on_bright_black();
+                    .bright_white()
+                    .on_bright_black();
 
                     let update_instructions_static = "To update, run: ";
                     let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
@@ -299,7 +299,8 @@ fn perform_cleanup(
                     let install_command_static = "cargo install --force pax-cli";
                     let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
                     let lpad_spaces = " ".repeat(lpad);
-                    let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
+                    let update_line_2_formatted =
+                        format!("{}{}", lpad_spaces, install_command_static);
                     let update_line_2 =
                         format!("{: <width$}", update_line_2_formatted, width = TOTAL_LENGTH)
                             .bright_black()

@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
-use std::collections::HashMap;
 
 use crate::parsing::escape_identifier;
 use crate::templating::MappedString;
@@ -15,7 +15,7 @@ pub struct PaxManifest {
     pub main_component_type_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     pub type_table: TypeTable,
-    pub import_paths: std::collections::HashSet<String>
+    pub import_paths: std::collections::HashSet<String>,
 }
 
 impl Eq for ExpressionSpec {}
@@ -360,9 +360,9 @@ pub enum ValueDefinition {
 /// Used for source-mapping
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct LocationInfo {
-    pub start_line_col : (usize, usize),
+    pub start_line_col: (usize, usize),
     pub end_line_col: (usize, usize),
-}   
+}
 
 /// Container for holding parsed data describing a Repeat (`for`)
 /// predicate, for example the `(elem, i)` in `for (elem, i) in foo` or
@@ -418,7 +418,7 @@ pub struct Token {
     pub raw_value: String,
     pub token_type: TokenType,
     pub source_line: Option<String>,
-    pub token_location: Option<LocationInfo>
+    pub token_location: Option<LocationInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -453,13 +453,17 @@ impl Hash for Token {
     }
 }
 
-
 fn get_line(s: &str, line_number: usize) -> Option<&str> {
     s.lines().nth(line_number)
 }
 
 impl Token {
-    pub fn new(token_value: String, token_type: TokenType, token_location: LocationInfo, pax: &str) -> Self{
+    pub fn new(
+        token_value: String,
+        token_type: TokenType,
+        token_location: LocationInfo,
+        pax: &str,
+    ) -> Self {
         let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
         let raw_value = token_value.clone();
         Self {
@@ -471,7 +475,13 @@ impl Token {
         }
     }
 
-    pub fn new_with_raw_value(token_value: String, raw_value: String, token_type: TokenType, token_location: LocationInfo, pax: &str) -> Self{
+    pub fn new_with_raw_value(
+        token_value: String,
+        raw_value: String,
+        token_type: TokenType,
+        token_location: LocationInfo,
+        pax: &str,
+    ) -> Self {
         let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
         Self {
             token_value,

@@ -1,28 +1,28 @@
 extern crate core;
 
+pub mod errors;
 pub mod expressions;
+mod helpers;
 pub mod manifest;
 pub mod parsing;
 pub mod templating;
-mod helpers;
-pub mod errors;
 
-use cargo_metadata::Message;
 use cargo_metadata::diagnostic::DiagnosticLevel;
+use cargo_metadata::Message;
 use color_eyre::eyre;
 use log::Level;
 use manifest::{PaxManifest, Token};
 use pax_runtime_api::CommonProperties;
 use serde::de::value;
-use templating::MappedString;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{Write, Cursor, BufReader};
+use std::io::{BufReader, Cursor, Write};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use templating::MappedString;
 
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
@@ -34,10 +34,10 @@ use rust_format::Formatter;
 use std::net::TcpListener;
 use tar::Archive;
 
+use color_eyre::eyre::Report;
+use eyre::eyre;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use eyre::eyre;
-use color_eyre::eyre::Report;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
@@ -122,7 +122,15 @@ fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &R
         if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
-            let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap().parent().unwrap().parent().unwrap();
+            let pax_workspace_root = pax_dir
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap();
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
 
@@ -249,7 +257,8 @@ fn generate_and_overwrite_properties_coproduct(
     fs::write(
         &target_cargo_full_path,
         &target_cargo_toml_contents.to_string(),
-    ).unwrap();
+    )
+    .unwrap();
 
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples: Vec<(String, String)> = manifest
@@ -439,7 +448,9 @@ fn generate_and_overwrite_cartridge(
         .values()
         .into_iter()
         .filter(|cd| !cd.is_primitive && !cd.is_struct_only_component)
-        .map(|cd| generate_cartridge_component_factory_literal(manifest, cd, host_crate_info, source_map))
+        .map(|cd| {
+            generate_cartridge_component_factory_literal(manifest, cd, host_crate_info, source_map)
+        })
         .collect();
 
     //press template into String
@@ -507,10 +518,12 @@ fn generate_bound_events(
         for (key, value) in inline.iter() {
             if let ValueDefinition::EventBindingTarget(s) = value {
                 let key_source_map_id = source_map.insert(key.clone());
-                let key_mapped_string = source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
+                let key_mapped_string =
+                    source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
 
                 let value_source_map_id = source_map.insert(s.clone());
-                let value_mapped_string = source_map.generate_mapped_string(s.token_value.clone(), value_source_map_id);
+                let value_mapped_string =
+                    source_map.generate_mapped_string(s.token_value.clone(), value_source_map_id);
 
                 ret.insert(key_mapped_string, value_mapped_string);
             };
@@ -550,7 +563,8 @@ fn recurse_literal_block(
         let value_string = match value_definition {
             ValueDefinition::LiteralValue(value) => {
                 let value_source_map_id = source_map.insert(value.clone());
-                let value_mapped_string = source_map.generate_mapped_string(value.token_value.clone(), value_source_map_id);
+                let value_mapped_string = source_map
+                    .generate_mapped_string(value.token_value.clone(), value_source_map_id);
                 source_map_start_marker = value_mapped_string.source_map_start_marker;
                 source_map_end_marker = value_mapped_string.source_map_end_marker;
                 format!(
@@ -560,7 +574,8 @@ fn recurse_literal_block(
             }
             ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token, id) => {
                 let value_source_map_id = source_map.insert(token.clone());
-                let value_mapped_string = source_map.generate_mapped_string(token.token_value.clone(), value_source_map_id);
+                let value_mapped_string = source_map
+                    .generate_mapped_string(token.token_value.clone(), value_source_map_id);
                 source_map_start_marker = value_mapped_string.source_map_start_marker;
                 source_map_end_marker = value_mapped_string.source_map_end_marker;
                 format!(
@@ -573,7 +588,12 @@ fn recurse_literal_block(
                 "ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));",
                 key.token_value,
                 fully_qualified_type,
-                recurse_literal_block(inner_block.clone(), type_definition, host_crate_info, source_map),
+                recurse_literal_block(
+                    inner_block.clone(),
+                    type_definition,
+                    host_crate_info,
+                    source_map
+                ),
             ),
             _ => {
                 panic!("Incorrect value bound to inline setting")
@@ -582,9 +602,9 @@ fn recurse_literal_block(
         if let Some(source_map_start_marker) = source_map_start_marker {
             struct_representation.push_str(&format!("\n{}", source_map_start_marker));
         }
-        
+
         struct_representation.push_str(&format!("\n{}", value_string));
-        
+
         if let Some(source_map_end_marker) = source_map_end_marker {
             struct_representation.push_str(&format!("\n{}", source_map_end_marker));
         }
@@ -628,8 +648,9 @@ fn recurse_generate_render_nodes_literal(
         let rse_vec = if let Some(t) = &rsd.symbolic_binding {
             let vec_source_id = source_map.insert(t.clone());
             source_map.generate_mapped_string(
-                format!("Some(Box::new(PropertyExpression::new({})))", id), vec_source_id)
-            
+                format!("Some(Box::new(PropertyExpression::new({})))", id),
+                vec_source_id,
+            )
         } else {
             MappedString::none()
         };
@@ -637,13 +658,22 @@ fn recurse_generate_render_nodes_literal(
         let rse_range = if let Some(t) = &rsd.range_expression_paxel {
             let range_source_id = source_map.insert(t.clone());
             source_map.generate_mapped_string(
-            format!("Some(Box::new(PropertyExpression::new({})))", id), range_source_id)
+                format!("Some(Box::new(PropertyExpression::new({})))", id),
+                range_source_id,
+            )
         } else {
             MappedString::none()
         };
 
-        let common_properties_literal = CommonProperties::get_default_properties_literal().iter()
-        .map(|(id,value)|(MappedString::new(id.clone()), MappedString::new(value.clone()))).collect();
+        let common_properties_literal = CommonProperties::get_default_properties_literal()
+            .iter()
+            .map(|(id, value)| {
+                (
+                    MappedString::new(id.clone()),
+                    MappedString::new(value.clone()),
+                )
+            })
+            .collect();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -676,20 +706,29 @@ fn recurse_generate_render_nodes_literal(
             .condition_expression_vtable_id
             .unwrap();
 
-        let conditional_expression_paxel = tnd.
-            control_flow_settings
+        let conditional_expression_paxel = tnd
+            .control_flow_settings
             .as_ref()
-            .unwrap().condition_expression_paxel.as_ref().unwrap();
+            .unwrap()
+            .condition_expression_paxel
+            .as_ref()
+            .unwrap();
 
-
-        let common_properties_literal = CommonProperties::get_default_properties_literal().iter()
-            .map(|(id,value)|(MappedString::new(id.clone()), MappedString::new(value.clone()))).collect();
+        let common_properties_literal = CommonProperties::get_default_properties_literal()
+            .iter()
+            .map(|(id, value)| {
+                (
+                    MappedString::new(id.clone()),
+                    MappedString::new(value.clone()),
+                )
+            })
+            .collect();
 
         let conditional_source_map_id = source_map.insert(conditional_expression_paxel.clone());
-        let conditional_mapped_string = source_map.generate_mapped_string(format!(
-            "Some(Box::new(PropertyExpression::new({})))",
-            id
-        ), conditional_source_map_id);
+        let conditional_mapped_string = source_map.generate_mapped_string(
+            format!("Some(Box::new(PropertyExpression::new({})))", id),
+            conditional_source_map_id,
+        );
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -731,11 +770,20 @@ fn recurse_generate_render_nodes_literal(
             .unwrap();
 
         let slot_source_map_id = source_map.insert(slot_expression.clone());
-        let slot_mapped_string = source_map.generate_mapped_string(format!("Some(Box::new(PropertyExpression::new({})))", id)
-        , slot_source_map_id);
+        let slot_mapped_string = source_map.generate_mapped_string(
+            format!("Some(Box::new(PropertyExpression::new({})))", id),
+            slot_source_map_id,
+        );
 
-        let common_properties_literal = CommonProperties::get_default_properties_literal().iter()
-        .map(|(id,value)|(MappedString::new(id.clone()), MappedString::new(value.clone()))).collect();
+        let common_properties_literal = CommonProperties::get_default_properties_literal()
+            .iter()
+            .map(|(id, value)| {
+                (
+                    MappedString::new(id.clone()),
+                    MappedString::new(value.clone()),
+                )
+            })
+            .collect();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -774,64 +822,78 @@ fn recurse_generate_render_nodes_literal(
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-        let property_ril_tuples: Vec<Option<(MappedString, MappedString)>> = component_for_current_node
-            .get_property_definitions(rngc.type_table)
-            .iter()
-            .map(|pd| {
-                let ril_literal_string = {
-                    if let Some(merged_settings) = &tnd.settings {
-                        if let Some(matched_setting) =
-                            merged_settings.iter().find(|avd| avd.0.token_value == pd.name)
-                        {
-                            let setting_source_map_id = source_map.insert(matched_setting.0.clone());
-                            let key_mapped_string = source_map.generate_mapped_string(matched_setting.0.token_value.clone(), setting_source_map_id);
+        let property_ril_tuples: Vec<Option<(MappedString, MappedString)>> =
+            component_for_current_node
+                .get_property_definitions(rngc.type_table)
+                .iter()
+                .map(|pd| {
+                    let ril_literal_string = {
+                        if let Some(merged_settings) = &tnd.settings {
+                            if let Some(matched_setting) = merged_settings
+                                .iter()
+                                .find(|avd| avd.0.token_value == pd.name)
+                            {
+                                let setting_source_map_id =
+                                    source_map.insert(matched_setting.0.clone());
+                                let key_mapped_string = source_map.generate_mapped_string(
+                                    matched_setting.0.token_value.clone(),
+                                    setting_source_map_id,
+                                );
 
-                            match &matched_setting.1 {
-                                ValueDefinition::LiteralValue(lv) => {
-                                    let value_source_map_id = source_map.insert(lv.clone());
-                                    let value_mapped_string = source_map.generate_mapped_string(format!("PropertyLiteral::new({})", lv.token_value), value_source_map_id);
-                                    Some((key_mapped_string.clone(), value_mapped_string))
-                                }
-                                ValueDefinition::Expression(t, id)
-                                | ValueDefinition::Identifier(t, id) => {
-                                    let value_source_map_id = source_map.insert(t.clone());
-                                    let value_mapped_string = source_map.generate_mapped_string(format!(
+                                match &matched_setting.1 {
+                                    ValueDefinition::LiteralValue(lv) => {
+                                        let value_source_map_id = source_map.insert(lv.clone());
+                                        let value_mapped_string = source_map
+                                            .generate_mapped_string(
+                                                format!("PropertyLiteral::new({})", lv.token_value),
+                                                value_source_map_id,
+                                            );
+                                        Some((key_mapped_string.clone(), value_mapped_string))
+                                    }
+                                    ValueDefinition::Expression(t, id)
+                                    | ValueDefinition::Identifier(t, id) => {
+                                        let value_source_map_id = source_map.insert(t.clone());
+                                        let value_mapped_string = source_map
+                                            .generate_mapped_string(
+                                                format!(
                                     "PropertyExpression::new({})",
-                                    id.expect("Tried to use expression but it wasn't compiled")), value_source_map_id);
-                                    Some((key_mapped_string.clone(), value_mapped_string))
+                                    id.expect("Tried to use expression but it wasn't compiled")),
+                                                value_source_map_id,
+                                            );
+                                        Some((key_mapped_string.clone(), value_mapped_string))
+                                    }
+                                    ValueDefinition::Block(block) => Some((
+                                        key_mapped_string.clone(),
+                                        MappedString::new(format!(
+                                            "PropertyLiteral::new({})",
+                                            recurse_literal_block(
+                                                block.clone(),
+                                                pd.get_type_definition(&rngc.type_table),
+                                                host_crate_info,
+                                                source_map
+                                            )
+                                        )),
+                                    )),
+                                    _ => {
+                                        panic!("Incorrect value bound to inline setting")
+                                    }
                                 }
-                                ,
-                                ValueDefinition::Block(block) =>{
-                                    Some((key_mapped_string.clone(), MappedString::new(format!(
-                                    "PropertyLiteral::new({})",
-                                    recurse_literal_block(
-                                        block.clone(),
-                                        pd.get_type_definition(&rngc.type_table),
-                                        host_crate_info,
-                                        source_map
-                                    )
-                                ))))
-                            },
-                                _ => {
-                                    panic!("Incorrect value bound to inline setting")
-                                }
+                            } else {
+                                None
                             }
                         } else {
+                            //no inline attributes at all; everything will be default
                             None
                         }
+                    };
+
+                    if let Some((key, value)) = ril_literal_string {
+                        Some((key, value))
                     } else {
-                        //no inline attributes at all; everything will be default
                         None
                     }
-                };
-
-                if let Some((key,value)) = ril_literal_string {
-                    Some((key, value))
-                } else {
-                    None
-                }
-            })
-            .collect();
+                })
+                .collect();
 
         let defined_properties: Vec<(MappedString, MappedString)> = property_ril_tuples
             .iter()
@@ -953,20 +1015,28 @@ struct RenderNodesGenerationContext<'a> {
     type_table: &'a TypeTable,
 }
 
-fn generate_events_map(events: Option<Vec<EventDefinition>>, source_map: &mut SourceMap) -> Vec<(MappedString, Vec<MappedString>)> {
+fn generate_events_map(
+    events: Option<Vec<EventDefinition>>,
+    source_map: &mut SourceMap,
+) -> Vec<(MappedString, Vec<MappedString>)> {
     let mut ret = HashMap::new();
     let _ = match events {
         Some(event_list) => {
             for e in event_list.iter() {
-                let event_values : Vec<MappedString> = e.value.clone().iter().map(
-                    |et| {
+                let event_values: Vec<MappedString> = e
+                    .value
+                    .clone()
+                    .iter()
+                    .map(|et| {
                         let et_source_map_id = source_map.insert(et.clone());
-                        let et_mapped_string = source_map.generate_mapped_string(et.token_value.clone(), et_source_map_id);
+                        let et_mapped_string = source_map
+                            .generate_mapped_string(et.token_value.clone(), et_source_map_id);
                         et_mapped_string
-                    }
-                ).collect();
+                    })
+                    .collect();
                 let key_source_map_id = source_map.insert(e.key.clone());
-                let key_mapped_string = source_map.generate_mapped_string(e.key.token_value.clone(), key_source_map_id);
+                let key_mapped_string =
+                    source_map.generate_mapped_string(e.key.token_value.clone(), key_source_map_id);
                 ret.insert(key_mapped_string, event_values);
             }
         }
@@ -1004,7 +1074,11 @@ fn generate_cartridge_component_factory_literal(
             })
             .collect(),
         events: generate_events_map(cd.events.clone(), source_map),
-        render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc, host_crate_info, source_map),
+        render_nodes_literal: generate_cartridge_render_nodes_literal(
+            &rngc,
+            host_crate_info,
+            source_map,
+        ),
         properties_coproduct_variant: cd.type_id_escaped.to_string(),
     };
 
@@ -1081,9 +1155,11 @@ use colored::{ColoredString, Colorize};
 
 use crate::parsing::escape_identifier;
 
+use crate::helpers::{
+    remove_path_from_pax_dependencies, set_path_on_pax_dependencies, update_pax_dependency_versions,
+};
 use serde::Deserialize;
 use serde_json::Value;
-use crate::helpers::{remove_path_from_pax_dependencies, set_path_on_pax_dependencies, update_pax_dependency_versions};
 
 #[derive(Debug, Deserialize)]
 struct Metadata {
@@ -1137,7 +1213,6 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
-
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
     //dependency paths are `.pax/pkg/*`.
@@ -1168,7 +1243,9 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
         .unwrap();
 
     if !output.status.success() {
-        return Err(eyre!("Parsing failed — there is likely a syntax error in the provided pax"));
+        return Err(eyre!(
+            "Parsing failed — there is likely a syntax error in the provided pax"
+        ));
     }
 
     let out = String::from_utf8(output.stdout).unwrap();
@@ -1186,12 +1263,18 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
-    let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info, &mut source_map);
+    let cartridge_path =
+        generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info, &mut source_map);
     source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
-    build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), &source_map)?;
+    build_chassis_with_cartridge(
+        &pax_dir,
+        &ctx,
+        Arc::clone(&ctx.process_child_ids),
+        &source_map,
+    )?;
     Ok(())
 }
 
@@ -1276,12 +1359,7 @@ pub fn perform_clean(path: &str) {
     fs::remove_dir_all(&pax_dir).ok();
 }
 
-fn run_cargo_build(){
-
-}
-
-
-
+fn run_cargo_build() {}
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
@@ -1290,8 +1368,8 @@ pub fn build_chassis_with_cartridge(
     pax_dir: &PathBuf,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-    source_map: &SourceMap
-) -> eyre::Result<(), Report>{
+    source_map: &SourceMap,
+) -> eyre::Result<(), Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -1484,7 +1562,9 @@ pub fn build_chassis_with_cartridge(
             }
 
             if should_abort {
-                return Err(eyre!("Failed to build one or more targets with Cargo. Aborting."));
+                return Err(eyre!(
+                    "Failed to build one or more targets with Cargo. Aborting."
+                ));
             }
 
             // Update the `install name` of each Rust-built .dylib, instead of the default-output absolute file paths
@@ -1875,15 +1955,15 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
 
-                    let output_str = std::str::from_utf8(&output.stdout).map_err(|_| eyre!("Failed to parse stdout for xcrun"))?;
-                    let parsed: Value = serde_json::from_str(&output_str).map_err(|_| eyre!("Failed to deserialize xcrun."))?;
+                    let output_str = std::str::from_utf8(&output.stdout)
+                        .map_err(|_| eyre!("Failed to parse stdout for xcrun"))?;
+                    let parsed: Value = serde_json::from_str(&output_str)
+                        .map_err(|_| eyre!("Failed to deserialize xcrun."))?;
 
                     // Extract devices
-                    let devices = parsed["devices"]
-                        .as_object()
-                        .ok_or_else(|| {
-                            return eyre!("Invalid JSON format for devices.");
-                        })?;
+                    let devices = parsed["devices"].as_object().ok_or_else(|| {
+                        return eyre!("Invalid JSON format for devices.");
+                    })?;
 
                     let mut max_iphone_number = 0;
                     let mut desired_udid = None;
@@ -1892,7 +1972,9 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                         if let Some(device_array) = device_list.as_array() {
                             for device in device_array {
                                 if let Some(device_type) = device["deviceTypeIdentifier"].as_str() {
-                                    if device_type.starts_with("com.apple.CoreSimulator.SimDeviceType.iPhone-") {
+                                    if device_type.starts_with(
+                                        "com.apple.CoreSimulator.SimDeviceType.iPhone-",
+                                    ) {
                                         if let Some(number) = device_type.split('-').last() {
                                             if let Ok(number) = number.parse::<i32>() {
                                                 if number > max_iphone_number {
@@ -1984,7 +2066,9 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     }
 
                     if retries == max_retries {
-                        return Err(eyre!("Failed to boot the simulator within the expected time. Aborting."));
+                        return Err(eyre!(
+                            "Failed to boot the simulator within the expected time. Aborting."
+                        ));
                     }
 
                     // Install and run app on simulator
@@ -2053,23 +2137,23 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 .arg("wasm32-unknown-unknown")
                 .arg("--message-format=json")
                 .env("PAX_DIR", &pax_dir)
-                .stdout(std::process::Stdio::piped()) 
+                .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
-            
+
             if is_release {
                 cmd.arg("--release");
             }
-            
+
             #[cfg(unix)]
             unsafe {
                 cmd.pre_exec(pre_exec_hook);
             }
-            
+
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
             if !output.status.success() {
                 let result = errors::process_messages(output, source_map);
-                if ctx.verbose { 
+                if ctx.verbose {
                     // Print and continue to wasm-pack to get full error stack trace
                     if let Err(e) = result {
                         eprintln!("Error encountered: {:?}", e);
@@ -2132,7 +2216,6 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     return Err(eyre!("Error copying assets: {}", e));
                 }
             }
-
 
             //Copy fully built project into .pax/build/web, ready for e.g. publishing
             let build_src = interface_path.join(PUBLIC_DIR_NAME);

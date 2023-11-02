@@ -69,7 +69,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             } else {
                 unreachable!()
             };
-            properties.path.set(pax_runtime_api::StringBox { string: new_value });
+            properties
+                .path
+                .set(pax_runtime_api::StringBox { string: new_value });
         }
 
         self.common_properties.compute_properties(rtc);
