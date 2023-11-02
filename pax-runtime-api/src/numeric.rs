@@ -1,7 +1,7 @@
 use crate::Interpolatable;
 use std::cmp::Ordering;
-use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::convert::TryFrom;
+use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 /// Numeric is a module that wraps numeric literals in Pax
 /// It encapsulates the built-in Rust numeric scalar types and defines behavior across them
@@ -176,7 +176,9 @@ impl From<&f64> for Numeric {
 impl From<Numeric> for u8 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => u8::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to u8 resulted in overflow.")),
+            Numeric::Integer(i) => u8::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to u8 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= u8::MIN as f64) && (f <= u8::MAX as f64) {
                     f as u8
@@ -191,7 +193,9 @@ impl From<Numeric> for u8 {
 impl From<Numeric> for u16 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => u16::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to u16 resulted in overflow.")),
+            Numeric::Integer(i) => u16::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to u16 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= u16::MIN as f64) && (f <= u16::MAX as f64) {
                     f as u16
@@ -206,7 +210,9 @@ impl From<Numeric> for u16 {
 impl From<Numeric> for u32 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => u32::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to u32 resulted in overflow.")),
+            Numeric::Integer(i) => u32::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to u32 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= u32::MIN as f64) && (f <= u32::MAX as f64) {
                     f as u32
@@ -221,7 +227,9 @@ impl From<Numeric> for u32 {
 impl From<Numeric> for u64 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => u64::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to u64 resulted in overflow.")),
+            Numeric::Integer(i) => u64::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to u64 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= u64::MIN as f64) && (f <= u64::MAX as f64) {
                     f as u64
@@ -236,7 +244,9 @@ impl From<Numeric> for u64 {
 impl From<Numeric> for u128 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => u128::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to u128 resulted in overflow.")),
+            Numeric::Integer(i) => u128::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to u128 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= u128::MIN as f64) && (f <= u128::MAX as f64) {
                     f as u128
@@ -251,7 +261,9 @@ impl From<Numeric> for u128 {
 impl From<Numeric> for usize {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => usize::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to usize resulted in overflow.")),
+            Numeric::Integer(i) => usize::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to usize resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= usize::MIN as f64) && (f <= usize::MAX as f64) {
                     f as usize
@@ -266,7 +278,9 @@ impl From<Numeric> for usize {
 impl From<Numeric> for i8 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => i8::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to i8 resulted in overflow.")),
+            Numeric::Integer(i) => i8::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to i8 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= i8::MIN as f64) && (f <= i8::MAX as f64) {
                     f as i8
@@ -281,7 +295,9 @@ impl From<Numeric> for i8 {
 impl From<Numeric> for i16 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => i16::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to i16 resulted in overflow.")),
+            Numeric::Integer(i) => i16::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to i16 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= i16::MIN as f64) && (f <= i16::MAX as f64) {
                     f as i16
@@ -296,7 +312,9 @@ impl From<Numeric> for i16 {
 impl From<Numeric> for i32 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => i32::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to i32 resulted in overflow.")),
+            Numeric::Integer(i) => i32::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to i32 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= i32::MIN as f64) && (f <= i32::MAX as f64) {
                     f as i32
@@ -311,7 +329,9 @@ impl From<Numeric> for i32 {
 impl From<Numeric> for i64 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => i64::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to i64 resulted in overflow.")),
+            Numeric::Integer(i) => i64::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to i64 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= i64::MIN as f64) && (f <= i64::MAX as f64) {
                     f as i64
@@ -326,7 +346,9 @@ impl From<Numeric> for i64 {
 impl From<Numeric> for i128 {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => i128::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to i128 resulted in overflow.")),
+            Numeric::Integer(i) => i128::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to i128 resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= i128::MIN as f64) && (f <= i128::MAX as f64) {
                     f as i128
@@ -341,7 +363,9 @@ impl From<Numeric> for i128 {
 impl From<Numeric> for isize {
     fn from(value: Numeric) -> Self {
         match value {
-            Numeric::Integer(i) => isize::try_from(i).unwrap_or_else(|_| unreachable!("Conversion from Numeric to isize resulted in overflow.")),
+            Numeric::Integer(i) => isize::try_from(i).unwrap_or_else(|_| {
+                unreachable!("Conversion from Numeric to isize resulted in overflow.")
+            }),
             Numeric::Float(f) => {
                 if (f >= isize::MIN as f64) && (f <= isize::MAX as f64) {
                     f as isize
@@ -375,8 +399,6 @@ impl From<Numeric> for f64 {
         }
     }
 }
-
-
 
 impl Numeric {
     fn widen(
@@ -504,8 +526,6 @@ impl PartialOrd<Self> for Numeric {
         }
     }
 }
-
-
 
 /// Helper functions to ease working with built-ins
 

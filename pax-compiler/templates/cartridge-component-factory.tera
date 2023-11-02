@@ -5,25 +5,37 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
         handler_registry:  Some(Rc::new(RefCell::new({
             #[allow(unused_mut)]
             let mut handler_registry = HandlerRegistry::default();
-                {% for key, value in events %}
-                handler_registry.{{key}}_handlers =  vec![
-                    {% for handler in value %}
-                        {%- if key in ['will_render','did_mount'] -%}
+                {% for entry in events %}
+                {% if entry.0.source_map_start_marker %}
+                    {{entry.0.source_map_start_marker}}
+                {% endif %}
+                handler_registry.{{entry.0.content}}_handlers =  vec![
+                    {% for handler in entry.1 %}
+                        {% if handler.source_map_start_marker %}
+                            {{handler.source_map_start_marker}}
+                        {% endif %}
+                        {%- if entry.0.content in ['will_render','did_mount'] -%}
                             |properties, ctx|{
                                 let properties = &mut *properties.as_ref().borrow_mut();
                                 let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                                {{ component_properties_struct }}::{{handler}}(properties,ctx);
+                                {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
                             },
                         {% else %}
                         |stack_frame, ctx, args|{
                             let properties = ((*stack_frame).borrow().get_properties());
                             let properties = &mut *properties.as_ref().borrow_mut();
                             let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                                {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
+                                {{ component_properties_struct }}::{{handler.content}}(properties,ctx,args);
                             },
+                        {% endif %}
+                        {% if handler.source_map_end_marker %}
+                            {{handler.source_map_end_marker}}
                         {% endif %}
                     {% endfor %}
                 ];
+                {% if entry.0.source_map_end_marker %}
+                    {{entry.0.source_map_end_marker}}
+                {% endif %}
                 {% endfor %}
             handler_registry
         }))),
@@ -60,25 +72,37 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance
     args.handler_registry = Some(Rc::new(RefCell::new({
      #[allow(unused_mut)]
      let mut handler_registry = HandlerRegistry::default();
-     {% for key, value in events %}
-     handler_registry.{{key}}_handlers =  vec![
-     {% for handler in value %}
-         {%- if key in ['will_render','did_mount'] -%}
+     {% for entry in events %}
+     {% if entry.0.source_map_start_marker %}
+        {{entry.0.source_map_start_marker}}
+     {% endif %}
+     handler_registry.{{entry.0.content}}_handlers =  vec![
+     {% for handler in entry.1 %}
+        {% if handler.source_map_start_marker %}
+            {{handler.source_map_start_marker}}
+        {% endif %}
+         {%- if entry.0.content in ['will_render','did_mount'] -%}
              |properties, ctx|{
              let properties = &mut *properties.as_ref().borrow_mut();
              let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-             {{ component_properties_struct }}::{{handler}}(properties,ctx);
+             {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
              },
      {% else %}
          |stack_frame, ctx, args|{
          let properties = ((*stack_frame).borrow().get_properties());
          let properties = &mut *properties.as_ref().borrow_mut();
          let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-         {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
+         {{ component_properties_struct }}::{{handler.content}}(properties,ctx,args);
          },
+     {% endif %}
+     {% if handler.source_map_end_marker %}
+        {{handler.source_map_end_marker}}
      {% endif %}
      {% endfor %}
      ];
+     {% if entry.0.source_map_end_marker %}
+        {{entry.0.source_map_end_marker}}
+     {% endif %}
      {% endfor %}
      handler_registry})));
 
