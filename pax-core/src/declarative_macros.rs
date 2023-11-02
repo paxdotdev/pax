@@ -63,3 +63,43 @@ macro_rules! unsafe_wrap {
     }};
 }
 
+/// Manages unpacking an Rc<RefCell<PropertiesCoproduct>>, [`unsafe_unwrap!`]ping into
+/// the parameterized variant/type, and executing a provided closure in the
+/// context of that unwrapped variant (including support for mutable operations),
+/// then cleaning up by repacking that variant into the Rc<RefCell<>> after
+/// the closure is executed.  Used at least by calculating properties in `handle_compute_properties` and
+/// passing `&mut self` into event handlers (where the `self` is one of these wrapped instances of PropertiesCoproduct.)
+///
+/// # Examples
+///
+/// ```text
+/// let wrapped : Rc<RefCell<PropertiesCoproduct>> = foo();
+/// with_properties_unsafe!(&wrapped, PropertiesCoproduct, Color, |color| {
+///     // color is of type &mut Color
+///     // Perform operations on `color` here.
+///     // This macro will handle repacking `color` into the Rc<RefCell<PropertiesCoproduct>>
+///     // after the block is evaluated.
+/// });
+/// ```
+#[macro_export]
+macro_rules! with_properties_unsafe {
+    ($rc_refcell:expr, $enum_type:ty, $target_type:ty, $body:expr) => {{
+        // Clone the `Rc` to ensure that we have a temporary ownership of the `RefCell`.
+        let rc = $rc_refcell.clone();
+        // Borrow the `RefCell` mutably and take the value, leaving `Default::default()` in its place.
+        let mut value = std::mem::replace(&mut *rc.borrow_mut(), Default::default());
+
+        // Use the unsafe_unwrap! macro to get the unwrapped value of the specific type.
+        let mut unwrapped_value: $target_type = unsafe_unwrap!(value, $enum_type, $target_type);
+
+        // This ensures that the lifetime of the reference passed to the closure does not outlive the temporary value.
+        {
+            let closure: &dyn FnOnce(&mut $target_type) = &$body;
+            closure(&mut unwrapped_value);
+        }
+
+        // Replace the potentially modified value back into the `RefCell`.
+        mem::replace(&mut *rc.borrow_mut(), unwrapped_value);
+    }};
+}
+

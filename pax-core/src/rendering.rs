@@ -15,7 +15,7 @@ use crate::{HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeCont
 use crate::form_event::FormEvent;
 
 /// Type aliases to make it easier to work with nested Rcs and
-/// RefCells for rendernodes.
+/// RefCells for instance nodes.
 pub type InstanceNodePtr<R> = Rc<RefCell<dyn InstanceNode<R>>>;
 pub type InstanceNodePtrList<R> = Rc<RefCell<Vec<InstanceNodePtr<R>>>>;
 
@@ -260,7 +260,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     #[allow(unused_variables)]
     fn handle_native_patches(
         &mut self,
-        rtc: &mut RenderTreeContext<R>,
+        ptc: &mut PropertiesTreeContext<R>,
         computed_size: (f64, f64),
         transform_coeffs: Vec<f64>,
         z_index: u32,
