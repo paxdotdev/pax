@@ -30,6 +30,35 @@ impl PaxTemplateError {
         let err = PaxTemplateError { message, token };
         eyre!(format!("{}", err))
     }
+
+    fn underline_token(&self) -> String {
+        let mut result = String::new();
+        if let Some(loc) = &self.token.token_location {
+            if loc.start_line_col.0 == loc.end_line_col.0 {
+                if let Some(source_line) = &self.token.source_line {
+                    let underline_len = (loc.end_line_col.1 - loc.start_line_col.1).max(1);
+                    let underline = " ".repeat(loc.start_line_col.1) + &"^".repeat(underline_len);
+                    result.push_str(&format!("\n{}", source_line));
+                    result.push_str(&format!("\n{}", underline.bold().red()));
+                    return result;
+                }
+            }
+        }
+        self.underline_raw_token()
+    }
+
+    fn underline_raw_token(&self) -> String {
+        let raw_value_lines: Vec<&str> = self.token.raw_value.split('\n').collect();
+        let mut result = String::new();
+
+        for line in raw_value_lines.iter() {
+            result.push_str(&format!("{}\n", line));
+            let first_non_space = line.chars().position(|c| !c.is_whitespace()).unwrap_or(0);
+            let underline = " ".repeat(first_non_space) + &"^".repeat(line.len() - first_non_space);
+            result.push_str(&format!("{}\n", underline.red().bold()));
+        }
+        result
+    }
 }
 
 impl fmt::Display for PaxTemplateError {
@@ -63,17 +92,9 @@ impl fmt::Display for PaxTemplateError {
             .green();
             write!(f, "{}", location)?;
 
-            // Check if there's a source_line and underline the issue in red
-            if let Some(source_line) = &self.token.source_line {
-                let underline_len = if loc.start_line_col.1 <= loc.end_line_col.1 {
-                    (loc.end_line_col.1 - loc.start_line_col.1).max(1)
-                } else {
-                    1
-                };
-                let underline = " ".repeat(loc.start_line_col.1) + &"^".repeat(underline_len);
-                write!(f, "\n{}", source_line)?;
-                write!(f, "\n{}", underline.bold().red())?;
-            }
+            // Underline the issue based on the line information
+            let token_underline = self.underline_token();
+            write!(f, "\n{}", token_underline)?;
         }
 
         // Optionally print the custom message below the error line if it's present
