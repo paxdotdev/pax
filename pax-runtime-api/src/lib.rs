@@ -48,6 +48,7 @@ pub trait PropertyInstance<T: Default + Clone> {
     //Wishlist:
     // to_default: set back to default value
     // ease_to_default: set back to default value via interpolation
+    // ^ for the above, consider the transient changes to dirty-DAG when we switch between a Literal and Expression.
 }
 
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {

@@ -2,7 +2,7 @@ use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode};
+use pax_core::{unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, with_properties_unsafe};
 
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
@@ -55,6 +55,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
         }
     }
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+
+        /*
+
+         */
+
+
+
+        with_properties_unsafe!(&wrapped, PropertiesCoproduct, Ellipse, |properties| {
+            if let Some(vtable_id) = properties.stroke.get().width._get_vtable_id() {
+
+            }
+
+        })
+
         // self.common_properties.compute_properties(ptc);
         //
         // let properties = &mut *self.properties.as_ref().borrow_mut();
@@ -90,36 +104,36 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
         let height: f64 = bounding_dimens.1;
 
         let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
-        let properties_wrapped_bare = properties_wrapped.take();
-        let properties = unsafe_unwrap!(properties_wrapped_bare, PropertiesCoproduct, Ellipse);
+        with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Ellipse, |properties|{
+            let properties_color = properties.fill.get();
+            let _color = match properties_color.color_variant {
+                ColorVariant::Hlca(slice) => Color::hlca(slice[0], slice[1], slice[2], slice[3]),
+                ColorVariant::Hlc(slice) => Color::hlc(slice[0], slice[1], slice[2]),
+                ColorVariant::Rgba(slice) => Color::rgba(slice[0], slice[1], slice[2], slice[3]),
+                ColorVariant::Rgb(slice) => Color::rgb(slice[0], slice[1], slice[2]),
+            };
 
-        let properties_color = properties.fill.get();
-        let _color = match properties_color.color_variant {
-            ColorVariant::Hlca(slice) => Color::hlca(slice[0], slice[1], slice[2], slice[3]),
-            ColorVariant::Hlc(slice) => Color::hlc(slice[0], slice[1], slice[2]),
-            ColorVariant::Rgba(slice) => Color::rgba(slice[0], slice[1], slice[2], slice[3]),
-            ColorVariant::Rgb(slice) => Color::rgb(slice[0], slice[1], slice[2]),
-        };
+            let rect = Rect::from_points((0.0, 0.0), (width, height));
+            let ellipse = KurboEllipse::from_rect(rect);
+            let accuracy = 0.1;
+            let bez_path = ellipse.to_path(accuracy);
 
-        let rect = Rect::from_points((0.0, 0.0), (width, height));
-        let ellipse = KurboEllipse::from_rect(rect);
-        let accuracy = 0.1;
-        let bez_path = ellipse.to_path(accuracy);
+            let transformed_bez_path = transform * bez_path;
+            let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-        let transformed_bez_path = transform * bez_path;
-        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+            let color = properties.fill.get().to_piet_color();
+            rc.fill(transformed_bez_path, &color);
 
-        let color = properties.fill.get().to_piet_color();
-        rc.fill(transformed_bez_path, &color);
+            //hack to address "phantom stroke" bug on Web
+            let width: f64 = *&properties.stroke.get().width.get().into();
+            if width > f64::EPSILON {
+                rc.stroke(
+                    duplicate_transformed_bez_path,
+                    &properties.stroke.get().color.get().to_piet_color(),
+                    width,
+                );
+            }
+        });
 
-        //hack to address "phantom stroke" bug on Web
-        let width: f64 = *&properties.stroke.get().width.get().into();
-        if width > f64::EPSILON {
-            rc.stroke(
-                duplicate_transformed_bez_path,
-                &properties.stroke.get().color.get().to_piet_color(),
-                width,
-            );
-        }
     }
 }
