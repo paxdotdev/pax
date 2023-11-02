@@ -17,7 +17,8 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     // If node is_component, compute properties for its slot_children
     // Otherwise, compute properties for its rendering children
 
-    let mut node_borrowed = ptc.current_instance_node.borrow_mut();
+    let instance_node = Rc::clone(&ptc.current_instance_node);
+    let mut node_borrowed = instance_node.borrow_mut();
 
 
     // What if we pass the ID chain here?  Then each component is in charge of storing its own
@@ -51,6 +52,18 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     }
 
     node_borrowed.handle_post_compute_properties(ptc);
+
+    //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+    //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
+    node_borrowed.instance_node.borrow_mut().handle_native_patches(
+        ptc,
+        clipping_aware_bounds,
+        new_scroller_normalized_accumulated_transform
+            .as_coeffs()
+            .to_vec(),
+        node.borrow().z_index,
+        subtree_depth,
+    );
 
     this_expanded_node
 }
