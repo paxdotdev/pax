@@ -51,18 +51,13 @@ impl fmt::Display for PaxTemplateError {
             TokenType::Unknown => "Unknown token error.",
         };
 
-        let error_display = format!("Error: {}", error_message).red().bold();
-        write!(f, "{}", error_display)?;
-
-        // Optionally print the custom message below the error line if it's present
-        if let Some(custom_message) = &self.message {
-            write!(f, "\n{}", custom_message)?;
-        }
+        let error_display = format!("Error: {}", error_message).bold().red();
+        write!(f, "\n{}", error_display)?;
 
         // Display the token location
         if let Some(loc) = &self.token.token_location {
             let location = format!(
-                "\nLine {} : Col {}",
+                "\n\nLine {} : Col {}",
                 loc.start_line_col.0, loc.start_line_col.1
             )
             .green();
@@ -77,8 +72,14 @@ impl fmt::Display for PaxTemplateError {
                 };
                 let underline = " ".repeat(loc.start_line_col.1) + &"^".repeat(underline_len);
                 write!(f, "\n{}", source_line)?;
-                write!(f, "\n{}", underline.red())?;
+                write!(f, "\n{}", underline.bold().red())?;
             }
+        }
+
+        // Optionally print the custom message below the error line if it's present
+        if let Some(custom_message) = &self.message {
+            let formatted_custom_message = (*custom_message).bold().red();
+            write!(f, "\n{}\n", formatted_custom_message)?;
         }
 
         Ok(())
