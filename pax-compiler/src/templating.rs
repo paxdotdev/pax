@@ -3,7 +3,10 @@ use include_dir::{include_dir, Dir};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use std::{collections::HashMap, hash::{Hash, Hasher}};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
 use tera::{Context, Tera};
 
 use crate::manifest::{ExpressionSpec, PropertyDefinition};
@@ -178,7 +181,7 @@ pub fn press_template_codegen_cartridge_render_node_literal(
     let mut tera = Tera::default();
     tera.add_raw_template("cartridge-render-node-literal", template)
         .unwrap();
-    
+
     tera.render(
         "cartridge-render-node-literal",
         &Context::from_serialize(args).unwrap(),

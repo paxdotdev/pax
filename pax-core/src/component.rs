@@ -90,7 +90,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         bounds
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         //expand adoptees before adding to stack frame.
         //NOTE: this requires *evaluating properties* for `should_flatten` nodes like Repeat and Conditional, whose
         //      properties must be evaluated before we can know how to handle them as adoptees
