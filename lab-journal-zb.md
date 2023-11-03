@@ -4229,7 +4229,6 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [x] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
         start with internal; punch through trait methods if that becomes necessary
     [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each of properties and commonproperties
-        Note: 
 [x] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
     [x] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
     [x] Refactor file boundaries along the way
@@ -4276,6 +4275,15 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             (this could vaguely be considered a garbage collector of sorts.  If an ExpandedNode isn't used any more, we manage unmount.  We might even be able to handle
             this by hooking into `Drop` on `ExpandedNode`!  However, this would be error prone and require very careful management of ExpandedNode instances.  Probably
             better to be explicit on this one, feels like "C++ operator overloading"-style footgun potential.
+    [ ] and mounting
+        [ ] decide: properties pass or render pass
+            consider that we use mount / unmount to trigger native CRUD ops.  This suggests they should happen before & after properties pass, respectively (otherwise we'll get *Update events at the wrong times)
+            Perhaps: remove pre- and post- for properties compute.  Only Component was using this.  Instead, introduce some flag on the InstanceNode trait e.g. `handles_custom_subtree_for_properties_compute`
+            Repeat, Component, Conditional, and Slot can return `true`.  And then during Properties compute pass, instead of traversing into these subtrees, the workhorse method allows these nodes to do their own piecewise recursion
+            (Note more established term: "indirect recursion" instead of "piecewise recursion.")
+            Now we only need a `handle_compute_properties` lifecycle method.  How does that interact with `mount`?
+            `mount` requires properties already to have been computed once, with their default values.  This _could_ happen right after upserting, when a prototypical copy is applied.
+            This would allow `mount` to be the very first thing to fire.  This would give the benefit of "we can enqueue *Create methods before we enqueue *Update methods"
 [x] Refactor `get_rendering_children` => `get_instance_children`, plus ensure there's a means of traversing expanded children
     Perhaps we just assume one ExpandedNode per visit of an InstanceNode (meaning we iterate+recurse through `get_instance_children` in `recurse_compute_properties`).  Then,
     the only places we get many or zero expandednodes is within Conditional + Repeat.
