@@ -33,10 +33,6 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         &self.cached_value
     }
 
-    fn get_mut(&mut self) -> &mut T {
-        unreachable!()
-    }
-
     // fn is_fresh(&self) -> bool {
     //     self.is_fresh
     // }

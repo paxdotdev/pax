@@ -4221,12 +4221,16 @@ Let's store a prototypical clone of the original properties on each InstanceNode
         [x] build `with_properties_unsafe` macro
 [x] Unplug most of pax_std to reduce iterative surface area
     [ ] Come back at the end, plug back in, and normalize the rest
+[ ] Native patches
+    [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
+    [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
 [ ] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
     [x] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
         start with internal; punch through trait methods if that becomes necessary
     [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each of properties and commonproperties
-[ ] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
+        Note: 
+[x] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
     [x] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
     [x] Refactor file boundaries along the way
 [ ] Refactor Repeat & Conditional properties computation
@@ -4271,7 +4275,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             of their own subtrees, we could instead track the entire expanded tree.  If, after finishing properties computation, there's not an expanded node with
             (this could vaguely be considered a garbage collector of sorts.  If an ExpandedNode isn't used any more, we manage unmount.  We might even be able to handle
             this by hooking into `Drop` on `ExpandedNode`!  However, this would be error prone and require very careful management of ExpandedNode instances.  Probably
-            better to be explicit on this one, feels like "C++ operator overloading"-style footgunning.
+            better to be explicit on this one, feels like "C++ operator overloading"-style footgun potential.
 [x] Refactor `get_rendering_children` => `get_instance_children`, plus ensure there's a means of traversing expanded children
     Perhaps we just assume one ExpandedNode per visit of an InstanceNode (meaning we iterate+recurse through `get_instance_children` in `recurse_compute_properties`).  Then,
     the only places we get many or zero expandednodes is within Conditional + Repeat.
@@ -4282,7 +4286,6 @@ Let's store a prototypical clone of the original properties on each InstanceNode
         [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
             ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
     [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
-[ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
 [ ] Port sizing / bounds calculations over to the properties pass
     (1) compute native patches is dependent on these calculations
     (2) intuitively, these are property calculations, and rendering could/should be a pure function of these (just like all other properties)

@@ -29,8 +29,6 @@ pub trait PropertyInstance<T: Default + Clone> {
     fn get(&self) -> &T;
     fn _get_vtable_id(&self) -> Option<usize>;
 
-    fn get_mut(&mut self) -> &mut T;
-
     fn set(&mut self, value: T);
 
     /// Used by engine to gain access to this property's transition queue
@@ -774,10 +772,6 @@ impl<T: Clone> PropertyLiteral<T> {
 impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
         &self.value
-    }
-
-    fn get_mut(&mut self) -> &mut T {
-        &mut self.value
     }
 
     fn _get_vtable_id(&self) -> Option<usize> {
