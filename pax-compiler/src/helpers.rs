@@ -1,3 +1,6 @@
+use colored::{ColoredString, Colorize};
+use include_dir::{include_dir, Dir};
+use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,7 +10,41 @@ use std::sync::{Arc, Mutex};
 use toml_edit;
 use toml_edit::Document;
 
-use crate::ALL_PKGS;
+lazy_static! {
+    #[allow(non_snake_case)]
+    pub static ref PAX_BADGE: ColoredString = "[Pax]".bold().on_black().white();
+    pub static ref DIR_IGNORE_LIST_MACOS : Vec<&'static str> = vec!["target", ".build", ".git"];
+    pub static ref DIR_IGNORE_LIST_WEB : Vec<&'static str> = vec![".git"];
+}
+
+pub static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
+
+pub const PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME: &str = "new-libdev-project-template";
+pub const PKG_DIR_NAME: &str = "pkg";
+pub const BUILD_DIR_NAME: &str = "build";
+pub const PUBLIC_DIR_NAME: &str = "public";
+pub const ASSETS_DIR_NAME: &str = "assets";
+
+pub const ERR_SPAWN: &str = "failed to spawn child";
+
+//whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
+//or for looking up package IDs from a userland Cargo.lock.
+pub const ALL_PKGS: [&'static str; 14] = [
+    "pax-cartridge",
+    "pax-chassis-common",
+    "pax-chassis-ios",
+    "pax-chassis-macos",
+    "pax-chassis-web",
+    "pax-cli",
+    "pax-compiler",
+    "pax-core",
+    "pax-lang",
+    "pax-macro",
+    "pax-message",
+    "pax-properties-coproduct",
+    "pax-runtime-api",
+    "pax-std",
+];
 
 #[derive(Debug, Deserialize)]
 struct Metadata {

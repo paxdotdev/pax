@@ -1,3 +1,14 @@
+//! # The Pax Compiler Library
+//!
+//! `pax-compiler` is a collection of utilities to facilitate compiling Pax templates into Rust code.
+//!
+//! This library is structured into several modules, each providing different
+//! functionality:
+//!
+//! - `building`: Core structures and functions related to building management.
+//! - `utilities`: Helper functions and common routines used across the library.
+//!
+
 extern crate core;
 
 mod building;
@@ -8,28 +19,24 @@ mod helpers;
 pub mod manifest;
 pub mod parsing;
 mod reexports;
-pub mod templating;
 
 use color_eyre::eyre;
-use helpers::{copy_dir_recursively, wait_with_output};
+use color_eyre::eyre::Report;
+use eyre::eyre;
+use fs_extra::dir::{self, CopyOptions};
+use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
+use include_dir::{include_dir, Dir};
 use manifest::PaxManifest;
 use std::fs;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use flate2::read::GzDecoder;
-use fs_extra::dir::{self, CopyOptions};
-use tar::Archive;
-
-use color_eyre::eyre::Report;
-use eyre::eyre;
-use include_dir::{include_dir, Dir};
-use lazy_static::lazy_static;
-
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-use crate::building::{build_chassis_with_cartridge, update_property_prefixes_in_place};
+use crate::building::{
+    build_chassis_with_cartridge, clone_all_to_pkg_dir, update_property_prefixes_in_place,
+};
 
 use crate::code_generation::{
     generate_and_overwrite_cartridge, generate_and_overwrite_properties_coproduct,
@@ -40,49 +47,33 @@ use crate::reexports::generate_reexports_partial_rs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use colored::{ColoredString, Colorize};
-
 use crate::helpers::{
     get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages,
     remove_path_from_pax_dependencies, set_path_on_pax_dependencies,
-    update_pax_dependency_versions,
+    update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME,
+    PAX_CREATE_TEMPLATE,
 };
 
-lazy_static! {
-    #[allow(non_snake_case)]
-    static ref PAX_BADGE: ColoredString = "[Pax]".bold().on_black().white();
-    static ref DIR_IGNORE_LIST_MACOS : Vec<&'static str> = vec!["target", ".build", ".git"];
-    static ref DIR_IGNORE_LIST_WEB : Vec<&'static str> = vec![".git"];
+#[allow(unused)]
+static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
+
+pub struct RunContext {
+    pub target: RunTarget,
+    pub path: String,
+    pub verbose: bool,
+    pub should_also_run: bool,
+    pub is_libdev_mode: bool,
+    pub process_child_ids: Arc<Mutex<Vec<u64>>>,
+    pub is_release: bool,
 }
 
-static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
-
-const PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME: &str = "new-libdev-project-template";
-const PKG_DIR_NAME: &str = "pkg";
-const BUILD_DIR_NAME: &str = "build";
-const PUBLIC_DIR_NAME: &str = "public";
-const ASSETS_DIR_NAME: &str = "assets";
-
-const ERR_SPAWN: &str = "failed to spawn child";
-
-//whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
-//or for looking up package IDs from a userland Cargo.lock.
-const ALL_PKGS: [&'static str; 14] = [
-    "pax-cartridge",
-    "pax-chassis-common",
-    "pax-chassis-ios",
-    "pax-chassis-macos",
-    "pax-chassis-web",
-    "pax-cli",
-    "pax-compiler",
-    "pax-core",
-    "pax-lang",
-    "pax-macro",
-    "pax-message",
-    "pax-properties-coproduct",
-    "pax-runtime-api",
-    "pax-std",
-];
+pub enum RunTarget {
+    #[allow(non_camel_case_types)]
+    macOS,
+    Web,
+    #[allow(non_camel_case_types)]
+    iOS,
+}
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
@@ -161,6 +152,12 @@ pub fn perform_clean(path: &str) {
     remove_path_from_pax_dependencies(&path);
 
     fs::remove_dir_all(&pax_dir).ok();
+}
+
+pub struct CreateContext {
+    pub path: String,
+    pub is_libdev_mode: bool,
+    pub version: String,
 }
 
 pub fn perform_create(ctx: &CreateContext) {
@@ -242,90 +239,6 @@ pub fn perform_create(ctx: &CreateContext) {
     );
 }
 
-/// Clone all dependencies to `.pax/pkg`.  Similar in spirit to the Cargo package cache,
-/// this temp directory enables Pax to codegen and building in the context of the larger monorepo,
-/// working around various constraints with Cargo (for example, limits surrounding the `patch` directive.)
-///
-/// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge and pax-properties-coproduct)
-/// and where we build chassis and chassis-interfaces. (for example, running `wasm-pack` inside `.pax/pkg/pax-chassis-web`.
-/// This assumes that you are in the examples/src directory in the monorepo
-fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
-    let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
-    for pkg in ALL_PKGS {
-        if ctx.is_libdev_mode {
-            //Copy all packages from monorepo root on every build.  this allows us to propagate changes
-            //to a libdev build without "sticky caches."
-            let pax_workspace_root = pax_dir
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap();
-            let src = pax_workspace_root.join(pkg);
-            let dest = dest_pkg_root.join(pkg);
-
-            copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
-                .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
-        } else {
-            let dest = dest_pkg_root.join(pkg);
-            if !dest.exists() {
-                let pax_version = pax_version
-                    .as_ref()
-                    .expect("Pax version required but not found");
-                let tarball_url = format!(
-                    "https://crates.io/api/v1/crates/{}/{}/download",
-                    pkg, pax_version
-                );
-                let resp = reqwest::blocking::get(&tarball_url).expect(&format!(
-                    "Failed to fetch tarball for {} at version {}",
-                    pkg, pax_version
-                ));
-
-                let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
-
-                // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
-                let cursor = std::io::Cursor::new(&tarball_bytes[..]);
-
-                // Create a GzDecoder to handle the gzip layer.
-                let gz = GzDecoder::new(cursor);
-
-                // Pass the GzDecoder to tar::Archive.
-                let mut archive = Archive::new(gz);
-                // Iterate over the entries in the archive and modify the paths before extracting.
-                for entry_result in archive.entries().expect("Failed to read entries") {
-                    let mut entry = entry_result.expect("Failed to read entry");
-                    let path = match entry
-                        .path()
-                        .expect("Failed to get path")
-                        .components()
-                        .skip(1)
-                        .collect::<PathBuf>()
-                        .as_path()
-                        .to_owned()
-                    {
-                        path if path.to_string_lossy() == "" => continue, // Skip the root folder
-                        path => dest.join(path),
-                    };
-                    if entry.header().entry_type().is_dir() {
-                        fs::create_dir_all(&path).expect("Failed to create directory");
-                    } else {
-                        if let Some(parent) = path.parent() {
-                            fs::create_dir_all(&parent).expect("Failed to create parent directory");
-                        }
-                        entry.unpack(&path).expect("Failed to unpack file");
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[allow(unused)]
-static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
-
 /// Executes a shell command to run the feature-flagged parser at the specified path
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
 pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Output {
@@ -351,30 +264,6 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
     // child.stdin.take().map(drop);
     let output = wait_with_output(&process_child_ids, child);
     output
-}
-
-pub struct CreateContext {
-    pub path: String,
-    pub is_libdev_mode: bool,
-    pub version: String,
-}
-
-pub struct RunContext {
-    pub target: RunTarget,
-    pub path: String,
-    pub verbose: bool,
-    pub should_also_run: bool,
-    pub is_libdev_mode: bool,
-    pub process_child_ids: Arc<Mutex<Vec<u64>>>,
-    pub is_release: bool,
-}
-
-pub enum RunTarget {
-    #[allow(non_camel_case_types)]
-    macOS,
-    Web,
-    #[allow(non_camel_case_types)]
-    iOS,
 }
 
 impl From<&str> for RunTarget {

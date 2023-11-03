@@ -1,3 +1,9 @@
+//! # Building Module
+//!
+//! The `building` module provides structures and functions for building the complete chassis.
+//! The `build_chassis_with_cartridge` function is the main entrypoint
+
+use flate2::read::GzDecoder;
 use std::{
     collections::HashMap,
     fs,
@@ -7,10 +13,13 @@ use std::{
 };
 
 use color_eyre::eyre;
+use tar::Archive;
 
 use crate::{
-    errors::source_map::SourceMap, helpers::HostCrateInfo, manifest::PaxManifest, RunContext,
-    RunTarget, ALL_PKGS, PKG_DIR_NAME,
+    errors::source_map::SourceMap,
+    helpers::{copy_dir_recursively, HostCrateInfo, ALL_PKGS, DIR_IGNORE_LIST_MACOS, PKG_DIR_NAME},
+    manifest::PaxManifest,
+    RunContext, RunTarget,
 };
 
 use self::{apple::build_apple_chassis_with_cartridge, web::build_web_chassis_with_cartridge};
@@ -93,4 +102,85 @@ pub fn update_property_prefixes_in_place(
         );
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
+}
+
+/// Clone all dependencies to `.pax/pkg`.  Similar in spirit to the Cargo package cache,
+/// this temp directory enables Pax to codegen and building in the context of the larger monorepo,
+/// working around various constraints with Cargo (for example, limits surrounding the `patch` directive.)
+///
+/// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge and pax-properties-coproduct)
+/// and where we build chassis and chassis-interfaces. (for example, running `wasm-pack` inside `.pax/pkg/pax-chassis-web`.
+/// This assumes that you are in the examples/src directory in the monorepo
+pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
+    let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
+    for pkg in ALL_PKGS {
+        if ctx.is_libdev_mode {
+            //Copy all packages from monorepo root on every build.  this allows us to propagate changes
+            //to a libdev build without "sticky caches."
+            let pax_workspace_root = pax_dir
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap();
+            let src = pax_workspace_root.join(pkg);
+            let dest = dest_pkg_root.join(pkg);
+
+            copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
+                .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
+        } else {
+            let dest = dest_pkg_root.join(pkg);
+            if !dest.exists() {
+                let pax_version = pax_version
+                    .as_ref()
+                    .expect("Pax version required but not found");
+                let tarball_url = format!(
+                    "https://crates.io/api/v1/crates/{}/{}/download",
+                    pkg, pax_version
+                );
+                let resp = reqwest::blocking::get(&tarball_url).expect(&format!(
+                    "Failed to fetch tarball for {} at version {}",
+                    pkg, pax_version
+                ));
+
+                let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
+
+                // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
+                let cursor = std::io::Cursor::new(&tarball_bytes[..]);
+
+                // Create a GzDecoder to handle the gzip layer.
+                let gz = GzDecoder::new(cursor);
+
+                // Pass the GzDecoder to tar::Archive.
+                let mut archive = Archive::new(gz);
+                // Iterate over the entries in the archive and modify the paths before extracting.
+                for entry_result in archive.entries().expect("Failed to read entries") {
+                    let mut entry = entry_result.expect("Failed to read entry");
+                    let path = match entry
+                        .path()
+                        .expect("Failed to get path")
+                        .components()
+                        .skip(1)
+                        .collect::<PathBuf>()
+                        .as_path()
+                        .to_owned()
+                    {
+                        path if path.to_string_lossy() == "" => continue, // Skip the root folder
+                        path => dest.join(path),
+                    };
+                    if entry.header().entry_type().is_dir() {
+                        fs::create_dir_all(&path).expect("Failed to create directory");
+                    } else {
+                        if let Some(parent) = path.parent() {
+                            fs::create_dir_all(&parent).expect("Failed to create parent directory");
+                        }
+                        entry.unpack(&path).expect("Failed to unpack file");
+                    }
+                }
+            }
+        }
+    }
 }

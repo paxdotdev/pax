@@ -1,3 +1,9 @@
+//! # Reexports Module
+//!
+//! The `reexports` module provides structures and functions for generating the rexports.partial.rs file.
+//! This file is used to re-export all of the dependencies of the user's template so that the generated
+//! cartridge can use them.
+
 use std::fs;
 
 use itertools::Itertools;
