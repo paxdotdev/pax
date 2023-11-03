@@ -4,30 +4,24 @@ use std::rc::{Rc, Weak};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
-use pax_runtime_api::Timeline;
-use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, PaxEngine};
+use pax_runtime_api::{RuntimeContext, Timeline};
+use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, PaxEngine, TransformAndBounds};
 
 /// Recursive workhorse method for computing properties.  Visits all instance nodes in tree, stitching
 /// together an expanded tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
 /// Properties computation is handled within this pass, and computed properties are stored in individual ExpandedNodes.
 /// Rendering is then a function of these ExpandedNodes.
 pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-    //When recursively computing properties:
-    // Compute properties for current node
-    // If node is_component, compute properties for its slot_children
-    // Otherwise, compute properties for its rendering children
 
     let instance_node = Rc::clone(&ptc.current_instance_node);
     let mut node_borrowed = instance_node.borrow_mut();
 
 
-    // What if we pass the ID chain here?  Then each component is in charge of storing its own
-    // "parallel versions" of itself (ExpandedNodes.)  This is nicely aligned with the typed nature of
-    // properties; each implementor of `dyn InstanceNode` would be responsible for storing a HashMap<Vec<u64>, T>,
-    // where T is the type of properties stored within that component
-
+    // Used e.g. for Components to push property stack frames
     node_borrowed.handle_pre_compute_properties(ptc);
     let this_expanded_node = node_borrowed.handle_compute_properties(ptc);
+
+
 
     // First compute slot_children — that is, the children templated _inside_ a component.
     // For example, in `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
@@ -51,19 +45,20 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
         recurse_compute_properties(ptc);
     }
 
+    // Used e.g. for Components to pop property stack frames
     node_borrowed.handle_post_compute_properties(ptc);
 
     //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
     //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-    node_borrowed.instance_node.borrow_mut().handle_native_patches(
-        ptc,
-        clipping_aware_bounds,
-        new_scroller_normalized_accumulated_transform
-            .as_coeffs()
-            .to_vec(),
-        node.borrow().z_index,
-        subtree_depth,
-    );
+    // node_borrowed.instance_node.borrow_mut().handle_native_patches(
+    //     ptc,
+    //     clipping_aware_bounds,
+    //     new_scroller_normalized_accumulated_transform
+    //         .as_coeffs()
+    //         .to_vec(),
+    //     node.borrow().z_index,
+    //     subtree_depth,
+    // );
 
     this_expanded_node
 }
@@ -92,6 +87,9 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
     pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
+
+
+    pub tab: TransformAndBounds,
 }
 
 impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
@@ -109,6 +107,13 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
             }
         });
         indices
+    }
+
+    pub fn distill_userland_node_context(&self) -> RuntimeContext {
+        RuntimeContext {
+            bounds_parent: self.tab.bounds,
+            frames_elapsed: self.engine.frames_elapsed,
+        }
     }
 
     //return current state of native message queue, passing in a freshly initialized queue for next frame

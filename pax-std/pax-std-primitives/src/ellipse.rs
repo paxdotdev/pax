@@ -2,7 +2,7 @@ use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, with_properties_unsafe};
+use pax_core::{unsafe_unwrap, unsafe_wrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, with_properties_unsafe};
 
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
@@ -61,13 +61,15 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
          */
 
 
+        let expanded_node = ExpandedNode::upsert_with_prototypical_properties(ptc, Rc::clone(&self.instance_prototypical_properties), Rc::clone(&self.instance_prototypical_common_properties));
+        let properties_wrapped = expanded_node.borrow().get_properties();
 
-        with_properties_unsafe!(&wrapped, PropertiesCoproduct, Ellipse, |properties| {
+        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Ellipse, |properties| {
             if let Some(vtable_id) = properties.stroke.get().width._get_vtable_id() {
 
             }
 
-        })
+        });
 
         // self.common_properties.compute_properties(ptc);
         //
