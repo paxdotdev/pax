@@ -3,10 +3,7 @@ use include_dir::{include_dir, Dir};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 use tera::{Context, Tera};
 
 use crate::manifest::{ExpressionSpec, PropertyDefinition};
@@ -114,7 +111,7 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB: &str =
-    include_str!("../templates/properties-coproduct-lib.tera");
+    include_str!("../../templates/properties-coproduct-lib.tera");
 pub fn press_template_codegen_properties_coproduct_lib(
     args: TemplateArgsCodegenPropertiesCoproductLib,
 ) -> String {
@@ -132,7 +129,7 @@ pub fn press_template_codegen_properties_coproduct_lib(
 }
 
 #[allow(unused)]
-static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str = include_str!("../templates/cartridge-lib.tera");
+static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str = include_str!("../../templates/cartridge-lib.tera");
 pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib) -> String {
     let template = TEMPLATE_DIR
         .get_file("cartridge-lib.tera")
@@ -149,7 +146,7 @@ pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLi
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_COMPONENT_FACTORY: &str =
-    include_str!("../templates/cartridge-component-factory.tera");
+    include_str!("../../templates/cartridge-component-factory.tera");
 pub fn press_template_codegen_cartridge_component_factory(
     args: TemplateArgsCodegenCartridgeComponentFactory,
 ) -> String {
@@ -168,7 +165,7 @@ pub fn press_template_codegen_cartridge_component_factory(
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_RENDER_NODE_LITERAL: &str =
-    include_str!("../templates/cartridge-render-node-literal.tera");
+    include_str!("../../templates/cartridge-render-node-literal.tera");
 pub fn press_template_codegen_cartridge_render_node_literal(
     args: TemplateArgsCodegenCartridgeRenderNodeLiteral,
 ) -> String {

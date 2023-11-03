@@ -1,4 +1,5 @@
-use crate::{manifest::Token, templating::MappedString};
+use crate::code_generation::templating::MappedString;
+use crate::manifest::Token;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::io::Write;

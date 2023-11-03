@@ -1,3 +1,7 @@
+//! # Errors Module
+//!
+//! The `errors` module provides structures and functions for throwing Pax related errors
+
 use cargo_metadata::{diagnostic::DiagnosticLevel, Message};
 use color_eyre::eyre::{self, eyre, Report};
 use color_eyre::Result;

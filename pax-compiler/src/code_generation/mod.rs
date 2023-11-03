@@ -1,7 +1,11 @@
-use crate::helpers::HostCrateInfo;
+//! # Code Generation Module
+//!
+//! The `code_generation` module provides structures and functions for generating Pax Cartridges
+//! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
+
+use crate::helpers::{HostCrateInfo, PKG_DIR_NAME};
 use crate::manifest::{PaxManifest, Token};
-use crate::templating::MappedString;
-use crate::{parsing, templating, PKG_DIR_NAME};
+use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
 use std::borrow::Borrow;
@@ -15,16 +19,18 @@ use crate::manifest::{
 };
 
 use crate::errors::source_map::SourceMap;
-use crate::templating::{
-    press_template_codegen_cartridge_component_factory,
-    press_template_codegen_cartridge_render_node_literal,
-    TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral,
-};
-
 use std::path::PathBuf;
 use toml_edit::Item;
 
 use crate::parsing::escape_identifier;
+
+use self::templating::{
+    press_template_codegen_cartridge_component_factory,
+    press_template_codegen_cartridge_render_node_literal, MappedString,
+    TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral,
+};
+
+pub mod templating;
 
 pub fn generate_and_overwrite_cartridge(
     pax_dir: &PathBuf,
