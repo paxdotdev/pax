@@ -115,13 +115,6 @@ impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
 
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 
-    pub fn distill_userland_node_context(&self) -> RuntimeContext {
-        RuntimeContext {
-            bounds_parent: self.bounds,
-            frames_elapsed: self.engine.frames_elapsed,
-        }
-    }
-
     pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
         self.clipping_stack.push(id_chain);
     }
@@ -253,7 +246,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
-    pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
+    pub parent_expanded_node: Option<Weak<RefCell<ExpandedNode<R>>>>,
 
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
     pub children_expanded_nodes: Vec<Weak<RefCell<ExpandedNode<R>>>>,
@@ -278,6 +271,29 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
+
+
+    pub fn upsert_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
+        let id_chain = ptc.get_id_chain(ptc.current_instance_node.borrow().get_instance_id());
+        let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
+            Rc::clone(already_registered_node)
+        } else {
+            let new_expanded_node = Rc::new(RefCell::new(ExpandedNode {
+                id_chain: id_chain.clone(),
+                parent_expanded_node: None,
+                children_expanded_nodes: vec![],
+                instance_node: Rc::clone(&ptc.current_instance_node),
+                tab: ptc.tab.clone(),
+                z_index: 0,
+                node_context: ptc.distill_userland_node_context(),
+                computed_properties: prototypical_properties,
+                computed_common_properties: prototypical_common_properties,
+            }));
+            ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&new_expanded_node));
+            new_expanded_node
+        };
+        expanded_node
+    }
 
     pub fn append_child(&mut self, child: Rc<RefCell<ExpandedNode<R>>>) {
         self.children_expanded_nodes.push(Rc::downgrade(&child));
@@ -391,7 +407,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             .borrow_mut()
             .handle_scroll(args_scroll.clone());
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_scroll(args_scroll);
+            parent.upgrade().unwrap().borrow().dispatch_scroll(args_scroll);
         }
     }
 
@@ -408,7 +424,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_clap(args_clap);
+            parent.upgrade().unwrap().borrow().dispatch_clap(args_clap);
         }
     }
 
@@ -428,6 +444,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_touch_start(args_touch_start);
         }
     }
@@ -448,6 +465,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_touch_move(args_touch_move);
         }
     }
@@ -465,7 +483,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_touch_end(args_touch_end);
+            parent.upgrade().unwrap().borrow().dispatch_touch_end(args_touch_end);
         }
     }
 
@@ -482,7 +500,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_key_down(args_key_down);
+            parent.upgrade().unwrap().borrow().dispatch_key_down(args_key_down);
         }
     }
 
@@ -499,7 +517,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_key_up(args_key_up);
+            parent.upgrade().unwrap().borrow().dispatch_key_up(args_key_up);
         }
     }
 
@@ -516,7 +534,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_key_press(args_key_press);
+            parent.upgrade().unwrap().borrow().dispatch_key_press(args_key_press);
         }
     }
 
@@ -533,7 +551,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_click(args_click);
+            parent.upgrade().unwrap().borrow().dispatch_click(args_click);
         }
     }
 
@@ -553,6 +571,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_checkbox_change(args_change);
         }
     }
@@ -573,6 +592,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_mouse_down(args_mouse_down);
         }
     }
@@ -590,7 +610,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_mouse_up(args_mouse_up);
+            parent.upgrade().unwrap().borrow().dispatch_mouse_up(args_mouse_up);
         }
     }
 
@@ -610,6 +630,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_mouse_move(args_mouse_move);
         }
     }
@@ -630,6 +651,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_mouse_over(args_mouse_over);
         }
     }
@@ -647,7 +669,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_mouse_out(args_mouse_out);
+            parent.upgrade().unwrap().borrow().dispatch_mouse_out(args_mouse_out);
         }
     }
 
@@ -667,6 +689,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_double_click(args_double_click);
         }
     }
@@ -687,6 +710,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             parent
                 .upgrade()
                 .unwrap()
+                .borrow()
                 .dispatch_context_menu(args_context_menu);
         }
     }
@@ -704,7 +728,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
 
         if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().dispatch_wheel(args_wheel);
+            parent.upgrade().unwrap().borrow().dispatch_wheel(args_wheel);
         }
     }
 }
@@ -714,7 +738,7 @@ pub struct NodeRegistry<R: 'static + RenderContext> {
     instance_node_map: HashMap<u32, InstanceNodePtr<R>>,
 
     ///Allows look up of an `ExpandedNode` by id_chain
-    expanded_node_map: HashMap<Vec<u32>, Rc<ExpandedNode<R>>>,
+    expanded_node_map: HashMap<Vec<u32>, Rc<RefCell<ExpandedNode<R>>>>,
 
     ///Tracks which `ExpandedNode`s are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<Vec<u32>>,
@@ -751,14 +775,14 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     }
 
     /// Retrieve an ExpandedNode by its id_chain from the encapsulated `expanded_node_map`
-    pub fn get_expanded_node(&self, id_chain: &Vec<u32>) -> Option<&Rc<ExpandedNode<R>>> {
+    pub fn get_expanded_node(&self, id_chain: &Vec<u32>) -> Option<&Rc<RefCell<ExpandedNode<R>>>> {
         self.expanded_node_map.get(id_chain)
     }
 
     /// Returns ExpandedNodes ordered by z-index descending; used at least by ray casting
-    pub fn get_expanded_nodes_sorted_by_z_index_desc(&self) -> Vec<Rc<ExpandedNode<R>>> {
+    pub fn get_expanded_nodes_sorted_by_z_index_desc(&self) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
         let mut values: Vec<_> = self.expanded_node_map.values().cloned().collect();
-        values.sort_by(|a, b| b.z_index.cmp(&a.z_index));
+        values.sort_by(|a, b| b.borrow().z_index.cmp(&a.borrow().z_index));
         values
     }
 
@@ -783,14 +807,6 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
         self.marked_for_unmount_set.insert(id_chain);
     }
 
-    /// Insert an ExpandedNode into the encapsulated `expanded_node_cache`
-    pub fn add_to_expanded_node_cache(
-        &mut self,
-        expanded_node: Rc<ExpandedNode<R>>,
-    ) {
-        //Note: ray-casting requires that these nodes are sorted by z-index
-        self.expanded_node_map.insert(expanded_node.id_chain.clone(), expanded_node);
-    }
 }
 
 
@@ -850,6 +866,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_expanded_node: None,
             parent_expanded_node: None,
             runtime_properties_stack: vec![],
+            tab: TransformAndBounds {
+                bounds: self.viewport_tab.bounds,
+                transform: Affine::default(),
+                clipping_bounds: None,
+            },
         };
         let root_expanded_node = recurse_compute_properties(&mut ptc);
 
@@ -888,7 +909,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             for handler in (*registry).borrow().pre_render_handlers.iter() {
                 handler(
                     node.borrow_mut().get_properties(),
-                    rtc.distill_userland_node_context(),
+                    node.borrow().node_context.clone(),
                 );
             }
         }
@@ -928,7 +949,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     for handler in (*registry).borrow().mount_handlers.iter() {
                         handler(
                             rtc.current_expanded_node.borrow_mut().get_properties(),
-                            rtc.distill_userland_node_context(),
+                            rtc.current_expanded_node.borrow().node_context.clone(),
                         );
                     }
                 }
@@ -1272,7 +1293,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn get_topmost_element_beneath_ray(
         &self,
         ray: (f64, f64),
-    ) -> Option<Rc<ExpandedNode<R>>> {
+    ) -> Option<Rc<RefCell<ExpandedNode<R>>>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -1287,7 +1308,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     for bubbling, i.e. propagating event
         //     for finding ancestral clipping containers
 
-        let mut nodes_ordered: Vec<Rc<ExpandedNode<R>>> = (*self.node_registry)
+        let mut nodes_ordered: Vec<Rc<RefCell<ExpandedNode<R>>>> = (*self.node_registry)
             .borrow()
             .get_expanded_nodes_sorted_by_z_index_desc();
 
@@ -1295,29 +1316,31 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         nodes_ordered.remove(0);
 
         // let ray = Point {x: ray.0,y: ray.1};
-        let mut ret: Option<Rc<ExpandedNode<R>>> = None;
+        let mut ret: Option<Rc<RefCell<ExpandedNode<R>>>> = None;
         for node in nodes_ordered {
-            if (*node).ray_cast_test(&ray)
+            if (*node).borrow().ray_cast_test(&ray)
             {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode<R>>> = node
+                let mut parent: Option<Rc<RefCell<ExpandedNode<R>>>> = node
+                    .borrow()
                     .parent_expanded_node
                     .as_ref()
                     .and_then(|weak| weak.upgrade());
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
-                        if let Some(_) = (*unwrapped_parent).get_clipping_bounds()
+                        if let Some(_) = (*unwrapped_parent).borrow().get_clipping_bounds()
                         {
                             ancestral_clipping_bounds_are_satisfied = (*unwrapped_parent)
-                                .ray_cast_test(&ray);
+                                .borrow().ray_cast_test(&ray);
                             break;
                         }
                         parent = unwrapped_parent
+                            .borrow()
                             .parent_expanded_node
                             .as_ref()
                             .and_then(|weak| weak.upgrade());
@@ -1336,7 +1359,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         ret
     }
 
-    pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode<R>>> {
+    pub fn get_focused_element(&self) -> Option<Rc<RefCell<ExpandedNode<R>>>> {
         let (x, y) = self.viewport_tab.bounds;
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }

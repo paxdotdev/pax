@@ -105,7 +105,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         subtree_depth: u32,
     ) {
         let mut new_message: ScrollerPatch = Default::default();
-        new_message.id_chain = ptc.current_expanded_node.borrow().id_chain.clone();
+        new_message.id_chain = ptc.current_expanded_node.unwrap().borrow().id_chain.clone();
         if !self.last_patches.contains_key(&new_message.id_chain) {
             let mut patch = ScrollerPatch::default();
             patch.id_chain = new_message.id_chain.clone();
@@ -115,7 +115,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let wrapped = ptc.current_expanded_node.borrow().get_properties();
+        let wrapped = ptc.current_expanded_node.unwrap().borrow().get_properties();
         with_properties_unsafe!(&wrapped, PropertiesCoproduct, Scroller, |properties| {
             let val = subtree_depth;
             let is_new_value = last_patch.subtree_depth != val;
@@ -206,7 +206,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             }
 
             if has_any_updates {
-                *ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(new_message));
+                ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(new_message));
             }
         });
     }
@@ -232,69 +232,70 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         self.common_properties.compute_properties(rtc);
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        self.common_properties.compute_properties(ptc);
-
-        let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();
-        if let Some(new_value) =
-            ptc.compute_eased_value(scroll_x_offset_borrowed._get_transition_manager())
-        {
-            scroll_x_offset_borrowed.set(new_value);
-        }
-
-        let mut scroll_y_offset_borrowed = (*self.scroll_y_offset).borrow_mut();
-        if let Some(new_value) =
-            ptc.compute_eased_value(scroll_y_offset_borrowed._get_transition_manager())
-        {
-            scroll_y_offset_borrowed.set(new_value);
-        }
-
-        let properties = &mut *self.properties.as_ref().borrow_mut();
-
-        if let Some(new_size) =
-            ptc.compute_vtable_value(properties.size_inner_pane_x._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.size_inner_pane_x.set(new_value);
-        }
-
-        if let Some(new_size) =
-            ptc.compute_vtable_value(properties.size_inner_pane_y._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.size_inner_pane_y.set(new_value);
-        }
-
-        if let Some(scroll_enabled_x) =
-            ptc.compute_vtable_value(properties.scroll_enabled_x._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::bool(v) = scroll_enabled_x {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.scroll_enabled_x.set(new_value);
-        }
-
-        if let Some(scroll_enabled_y) =
-            ptc.compute_vtable_value(properties.scroll_enabled_y._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::bool(v) = scroll_enabled_y {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.scroll_enabled_y.set(new_value);
-        }
-
-        self.common_properties.compute_properties(ptc);
+        // self.common_properties.compute_properties(ptc);
+        //
+        // let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();
+        // if let Some(new_value) =
+        //     ptc.compute_eased_value(scroll_x_offset_borrowed._get_transition_manager())
+        // {
+        //     scroll_x_offset_borrowed.set(new_value);
+        // }
+        //
+        // let mut scroll_y_offset_borrowed = (*self.scroll_y_offset).borrow_mut();
+        // if let Some(new_value) =
+        //     ptc.compute_eased_value(scroll_y_offset_borrowed._get_transition_manager())
+        // {
+        //     scroll_y_offset_borrowed.set(new_value);
+        // }
+        //
+        // let properties = &mut *self.properties.as_ref().borrow_mut();
+        //
+        // if let Some(new_size) =
+        //     ptc.compute_vtable_value(properties.size_inner_pane_x._get_vtable_id())
+        // {
+        //     let new_value = if let TypesCoproduct::Size(v) = new_size {
+        //         v
+        //     } else {
+        //         unreachable!()
+        //     };
+        //     properties.size_inner_pane_x.set(new_value);
+        // }
+        //
+        // if let Some(new_size) =
+        //     ptc.compute_vtable_value(properties.size_inner_pane_y._get_vtable_id())
+        // {
+        //     let new_value = if let TypesCoproduct::Size(v) = new_size {
+        //         v
+        //     } else {
+        //         unreachable!()
+        //     };
+        //     properties.size_inner_pane_y.set(new_value);
+        // }
+        //
+        // if let Some(scroll_enabled_x) =
+        //     ptc.compute_vtable_value(properties.scroll_enabled_x._get_vtable_id())
+        // {
+        //     let new_value = if let TypesCoproduct::bool(v) = scroll_enabled_x {
+        //         v
+        //     } else {
+        //         unreachable!()
+        //     };
+        //     properties.scroll_enabled_x.set(new_value);
+        // }
+        //
+        // if let Some(scroll_enabled_y) =
+        //     ptc.compute_vtable_value(properties.scroll_enabled_y._get_vtable_id())
+        // {
+        //     let new_value = if let TypesCoproduct::bool(v) = scroll_enabled_y {
+        //         v
+        //     } else {
+        //         unreachable!()
+        //     };
+        //     properties.scroll_enabled_y.set(new_value);
+        // }
+        //
+        // self.common_properties.compute_properties(ptc);
+        todo!()
     }
 
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
@@ -317,13 +318,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
             rc.clip(transformed_bez_path.clone());
         }
-        let id_chain = rtc.get_id_chain(self.instance_id);
-        (*rtc.runtime)
-            .borrow_mut()
-            .push_clipping_stack_id(id_chain.clone());
-        (*rtc.runtime)
-            .borrow_mut()
-            .push_scroller_stack_id(id_chain.clone());
+        let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
+        rtc.push_clipping_stack_id(id_chain.clone());
+        rtc.push_scroller_stack_id(id_chain.clone());
     }
     fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         for (_key, rc) in _rcs.iter_mut() {
@@ -331,19 +328,19 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             rc.restore().unwrap();
         }
 
-        (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
-        (*rtc.runtime).borrow_mut().pop_scroller_stack_id();
+        rtc.pop_clipping_stack_id();
+        rtc.pop_scroller_stack_id();
     }
 
     fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
-        let id_chain = rtc.get_id_chain(self.instance_id);
+        let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
-        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
+        let clipping_ids = rtc.get_current_clipping_ids();
 
-        let scroller_ids = (*rtc.runtime).borrow().get_current_scroller_ids();
+        let scroller_ids = rtc.get_current_scroller_ids();
 
-        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+        rtc.engine.enqueue_native_message(
             pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
                 clipping_ids,
