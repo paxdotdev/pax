@@ -12,9 +12,7 @@ use crate::errors::PaxTemplateError;
 use crate::manifest::{PropertyDefinitionFlags, Token, TypeDefinition, TypeTable};
 use crate::parsing::escape_identifier;
 use color_eyre::eyre;
-use color_eyre::eyre::eyre;
 use color_eyre::eyre::Report;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 
 const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
