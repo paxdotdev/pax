@@ -248,17 +248,14 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         false
     }
 
-    /// Lifecycle method used by at least Component to introduce a properties stack frame
-    #[allow(unused_variables)]
-    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        //no-op default implementation
+    /// Allows an `InstanceNode` to specify that the properties computation engine should not calculate properties
+    /// for its subtree (to stop recursing externally,) because this node will manage its own properties-computation-recursion for its subtree.
+    /// It's expected that node that returns `true` will call `recurse_compute_properties` on elements in its subtree.
+    /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their proeprties subtree is calculated.
+    fn manages_own_properties_subtree(&self) -> bool {
+        false
     }
 
-    /// Lifecycle method used by at least Component to pop a properties stack frame
-    #[allow(unused_variables)]
-    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        //no-op default implementation
-    }
 
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.  Returns an ExpandedNode for the
@@ -325,14 +322,14 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
+    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         //no-op default implementation
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         //no-op default implementation
     }
 

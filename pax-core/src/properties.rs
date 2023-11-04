@@ -18,10 +18,10 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 
 
     // Used e.g. for Components to push property stack frames
-    node_borrowed.handle_pre_compute_properties(ptc);
+    // node_borrowed.handle_pre_compute_properties(ptc);
     let this_expanded_node = node_borrowed.handle_compute_properties(ptc);
 
-
+    manage_handlers_mount(ptc);
 
     // First compute slot_children — that is, the children templated _inside_ a component.
     // For example, in `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
@@ -45,9 +45,6 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
         recurse_compute_properties(ptc);
     }
 
-    // Used e.g. for Components to pop property stack frames
-    node_borrowed.handle_post_compute_properties(ptc);
-
     //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
     //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
     // node_borrowed.instance_node.borrow_mut().handle_native_patches(
@@ -60,7 +57,65 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     //     subtree_depth,
     // );
 
+    manage_handlers_unmount(ptc);
     this_expanded_node
+}
+
+
+/// Handle node unmounting, including check for whether unmount handlers should be fired
+/// (thus this function can be called on all nodes at end of properties computation
+fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
+
+    if ptc.marked_for_unmount {
+        ptc.current_instance_node.borrow_mut().handle_unmount(ptc);
+
+        ptc.engine.node_registry
+            .borrow_mut()
+            .remove(&node.borrow().id_chain);
+    }
+}
+
+
+/// Helper method to fire `mount` event if this is this expandednode's first frame
+/// (or first frame remounting, if previously mounted then unmounted.)
+/// Note that this must happen after initial `compute_properties`, which performs the
+/// necessary side-effect of creating the `self` that must be passed to handlers.
+fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
+    {
+        // let id = (*rtc.current_expanded_node).borrow().instance_node.borrow().get_instance_id();
+        let mut node_registry = (*ptc.engine.node_registry).borrow_mut();
+        //
+        // //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
+        // let mut repeat_indices = (*rtc.engine.runtime)
+        //     .borrow()
+        //     .get_list_of_repeat_indicies_from_stack();
+        // let id_chain = {
+        //     let mut i = vec![id];
+        //     i.append(&mut repeat_indices);
+        //     i
+        // };
+
+        let id_chain = <Vec<u32> as AsRef<Vec<u32>>>::as_ref(&ptc.current_expanded_node.clone().unwrap().borrow().id_chain).clone();
+        if !node_registry.is_mounted(&id_chain) {
+            //Fire primitive-level mount lifecycle method
+            let mut instance_node = Rc::clone(&ptc.current_instance_node);
+            instance_node.borrow_mut().handle_mount(ptc);
+
+            //Fire registered mount events
+            let registry = (*ptc.current_instance_node).borrow().get_handler_registry();
+            if let Some(registry) = registry {
+                //grab Rc of properties from stack frame; pass to type-specific handler
+                //on instance in order to dispatch cartridge method
+                for handler in (*registry).borrow().mount_handlers.iter() {
+                    handler(
+                        ptc.current_expanded_node.clone().unwrap().borrow_mut().get_properties(),
+                        ptc.current_expanded_node.clone().unwrap().borrow().node_context.clone(),
+                    );
+                }
+            }
+            node_registry.mark_mounted(id_chain);
+        }
+    }
 }
 
 /// Shared context for properties pass recursion
@@ -88,6 +143,7 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 
     pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
 
+    pub marked_for_unmount: bool,
 
     pub tab: TransformAndBounds,
 }

@@ -86,25 +86,16 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     //     bounds
     // }
 
-    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-
-        todo!("get properties from the current component -expanded node-, push to stack frame");
-        // (*rtc.runtime).borrow_mut().push_stack_frame(
-        //     Rc::clone(&self.properties),
-        //     self.timeline.clone(),
-        // );
-    }
 
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+
+        //ptc.push_stack_frame(...);
+        //recurse and compute template subtree (once [per root])
+        //ptc.pop_stack_frame();
+
         todo!("");
-        //
-        // self.common_properties.compute_properties(rtc);
-        // (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
-    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        ptc.pop_stack_frame();
-    }
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
