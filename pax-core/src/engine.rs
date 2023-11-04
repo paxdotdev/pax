@@ -178,8 +178,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         }
         None
     }
-
-
 }
 
 pub struct HandlerRegistry<R: 'static + RenderContext> {
@@ -270,9 +268,8 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     computed_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
+
 impl<R: 'static + RenderContext> ExpandedNode<R> {
-
-
     pub fn upsert_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
         let id_chain = ptc.get_id_chain(ptc.current_instance_node.borrow().get_instance_id());
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
@@ -915,49 +912,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    /// Helper method to fire `mount` event if this is this node's first frame
-    /// Note that this must happen after initial `compute_properties`, which performs the
-    /// necessary side-effect of creating the `self` that must be passed to handlers.
-
-    fn manage_handlers_mount(rtc: &mut RenderTreeContext<R>) {
-        {
-            // let id = (*rtc.current_expanded_node).borrow().instance_node.borrow().get_instance_id();
-            let mut node_registry = (*rtc.engine.node_registry).borrow_mut();
-            //
-            // //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
-            // let mut repeat_indices = (*rtc.engine.runtime)
-            //     .borrow()
-            //     .get_list_of_repeat_indicies_from_stack();
-            // let id_chain = {
-            //     let mut i = vec![id];
-            //     i.append(&mut repeat_indices);
-            //     i
-            // };
-
-            let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
-            let z_index = rtc.current_expanded_node.borrow().z_index;
-            if !node_registry.is_mounted(&id_chain) {
-                //Fire primitive-level mount lifecycle method
-                let mut instance_node = Rc::clone(&rtc.current_instance_node);
-                instance_node.borrow_mut().handle_mount(rtc, z_index);
-
-                //Fire registered mount events
-                let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
-                if let Some(registry) = registry {
-                    //grab Rc of properties from stack frame; pass to type-specific handler
-                    //on instance in order to dispatch cartridge method
-                    for handler in (*registry).borrow().mount_handlers.iter() {
-                        handler(
-                            rtc.current_expanded_node.borrow_mut().get_properties(),
-                            rtc.current_expanded_node.borrow().node_context.clone(),
-                        );
-                    }
-                }
-                node_registry.mark_mounted(id_chain);
-            }
-        }
-    }
-
     fn recurse_render(
         &self,
         rtc: &mut RenderTreeContext<R>,
@@ -1008,7 +962,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     }
         // }
 
-        Self::manage_handlers_mount(rtc);
+
 
         //scroller IDs are used by chassis, for identifying native scrolling containers
         let scroller_ids = rtc.get_current_scroller_ids();
@@ -1274,16 +1228,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     node.borrow_mut().handle_did_compute_properties(rtc);
         // }
 
-        //Handle node unmounting
-        if marked_for_unmount {
-            //lifecycle: unmount
-            node.borrow_mut().instance_node.borrow_mut().handle_unmount(rtc);
-
-            self.node_registry
-                .borrow_mut()
-                .mounted_set
-                .remove(&node.borrow().id_chain);
-        }
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a

@@ -332,28 +332,28 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         rtc.pop_scroller_stack_id();
     }
 
-    fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
-        let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
+    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
+        let id_chain = ptc.current_expanded_node.borrow().id_chain.clone();
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
-        let clipping_ids = rtc.get_current_clipping_ids();
+        let clipping_ids = ptc.get_current_clipping_ids();
 
-        let scroller_ids = rtc.get_current_scroller_ids();
+        let scroller_ids = ptc.get_current_scroller_ids();
 
-        rtc.engine.enqueue_native_message(
+        ptc.engine.enqueue_native_message(
             pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
                 clipping_ids,
                 scroller_ids,
-                z_index,
+                z_index: ptc.current_z_index,
             }),
         );
     }
 
-    fn handle_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        let id_chain = _rtc.get_id_chain(self.instance_id);
+    fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
+        let id_chain = ptc.get_id_chain(self.instance_id);
         self.last_patches.remove(&id_chain);
-        (*_rtc.engine.runtime)
+        (*ptc.engine.runtime)
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id_chain));
     }
