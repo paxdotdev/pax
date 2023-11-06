@@ -151,10 +151,10 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
 
                     // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
                     let cursor = std::io::Cursor::new(&tarball_bytes[..]);
-    
+
                     // Create a GzDecoder to handle the gzip layer.
                     let gz = GzDecoder::new(cursor);
-    
+
                     // Pass the GzDecoder to tar::Archive.
                     let mut archive = Archive::new(gz);
                     // Iterate over the entries in the archive and modify the paths before extracting.
@@ -176,7 +176,8 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
                             fs::create_dir_all(&path).expect("Failed to create directory");
                         } else {
                             if let Some(parent) = path.parent() {
-                                fs::create_dir_all(&parent).expect("Failed to create parent directory");
+                                fs::create_dir_all(&parent)
+                                    .expect("Failed to create parent directory");
                             }
                             entry.unpack(&path).expect("Failed to unpack file");
                         }
@@ -184,7 +185,9 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
                 } else {
                     eprintln!(
                         "Failed to download tarball for {} at version {}. Status: {}",
-                        pkg, pax_version, resp.status()
+                        pkg,
+                        pax_version,
+                        resp.status()
                     );
                 }
             }
