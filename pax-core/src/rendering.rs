@@ -228,9 +228,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
         let common_properties = expanded_node.get_common_properties();
         let common_properties_borrowed = common_properties.borrow();
-        let width_borrowed = common_properties_borrowed.width.borrow();
-        let height_borrowed = common_properties_borrowed.height.borrow();
-        (width_borrowed.get().clone(), height_borrowed.get().clone())
+        (common_properties_borrowed.width.get().clone(), common_properties_borrowed.height.get().clone())
     }
 
     #[allow(unused_variables)]

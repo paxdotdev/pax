@@ -57,7 +57,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
 #[macro_export]
 macro_rules! handle_vtable_update {
     ($ptc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
-        let current_prop = &mut *$var.$field.as_ref().borrow_mut();
+        let current_prop = &mut *$var.$field.as_mut();
         if let Some(vtable_id) = current_prop._get_vtable_id() {
             let new_value = $ptc.compute_vtable_value(vtable_id);
             let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
@@ -82,7 +82,7 @@ macro_rules! handle_vtable_update {
 macro_rules! handle_vtable_update_optional {
     ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
         if let Some(_) = $var.$field {
-            let current_prop = &mut *$var.$field.as_ref().unwrap().borrow_mut();
+            let current_prop = &mut *$var.$field.as_mut().unwrap();
 
             if let Some(vtable_id) = current_prop._get_vtable_id() {
                 let new_value = $rtc.compute_vtable_value(vtable_id);
