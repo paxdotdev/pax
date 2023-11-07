@@ -250,12 +250,11 @@ pub trait InstanceNode<R: 'static + RenderContext> {
 
     /// Allows an `InstanceNode` to specify that the properties computation engine should not calculate properties
     /// for its subtree (to stop recursing externally,) because this node will manage its own properties-computation-recursion for its subtree.
-    /// It's expected that node that returns `true` will call `recurse_compute_properties` on elements in its subtree.
-    /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their proeprties subtree is calculated.
+    /// It's expected that node that returns `true` will call `recurse_compute_properties` on instance nodes in its subtree.
+    /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their properties subtree is calculated.
     fn manages_own_properties_subtree(&self) -> bool {
         false
     }
-
 
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.  Returns an ExpandedNode for the

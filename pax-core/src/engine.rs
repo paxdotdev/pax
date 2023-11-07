@@ -10,7 +10,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex, Axis};
 
-use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext, recurse_compute_properties};
+use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext, recurse_compute_properties, RuntimePropertiesStackFrame, PropertiesTreeShared};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -41,7 +41,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub current_instance_node: InstanceNodePtr<R>,
 }
 
-//Note that `#[derive(Clone)]` doens't work because of trait bounds surrounding R, even though
+//Note that `#[derive(Clone)]` doesn't work because of trait bounds surrounding R, even though
 //the only places R is used are trivially cloned.
 impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
     fn clone(&self) -> Self {
@@ -115,29 +115,6 @@ impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
 
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 
-    pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
-        self.clipping_stack.push(id_chain);
-    }
-
-    pub fn pop_clipping_stack_id(&mut self) {
-        self.clipping_stack.pop();
-    }
-
-    pub fn get_current_clipping_ids(&self) -> Vec<Vec<u32>> {
-        self.clipping_stack.clone()
-    }
-
-    pub fn push_scroller_stack_id(&mut self, id_chain: Vec<u32>) {
-        self.scroller_stack.push(id_chain);
-    }
-
-    pub fn pop_scroller_stack_id(&mut self) {
-        self.scroller_stack.pop();
-    }
-
-    pub fn get_current_scroller_ids(&self) -> Vec<Vec<u32>> {
-        self.scroller_stack.clone()
-    }
 
     pub fn compute_eased_value<T: Clone + Interpolatable>(
         &self,
@@ -261,6 +238,12 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// A copy of the RuntimeContext appropriate for this ExpandedNode
     pub node_context: RuntimeContext,
 
+    /// A snapshot of the clipping stack above this element at the time of properties-computation
+    pub ancestral_clipping_ids: Vec<Vec<u32>>,
+
+    /// A snapshot of the scroller stack above this element at the time of properties-computation
+    pub ancestral_scroller_ids: Vec<Vec<u32>>,
+
     /// Each ExpandedNode has a unique "stamp" of computed properties
     computed_properties: Rc<RefCell<PropertiesCoproduct>>,
 
@@ -271,7 +254,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn upsert_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
-        let id_chain = ptc.get_id_chain(ptc.current_instance_node.borrow().get_instance_id());
+        let id_chain = ptc.get_id_chain();
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
             Rc::clone(already_registered_node)
         } else {
@@ -285,6 +268,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 node_context: ptc.distill_userland_node_context(),
                 computed_properties: prototypical_properties,
                 computed_common_properties: prototypical_common_properties,
+                ancestral_clipping_ids: vec![],
+                ancestral_scroller_ids: vec![]
             }));
             ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&new_expanded_node));
             new_expanded_node
@@ -771,6 +756,10 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
         self.instance_node_map.insert(instance_id, node);
     }
 
+    pub fn remove_expanded_node(&mut self, id_chain: &Vec<u32>) {
+        self.expanded_node_map.remove(id_chain);
+    }
+
     /// Retrieve an ExpandedNode by its id_chain from the encapsulated `expanded_node_map`
     pub fn get_expanded_node(&self, id_chain: &Vec<u32>) -> Option<&Rc<RefCell<ExpandedNode<R>>>> {
         self.expanded_node_map.get(id_chain)
@@ -854,20 +843,28 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // COMPUTE PROPERTIES
         let mut ptc = PropertiesTreeContext {
             engine: &self,
-            native_message_queue: Default::default(),
             timeline_playhead_position: 0,
-            current_z_index: 0,
             current_containing_component: Rc::clone(&root_component_instance),
             current_containing_component_slot_children: Rc::new(RefCell::new(vec![])),
             current_instance_node: Rc::clone(&root_component_instance),
             current_expanded_node: None,
             parent_expanded_node: None,
-            runtime_properties_stack: vec![],
             tab: TransformAndBounds {
                 bounds: self.viewport_tab.bounds,
                 transform: Affine::default(),
                 clipping_bounds: None,
             },
+            marked_for_unmount: false,
+            shared: Rc::new(RefCell::new(
+                PropertiesTreeShared {
+                    clipping_stack: vec![],
+                    scroller_stack: vec![],
+                    native_message_queue: Default::default(),
+                    runtime_properties_stack: vec![],
+                    z_index_gen: 0..,
+                }
+            )),
+
         };
         let root_expanded_node = recurse_compute_properties(&mut ptc);
 
@@ -965,12 +962,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
 
         //scroller IDs are used by chassis, for identifying native scrolling containers
-        let scroller_ids = rtc.get_current_scroller_ids();
+        let scroller_ids = rtc.current_expanded_node.borrow().ancestral_scroller_ids.clone();
         let scroller_id = match scroller_ids.last() {
             None => None,
             Some(v) => Some(v.clone()),
         };
-        let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), rtc.current_expanded_node.borrow().z_index);
+        let canvas_id = ZIndex::generate_canvas_id(scroller_id.clone(), rtc.current_expanded_node.borrow().z_index);
 
         //peek at the current stack frame and set a scoped playhead position as needed
         // match rtc.peek_stack_frame() {
@@ -1203,7 +1200,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
 
 
-
         if let Some(rc) = rcs.get_mut(&canvas_id) {
             //lifecycle: render
             //this is this node's time to do its own rendering, aside
@@ -1222,11 +1218,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //lifecycle: post_render
         node.borrow_mut().instance_node.borrow_mut().handle_post_render(rtc, rcs);
 
-        // Component nodes fire their stack frame cleanup after full lifecycle, e.g. to handle lifecycle events
-        // that depend on the component's stack frame
-        // if node.borrow().is_component_node() {
-        //     node.borrow_mut().handle_did_compute_properties(rtc);
-        // }
 
     }
 

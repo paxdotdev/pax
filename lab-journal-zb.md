@@ -4224,6 +4224,16 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [ ] Native patches
     [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
     [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+[ ] clipping_ids & scroller_ids in property compute
+    [-] 1. might not need them at the *Create stage; might be able to not worry about this
+    [ ] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
+        what would it look like to keep clipping / scroller ids on ptc?
+        need to manage pushing / popping pre/post recursion
+        need to be able to refer to this during rendering, probably be keeping "expanded" ideas of the clipping / scrolling stack (clones of the vecs of ids?) on each expanded node.
+        Can handle tracking clipping IDs (used strictly for native-side) independently of pre/post-render lifecycle methods + rendering clipping stack manip
+        [ ] Manually manage propeties-compute recursion for Scroller + Frame, like we do with Component & friends
+    [-] 3. revisit whether mount/unmount should be in the rendering pass instead?
+            
 [ ] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
     [x] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?

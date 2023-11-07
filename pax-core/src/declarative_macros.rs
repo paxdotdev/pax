@@ -94,7 +94,7 @@ macro_rules! with_properties_unsafe {
 
         // This ensures that the lifetime of the reference passed to the closure does not outlive the temporary value.
         {
-            let closure: &dyn FnOnce(&mut $target_type) = &$body;
+            let closure: Box<dyn FnOnce(&mut $target_type)> = Box::new($body);
             closure(&mut unwrapped_value);
         }
 

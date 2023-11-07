@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::ops::RangeFrom;
 use std::rc::{Rc, Weak};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
@@ -13,13 +14,15 @@ use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrLis
 /// Rendering is then a function of these ExpandedNodes.
 pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
-    let instance_node = Rc::clone(&ptc.current_instance_node);
-    let mut node_borrowed = instance_node.borrow_mut();
+    let this_instance_node = Rc::clone(&ptc.current_instance_node);
+    let mut node_borrowed = this_instance_node.borrow_mut();
 
 
     // Used e.g. for Components to push property stack frames
     // node_borrowed.handle_pre_compute_properties(ptc);
     let this_expanded_node = node_borrowed.handle_compute_properties(ptc);
+    ptc.current_instance_node = Rc::clone(&this_instance_node);
+    ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
 
     manage_handlers_mount(ptc);
 
@@ -31,6 +34,17 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
         for child in (*slot_children).borrow().iter() {
             let child_expanded_node = recurse_compute_properties(ptc);
             this_expanded_node.borrow_mut().append_child(child_expanded_node);
+            //Because we are sharing a single mutable `ptc`, we must set back to `current_instance_node` after
+            //recursing, because it will be rewritten on each pass.
+            //Is there a cleaner way to handle this?
+            // - Clone `ptc` (this gets sticky around shared NativeMessage queue; could Rc<RefCell<>> that)
+            // - Pass `this_instance_node` as a separate param, instead of mutating ptc.  Then each call site
+            //   gets its own unique clone in the form of a function arg
+            //      - This would probably extend to passing `this_expanded_node` to e.g. `handle_mount_handlers`, in the same way
+            //This extends beyond these two nodes — we also need to manage some stack representation of e.g. `current_containing_component` and its slot children.
+            //  Cloning `ptc` is pretty clean, if we bite off an Rc<RefCell<>> for the native message queue...
+            ptc.current_instance_node = Rc::clone(&this_instance_node);
+            ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
         }
     }
 
@@ -43,6 +57,8 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 
     for _child in (*children_to_recurse).borrow().iter() {
         recurse_compute_properties(ptc);
+        ptc.current_instance_node = Rc::clone(&this_instance_node);
+        ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
     }
 
     //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
@@ -67,11 +83,11 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
 
     if ptc.marked_for_unmount {
-        ptc.current_instance_node.borrow_mut().handle_unmount(ptc);
+        ptc.current_instance_node.clone().borrow_mut().handle_unmount(ptc);
 
         ptc.engine.node_registry
             .borrow_mut()
-            .remove(&node.borrow().id_chain);
+            .remove_expanded_node(&ptc.current_expanded_node.clone().unwrap().borrow().id_chain);
     }
 }
 
@@ -122,11 +138,7 @@ fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeCon
 pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 
     pub engine: &'a PaxEngine<R>,
-    /// Queue for native "CRUD" message (e.g. TextCreate), populated during properties
-    /// computation and passed across native bridge each tick after canvas rendering
-    pub native_message_queue: VecDeque<NativeMessage>,
     pub timeline_playhead_position: usize,
-    pub current_z_index: u32,
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
     pub current_containing_component: InstanceNodePtr<R>,
@@ -141,21 +153,74 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     /// A pointer to the current expanded node's parent expanded node
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
-    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
-
     pub marked_for_unmount: bool,
+
+    pub shared: Rc<RefCell<PropertiesTreeShared>>,
 
     pub tab: TransformAndBounds,
 }
 
+/// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
+/// current pointers without overwriting others, some state within `ptc` needs to be shared-mutable.  `PropertiesTreeShared` is intended
+/// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
+pub struct PropertiesTreeShared {
+    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
+    pub clipping_stack: Vec<Vec<u32>>,
+    pub scroller_stack: Vec<Vec<u32>>,
+    pub z_index_gen: RangeFrom<isize>,
+    /// Queue for native "CRUD" message (e.g. TextCreate), populated during properties
+    /// computation and passed across native bridge each tick after canvas rendering
+    pub native_message_queue: VecDeque<NativeMessage>,
+}
+
+
+impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
+    fn clone(&self) -> Self {
+        Self {
+            engine: &self.engine.clone(),
+            timeline_playhead_position: self.timeline_playhead_position,
+            current_containing_component: Rc::clone(&self.current_containing_component),
+            current_containing_component_slot_children: Rc::clone(&self.current_containing_component_slot_children),
+            current_instance_node: Rc::clone(&self.current_instance_node),
+            current_expanded_node: self.current_expanded_node.clone(),
+            parent_expanded_node: self.parent_expanded_node.clone(),
+            marked_for_unmount: self.marked_for_unmount,
+            shared: Rc::clone(&self.shared),
+            tab: self.tab.clone(),
+        }
+    }
+}
+
 impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
-    // NOTE: this value could be cached on stackframes, registered & cached during engine rendertree traversal (specifically: when stackframes are pushed)
-    //       This would make id_chain resolution essentially free, O(1) instead of O(log(n))
-    //       Profile first to understand the impact before optimizing
+
+    pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
+        self.shared.borrow_mut().clipping_stack.push(id_chain);
+    }
+
+    pub fn pop_clipping_stack_id(&mut self) {
+        self.shared.borrow_mut().clipping_stack.pop();
+    }
+
+    pub fn get_current_clipping_ids(&self) -> Vec<Vec<u32>> {
+        self.shared.borrow_mut().clipping_stack.clone()
+    }
+
+    pub fn push_scroller_stack_id(&mut self, id_chain: Vec<u32>) {
+        self.shared.borrow_mut().scroller_stack.push(id_chain);
+    }
+
+    pub fn pop_scroller_stack_id(&mut self) {
+        self.shared.borrow_mut().scroller_stack.pop();
+    }
+
+    pub fn get_current_scroller_ids(&self) -> Vec<Vec<u32>> {
+        self.shared.borrow_mut().scroller_stack.clone()
+    }
+
     pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
         let mut indices: Vec<u32> = vec![];
 
-        self.runtime_properties_stack.iter().for_each(|frame_wrapped| {
+        self.shared.borrow_mut().runtime_properties_stack.iter().for_each(|frame_wrapped| {
             if let PropertiesCoproduct::RepeatItem(_datum, i) =
                 &*(*(*(*frame_wrapped).borrow_mut()).properties).borrow()
             {
@@ -174,18 +239,18 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 
     //return current state of native message queue, passing in a freshly initialized queue for next frame
     pub fn take_native_message_queue(&mut self) -> VecDeque<NativeMessage> {
-        std::mem::take(&mut self.native_message_queue)
+        std::mem::take(&mut self.shared.borrow_mut().native_message_queue)
     }
 
     pub fn enqueue_native_message(&mut self, msg: NativeMessage) {
-        self.native_message_queue.push_back(msg);
+        self.shared.borrow_mut().native_message_queue.push_back(msg);
     }
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
     pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        if self.runtime_properties_stack.len() > 0 {
-            Some(Rc::clone(&self.runtime_properties_stack[&self.runtime_properties_stack.len() - 1]))
+        if self.shared.borrow_mut().runtime_properties_stack.len() > 0 {
+            Some(Rc::clone(&self.shared.borrow_mut().runtime_properties_stack[&self.shared.borrow_mut().runtime_properties_stack.len() - 1]))
         } else {
             None
         }
@@ -194,7 +259,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Remove the top element from the stack.  Currently does
     /// nothing with the value of the popped StackFrame.
     pub fn pop_stack_frame(&mut self) {
-        self.runtime_properties_stack.pop(); //NOTE: handle value here if needed
+        self.shared.borrow_mut().runtime_properties_stack.pop(); //NOTE: handle value here if needed
     }
 
     /// Add a new frame to the stack, passing a list of slot_children
@@ -206,7 +271,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     ) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
-        self.runtime_properties_stack.push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
+        self.shared.borrow_mut().runtime_properties_stack.push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
             properties,
             parent,
             timeline,
@@ -223,7 +288,8 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
     /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
     /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
-    pub fn get_id_chain(&self, id: u32) -> Vec<u32> {
+    pub fn get_id_chain(&self) -> Vec<u32> {
+        let id= self.current_instance_node.clone().borrow().get_instance_id();
         let mut indices = (&self.get_list_of_repeat_indicies_from_stack()).clone();
         indices.insert(0, id);
         indices
