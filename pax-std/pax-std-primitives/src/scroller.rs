@@ -220,8 +220,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
 
         // `ret` temp appeases borrow checker
         let ret = Some((
-            comm_props.borrow().width.borrow().get().clone(),
-            comm_props.borrow().height.borrow().get().clone(),
+            comm_props.borrow().width.get().clone(),
+            comm_props.borrow().height.get().clone(),
         ));
         ret
     }

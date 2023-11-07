@@ -372,19 +372,20 @@ impl Size {
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
 // Retrieved via <dyn InstanceNode>#get_common_properties
 
+#[derive(Default)]
 pub struct CommonProperties {
-    pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
-    pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
-    pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
-    pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub width: Rc<RefCell<dyn PropertyInstance<Size>>>,
-    pub height: Rc<RefCell<dyn PropertyInstance<Size>>>,
+    pub x: Option<Box<dyn PropertyInstance<Size>>>,
+    pub y: Option<Box<dyn PropertyInstance<Size>>>,
+    pub scale_x: Option<Box<dyn PropertyInstance<Size>>>,
+    pub scale_y: Option<Box<dyn PropertyInstance<Size>>>,
+    pub skew_x: Option<Box<dyn PropertyInstance<Numeric>>>,
+    pub skew_y: Option<Box<dyn PropertyInstance<Numeric>>>,
+    pub rotate: Option<Box<dyn PropertyInstance<Rotation>>>,
+    pub anchor_x: Option<Box<dyn PropertyInstance<Size>>>,
+    pub anchor_y: Option<Box<dyn PropertyInstance<Size>>>,
+    pub transform: Box<dyn PropertyInstance<Transform2D>>,
+    pub width: Box<dyn PropertyInstance<Size>>,
+    pub height: Box<dyn PropertyInstance<Size>>,
 }
 
 impl CommonProperties {
@@ -424,27 +425,6 @@ impl CommonProperties {
             ("width".to_string(), "Size".to_string()),
             ("height".to_string(), "Size".to_string()),
         ]
-    }
-}
-
-impl Default for CommonProperties {
-    fn default() -> Self {
-        Self {
-            x: Default::default(),
-            y: Default::default(),
-            scale_x: Default::default(),
-            scale_y: Default::default(),
-            skew_x: Default::default(),
-            skew_y: Default::default(),
-            rotate: Default::default(),
-            anchor_x: Default::default(),
-            anchor_y: Default::default(),
-
-            width: Rc::new(RefCell::new(PropertyLiteral::new(Size::default()))),
-            height: Rc::new(RefCell::new(PropertyLiteral::new(Size::default()))),
-
-            transform: Transform2D::default_wrapped(),
-        }
     }
 }
 
