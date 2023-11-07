@@ -74,6 +74,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         Layer::DontCare
     }
 
+    fn manages_own_properties_subtree(&self) -> bool {
+        true
+    }
+
     fn handle_native_patches(
         &mut self,
         rtc: &mut RenderTreeContext<R>,

@@ -18,13 +18,13 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
     let mut node_borrowed = this_instance_node.borrow_mut();
 
-
     // Used e.g. for Components to push property stack frames
     // node_borrowed.handle_pre_compute_properties(ptc);
     let this_expanded_node = node_borrowed.handle_compute_properties(ptc);
-    ptc.current_instance_node = Rc::clone(&this_instance_node);
+
     ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
 
+    // Lifecycle: `mount`
     manage_handlers_mount(ptc);
 
     // First compute slot_children — that is, the children templated _inside_ a component.
@@ -34,11 +34,10 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     if let Some(slot_children) = node_borrowed.get_slot_children() {
         for child in (*slot_children).borrow().iter() {
             let mut new_ptc = ptc.clone();
+            new_ptc.current_instance_node = Rc::clone(child);
             let child_expanded_node = recurse_compute_properties(&mut new_ptc);
-            this_expanded_node.borrow_mut().append_child(child_expanded_node);
 
-            ptc.current_instance_node = Rc::clone(&this_instance_node);
-            ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+            todo!("aggregate child_expanded_nodes and make sure they end up in current_component_slot_children")
 
         }
     }
@@ -53,10 +52,17 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     //been properties-computed, thus expanded by Repeat and Conditional.
     let children_to_recurse = node_borrowed.get_instance_children();
 
-    for _child in (*children_to_recurse).borrow().iter() {
+    for child in (*children_to_recurse).borrow().iter() {
+
+        let mut new_ptc = ptc.clone();
+        new_ptc.current_instance_node = Rc::clone(child);
+        let child_expanded_node = recurse_compute_properties(&mut new_ptc);
+
+        todo!("check whether properties subtree is manually managed; decide where to gate recursion based on that.");
         recurse_compute_properties(ptc);
-        ptc.current_instance_node = Rc::clone(&this_instance_node);
-        ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+
+
+        this_expanded_node.borrow_mut().append_child(child_expanded_node);
     }
 
     //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
@@ -71,16 +77,16 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     //     subtree_depth,
     // );
 
+    // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);
     this_expanded_node
 }
 
 
-/// For the `current_expanded_node` attached to `rtc`, calculates and returns a new [`crate::rendering::TransformAndBounds`]
+/// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`]
 /// Intended as a helper method to be called during properties computation, for creating a new `tab` to attach to
-/// `rtc` for downstream calculations.
+/// `ptc` for downstream calculations.
 fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> TransformAndBounds {
-
     let node = Rc::clone(&ptc.current_expanded_node.as_ref().unwrap());
 
     //get the size of this node (calc'd or otherwise) and use
@@ -432,24 +438,20 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
         indices
     }
 
-
-    pub fn compute_vtable_value(&self, vtable_id: Option<usize>) -> Option<TypesCoproduct> {
-        if let Some(id) = vtable_id {
-            if let Some(evaluator) = self.engine.expression_table.get(&id) {
-                let ec = ExpressionContext {
-                    engine: self.engine,
-                    stack_frame: Rc::clone(
-                        &self.peek_stack_frame().unwrap(),
-                    ),
-                };
-                return Some((**evaluator)(ec));
-            }
-        } //FUTURE: for timelines: else if present in timeline vtable...
-
-        None
+    pub fn compute_vtable_value(&self, vtable_id: usize) -> TypesCoproduct {
+        if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
+            let ec = ExpressionContext {
+                engine: self.engine,
+                stack_frame: Rc::clone(
+                    &self.peek_stack_frame().unwrap(),
+                ),
+            };
+            (**evaluator)(ec)
+        }else{
+            panic!()//unhandled error if an invalid id is passed or if vtable is incorrectly initialized
+        }
     }
 }
-
 
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame and `properties` for

@@ -187,6 +187,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         Layer::DontCare
     }
 
+    fn manages_own_properties_subtree(&self) -> bool {
+        true
+    }
     // fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
     //     // self.cached_old_value_range = None;
     //     // self.cached_old_value_vec = None;

@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext};
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_unwrap, unsafe_wrap, handle_vtable_update};
+use pax_properties_coproduct::{ConditionalProperties, PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
@@ -11,8 +11,9 @@ use piet_common::RenderContext;
 /// based on the value of the property `boolean_expression`.
 /// The Pax compiler handles ConditionalInstance specially
 /// with the `if` syntax in templates.
-pub struct ConditionalInstance {
+pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
+    instance_children: InstanceNodePtrList<R>,
 
     // pub boolean_expression: Box<dyn PropertyInstance<bool>>,
     // pub true_branch_children: InstanceNodePtrList<R>,
@@ -23,7 +24,7 @@ pub struct ConditionalInstance {
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance {
+impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -36,26 +37,48 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance {
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            // true_branch_children: match args.children {
-            //     None => Rc::new(RefCell::new(vec![])),
-            //     Some(children) => children,
-            // },
-
+            instance_children: match args.children {
+                None => Rc::new(RefCell::new(vec![])),
+                Some(children) => children,
+            },
             instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
             instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
-
-            // boolean_expression: args
-            //     .conditional_boolean_expression
-            //     .expect("Conditional requires boolean_expression"),
-            // false_branch_children: Rc::new(RefCell::new(vec![])),
-            // cleanup_children: Rc::new(RefCell::new(vec![])),
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
-
+    fn manages_own_properties_subtree(&self) -> bool {
+        true
+    }
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+
+        // evaluate boolean expression
+        let properties_wrapped =  ptc.current_expanded_node.as_ref().unwrap().borrow().get_properties();
+
+        let evaluated_condition = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, ConditionalProperties, |properties: &mut ConditionalProperties| {
+
+            handle_vtable_update!(ptc, properties.boolean_expression, bool);
+            if let Some(id) = properties.boolean_expression._get_vtable_id() {
+                let new_value = ptc.compute_vtable_value(id);
+                if let TypesCoproduct::bool(val) = new_value {
+                    properties.boolean_expression.set(val);
+                    val
+                } else {
+                    unreachable!(); //Conditional's condition return type is expected to be boolean
+                }
+            } else {
+                unreachable!() //Conditional's boolean expression must be an expression, but a non-expression value was found
+            }
+        });
+
+        if evaluated_condition {
+            // if true, recurse into instance children, stitch ExpandedNode subtree and return subtree root (this_expanded_node)
+        } else {
+            // else, just return self (ExpandedNode without any ExpandedNode children)
+
+        }
+
         // if let Some(boolean_expression) =
         //     ptc.compute_vtable_value(self.boolean_expression._get_vtable_id())
         // {
@@ -88,12 +111,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance {
         true
     }
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        // if *self.boolean_expression.get() {
-        //     Rc::clone(&self.true_branch_children)
-        // } else {
-        //     Rc::clone(&self.false_branch_children)
-        // }
-        todo!()
+        Rc::clone(&self.instance_children)
     }
     // fn get_size(&self) -> Option<(Size, Size)> {
     //     None

@@ -4279,7 +4279,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             [ ] Scroller & Frame - manually manage properties calc recursion + scrolling + clipping stack
 [ ] Refactor scroller
     [ ] Make instance node stateless
-    [ ] Handle instantiation args => PropertiesCoproduct
+    [ ] Handle instantiation args => PropertiesCoproduct; remove ScrollerArgs
     [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
     [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
 [ ] Clipping
