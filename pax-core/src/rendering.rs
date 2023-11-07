@@ -238,7 +238,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     }
 
     #[allow(unused_variables)]
-    fn get_clipping_bounds(&self, expanded_node: Rc<RefCell<ExpandedNode<R>>>) -> Option<(Size, Size)> {
+    fn get_clipping_bounds(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
         None
     }
 
@@ -352,8 +352,6 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         //no-op default implementation
     }
 
-
-
     fn handle_form_event(&mut self, event: FormEvent) {
         panic!("form event sent to non-compatible component: {:?}", event)
     }
@@ -372,7 +370,6 @@ pub trait ComputableTransform {
 impl ComputableTransform for Transform2D {
     //Distinction of note: scale, translate, rotate, anchor, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
-    //Returns (Base affine transform, align component)
     fn compute_transform2d_matrix(
         &self,
         node_size: (f64, f64),

@@ -215,20 +215,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         Rc::clone(&self.children)
     }
 
-    // fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
-    //     Some((
-    //         self.common_properties.width.as_ref().borrow().get().clone(),
-    //         self.common_properties
-    //             .height
-    //             .as_ref()
-    //             .borrow()
-    //             .get()
-    //             .clone(),
-    //     ))
-    // }
-    //
-    fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
+    fn get_clipping_bounds(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+        let comm_props = expanded_node.get_common_properties();
 
+        // `ret` temp appeases borrow checker
+        let ret = Some((
+            comm_props.borrow().width.borrow().get().clone(),
+            comm_props.borrow().height.borrow().get().clone(),
+        ));
+        ret
+    }
+
+
+    /// Scroller's `size` is the size of its inner pane
+    fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
         let properties_wrapped = expanded_node.get_properties();
         with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Scroller, |properties : &mut Scroller|{
             (
