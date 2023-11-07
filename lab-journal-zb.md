@@ -4236,14 +4236,13 @@ Let's store a prototypical clone of the original properties on each InstanceNode
       [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
 [ ] clipping_ids & scroller_ids in property compute
       [-] 1. might not need them at the *Create stage; might be able to not worry about this
-      [ ] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
+      [x] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
           what would it look like to keep clipping / scroller ids on ptc?
           need to manage pushing / popping pre/post recursion
           need to be able to refer to this during rendering, probably be keeping "expanded" ideas of the clipping / scrolling stack (clones of the vecs of ids?) on each expanded node.
           Can handle tracking clipping IDs (used strictly for native-side) independently of pre/post-render lifecycle methods + rendering clipping stack manip
           [ ] Manually manage propeties-compute recursion for Scroller + Frame, like we do with Component & friends
       [-] 3. revisit whether mount/unmount should be in the rendering pass instead?
-            
 [ ] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
     [x] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
@@ -4276,11 +4275,17 @@ Let's store a prototypical clone of the original properties on each InstanceNode
                 [ ] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
                     For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
                 [ ] Make sure we handle "is_invisible" (née flattening) correctly
+            [ ] Component - manually manage properties calc recursion + runtime properties stack
+            [ ] Scroller & Frame - manually manage properties calc recursion + scrolling + clipping stack
 [ ] Refactor scroller
     [ ] Make instance node stateless
     [ ] Handle instantiation args => PropertiesCoproduct
     [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
     [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
+[ ] Clipping
+    [ ] Hook back up computation (e.g. `get_clipping_bounds`)
+    [ ] possibly power through to web chassis, plugging back in e2e clipping
+    [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
 [x] Refactor "component template frame" computation order; support recursing mid-frame
     [x] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
@@ -4291,13 +4296,13 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [x] Refactor unmounting to be id_chain-specific rather than instance_id specific
     [x] Refactor NodeRegistry
     [ ] Refactor lifecycle hooks/call site for unmounting
-        [ ] Revisit how we `mark_for_unmount`.  We currently special-case this inside Repeat and Conditional.  Rather than require Repeat and Conditional to deal with stateful caches / diffs
+        [x] Revisit how we `mark_for_unmount`.  We currently special-case this inside Repeat and Conditional.  Rather than require Repeat and Conditional to deal with stateful caches / diffs
             of their own subtrees, we could instead track the entire expanded tree.  If, after finishing properties computation, there's not an expanded node with
             (this could vaguely be considered a garbage collector of sorts.  If an ExpandedNode isn't used any more, we manage unmount.  We might even be able to handle
             this by hooking into `Drop` on `ExpandedNode`!  However, this would be error prone and require very careful management of ExpandedNode instances.  Probably
             better to be explicit on this one, feels like "C++ operator overloading"-style footgun potential.
-    [ ] and mounting
-        [ ] decide: properties pass or render pass
+    [x] and mounting
+        [x] decide: properties pass or render pass
             consider that we use mount / unmount to trigger native CRUD ops.  This suggests they should happen before & after properties pass, respectively (otherwise we'll get *Update events at the wrong times)
             Perhaps: remove pre- and post- for properties compute.  Only Component was using this.  Instead, introduce some flag on the InstanceNode trait e.g. `handles_custom_subtree_for_properties_compute`
             Repeat, Component, Conditional, and Slot can return `true`.  And then during Properties compute pass, instead of traversing into these subtrees, the workhorse method allows these nodes to do their own piecewise recursion
@@ -4315,14 +4320,16 @@ Let's store a prototypical clone of the original properties on each InstanceNode
         [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
             ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
     [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
-[ ] Port sizing / bounds calculations over to the properties pass
+[x] Port sizing / bounds calculations over to the properties pass
     (1) compute native patches is dependent on these calculations
     (2) intuitively, these are property calculations, and rendering could/should be a pure function of these (just like all other properties)
     (3) bounds / size / etc. will be members of dirty-dag, and knowing if they change will be important for evaluation thereof
 [ ] Manual testing 
     [ ] all of the examples    
     [ ] Test some of the broken code from userland, e.g. `pax_gol`
-    [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.  
+    [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.
+    [ ] Clipping
+    [ ] Scrolling
 
 
 
