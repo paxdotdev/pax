@@ -8,7 +8,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, unsafe_wrap, with_properties_unsafe, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode};
+use pax_core::{unsafe_unwrap, unsafe_wrap, with_properties_unsafe, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_compute_properties};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
     ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
@@ -105,7 +105,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         subtree_depth: u32,
     ) {
         let mut new_message: ScrollerPatch = Default::default();
-        new_message.id_chain = ptc.current_expanded_node.unwrap().borrow().id_chain.clone();
+        new_message.id_chain = ptc.get_id_chain();
         if !self.last_patches.contains_key(&new_message.id_chain) {
             let mut patch = ScrollerPatch::default();
             patch.id_chain = new_message.id_chain.clone();
@@ -115,7 +115,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let wrapped = ptc.current_expanded_node.unwrap().borrow().get_properties();
+        let wrapped = ptc.current_expanded_node.as_ref().unwrap().clone().borrow().get_properties().clone();
         with_properties_unsafe!(&wrapped, PropertiesCoproduct, Scroller, |properties| {
             let val = subtree_depth;
             let is_new_value = last_patch.subtree_depth != val;
@@ -245,6 +245,25 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     // }
 
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        let id_chain = ptc.get_id_chain();
+
+        ptc.push_clipping_stack_id(id_chain.clone());
+        ptc.push_scroller_stack_id(id_chain.clone());
+
+
+
+        for child in self.get_instance_children().borrow().iter() {
+            let new_ptc = ptc.clone();
+            // let new_instance_node = Rc::clone(child);
+            // let new_expanded_node = new_instance_node.borrow().com
+            //
+            // recurse_compute_properties();
+        }
+
+
+
+        ptc.pop_clipping_stack_id();
+        ptc.pop_scroller_stack_id();
         // self.common_properties.compute_properties(ptc);
         //
         // let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();
@@ -311,6 +330,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         todo!()
     }
 
+    fn manages_own_properties_subtree(&self) -> bool {
+        true
+    }
+
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
         let transform = rtc.transform_global;
         let bounding_dimens = rtc.bounds;
@@ -332,42 +355,37 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             rc.clip(transformed_bez_path.clone());
         }
         let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
-        rtc.push_clipping_stack_id(id_chain.clone());
-        rtc.push_scroller_stack_id(id_chain.clone());
+
     }
     fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         for (_key, rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
         }
-
-        rtc.pop_clipping_stack_id();
-        rtc.pop_scroller_stack_id();
     }
 
     fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        let id_chain = ptc.current_expanded_node.borrow().id_chain.clone();
+        let id_chain = ptc.get_id_chain();
+        let z_index = ptc.current_expanded_node.as_ref().unwrap().borrow().z_index;
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
         let clipping_ids = ptc.get_current_clipping_ids();
 
         let scroller_ids = ptc.get_current_scroller_ids();
 
-        ptc.engine.enqueue_native_message(
+        ptc.enqueue_native_message(
             pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
                 clipping_ids,
                 scroller_ids,
-                z_index: ptc.current_z_index,
+                z_index,
             }),
         );
     }
 
     fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        let id_chain = ptc.get_id_chain(self.instance_id);
+        let id_chain = ptc.get_id_chain();
         self.last_patches.remove(&id_chain);
-        (*ptc.engine.runtime)
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id_chain));
+        ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id_chain));
     }
 }
