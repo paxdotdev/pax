@@ -322,11 +322,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     }
 
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
-        let transform = rtc.transform_global;
-        let bounding_dimens = rtc.bounds;
+        let expanded_node = rtc.current_expanded_node.borrow();
+        let tab = &expanded_node.tab;
 
-        let width: f64 = bounding_dimens.0;
-        let height: f64 = bounding_dimens.1;
+        let width: f64 = tab.bounds.0;
+        let height: f64 = tab.bounds.1;
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -336,7 +336,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         bez_path.line_to((0.0, 0.0));
         bez_path.close_path();
 
-        let transformed_bez_path = transform * bez_path;
+        let transformed_bez_path = tab.transform * bez_path;
         for (_key, rc) in rcs.iter_mut() {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
             rc.clip(transformed_bez_path.clone());

@@ -1059,7 +1059,7 @@ impl ZIndex {
         }
     }
 
-    pub fn generate_canvas_id(scroller_id: Option<Vec<u32>>, z_index: u32) -> String {
+    pub fn assemble_canvas_id(scroller_id: Option<Vec<u32>>, z_index: u32) -> String {
         if let Some(id) = scroller_id {
             format!("{:?}_{}", id, z_index)
         } else {

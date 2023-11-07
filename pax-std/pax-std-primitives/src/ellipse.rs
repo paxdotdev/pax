@@ -100,10 +100,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
         todo!()
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform_scroller_reset;
-        let bounding_dimens = rtc.bounds;
-        let width: f64 = bounding_dimens.0;
-        let height: f64 = bounding_dimens.1;
+        let expanded_node = rtc.current_expanded_node.borrow();
+        let tab = &expanded_node.tab;
+
+        let width: f64 = tab.bounds.0;
+        let height: f64 = tab.bounds.1;
 
         let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
         with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Ellipse, |properties|{
@@ -120,7 +121,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
             let accuracy = 0.1;
             let bez_path = ellipse.to_path(accuracy);
 
-            let transformed_bez_path = transform * bez_path;
+            let transformed_bez_path = tab.transform * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = properties.fill.get().to_piet_color();
