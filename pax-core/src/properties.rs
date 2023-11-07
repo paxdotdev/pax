@@ -6,8 +6,8 @@ use kurbo::Affine;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
-use pax_runtime_api::{RuntimeContext, Timeline};
-use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, PaxEngine, TransformAndBounds};
+use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation};
+use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, PaxEngine, TransformAndBounds};
 
 /// Recursive workhorse method for computing properties.  Visits all instance nodes in tree, stitching
 /// together an expanded tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
@@ -43,6 +43,9 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
         }
     }
 
+    let new_tab = calculate_tab(ptc);
+    ptc.tab = new_tab;
+
     //Strictly following computation of slot children, we recurse into instance_children.
     //This ordering is required because the properties for slot children must be computed
     //in _this_ context, of a containing component, before we compute properties for the inner component's context.
@@ -70,6 +73,128 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 
     manage_handlers_unmount(ptc);
     this_expanded_node
+}
+
+
+/// For the `current_expanded_node` attached to `rtc`, calculates and returns a new [`crate::rendering::TransformAndBounds`]
+/// Intended as a helper method to be called during properties computation, for creating a new `tab` to attach to
+/// `rtc` for downstream calculations.
+fn calculate_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> TransformAndBounds {
+
+    let node = Rc::clone(&ptc.current_expanded_node.as_ref().unwrap());
+
+    //get the size of this node (calc'd or otherwise) and use
+    //it as the new accumulated bounds: both for this node's children (their parent container bounds)
+    //and for this node itself (e.g. for specifying the size of a Rectangle node)
+    let new_accumulated_bounds_and_current_node_size = node
+        .borrow_mut()
+        .compute_size_within_bounds(ptc.tab.bounds);
+
+    let mut node_size: (f64, f64) = (0.0, 0.0);
+
+    let node_transform_property_computed = {
+        let node_borrowed = ptc.current_expanded_node.as_ref().unwrap().borrow_mut();
+
+        let computed_transform2d_matrix = node_borrowed
+            .get_common_properties().borrow()
+            .transform
+            .borrow_mut()
+            .get()
+            .compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.tab.bounds);
+
+        computed_transform2d_matrix
+    };
+
+    // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
+    let desugared_transform = {
+        //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
+        let node_borrowed = ptc.current_expanded_node.as_ref().unwrap().borrow();
+        let comm = node_borrowed.get_common_properties();
+        let comm = comm.borrow();
+        let mut desugared_transform2d = Transform2D::default();
+
+        let translate = [
+            if let Some(ref val) = comm.x {
+                val.borrow().get().clone()
+            } else {
+                Size::ZERO()
+            },
+            if let Some(ref val) = comm.y {
+                val.borrow().get().clone()
+            } else {
+                Size::ZERO()
+            },
+        ];
+        desugared_transform2d.translate = Some(translate);
+
+        let anchor = [
+            if let Some(ref val) = comm.anchor_x {
+                val.borrow().get().clone()
+            } else {
+                Size::ZERO()
+            },
+            if let Some(ref val) = comm.anchor_y {
+                val.borrow().get().clone()
+            } else {
+                Size::ZERO()
+            },
+        ];
+        desugared_transform2d.anchor = Some(anchor);
+
+        let scale = [
+            if let Some(ref val) = comm.scale_x {
+                val.borrow().get().clone()
+            } else {
+                Size::Percent(pax_runtime_api::Numeric::from(100.0))
+            },
+            if let Some(ref val) = comm.scale_y {
+                val.borrow().get().clone()
+            } else {
+                Size::Percent(pax_runtime_api::Numeric::from(100.0))
+            },
+        ];
+        desugared_transform2d.scale = Some(scale);
+
+        let skew = [
+            if let Some(ref val) = comm.skew_x {
+                val.borrow().get().get_as_float()
+            } else {
+                0.0
+            },
+            if let Some(ref val) = comm.skew_y {
+                val.borrow().get().get_as_float()
+            } else {
+                0.0
+            },
+        ];
+        desugared_transform2d.skew = Some(skew);
+
+        let rotate = if let Some(ref val) = comm.rotate {
+            val.borrow().get().clone()
+        } else {
+            Rotation::ZERO()
+        };
+        desugared_transform2d.rotate = Some(rotate);
+
+        desugared_transform2d.compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.tab.bounds)
+    };
+
+    let new_accumulated_transform =
+        ptc.tab.transform * desugared_transform * node_transform_property_computed;
+
+    // let new_scroller_normalized_accumulated_transform =
+    //     accumulated_scroller_normalized_transform
+    //         * desugared_transform
+    //         * node_transform_property_computed;
+
+    // rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
+
+    TransformAndBounds {
+        transform: new_accumulated_transform,
+        bounds: new_accumulated_bounds_and_current_node_size,
+    }
+
+
 }
 
 
