@@ -86,6 +86,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     //     bounds
     // }
 
+    fn manages_own_properties_subtree(&self) -> bool {
+        true
+    }
+
 
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 

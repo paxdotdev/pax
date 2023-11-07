@@ -107,7 +107,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
         let height: f64 = tab.bounds.1;
 
         let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
-        with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Ellipse, |properties : &mut Ellipse|{
+        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Ellipse, |properties : &mut Ellipse|{
             let properties_color = properties.fill.get();
             let _color = match properties_color.color_variant {
                 ColorVariant::Hlca(slice) => Color::hlca(slice[0], slice[1], slice[2], slice[3]),

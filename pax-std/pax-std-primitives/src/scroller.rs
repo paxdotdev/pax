@@ -84,8 +84,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
 
     // fn get_scroll_offset(&mut self) -> (f64, f64) {
     //     (
-    //         *(*self.scroll_x_offset).borrow().get(),
-    //         *(*self.scroll_y_offset).borrow().get(),
+    //         (*self.scroll_x_offset).borrow().get().clone(),
+    //         (*self.scroll_y_offset).borrow().get().clone(),
     //     )
     // }
 
@@ -215,15 +215,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         Rc::clone(&self.children)
     }
 
-    // fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
-    //     Some((
-    //         *self.common_properties.width.as_ref().borrow().get(),
-    //         *self.common_properties.height.as_ref().borrow().get(),
-    //     ))
-    // }
-    //
-    fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
+    fn get_clipping_bounds(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+        let comm_props = expanded_node.get_common_properties();
 
+        // `ret` temp appeases borrow checker
+        let ret = Some((
+            comm_props.borrow().width.borrow().get().clone(),
+            comm_props.borrow().height.borrow().get().clone(),
+        ));
+        ret
+    }
+
+
+    /// Scroller's `size` is the size of its inner pane
+    fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
         let properties_wrapped = expanded_node.get_properties();
         with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Scroller, |properties : &mut Scroller|{
             (
@@ -239,8 +244,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         })
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        self.common_properties.compute_properties(rtc);
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         let id_chain = ptc.get_id_chain();
 

@@ -21,7 +21,6 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     viewport_tab: TransformAndBounds,
 }
 
-
 /// Shared context for render pass recursion
 pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
@@ -49,11 +48,18 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
     }
 }
 
-
+/// Manages vtable updates (if necessary) for a given `dyn PropertyInstance`, with the provided expected TypesCoproduct variant.
+/// Is a no-op for `PropertyLiteral`s, and mutates (by calling `.set`) `PropertyExpression` instances.
+/// # Examples
+/// ```text
+/// handle_vtable_update!(ptc, self.height, Size);
+/// ```
+#[macro_export]
 macro_rules! handle_vtable_update {
     ($ptc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
         let current_prop = &mut *$var.$field.as_ref().borrow_mut();
-        if let Some(new_value) = $ptc.compute_vtable_value(current_prop._get_vtable_id()) {
+        if let Some(vtable_id) = current_prop._get_vtable_id() {
+            let new_value = $ptc.compute_vtable_value(vtable_id);
             let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
                 val
             } else {
@@ -61,14 +67,25 @@ macro_rules! handle_vtable_update {
             };
             current_prop.set(new_value);
         }
+
     }};
 }
 
+/// Does same as [`handle_vtable_update`], but manages case (as a no-op) where the property is wrapped in an outer Option,
+/// e.g. for CommonProperties.
+/// # Examples
+/// ```text
+/// // In this example `scale_x` is `Option`al (`Option<Rc<RefCell<dyn PropertyInstance<Size>>>>`)
+/// handle_vtable_update_optional!(ptc, self.scale_x, Size);
+/// ```
+#[macro_export]
 macro_rules! handle_vtable_update_optional {
     ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
         if let Some(_) = $var.$field {
             let current_prop = &mut *$var.$field.as_ref().unwrap().borrow_mut();
-            if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
+
+            if let Some(vtable_id) = current_prop._get_vtable_id() {
+                let new_value = $rtc.compute_vtable_value(vtable_id);
                 let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
                     val
                 } else {
