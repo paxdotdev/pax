@@ -107,7 +107,7 @@ impl Mul<Point2D> for Affine {
 pub struct TransformAndBounds {
     pub transform: Affine,
     pub bounds: (f64, f64),
-    pub clipping_bounds: Option<(f64, f64)>,
+    // pub clipping_bounds: Option<(f64, f64)>,
 }
 
 impl TransformAndBounds {

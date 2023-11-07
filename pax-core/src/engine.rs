@@ -283,7 +283,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: &(f64, f64)/*Can we get the following from `self`?, tab: &TransformAndBounds*/) -> bool {
+    pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
+
         //short-circuit fail for Group and other size-None elements.
         //This doesn't preclude event handlers on Groups and size-None elements --
         //it just requires the event to "bubble".  otherwise, `Component A > Component B` will
@@ -295,10 +296,11 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         let inverted_transform = self.tab.transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
-        let relevant_bounds = match self.tab.clipping_bounds {
-            None => self.tab.bounds,
-            Some(cp) => cp,
-        };
+        // let relevant_bounds = match self.tab.clipping_bounds {
+        //     None => self.tab.bounds,
+        //     Some(cp) => cp,
+        // };
+        let relevant_bounds = self.tab.bounds;
 
         //Default implementation: rectilinear bounding hull
         transformed_ray.x > 0.0
@@ -807,7 +809,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             viewport_tab: TransformAndBounds {
                 transform: Affine::default(),
                 bounds: viewport_size,
-                clipping_bounds: Some(viewport_size),
+                // clipping_bounds: Some(viewport_size),
             },
             image_map: HashMap::new(),
         }
@@ -843,7 +845,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             tab: TransformAndBounds {
                 bounds: self.viewport_tab.bounds,
                 transform: Affine::default(),
-                clipping_bounds: None,
+                // clipping_bounds: None,
             },
             transform_scroller_reset: Default::default(),
             marked_for_unmount: false,
