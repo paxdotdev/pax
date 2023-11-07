@@ -102,7 +102,8 @@ macro_rules! with_properties_unsafe {
         let rewrapped_value = unsafe_wrap!(unwrapped_value, $enum_type, $target_type);
 
         // Replace the potentially modified value back into the `RefCell`.
-        std::mem::replace(&mut *rc.borrow_mut(), rewrapped_value);
+        let mut r = rc.borrow_mut();
+        *r = rewrapped_value;
     }};
 }
 

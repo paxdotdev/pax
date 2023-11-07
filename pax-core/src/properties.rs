@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::ops::RangeFrom;
 use std::rc::{Rc, Weak};
+use kurbo::Affine;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
@@ -32,19 +33,13 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     // Read more about slot children at [`InstanceNode#get_slot_children`]
     if let Some(slot_children) = node_borrowed.get_slot_children() {
         for child in (*slot_children).borrow().iter() {
-            let child_expanded_node = recurse_compute_properties(ptc);
+            let mut new_ptc = ptc.clone();
+            let child_expanded_node = recurse_compute_properties(&mut new_ptc);
             this_expanded_node.borrow_mut().append_child(child_expanded_node);
-            //Because we are sharing a single mutable `ptc`, we must set back to `current_instance_node` after
-            //recursing, because it will be rewritten on each pass.
-            //Is there a cleaner way to handle this?
-            // - Clone `ptc` (this gets sticky around shared NativeMessage queue; could Rc<RefCell<>> that)
-            // - Pass `this_instance_node` as a separate param, instead of mutating ptc.  Then each call site
-            //   gets its own unique clone in the form of a function arg
-            //      - This would probably extend to passing `this_expanded_node` to e.g. `handle_mount_handlers`, in the same way
-            //This extends beyond these two nodes — we also need to manage some stack representation of e.g. `current_containing_component` and its slot children.
-            //  Cloning `ptc` is pretty clean, if we bite off an Rc<RefCell<>> for the native message queue...
+
             ptc.current_instance_node = Rc::clone(&this_instance_node);
             ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+
         }
     }
 
@@ -153,6 +148,8 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     /// A pointer to the current expanded node's parent expanded node
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
+    pub transform_scroller_reset: Affine,
+
     pub marked_for_unmount: bool,
 
     pub shared: Rc<RefCell<PropertiesTreeShared>>,
@@ -164,10 +161,24 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 /// current pointers without overwriting others, some state within `ptc` needs to be shared-mutable.  `PropertiesTreeShared` is intended
 /// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
 pub struct PropertiesTreeShared {
+
+    /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
+    /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
+    /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
+    /// (Mismatches between the static compile-time stack and this runtime stack would result in an unrecoverable panic.)
     pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
+
+    /// Tracks the native ids (id_chain)s of clipping instances
+    /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
+    /// This list of `id_chain`s is passed along with `**Create`, in order to associate with the appropriate clipping elements on the native side
     pub clipping_stack: Vec<Vec<u32>>,
+
+    /// Similar to clipping stack but for scroller containers
     pub scroller_stack: Vec<Vec<u32>>,
+
+    /// Iterator for tracking current z-index; expected to be reset at the beginning of every properties computation pass
     pub z_index_gen: RangeFrom<isize>,
+
     /// Queue for native "CRUD" message (e.g. TextCreate), populated during properties
     /// computation and passed across native bridge each tick after canvas rendering
     pub native_message_queue: VecDeque<NativeMessage>,
@@ -184,6 +195,7 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
             current_instance_node: Rc::clone(&self.current_instance_node),
             current_expanded_node: self.current_expanded_node.clone(),
             parent_expanded_node: self.parent_expanded_node.clone(),
+            transform_scroller_reset: self.transform_scroller_reset.clone(),
             marked_for_unmount: self.marked_for_unmount,
             shared: Rc::clone(&self.shared),
             tab: self.tab.clone(),

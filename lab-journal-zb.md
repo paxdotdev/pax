@@ -4197,17 +4197,17 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 
 #### Second pass, TODOs:
 
-[ ] Refactor Instance vs ExpandedNodes
+[x] Refactor Instance vs ExpandedNodes
     [x] Rename dyn RenderNode => dyn InstanceNode
     [x] Move properties to ExpandedNodes
         [x] Also move `CommonProperties` into `ExpandedNode`
     [x] Refactor properties lookup: requires awareness of expanded node / id_chain
         [x] Same with `get_common_properties`
         [x] Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
-    [ ] Upsert `ExpandedNode` during `compute_properties_recursive`, along with computed properties "stamp".
+    [x] Upsert `ExpandedNode` during `recurse_compute_properties`, along with computed properties "stamp".
         [x] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
             [x] Refactor one handler to figure out quite what this looks like on the handler side
-            [ ] Refactor all remaining handlers to match
+            [x] Refactor all remaining handlers to match
         [x] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
         [x] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
     [x] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
@@ -4219,20 +4219,30 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             (2) this also requires special handling around invoking userland event handlers, where `&mut self` _is_ a given properties stamp.  Essentially we will need to 
                 `take` from the Rc<RefCell<>>, then `replace` back in after the user has presumably mutated it
         [x] build `with_properties_unsafe` macro
+    [x] Manage cloned vs. shared/mutable state with `ptc`
+        Because we are sharing a single mutable `ptc`, we must set back to `current_instance_node` after
+        recursing, because it will be rewritten on each pass.
+        Is there a cleaner way to handle this?
+            - Clone `ptc` (this gets sticky around shared NativeMessage queue; could Rc<RefCell<>> that)
+            - Pass `this_instance_node` as a separate param, instead of mutating ptc.  Then each call site
+             gets its own unique clone in the form of a function arg
+            - This would probably extend to passing `this_expanded_node` to e.g. `handle_mount_handlers`, in the same way
+        This extends beyond these two nodes — we also need to manage some stack representation of e.g. `current_containing_component` and its slot children.
+            Cloning `ptc` is pretty clean, if we bite off an Rc<RefCell<>> for the native message queue + shared state
 [x] Unplug most of pax_std to reduce iterative surface area
-    [ ] Come back at the end, plug back in, and normalize the rest
+      [ ] Come back at the end, plug back in, and normalize the rest
 [ ] Native patches
-    [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
-    [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+      [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
+      [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
 [ ] clipping_ids & scroller_ids in property compute
-    [-] 1. might not need them at the *Create stage; might be able to not worry about this
-    [ ] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
-        what would it look like to keep clipping / scroller ids on ptc?
-        need to manage pushing / popping pre/post recursion
-        need to be able to refer to this during rendering, probably be keeping "expanded" ideas of the clipping / scrolling stack (clones of the vecs of ids?) on each expanded node.
-        Can handle tracking clipping IDs (used strictly for native-side) independently of pre/post-render lifecycle methods + rendering clipping stack manip
-        [ ] Manually manage propeties-compute recursion for Scroller + Frame, like we do with Component & friends
-    [-] 3. revisit whether mount/unmount should be in the rendering pass instead?
+      [-] 1. might not need them at the *Create stage; might be able to not worry about this
+      [ ] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
+          what would it look like to keep clipping / scroller ids on ptc?
+          need to manage pushing / popping pre/post recursion
+          need to be able to refer to this during rendering, probably be keeping "expanded" ideas of the clipping / scrolling stack (clones of the vecs of ids?) on each expanded node.
+          Can handle tracking clipping IDs (used strictly for native-side) independently of pre/post-render lifecycle methods + rendering clipping stack manip
+          [ ] Manually manage propeties-compute recursion for Scroller + Frame, like we do with Component & friends
+      [-] 3. revisit whether mount/unmount should be in the rendering pass instead?
             
 [ ] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
@@ -4270,6 +4280,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [ ] Make instance node stateless
     [ ] Handle instantiation args => PropertiesCoproduct
     [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
+    [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
 [x] Refactor "component template frame" computation order; support recursing mid-frame
     [x] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)

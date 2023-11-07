@@ -25,16 +25,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
 /// Shared context for render pass recursion
 pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
-    pub transform_global: Affine,
-    pub transform_scroller_reset: Affine,
-    pub bounds: (f64, f64),
 
-    /// Tracks the native ids (id_chain)s of clipping instances
-    /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
-    /// This list of `id_chain`s is passed along with `**Create`, in order to associate with the appropriate clipping elements on the native side
-    pub clipping_stack: Vec<Vec<u32>>,
-    /// Similar to clipping stack but for scroller containers
-    pub scroller_stack: Vec<Vec<u32>>,
     /// A pointer to the current expanded node, the stateful atomic unit of traversal when rendering.
     pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
     /// A pointer to the current instance node, the stateless, instantiated representation of a template node.
@@ -47,11 +38,11 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
     fn clone(&self) -> Self {
         RenderTreeContext {
             engine: self.engine, // Borrowed references are Copy, so they can be "cloned" trivially.
-            transform_global: self.transform_global.clone(),
-            transform_scroller_reset: self.transform_scroller_reset.clone(),
-            bounds: self.bounds.clone(),
-            clipping_stack: self.clipping_stack.clone(),
-            scroller_stack: self.scroller_stack.clone(),
+            // transform_global: self.transform_global.clone(),
+            // transform_scroller_reset: self.transform_scroller_reset.clone(),
+            // bounds: self.bounds.clone(),
+            // clipping_stack: self.clipping_stack.clone(),
+            // scroller_stack: self.scroller_stack.clone(),
             current_expanded_node: Rc::clone(&self.current_expanded_node),
             current_instance_node: Rc::clone(&self.current_instance_node),
         }
@@ -854,6 +845,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 transform: Affine::default(),
                 clipping_bounds: None,
             },
+            transform_scroller_reset: Default::default(),
             marked_for_unmount: false,
             shared: Rc::new(RefCell::new(
                 PropertiesTreeShared {
@@ -864,18 +856,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     z_index_gen: 0..,
                 }
             )),
-
         };
         let root_expanded_node = recurse_compute_properties(&mut ptc);
 
         // RENDER
         let mut rtc = RenderTreeContext {
             engine: &self,
-            transform_global: Affine::default(),
-            transform_scroller_reset: Affine::default(),
-            bounds: self.viewport_tab.bounds,
-            clipping_stack: vec![],
-            scroller_stack: vec![],
+            // transform_global: Affine::default(),
+            // transform_scroller_reset: Affine::default(),
+            // bounds: self.viewport_tab.bounds,
+            // clipping_stack: vec![],
+            // scroller_stack: vec![],
             current_expanded_node: Rc::clone(&root_expanded_node),
             current_instance_node: Rc::clone(&root_expanded_node.borrow().instance_node)
         };
@@ -917,49 +908,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         marked_for_unmount: bool,
     ) {
         //Recurse:
-        //  - compute properties recursively for the current component
+
         //  - fire lifecycle events for this node
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
-        //  - manage unmounting, if marked
-        let accumulated_transform = rtc.transform_global;
-        let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
-        let accumulated_bounds = rtc.bounds;
+
+        // let accumulated_transform = rtc.transform_global;
+        // let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
+        let accumulated_bounds = rtc.current_expanded_node.borrow().tab.bounds;
         let node = Rc::clone(&rtc.current_expanded_node);
 
-
         rtc.current_instance_node = Rc::clone(&node.borrow().instance_node);
-
-        //populate current_z_index to `rtc`
-        // let layer_type = node.borrow_mut().get_layer_type();
-        // z_index_info.update_z_index(layer_type.clone());
-        // rtc.current_z_index = z_index_info.get_level();
-
-        //Compute properties:
-        // If this node is a component:
-        //    Kick off a recursive evaluation of properties for all nodes in this component's template
-        //    Otherwise, presume we have already computed properties in the process of recursively evaluating the containing component's properties, and proceed with rendering
-        // {
-        //     let mut node_borrowed = node.borrow_mut();
-        //     if let NodeType::Component = node_borrowed.get_node_type() {
-        //         rtc.current_containing_component = Rc::clone(&node);
-        //         rtc.current_containing_component_slot_children =
-        //             node_borrowed.get_slot_children().unwrap();
-        //
-        //         node_borrowed.handle_pre_compute_properties(rtc);
-        //         //Note that we do NOT compute properties on the component root itself.
-        //         //Its properties have already been computed in the context of its containing component.
-        //         let template_children = node_borrowed.get_instance_children();
-        //         for template_child in (*template_children).borrow().iter() {
-        //             self.compute_properties_recursive(rtc, Rc::clone(template_child));
-        //         }
-        //
-        //         node_borrowed.handle_post_compute_properties(rtc);
-        //     }
-        // }
-
-
 
         //scroller IDs are used by chassis, for identifying native scrolling containers
         let scroller_ids = rtc.current_expanded_node.borrow().ancestral_scroller_ids.clone();
@@ -967,202 +927,22 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             None => None,
             Some(v) => Some(v.clone()),
         };
-        let canvas_id = ZIndex::generate_canvas_id(scroller_id.clone(), rtc.current_expanded_node.borrow().z_index);
-
-        //peek at the current stack frame and set a scoped playhead position as needed
-        // match rtc.peek_stack_frame() {
-        //     Some(stack_frame) => {
-        //         rtc.timeline_playhead_position = stack_frame
-        //             .borrow_mut()
-        //             .get_timeline_playhead_position()
-        //             .clone();
-        //     }
-        //     None => (),
-        // }
-
-        //get the size of this node (calc'd or otherwise) and use
-        //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
-        //and for this node itself (e.g. for specifying the size of a Rectangle node)
-        let new_accumulated_bounds = node
-            .borrow_mut()
-            .compute_size_within_bounds(accumulated_bounds);
-
-        #[allow(unused)]
-        let mut node_size: (f64, f64) = (0.0, 0.0);
-
-        // From the `transform` property
-        let node_transform_property_computed = {
-            let node_borrowed = rtc.current_expanded_node.borrow_mut();
-            node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
-            let computed_transform2d_matrix = node_borrowed
-                .get_common_properties().borrow()
-                .transform
-                .borrow_mut()
-                .get()
-                .compute_transform2d_matrix(node_size, accumulated_bounds);
-
-            computed_transform2d_matrix
-        };
-
-        // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
-        let desugared_transform = {
-            //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-            let node_borrowed = rtc.current_expanded_node.borrow();
-            let comm = node_borrowed.get_common_properties();
-            let comm = comm.borrow();
-            let mut desugared_transform2d = Transform2D::default();
-
-            let translate = [
-                if let Some(ref val) = comm.x {
-                    val.borrow().get().clone()
-                } else {
-                    Size::ZERO()
-                },
-                if let Some(ref val) = comm.y {
-                    val.borrow().get().clone()
-                } else {
-                    Size::ZERO()
-                },
-            ];
-            desugared_transform2d.translate = Some(translate);
-
-            let anchor = [
-                if let Some(ref val) = comm.anchor_x {
-                    val.borrow().get().clone()
-                } else {
-                    Size::ZERO()
-                },
-                if let Some(ref val) = comm.anchor_y {
-                    val.borrow().get().clone()
-                } else {
-                    Size::ZERO()
-                },
-            ];
-            desugared_transform2d.anchor = Some(anchor);
-
-            let scale = [
-                if let Some(ref val) = comm.scale_x {
-                    val.borrow().get().clone()
-                } else {
-                    Size::Percent(pax_runtime_api::Numeric::from(100.0))
-                },
-                if let Some(ref val) = comm.scale_y {
-                    val.borrow().get().clone()
-                } else {
-                    Size::Percent(pax_runtime_api::Numeric::from(100.0))
-                },
-            ];
-            desugared_transform2d.scale = Some(scale);
-
-            let skew = [
-                if let Some(ref val) = comm.skew_x {
-                    val.borrow().get().get_as_float()
-                } else {
-                    0.0
-                },
-                if let Some(ref val) = comm.skew_y {
-                    val.borrow().get().get_as_float()
-                } else {
-                    0.0
-                },
-            ];
-            desugared_transform2d.skew = Some(skew);
-
-            let rotate = if let Some(ref val) = comm.rotate {
-                val.borrow().get().clone()
-            } else {
-                Rotation::ZERO()
-            };
-            desugared_transform2d.rotate = Some(rotate);
-
-            node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
-            desugared_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
-        };
-
-        let new_accumulated_transform =
-            accumulated_transform * desugared_transform * node_transform_property_computed;
-
-        let new_scroller_normalized_accumulated_transform =
-            accumulated_scroller_normalized_transform
-                * desugared_transform
-                * node_transform_property_computed;
-
-        rtc.bounds = new_accumulated_bounds.clone();
-        rtc.transform_global = new_accumulated_transform.clone();
-        rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
+        let canvas_id = ZIndex::assemble_canvas_id(scroller_id.clone(), rtc.current_expanded_node.borrow().z_index);
 
         Self::manage_handlers_pre_render(rtc);
 
-        //create the `expanded_node` for the current node
-        // let rendering_children = &node.borrow_mut().children_expanded_nodes;
-        // let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
-        // let clipping = node
-        //     .borrow_mut()
-        //     .compute_clipping_within_bounds(accumulated_bounds);
-        // let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
-        //     None => None,
-        //     Some(_) => Some(clipping),
-        // };
-        //
-        // let expanded_node_tab = TransformAndBounds {
-        //     bounds: node_size,
-        //     clipping_bounds,
-        //     transform: new_scroller_normalized_accumulated_transform.clone(),
-        // };
-        //
-        // let parent_expanded_node = rtc.parent_expanded_node.clone();
-        // let expanded_node = Rc::new(ExpandedNode {
-        //     tab: expanded_node_tab.clone(),
-        //     id_chain: id_chain.clone(),
-        //     instance_node: Rc::clone(&node),
-        //     parent_expanded_node: parent_expanded_node,
-        //     node_context: rtc.distill_userland_node_context(),
-        //     z_index: rtc.current_z_index,
-        // });
-        //
-        // (*rtc.engine.node_registry)
-        //     .borrow_mut()
-        //     .add_to_expanded_node_cache(Rc::clone(&expanded_node));
-        //
-        // let instance_id = node.borrow().get_instance_id();
-
-        //Determine if this node is marked for unmounting — either this has been passed as a flag from an ancestor that
-        //was marked for deletion, or this instance_node is present in the NodeRegistry's "marked for unmount" set.
-        let marked_for_unmount = marked_for_unmount
-            || self
-                .node_registry
-                .borrow()
-                .marked_for_unmount_set
-                .contains(&node.borrow().id_chain);
-
         let mut subtree_depth = 0;
+
         //keep recursing through children
-
-        // let children_to_cleanup = node.borrow_mut().pop_cleanup_children();
-        // children_to_cleanup
-        //     .borrow_mut()
-        //     .iter()
-        //     .rev()
-        //     .for_each(|child| {
-        //         let mut new_rtc = rtc.clone();
-        //         self.recurse_traverse_render_tree(
-        //             &mut new_rtc,
-        //             rcs,
-        //             Rc::clone(child),
-        //             &mut z_index_info.clone(),
-        //             true,
-        //         );
-        //     });
-
         let mut child_z_index_info = z_index_info.clone();
         if z_index_info.get_current_layer() == Layer::Scroller {
             let id_chain = node.borrow().id_chain.clone();
             child_z_index_info = ZIndex::new(Some(id_chain));
-            let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
-            let mut reset_transform = Affine::default();
-            reset_transform =
-                reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
-            rtc.transform_scroller_reset = reset_transform.clone();
+            // let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
+            // let mut reset_transform = Affine::default();
+            // reset_transform =
+            //     reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
+            // rtc.transform_scroller_reset = reset_transform.clone();
         }
 
         &node.borrow_mut().children_expanded_nodes
@@ -1193,12 +973,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             Some(_) => Some(clipping),
         };
 
-        let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
-            cb
-        } else {
-            new_accumulated_bounds
-        };
-
+        // let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
+        //     cb
+        // } else {
+        //     new_accumulated_bounds
+        // };
 
         if let Some(rc) = rcs.get_mut(&canvas_id) {
             //lifecycle: render
@@ -1217,7 +996,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //lifecycle: post_render
         node.borrow_mut().instance_node.borrow_mut().handle_post_render(rtc, rcs);
-
 
     }
 
