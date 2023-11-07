@@ -116,7 +116,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         let mut has_any_updates = false;
 
         let wrapped = ptc.current_expanded_node.as_ref().unwrap().clone().borrow().get_properties().clone();
-        with_properties_unsafe!(&wrapped, PropertiesCoproduct, Scroller, |properties| {
+        with_properties_unsafe!(&wrapped, PropertiesCoproduct, Scroller, |properties: &mut Scroller| {
             let val = subtree_depth;
             let is_new_value = last_patch.subtree_depth != val;
             if is_new_value {
@@ -222,12 +222,22 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     //     ))
     // }
     //
-    // fn get_size(&self) -> Option<(Size, Size)> {
-    //     Some((
-    //         *self.properties.as_ref().borrow().size_inner_pane_x.get(),
-    //         *self.properties.as_ref().borrow().size_inner_pane_y.get(),
-    //     ))
-    // }
+    fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
+
+        let properties_wrapped = expanded_node.get_properties();
+        with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Scroller, |properties : &mut Scroller|{
+            (
+                properties
+                    .size_inner_pane_x
+                    .get()
+                    .clone(),
+                properties
+                    .size_inner_pane_y
+                    .get()
+                    .clone(),
+            )
+        })
+    }
 
     fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         self.common_properties.compute_properties(rtc);
