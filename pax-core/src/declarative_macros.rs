@@ -93,10 +93,11 @@ macro_rules! with_properties_unsafe {
         let mut unwrapped_value: $target_type = unsafe_unwrap!(value, $enum_type, $target_type);
 
         // This ensures that the lifetime of the reference passed to the closure does not outlive the temporary value.
-        {
-            let closure: Box<dyn FnOnce(&mut $target_type)> = Box::new($body);
-            closure(&mut unwrapped_value);
-        }
+        // {
+        //     let closure: Box<dyn FnOnce(&mut $target_type)> = Box::new($body);
+        //     closure(&mut unwrapped_value);
+        // }
+        let ret = $body(&mut unwrapped_value);
 
         // Wrap the enum variant back into the enum
         let rewrapped_value = unsafe_wrap!(unwrapped_value, $enum_type, $target_type);
@@ -104,6 +105,7 @@ macro_rules! with_properties_unsafe {
         // Replace the potentially modified value back into the `RefCell`.
         let mut r = rc.borrow_mut();
         *r = rewrapped_value;
+        ret
     }};
 }
 

@@ -43,12 +43,12 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
         }
     }
 
-    let new_tab = calculate_tab(ptc);
+    let new_tab = compute_tab(ptc);
     ptc.tab = new_tab;
 
     //Strictly following computation of slot children, we recurse into instance_children.
     //This ordering is required because the properties for slot children must be computed
-    //in _this_ context, of a containing component, before we compute properties for the inner component's context.
+    //in this outer context, of a containing component, before we compute properties for the inner component's context.
     //This way, we can be assured that the slot_children present on any component have already
     //been properties-computed, thus expanded by Repeat and Conditional.
     let children_to_recurse = node_borrowed.get_instance_children();
@@ -79,7 +79,7 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 /// For the `current_expanded_node` attached to `rtc`, calculates and returns a new [`crate::rendering::TransformAndBounds`]
 /// Intended as a helper method to be called during properties computation, for creating a new `tab` to attach to
 /// `rtc` for downstream calculations.
-fn calculate_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> TransformAndBounds {
+fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> TransformAndBounds {
 
     let node = Rc::clone(&ptc.current_expanded_node.as_ref().unwrap());
 

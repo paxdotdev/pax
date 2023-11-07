@@ -289,9 +289,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         //This doesn't preclude event handlers on Groups and size-None elements --
         //it just requires the event to "bubble".  otherwise, `Component A > Component B` will
         //never allow events to be bound to `B` — they will be vacuously intercepted by `A`
-        if let None = self.get_size() {
-            return false;
-        }
+        // if let None = self.get_size() {
+        //     return false;
+        // }
+        todo!("hook back up vacuous hit testing");
 
         let inverted_transform = self.tab.transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
@@ -317,33 +318,18 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
 
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
-    pub fn get_size(&self) -> Option<(Size, Size)> {
-        Some((
-            self.get_common_properties().borrow()
-                .width
-                .as_ref()
-                .borrow()
-                .get()
-                .clone(),
-            self.get_common_properties().borrow()
-                .height
-                .as_ref()
-                .borrow()
-                .get()
-                .clone(),
-        ))
+    pub fn get_size(&self) -> (Size, Size) {
+        self.instance_node.borrow().get_size(self)
     }
 
     /// Returns the size of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
     pub fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        match self.get_size() {
-            None => bounds,
-            Some(size_raw) => (
-                size_raw.0.evaluate(bounds, Axis::X),
-                size_raw.1.evaluate(bounds, Axis::Y),
-            ),
-        }
+        let size = self.get_size();
+        (
+            size.0.evaluate(bounds, Axis::X),
+            size.1.evaluate(bounds, Axis::Y),
+        )
     }
 
     /// Returns the clipping bounds of this node in pixels, requiring
