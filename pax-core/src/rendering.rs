@@ -11,7 +11,7 @@ use piet_common::RenderContext;
 
 use pax_runtime_api::{ArgsScroll, Layer, Size, PropertyInstance};
 
-use crate::{HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeContext};
+use crate::{ExpandedNode, HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeContext};
 use crate::form_event::FormEvent;
 
 /// Type aliases to make it easier to work with nested Rcs and
@@ -222,6 +222,24 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// this explicitly, see e.g. `[pax_std_primitives::RectangleInstance#get_handler_registry]`.
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
+    }
+
+
+    /// Returns the bounds of an InstanceNode.  This computation requires a stateful [`ExpandedNode`], yet requires
+    /// customization at the trait-implementor level (dyn InstanceNode), thus this method accepts an expanded_node
+    /// parameter.
+    /// The default implementation retrieves the expanded_node's [`pax_runtime_api::CommonProperties#width`] and [`pax_runtime_api::CommonProperties#height`]
+    fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
+        let common_properties = expanded_node.get_common_properties();
+        let common_properties_borrowed = common_properties.borrow();
+        let width_borrowed = common_properties_borrowed.width.borrow();
+        let height_borrowed = common_properties_borrowed.height.borrow();
+        (width_borrowed.get().clone(), height_borrowed.get().clone())
+    }
+
+    #[allow(unused_variables)]
+    fn get_clipping_bounds(&self, expanded_node: Rc<RefCell<ExpandedNode<R>>>) -> Option<(Size, Size)> {
+        None
     }
 
     /// Returns unique integer ID of this RenderNode instance.  Note that
