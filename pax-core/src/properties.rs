@@ -104,7 +104,6 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
         let computed_transform2d_matrix = node_borrowed
             .get_common_properties().borrow()
             .transform
-            .borrow_mut()
             .get()
             .compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.tab.bounds);
 
@@ -121,12 +120,12 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
 
         let translate = [
             if let Some(ref val) = comm.x {
-                val.borrow().get().clone()
+                val.get().clone()
             } else {
                 Size::ZERO()
             },
             if let Some(ref val) = comm.y {
-                val.borrow().get().clone()
+                val.get().clone()
             } else {
                 Size::ZERO()
             },
@@ -135,12 +134,12 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
 
         let anchor = [
             if let Some(ref val) = comm.anchor_x {
-                val.borrow().get().clone()
+                val.get().clone()
             } else {
                 Size::ZERO()
             },
             if let Some(ref val) = comm.anchor_y {
-                val.borrow().get().clone()
+                val.get().clone()
             } else {
                 Size::ZERO()
             },
@@ -149,12 +148,12 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
 
         let scale = [
             if let Some(ref val) = comm.scale_x {
-                val.borrow().get().clone()
+                val.get().clone()
             } else {
                 Size::Percent(pax_runtime_api::Numeric::from(100.0))
             },
             if let Some(ref val) = comm.scale_y {
-                val.borrow().get().clone()
+                val.get().clone()
             } else {
                 Size::Percent(pax_runtime_api::Numeric::from(100.0))
             },
@@ -163,12 +162,12 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
 
         let skew = [
             if let Some(ref val) = comm.skew_x {
-                val.borrow().get().get_as_float()
+                val.get().get_as_float()
             } else {
                 0.0
             },
             if let Some(ref val) = comm.skew_y {
-                val.borrow().get().get_as_float()
+                val.get().get_as_float()
             } else {
                 0.0
             },
@@ -176,7 +175,7 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
         desugared_transform2d.skew = Some(skew);
 
         let rotate = if let Some(ref val) = comm.rotate {
-            val.borrow().get().clone()
+            val.get().clone()
         } else {
             Rotation::ZERO()
         };
