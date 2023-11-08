@@ -1,2 +1,2 @@
-pub mod formatting;
+pub mod format;
 pub mod serialization;
