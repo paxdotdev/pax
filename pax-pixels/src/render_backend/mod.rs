@@ -496,17 +496,12 @@ impl RenderBackend {
         self.queue.submit(std::iter::once(encoder.finish()));
 
         //render image! (test)
-        const WIDTH: usize = 100;
-        const HEIGHT: usize = 100;
-        let mut image_data = [0u8; 4 * WIDTH * HEIGHT];
-        for i in (0..WIDTH).step_by(4) {
-            for j in 0..HEIGHT {
-                image_data[i + 0 + j * WIDTH] = 100u8;
-                image_data[i + 1 + j * WIDTH] = (i % 256) as u8;
-                image_data[i + 2 + j * WIDTH] = (j % 256) as u8;
-                image_data[i + 2 + j * WIDTH] = 255u8;
-            }
-        }
+        const WIDTH: usize = 5;
+        const HEIGHT: usize = 5;
+        let mut image_data = [255u8; 4 * WIDTH * HEIGHT];
+        image_data[0] = 0;
+        image_data[WIDTH * 4 - 1 - 2] = 0;
+        image_data[4 * WIDTH * HEIGHT - 1 - 1] = 0;
         self.texture_renderer.render_image(
             &self.device,
             &self.queue,

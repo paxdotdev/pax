@@ -95,10 +95,10 @@ impl TextureRenderer {
             contents: bytemuck::cast_slice(&vertices),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
-        let indices = [0, 1, 2, 1, 2, 3];
+        let indices: &[u16] = &[0, 1, 2, 1, 2, 3];
         let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&vertices),
+            contents: bytemuck::cast_slice(&indices),
             usage: BufferUsages::INDEX,
         });
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -128,33 +128,29 @@ impl TextureRenderer {
         rgba_width: u32,
         location: Box2D,
     ) {
-        const TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Texture Encoder"),
         });
         let height = rgba.len() as u32 / (rgba_width * 4);
-        queue.write_buffer(
-            &self.vertices_buffer,
-            0,
-            bytemuck::cast_slice(&[
-                TextureVertex {
-                    position: [location.min.x, location.min.y],
-                    texture_coord: [0.0, 0.0],
-                },
-                TextureVertex {
-                    position: [location.max.x, location.min.y],
-                    texture_coord: [1.0, 0.0],
-                },
-                TextureVertex {
-                    position: [location.min.x, location.max.y],
-                    texture_coord: [0.0, 1.0],
-                },
-                TextureVertex {
-                    position: [location.max.x, location.max.y],
-                    texture_coord: [1.0, 1.0],
-                },
-            ]),
-        );
+        let verts = [
+            TextureVertex {
+                position: [location.min.x, location.min.y],
+                texture_coord: [0.0, 0.0],
+            },
+            TextureVertex {
+                position: [location.max.x, location.min.y],
+                texture_coord: [1.0, 0.0],
+            },
+            TextureVertex {
+                position: [location.min.x, location.max.y],
+                texture_coord: [0.0, 1.0],
+            },
+            TextureVertex {
+                position: [location.max.x, location.max.y],
+                texture_coord: [1.0, 1.0],
+            },
+        ];
+        queue.write_buffer(&self.vertices_buffer, 0, bytemuck::cast_slice(&verts));
 
         let size = wgpu::Extent3d {
             width: rgba_width,
