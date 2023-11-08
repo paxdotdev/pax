@@ -707,8 +707,8 @@ impl Transform2D {
         ret
     }
 
-    pub fn default_wrapped() -> Rc<RefCell<dyn PropertyInstance<Self>>> {
-        Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default())))
+    pub fn default_wrapped() -> Box<dyn PropertyInstance<Self>> {
+        Box::new(PropertyLiteral::new(Transform2D::default()))
     }
 }
 

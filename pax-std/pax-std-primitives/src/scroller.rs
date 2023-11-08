@@ -247,10 +247,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         let id_chain = ptc.get_id_chain();
 
+        // if true {
+            todo!("manage vtable evaluation for own properties");
+        // }
+
         ptc.push_clipping_stack_id(id_chain.clone());
         ptc.push_scroller_stack_id(id_chain.clone());
-
-
 
         for child in self.get_instance_children().borrow().iter() {
             let new_ptc = ptc.clone();
@@ -258,9 +260,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             // let new_expanded_node = new_instance_node.borrow().com
             //
             // recurse_compute_properties();
+            todo!("manage children")
         }
-
-
 
         ptc.pop_clipping_stack_id();
         ptc.pop_scroller_stack_id();
@@ -327,7 +328,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         // }
         //
         // self.common_properties.compute_properties(ptc);
-        todo!()
     }
 
     fn manages_own_properties_subtree(&self) -> bool {

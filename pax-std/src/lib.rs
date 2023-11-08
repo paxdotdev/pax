@@ -47,7 +47,7 @@ pub mod primitives {
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
     pub struct Ellipse {
         pub stroke: pax_lang::Property<crate::types::Stroke>,
-        pub fill: pax_lang::Property<crate::types::Color>,
+        pub fill: pax_lang::Property<crate::types::Fill>,
     }
 
     #[derive(Pax)]
