@@ -250,13 +250,15 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// A snapshot of the scroller stack above this element at the time of properties-computation
     pub ancestral_scroller_ids: Vec<Vec<u32>>,
 
+
+    pub containing_component: Rc<RefCell<ExpandedNode<R>>>,
+
     /// Each ExpandedNode has a unique "stamp" of computed properties
     computed_properties: Rc<RefCell<PropertiesCoproduct>>,
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     computed_common_properties: Rc<RefCell<CommonProperties>>,
 }
-
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
@@ -269,7 +271,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 parent_expanded_node: None,
                 children_expanded_nodes: vec![],
                 instance_node: Rc::clone(&ptc.current_instance_node),
-                tab: ptc.tab.clone(),
+                tab: ptc.containing_tab.clone(),
+                containing_component: Rc::clone(ptc.current_containing_component.as_ref().unwrap()),
                 z_index: 0,
                 node_context: ptc.distill_userland_node_context(),
                 computed_properties: Rc::clone(&prototypical_properties),
@@ -710,10 +713,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
 }
 
 pub struct NodeRegistry<R: 'static + RenderContext> {
-    ///Allows look up of an `InstanceNodePtr` by instance id
+    /// Allows look up of an `InstanceNodePtr` by instance id
     instance_node_map: HashMap<u32, InstanceNodePtr<R>>,
 
-    ///Allows look up of an `ExpandedNode` by id_chain
+    /// Allows look up of an `ExpandedNode` by id_chain
     expanded_node_map: HashMap<Vec<u32>, Rc<RefCell<ExpandedNode<R>>>>,
 
     ///Tracks which `ExpandedNode`s are currently mounted -- if id is present in set, is mounted
@@ -837,18 +840,15 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // COMPUTE PROPERTIES
         let mut ptc = PropertiesTreeContext {
             engine: &self,
-            timeline_playhead_position: 0,
-            current_containing_component: Rc::clone(&root_component_instance),
-            current_containing_component_slot_children: Rc::new(RefCell::new(vec![])),
+            current_containing_component: None,
             current_instance_node: Rc::clone(&root_component_instance),
             current_expanded_node: None,
             parent_expanded_node: None,
-            tab: TransformAndBounds {
+            containing_tab: TransformAndBounds {
                 bounds: self.viewport_tab.bounds,
                 transform: Affine::default(),
                 // clipping_bounds: None,
             },
-            transform_scroller_reset: Default::default(),
             marked_for_unmount: false,
             shared: Rc::new(RefCell::new(
                 PropertiesTreeShared {
@@ -917,10 +917,20 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
 
+
+
+
         // let accumulated_transform = rtc.transform_global;
         // let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
         let accumulated_bounds = rtc.current_expanded_node.borrow().tab.bounds;
         let node = Rc::clone(&rtc.current_expanded_node);
+
+        // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
+        if rtc.engine.node_registry.borrow().marked_for_unmount_set.contains(&node.borrow().id_chain) {
+            return
+        }
+
+
 
         rtc.current_instance_node = Rc::clone(&node.borrow().instance_node);
 
