@@ -4241,7 +4241,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
           need to manage pushing / popping pre/post recursion
           need to be able to refer to this during rendering, probably be keeping "expanded" ideas of the clipping / scrolling stack (clones of the vecs of ids?) on each expanded node.
           Can handle tracking clipping IDs (used strictly for native-side) independently of pre/post-render lifecycle methods + rendering clipping stack manip
-          [ ] Manually manage propeties-compute recursion for Scroller + Frame, like we do with Component & friends
+          [ ] Manually manage properties-compute recursion for Scroller + Frame, like we do with Component & friends
       [-] 3. revisit whether mount/unmount should be in the rendering pass instead?
 [ ] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
@@ -4265,18 +4265,45 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             or special-case control flow properties as Optional fields on ExpandedNodes (similar in shape to InstantiationArgs)
         [ ] Punch through the above refactor into codegen, templates, and specs
             [ ] In particular, manage control flow + instantiation args; pack into PropertiesCoproduct instead of special flags
+            [ ] Keep an eye on doing this for Scroller, too
         [ ] Refactor internals of control-flow to be stateless + expansion-friendly, patching into the new PropertiesCoproduct variants:
             [ ] Repeat
                 [x] Remove ComponentInstance from Repeat
                 [ ] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties_recursive`
+                [ ] Think through mounting / unmounting:
+                    When a Repeat list contracts, we want to mark any of the culled nodes as marked for deletion.
             [ ] Conditional
                 [ ] Piecewise-recurse into `compute_properties_recursive`, a la Repeat
+                [x] Ensure that we don't render if an ExpandedNode is `marked_for_unmount`.  There still will likely exist an ExpandedNode, so we must be sure not to render these nodes.
+                [x] Think through mounting / unmounting:
+                    On the falling edge, when a Conditional goes from true to false, we know that there's a subtree of expandednodes, and that they should be unmounted.
+                    One way to handle this is by allowing recursion to continue through the dead subtree, with the `marked_for_unmount` flag active.  Since this all happens in the properties-compute pass,
+                    this should take effect immediately, this frame.  This seems to handle Conditional well, since there's only one subtree
+                    Resetting child expanded nodes: since we are building the ExpandedNode tree from scratch each tick (for now,) we probably should reset all child relationships each tick.
+                    Currently the children are tracked by the property `children_expanded_nodes` on ExpandedNode.  This could be externalized into a separate structure (easy since these are already Rcs,
+                    and easy to purge in a single spot at the beginning of each tick.)  Something like `HashMap<Vec<u64>, Vec<Weak<RefCell<ExpandedNode<R>>>>>`
             [ ] Slot
                 [ ] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
                     For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
                 [ ] Make sure we handle "is_invisible" (née flattening) correctly
             [ ] Component - manually manage properties calc recursion + runtime properties stack
             [ ] Scroller & Frame - manually manage properties calc recursion + scrolling + clipping stack
+[x] Sanity-check id_chain + tree ambiguity + surface area for incorrectly unwrapping (unsafely) properties
+    Broken case?
+    ```
+              foo
+            /      \   
+         if       repeat
+         |          |  
+       repeat     bar
+         |
+        baz
+    ``` 
+    In the above scenario, you could imagine each of the repeats "shifting" such that a given id_chain is suddenly 
+    No - because the first int in the id_chain is the instance_id, which is married to a specific instance and globally unique
+    So the repeat_indicies component could become ambiguous in the tree above
+    But the full id_chain remains sound.
+
 [ ] Refactor scroller
     [ ] Make instance node stateless
     [ ] Handle instantiation args => PropertiesCoproduct; remove ScrollerArgs
@@ -4290,12 +4317,12 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [x] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
 [x] Refactor `did_` and `will_` naming conventions, drop where unnecessary (e.g. mount/unmount)
-[ ] Revisit cleanup children — may not be necessary in light of changes to properties compute, instances, and control-flow-internal-recursion of properties computation + node expansion
+[x] Revisit cleanup children — may not be necessary in light of changes to properties compute, instances, and control-flow-internal-recursion of properties computation + node expansion
     [x] Start by ripping it out
-    [ ] Come back and rebuild if/as needed
+    [x] Come back and rebuild if/as needed
 [x] Refactor unmounting to be id_chain-specific rather than instance_id specific
     [x] Refactor NodeRegistry
-    [ ] Refactor lifecycle hooks/call site for unmounting
+    [x] Refactor lifecycle hooks/call site for unmounting
         [x] Revisit how we `mark_for_unmount`.  We currently special-case this inside Repeat and Conditional.  Rather than require Repeat and Conditional to deal with stateful caches / diffs
             of their own subtrees, we could instead track the entire expanded tree.  If, after finishing properties computation, there's not an expanded node with
             (this could vaguely be considered a garbage collector of sorts.  If an ExpandedNode isn't used any more, we manage unmount.  We might even be able to handle
@@ -4437,3 +4464,51 @@ Decision: remove last_patches for hacked dirty-checking; send native patches gre
 Since we're going so far as to keep a patch-in-progress on the ExpandedNode, it would be pretty straight-forward to keep a last-patch, too, to continue our hacked dirty-check...
     (this could be a low-hanging alternative to full-blown dirty-DAG if indeed we hit a perf wall with firehose-patches.)
     
+
+How do we keep our recursion-evaluated _stacks_ (stack frames, clipping & scrolling) intact for our DAG traversal?
+Are these static enough that we can copy them onto ExpandedNodes ?
+Stack Frames keep an `Rc<RefCell<PropertiesCoproduct>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
+The primary question is whether these stacks are _stable_ after an expansion, or whether we may need to perform some sort of surgery.
+It seems like it's OK to 
+
+
+On tracking ExpandedNode parent-child relationships:
+
+```
+(Started as a code comment on a would-be addition to NodeRegistry for tracking ExpandedNode parent/child relationships independently of the node instances (as a relational LUT)
+
+/// Specifies relationships between expanded nodes — intended to be transient, relying on the persisting
+/// nature of ExpandedNodes and the consistency of `id_chain` to reassociate child relationships after possibly clearing them (e.g. on every tick.)
+///
+/// Clearing them would get us clear & clean mutation handling under if / repeat, without having to perform surgery on existing
+/// relationships
+/// It would also let us short-circuit properties subtrees that don't need to be calculated (vs. having lingering ExpandedNodes
+/// if the child relationships persist.)
+///
+/// Do we really need this, though?  The robust alternative may be to search through the on-ExpandedNode `children_expanded_nodes`
+/// for a particular id_chain to decide whether an ExpandedNode needs to add itself to a parent (e.g. in the case where a Repeat list expands.)
+/// "Perform surgery" each time we recurse_compute_properties, to see whether the ExpandedNode needs to be registered as a child of its parent
+///
+/// One other trade-off is compute: recalculating child relationships each tick adds a CPU burden even for an idle program, vs. performing surgery
+/// reaches a steady state (as long as we optimize )
+///
+/// With dirty-DAG, we really only need to be handling the _creation_ of ExpandedNodes — expanding / contracting the tree as necessary —
+/// while the _computation of properties_ happens on a separate pass.  In that world... do we even need parent/child relationships?  (yes — this is exactly used by rendering.)
+/// So: expand the tree, keep track of parent-child relationship
+///
+/// In most cases, ExpandedNodes are totally static.  We could cache them aggressively.
+/// _Only_ for Repeat and If are the child ExpandedNodes subject to changing.  In fact, we might be able to _expand_
+/// ExpandedNodes exactly once, at program init, and then "perform surgery" by API explicitly for the Repeat and If cases.
+/// Thereafter, instead of "expanding tree and computing properties," we just "compute properties."  The pre-dirty-DAG shape of this
+/// would be "just recurse through the tree computing properties." Thereafter, with dirty DAG, we traverse the DAG (when needed) instead
+/// of traversing the tree top-down.
+/// (Maybe we get this already in effect though by getting-or-creating ExpandedNodes as we go.  So there's really no harm in coupling these.)
+///
+/// ***Or maybe the entirety of the current `recurse_compute_properties` method is a one-time init function???***
+///
+/// As long as component-side `handle_compute_properties` have the ability to "perform surgery" on parent/child relationships as needed by conditional + repeat,
+/// then Repeat and Conditional can keep the ExpandedNode tree updated via DAG
+///
+/// Note that the surgery is "append-only."  We could later come back for some sort of explicit "garbage collection" as a feature, but as long as we don't require _removing children expanded nodes_ when e.g. Repeat contracts or If turns off,
+/// then we have an elegant solution for unmounting / mounting (mark subtree unmounted, continue to compute properties, but skip rendering entirely.)
+```
