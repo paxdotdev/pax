@@ -13,13 +13,13 @@ extern crate core;
 
 mod building;
 mod cartridge_generation;
+mod code_serialization;
 pub mod errors;
 pub mod expressions;
 mod helpers;
 pub mod manifest;
 pub mod parsing;
 mod reexports;
-mod code_serialization;
 
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
@@ -38,10 +38,10 @@ use crate::building::{
     build_chassis_with_cartridge, clone_all_to_pkg_dir, update_property_prefixes_in_place,
 };
 
-use crate::code_serialization::press_code_serialization_template;
 use crate::cartridge_generation::{
     generate_and_overwrite_cartridge, generate_and_overwrite_properties_coproduct,
 };
+use crate::code_serialization::press_code_serialization_template;
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
 
@@ -54,7 +54,6 @@ use crate::helpers::{
     update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME,
     PAX_CREATE_TEMPLATE,
 };
-
 
 pub struct RunContext {
     pub target: RunTarget,
