@@ -56,15 +56,11 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
 /// ```
 #[macro_export]
 macro_rules! handle_vtable_update {
-    ($ptc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
+    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
         let current_prop = &mut *$var.$field.as_mut();
         if let Some(vtable_id) = current_prop._get_vtable_id() {
-            let new_value = $ptc.compute_vtable_value(vtable_id);
-            let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
-                val
-            } else {
-                unreachable!()
-            };
+            let new_value_wrapped = $ptc.compute_vtable_value(vtable_id);
+            let new_value = unsafe_unwrap!(new_value_wrapped, TypesCoproduct, $inner_type);
             current_prop.set(new_value);
         }
 
@@ -103,6 +99,8 @@ macro_rules! handle_vtable_update_optional {
 pub trait PropertiesComputable<R: 'static + RenderContext> {
     fn compute_properties(&mut self, rtc: &mut PropertiesTreeContext<R>);
 }
+
+use crate::unsafe_unwrap;
 
 impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
     fn compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
@@ -261,7 +259,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
-    pub fn upsert_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
+    pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
         let id_chain = ptc.get_id_chain();
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
             Rc::clone(already_registered_node)
@@ -274,8 +272,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 tab: ptc.tab.clone(),
                 z_index: 0,
                 node_context: ptc.distill_userland_node_context(),
-                computed_properties: prototypical_properties,
-                computed_common_properties: prototypical_common_properties,
+                computed_properties: Rc::clone(&prototypical_properties),
+                computed_common_properties: Rc::clone(&prototypical_common_properties),
                 ancestral_clipping_ids: vec![],
                 ancestral_scroller_ids: vec![]
             }));
