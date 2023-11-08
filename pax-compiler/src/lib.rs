@@ -13,7 +13,7 @@ extern crate core;
 
 mod building;
 mod cartridge_generation;
-mod code_serialization;
+mod code;
 pub mod errors;
 pub mod expressions;
 mod helpers;
