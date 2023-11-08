@@ -451,7 +451,7 @@ impl RenderBackend {
         self.index_count = geom.indices.len() as u64;
     }
 
-    pub(crate) fn render(&mut self, buffers: &mut CpuBuffers) {
+    pub(crate) fn render(&mut self, buffers: &mut CpuBuffers, images: &[Image]) {
         let output = self.surface.get_current_texture().unwrap();
         let view = output
             .texture
@@ -495,21 +495,18 @@ impl RenderBackend {
         //render primitives
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        //render image! (test)
-        const WIDTH: usize = 5;
-        const HEIGHT: usize = 5;
-        let mut image_data = [255u8; 4 * WIDTH * HEIGHT];
-        image_data[0] = 0;
-        image_data[WIDTH * 4 - 1 - 2] = 0;
-        image_data[4 * WIDTH * HEIGHT - 1 - 1] = 0;
-        self.texture_renderer.render_image(
-            &self.device,
-            &self.queue,
-            &view,
-            &image_data,
-            WIDTH as u32,
-            Box2D::new(Point2D::new(0.0, 0.0), Point2D::new(0.5, 0.5)),
-        );
+        //render images (obs ordering not working here)
+        for image in images {
+            self.texture_renderer.render_image(
+                &self.device,
+                &self.queue,
+                &view,
+                &self.globals_buffer,
+                &image.rgba,
+                image.pixel_width,
+                image.rect,
+            );
+        }
         output.present();
     }
 }
@@ -531,4 +528,12 @@ impl CpuBuffers {
         self.colors.clear();
         self.gradients.clear();
     }
+}
+
+#[derive(Clone)]
+pub struct Image {
+    pub rect: Box2D,
+    pub rgba: Vec<u8>,
+    pub pixel_width: u32,
+    pub pixel_height: u32,
 }

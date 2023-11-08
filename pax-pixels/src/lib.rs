@@ -8,6 +8,7 @@ pub use lyon::geom::{point, Angle};
 pub use lyon::path::builder::BorderRadii;
 pub use lyon::path::Path;
 pub use lyon::path::Winding;
+pub use render_backend::Image;
 pub use render_context::Color;
 pub use render_context::Fill;
 pub use render_context::GradientStop;
@@ -20,7 +21,7 @@ pub struct StrokeStyle {} //TODOrefactor
 pub trait RenderContext {
     fn fill_path(&mut self, path: Path, fill: Fill);
     fn stroke_path(&mut self, path: Path, stroke: Stroke);
-    fn draw_image(&mut self, raw_rgba: &[u8], width: u32, height: u32);
+    fn draw_image(&mut self, image: Image);
     fn push_transform(&mut self, transform: Transform2D);
     fn pop_transform(&mut self);
     fn push_clipping_bounds(&mut self, bounds: Box2D);
