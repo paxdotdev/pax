@@ -3,10 +3,14 @@ use tera::{Context, Tera};
 use crate::manifest::ComponentDefinition;
 use include_dir::{include_dir, Dir};
 
+#[allow(unused)]
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/code_serialization");
+#[allow(unused)]
 static MANIFEST_CODE_SERIALIZATION_TEMPLATE: &str = "manifest-code-serialization.tera";
+#[allow(unused)]
 static MACROS_TEMPLATE: &str = "macros.tera";
 
+#[allow(unused)]
 pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
     let mut tera = Tera::default();
 
