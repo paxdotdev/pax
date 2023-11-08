@@ -42,19 +42,19 @@ pub(crate) struct GpuGradient {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
-pub(crate) struct GpuVertex {
-    pub position: [f32; 2],
-    pub normal: [f32; 2],
-    pub prim_id: u32,
-}
-
-#[repr(C)]
 #[derive(Default, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct GpuTransform {
     pub transform: [[f32; 2]; 3],
     pub _pad: u32,
     pub _pad2: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+pub(crate) struct GpuVertex {
+    pub position: [f32; 2],
+    pub normal: [f32; 2],
+    pub prim_id: u32,
 }
 
 impl GpuVertex {

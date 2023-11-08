@@ -11,7 +11,10 @@ use winit::window::Window;
 
 pub mod data;
 mod gpu_resources;
+mod texture;
 use data::{GpuGlobals, GpuPrimitive, GpuVertex};
+
+use crate::{render_backend::texture::TextureRenderer, Box2D, Point2D};
 
 use self::data::{GpuColor, GpuGradient, GpuTransform};
 
@@ -71,6 +74,8 @@ pub struct RenderBackend {
     gradients_buffer: wgpu::Buffer,
 
     index_count: u64,
+
+    texture_renderer: TextureRenderer,
 }
 
 impl RenderBackend {
@@ -164,6 +169,7 @@ impl RenderBackend {
             });
             (data, buffer_ref)
         }
+
         let globals = GpuGlobals {
             resolution: [config.initial_width as f32, config.initial_height as f32],
             dpr: config.initial_dpr,
@@ -297,7 +303,11 @@ impl RenderBackend {
         });
         let pipeline =
             Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
+
+        let texture_renderer = TextureRenderer::new(&device);
+
         Ok(Self {
+            texture_renderer,
             _adapter: adapter,
             surface,
             device,
@@ -459,7 +469,6 @@ impl RenderBackend {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        //TODO clear the screen with explicit command instead
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.0,
                             g: 0.0,
@@ -483,27 +492,30 @@ impl RenderBackend {
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
 
+        //render primitives
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
-    }
 
-    pub(crate) fn draw_image(&mut self, raw_rgba: &[u8], width: u32, height: u32) {
-        //recreating this every time the image is drawn is very suboptimal. Should at least reuse the buffer
-        let texture_size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
-        let diffuse_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            label: Some("diffuse_texture"),
-            view_formats: &[],
-        });
+        //render image! (test)
+        const WIDTH: usize = 100;
+        const HEIGHT: usize = 100;
+        let mut image_data = [0u8; 4 * WIDTH * HEIGHT];
+        for i in (0..WIDTH).step_by(4) {
+            for j in 0..HEIGHT {
+                image_data[i + 0 + j * WIDTH] = 100u8;
+                image_data[i + 1 + j * WIDTH] = (i % 256) as u8;
+                image_data[i + 2 + j * WIDTH] = (j % 256) as u8;
+                image_data[i + 2 + j * WIDTH] = 255u8;
+            }
+        }
+        self.texture_renderer.render_image(
+            &self.device,
+            &self.queue,
+            &view,
+            &image_data,
+            WIDTH as u32,
+            Box2D::new(Point2D::new(0.0, 0.0), Point2D::new(0.5, 0.5)),
+        );
+        output.present();
     }
 }
 

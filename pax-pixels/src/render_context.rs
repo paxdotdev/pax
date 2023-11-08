@@ -171,7 +171,7 @@ impl RenderContext for WgpuRenderer {
     }
 
     fn draw_image(&mut self, raw_rgba: &[u8], width: u32, height: u32) {
-        self.render_backend.draw_image(raw_rgba, width, height);
+        //self.render_backend.draw_image(raw_rgba, width, height);
     }
 
     fn flush(&mut self) {

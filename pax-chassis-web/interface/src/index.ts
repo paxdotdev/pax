@@ -66,7 +66,6 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 }
 
 async function startRenderLoop(extensionlessUrl: string, mount: Element) {
-    console.log("start 4");
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
         isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
