@@ -129,7 +129,8 @@ pub fn press_template_codegen_properties_coproduct_lib(
 }
 
 #[allow(unused)]
-static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str = include_str!("../../templates/cartridge_generation/cartridge-lib.tera");
+static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str =
+    include_str!("../../templates/cartridge_generation/cartridge-lib.tera");
 pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib) -> String {
     let template = TEMPLATE_DIR
         .get_file("cartridge-lib.tera")
