@@ -17,9 +17,7 @@ pax-core = {path = "../../pax-core", version="0.10.7"}
 pax-std = {path = "../", version="0.10.7"}
 pax-runtime-api = {path = "../../pax-runtime-api", version="0.10.7"}
 pax-message = {path = "../../pax-message", version="0.10.7" }
-piet = "0.6.0"
-piet-common = "0.6.0"
-kurbo = "0.9.0"
+pax-pixels= {path = "../../pax-pixels"}
 
 [features]
 Text = []

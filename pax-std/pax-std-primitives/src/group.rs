@@ -2,12 +2,11 @@ use pax_core::{
     HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext, TransformAndBounds,
 };
-use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_runtime_api::{CommonProperties, Layer, Size};
-
+use pax_pixels::RenderContext;
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance<R: 'static + RenderContext> {

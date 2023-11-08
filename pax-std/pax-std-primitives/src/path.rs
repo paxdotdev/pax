@@ -1,15 +1,12 @@
-use kurbo::BezPath;
-use piet::RenderContext;
-
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
+use pax_pixels::{Fill, RenderContext, Stroke};
 use pax_runtime_api::{CommonProperties, Size};
 use pax_std::primitives::Path;
 use pax_std::types::PathSegment;
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -99,31 +96,34 @@ impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
 
         let properties = (*self.properties).borrow();
 
-        let mut bez_path = BezPath::new();
-
+        let mut builder = pax_pixels::Path::builder().transformed(transform);
         for segment in properties.segments.get().iter() {
             match segment {
                 PathSegment::Empty => { /* no-op */ }
                 PathSegment::LineSegment(data) => {
-                    bez_path.move_to(data.start);
-                    bez_path.line_to(data.end);
+                    builder.begin(data.start);
+                    builder.line_to(data.end);
+                    builder.end(false);
                 }
                 PathSegment::CurveSegment(data) => {
-                    bez_path.move_to(data.start);
-                    bez_path.quad_to(data.handle, data.end);
+                    builder.begin(data.start);
+                    builder.quadratic_bezier_to(data.handle, data.end);
+                    builder.end(false);
                 }
             }
         }
 
-        let transformed_bez_path = transform * bez_path;
-        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+        let path = builder.build();
+        let color = properties.fill.get().to_pax_pixels_color();
+        rc.fill_path(path.clone(), Fill::Solid(color));
 
-        let color = properties.fill.get().to_piet_color();
-        rc.fill(transformed_bez_path, &color);
-        rc.stroke(
-            duplicate_transformed_bez_path,
-            &properties.stroke.get().color.get().to_piet_color(),
-            *&properties.stroke.get().width.get().into(),
+        let weight: f64 = properties.stroke.get().width.get().into();
+        rc.stroke_path(
+            path,
+            Stroke {
+                color: properties.stroke.get().color.get().to_pax_pixels_color(),
+                weight: weight as f32,
+            },
         );
     }
 }

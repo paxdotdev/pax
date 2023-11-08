@@ -3,22 +3,20 @@ use std::collections::{HashMap, HashSet};
 
 use std::rc::{Rc, Weak};
 
-use kurbo::Vec2;
-
 use pax_message::NativeMessage;
 
-use piet_common::RenderContext;
+use pax_pixels::RenderContext;
 
 use crate::runtime::Runtime;
 use crate::{
-    Affine, ComponentInstance, ComputableTransform, ExpressionContext, RenderNodePtr,
-    RenderNodePtrList, StackFrame, TransformAndBounds,
+    ComponentInstance, ComputableTransform, ExpressionContext, RenderNodePtr, RenderNodePtrList,
+    StackFrame, TransformAndBounds,
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{
-    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
+    log, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress,
+    ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
     ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable,
     Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex,
 };
@@ -35,8 +33,8 @@ pub struct PaxEngine<R: 'static + RenderContext> {
 
 pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
-    pub transform_global: Affine,
-    pub transform_scroller_reset: Affine,
+    pub transform_global: pax_pixels::Transform2D,
+    pub transform_scroller_reset: pax_pixels::Transform2D,
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub node: RenderNodePtr<R>,
@@ -662,7 +660,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             runtime: Rc::new(RefCell::new(Runtime::new())),
             main_component: main_component_instance,
             viewport_tab: TransformAndBounds {
-                transform: Affine::default(),
+                transform: pax_pixels::Transform2D::default(),
                 bounds: viewport_size,
                 clipping_bounds: Some(viewport_size),
             },
@@ -683,8 +681,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let mut rtc = RenderTreeContext {
             engine: &self,
-            transform_global: Affine::default(),
-            transform_scroller_reset: Affine::default(),
+            transform_global: pax_pixels::Transform2D::default(),
+            transform_scroller_reset: pax_pixels::Transform2D::default(),
             bounds: self.viewport_tab.bounds,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
@@ -894,13 +892,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             desugared_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
         };
 
-        let new_accumulated_transform =
-            accumulated_transform * desugared_transform * node_transform_property_computed;
+        let new_accumulated_transform = node_transform_property_computed
+            .then(&desugared_transform)
+            .then(&accumulated_transform);
 
-        let new_scroller_normalized_accumulated_transform =
-            accumulated_scroller_normalized_transform
-                * desugared_transform
-                * node_transform_property_computed;
+        let new_scroller_normalized_accumulated_transform = node_transform_property_computed
+            .then(&desugared_transform)
+            .then(&accumulated_scroller_normalized_transform);
 
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform_global = new_accumulated_transform.clone();
@@ -997,9 +995,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
             child_z_index_info = ZIndex::new(Some(id_chain));
             let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
-            let mut reset_transform = Affine::default();
-            reset_transform =
-                reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
+            let mut reset_transform = pax_pixels::Transform2D::identity();
+            reset_transform = reset_transform.then_translate(pax_pixels::Vector2D::new(
+                scroll_offset_x as f32,
+                scroll_offset_y as f32,
+            ));
             rtc.transform_scroller_reset = reset_transform.clone();
         }
 
@@ -1029,7 +1029,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 rtc,
                 cb,
                 new_scroller_normalized_accumulated_transform
-                    .as_coeffs()
+                    .to_array()
+                    .map(|v| v as f64)
                     .to_vec(),
                 current_z_index,
                 subtree_depth,
@@ -1039,7 +1040,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 rtc,
                 new_accumulated_bounds,
                 new_scroller_normalized_accumulated_transform
-                    .as_coeffs()
+                    .to_array()
+                    .map(|v| v as f64)
                     .to_vec(),
                 current_z_index,
                 subtree_depth,
@@ -1179,6 +1181,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .borrow_mut()
             .reset_repeat_expanded_node_cache();
         let native_render_queue = self.traverse_render_tree(rcs);
+        for (_, rc) in rcs {
+            rc.flush();
+        }
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }

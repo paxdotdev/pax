@@ -1,5 +1,3 @@
-pub use kurbo::Affine;
-pub use piet::{Color, Error, StrokeStyle};
 
 pub use pax_properties_coproduct;
 pub mod component;

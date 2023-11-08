@@ -9,7 +9,7 @@ repository = "https://www.github.com/pax-lang/pax"
 description = "Static program definition container for Pax programs, intended to be patched during compilation"
 
 [dependencies]
-piet-common = "0.6.0"
+pax-pixels = {path = "../pax-pixels"}
 pax-core = {path = "../pax-core", version = "0.10.7"}
 pax-runtime-api = {path = "../pax-runtime-api", version = "0.10.7"}
 pax-properties-coproduct = {path = "../pax-properties-coproduct", version="0.10.7"}

@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use pax_pixels::RenderContext;
 
 use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_core::{ComponentInstance, ExpressionContext, InstanceRegistry, InstantiationArgs};
-use piet_common::RenderContext;
 use std::rc::Rc;
 
 const PLACEHOLDER_ERROR : &str = "Fatal: the development placeholder cartridge is still attached -- a defined cartridge must be attached during compilation.  This means that Pax compilation failed -- please try again with `pax build` or `pax run`.";

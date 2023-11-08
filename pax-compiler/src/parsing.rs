@@ -1435,13 +1435,13 @@ impl Reflectable for pax_runtime_api::SizePixels {
     }
 }
 
-impl Reflectable for kurbo::Point {
+impl Reflectable for pax_pixels::Point2D {
     fn get_import_path() -> String {
-        "kurbo::Point".to_string()
+        "pax_pixels::Point2D".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
-        "Point".to_string()
+        "Point2D".to_string()
     }
 }
 

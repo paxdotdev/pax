@@ -21,7 +21,7 @@ export class Layer {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, zIndex: number, scroller_id: number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
+    async build(parent: Element, zIndex: number, scroller_id: number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
         this.zIndex = zIndex;
         this.scrollerId = scroller_id;
         this.chassis = chassis;
@@ -35,7 +35,7 @@ export class Layer {
         parent.appendChild(this.canvas);
         // @ts-ignore
         canvasMap.set(this.canvas.id, this.canvas);
-        chassis.add_context(this.canvas.id);
+        await chassis.add_context(this.canvas.id);
 
         this.native.className = NATIVE_OVERLAY_CLASS;
         this.native.style.zIndex = String(1000 - zIndex);

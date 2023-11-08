@@ -1,7 +1,7 @@
-use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use pax_pixels::RenderContext;
 
 use crate::{
     HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,

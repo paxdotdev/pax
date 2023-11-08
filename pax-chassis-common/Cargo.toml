@@ -12,8 +12,7 @@ include = ["src/**/*","pax-swift-common/**/*"]
 [lib]
 
 [dependencies]
-piet = "0.6.0"
-piet-coregraphics = "0.6.0"
+pax-pixels = {path = "../pax-pixels"}
 pax-core = { path = "../pax-core", version="0.10.7" }
 pax-cartridge = {path="../pax-cartridge", version="0.10.7"}
 pax-message = {path = "../pax-message", version="0.10.7"}

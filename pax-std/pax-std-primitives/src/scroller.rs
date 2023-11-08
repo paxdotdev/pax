@@ -4,20 +4,17 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use kurbo::BezPath;
-use piet::RenderContext;
-
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
+use pax_pixels::RenderContext;
 use pax_runtime_api::{
     ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
 };
 use pax_std::primitives::Scroller;
-
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an
 /// inner panel that can be scrolled on zero or more axes.  `Scroller` coordinates with each chassis to
 /// create native scrolling containers, which pass native scroll events back to Engine.  In turn,
@@ -306,13 +303,19 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         self.common_properties.compute_properties(rtc);
     }
 
-    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
-        let transform = rtc.transform_global;
+    fn handle_will_render(
+        &mut self,
+        rtc: &mut RenderTreeContext<R>,
+        _rcs: &mut HashMap<String, R>,
+    ) {
+        let _transform = rtc.transform_global;
         let bounding_dimens = rtc.bounds;
 
-        let width: f64 = bounding_dimens.0;
-        let height: f64 = bounding_dimens.1;
+        let _width: f64 = bounding_dimens.0;
+        let _height: f64 = bounding_dimens.1;
 
+        //TODO later
+        /*
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
         bez_path.line_to((width, 0.0));
@@ -325,7 +328,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         for (_key, rc) in rcs.iter_mut() {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
             rc.clip(transformed_bez_path.clone());
-        }
+        }*/
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.runtime)
             .borrow_mut()
@@ -335,9 +338,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             .push_scroller_stack_id(id_chain.clone());
     }
     fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-        for (_key, rc) in _rcs.iter_mut() {
+        for (_key, _rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
-            rc.restore().unwrap();
+            //TODO refactor //rc.restore().unwrap();
         }
 
         (*rtc.runtime).borrow_mut().pop_clipping_stack_id();

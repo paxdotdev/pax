@@ -1,18 +1,15 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::Mul;
 use std::rc::Rc;
 
-use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
 use pax_runtime_api::{Axis, CommonProperties, Transform2D};
-use piet::{Color, StrokeStyle};
-use piet_common::RenderContext;
 
 use pax_runtime_api::{ArgsScroll, Layer, Size};
 
 use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
 
+use pax_pixels::RenderContext;
 use pax_runtime_api::PropertyInstance;
 
 /// Type aliases to make it easier to work with nested Rcs and
@@ -57,6 +54,15 @@ pub struct Point2D {
     y: f64,
 }
 
+impl From<pax_pixels::Point2D> for Point2D {
+    fn from(value: pax_pixels::Point2D) -> Self {
+        Self {
+            x: value.x as f64,
+            y: value.y as f64,
+        }
+    }
+}
+
 impl Point2D {
     fn subtract(self, other: Point2D) -> Self {
         Self {
@@ -82,24 +88,11 @@ impl Point2D {
     }
 }
 
-impl Mul<Point2D> for Affine {
-    type Output = Point2D;
-
-    #[inline]
-    fn mul(self, other: Point2D) -> Point2D {
-        let coeffs = self.as_coeffs();
-        Point2D {
-            x: coeffs[0] * other.x + coeffs[2] * other.y + coeffs[4],
-            y: coeffs[1] * other.x + coeffs[3] * other.y + coeffs[5],
-        }
-    }
-}
-
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
 #[derive(Clone)]
 pub struct TransformAndBounds {
-    pub transform: Affine,
+    pub transform: pax_pixels::Transform2D,
     pub bounds: (f64, f64),
     pub clipping_bounds: Option<(f64, f64)>,
 }
@@ -109,14 +102,22 @@ impl TransformAndBounds {
         let width = self.bounds.0;
         let height = self.bounds.1;
 
-        let top_left = self.transform * Point2D { x: 0.0, y: 0.0 };
-        let top_right = self.transform * Point2D { x: width, y: 0.0 };
-        let bottom_left = self.transform * Point2D { x: 0.0, y: height };
-        let bottom_right = self.transform
-            * Point2D {
-                x: width,
-                y: height,
-            };
+        let top_left = self
+            .transform
+            .transform_point(pax_pixels::Point2D::new(0.0, 0.0))
+            .into();
+        let top_right = self
+            .transform
+            .transform_point(pax_pixels::Point2D::new(width as f32, 0.0))
+            .into();
+        let bottom_left = self
+            .transform
+            .transform_point(pax_pixels::Point2D::new(0.0, height as f32))
+            .into();
+        let bottom_right = self
+            .transform
+            .transform_point(pax_pixels::Point2D::new(width as f32, height as f32))
+            .into();
 
         [top_left, top_right, bottom_right, bottom_left]
     }
@@ -196,8 +197,11 @@ pub trait RenderNode<R: 'static + RenderContext> {
             return false;
         }
 
-        let inverted_transform = tab.transform.inverse();
-        let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
+        let Some(inverted_transform) = tab.transform.inverse() else {
+            return false;
+        };
+        let transformed_ray = inverted_transform
+            .transform_point(pax_pixels::Point2D::new(ray.0 as f32, ray.1 as f32));
 
         let relevant_bounds = match tab.clipping_bounds {
             None => tab.bounds,
@@ -205,10 +209,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
         };
 
         //Default implementation: rectilinear bounding hull
-        transformed_ray.x > 0.0
-            && transformed_ray.y > 0.0
-            && transformed_ray.x < relevant_bounds.0
-            && transformed_ray.y < relevant_bounds.1
+        transformed_ray.y > 0.0
+            && transformed_ray.x > 0.0
+            && transformed_ray.x < relevant_bounds.0 as f32
+            && transformed_ray.y < relevant_bounds.1 as f32
     }
 
     fn get_common_properties(&self) -> &CommonProperties;
@@ -372,7 +376,7 @@ pub trait ComputableTransform {
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> Affine;
+    ) -> pax_pixels::Transform2D;
 }
 
 impl ComputableTransform for Transform2D {
@@ -383,7 +387,7 @@ impl ComputableTransform for Transform2D {
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> Affine {
+    ) -> pax_pixels::Transform2D {
         //Three broad strokes:
         // a.) compute anchor
         // b.) decompose "vanilla" affine matrix
@@ -391,24 +395,24 @@ impl ComputableTransform for Transform2D {
 
         // Compute anchor
         let anchor_transform = match &self.anchor {
-            Some(anchor) => Affine::translate((
+            Some(anchor) => pax_pixels::Transform2D::translation(
                 match anchor[0] {
                     Size::Pixels(pix) => -pix.get_as_float(),
                     Size::Percent(per) => -node_size.0 * (per / 100.0),
                     Size::Combined(pix, per) => {
                         -pix.get_as_float() + (-node_size.0 * (per / 100.0))
                     }
-                },
+                } as f32,
                 match anchor[1] {
                     Size::Pixels(pix) => -pix.get_as_float(),
                     Size::Percent(per) => -node_size.1 * (per / 100.0),
                     Size::Combined(pix, per) => {
                         -pix.get_as_float() + (-node_size.0 * (per / 100.0))
                     }
-                },
-            )),
+                } as f32,
+            ),
             //No anchor applied: treat as 0,0; identity matrix
-            None => Affine::default(),
+            None => pax_pixels::Transform2D::default(),
         };
 
         //decompose vanilla affine matrix and pack into `Affine`
@@ -453,22 +457,22 @@ impl ComputableTransform for Transform2D {
         let f = translate_y;
 
         let coeffs = [a, b, c, d, e, f];
-        let transform = Affine::new(coeffs);
+        let transform = pax_pixels::Transform2D::from_array(coeffs.map(|v| v as f32));
 
         // Compute and combine previous_transform
         let previous_transform = match &self.previous {
             Some(previous) => (*previous).compute_transform2d_matrix(node_size, container_bounds),
-            None => Affine::default(),
+            None => pax_pixels::Transform2D::default(),
         };
 
-        transform * anchor_transform * previous_transform
+        previous_transform.then(&anchor_transform).then(&transform)
     }
 }
 
 /// Represents the outer stroke of a drawable element
 pub struct StrokeInstance {
-    pub color: Color,
+    pub color: pax_pixels::Color,
     pub width: f64,
-    pub style: StrokeStyle,
+    pub style: pax_pixels::StrokeStyle,
     //FUTURE: stroke alignment, inner/outer/center?
 }

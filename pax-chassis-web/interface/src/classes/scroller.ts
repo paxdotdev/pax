@@ -38,7 +38,7 @@ export class Scroller {
         this.objectManager = objectManager;
     }
 
-    build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
+    async build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
           scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>, isMobile: boolean) {
         this.isMobile = isMobile;
         this.idChain = idChain;
@@ -53,7 +53,7 @@ export class Scroller {
 
         this.container = this.objectManager.getFromPool(DIV);
         this.container.className = SCROLLER_CONTAINER;
-        NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
+        await NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
         this.scrollManager = new ScrollManager(this.container, isMobile);
 
         this.innerPane = this.objectManager.getFromPool(DIV);
@@ -61,7 +61,7 @@ export class Scroller {
         this.container.appendChild(this.innerPane);
 
         this.occlusionContext = this.objectManager.getFromPool(OCCLUSION_CONTEXT, this.objectManager);
-        this.occlusionContext.build(this.container, idChain, chassis, canvasMap);
+        await this.occlusionContext.build(this.container, idChain, chassis, canvasMap);
     }
 
     getTickScrollDelta(){
@@ -151,9 +151,9 @@ export class Scroller {
 
         }
     }
-    addElement(elem: HTMLElement, zIndex: number){
+    async addElement(elem: HTMLElement, zIndex: number){
         if(this.occlusionContext != undefined){
-            this.occlusionContext.addElement(elem, zIndex);
+            await this.occlusionContext.addElement(elem, zIndex);
         }
     }
 }

@@ -11,8 +11,6 @@ use std::mem::{transmute, ManuallyDrop};
 use std::os::raw::c_char;
 
 use core_graphics::context::CGContext;
-use piet_coregraphics::CoreGraphicsContext;
-
 use flexbuffers;
 use flexbuffers::DeserializationError;
 use serde::Serialize;

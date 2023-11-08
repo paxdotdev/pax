@@ -238,7 +238,7 @@ var Pax = (() => {
     constructor(objectManager2) {
       this.objectManager = objectManager2;
     }
-    build(parent, zIndex, scroller_id, chassis, canvasMap) {
+    async build(parent, zIndex, scroller_id, chassis, canvasMap) {
       this.zIndex = zIndex;
       this.scrollerId = scroller_id;
       this.chassis = chassis;
@@ -249,7 +249,7 @@ var Pax = (() => {
       this.canvas.style.zIndex = String(1e3 - zIndex);
       parent.appendChild(this.canvas);
       canvasMap.set(this.canvas.id, this.canvas);
-      chassis.add_context(this.canvas.id);
+      await chassis.add_context(this.canvas.id);
       this.native.className = NATIVE_OVERLAY_CLASS;
       this.native.style.zIndex = String(1e3 - zIndex);
       parent.appendChild(this.native);
@@ -305,23 +305,23 @@ var Pax = (() => {
     constructor(objectManager2) {
       this.objectManager = objectManager2;
     }
-    build(parent, scrollerId, chassis, canvasMap) {
+    async build(parent, scrollerId, chassis, canvasMap) {
       this.layers = this.objectManager.getFromPool(ARRAY2);
       this.parent = parent;
       this.zIndex = -1;
       this.scrollerId = scrollerId;
       this.chassis = chassis;
       this.canvasMap = canvasMap;
-      this.growTo(0);
+      await this.growTo(0);
     }
-    growTo(zIndex) {
+    async growTo(zIndex) {
       if (this.parent == void 0 || this.canvasMap == void 0 || this.layers == void 0 || this.chassis == void 0) {
         return;
       }
       if (this.zIndex != void 0 && this.zIndex < zIndex) {
         for (let i = this.zIndex + 1; i <= zIndex; i++) {
           let newLayer = this.objectManager.getFromPool(LAYER, this.objectManager);
-          newLayer.build(this.parent, i, this.scrollerId, this.chassis, this.canvasMap);
+          await newLayer.build(this.parent, i, this.scrollerId, this.chassis, this.canvasMap);
           this.layers.push(newLayer);
         }
         this.zIndex = zIndex;
@@ -339,10 +339,10 @@ var Pax = (() => {
         this.zIndex = zIndex;
       }
     }
-    addElement(element, zIndex) {
+    async addElement(element, zIndex) {
       if (this.zIndex != void 0) {
         if (zIndex > this.zIndex) {
-          this.growTo(zIndex);
+          await this.growTo(zIndex);
         }
         element.style.zIndex = String(1e3 - zIndex);
         this.layers[zIndex].native.prepend(element);
@@ -613,26 +613,15 @@ var Pax = (() => {
       this.baseOcclusionContext = objectManager2.getFromPool(OCCLUSION_CONTEXT, objectManager2);
       this.registeredFontFaces = /* @__PURE__ */ new Set();
     }
-    build(chassis, isMobile2, mount2) {
+    async build(chassis, isMobile2, mount2) {
       this.isMobile = isMobile2;
       this.chassis = chassis;
-      this.baseOcclusionContext.build(mount2, void 0, chassis, this.canvases);
+      await this.baseOcclusionContext.build(mount2, void 0, chassis, this.canvases);
     }
-    static addNativeElement(elem, baseOcclusionContext, scrollers, idChain, scrollerIdChain, zIndex) {
-      if (scrollerIdChain != void 0) {
-        let scroller = scrollers.get(arrayToKey(scrollerIdChain));
-        scroller.addElement(elem, zIndex);
-      } else {
-        baseOcclusionContext.addElement(elem, zIndex);
-      }
-    }
-    clearCanvases() {
+    setCanvasDpi() {
       this.canvases.forEach((canvas, key) => {
         let dpr = window.devicePixelRatio;
         const context = canvas.getContext("2d");
-        if (context) {
-          context.clearRect(0, 0, canvas.width, canvas.height);
-        }
         if (canvas.width != canvas.clientWidth * dpr || canvas.height != canvas.clientHeight * dpr) {
           canvas.width = canvas.clientWidth * dpr;
           canvas.height = canvas.clientHeight * dpr;
@@ -641,6 +630,14 @@ var Pax = (() => {
           }
         }
       });
+    }
+    static async addNativeElement(elem, baseOcclusionContext, scrollers, idChain, scrollerIdChain, zIndex) {
+      if (scrollerIdChain != void 0) {
+        let scroller = scrollers.get(arrayToKey(scrollerIdChain));
+        await scroller.addElement(elem, zIndex);
+      } else {
+        await baseOcclusionContext.addElement(elem, zIndex);
+      }
     }
     sendScrollerValues() {
       this.scrollers.forEach((scroller, id) => {
@@ -660,7 +657,7 @@ var Pax = (() => {
         }
       });
     }
-    textCreate(patch) {
+    async textCreate(patch) {
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
@@ -678,7 +675,7 @@ var Pax = (() => {
         }
       }
       if (patch.idChain != void 0 && patch.zIndex != void 0) {
-        _NativeElementPool.addNativeElement(
+        await _NativeElementPool.addNativeElement(
           runningChain,
           this.baseOcclusionContext,
           this.scrollers,
@@ -797,7 +794,7 @@ var Pax = (() => {
     }
     frameDelete(id_chain) {
     }
-    scrollerCreate(patch, chassis) {
+    async scrollerCreate(patch, chassis) {
       let scroller_id;
       if (patch.scrollerIds != null) {
         let length = patch.scrollerIds.length;
@@ -806,7 +803,7 @@ var Pax = (() => {
         }
       }
       let scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
-      scroller.build(
+      await scroller.build(
         patch.idChain,
         patch.zIndex,
         scroller_id,
@@ -959,7 +956,7 @@ var Pax = (() => {
       this.isMobile = false;
       this.objectManager = objectManager2;
     }
-    build(idChain, zIndex, scrollerId, chassis, scrollers, baseOcclusionContext, canvasMap, isMobile2) {
+    async build(idChain, zIndex, scrollerId, chassis, scrollers, baseOcclusionContext, canvasMap, isMobile2) {
       this.isMobile = isMobile2;
       this.idChain = idChain;
       this.parentScrollerId = scrollerId;
@@ -972,13 +969,13 @@ var Pax = (() => {
       this.sizeInnerPaneY = 0;
       this.container = this.objectManager.getFromPool(DIV);
       this.container.className = SCROLLER_CONTAINER;
-      NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
+      await NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
       this.scrollManager = new ScrollManager(this.container, isMobile2);
       this.innerPane = this.objectManager.getFromPool(DIV);
       this.innerPane.className = INNER_PANE;
       this.container.appendChild(this.innerPane);
       this.occlusionContext = this.objectManager.getFromPool(OCCLUSION_CONTEXT, this.objectManager);
-      this.occlusionContext.build(this.container, idChain, chassis, canvasMap);
+      await this.occlusionContext.build(this.container, idChain, chassis, canvasMap);
     }
     getTickScrollDelta() {
       return this.scrollManager?.getScrollDelta();
@@ -1058,9 +1055,9 @@ var Pax = (() => {
         }
       }
     }
-    addElement(elem, zIndex) {
+    async addElement(elem, zIndex) {
       if (this.occlusionContext != void 0) {
-        this.occlusionContext.addElement(elem, zIndex);
+        await this.occlusionContext.addElement(elem, zIndex);
       }
     }
   };
@@ -1116,8 +1113,6 @@ var Pax = (() => {
         return canvas;
       },
       cleanUp: (canvas) => {
-        let ctx = canvas.getContext("2d");
-        ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
         canvas.width = 0;
         canvas.height = 0;
         canvas.id = "";
@@ -1429,7 +1424,7 @@ var Pax = (() => {
   var textDecoder = new TextDecoder();
   var isMobile = false;
   var initializedChassis = false;
-  function mount(selector_or_element, extensionlessUrl) {
+  async function mount(selector_or_element, extensionlessUrl) {
     let link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = "pax-chassis-web-interface.css";
@@ -1463,43 +1458,45 @@ var Pax = (() => {
     try {
       let { chassis, get_latest_memory } = await loadWasmModule(extensionlessUrl);
       isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      nativePool.build(chassis, isMobile, mount2);
+      await nativePool.build(chassis, isMobile, mount2);
       requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount2, get_latest_memory));
     } catch (error) {
       console.error("Failed to load or instantiate Wasm module:", error);
     }
   }
-  function renderLoop(chassis, mount2, get_latest_memory) {
+  async function renderLoop(chassis, mount2, get_latest_memory) {
     nativePool.sendScrollerValues();
-    nativePool.clearCanvases();
+    nativePool.setCanvasDpi();
     const memorySliceSpec = chassis.tick();
     const latestMemory = get_latest_memory();
     const memoryBuffer = new Uint8Array(latestMemory.buffer);
     const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len()));
     messages = JSON.parse(jsonString);
+    await processMessages(messages, chassis, objectManager);
+    chassis.deallocate(memorySliceSpec);
     if (!initializedChassis) {
       let resizeHandler = () => {
         let width = mount2.clientWidth;
         let height = mount2.clientHeight;
-        chassis.send_viewport_update(width, height);
+        chassis.send_viewport_update(width, height, window.devicePixelRatio);
         nativePool.baseOcclusionContext.updateCanvases(width, height);
       };
       window.addEventListener("resize", resizeHandler);
-      resizeHandler();
+      requestAnimationFrame(() => {
+        resizeHandler();
+      });
       setupEventListeners(chassis, mount2);
       initializedChassis = true;
     }
-    processMessages(messages, chassis, objectManager);
-    chassis.deallocate(memorySliceSpec);
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount2, get_latest_memory));
   }
-  function processMessages(messages2, chassis, objectManager2) {
-    messages2?.forEach((unwrapped_msg) => {
+  async function processMessages(messages2, chassis, objectManager2) {
+    for (const unwrapped_msg of messages2) {
       if (unwrapped_msg["TextCreate"]) {
         let msg = unwrapped_msg["TextCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
         patch.fromPatch(msg);
-        nativePool.textCreate(patch);
+        await nativePool.textCreate(patch);
       } else if (unwrapped_msg["TextUpdate"]) {
         let msg = unwrapped_msg["TextUpdate"];
         let patch = objectManager2.getFromPool(TEXT_UPDATE_PATCH, objectManager2);
@@ -1525,12 +1522,12 @@ var Pax = (() => {
         let msg = unwrapped_msg["ImageLoad"];
         let patch = objectManager2.getFromPool(IMAGE_LOAD_PATCH);
         patch.fromPatch(msg);
-        nativePool.imageLoad(patch, chassis);
+        await nativePool.imageLoad(patch, chassis);
       } else if (unwrapped_msg["ScrollerCreate"]) {
         let msg = unwrapped_msg["ScrollerCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
         patch.fromPatch(msg);
-        nativePool.scrollerCreate(patch, chassis);
+        await nativePool.scrollerCreate(patch, chassis);
       } else if (unwrapped_msg["ScrollerUpdate"]) {
         let msg = unwrapped_msg["ScrollerUpdate"];
         let patch = objectManager2.getFromPool(SCROLLER_UPDATE_PATCH);
@@ -1540,7 +1537,7 @@ var Pax = (() => {
         let msg = unwrapped_msg["ScrollerDelete"];
         nativePool.scrollerDelete(msg);
       }
-    });
+    }
   }
   return __toCommonJS(src_exports);
 })();

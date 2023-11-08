@@ -4,16 +4,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use kurbo::BezPath;
-use piet::RenderContext;
-
 use pax_core::{
     HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, FramePatch};
+use pax_pixels::RenderContext;
 use pax_runtime_api::{CommonProperties, Layer, Size};
-
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
 /// of its bounds.
@@ -144,18 +141,19 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn handle_will_render(
         &mut self,
         rtc: &mut RenderTreeContext<R>,
-        rcs: &mut HashMap<std::string::String, R>,
+        _rcs: &mut HashMap<std::string::String, R>,
     ) {
         // construct a BezPath of this frame's bounds * its transform,
-        // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
+        // then pass that BezPath into rc.clip() [which pushes a clipping context to a internal stack]
 
-        let transform = rtc.transform_scroller_reset;
+        let _transform = rtc.transform_scroller_reset;
         let bounding_dimens = rtc.bounds;
 
-        let width: f64 = bounding_dimens.0;
-        let height: f64 = bounding_dimens.1;
+        let _width: f64 = bounding_dimens.0;
+        let _height: f64 = bounding_dimens.1;
 
-        let mut bez_path = BezPath::new();
+        //TODOrefactor figure out nice way of doing this
+        /*let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
         bez_path.line_to((width, 0.0));
         bez_path.line_to((width, height));
@@ -167,14 +165,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         for (_key, rc) in rcs.iter_mut() {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
             rc.clip(transformed_bez_path.clone());
-        }
+        }*/
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
     fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-        for (_key, rc) in _rcs.iter_mut() {
+        for (_key, _rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
-            rc.restore().unwrap();
+            //TODOrefactor //rc.restore().unwrap();
         }
         (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }

@@ -1,6 +1,3 @@
-use kurbo::{RoundedRect, Shape};
-use piet::{LinearGradient, RadialGradient, RenderContext};
-
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
@@ -9,8 +6,8 @@ use pax_core::{
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
-use pax_runtime_api::CommonProperties;
-
+use pax_pixels::{Box2D, Point2D, RenderContext, Vector2D, Winding};
+use pax_runtime_api::{log, CommonProperties};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -137,43 +134,70 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
 
         let properties = (*self.properties).borrow();
 
-        let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+        let rr = properties.corner_radii.get();
+        let border_radii = pax_pixels::BorderRadii {
+            top_left: *rr.top_left.get() as f32,
+            top_right: *rr.top_right.get() as f32,
+            bottom_left: *rr.bottom_left.get() as f32,
+            bottom_right: *rr.bottom_right.get() as f32,
+        };
 
-        let bez_path = rect.to_path(0.1);
+        //TODOrefactor -
+        // handle radial gradients
+        let fill = match properties.fill.get() {
+            Fill::Solid(color) => pax_pixels::Fill::Solid(color.to_pax_pixels_color()),
+            Fill::LinearGradient(gradient) => {
+                let x = gradient.start.0.get_pixels(width);
+                let y = gradient.start.1.get_pixels(height);
+                let x_e = gradient.end.0.get_pixels(width);
+                let y_e = gradient.end.1.get_pixels(height);
+                let pos = Point2D::new(x as f32, y as f32);
+                let vec = Point2D::new(x_e as f32, y_e as f32) - pos;
+                pax_pixels::Fill::Gradient {
+                    gradient_type: pax_pixels::GradientType::Linear,
+                    pos: transform.transform_point(pos),
+                    main_axis: transform.transform_vector(vec),
+                    off_axis: Vector2D::zero(),
+                    stops: gradient
+                        .stops
+                        .iter()
+                        .map(|s| pax_pixels::GradientStop {
+                            color: s.color.to_pax_pixels_color(),
+                            stop: (s.position.get_pixels(vec.length() as f64) / vec.length() as f64)
+                                as f32,
+                        })
+                        .collect(),
+                }
+            }
+            _ => {
+                pax_runtime_api::log("radial gradients not supported yet");
+                return;
+            }
+        };
 
-        let transformed_bez_path = transform * bez_path;
-        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+        let mut builder = pax_pixels::Path::builder().transformed(transform);
+        builder.add_rounded_rectangle(
+            &Box2D::new(
+                Point2D::new(0.0, 0.0),
+                Point2D::new(width as f32, height as f32),
+            ),
+            &border_radii,
+            Winding::Positive,
+        );
 
-        match properties.fill.get() {
-            Fill::Solid(color) => {
-                rc.fill(transformed_bez_path, &color.to_piet_color());
-            }
-            Fill::LinearGradient(linear) => {
-                let linear_gradient = LinearGradient::new(
-                    Fill::to_unit_point(linear.start, (width, height)),
-                    Fill::to_unit_point(linear.end, (width, height)),
-                    Fill::to_piet_gradient_stops(linear.stops.clone()),
-                );
-                rc.fill(transformed_bez_path, &linear_gradient)
-            }
-            Fill::RadialGradient(radial) => {
-                let origin = Fill::to_unit_point(radial.start, (width, height));
-                let center = Fill::to_unit_point(radial.end, (width, height));
-                let gradient_stops = Fill::to_piet_gradient_stops(radial.stops.clone());
-                let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
-                    .with_center(center)
-                    .with_origin(origin);
-                rc.fill(transformed_bez_path, &radial_gradient);
-            }
-        }
+        let path = builder.build();
+
+        rc.fill_path(path.clone(), fill);
 
         //hack to address "phantom stroke" bug on Web
-        let width: f64 = *&properties.stroke.get().width.get().into();
+        let width: f64 = properties.stroke.get().width.get().into();
         if width > f64::EPSILON {
-            rc.stroke(
-                duplicate_transformed_bez_path,
-                &properties.stroke.get().color.get().to_piet_color(),
-                width,
+            rc.stroke_path(
+                path,
+                pax_pixels::Stroke {
+                    color: properties.stroke.get().color.get().to_pax_pixels_color(),
+                    weight: width as f32,
+                },
             );
         }
     }

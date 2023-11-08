@@ -1,5 +1,4 @@
 use pax_std::primitives::Image;
-use piet::{ImageFormat, InterpolationMode, RenderContext};
 use std::collections::HashMap;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
@@ -8,6 +7,7 @@ use pax_core::{
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::ImagePatch;
+use pax_pixels::RenderContext;
 use pax_runtime_api::CommonProperties;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -19,7 +19,7 @@ pub struct ImageInstance<R: 'static + RenderContext> {
     pub properties: Rc<RefCell<Image>>,
     pub common_properties: CommonProperties,
     last_patches: HashMap<Vec<u32>, pax_message::ImagePatch>,
-    pub image: Option<<R as RenderContext>::Image>,
+    // pub image: Option<<R as RenderContext>::Image>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
@@ -47,7 +47,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             common_properties: args.common_properties,
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
-            image: None,
+            //image: None,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -115,13 +115,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
         }
     }
 
-    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform_scroller_reset;
+    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+        let _transform = rtc.transform_scroller_reset;
         let bounding_dimens = rtc.bounds;
-        let width = bounding_dimens.0;
-        let height = bounding_dimens.1;
+        let _width = bounding_dimens.0;
+        let _height = bounding_dimens.1;
 
-        let bounds = kurbo::Rect::new(0.0, 0.0, width, height);
+        //TODOrefactor
+        /*let bounds = kurbo::Rect::new(0.0, 0.0, width, height);
         let top_left = transform * kurbo::Point::new(bounds.min_x(), bounds.min_y());
         let bottom_right = transform * kurbo::Point::new(bounds.max_x(), bounds.max_y());
         let transformed_bounds =
@@ -138,6 +139,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
         }
         if let Some(image) = &self.image {
             rc.draw_image(&image, transformed_bounds, InterpolationMode::Bilinear);
-        }
+        }*/
     }
 }

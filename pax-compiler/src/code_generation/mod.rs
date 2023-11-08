@@ -86,7 +86,7 @@ pub fn generate_and_overwrite_cartridge(
         "pax_core::pax_properties_coproduct::PropertiesCoproduct",
         "pax_core::pax_properties_coproduct::TypesCoproduct",
         "pax_core::repeat::RepeatInstance",
-        "piet_common::RenderContext",
+        "pax_pixels::RenderContext",
     ];
 
     let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();

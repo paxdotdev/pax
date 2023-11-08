@@ -18,17 +18,17 @@ export class OcclusionContext {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, scrollerId : number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
+    async build(parent: Element, scrollerId : number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
         this.layers = this.objectManager.getFromPool(ARRAY);
         this.parent = parent;
         this.zIndex = -1;
         this.scrollerId = scrollerId;
         this.chassis = chassis;
         this.canvasMap = canvasMap;
-        this.growTo(0);
+        await this.growTo(0);
     }
 
-    growTo(zIndex: number) {
+    async growTo(zIndex: number) {
         if(this.parent == undefined || this.canvasMap == undefined ||
             this.layers == undefined || this.chassis == undefined){
             return
@@ -36,7 +36,7 @@ export class OcclusionContext {
         if(this.zIndex != undefined && this.zIndex < zIndex){
             for(let i = this.zIndex+1; i <= zIndex; i++) {
                 let newLayer: Layer = this.objectManager.getFromPool(LAYER, this.objectManager);
-                newLayer.build(this.parent, i, this.scrollerId, this.chassis, this.canvasMap);
+                await newLayer.build(this.parent, i, this.scrollerId, this.chassis, this.canvasMap);
                 this.layers.push(newLayer);
             }
             this.zIndex = zIndex;
@@ -56,10 +56,10 @@ export class OcclusionContext {
         }
     }
 
-    addElement(element: HTMLElement, zIndex: number){
+    async addElement(element: HTMLElement, zIndex: number){
         if(this.zIndex != undefined){
             if(zIndex > this.zIndex){
-                this.growTo(zIndex);
+                await this.growTo(zIndex);
             }
             element.style.zIndex = String(1000-zIndex);
             this.layers![zIndex]!.native!.prepend(element);

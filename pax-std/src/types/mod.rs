@@ -1,13 +1,12 @@
 pub mod text;
 
 use crate::primitives::Path;
-use kurbo::{Point, RoundedRectRadii};
 use pax_lang::api::numeric::Numeric;
 pub use pax_lang::api::Size;
 use pax_lang::api::{PropertyLiteral, SizePixels};
 use pax_lang::*;
 use pax_message::ColorVariantMessage;
-use piet::UnitPoint;
+use pax_pixels::Point2D;
 
 #[derive(Pax)]
 #[custom(Default)]
@@ -78,8 +77,8 @@ pub struct RadialGradient {
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct GradientStop {
-    position: Size,
-    color: Color,
+    pub position: Size,
+    pub color: Color,
 }
 
 impl GradientStop {
@@ -95,7 +94,7 @@ impl Default for Fill {
 }
 
 impl Fill {
-    pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
+    pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> pax_pixels::Point2D {
         let normalized_x = match x {
             Size::Pixels(val) => val.get_as_float() / width,
             Size::Percent(val) => val.get_as_float() / 100.0,
@@ -107,10 +106,10 @@ impl Fill {
             Size::Percent(val) => val.get_as_float() / 100.0,
             Size::Combined(pix, per) => (pix.get_as_float() / width) + (per.get_as_float() / 100.0),
         };
-        UnitPoint::new(normalized_x, normalized_y)
+        pax_pixels::Point2D::new(normalized_x as f32, normalized_y as f32)
     }
 
-    pub fn to_piet_gradient_stops(stops: Vec<GradientStop>) -> Vec<piet::GradientStop> {
+    pub fn to_pax_pixels_gradient_stops(stops: Vec<GradientStop>) -> Vec<pax_pixels::GradientStop> {
         let mut ret = Vec::new();
         for gradient_stop in stops {
             match gradient_stop.position {
@@ -118,9 +117,9 @@ impl Fill {
                     panic!("Gradient stops must be specified in percentages");
                 }
                 Size::Percent(p) => {
-                    ret.push(piet::GradientStop {
-                        pos: (p.get_as_float() / 100.0) as f32,
-                        color: gradient_stop.color.to_piet_color(),
+                    ret.push(pax_pixels::GradientStop {
+                        stop: (p.get_as_float() / 100.0) as f32,
+                        color: gradient_stop.color.to_pax_pixels_color(),
                     });
                 }
                 Size::Combined(_, _) => {
@@ -185,12 +184,26 @@ impl Color {
             ]),
         }
     }
-    pub fn to_piet_color(&self) -> piet::Color {
+    pub fn to_pax_pixels_color(&self) -> pax_pixels::Color {
         match self.color_variant {
-            ColorVariant::Hlca(slice) => piet::Color::hlca(slice[0], slice[1], slice[2], slice[3]),
-            ColorVariant::Hlc(slice) => piet::Color::hlc(slice[0], slice[1], slice[2]),
-            ColorVariant::Rgba(slice) => piet::Color::rgba(slice[0], slice[1], slice[2], slice[3]),
-            ColorVariant::Rgb(slice) => piet::Color::rgb(slice[0], slice[1], slice[2]),
+            ColorVariant::Hlca(slice) => pax_pixels::Color::hlca(
+                slice[0] as f32,
+                slice[1] as f32,
+                slice[2] as f32,
+                slice[3] as f32,
+            ),
+            ColorVariant::Hlc(slice) => {
+                pax_pixels::Color::hlca(slice[0] as f32, slice[1] as f32, slice[2] as f32, 1.0)
+            }
+            ColorVariant::Rgba(slice) => pax_pixels::Color::rgba(
+                slice[0] as f32,
+                slice[1] as f32,
+                slice[2] as f32,
+                slice[3] as f32,
+            ),
+            ColorVariant::Rgb(slice) => {
+                pax_pixels::Color::rgba(slice[0] as f32, slice[1] as f32, slice[2] as f32, 1.0)
+            }
         }
     }
 }
@@ -271,16 +284,16 @@ pub enum PathSegment {
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct LineSegmentData {
-    pub start: Point,
-    pub end: Point,
+    pub start: Point2D,
+    pub end: Point2D,
 }
 
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct CurveSegmentData {
-    pub start: Point,
-    pub handle: Point,
-    pub end: Point,
+    pub start: Point2D,
+    pub handle: Point2D,
+    pub end: Point2D,
 }
 
 impl Path {
@@ -294,8 +307,8 @@ impl Path {
         end: (f64, f64),
     ) -> Vec<PathSegment> {
         let line_seg_data: LineSegmentData = LineSegmentData {
-            start: Point::from(start),
-            end: Point::from(end),
+            start: Point2D::new(start.0 as f32, start.1 as f32),
+            end: Point2D::new(end.0 as f32, end.1 as f32),
         };
 
         path.push(PathSegment::LineSegment(line_seg_data));
@@ -309,9 +322,9 @@ impl Path {
         end: (f64, f64),
     ) -> Vec<PathSegment> {
         let curve_seg_data: CurveSegmentData = CurveSegmentData {
-            start: Point::from(start),
-            handle: Point::from(handle),
-            end: Point::from(end),
+            start: Point2D::new(start.0 as f32, start.1 as f32),
+            handle: Point2D::new(handle.0 as f32, handle.1 as f32),
+            end: Point2D::new(end.0 as f32, end.1 as f32),
         };
 
         path.push(PathSegment::CurveSegment(curve_seg_data));
@@ -326,17 +339,6 @@ pub struct RectangleCornerRadii {
     pub top_right: Property<f64>,
     pub bottom_right: Property<f64>,
     pub bottom_left: Property<f64>,
-}
-
-impl Into<RoundedRectRadii> for &RectangleCornerRadii {
-    fn into(self) -> RoundedRectRadii {
-        RoundedRectRadii::new(
-            *self.top_left.get(),
-            *self.top_right.get(),
-            *self.bottom_right.get(),
-            *self.bottom_left.get(),
-        )
-    }
 }
 
 impl RectangleCornerRadii {

@@ -1,11 +1,9 @@
-use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
-use piet::RenderContext;
-
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
+use pax_pixels::{Angle, Color, Fill, Point2D, RenderContext, Stroke, Vector2D, Winding};
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
 
@@ -98,30 +96,48 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
 
         let properties_color = properties.fill.get();
         let _color = match properties_color.color_variant {
-            ColorVariant::Hlca(slice) => Color::hlca(slice[0], slice[1], slice[2], slice[3]),
-            ColorVariant::Hlc(slice) => Color::hlc(slice[0], slice[1], slice[2]),
-            ColorVariant::Rgba(slice) => Color::rgba(slice[0], slice[1], slice[2], slice[3]),
-            ColorVariant::Rgb(slice) => Color::rgb(slice[0], slice[1], slice[2]),
+            ColorVariant::Hlca(slice) => Color::hlca(
+                slice[0] as f32,
+                slice[1] as f32,
+                slice[2] as f32,
+                slice[3] as f32,
+            ),
+            ColorVariant::Hlc(slice) => {
+                Color::hlca(slice[0] as f32, slice[1] as f32, slice[2] as f32, 1.0)
+            }
+            ColorVariant::Rgba(slice) => Color::rgba(
+                slice[0] as f32,
+                slice[1] as f32,
+                slice[2] as f32,
+                slice[3] as f32,
+            ),
+            ColorVariant::Rgb(slice) => {
+                Color::rgba(slice[0] as f32, slice[1] as f32, slice[2] as f32, 1.0)
+            }
         };
 
-        let rect = Rect::from_points((0.0, 0.0), (width, height));
-        let ellipse = KurboEllipse::from_rect(rect);
-        let accuracy = 0.1;
-        let bez_path = ellipse.to_path(accuracy);
+        let mut builder = pax_pixels::Path::builder().transformed(transform);
+        builder.add_ellipse(
+            Point2D::new(0.0, 0.0),
+            Vector2D::new(width as f32, height as f32),
+            Angle::degrees(0.0),
+            Winding::Positive,
+        );
 
-        let transformed_bez_path = transform * bez_path;
-        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+        let path = builder.build();
 
-        let color = properties.fill.get().to_piet_color();
-        rc.fill(transformed_bez_path, &color);
+        let color = properties.fill.get().to_pax_pixels_color();
+        rc.fill_path(path.clone(), Fill::Solid(color));
 
         //hack to address "phantom stroke" bug on Web
-        let width: f64 = *&properties.stroke.get().width.get().into();
-        if width > f64::EPSILON {
-            rc.stroke(
-                duplicate_transformed_bez_path,
-                &properties.stroke.get().color.get().to_piet_color(),
-                width,
+        let weight: f64 = properties.stroke.get().width.get().into();
+        if weight > f64::EPSILON {
+            rc.stroke_path(
+                path,
+                Stroke {
+                    color: properties.stroke.get().color.get().to_pax_pixels_color(),
+                    weight: weight as f32,
+                },
             );
         }
     }

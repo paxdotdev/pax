@@ -25,7 +25,7 @@ let textDecoder = new TextDecoder();
 let isMobile = false;
 let initializedChassis = false;
 
-export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
+export async function mount(selector_or_element: string | Element, extensionlessUrl: string) {
 
     //Inject CSS
     let link = document.createElement('link')
@@ -69,16 +69,16 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
         isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        nativePool.build(chassis, isMobile, mount);
+        await nativePool.build(chassis, isMobile, mount);
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
         console.error("Failed to load or instantiate Wasm module:", error);
     }
 }
 
-function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
+async function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
     nativePool.sendScrollerValues();
-    nativePool.clearCanvases();
+    nativePool.setCanvasDpi();
 
     const memorySliceSpec = chassis.tick();
     const latestMemory : WebAssembly.Memory = get_latest_memory();
@@ -88,34 +88,38 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
     const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len()));
     messages = JSON.parse(jsonString);
 
+    //@ts-ignore
+    await processMessages(messages, chassis, objectManager);
+    //necessary manual cleanup
+    chassis.deallocate(memorySliceSpec);
+
     if(!initializedChassis){
         let resizeHandler = () => {
             let width = mount.clientWidth;
             let height = mount.clientHeight;
-            chassis.send_viewport_update(width, height);
+            chassis.send_viewport_update(width, height, window.devicePixelRatio);
             nativePool.baseOcclusionContext.updateCanvases(width, height);
         };
         window.addEventListener('resize', resizeHandler);
-        resizeHandler();//Fire once manually to init viewport size & occlusion context
+        requestAnimationFrame(() => {
+            resizeHandler(); //Fire once manually to init viewport size & occlusion context
+        });
+
         setupEventListeners(chassis, mount);
         initializedChassis = true;
     }
-    //@ts-ignore
-    processMessages(messages, chassis, objectManager);
 
-    //necessary manual cleanup
-    chassis.deallocate(memorySliceSpec);
 
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
 }
 
-export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
-    messages?.forEach((unwrapped_msg) => {
+export async function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    for(const unwrapped_msg of messages) {
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
-            nativePool.textCreate(patch);
+            await nativePool.textCreate(patch);
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
             let patch: TextUpdatePatch = objectManager.getFromPool(TEXT_UPDATE_PATCH, objectManager);
@@ -141,12 +145,12 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let msg = unwrapped_msg["ImageLoad"];
             let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
             patch.fromPatch(msg);
-            nativePool.imageLoad(patch, chassis)
+            await nativePool.imageLoad(patch, chassis)
         }else if(unwrapped_msg["ScrollerCreate"]) {
             let msg = unwrapped_msg["ScrollerCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
-            nativePool.scrollerCreate(patch, chassis);
+            await nativePool.scrollerCreate(patch, chassis);
         }else if (unwrapped_msg["ScrollerUpdate"]){
             let msg = unwrapped_msg["ScrollerUpdate"]
             let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
@@ -156,6 +160,6 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let msg = unwrapped_msg["ScrollerDelete"];
             nativePool.scrollerDelete(msg)
         }
-    })
+    }
 }
 

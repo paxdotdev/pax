@@ -39,7 +39,8 @@ PACKAGES = [
     "pax-properties-coproduct",
     "pax-runtime-api",
     "pax-std",
-    "pax-std/pax-std-primitives"
+    "pax-std/pax-std-primitives",
+    "pax-pixels"
 ]
 
 # Create a mapping from package name to path

@@ -5,9 +5,10 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-lang = { version = "0.10.7" }
-pax-std = { version = "0.10.7" }
-pax-compiler = { version = "0.10.7", optional = true}
+pax-lang = { version = "0.10.7" , path = ".pax/pkg/pax-lang" }
+pax-std = { version = "0.10.7" , path = ".pax/pkg/pax-std" }
+pax-compiler = { version = "0.10.7", optional = true, path = ".pax/pkg/pax-compiler" }
+pax-pixels = { path = ".pax/pkg/pax-pixels" }
 serde_json = {version = "1.0.95", optional = true}
 
 [[bin]]

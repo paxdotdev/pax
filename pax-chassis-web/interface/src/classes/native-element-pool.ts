@@ -35,29 +35,16 @@ export class NativeElementPool {
     }
 
 
-    build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
+    async build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
         this.isMobile = isMobile;
         this.chassis = chassis;
-        this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
+        await this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
     }
 
-    static addNativeElement(elem: HTMLElement, baseOcclusionContext: OcclusionContext, scrollers: Map<string, Scroller>,
-                                     idChain: number[] , scrollerIdChain: number[] | undefined, zIndex: number){
-        if(scrollerIdChain != undefined){
-            let scroller: Scroller = scrollers.get(arrayToKey(scrollerIdChain))!;
-            scroller.addElement(elem, zIndex);
-        } else {
-            baseOcclusionContext.addElement(elem, zIndex);
-        }
-    }
-
-    clearCanvases(): void {
+    setCanvasDpi(): void {
         this.canvases.forEach((canvas, key) => {
             let dpr = window.devicePixelRatio;
             const context = canvas.getContext('2d');
-            if (context) {
-                context.clearRect(0, 0, canvas.width, canvas.height);
-            }
             if(canvas.width != (canvas.clientWidth * dpr) || canvas.height != (canvas.clientHeight * dpr)){
                 canvas.width = (canvas.clientWidth * dpr);
                 canvas.height = (canvas.clientHeight * dpr);
@@ -66,6 +53,16 @@ export class NativeElementPool {
                 }
             }
         });
+    }
+    
+    static async addNativeElement(elem: HTMLElement, baseOcclusionContext: OcclusionContext, scrollers: Map<string, Scroller>,
+                                     idChain: number[] , scrollerIdChain: number[] | undefined, zIndex: number){
+        if(scrollerIdChain != undefined){
+            let scroller: Scroller = scrollers.get(arrayToKey(scrollerIdChain))!;
+            await scroller.addElement(elem, zIndex);
+        } else {
+            await baseOcclusionContext.addElement(elem, zIndex);
+        }
     }
 
     sendScrollerValues(){
@@ -92,7 +89,7 @@ export class NativeElementPool {
         });
     }
 
-    textCreate(patch: AnyCreatePatch) {
+    async textCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
         console.assert(patch.clippingIds != null);
         console.assert(patch.scrollerIds != null);
@@ -113,7 +110,7 @@ export class NativeElementPool {
         }
 
         if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
+            await NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
 
@@ -305,7 +302,7 @@ export class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
-    scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
+    async scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
         //console.log(patch);
         let scroller_id;
         if(patch.scrollerIds != null){
@@ -315,7 +312,7 @@ export class NativeElementPool {
             }
         }
         let scroller: Scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
-        scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis!, this.scrollers,
+        await scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis!, this.scrollers,
             this.baseOcclusionContext, this.canvases, this.isMobile)
         // @ts-ignore
         this.scrollers.set(arrayToKey(patch.idChain),scroller);

@@ -1,6 +1,9 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
+use pax_pixels::render_backend::RenderBackend;
+use pax_pixels::render_backend::RenderConfig;
+use pax_pixels::RenderContext;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -8,11 +11,10 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlCanvasElement};
 
-use piet_web::WebRenderContext;
-
 use pax_core::{InstanceRegistry, PaxEngine};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
+use pax_pixels::WgpuRenderer;
 use pax_runtime_api::{
     ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
     ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
@@ -55,8 +57,8 @@ pub fn wasm_memory() -> JsValue {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    engine: Rc<RefCell<PaxEngine<WebRenderContext<'static>>>>,
-    drawing_contexts: HashMap<String, WebRenderContext<'static>>,
+    engine: Rc<RefCell<PaxEngine<WgpuRenderer>>>,
+    drawing_contexts: HashMap<String, WgpuRenderer>,
 }
 
 #[wasm_bindgen]
@@ -69,7 +71,7 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let instance_registry: Rc<RefCell<InstanceRegistry<WebRenderContext>>> =
+        let instance_registry: Rc<RefCell<InstanceRegistry<WgpuRenderer>>> =
             Rc::new(RefCell::new(InstanceRegistry::new()));
         let main_component_instance =
             pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
@@ -83,8 +85,7 @@ impl PaxChassisWeb {
             instance_registry,
         );
 
-        let engine_container: Rc<RefCell<PaxEngine<WebRenderContext>>> =
-            Rc::new(RefCell::new(engine));
+        let engine_container: Rc<RefCell<PaxEngine<WgpuRenderer>>> = Rc::new(RefCell::new(engine));
 
         Self {
             engine: engine_container,
@@ -92,7 +93,7 @@ impl PaxChassisWeb {
         }
     }
 
-    pub fn add_context(&mut self, id: String) {
+    pub async fn add_context(&mut self, id: String) {
         let window = window().unwrap();
         let dpr = window.device_pixel_ratio();
         let document = window.document().unwrap();
@@ -101,28 +102,31 @@ impl PaxChassisWeb {
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
-        let context: web_sys::CanvasRenderingContext2d = canvas
-            .get_context("2d")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            .unwrap();
-
         let width = canvas.offset_width() as f64 * dpr;
         let height = canvas.offset_height() as f64 * dpr;
-
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
-        let _ = context.scale(dpr, dpr);
+        let config = RenderConfig::new(
+            false,
+            canvas.offset_width() as u32,
+            (canvas.offset_height() as u32).max(1),
+            dpr as u32,
+        );
+        let render_backend = RenderBackend::to_canvas(canvas, config)
+            .await
+            .expect("couldn't create render_backend");
 
-        let render_context = WebRenderContext::new(context, window.clone());
-
+        let render_context = WgpuRenderer::new(render_backend);
         self.drawing_contexts.insert(id, render_context);
     }
 
-    pub fn send_viewport_update(&mut self, width: f64, height: f64) {
+    pub fn send_viewport_update(&mut self, width: f64, height: f64, dpr: f64) {
         self.engine.borrow_mut().set_viewport_size((width, height));
+        for rc in self.drawing_contexts.values_mut() {
+            rc.resize(width as f32, height as f32, dpr as f32);
+        }
     }
+
     pub fn remove_context(&mut self, id: String) {
         self.drawing_contexts.remove(&id);
     }

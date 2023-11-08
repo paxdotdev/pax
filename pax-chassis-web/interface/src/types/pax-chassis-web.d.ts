@@ -28,12 +28,12 @@ export class PaxChassisWeb {
 /**
 * @param {string} id
 */
-  add_context(id: string): void;
+  add_context(id: string): Promise<void>;
 /**
 * @param {number} width
 * @param {number} height
 */
-  send_viewport_update(width: number, height: number): void;
+  send_viewport_update(width: number, height: number, dpr: number): void;
 /**
 * @param {string} id
 */

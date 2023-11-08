@@ -8,10 +8,9 @@ use pax_core::{
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{CommonProperties, Layer, SizePixels, StringBox};
 use pax_std::primitives::Text;
-use piet::RenderContext;
 use std::collections::HashMap;
 use std::rc::Rc;
-
+use pax_pixels::RenderContext;
 use pax_std::types::text::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
 
 use pax_std::types::Color;
@@ -276,7 +275,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
-        //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
+        //no-op -- only native rendering for Text (unless/until we support rasterizing text)
     }
 
     fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
