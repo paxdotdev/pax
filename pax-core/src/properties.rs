@@ -43,7 +43,7 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     }
 
     let new_tab = compute_tab(ptc);
-    ptc.tab = new_tab;
+    ptc.containing_tab = new_tab;
 
     //Strictly following computation of slot children, we recurse into instance_children.
     //This ordering is required because the properties for slot children must be computed
@@ -94,7 +94,7 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
     let new_accumulated_bounds_and_current_node_size = node
         .borrow_mut()
-        .compute_size_within_bounds(ptc.tab.bounds);
+        .compute_size_within_bounds(ptc.containing_tab.bounds);
 
     let mut node_size: (f64, f64) = (0.0, 0.0);
 
@@ -105,7 +105,7 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
             .get_common_properties().borrow()
             .transform
             .get()
-            .compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.tab.bounds);
+            .compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.containing_tab.bounds);
 
         computed_transform2d_matrix
     };
@@ -181,11 +181,11 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
         };
         desugared_transform2d.rotate = Some(rotate);
 
-        desugared_transform2d.compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.tab.bounds)
+        desugared_transform2d.compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.containing_tab.bounds)
     };
 
     let new_accumulated_transform =
-        ptc.tab.transform * desugared_transform * node_transform_property_computed;
+        ptc.containing_tab.transform * desugared_transform * node_transform_property_computed;
 
     // let new_scroller_normalized_accumulated_transform =
     //     accumulated_scroller_normalized_transform
@@ -263,28 +263,26 @@ fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeCon
 pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 
     pub engine: &'a PaxEngine<R>,
-    pub timeline_playhead_position: usize,
+
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
-    pub current_containing_component: InstanceNodePtr<R>,
-    /// A clone of current_containing_component#get_slot_children, stored alongside current_containing_component
-    /// to manage borrowing & data access
-    pub current_containing_component_slot_children: InstanceNodePtrList<R>,
+    pub current_containing_component: Option<Rc<RefCell<ExpandedNode<R>>>>,
+
     /// A pointer to the current instance node
     pub current_instance_node: InstanceNodePtr<R>,
+
     /// A pointer to the current expanded node.  Optional only for the init case; should be populated
     /// for every node visited during properties computation.
     pub current_expanded_node: Option<Rc<RefCell<ExpandedNode<R>>>>,
-    /// A pointer to the current expanded node's parent expanded node
-    pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
-    pub transform_scroller_reset: Affine,
+    /// A pointer to the current expanded node's parent expanded node, useful at least for appending children
+    pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
     pub marked_for_unmount: bool,
 
     pub shared: Rc<RefCell<PropertiesTreeShared>>,
 
-    pub tab: TransformAndBounds,
+    pub containing_tab: TransformAndBounds,
 }
 
 /// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
@@ -314,21 +312,17 @@ pub struct PropertiesTreeShared {
     pub native_message_queue: VecDeque<NativeMessage>,
 }
 
-
 impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
     fn clone(&self) -> Self {
         Self {
             engine: &self.engine.clone(),
-            timeline_playhead_position: self.timeline_playhead_position,
-            current_containing_component: Rc::clone(&self.current_containing_component),
-            current_containing_component_slot_children: Rc::clone(&self.current_containing_component_slot_children),
+            current_containing_component: self.current_containing_component.clone(),
             current_instance_node: Rc::clone(&self.current_instance_node),
             current_expanded_node: self.current_expanded_node.clone(),
             parent_expanded_node: self.parent_expanded_node.clone(),
-            transform_scroller_reset: self.transform_scroller_reset.clone(),
             marked_for_unmount: self.marked_for_unmount,
             shared: Rc::clone(&self.shared),
-            tab: self.tab.clone(),
+            containing_tab: self.containing_tab.clone(),
         }
     }
 }
@@ -374,7 +368,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 
     pub fn distill_userland_node_context(&self) -> RuntimeContext {
         RuntimeContext {
-            bounds_parent: self.tab.bounds,
+            bounds_parent: self.containing_tab.bounds,
             frames_elapsed: self.engine.frames_elapsed,
         }
     }
