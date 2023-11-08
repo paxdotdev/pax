@@ -650,30 +650,36 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
                     let mut kv = attribute_key_value_pair.into_inner();
                     let mut attribute_event_binding = kv.next().unwrap().into_inner();
-                    let event_id = attribute_event_binding
+                    let event_id_full = attribute_event_binding
                         .next()
-                        .unwrap()
+                        .unwrap();
+                    let event_id = event_id_full.clone()
                         .into_inner()
                         .last()
                         .unwrap();
+
                     let event_id_location = span_to_location(&event_id.as_span());
-                    let event_id_token = Token::new(
+                    let event_id_token = Token::new_with_raw_value(
                         event_id.as_str().to_string(),
+                        event_id_full.as_str().to_string(),
                         TokenType::EventId,
                         event_id_location,
                         pax,
                     );
 
-                    let literal_function = attribute_event_binding
-                        .next()
-                        .unwrap()
-                        .into_inner()
+                    let literal_function_full = attribute_event_binding
                         .next()
                         .unwrap();
 
+                    let literal_function = literal_function_full.clone()
+                        .into_inner()
+                        .next()
+                        .unwrap();
+                
                     let location_info = span_to_location(&literal_function.as_span());
-                    let literal_function_token = Token::new(
+                    let literal_function_token = Token::new_with_raw_value(
                         literal_function.as_str().to_string(),
+                        literal_function_full.as_str().to_string(),
                         TokenType::Handler,
                         location_info,
                         pax,

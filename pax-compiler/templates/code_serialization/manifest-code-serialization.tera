@@ -1,0 +1,28 @@
+{% import "macros.tera" as macros %}
+{%- if template -%}
+        {{ macros::render_template_node(node_list=template, index=0) }}
+{%- endif -%}
+
+{%- if settings %}
+
+@settings {
+    {%- for selector_block in settings %}
+    {{selector_block.selector.raw_value}}{{macros::render_literal_block(lb=selector_block.value_block)}},
+    {%- endfor %}
+}
+{%- endif -%}
+
+{%- if events %}
+
+@handlers {
+    {%- for event in events %}
+        {{event.key.raw_value}}:
+        {%- if  event.value | length() >  1 %} [
+            {%- for handler in event.value -%}
+                {{handler.raw_value}}
+                {%- if not loop.last -%}, {% endif -%}{% endfor -%}],
+        {%- else %} {{event.value[0].raw_value}}, 
+        {%- endif -%}
+    {%- endfor %}
+}
+{%- endif -%}

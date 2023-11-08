@@ -1,4 +1,4 @@
-use crate::code_generation::templating::MappedString;
+use crate::cartridge_generation::templating::MappedString;
 use crate::manifest::Token;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
