@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
-use crate::code_generation::templating::MappedString;
+use crate::cartridge_generation::templating::MappedString;
 use crate::parsing::escape_identifier;
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]

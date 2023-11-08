@@ -1,0 +1,80 @@
+{%- macro render_control_flow_statement(cfd) -%}
+    {%- if cfd.condition_expression_paxel -%}
+    if {{ "{" ~ cfd.condition_expression_paxel ~ "}" }} {
+    {%- elif cfd.slot_index_expression_paxel -%}
+    slot({{ "{" ~ cfd.slot_index_expression_paxel ~ "}" }})
+    {%- elif cfd.repeat_predicate_definition -%}
+        for {% if cfd.repeat_predicate_definition.ElemId -%}
+            {{cfd.repeat_predicate_definition.ElemId.raw_value}}
+        {%- endif -%}
+        {%- if cfd.repeat_predicate_definition.ElemIdIndexId -%}
+            ({{cfd.repeat_predicate_definition.ElemIdIndexId.0.raw_value}}, {{cfd.repeat_predicate_definition.ElemIdIndexId.1.raw_value}})
+        {%- endif -%}
+    {%- endif %} in {% if cfd.repeat_source_definition.range_expression_paxel -%}
+            {{cfd.repeat_source_definition.range_expression_paxel.raw_value}}
+        {%- elif cfd.repeat_source_definition.symbolic_binding -%}
+            {{cfd.repeat_source_definition.symbolic_binding.raw_value}}
+        {%- endif %} {
+{%- endmacro -%}
+
+{%- macro render_value_definition(vd) -%}
+    {%- if vd.LiteralValue -%}
+        {{vd.LiteralValue.raw_value}}
+    {%-endif-%}
+    {%- if vd.Block -%}
+        {{self::render_literal_block(lb=vd.Block)}}
+    {%- endif -%}
+    {%- if vd.Expression -%}
+        {{ "{" ~ vd.Expression.0.raw_value ~ "}" }}
+    {%- endif -%}
+    {%- if vd.Identifier -%}
+        {{ vd.Identifier.0.raw_value }}
+    {%- endif -%}
+    {%- if vd.EventBindingTarget -%}
+        {{ vd.EventBindingTarget.raw_value }}
+    {%- endif -%}
+{%- endmacro -%}
+
+
+{%- macro render_template_node(node_list, index) -%}
+    {%- if index == 0 -%}
+        {%- for child_id in node_list[index].child_ids -%}
+            {{ self::render_template_node(node_list=node_list, index=child_id) }}
+{% endfor %}
+    {%- else -%}
+        {%- if node_list[index].control_flow_settings -%}
+        {{ self::render_control_flow_statement(cfd=node_list[index].control_flow_settings) }}
+            {% for child_id in node_list[index].child_ids -%}
+                {{ self::render_template_node(node_list=node_list, index=child_id) }}
+            {%- endfor %}
+}
+        {%- else -%}
+            <{{node_list[index].pascal_identifier}} 
+                {%- if node_list[index].settings -%}
+                    {%- for setting in node_list[index].settings -%}
+                        {{" " ~ setting.0.raw_value }}={{ self::render_value_definition(vd=setting.1) }}
+                    {%- endfor -%}
+                {%- endif -%}
+            {%- if node_list[index].child_ids | length()  > 0 -%}
+                >
+                {% for child_id in node_list[index].child_ids -%}
+                    {{ self::render_template_node(node_list=node_list, index=child_id) }}
+                {%- endfor %}
+</ {{node_list[index].pascal_identifier}} >
+            {%- else -%}
+                />
+            {%- endif -%}
+        {%- endif -%}
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro render_literal_block(lb) %}{%- if lb.explicit_type_pascal_identifier -%}{{lb.explicit_type_pascal_identifier.raw_value}}: {%endif-%}{
+    {%- for pair in lb.settings_key_value_pairs %}
+        {{pair.0.raw_value}}: {{self::render_value_definition(vd=pair.1)}},
+    {%- endfor %}
+    }
+{%- endmacro -%}
+
+
+
+
