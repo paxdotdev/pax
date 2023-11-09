@@ -8,7 +8,7 @@ use piet_common::RenderContext;
 use pax_message::NativeMessage;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex, Axis};
+use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Numeric, Transform2D, TransitionManager, ZIndex, Axis};
 
 use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext, recurse_expand_nodes, RuntimePropertiesStackFrame, PropertiesTreeShared};
 
@@ -76,17 +76,13 @@ macro_rules! handle_vtable_update {
 /// ```
 #[macro_export]
 macro_rules! handle_vtable_update_optional {
-    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
+    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
         if let Some(_) = $var.$field {
             let current_prop = &mut *$var.$field.as_mut().unwrap();
 
             if let Some(vtable_id) = current_prop._get_vtable_id() {
-                let new_value = $rtc.compute_vtable_value(vtable_id);
-                let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
-                    val
-                } else {
-                    unreachable!()
-                };
+                let new_value_wrapped = $ptc.compute_vtable_value(vtable_id);
+                let new_value = unsafe_unwrap!(new_value_wrapped, TypesCoproduct, $inner_type);
                 current_prop.set(new_value);
             }
         }
@@ -120,7 +116,6 @@ impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
 }
 
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
-
 
     pub fn compute_eased_value<T: Clone + Interpolatable>(
         &self,
@@ -229,9 +224,6 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// this one.  Used for e.g. event propagation.
     pub parent_expanded_node: Option<Weak<RefCell<ExpandedNode<R>>>>,
 
-    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    pub children_expanded_nodes: Vec<Weak<RefCell<ExpandedNode<R>>>>,
-
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
     pub instance_node: InstanceNodePtr<R>,
 
@@ -273,12 +265,42 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     computed_common_properties: Rc<RefCell<CommonProperties>>,
+
+    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
+    children_expanded_nodes: Vec<Rc<RefCell<ExpandedNode<R>>>>,
+
+    /// Constant-time lookup for presence of children expanded nodes; maintained duplicatively of children_expanded_nodes
+    /// and used for performant upserts of children_nodes.  Note that this only checks for presence, not for ordering.  If we support
+    /// changing the index of children at any point (e.g. possibly via `key` as a feature of `RepeatInstance`) then this should be
+    /// updated to be order-aware.
+    children_expanded_nodes_set: HashSet<Vec<u32>>,
 }
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
 
-    pub fn set_expanded_and_flattened_slot_children(&mut self, expanded_and_flattened_slot_children: Vec<Rc<RefCell<ExpandedNode<R>>>>) {
-        self.expanded_and_flattened_slot_children = Some(expanded_and_flattened_slot_children);
+    pub fn get_children_expanded_nodes(&self) -> &Vec<Rc<RefCell<ExpandedNode<R>>>> {
+        &self.children_expanded_nodes
+    }
+
+    // Appends the passed `child_expanded_node` to be a child of this ExpandedNode, after first ensuring this node
+    // was not already registered as a child (to avoid duplicates.)  This is especially important in a world
+    // where we expand nodes every tick (pre-dirty-DAG) and this check might be able to be retired when we expand exactly once
+    // per instance tree.
+    pub fn upsert_child_expanded_node(&mut self, child_expanded_node: Rc<RefCell<ExpandedNode<R>>>) {
+        //check if expanded node is already a child of this node ()
+        let cenb = child_expanded_node.borrow();
+        let id_chain_ref = &cenb.id_chain;
+
+        if ! self.children_expanded_nodes_set.contains(id_chain_ref) {
+            let id_chain = id_chain_ref.clone();
+            drop(cenb); // satisfy borrow checker, now that we have our cloned id_chain
+            self.children_expanded_nodes_set.insert(id_chain);
+            self.children_expanded_nodes.push(child_expanded_node);
+        }
+    }
+
+    pub fn set_expanded_and_flattened_slot_children(&mut self, expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>) {
+        self.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
     }
 
     pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
@@ -303,6 +325,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 ancestral_scroller_ids: vec![],
                 scroller_stack: vec![],
                 expanded_and_flattened_slot_children: None,
+                children_expanded_nodes_set: HashSet::new(),
             }));
             ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&new_expanded_node));
             new_expanded_node
@@ -311,7 +334,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 
     pub fn append_child(&mut self, child: Rc<RefCell<ExpandedNode<R>>>) {
-        self.children_expanded_nodes.push(Rc::downgrade(&child));
+        self.children_expanded_nodes.push(Rc::clone(&child));
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
@@ -883,6 +906,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     z_index_gen: 0..,
                 }
             )),
+            expanded_and_flattened_slot_children: None,
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
 

@@ -54,7 +54,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
             _ => None,
         }
     }
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
         let properties_wrapped = this_expanded_node.borrow().get_properties();

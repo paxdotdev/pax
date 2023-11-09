@@ -51,47 +51,43 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
-        // evaluate boolean expression
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
         let properties_wrapped =  this_expanded_node.borrow().get_properties();
 
+        // evaluate boolean expression
         let evaluated_condition = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, ConditionalProperties, |properties: &mut ConditionalProperties| {
             handle_vtable_update!(ptc, properties.boolean_expression, bool);
             //return evaluated value
             *properties.boolean_expression.get()
         });
 
-        // if true, recurse into instance children, stitch ExpandedNode subtree and return subtree root (this_expanded_node)
+        // recurse into instance children, stitch ExpandedNode subtree and return subtree root (this_expanded_node)
         for child in self.instance_children.borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_expanded_node = None;
             new_ptc.current_instance_node = Rc::clone(child);
 
+            // handle false conditional by marking for unmount; continue to recurse into subtree and compute / expand
             if !evaluated_condition {
                 new_ptc.marked_for_unmount = true
             }
 
             let expanded_child = recurse_expand_nodes(&mut new_ptc);
+            this_expanded_node.borrow_mut().upsert_child_expanded_node(expanded_child);
         }
 
         this_expanded_node
-
     }
 
     fn is_invisible_to_slot(&self) -> bool {
         true
     }
+
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.instance_children)
     }
-    // fn get_size(&self) -> Option<(Size, Size)> {
-    //     None
-    // }
-    // fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-    //     bounds
-    // }
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare

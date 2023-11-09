@@ -264,7 +264,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
