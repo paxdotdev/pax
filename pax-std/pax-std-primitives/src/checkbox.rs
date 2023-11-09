@@ -55,7 +55,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for CheckboxInstance<R> {
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn expand_node(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(checked) = rtc.compute_vtable_value(properties.checked._get_vtable_id()) {

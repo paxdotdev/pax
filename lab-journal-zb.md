@@ -4565,7 +4565,7 @@ simple .get/.set ergonomics to the user.
 
 If we charge forward here without dirty dag:
     1. keep properties compute and node expansion coupled; plan to re-run every frame (get-or-create expandednodes provides a hot path caching mechanism, at least)
-        Figure out a hacked solution to parent / child relationships given a world where we re-run tree expansion every tick
+        Figure out a hacked solution to parent / child relationships given a world where we re-run tree expansion every tick (check for presence in parent's child vec before appending; possibly opt. with a hashset alongside children_expanded_nodes for constant lookups)
     2. continue to allow "custom management of children" in the context of node expansion (manages_own_propertie_subtree)
     3. clone our clipping/scrolling/runtimeproperties stacks onto each expanded node, permanently (the Rc<RefCell<>>s hold exactly the right instances of e.g. properties for stack frame)
     4. on each tick, compute_properties for the entire tree from root (clumsy alternative to dag)

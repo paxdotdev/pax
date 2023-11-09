@@ -186,7 +186,7 @@ pub enum NodeType {
 /// `InstanceNode`s are architecturally "type-aware" — they can perform type-specific operations e.g. on the state stored in [`ExpandedNode`], while
 /// [`ExpandedNode`]s are "type-blind".  The latter store polymorphic data but cannot operate on it without the type-aware assistance of their linked `InstanceNode`.
 ///
-/// (See [`RepeatInstance#handle_compute_properties`] where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
+/// (See [`RepeatInstance#expand_node`] where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode<R: 'static + RenderContext> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
@@ -220,7 +220,6 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         None //default no-op
     }
 
-
     /// Returns the bounds of an InstanceNode.  This computation requires a stateful [`ExpandedNode`], yet requires
     /// customization at the trait-implementor level (dyn InstanceNode), thus this method accepts an expanded_node
     /// parameter.
@@ -249,21 +248,22 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         false
     }
 
-    /// Allows an `InstanceNode` to specify that the properties computation engine should not calculate properties
-    /// for its subtree (to stop recursing externally,) because this node will manage its own properties-computation-recursion for its subtree.
-    /// It's expected that node that returns `true` will call `recurse_compute_properties` on instance nodes in its subtree.
+    /// Allows an `InstanceNode` to specify that the properties computation engine should not expand nodes
+    /// for its subtree (to stop recursing externally,) because this node will manage its own recursion for expanding its subtree.
+    /// It's expected that node that returns `true` will call `recurse_expand_nodes` on instance nodes in its subtree.
     /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their properties subtree is calculated.
-    fn manages_own_properties_subtree(&self) -> bool {
+    fn manages_own_subtree_for_expansion(&self) -> bool {
         false
     }
 
-    /// First lifecycle method during each render loop, used to compute
-    /// properties in advance of rendering.  Returns an ExpandedNode for the
+    /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
+    /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
+    /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
-    /// Called by engine after [`handle_compute_properties`], passed calculated size and transform matrix coefficients for convenience
+    /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
     /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
     ///
     /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed

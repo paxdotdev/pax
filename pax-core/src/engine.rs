@@ -10,7 +10,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex, Axis};
 
-use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext, recurse_compute_properties, RuntimePropertiesStackFrame, PropertiesTreeShared};
+use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr, InstanceNodePtrList, TransformAndBounds, PropertiesTreeContext, recurse_expand_nodes, RuntimePropertiesStackFrame, PropertiesTreeShared};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -250,8 +250,23 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// A snapshot of the scroller stack above this element at the time of properties-computation
     pub ancestral_scroller_ids: Vec<Vec<u32>>,
 
-
+    /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
+    /// getting a reference to slot_children for `slot`.
     pub containing_component: Rc<RefCell<ExpandedNode<R>>>,
+
+    /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
+    /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
+    /// explicitly updated to accommodate.)
+    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
+
+    /// Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
+    pub clipping_stack: Vec<Vec<u32>>,
+
+    /// Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
+    pub scroller_stack: Vec<Vec<u32>>,
+
+    /// For component instances only, tracks the expanded + flattened slot_children
+    expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     computed_properties: Rc<RefCell<PropertiesCoproduct>>,
@@ -261,6 +276,11 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
+
+    pub fn set_expanded_and_flattened_slot_children(&mut self, expanded_and_flattened_slot_children: Vec<Rc<RefCell<ExpandedNode<R>>>>) {
+        self.expanded_and_flattened_slot_children = Some(expanded_and_flattened_slot_children);
+    }
+
     pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
         let id_chain = ptc.get_id_chain();
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
@@ -273,12 +293,16 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 instance_node: Rc::clone(&ptc.current_instance_node),
                 tab: ptc.containing_tab.clone(),
                 containing_component: Rc::clone(ptc.current_containing_component.as_ref().unwrap()),
+                runtime_properties_stack: vec![],
+                clipping_stack: vec![],
                 z_index: 0,
                 node_context: ptc.distill_userland_node_context(),
                 computed_properties: Rc::clone(&prototypical_properties),
                 computed_common_properties: Rc::clone(&prototypical_common_properties),
                 ancestral_clipping_ids: vec![],
-                ancestral_scroller_ids: vec![]
+                ancestral_scroller_ids: vec![],
+                scroller_stack: vec![],
+                expanded_and_flattened_slot_children: None,
             }));
             ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&new_expanded_node));
             new_expanded_node
@@ -860,7 +884,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 }
             )),
         };
-        let root_expanded_node = recurse_compute_properties(&mut ptc);
+        let root_expanded_node = recurse_expand_nodes(&mut ptc);
 
         // RENDER
         let mut rtc = RenderTreeContext {
@@ -913,15 +937,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //Recurse:
 
         //  - fire lifecycle events for this node
-        //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
+        //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  Read computed properties from ExpandedNodes, e.g. for transform and bounds.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
 
-
-
-
-        // let accumulated_transform = rtc.transform_global;
-        // let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
         let accumulated_bounds = rtc.current_expanded_node.borrow().tab.bounds;
         let node = Rc::clone(&rtc.current_expanded_node);
 
@@ -929,8 +948,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         if rtc.engine.node_registry.borrow().marked_for_unmount_set.contains(&node.borrow().id_chain) {
             return
         }
-
-
 
         rtc.current_instance_node = Rc::clone(&node.borrow().instance_node);
 
