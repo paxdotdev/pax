@@ -102,7 +102,7 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
 
             recurse_expand_nodes(ptc);
 
-            this_expanded_node.borrow_mut().append_child(child_expanded_node);
+            this_expanded_node.borrow_mut().append_child_expanded_node(child_expanded_node);
         }
     }
 
@@ -267,13 +267,15 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
 /// Handle node unmounting, including check for whether unmount handlers should be fired
 /// (thus this function can be called on all nodes at end of properties computation
 fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
+    let id_chain : Vec<u32> = ptc.current_expanded_node.as_ref().unwrap().borrow().id_chain.clone();
 
-    if ptc.marked_for_unmount {
+    let currently_mounted = matches!(ptc.engine.node_registry.borrow().get_expanded_node(&id_chain), Some(_));
+    if ptc.marked_for_unmount && !currently_mounted {
         ptc.current_instance_node.clone().borrow_mut().handle_unmount(ptc);
 
         ptc.engine.node_registry
             .borrow_mut()
-            .remove_expanded_node(&ptc.current_expanded_node.clone().unwrap().borrow().id_chain);
+            .remove_expanded_node(&id_chain);
     }
 }
 

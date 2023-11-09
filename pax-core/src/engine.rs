@@ -287,13 +287,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     // was not already registered as a child (to avoid duplicates.)  This is especially important in a world
     // where we expand nodes every tick (pre-dirty-DAG) and this check might be able to be retired when we expand exactly once
     // per instance tree.
-    pub fn append_child_expanded_node(&mut self, ptc: &PropertiesTreeContext<R>, child_expanded_node: Rc<RefCell<ExpandedNode<R>>>) {
+    pub fn append_child_expanded_node(&mut self, child_expanded_node: Rc<RefCell<ExpandedNode<R>>>) {
         //check if expanded node is already a child of this node ()
         let cenb = child_expanded_node.borrow();
         let id_chain_ref = &cenb.id_chain;
-
-        //Used at least for Repeat; we mark all old children for unmount every tick, then revert that here
-        ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(id_chain_ref);
 
         if ! self.children_expanded_nodes_set.contains(id_chain_ref) {
             let id_chain = id_chain_ref.clone();
@@ -338,10 +335,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             new_expanded_node
         };
         expanded_node
-    }
-
-    pub fn append_child(&mut self, child: Rc<RefCell<ExpandedNode<R>>>) {
-        self.children_expanded_nodes.push(Rc::clone(&child));
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
