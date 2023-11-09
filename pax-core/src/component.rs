@@ -96,7 +96,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             ptc.current_instance_node = Rc::clone(template_instance_root);
             ptc.current_expanded_node = None;
             let template_expanded_root = recurse_expand_nodes(&mut new_ptc);
-            this_expanded_node.borrow_mut().append_child_expanded_node(ptc, template_expanded_root);
+            this_expanded_node.borrow_mut().append_child_expanded_node(template_expanded_root);
         }
 
         ptc.pop_stack_frame();
