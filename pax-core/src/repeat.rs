@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext};
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_wrap, unsafe_unwrap, handle_vtable_update_optional};
+use pax_properties_coproduct::{PropertiesCoproduct, RepeatProperties, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
@@ -60,7 +60,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         ret
     }
 
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+        let properties_wrapped =  this_expanded_node.borrow().get_properties();
+
+        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, RepeatProperties, |properties: &mut RepeatProperties| {
+            if let Some(ref source) = properties.source_expression_range {
+                handle_vtable_update_optional!(ptc, properties.source_expression_range, std::ops::Range<isize>);
+            } else if let Some(ref source) = properties.source_expression_vec {
+
+            }
+        });
+
+
         // let (is_dirty, normalized_vec_of_props) = if let Some(se) = &self.source_expression_vec {
         //     //Handle case where the source expression is a Vec<Property<T>>,
         //     // like `for elem in self.data_list`

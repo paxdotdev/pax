@@ -72,7 +72,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
     //     bounds
     // }
 
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         // self.common_properties.compute_properties(ptc);
         todo!()
     }

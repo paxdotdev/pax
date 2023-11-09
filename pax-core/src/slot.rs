@@ -66,7 +66,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         // if let Some(index) = ptc.compute_vtable_value(self.index._get_vtable_id()) {
         //     let new_value = if let TypesCoproduct::Numeric(v) = index {
         //         v

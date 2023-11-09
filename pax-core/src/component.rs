@@ -2,7 +2,7 @@ use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{HandlerRegistry, InstantiationArgs, NodeType, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode};
+use crate::{HandlerRegistry, InstantiationArgs, NodeType, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_expand_nodes};
 use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
@@ -91,13 +91,24 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     }
 
 
-    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
-        //ptc.push_stack_frame(...);
-        //recurse and compute template subtree (once [per root])
-        //ptc.pop_stack_frame();
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+        // let properties_wrapped =  this_expanded_node.borrow().get_properties();
+        this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(ptc.expanded_and_flattened_slot_children.take());
 
-        todo!("");
+        ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
+
+        for template_instance_root in self.template.borrow().iter() {
+            let mut new_ptc = ptc.clone();
+            ptc.current_instance_node = Rc::clone(template_instance_root);
+            ptc.current_expanded_node = None;
+            let template_expanded_root = recurse_expand_nodes(&mut new_ptc);
+            this_expanded_node.borrow_mut().upsert_child_expanded_node(template_expanded_root);
+        }
+
+        ptc.pop_stack_frame();
+        this_expanded_node
     }
 
 
