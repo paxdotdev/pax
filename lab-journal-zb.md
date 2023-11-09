@@ -4271,7 +4271,8 @@ Let's store a prototypical clone of the original properties on each InstanceNode
                 [x] Remove ComponentInstance from Repeat
                 [ ] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties_recursive`
                 [ ] Think through mounting / unmounting:
-                    When a Repeat list contracts, we want to mark any of the culled nodes as marked for deletion.
+                    When a Repeat list contracts, we want to mark any of the culled nodes as marked for unmount.
+                    We can leave the ExpandedNodes sitting around and "garbage collect" them later.  Dirty-DAG should be able to address any latent CPU burden here.
             [ ] Conditional
                 [ ] Piecewise-recurse into `compute_properties_recursive`, a la Repeat
                 [x] Ensure that we don't render if an ExpandedNode is `marked_for_unmount`.  There still will likely exist an ExpandedNode, so we must be sure not to render these nodes.
@@ -4299,9 +4300,9 @@ Let's store a prototypical clone of the original properties on each InstanceNode
          |
         baz
     ``` 
-    In the above scenario, you could imagine each of the repeats "shifting" such that a given id_chain is suddenly 
+    In the above scenario, you could imagine each of the repeats "shifting" such that a given id_chain is suddenly ...
     No - because the first int in the id_chain is the instance_id, which is married to a specific instance and globally unique
-    So the repeat_indicies component could become ambiguous in the tree above
+    So the repeat_indicies component of the id_chain (indicies after the zeroth) could become ambiguous in the tree above
     But the full id_chain remains sound.
 
 [ ] Refactor scroller
@@ -4472,43 +4473,146 @@ The primary question is whether these stacks are _stable_ after an expansion, or
 It seems like it's OK to 
 
 
-On tracking ExpandedNode parent-child relationships:
+### On tracking ExpandedNode parent-child relationships 
+Nov 7 2023
 
-```
 (Started as a code comment on a would-be addition to NodeRegistry for tracking ExpandedNode parent/child relationships independently of the node instances (as a relational LUT)
 
-/// Specifies relationships between expanded nodes — intended to be transient, relying on the persisting
-/// nature of ExpandedNodes and the consistency of `id_chain` to reassociate child relationships after possibly clearing them (e.g. on every tick.)
-///
-/// Clearing them would get us clear & clean mutation handling under if / repeat, without having to perform surgery on existing
-/// relationships
-/// It would also let us short-circuit properties subtrees that don't need to be calculated (vs. having lingering ExpandedNodes
-/// if the child relationships persist.)
-///
-/// Do we really need this, though?  The robust alternative may be to search through the on-ExpandedNode `children_expanded_nodes`
-/// for a particular id_chain to decide whether an ExpandedNode needs to add itself to a parent (e.g. in the case where a Repeat list expands.)
-/// "Perform surgery" each time we recurse_compute_properties, to see whether the ExpandedNode needs to be registered as a child of its parent
-///
-/// One other trade-off is compute: recalculating child relationships each tick adds a CPU burden even for an idle program, vs. performing surgery
-/// reaches a steady state (as long as we optimize )
-///
-/// With dirty-DAG, we really only need to be handling the _creation_ of ExpandedNodes — expanding / contracting the tree as necessary —
-/// while the _computation of properties_ happens on a separate pass.  In that world... do we even need parent/child relationships?  (yes — this is exactly used by rendering.)
-/// So: expand the tree, keep track of parent-child relationship
-///
-/// In most cases, ExpandedNodes are totally static.  We could cache them aggressively.
-/// _Only_ for Repeat and If are the child ExpandedNodes subject to changing.  In fact, we might be able to _expand_
-/// ExpandedNodes exactly once, at program init, and then "perform surgery" by API explicitly for the Repeat and If cases.
-/// Thereafter, instead of "expanding tree and computing properties," we just "compute properties."  The pre-dirty-DAG shape of this
-/// would be "just recurse through the tree computing properties." Thereafter, with dirty DAG, we traverse the DAG (when needed) instead
-/// of traversing the tree top-down.
-/// (Maybe we get this already in effect though by getting-or-creating ExpandedNodes as we go.  So there's really no harm in coupling these.)
-///
-/// ***Or maybe the entirety of the current `recurse_compute_properties` method is a one-time init function???***
-///
-/// As long as component-side `handle_compute_properties` have the ability to "perform surgery" on parent/child relationships as needed by conditional + repeat,
-/// then Repeat and Conditional can keep the ExpandedNode tree updated via DAG
-///
-/// Note that the surgery is "append-only."  We could later come back for some sort of explicit "garbage collection" as a feature, but as long as we don't require _removing children expanded nodes_ when e.g. Repeat contracts or If turns off,
-/// then we have an elegant solution for unmounting / mounting (mark subtree unmounted, continue to compute properties, but skip rendering entirely.)
+Specifies relationships between expanded nodes — intended to be transient, relying on the persisting
+nature of ExpandedNodes and the consistency of `id_chain` to reassociate child relationships after possibly clearing them (e.g. on every tick.)
+
+Clearing them would get us clear & clean mutation handling under if / repeat, without having to perform surgery on existing
+relationships
+It would also let us short-circuit properties subtrees that don't need to be calculated (vs. having lingering ExpandedNodes
+if the child relationships persist.)
+
+Do we really need this, though?  The robust alternative may be to search through the on-ExpandedNode `children_expanded_nodes`
+for a particular id_chain to decide whether an ExpandedNode needs to add itself to a parent (e.g. in the case where a Repeat list expands.)
+"Perform surgery" each time we recurse_compute_properties, to see whether the ExpandedNode needs to be registered as a child of its parent
+
+One other trade-off is compute: recalculating child relationships each tick adds a CPU burden even for an idle program, vs. performing surgery
+reaches a steady low-draw state on idle
+
+With dirty-DAG, we really only need to be handling the _creation_ of ExpandedNodes — expanding / contracting the tree as necessary —
+while the _computation of properties_ happens on a separate pass.  In that world... do we even need parent/child relationships?  (yes — this is exactly used by rendering.)
+So: expand the tree, keep track of parent-child relationship
+
+In most cases, ExpandedNodes are totally static.  We could cache them aggressively.
+_Only_ for Repeat and If are the child ExpandedNodes subject to changing. (or via def. changes, e.g. HMR or runtime mutation API.)
+In fact, we might be able to _expand_ ExpandedNodes exactly once, at program init, and then "perform surgery" by API explicitly for the Repeat and If cases.
+
+Thereafter, instead of "expanding tree and computing properties," we just "compute properties."  The pre-dirty-DAG shape of this
+would be "just recurse through the tree computing properties." Thereafter, with dirty DAG, we traverse the DAG (when needed) instead
+of traversing the tree top-down.
+(Maybe we get this already in effect though by getting-or-creating ExpandedNodes as we go.  So there's really no harm in coupling these.)
+
+***Or maybe the entirety of the current `recurse_compute_properties` method is a one-time init function???***
+
+As long as component-side `handle_compute_properties` have the ability to "perform surgery" on parent/child relationships as needed by conditional + repeat,
+then Repeat and Conditional can keep the ExpandedNode tree updated via DAG
+
+Note that the surgery is "append-only."  We could later come back for some sort of explicit "garbage collection" as a feature, but as long as we don't require _removing children expanded nodes_ when e.g. Repeat contracts or If turns off,
+then we have an elegant solution for unmounting / mounting (mark subtree unmounted, continue to compute properties, but skip rendering entirely.)
+
+Note that currently EXPANSION and PROPERTIES-COMPUTE are tightly coupled.  In a dirty-DAG world we need to decouple these, and we should consider whether to do so also in a pre-dirty-dag world too.
+
+Repeat, for example, needs to affect expandednodes (parent/child relationships) as part of its compute_properties.  
+
+In dirty-dag world, we probably need each property to be atomically computable, instead of the current "all properties are computed together in compute_properties" approach.
+This also suggests that all properties need to be uniquely identifiable and addressable in a single place (some sort of PropertyInstanceTable)
+This still runs up against the ergonomics wall of being able to .get and .set. (presuming the instances are wrapped in Rc<RefCell<>>)
+There must be some way to achieve tactical updates of properties in a generic, trait-wrappable way...
+Maybe we could address properties globally a la id_chain?  and an instance_node knows how to translate that address into an atomic compute method?  (in the context of a specific expandednode / stateful property container, of course)
+intuitive ways to address properties via their containing struct (ExpandedNode or PropertiesCoproduct instance)
+    - index
+    - string id
+    - memory offset??? (`repr(C)`)
+
+Statically we know the property names that we're updating; we manually run through these in the boilerplate of `compute_properties`.  Perhaps, then, there's a
+natural place to introduce a static LUT of sorts, for string id => atomic compute_properties function.
+
 ```
+properties_computers = HashMap::from(vec![
+    ("stroke",|properties : &mut Ellipse|{
+        handle_vtable_update!(properties.stroke, PropertiesCoproduct, Stroke);
+    }),
+    ("fill",|properties : &mut Ellipse|{
+        handle_vtable_update!(properties.fill, PropertiesCoproduct, Fill);
+    }),
+])
+```
+
+These properties_computers could be derived straight-forwardly from a struct (ultimately as part of derive(Pax))
+Main drawback is introduction of string properties IDs as runtime footprint overhead
+Dirty DAG, too, would need to address these properties by string ID, introducing duplicate overhead
+Instance dag addresses (instance id, property string id)
+Expanded dag addresses (id_chain, property string id)
+
+How does dirty-dag manage multiple dirty properties? Either the "lightning bolts" of downstream updates happen immediately, or they're enqueued
+It's possible that expression C depends on both properties A and B, and both A and B have changed.  Either we recompute C twice (immediate lightning bolts) or the operations
+are enqueued somehow and possibly de-duplicated.  Upon writing this out, it feels like an exotic feature / optimization.  Recomputing C twice, immediately, should be fine.
+
+So: compute properties _once_ at tree expansion time
+Then, only recompute properties (a) imperatively, e.g. manually by a developer with a `.set` method, or (b) as an immediate downstream effect of an upstream property `.set` (via DAG)
+
+One more important thing to sanity-check while we're speccing this out:
+async + channel-based property setting (as opposed to directly setting on the containing property object itself)
+Note that with the channel approach, we would have the ability to indirect between a `.set` method (on the thin channel object) and an unwrapped `.borrow_mut().etc` on an Rc<RefCell<PropertyInstance>> e.g. in a centralized propertyinstance table.
+This would afford an alternative to `properties_computers` — without the string lookup / association overhead, allowing simple int nodes on the DAG — while still providing
+simple .get/.set ergonomics to the user.
+
+(The above could ostensibly be optimized to use int ids instead of strings, requiring some sort of careful sequencing of application for int IDs => properties)
+
+If we charge forward here without dirty dag:
+    1. keep properties compute and node expansion coupled; plan to re-run every frame (get-or-create expandednodes provides a hot path caching mechanism, at least)
+        Figure out a hacked solution to parent / child relationships given a world where we re-run tree expansion every tick
+    2. continue to allow "custom management of children" in the context of node expansion (manages_own_propertie_subtree)
+    3. clone our clipping/scrolling/runtimeproperties stacks onto each expanded node, permanently (the Rc<RefCell<>>s hold exactly the right instances of e.g. properties for stack frame)
+    4. on each tick, compute_properties for the entire tree from root (clumsy alternative to dag)
+
+
+### On repeat indices and a prospective `key` property
+Nov 8 2023
+
+On the topic of repeat, it's also worth deadend-scoping `key`-like functionality a la React.  Namely, the naive implementation will consider a node unique via its index under the repeat source vec/range.
+React offers a provision for the developer to specify the unique identity of a repeated node,
+
+Here's an example of `key` from the React docs:
+
+```
+<ul>
+  {props.posts.map((post) =>
+    <li key={post.id}>
+      {post.title}
+    </li>
+  )}
+</ul>
+```
+
+and this relevant snippet of doc:
+
+> When children have keys, React uses the key to match children in the original tree with children in the subsequent tree.
+from https://legacy.reactjs.org/docs/reconciliation.html#keys
+
+Is this relevant to us?  The primary cases for this are _insertions_ (where subtrees should be left alone if their identity / data is unchanged) and _reorders_ (converging on a case of insertion.)
+
+A naive approach would be to recompute all of Repeat's children / properties / subtrees on a data list change (insertion, deletion, change in foo or bar in `foo..bar`)
+
+What happens to the "identity" of a node if a repeat index changes?  Most notably, this would introduce a "shift" in id_chain — if we're repeating over [a,b,c]
+and we insert `d` such that we're iterating over [a,d,b,c]
+then `d` maps to the ID chain that used to be associated with `b`.  Let's say the for loop is `for x in my_vec { ... }` we need to ensure that `x` is set to the new value, `d` for the subtree represented by that id_chain.
+In a world with expanded dirty DAG, this should be straight-forward enough.
+In the naive approach, we do the same for `b` and `c`, because their id_chain vs datum relationships have both shifted.  This certainly incurs more property computation work than
+Is there a path to a less naive approach?
+- `key` becomes a common property, either a u32 or a String, and could be set anywhere, though is only read in the context of the top-level children of `Repeat`.
+- `key` _might_ become a member of the id chain!!  instead of the default int-index Vec<u64>.  Would need to figure out how to consolidate possible string key-ids with those u64s.  
+one possible approach could be to shift u64 => i64, and to associate negative values with some sort of string LUT.  So -1 would map to "foo", which the user passes as key, and -1 gets inserted into the id_chain instead of the repeat index.
+This would be portable across the native bridge; too — id_chain remains globablly unique/identifying, but the implementation details of the lookups / negative numbers are encapsulated by Repeat.
+
+
+### On `if` ... `else if` ... `else`,  if-else ladders
+Nov 8 2023
+(Deadend-scoping for properties engine refactor)
+We can probably update the grammar to match an `if_ladder` as an if statement, (some inner statements), some number of else-if statements, (some inner statements), and zero or one else statements.
+We could then model `ConditionalProperties` to have a Vec or linked list of conditional properties (one for each arm) along with a flag describing the kind of arm.  Finally, during properties computation for Conditional,
+we can map this data into imperative Rust if/else if/else statements, like we do with Repeat & friends.
