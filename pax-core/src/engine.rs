@@ -270,7 +270,8 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     children_expanded_nodes: Vec<Rc<RefCell<ExpandedNode<R>>>>,
 
     /// Constant-time lookup for presence of children expanded nodes; maintained duplicatively of children_expanded_nodes
-    /// and used for performant upserts of children_nodes.  Note that this only checks for presence, not for ordering.  If we support
+    /// and used for performant checking-for-presence-before-inserting of children_nodes.
+    /// Note that this only checks for presence, not for ordering.  If we support
     /// changing the index of children at any point (e.g. possibly via `key` as a feature of `RepeatInstance`) then this should be
     /// updated to be order-aware.
     children_expanded_nodes_set: HashSet<Vec<u32>>,
@@ -286,17 +287,23 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     // was not already registered as a child (to avoid duplicates.)  This is especially important in a world
     // where we expand nodes every tick (pre-dirty-DAG) and this check might be able to be retired when we expand exactly once
     // per instance tree.
-    pub fn upsert_child_expanded_node(&mut self, child_expanded_node: Rc<RefCell<ExpandedNode<R>>>) {
+    pub fn append_child_expanded_node(&mut self, ptc: &PropertiesTreeContext<R>, child_expanded_node: Rc<RefCell<ExpandedNode<R>>>) {
         //check if expanded node is already a child of this node ()
         let cenb = child_expanded_node.borrow();
         let id_chain_ref = &cenb.id_chain;
 
+        //Used at least for Repeat; we mark all old children for unmount every tick, then revert that here
+        ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(id_chain_ref);
+
         if ! self.children_expanded_nodes_set.contains(id_chain_ref) {
             let id_chain = id_chain_ref.clone();
+
             drop(cenb); // satisfy borrow checker, now that we have our cloned id_chain
             self.children_expanded_nodes_set.insert(id_chain);
             self.children_expanded_nodes.push(child_expanded_node);
         }
+
+
     }
 
     pub fn set_expanded_and_flattened_slot_children(&mut self, expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>) {
@@ -835,6 +842,11 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     /// Mark an instance node for unmounting, which will happen during the upcoming tick
     pub fn mark_for_unmount(&mut self, id_chain: Vec<u32>) {
         self.marked_for_unmount_set.insert(id_chain);
+    }
+
+    /// Remove from marked_for_unmount_set
+    pub fn revert_mark_for_unmount(&mut self, id_chain: &Vec<u32>) {
+        self.marked_for_unmount_set.remove(id_chain);
     }
 
 }

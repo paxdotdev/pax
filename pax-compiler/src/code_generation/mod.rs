@@ -833,8 +833,8 @@ pub fn generate_and_overwrite_properties_coproduct(
         ("usize", "usize"),
         ("String", "String"),
         (
-            "stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR",
-            "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>",
+            "stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRcoreCOCOcellCOCORefCellLABRPropertiesCoproductRABRRABRRABR",
+            "std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>",
         ),
         ("Transform2D", "pax_runtime_api::Transform2D"),
         ("stdCOCOopsCOCORangeLABRisizeRABR", "std::ops::Range<isize>"),
