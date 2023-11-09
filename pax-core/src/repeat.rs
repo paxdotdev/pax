@@ -60,7 +60,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         ret
     }
 
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         // let (is_dirty, normalized_vec_of_props) = if let Some(se) = &self.source_expression_vec {
         //     //Handle case where the source expression is a Vec<Property<T>>,
         //     // like `for elem in self.data_list`
@@ -187,7 +187,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         Layer::DontCare
     }
 
-    fn manages_own_properties_subtree(&self) -> bool {
+    fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
     // fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {

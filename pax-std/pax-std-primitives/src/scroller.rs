@@ -8,7 +8,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, unsafe_wrap, with_properties_unsafe, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_compute_properties};
+use pax_core::{unsafe_unwrap, unsafe_wrap, with_properties_unsafe, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_expand_nodes};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
     ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
@@ -244,7 +244,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         })
     }
 
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         let id_chain = ptc.get_id_chain();
 
         // if true {
@@ -259,7 +259,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             // let new_instance_node = Rc::clone(child);
             // let new_expanded_node = new_instance_node.borrow().com
             //
-            // recurse_compute_properties();
+            // recurse_expand_nodes();
             todo!("manage children")
         }
 
@@ -330,7 +330,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         // self.common_properties.compute_properties(ptc);
     }
 
-    fn manages_own_properties_subtree(&self) -> bool {
+    fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
 
