@@ -23,30 +23,15 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
     let mut node_borrowed = this_instance_node.borrow_mut();
 
-    //Problem: nodes that manage their own subtree expansion, like Repeat and even more problematically Component,
-    //         will handle their subtree automatically through this method (at least, currently.)  The problem is,
-    //         Component requires that its slot_childen are computed (in the following block of code) ***before expansion,***
-    //         yet slot_children computation requires a handle to this expanded_node.  Ways to untangle:
-    //         - provide a separate lifecycle method for auto vs. manual expansion of subtree (might converge on pre- and post- handlers, like before)
-    //         - since we only use `this_expanded_node` at the _end_ of the slot_children expansion, to apply the flattened children to this_expanded_node (asserted as a Component)
-    //           we could instead invert this and send the flattened slot children to expand_node (via `ptc`, probably) such that
-    //           component can special-case the presence of that data on ptc, attaching the flattened children to itself before / as it recurses
-    let this_expanded_node = node_borrowed.expand_node(ptc);
-
-    let node_type = this_expanded_node.borrow().instance_node.borrow().get_node_type();
-    if matches!(node_type, NodeType::Component) {
-        ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
-    }
-    ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
-
-    // Lifecycle: `mount`
-    manage_handlers_mount(ptc);
-
     // First compute slot_children — that is, the children templated _inside_ a component.
     // For example, in `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
     // starting at `for` is the subtree of slot_children for the described instance of `Stacker`.
     // Read more about slot children at [`InstanceNode#get_slot_children`]
-    if let Some(slot_children) = node_borrowed.get_slot_children() {
+    let expanded_and_flattened_slot_children = if let Some(slot_children) = node_borrowed.get_slot_children() {
+
+        //Assert that this is indeed a Component (only Components may be registered with slot_children)
+        let node_type = this_instance_node.borrow().get_node_type();
+        assert!(matches!(node_type, NodeType::Component), ""); // `this_expanded_node`'s related `instance_node` must be of type NodeType::Component.
 
         //Expand children in the context of the current containing component
         let mut expanded_slot_children = vec![];
@@ -63,18 +48,42 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
         //[`ConditionalInstance`] and [`RepeatInstance`]
         let mut expanded_and_flattened_slot_children = vec![];
         for expanded_slot_child in expanded_slot_children {
-            expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(&Rc::downgrade(&expanded_slot_child)));
+            expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(&Rc::clone(&expanded_slot_child)));
         }
 
-        let node_type = this_expanded_node.borrow().instance_node.borrow().get_node_type();
-        assert!(matches!(node_type, NodeType::Component), ""); // `this_expanded_node`'s related `instance_node` must be of type NodeType::Component.
+        Some(expanded_and_flattened_slot_children)
+        // this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
+    } else {
+        None
+    };
 
-        this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
+    ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
+
+
+    //Problem: nodes that manage their own subtree expansion, like Repeat and even more problematically Component,
+    //         will handle their subtree automatically through this method (at least, currently.)  The problem is,
+    //         Component requires that its slot_childen are computed (in the following block of code) ***before expansion,***
+    //         yet slot_children computation requires a handle to this expanded_node, so that they may be registered to this node as "component slot children."
+    // Ways to untangle:
+    //         - provide a separate lifecycle method for auto vs. manual expansion of subtree (might converge on pre- and post- handlers, like before)
+    //         - since we only use `this_expanded_node` at the _end_ of the slot_children expansion, to apply the flattened children to this_expanded_node (asserted as a Component)
+    //           we could instead invert this and send the flattened slot children to expand_node (via `ptc`, probably) such that
+    //           component can special-case the presence of that data on ptc, attaching the flattened children to itself before / as it recurses
+    let this_expanded_node = node_borrowed.expand_node_and_compute_properties(ptc);
+
+    let node_type = this_expanded_node.borrow().instance_node.borrow().get_node_type();
+    if matches!(node_type, NodeType::Component) {
+        ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
     }
+    ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+
+    // Lifecycle: `mount`
+    manage_handlers_mount(ptc);
+
+
 
     let new_tab = compute_tab(ptc);
     ptc.containing_tab = new_tab;
-
 
     // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.  If this is such a node,
     if !this_instance_node.borrow().manages_own_subtree_for_expansion() {
@@ -116,24 +125,22 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
 
 
 /// Helper function that accepts a
-fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(node: &Weak<RefCell<ExpandedNode<R>>>) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
+fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(node: &Rc<RefCell<ExpandedNode<R>>>) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
     let mut result = vec![];
 
     let is_invisible_to_slot = {
-        let node_upgraded = node.upgrade().unwrap();
-        let node_borrowed = node_upgraded.borrow();
+        let node_borrowed = node.borrow();
         let instance_node_borrowed = node_borrowed.instance_node.borrow();
         instance_node_borrowed.is_invisible_to_slot()
     };
     if is_invisible_to_slot {
         // If the node is invisible, recurse on its children
-        let node_upgraded = node.upgrade().unwrap();
-        for child in node_upgraded.borrow().children_expanded_nodes.iter() {
-            result.extend(flatten_expanded_node_for_slot(&child));
+        for child in node.borrow().get_children_expanded_nodes().iter() {
+            result.extend(flatten_expanded_node_for_slot(child));
         }
     } else {
         // If the node is visible, add it to the result
-        result.push(node.upgrade().unwrap());
+        result.push(Rc::clone(node));
     }
 
     result
@@ -310,6 +317,10 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     /// rendering some member of its template.
     pub current_containing_component: Option<Rc<RefCell<ExpandedNode<R>>>>,
 
+    /// A register used for passing slot children to components.  This is passed via `ptc` to satisfy sequencing concerns.
+    /// Decoupling expansion from properties computation should enable removing this from `PropertiesTreeContext`
+    pub expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
+
     /// A pointer to the current instance node
     pub current_instance_node: InstanceNodePtr<R>,
 
@@ -357,6 +368,7 @@ pub struct PropertiesTreeShared {
 impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
     fn clone(&self) -> Self {
         Self {
+            expanded_and_flattened_slot_children: self.expanded_and_flattened_slot_children.clone(),
             engine: &self.engine.clone(),
             current_containing_component: self.current_containing_component.clone(),
             current_instance_node: Rc::clone(&self.current_instance_node),
@@ -444,15 +456,13 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(
         &mut self,
-        properties: Rc<RefCell<PropertiesCoproduct>>,
-        timeline: Option<Rc<RefCell<Timeline>>>,
+        properties: Rc<RefCell<PropertiesCoproduct>>
     ) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
         self.shared.borrow_mut().runtime_properties_stack.push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
             properties,
             parent,
-            timeline,
         ))));
     }
 
@@ -498,35 +508,16 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 pub struct RuntimePropertiesStackFrame {
     properties: Rc<RefCell<PropertiesCoproduct>>,
     parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
-    timeline: Option<Rc<RefCell<Timeline>>>,
 }
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
         properties: Rc<RefCell<PropertiesCoproduct>>,
         parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
-        timeline: Option<Rc<RefCell<Timeline>>>,
     ) -> Self {
         RuntimePropertiesStackFrame {
             properties,
             parent,
-            timeline,
-        }
-    }
-
-    pub fn get_timeline_playhead_position(&self) -> usize {
-        match &self.timeline {
-            None => {
-                //if this stackframe doesn't carry a timeline, then refer
-                //to the parent stackframe's timeline (and recurse)
-                match &self.parent {
-                    Some(parent_frame) => (*parent_frame.upgrade().unwrap())
-                        .borrow()
-                        .get_timeline_playhead_position(),
-                    None => 0,
-                }
-            }
-            Some(timeline) => (**timeline).borrow().playhead_position,
         }
     }
 
@@ -556,26 +547,4 @@ impl RuntimePropertiesStackFrame {
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
         Rc::clone(&self.properties)
     }
-}
-
-/// Given a vec of instance nodes (TODO: or expanded nodes?), process them recursively into a single flat list of `ExpandedNodes`,
-/// such that they can be "redirected" by Slot at render-time.  In particular, this handles `if` and `for`,
-/// which should be invisible to slot.  E.g. `for i in 0..10 { <Rectangle /> }` would flatten into 10 `Rectangle` nodes.
-pub fn flatten_invisible_slot_children_recursive<R: 'static + RenderContext>(
-    slot_children: Vec<InstanceNodePtr<R>>,
-) -> Vec<InstanceNodePtr<R>> {
-    todo!("handle multiple roots");
-    // let slot_child_borrowed = (**slot_child).borrow_mut();
-    // if slot_child_borrowed.is_invisible_to_slot() {
-    //     (*slot_child_borrowed.get_instance_children())
-    //         .borrow()
-    //         .iter()
-    //         .map(|top_level_child_node| {
-    //             Runtime::flatten_invisible_slot_children_recursive(top_level_child_node, rtc)
-    //         })
-    //         .flatten()
-    //         .collect()
-    // } else {
-    //     vec![Rc::clone(slot_child)]
-    // }
 }

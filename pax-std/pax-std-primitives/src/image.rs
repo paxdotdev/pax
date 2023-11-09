@@ -57,7 +57,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
             _ => None,
         }
     }
-    fn expand_node(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(path) = rtc.compute_vtable_value(properties.path._get_vtable_id()) {
