@@ -35,6 +35,9 @@ export class PaxChassisWeb {
 */
   send_viewport_update(width: number, height: number, dpr: number): void;
 /**
+*/
+  clear(): void;
+/**
 * @param {string} id
 */
   remove_context(id: string): void;

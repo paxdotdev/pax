@@ -127,6 +127,12 @@ impl PaxChassisWeb {
         }
     }
 
+    pub fn clear(&mut self) {
+        for rc in self.drawing_contexts.values_mut() {
+            rc.clear();
+        }
+    }
+
     pub fn remove_context(&mut self, id: String) {
         self.drawing_contexts.remove(&id);
     }

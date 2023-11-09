@@ -142,7 +142,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             let image_bounds = transform.outer_transformed_box(&bounds);
             image.rect = image_bounds;
 
-            rc.draw_image(image.clone());
+            rc.draw_image(image);
         }
     }
 }

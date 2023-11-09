@@ -1455,7 +1455,6 @@ var Pax = (() => {
     }
   }
   async function startRenderLoop(extensionlessUrl, mount2) {
-    console.log("start 4");
     try {
       let { chassis, get_latest_memory } = await loadWasmModule(extensionlessUrl);
       isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1468,6 +1467,7 @@ var Pax = (() => {
   async function renderLoop(chassis, mount2, get_latest_memory) {
     nativePool.sendScrollerValues();
     nativePool.setCanvasDpi();
+    chassis.clear();
     const memorySliceSpec = chassis.tick();
     const latestMemory = get_latest_memory();
     const memoryBuffer = new Uint8Array(latestMemory.buffer);

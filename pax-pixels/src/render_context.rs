@@ -21,7 +21,6 @@ use crate::render_backend::RenderBackend;
 
 pub struct WgpuRenderer {
     buffers: CpuBuffers,
-    images: Vec<Image>,
     render_backend: RenderBackend,
     transform_stack: Vec<Transform2D>,
     clipping_stack: Vec<u32>,
@@ -41,7 +40,6 @@ impl WgpuRenderer {
             _pad2: 0,
         };
         Self {
-            images: vec![],
             render_backend,
             transform_stack: Vec::new(),
             buffers: CpuBuffers {
@@ -173,14 +171,20 @@ impl RenderContext for WgpuRenderer {
         };
     }
 
-    fn draw_image(&mut self, image: Image) {
-        self.images.push(image);
+    fn clear(&mut self) {
+        self.render_backend.clear();
+    }
+
+    fn draw_image(&mut self, image: &Image) {
+        self.flush();
+        self.render_backend.render_image(image);
     }
 
     fn flush(&mut self) {
-        self.render_backend.render(&mut self.buffers, &self.images);
-        self.images.clear();
-        self.buffers.reset();
+        if self.buffers.primitives.len() > 0 {
+            self.render_backend.render_primitives(&mut self.buffers);
+            self.buffers.reset();
+        }
     }
 
     fn push_transform(&mut self, transform: Transform2D) {
@@ -218,7 +222,8 @@ impl RenderContext for WgpuRenderer {
     }
 
     fn size(&self) -> (f32, f32) {
-        self.render_backend.globals.resolution.into()
+        let res = &self.render_backend.globals.resolution;
+        (res[0], res[1])
     }
 }
 

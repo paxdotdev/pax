@@ -21,7 +21,8 @@ pub struct StrokeStyle {} //TODOrefactor
 pub trait RenderContext {
     fn fill_path(&mut self, path: Path, fill: Fill);
     fn stroke_path(&mut self, path: Path, stroke: Stroke);
-    fn draw_image(&mut self, image: Image);
+    fn draw_image(&mut self, image: &Image);
+    fn clear(&mut self);
     fn push_transform(&mut self, transform: Transform2D);
     fn pop_transform(&mut self);
     fn push_clipping_bounds(&mut self, bounds: Box2D);

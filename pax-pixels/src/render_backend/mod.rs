@@ -4,8 +4,8 @@ use bytemuck::Pod;
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
     util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device,
-    IndexFormat, InstanceFlags, PresentMode, RenderPipeline, SurfaceConfiguration, TextureFormat,
-    TextureUsages,
+    IndexFormat, InstanceFlags, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture,
+    TextureFormat, TextureUsages, TextureView,
 };
 use winit::window::Window;
 
@@ -451,11 +451,8 @@ impl RenderBackend {
         self.index_count = geom.indices.len() as u64;
     }
 
-    pub(crate) fn render(&mut self, buffers: &mut CpuBuffers, images: &[Image]) {
-        let output = self.surface.get_current_texture().unwrap();
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+    pub(crate) fn render_primitives(&mut self, buffers: &mut CpuBuffers) {
+        let (screen_surface, screen_texture) = self.get_screen_texture();
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -466,15 +463,16 @@ impl RenderBackend {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &screen_texture,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 0.0,
-                        }),
+                        load: wgpu::LoadOp::Load,
+                        // load: wgpu::LoadOp::Clear(wgpu::Color {
+                        //     r: 0.0,
+                        //     g: 0.0,
+                        //     b: 0.0,
+                        //     a: 0.0,
+                        // }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -494,20 +492,62 @@ impl RenderBackend {
 
         //render primitives
         self.queue.submit(std::iter::once(encoder.finish()));
+        screen_surface.present();
+    }
 
-        //render images (obs ordering not working here)
-        for image in images {
-            self.texture_renderer.render_image(
-                &self.device,
-                &self.queue,
-                &view,
-                &self.globals_buffer,
-                &image.rgba,
-                image.pixel_width,
-                image.rect,
-            );
+    fn get_screen_texture(&self) -> (SurfaceTexture, TextureView) {
+        let screen_surface = self.surface.get_current_texture().unwrap();
+        let screen_texture = screen_surface
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        (screen_surface, screen_texture)
+    }
+
+    pub(crate) fn render_image(&mut self, image: &Image) {
+        let (screen_surface, screen_texture) = self.get_screen_texture();
+        self.texture_renderer.render_image(
+            &self.device,
+            &self.queue,
+            &screen_texture,
+            &self.globals_buffer,
+            &image.rgba,
+            image.pixel_width,
+            image.rect,
+        );
+        screen_surface.present();
+    }
+
+    pub(crate) fn clear(&mut self) {
+        let (screen_surface, screen_texture) = self.get_screen_texture();
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &screen_texture,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
         }
-        output.present();
+        self.queue.submit(std::iter::once(encoder.finish()));
+        screen_surface.present();
     }
 }
 

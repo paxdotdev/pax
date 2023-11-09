@@ -80,6 +80,7 @@ async function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_me
     nativePool.sendScrollerValues();
     nativePool.setCanvasDpi();
 
+    chassis.clear();
     const memorySliceSpec = chassis.tick();
     const latestMemory : WebAssembly.Memory = get_latest_memory();
     const memoryBuffer = new Uint8Array(latestMemory.buffer);
