@@ -67,7 +67,7 @@ macro_rules! unsafe_wrap {
 /// the parameterized variant/type, and executing a provided closure in the
 /// context of that unwrapped variant (including support for mutable operations),
 /// then cleaning up by repacking that variant into the Rc<RefCell<>> after
-/// the closure is executed.  Used at least by calculating properties in `handle_compute_properties` and
+/// the closure is executed.  Used at least by calculating properties in `expand_node` and
 /// passing `&mut self` into event handlers (where the `self` is one of these wrapped instances of PropertiesCoproduct.)
 ///
 /// # Examples

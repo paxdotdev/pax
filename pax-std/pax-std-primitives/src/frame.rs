@@ -144,7 +144,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         Rc::clone(&self.primitive_children)
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn expand_node(&mut self, rtc: &mut RenderTreeContext<R>) {
         self.common_properties.compute_properties(rtc);
     }
 

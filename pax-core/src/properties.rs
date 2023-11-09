@@ -7,20 +7,25 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
 use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation};
-use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, PaxEngine, TransformAndBounds};
+use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, TransformAndBounds};
 
-/// Recursive workhorse method for computing properties.  Visits all instance nodes in tree, stitching
-/// together an expanded tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
-/// Properties computation is handled within this pass, and computed properties are stored in individual ExpandedNodes.
+/// Recursive workhorse method for expanding nodes.  Visits all instance nodes in tree, stitching
+/// together a tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
+/// All properties are computed within this pass, and computed properties are stored in individual ExpandedNodes.
 /// Rendering is then a function of these ExpandedNodes.
-pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+///
+/// Note that `recurse_expand_nodes` could be called each frame to brute-force compute every property, but
+/// once we support "dirty DAG" for tactical property updates and no-properties-computation-at-rest, then
+/// this expansion should only need to happen once, at program init, or when a program definition is mutated,
+/// e.g. via hot-module reloading.
+pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
     let mut node_borrowed = this_instance_node.borrow_mut();
 
     // Used e.g. for Components to push property stack frames
     // node_borrowed.handle_pre_compute_properties(ptc);
-    let this_expanded_node = node_borrowed.handle_compute_properties(ptc);
+    let this_expanded_node = node_borrowed.expand_node(ptc);
 
     ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
 
@@ -32,14 +37,21 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     // starting at `for` is the subtree of slot_children for the described instance of `Stacker`.
     // Read more about slot children at [`InstanceNode#get_slot_children`]
     if let Some(slot_children) = node_borrowed.get_slot_children() {
+        let mut expanded_slot_children = vec![];
         for child in (*slot_children).borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(child);
-            let child_expanded_node = recurse_compute_properties(&mut new_ptc);
-
-            todo!("aggregate child_expanded_nodes and make sure they end up in current_component_slot_children")
+            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+            expanded_slot_children.push(child_expanded_node);
 
         }
+        let mut expanded_and_flattened_slot_children = vec![];
+
+        for expanded_slot_child in expanded_slot_children {
+            expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(&Rc::downgrade(&expanded_slot_child)));
+        }
+
+        this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
     }
 
     let new_tab = compute_tab(ptc);
@@ -56,10 +68,10 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
 
         let mut new_ptc = ptc.clone();
         new_ptc.current_instance_node = Rc::clone(child);
-        let child_expanded_node = recurse_compute_properties(&mut new_ptc);
+        let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
 
         todo!("check whether properties subtree is manually managed; decide where to gate recursion based on that.");
-        recurse_compute_properties(ptc);
+        recurse_expand_nodes(ptc);
 
 
         this_expanded_node.borrow_mut().append_child(child_expanded_node);
@@ -80,6 +92,31 @@ pub fn recurse_compute_properties<R: 'static + RenderContext>(ptc: &mut Properti
     // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);
     this_expanded_node
+}
+
+
+/// Helper function that accepts a
+fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(node: &Weak<RefCell<ExpandedNode<R>>>) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
+    let mut result = vec![];
+
+    let is_invisible_to_slot = {
+        let node_upgraded = node.upgrade().unwrap();
+        let node_borrowed = node_upgraded.borrow();
+        let instance_node_borrowed = node_borrowed.instance_node.borrow();
+        instance_node_borrowed.is_invisible_to_slot()
+    };
+    if is_invisible_to_slot {
+        // If the node is invisible, recurse on its children
+        let node_upgraded = node.upgrade().unwrap();
+        for child in node_upgraded.borrow().children_expanded_nodes.iter() {
+            result.extend(flatten_expanded_node_for_slot(&child));
+        }
+    } else {
+        // If the node is visible, add it to the result
+        result.push(node.upgrade().unwrap());
+    }
+
+    result
 }
 
 

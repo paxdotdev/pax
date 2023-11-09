@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_unwrap, unsafe_wrap, handle_vtable_update, recurse_compute_properties};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_unwrap, unsafe_wrap, handle_vtable_update, recurse_expand_nodes};
 use pax_properties_coproduct::{ConditionalProperties, PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
@@ -48,10 +48,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
-    fn manages_own_properties_subtree(&self) -> bool {
+    fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
         // evaluate boolean expression
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
@@ -73,7 +73,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
                 new_ptc.marked_for_unmount = true
             }
 
-            let expanded_child = recurse_compute_properties(&mut new_ptc);
+            let expanded_child = recurse_expand_nodes(&mut new_ptc);
         }
 
         this_expanded_node

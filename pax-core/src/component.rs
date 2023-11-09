@@ -86,12 +86,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     //     bounds
     // }
 
-    fn manages_own_properties_subtree(&self) -> bool {
+    fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
 
 
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
         //ptc.push_stack_frame(...);
         //recurse and compute template subtree (once [per root])
