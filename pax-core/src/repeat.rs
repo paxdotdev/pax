@@ -15,16 +15,8 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub repeated_template: InstanceNodePtrList<R>,
 
-    // pub active_children: InstanceNodePtrList<R>,
-    // pub cleanup_children: InstanceNodePtrList<R>,
-
     instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
-
-    // Used for hacked dirty-checking, in the absence of our centralized dirty-checker
-    // cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
-    // cached_old_value_range: Option<std::ops::Range<isize>>,
-    // cached_old_bounds: (f64, f64),
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
@@ -65,11 +57,39 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
         let properties_wrapped =  this_expanded_node.borrow().get_properties();
 
-        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, RepeatProperties, |properties: &mut RepeatProperties| {
-            if let Some(ref source) = properties.source_expression_range {
-                handle_vtable_update_optional!(ptc, properties.source_expression_range, std::ops::Range<isize>);
-            } else if let Some(ref source) = properties.source_expression_vec {
+        //Mark all of Repeat's existing children (from previous tick) for unmount.  Then, when we iterate and append_children below, ensure that the mark-for-unmount is reverted
+        //(See internals of `ExpandedNode#append_child_expanded_node` where we revert this unmounting.)  Revisit this logic in the presence of dirty-DAG.
+        for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
+            ptc.engine.node_registry.borrow_mut().mark_for_unmount(cen.borrow().id_chain.clone());
+        }
 
+        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, RepeatProperties, |properties: &mut RepeatProperties| {
+            handle_vtable_update_optional!(ptc, properties.source_expression_range, std::ops::Range<isize>);
+            handle_vtable_update_optional!(ptc, properties.source_expression_vec, std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>);
+
+            if let Some(ref source) = properties.source_expression_range {
+                let range_evaled = source.get();
+                for i in range_evaled.start..range_evaled.end {
+                    todo!("push stack frame, recurse, pop stack frame");
+                    todo!("manage appending children");
+                }
+
+            } else if let Some(ref source) = properties.source_expression_vec {
+                let vec_evaled = source.get();
+
+                for pc in vec_evaled.iter() {
+                    ptc.push_stack_frame(Rc::clone(pc));
+
+                    for repeated_template_instance_root in self.repeated_template.borrow().iter() {
+                        let mut new_ptc = ptc.clone();
+                        new_ptc.current_expanded_node = None;
+                        new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
+
+                        
+                    }
+
+                    ptc.pop_stack_frame()
+                }
             }
         });
 

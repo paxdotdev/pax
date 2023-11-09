@@ -381,8 +381,8 @@ fn recurse_compile_expressions<'a>(
                     .type_id
                     .clone();
                 (
-                    symbolic_binding.clone(),
-                    TypeDefinition::builtin_vec_rc_properties_coproduct(inner_iterable_type_id),
+                    symbolic_binding.to_string(),
+                    TypeDefinition::builtin_vec_rc_ref_cell_properties_coproduct(inner_iterable_type_id),
                 )
             } else {
                 unreachable!()

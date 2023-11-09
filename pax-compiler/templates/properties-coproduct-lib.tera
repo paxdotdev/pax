@@ -11,7 +11,7 @@ pub enum PropertiesCoproduct {
     Repeat(RepeatProperties),
     Slot(SlotProperties),
     Conditional(ConditionalProperties),
-    RepeatItem(Rc<PropertiesCoproduct>, usize),
+    RepeatItem(Rc<RefCell<PropertiesCoproduct>>, usize),
     #[allow(non_camel_case_types)]
     isize(isize),
     #[allow(non_camel_case_types)]
@@ -35,7 +35,7 @@ pub enum TypesCoproduct {
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
 ///is encoded as a Vec<T> (where T is a PropertiesCoproduct type) or as a Range<isize>
 pub struct RepeatProperties {
-    pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<PropertiesCoproduct>>>>>>,
     pub source_expression_range: Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
 }
 
