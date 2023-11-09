@@ -301,8 +301,8 @@ impl TypeDefinition {
     }
 
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
-    pub fn builtin_vec_rc_properties_coproduct(inner_iterable_type_id: String) -> Self {
-        let type_id = "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>";
+    pub fn builtin_vec_rc_ref_cell_properties_coproduct(inner_iterable_type_id: String) -> Self {
+        let type_id = "std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>";
         Self {
             type_id: type_id.to_string(),
             type_id_escaped: escape_identifier(type_id.to_string()),
@@ -320,17 +320,6 @@ impl TypeDefinition {
             property_definitions: vec![],
             inner_iterable_type_id: Some("isize".to_string()),
             import_path: "std::ops::Range".to_string(),
-        }
-    }
-
-    pub fn builtin_rc_properties_coproduct() -> Self {
-        let type_id = "std::rc::Rc<PropertiesCoproduct>";
-        Self {
-            type_id: type_id.to_string(),
-            type_id_escaped: escape_identifier(type_id.to_string()),
-            property_definitions: vec![],
-            inner_iterable_type_id: None,
-            import_path: "std::rc::Rc".to_string(),
         }
     }
 }

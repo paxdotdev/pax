@@ -67,11 +67,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         {% endfor %}
 
         {% if expression_spec.is_repeat_source_iterable_expression %}
-            {# We have a Vec<T> and we need to rewrap it into a Vec<Rc<PropertiesCoproduct>> for Repeat #}
+            {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<Rc<RefCell<PropertiesCoproduct>>> for Repeat #}
             {% for invocation in expression_spec.invocations %}
                 let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
-                    Rc::new(PropertiesCoproduct::{{expression_spec.repeat_source_iterable_type_id_escaped}}(t.clone()))
-                }).collect::<Vec<Rc<PropertiesCoproduct>>>();
+                    Rc::new(RefCell::new(PropertiesCoproduct::{{expression_spec.repeat_source_iterable_type_id_escaped}}(t.clone())))
+                }).collect::<Vec<Rc<RefCell<PropertiesCoproduct>>>>();
             {% endfor %}
         {% endif %}
 

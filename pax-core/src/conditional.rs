@@ -75,7 +75,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             }
 
             let expanded_child = recurse_expand_nodes(&mut new_ptc);
-            this_expanded_node.borrow_mut().upsert_child_expanded_node(expanded_child);
+            this_expanded_node.borrow_mut().append_child_expanded_node(ptc, expanded_child);
         }
 
         this_expanded_node

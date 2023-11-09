@@ -79,17 +79,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         ret
     }
 
-    // fn get_size(&self) -> Option<(Size, Size)> {
-    //     None
-    // }
-    // fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-    //     bounds
-    // }
-
     fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
-
 
     fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
@@ -104,7 +96,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             ptc.current_instance_node = Rc::clone(template_instance_root);
             ptc.current_expanded_node = None;
             let template_expanded_root = recurse_expand_nodes(&mut new_ptc);
-            this_expanded_node.borrow_mut().upsert_child_expanded_node(template_expanded_root);
+            this_expanded_node.borrow_mut().append_child_expanded_node(ptc, template_expanded_root);
         }
 
         ptc.pop_stack_frame();

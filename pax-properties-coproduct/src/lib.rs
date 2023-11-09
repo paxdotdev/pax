@@ -22,7 +22,7 @@ pub enum PropertiesCoproduct {
     Repeat(RepeatProperties),
     Slot(SlotProperties),
     Conditional(ConditionalProperties),
-    RepeatItem(Rc<PropertiesCoproduct>, usize),
+    RepeatItem(Rc<RefCell<PropertiesCoproduct>>, usize),
     #[allow(non_camel_case_types)]
     usize(usize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
     #[allow(non_camel_case_types)]
@@ -42,7 +42,7 @@ pub enum TypesCoproduct {
     usize(usize), //used by Slot for index
 
     #[allow(non_camel_case_types)]
-    stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(Vec<Rc<PropertiesCoproduct>>),
+    stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRcoreCOCOcellCOCORefCellLABRPropertiesCoproductRABRRABRRABR(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     #[allow(non_camel_case_types)]
     stdCOCOopsCOCORangeLABRisizeRABR(Range<isize>),
     String(String),
@@ -58,7 +58,7 @@ pub enum TypesCoproduct {
 ///is encoded as a Vec<T> (where T is a PropertiesCoproduct type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<PropertiesCoproduct>>>>>>,
     pub source_expression_range: Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
 }
 
