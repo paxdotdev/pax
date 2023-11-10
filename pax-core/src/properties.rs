@@ -7,7 +7,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
 use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation};
-use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, TransformAndBounds};
+use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds};
 
 /// Recursive workhorse method for expanding nodes.  Visits all instance nodes in tree, stitching
 /// together a tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
@@ -57,19 +57,13 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
         None
     };
 
+    // Attach component-evel e_a_f_s_c to `ptc` so that they can be used by components inside expand_node_and_compute_properties
     ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
 
-
-    //Problem: nodes that manage their own subtree expansion, like Repeat and even more problematically Component,
-    //         will handle their subtree automatically through this method (at least, currently.)  The problem is,
-    //         Component requires that its slot_childen are computed (in the following block of code) ***before expansion,***
-    //         yet slot_children computation requires a handle to this expanded_node, so that they may be registered to this node as "component slot children."
-    // Ways to untangle:
-    //         - provide a separate lifecycle method for auto vs. manual expansion of subtree (might converge on pre- and post- handlers, like before)
-    //         - since we only use `this_expanded_node` at the _end_ of the slot_children expansion, to apply the flattened children to this_expanded_node (asserted as a Component)
-    //           we could instead invert this and send the flattened slot children to expand_node (via `ptc`, probably) such that
-    //           component can special-case the presence of that data on ptc, attaching the flattened children to itself before / as it recurses
+    // Expand the node
     let this_expanded_node = node_borrowed.expand_node_and_compute_properties(ptc);
+    // Compute common properties
+    this_expanded_node.borrow_mut().get_common_properties().borrow_mut().compute_properties(ptc);
 
     let node_type = this_expanded_node.borrow().instance_node.borrow().get_node_type();
     if matches!(node_type, NodeType::Component) {

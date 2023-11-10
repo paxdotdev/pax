@@ -65,16 +65,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         Layer::DontCare
     }
 
-    // fn get_size(&self) -> Option<(Size, Size)> {
-    //     None
-    // }
-    // fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-    //     bounds
-    // }
 
     fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        // self.common_properties.compute_properties(ptc);
-        todo!()
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+        this_expanded_node
     }
 
 }

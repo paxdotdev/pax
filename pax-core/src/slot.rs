@@ -4,13 +4,13 @@ use core::option::Option::{None, Some};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct};
+use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct, SlotProperties};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext};
-use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_unwrap, unsafe_wrap, handle_vtable_update};
+use pax_runtime_api::{CommonProperties, Layer, Numeric, PropertyInstance, Size};
 
-/// A special "control-flow" primitive (a la `yield`) — represents a slot into which
+/// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
 /// an slot_child can be rendered.  Slot relies on `slot_children` being present
 /// on the [`Runtime`] stack and will not render any content if there are no `slot_children` found.
 ///
@@ -44,22 +44,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
             instance_id,
             instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
             instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
-            // index: args.slot_index.expect("index required for Slot"),
-            // cached_computed_children: Rc::new(RefCell::new(vec![])),
         }));
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
-
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-        // self.cached_computed_children = if let Some(sc) = rtc.current_containing_component.borrow().get_slot_children() {
-        //     flatten_slot_invisible_nodes_recursive(sc)
-        // } else {
-        //     Rc::new(RefCell::new(vec![]))
-        // }
-    }
 
+    }
 
     /// Slot has strictly zero instance_children, but will likely have ExpandedNode children
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
@@ -67,16 +59,32 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
     }
 
     fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        // if let Some(index) = ptc.compute_vtable_value(self.index._get_vtable_id()) {
-        //     let new_value = if let TypesCoproduct::Numeric(v) = index {
-        //         v
-        //     } else {
-        //         unreachable!()
-        //     };
-        //     self.index.set(new_value);
-        // }
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+        let properties_wrapped =  this_expanded_node.borrow().get_properties();
 
-        todo!()
+        //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this
+        //method for attached nodes.  This enables changes / shifts in slot index + firing mount / unmount lifecycle events along the way.
+        for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
+            ptc.engine.node_registry.borrow_mut().mark_for_unmount(cen.borrow().id_chain.clone());
+        }
+
+        let current_index : usize = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, SlotProperties, |properties: &mut SlotProperties| {
+            handle_vtable_update!(ptc, properties.index, Numeric);
+            properties.index.get().get_as_int().try_into().expect("Slot index must be non-negative")
+        });
+
+        let ccc = ptc.current_containing_component.as_ref().unwrap();
+        let cccb = ccc.borrow();
+        let containing_component_flattened_slot_children = cccb.get_expanded_and_flattened_slot_children();
+
+        if let Some(slot_children) = containing_component_flattened_slot_children {
+            if let Some(child_to_forward) = slot_children.get(current_index) {
+                this_expanded_node.borrow_mut().append_child_expanded_node(Rc::clone(child_to_forward));
+                ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(&child_to_forward.borrow().id_chain);
+            }
+        }
+
+        this_expanded_node
     }
 
     fn get_layer_type(&mut self) -> Layer {
