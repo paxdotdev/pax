@@ -60,7 +60,7 @@ pub fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 26] = [
+    const IMPORTS_BUILTINS: [&str; 27] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
@@ -70,19 +70,20 @@ pub fn generate_and_overwrite_cartridge(
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::CommonProperties",
         "pax_core::ComponentInstance",
-        "pax_core::RenderNodePtr",
+        "pax_core::InstanceNodePtr",
         "pax_core::PropertyExpression",
-        "pax_core::RenderNodePtrList",
+        "pax_core::InstanceNodePtrList",
         "pax_core::RenderTreeContext",
+        "pax_core::PropertiesTreeContext",
         "pax_core::ExpressionContext",
         "pax_core::PaxEngine",
-        "pax_core::RenderNode",
-        "pax_core::InstanceRegistry",
+        "pax_core::InstanceNode",
+        "pax_core::NodeRegistry",
         "pax_core::HandlerRegistry",
         "pax_core::InstantiationArgs",
         "pax_core::ConditionalInstance",
         "pax_core::SlotInstance",
-        "pax_core::StackFrame",
+        "pax_core::properties::RuntimePropertiesStackFrame",
         "pax_core::pax_properties_coproduct::PropertiesCoproduct",
         "pax_core::pax_properties_coproduct::TypesCoproduct",
         "pax_core::repeat::RepeatInstance",
@@ -344,13 +345,15 @@ fn recurse_generate_render_nodes_literal(
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("RepeatInstance".into()),
-            properties_coproduct_variant: "None".to_string(),
-            component_properties_struct: "None".to_string(),
-            defined_properties: vec![],
+            properties_coproduct_variant: "Repeat".to_string(),
+            component_properties_struct: "RepeatProperties".to_string(),
+            defined_properties: vec![
+                (MappedString::new("source_expression_vec".to_string()),rse_vec),
+                (MappedString::new("source_expression_range".to_string()),rse_range),
+            ],
             common_properties_literal,
             children_literal,
-            slot_index_literal: MappedString::none(),
-            conditional_boolean_expression_literal: MappedString::none(),
+
             pascal_identifier: rngc
                 .active_component_definition
                 .pascal_identifier
@@ -359,8 +362,6 @@ fn recurse_generate_render_nodes_literal(
                 rngc.active_component_definition.type_id.to_string(),
             ),
             events,
-            repeat_source_expression_literal_vec: rse_vec,
-            repeat_source_expression_literal_range: rse_range,
         }
     } else if tnd.type_id == parsing::TYPE_ID_IF {
         // If
@@ -399,15 +400,13 @@ fn recurse_generate_render_nodes_literal(
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
-            properties_coproduct_variant: "None".to_string(),
-            component_properties_struct: "None".to_string(),
-            defined_properties: vec![],
+            properties_coproduct_variant: "Conditional".to_string(),
+            component_properties_struct: "ConditionalProperties".to_string(),
+            defined_properties: vec![
+                (MappedString::new("boolean_expression".to_string()),conditional_mapped_string),
+            ],
             common_properties_literal,
             children_literal,
-            slot_index_literal: MappedString::none(),
-            repeat_source_expression_literal_vec: MappedString::none(),
-            repeat_source_expression_literal_range: MappedString::none(),
-            conditional_boolean_expression_literal: conditional_mapped_string,
             pascal_identifier: rngc
                 .active_component_definition
                 .pascal_identifier
@@ -454,15 +453,13 @@ fn recurse_generate_render_nodes_literal(
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("SlotInstance".into()),
-            properties_coproduct_variant: "None".to_string(),
-            component_properties_struct: "None".to_string(),
-            defined_properties: vec![],
+            properties_coproduct_variant: "Slot".to_string(),
+            component_properties_struct: "SlotProperties".to_string(),
+            defined_properties: vec![
+                (MappedString::new("index".to_string()),slot_mapped_string),
+            ],
             common_properties_literal,
             children_literal,
-            slot_index_literal: slot_mapped_string,
-            repeat_source_expression_literal_vec: MappedString::none(),
-            repeat_source_expression_literal_range: MappedString::none(),
-            conditional_boolean_expression_literal: MappedString::none(),
             pascal_identifier: rngc
                 .active_component_definition
                 .pascal_identifier
@@ -656,10 +653,6 @@ fn recurse_generate_render_nodes_literal(
             defined_properties,
             common_properties_literal,
             children_literal,
-            slot_index_literal: MappedString::none(),
-            repeat_source_expression_literal_vec: MappedString::none(),
-            repeat_source_expression_literal_range: MappedString::none(),
-            conditional_boolean_expression_literal: MappedString::none(),
             pascal_identifier: rngc
                 .active_component_definition
                 .pascal_identifier

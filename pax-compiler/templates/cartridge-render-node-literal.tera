@@ -79,33 +79,5 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
     ]))),
     component_template: None,
     scroller_args: None,
-    {% if slot_index_literal.source_map_start_marker %}
-        {{slot_index_literal.source_map_start_marker}}
-    {% endif %}
-    slot_index: {{slot_index_literal.content}},
-    {% if slot_index_literal.source_map_end_marker %}
-        {{slot_index_literal.source_map_end_marker}}
-    {% endif %}
-    {% if repeat_source_expression_literal_vec.source_map_start_marker %}
-        {{repeat_source_expression_literal_vec.source_map_start_marker}}
-    {% endif %}
-    repeat_source_expression_vec: {{repeat_source_expression_literal_vec.content}},
-    {% if repeat_source_expression_literal_vec.source_map_end_marker %}
-        {{repeat_source_expression_literal_vec.source_map_end_marker}}
-    {% endif %}
-    {% if repeat_source_expression_literal_range.source_map_start_marker %}
-        {{repeat_source_expression_literal_range.source_map_start_marker}}
-    {% endif %}
-    repeat_source_expression_range: {{repeat_source_expression_literal_range.content}},
-    {% if repeat_source_expression_literal_range.source_map_end_marker %}
-        {{repeat_source_expression_literal_range.source_map_end_marker}}
-    {% endif %}
-    {% if conditional_boolean_expression_literal.source_map_start_marker %}
-        {{conditional_boolean_expression_literal.source_map_start_marker}}
-    {% endif %}
-    conditional_boolean_expression: {{conditional_boolean_expression_literal.content}},
-    {% if conditional_boolean_expression_literal.source_map_end_marker %}
-        {{conditional_boolean_expression_literal.source_map_end_marker}}
-    {% endif %}
     compute_properties_fn: None,
 })

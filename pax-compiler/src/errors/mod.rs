@@ -113,7 +113,7 @@ impl fmt::Display for PaxTemplateError {
 
 impl Error for PaxTemplateError {}
 
-pub fn process_messages(output: Output, source_map: &SourceMap) -> Result<(), Report> {
+pub fn process_messages(output: Output, source_map: &SourceMap, verbose: bool) -> Result<(), Report> {
     let stderr_stream = Cursor::new(output.stdout);
     let reader = BufReader::new(stderr_stream);
 
@@ -121,6 +121,9 @@ pub fn process_messages(output: Output, source_map: &SourceMap) -> Result<(), Re
 
     for message in Message::parse_stream(reader) {
         if let Ok(Message::CompilerMessage(msg)) = message {
+            if verbose {
+                eprintln!("{:?}", msg.message);
+            }
             if msg.message.level == DiagnosticLevel::Error && !msg.message.spans.is_empty() {
                 let line = msg.message.spans[0].line_start;
                 if let Some(range_data) = source_map.get_range_for_line(line) {

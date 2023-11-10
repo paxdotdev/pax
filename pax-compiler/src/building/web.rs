@@ -67,7 +67,7 @@ pub fn build_web_chassis_with_cartridge(
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(&process_child_ids, child);
     if !output.status.success() {
-        let result = errors::process_messages(output, source_map);
+        let result = errors::process_messages(output, source_map, ctx.verbose);
         if ctx.verbose {
             // Print and continue to wasm-pack to get full error stack trace
             if let Err(e) = result {
