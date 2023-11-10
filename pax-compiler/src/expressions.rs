@@ -63,7 +63,7 @@ pub fn compile_all_expressions<'a>(
                     type_table: &manifest.type_table,
                 };
 
-                ctx = recurse_compile_expressions(ctx, source_map);
+                ctx = recurse_compile_expressions(ctx, source_map)?;
                 vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
                 all_expression_specs.extend(ctx.expression_specs.to_owned());
                 std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
@@ -381,7 +381,7 @@ fn recurse_compile_expressions<'a>(
                     .type_id
                     .clone();
                 (
-                    symbolic_binding.to_string(),
+                    symbolic_binding.clone(),
                     TypeDefinition::builtin_vec_rc_ref_cell_properties_coproduct(inner_iterable_type_id),
                 )
             } else {
