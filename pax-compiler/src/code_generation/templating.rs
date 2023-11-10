@@ -97,17 +97,23 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub properties_coproduct_variant: String,
     pub component_properties_struct: String,
     pub defined_properties: Vec<(MappedString, MappedString)>,
-    //0: property id (e.g. "width"), 1: property value literal RIL (e.g. "None" or "Some(Rc::new(...))"
+    /// Tuple fields for `common_properties_literal`:
+    ///   0: property id (e.g. "width")
+    ///   1: property value literal RIL (e.g. "None" or "Some(Rc::new(...))"
     pub common_properties_literal: Vec<(MappedString, MappedString)>,
     pub children_literal: Vec<String>,
-    pub slot_index_literal: MappedString,
-    pub repeat_source_expression_literal_vec: MappedString,
-    pub repeat_source_expression_literal_range: MappedString,
-    pub conditional_boolean_expression_literal: MappedString,
+    // pub slot_index_literal: MappedString,
+    // pub repeat_source_expression_literal_vec: MappedString,
+    // pub repeat_source_expression_literal_range: MappedString,
+    // pub conditional_boolean_expression_literal: MappedString,
     pub pascal_identifier: String,
     pub type_id_escaped: String,
     pub events: Vec<(MappedString, MappedString)>,
 }
+
+//properties_coproduct_variant: Repeat
+//component_properties_struct: RepeatProperties
+//defined_properties: (string key [need to annotate], literal value [hopefully already-existing])
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB: &str =

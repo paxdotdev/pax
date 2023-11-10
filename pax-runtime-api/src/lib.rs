@@ -1,10 +1,8 @@
 pub mod numeric;
 
 use std::borrow::Borrow;
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::ffi::CString;
-use std::rc::Rc;
 
 use std::ops::{Add, Deref, Mul, Neg};
 
