@@ -510,7 +510,7 @@ fn recurse_generate_render_nodes_literal(
                                         let value_source_map_id = source_map.insert(lv.clone());
                                         let value_mapped_string = source_map
                                             .generate_mapped_string(
-                                                format!("PropertyLiteral::new({})", lv.token_value),
+                                                format!("Box::new(PropertyLiteral::new({}))", lv.token_value),
                                                 value_source_map_id,
                                             );
                                         Some((key_mapped_string.clone(), value_mapped_string))
@@ -521,7 +521,7 @@ fn recurse_generate_render_nodes_literal(
                                         let value_mapped_string = source_map
                                             .generate_mapped_string(
                                                 format!(
-                                    "PropertyExpression::new({})",
+                                    "Box::new(PropertyExpression::new({}))",
                                     id.expect("Tried to use expression but it wasn't compiled")),
                                                 value_source_map_id,
                                             );
@@ -530,7 +530,7 @@ fn recurse_generate_render_nodes_literal(
                                     ValueDefinition::Block(block) => Some((
                                         key_mapped_string.clone(),
                                         MappedString::new(format!(
-                                            "PropertyLiteral::new({})",
+                                            "Box::new(PropertyLiteral::new({}))",
                                             recurse_literal_block(
                                                 block.clone(),
                                                 pd.get_type_definition(&rngc.type_table),
@@ -571,8 +571,6 @@ fn recurse_generate_render_nodes_literal(
         fn default_common_property_value(identifier: &str) -> String {
             if identifier == "transform" {
                 "Transform2D::default_wrapped()".to_string()
-            } else if identifier == "width" || identifier == "height" {
-                "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string()
             } else {
                 "Default::default()".to_string()
             }
@@ -599,7 +597,7 @@ fn recurse_generate_render_nodes_literal(
                                 ValueDefinition::LiteralValue(lv) => {
                                     let value_source_map_id = source_map.insert(lv.clone());
                                     let mut literal_value = format!(
-                                        "Rc::new(RefCell::new(PropertyLiteral::new(Into::<{}>::into({}))))",
+                                        "Box::new(PropertyLiteral::new(Into::<{}>::into({})))",
                                         identifier_and_type.1,
                                         lv.token_value,
                                     );
@@ -615,7 +613,7 @@ fn recurse_generate_render_nodes_literal(
                                 | ValueDefinition::Identifier(token, id) => {
                                     let value_source_map_id = source_map.insert(token.clone());
                                     let mut literal_value = format!(
-                                        "Rc::new(RefCell::new(PropertyExpression::new({})))",
+                                        "Box::new(PropertyExpression::new({}))",
                                         id.expect("Tried to use expression but it wasn't compiled")
                                     );
                                     if is_optional(&identifier_and_type.0) {

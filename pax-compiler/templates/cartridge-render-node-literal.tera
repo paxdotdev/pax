@@ -26,7 +26,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
                     {% if property.1.source_map_start_marker %}
                         {{property.1.source_map_start_marker}}
                     {% endif %}
-                    cps.{{ property.0.content }} = Box::new( {{ property.1.content }} );
+                    cps.{{ property.0.content }} =  {{ property.1.content }} ;
                     {% if property.1.source_map_end_marker %}
                         {{property.1.source_map_end_marker}}
                     {% endif %}
