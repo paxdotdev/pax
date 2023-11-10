@@ -2,7 +2,7 @@ use kurbo::{RoundedRect, Shape};
 use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, unsafe_wrap, handle_vtable_update, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, with_properties_unsafe, ExpandedNode};
+use pax_core::{unsafe_unwrap, unsafe_wrap, handle_vtable_update, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, with_properties_unsafe, ExpandedNode, PropertiesTreeContext};
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
@@ -55,73 +55,96 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         }
     }
 
-    fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Rectangle, |properties : &mut Rectangle| {
-
             handle_vtable_update!(ptc, properties.stroke, pax_std::types::Stroke);
             handle_vtable_update!(ptc, properties.fill, pax_std::types::Fill);
             handle_vtable_update!(ptc, properties.corner_radii, pax_std::types::RectangleCornerRadii);
 
-            let corner_radii = properties.corner_radii.get();
-            handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
-            handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
-            handle_vtable_update!(ptc, corner_radii.top_left, f64);
-            handle_vtable_update!(ptc, corner_radii.top_right, f64);
-
+            // handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
+            // handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
+            // handle_vtable_update!(ptc, corner_radii.top_left, f64);
+            // handle_vtable_update!(ptc, corner_radii.top_right, f64);
         });
 
         this_expanded_node
     }
 
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform_scroller_reset;
-        let bounding_dimens = rtc.bounds;
-        let width: f64 = bounding_dimens.0;
-        let height: f64 = bounding_dimens.1;
 
-        let properties = (*self.properties).borrow();
+        let expanded_node = rtc.current_expanded_node.borrow();
+        let tab = &expanded_node.tab;
 
-        let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+        let width: f64 = tab.bounds.0;
+        let height: f64 = tab.bounds.1;
 
-        let bez_path = rect.to_path(0.1);
+        let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
+        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Rectangle, |properties : &mut Rectangle|{
 
-        let transformed_bez_path = transform * bez_path;
-        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+            let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+            let bez_path = rect.to_path(0.1);
 
-        match properties.fill.get() {
-            Fill::Solid(color) => {
-                rc.fill(transformed_bez_path, &color.to_piet_color());
+            let transformed_bez_path = tab.transform * bez_path;
+            let duplicate_transformed_bez_path = transformed_bez_path.clone();
+
+            match properties.fill.get() {
+                Fill::Solid(color) => {
+                    rc.fill(transformed_bez_path, &color.to_piet_color());
+                }
+                Fill::LinearGradient(linear) => {
+                    let linear_gradient = LinearGradient::new(
+                        Fill::to_unit_point(linear.start, (width, height)),
+                        Fill::to_unit_point(linear.end, (width, height)),
+                        Fill::to_piet_gradient_stops(linear.stops.clone()),
+                    );
+                    rc.fill(transformed_bez_path, &linear_gradient)
+                }
+                Fill::RadialGradient(radial) => {
+                    let origin = Fill::to_unit_point(radial.start, (width, height));
+                    let center = Fill::to_unit_point(radial.end, (width, height));
+                    let gradient_stops = Fill::to_piet_gradient_stops(radial.stops.clone());
+                    let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
+                        .with_center(center)
+                        .with_origin(origin);
+                    rc.fill(transformed_bez_path, &radial_gradient);
+                }
             }
-            Fill::LinearGradient(linear) => {
-                let linear_gradient = LinearGradient::new(
-                    Fill::to_unit_point(linear.start, (width, height)),
-                    Fill::to_unit_point(linear.end, (width, height)),
-                    Fill::to_piet_gradient_stops(linear.stops.clone()),
+
+            //hack to address "phantom stroke" bug on Web
+            let width: f64 = *&properties.stroke.get().width.get().into();
+            if width > f64::EPSILON {
+                rc.stroke(
+                    duplicate_transformed_bez_path,
+                    &properties.stroke.get().color.get().to_piet_color(),
+                    width,
                 );
-                rc.fill(transformed_bez_path, &linear_gradient)
             }
-            Fill::RadialGradient(radial) => {
-                let origin = Fill::to_unit_point(radial.start, (width, height));
-                let center = Fill::to_unit_point(radial.end, (width, height));
-                let gradient_stops = Fill::to_piet_gradient_stops(radial.stops.clone());
-                let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
-                    .with_center(center)
-                    .with_origin(origin);
-                rc.fill(transformed_bez_path, &radial_gradient);
-            }
-        }
+        });
 
-        //hack to address "phantom stroke" bug on Web
-        let width: f64 = *&properties.stroke.get().width.get().into();
-        if width > f64::EPSILON {
-            rc.stroke(
-                duplicate_transformed_bez_path,
-                &properties.stroke.get().color.get().to_piet_color(),
-                width,
-            );
-        }
+
+
+        // let properties = (*self.properties).borrow();
+        //
+        // let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+        //
+        // let bez_path = rect.to_path(0.1);
+        //
+        // let transformed_bez_path = transform * bez_path;
+        // let duplicate_transformed_bez_path = transformed_bez_path.clone();
+        //
+        //
+        //
+        // //hack to address "phantom stroke" bug on Web
+        // let width: f64 = *&properties.stroke.get().width.get().into();
+        // if width > f64::EPSILON {
+        //     rc.stroke(
+        //         duplicate_transformed_bez_path,
+        //         &properties.stroke.get().color.get().to_piet_color(),
+        //         width,
+        //     );
+        // }
     }
 }

@@ -73,7 +73,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
-
         let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
         with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Ellipse, |properties : &mut Ellipse|{
 

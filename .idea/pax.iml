@@ -25,6 +25,12 @@
       <sourceFolder url="file://$MODULE_DIR$/pax-core/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/pax-std/pax-std-primitives/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/src/camera/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/src/color-grid/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/src/fireworks/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/src/grids/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/src/hello-rgb/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/src/words/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-chassis-common/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-create-sandbox/.pax" />
@@ -33,6 +39,12 @@
       <excludeFolder url="file://$MODULE_DIR$/pax-std/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-chassis-web/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/camera/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/color-grid/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/fireworks/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/grids/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/hello-rgb/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/words/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-chassis-common/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-chassis-macos/target" />
     </content>

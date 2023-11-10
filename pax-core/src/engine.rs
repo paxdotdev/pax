@@ -63,7 +63,6 @@ macro_rules! handle_vtable_update {
             let new_value = unsafe_unwrap!(new_value_wrapped, TypesCoproduct, $inner_type);
             current_prop.set(new_value);
         }
-
     }};
 }
 
