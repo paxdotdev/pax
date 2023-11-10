@@ -55,7 +55,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
         }
     }
     fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
@@ -66,33 +65,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
 
         });
 
-        // self.common_properties.compute_properties(ptc);
-        //
-        // let properties = &mut *self.properties.as_ref().borrow_mut();
-        //
-        // if let Some(stroke_width) =
-        //     ptc.compute_vtable_value(properties.stroke.get().width._get_vtable_id())
-        // {
-        //     let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width {
-        //         v
-        //     } else {
-        //         unreachable!()
-        //     };
-        //     properties.stroke.get_mut().width.set(new_value);
-        // }
-        //
-        // if let Some(stroke_color) =
-        //     ptc.compute_vtable_value(properties.stroke.get().color._get_vtable_id())
-        // {
-        //     let new_value = unsafe_unwrap!(stroke_color, TypesCoproduct, pax_std::types::Color);
-        //     properties.stroke.get_mut().color.set(new_value);
-        // }
-        //
-        // if let Some(fill) = ptc.compute_vtable_value(properties.fill._get_vtable_id()) {
-        //     let new_value = unsafe_unwrap!(fill, TypesCoproduct, pax_std::types::Color);
-        //     properties.fill.set(new_value);
-        // }
-        todo!()
+        this_expanded_node
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let expanded_node = rtc.current_expanded_node.borrow();

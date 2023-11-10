@@ -1,6 +1,6 @@
 /// Extracts the target value from an enum using raw memory access.
 ///
-/// Parameters:
+/// # Parameters:
 /// - `$source_enum`: The enum instance to extract the target value from.
 /// - `$enum_type`: The type of the enum.
 /// - `$target_type`: The type of the target value to extract.
@@ -92,11 +92,7 @@ macro_rules! with_properties_unsafe {
         // Use the unsafe_unwrap! macro to get the unwrapped value of the specific type.
         let mut unwrapped_value: $target_type = unsafe_unwrap!(value, $enum_type, $target_type);
 
-        // This ensures that the lifetime of the reference passed to the closure does not outlive the temporary value.
-        // {
-        //     let closure: Box<dyn FnOnce(&mut $target_type)> = Box::new($body);
-        //     closure(&mut unwrapped_value);
-        // }
+        // Evaluate the passed closure
         let ret = $body(&mut unwrapped_value);
 
         // Wrap the enum variant back into the enum

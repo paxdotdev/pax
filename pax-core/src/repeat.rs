@@ -39,13 +39,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
 
             instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
             instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
-
-            // source_expression_vec: args.repeat_source_expression_vec,
-            // source_expression_range: args.repeat_source_expression_range,
-            // active_children: Rc::new(RefCell::new(vec![])),
-            // cleanup_children: Rc::new(RefCell::new(vec![])),
-            // cached_old_value_vec: None,
-            // cached_old_value_range: None,
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
@@ -68,9 +61,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
 
             if let Some(ref source) = properties.source_expression_range {
                 let range_evaled = source.get();
+                let mut index = 0;
                 for i in range_evaled.start..range_evaled.end {
-                    let new_props = Rc::new(RefCell::new(PropertiesCoproduct::isize(i)));
-                    ptc.push_stack_frame(new_props);
+                    let i_as_datum = Rc::new(RefCell::new(PropertiesCoproduct::isize(i)));
+                    let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(i_as_datum, index)));
+
+                    ptc.push_stack_frame(new_repeat_item);
 
                     for repeated_template_instance_root in self.repeated_template.borrow().iter() {
                         let mut new_ptc = ptc.clone();
@@ -82,13 +78,16 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     }
 
                     ptc.pop_stack_frame();
+                    index = index + 1;
                 }
 
             } else if let Some(ref source) = properties.source_expression_vec {
                 let vec_evaled = source.get();
 
-                for pc in vec_evaled.iter() {
-                    ptc.push_stack_frame(Rc::clone(pc));
+                for pc in vec_evaled.iter().enumerate() {
+
+                    let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(pc.1), pc.0)));
+                    ptc.push_stack_frame(new_repeat_item);
 
                     for repeated_template_instance_root in self.repeated_template.borrow().iter() {
                         let mut new_ptc = ptc.clone();
@@ -121,8 +120,4 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
     fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
-    // fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-    //     // self.cached_old_value_range = None;
-    //     // self.cached_old_value_vec = None;
-    // }
 }

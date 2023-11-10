@@ -2,10 +2,7 @@ use kurbo::{RoundedRect, Shape};
 use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
-};
+use pax_core::{unsafe_unwrap, unsafe_wrap, handle_vtable_update, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, with_properties_unsafe, ExpandedNode};
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
@@ -58,72 +55,25 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         }
     }
 
-    fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+    fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+        let properties_wrapped = this_expanded_node.borrow().get_properties();
 
-        if let Some(stroke_width) =
-            rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.stroke.get_mut().width.set(new_value);
-        }
+        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Rectangle, |properties : &mut Rectangle| {
 
-        if let Some(stroke_color) =
-            rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(stroke_color, TypesCoproduct, pax_std::types::Color);
-            properties.stroke.get_mut().color.set(new_value);
-        }
+            handle_vtable_update!(ptc, properties.stroke, pax_std::types::Stroke);
+            handle_vtable_update!(ptc, properties.fill, pax_std::types::Fill);
+            handle_vtable_update!(ptc, properties.corner_radii, pax_std::types::RectangleCornerRadii);
 
-        if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(fill, TypesCoproduct, Fill);
-            properties.fill.set(new_value);
-        }
+            let corner_radii = properties.corner_radii.get();
+            handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
+            handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
+            handle_vtable_update!(ptc, corner_radii.top_left, f64);
+            handle_vtable_update!(ptc, corner_radii.top_right, f64);
 
-        if let Some(top_right) =
-            rtc.compute_vtable_value(properties.corner_radii.get().top_right._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(top_right, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().top_right.set(new_value);
-        }
+        });
 
-        if let Some(top_left) =
-            rtc.compute_vtable_value(properties.corner_radii.get().top_left._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(top_left, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().top_left.set(new_value);
-        }
-
-        if let Some(bottom_right) =
-            rtc.compute_vtable_value(properties.corner_radii.get().bottom_right._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(bottom_right, TypesCoproduct, f64);
-            properties
-                .corner_radii
-                .get_mut()
-                .bottom_right
-                .set(new_value);
-        }
-
-        if let Some(bottom_left) =
-            rtc.compute_vtable_value(properties.corner_radii.get().bottom_left._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(bottom_left, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().bottom_left.set(new_value);
-        }
-
-        if let Some(corner_radii) =
-            rtc.compute_vtable_value(properties.corner_radii._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(corner_radii, TypesCoproduct, RectangleCornerRadii);
-            properties.corner_radii.set(new_value);
-        }
-
-        self.common_properties.compute_properties(rtc);
+        this_expanded_node
     }
 
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {

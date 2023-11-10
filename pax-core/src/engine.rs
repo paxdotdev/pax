@@ -307,6 +307,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         self.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
     }
 
+    pub fn get_expanded_and_flattened_slot_children(&self) -> &Option<Vec<Rc<RefCell<ExpandedNode<R>>>>> {
+        &self.expanded_and_flattened_slot_children
+    }
+
     pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
         let id_chain = ptc.get_id_chain();
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
