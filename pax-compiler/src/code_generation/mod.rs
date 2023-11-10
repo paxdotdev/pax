@@ -60,12 +60,15 @@ pub fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 27] = [
+    const IMPORTS_BUILTINS: [&str; 30] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
         "std::ops::Deref",
         "std::rc::Rc",
+        "pax_properties_coproduct::RepeatProperties",
+        "pax_properties_coproduct::ConditionalProperties",
+        "pax_properties_coproduct::SlotProperties",
         "pax_runtime_api::PropertyInstance",
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::CommonProperties",

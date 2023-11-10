@@ -1,11 +1,11 @@
 // pub mod checkbox;
 pub mod ellipse;
-// pub mod frame;
+pub mod frame;
 pub mod group;
 // pub mod image;
 // pub mod path;
 pub mod rectangle;
-pub mod scroller;
+// pub mod scroller;
 // pub mod text;
 
 fn patch_if_needed<T: PartialEq + Clone>(old_state: &mut Option<T>, patch: &mut Option<T>, new_value: T) -> bool {
