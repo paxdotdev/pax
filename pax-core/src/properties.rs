@@ -379,6 +379,10 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
 
 impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 
+    pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
+        self.shared.borrow().runtime_properties_stack.clone()
+    }
+
     pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
         self.shared.borrow_mut().clipping_stack.push(id_chain);
     }

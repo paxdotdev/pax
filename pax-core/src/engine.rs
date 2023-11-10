@@ -256,6 +256,9 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
     pub scroller_stack: Vec<Vec<u32>>,
 
+
+
+
     /// For component instances only, tracks the expanded + flattened slot_children
     expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
 
@@ -322,17 +325,19 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 instance_node: Rc::clone(&ptc.current_instance_node),
                 tab: ptc.containing_tab.clone(),
                 containing_component: Rc::clone(ptc.current_containing_component.as_ref().unwrap()),
-                runtime_properties_stack: vec![],
                 clipping_stack: vec![],
                 z_index: 0,
                 node_context: ptc.distill_userland_node_context(),
                 computed_properties: Rc::clone(&prototypical_properties),
                 computed_common_properties: Rc::clone(&prototypical_common_properties),
-                ancestral_clipping_ids: vec![],
-                ancestral_scroller_ids: vec![],
                 scroller_stack: vec![],
                 expanded_and_flattened_slot_children: None,
                 children_expanded_nodes_set: HashSet::new(),
+
+                // Clone the following stacks from `ptc`
+                ancestral_clipping_ids: ptc.get_current_clipping_ids(),
+                ancestral_scroller_ids: ptc.get_current_scroller_ids(),
+                runtime_properties_stack: ptc.clone_runtime_stack(),
             }));
             ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&new_expanded_node));
             new_expanded_node

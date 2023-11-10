@@ -14,7 +14,7 @@ macro_rules! unsafe_unwrap {
 
             assert!(size_of_target < size_of_enum, "The size_of target_type must be less than the size_of enum_type.");
 
-            let mut boxed_enum = Box::new(source_enum);
+            let boxed_enum = Box::new(source_enum);
             let mut default_value = U::default();
 
             let target = unsafe {
@@ -46,7 +46,7 @@ macro_rules! unsafe_wrap {
 
             assert!(size_of_value < size_of_enum, "The size_of target_type must be less than the size_of enum_type.");
 
-            let mut boxed_enum = Box::new(T::default()); // Assuming your enum has a Default impl.
+            let boxed_enum = Box::new(T::default()); // Assuming your enum has a Default impl.
 
             unsafe {
                 let enum_ptr = Box::into_raw(boxed_enum);
@@ -87,7 +87,7 @@ macro_rules! with_properties_unsafe {
         // Clone the `Rc` to ensure that we have a temporary ownership of the `RefCell`.
         let rc = $rc_refcell.clone();
         // Borrow the `RefCell` mutably and take the value, leaving `Default::default()` in its place.
-        let mut value = std::mem::replace(&mut *rc.borrow_mut(), Default::default());
+        let value = std::mem::replace(&mut *rc.borrow_mut(), Default::default());
 
         // Use the unsafe_unwrap! macro to get the unwrapped value of the specific type.
         let mut unwrapped_value: $target_type = unsafe_unwrap!(value, $enum_type, $target_type);

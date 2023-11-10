@@ -4234,6 +4234,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [ ] Native patches
       [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
       [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+      [ ] Refactor and hook back up patches
 [ ] clipping_ids & scroller_ids in property compute
       [-] 1. might not need them at the *Create stage; might be able to not worry about this
       [x] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
@@ -4252,7 +4253,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [x] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
     [x] Refactor file boundaries along the way
 [ ] Refactor Repeat & Conditional properties computation
-    [ ] Refactor each of `Repeat`, `Slot`, and `Conditional` to be stateless (so that stateful expansions with ExpandedNodes actually work)
+    [x] Refactor each of `Repeat`, `Slot`, and `Conditional` to be stateless (so that stateful expansions with ExpandedNodes actually work)
         [x] Figure out in particular how to store:
             [x] Repeat's cache (+ source expression?)
             [x] Slot's `cached_computed_children` (+ index expression?)
@@ -4263,18 +4264,18 @@ Let's store a prototypical clone of the original properties on each InstanceNode
             "accordion" the properties of any node, including control-flow nodes, and that those expanded properties must
             sit on ExpandedNodes as PropertiesCoproduct, we either need to refactor control-flow properties to fit into PropertiesCoproduct (cleaner),
             or special-case control flow properties as Optional fields on ExpandedNodes (similar in shape to InstantiationArgs)
-        [ ] Punch through the above refactor into codegen, templates, and specs
-            [ ] In particular, manage control flow + instantiation args; pack into PropertiesCoproduct instead of special flags
-            [ ] Keep an eye on doing this for Scroller, too
+        [x] Punch through the above refactor into codegen, templates, and specs
+            [x] In particular, manage control flow + instantiation args; pack into PropertiesCoproduct instead of special flags
+            [x] Keep an eye on doing this for Scroller, too
         [ ] Refactor internals of control-flow to be stateless + expansion-friendly, patching into the new PropertiesCoproduct variants:
-            [ ] Repeat
+            [x] Repeat
                 [x] Remove ComponentInstance from Repeat
-                [ ] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties_recursive`
-                [ ] Think through mounting / unmounting:
+                [x] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties_recursive`
+                [x] Think through mounting / unmounting:
                     When a Repeat list contracts, we want to mark any of the culled nodes as marked for unmount.
                     We can leave the ExpandedNodes sitting around and "garbage collect" them later.  Dirty-DAG should be able to address any latent CPU burden here.
-            [ ] Conditional
-                [ ] Piecewise-recurse into `compute_properties_recursive`, a la Repeat
+            [x] Conditional
+                [x] Piecewise-recurse into `compute_properties_recursive`, a la Repeat
                 [x] Ensure that we don't render if an ExpandedNode is `marked_for_unmount`.  There still will likely exist an ExpandedNode, so we must be sure not to render these nodes.
                 [x] Think through mounting / unmounting:
                     On the falling edge, when a Conditional goes from true to false, we know that there's a subtree of expandednodes, and that they should be unmounted.
@@ -4283,11 +4284,11 @@ Let's store a prototypical clone of the original properties on each InstanceNode
                     Resetting child expanded nodes: since we are building the ExpandedNode tree from scratch each tick (for now,) we probably should reset all child relationships each tick.
                     Currently the children are tracked by the property `children_expanded_nodes` on ExpandedNode.  This could be externalized into a separate structure (easy since these are already Rcs,
                     and easy to purge in a single spot at the beginning of each tick.)  Something like `HashMap<Vec<u64>, Vec<Weak<RefCell<ExpandedNode<R>>>>>`
-            [ ] Slot
-                [ ] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
+            [x] Slot
+                [x] Apportion slotted children during properties compute.  This is done by how we stitch ExpandedNodes — grab from flatted pool of current_containing_component#get_slot_children
                     For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
-                [ ] Make sure we handle "is_invisible" (née flattening) correctly
-            [ ] Component - manually manage properties calc recursion + runtime properties stack
+                [x] Make sure we handle "is_invisible" (née flattening) correctly
+            [x] Component - manually manage properties calc recursion + runtime properties stack
             [ ] Scroller & Frame - manually manage properties calc recursion + scrolling + clipping stack
 [x] Sanity-check id_chain + tree ambiguity + surface area for incorrectly unwrapping (unsafely) properties
     Broken case?
@@ -4470,7 +4471,7 @@ How do we keep our recursion-evaluated _stacks_ (stack frames, clipping & scroll
 Are these static enough that we can copy them onto ExpandedNodes ?
 Stack Frames keep an `Rc<RefCell<PropertiesCoproduct>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
 The primary question is whether these stacks are _stable_ after an expansion, or whether we may need to perform some sort of surgery.
-It seems like it's OK to 
+It seems like it's OK to copy them outright, keeping them immutable for the lifetime of an ExpandedNode
 
 
 ### On tracking ExpandedNode parent-child relationships 
