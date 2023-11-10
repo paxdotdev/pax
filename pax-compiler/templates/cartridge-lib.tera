@@ -34,7 +34,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                         {% if invocation.is_numeric %}
                             //iterable numeric
                             {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
-                            let unwrapped = if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(i) = **elem {i} else {unreachable!()};
+                            let unwrapped = if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(ref i) = *(*elem).borrow() {*i} else {unreachable!()};
                             Numeric::from(unwrapped)
                         {% elif invocation.is_string %}
                             let unwrapped = if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(i) = **elem {i} else {unreachable!()};

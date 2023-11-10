@@ -390,11 +390,6 @@ impl CommonProperties {
                         id.0.to_string(),
                         "Transform2D::default_wrapped()".to_string(),
                     )
-                } else if id.0 == "width" || id.0 == "height" {
-                    (
-                        id.0.to_string(),
-                        "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string(),
-                    )
                 } else {
                     (id.0.to_string(), "Default::default()".to_string())
                 }
