@@ -243,7 +243,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.
-    pub containing_component: Rc<RefCell<ExpandedNode<R>>>,
+    pub containing_component: Option<Rc<RefCell<ExpandedNode<R>>>>,
 
     /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
     /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
@@ -314,7 +314,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 
     pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
-        let id_chain = ptc.get_id_chain();
+
+        let id_chain = ptc.get_id_chain(ptc.current_instance_id);
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
             Rc::clone(already_registered_node)
         } else {
@@ -324,7 +325,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 children_expanded_nodes: vec![],
                 instance_node: Rc::clone(&ptc.current_instance_node),
                 tab: ptc.containing_tab.clone(),
-                containing_component: Rc::clone(ptc.current_containing_component.as_ref().unwrap()),
+                containing_component: ptc.current_containing_component.clone(),
                 clipping_stack: vec![],
                 z_index: 0,
                 node_context: ptc.distill_userland_node_context(),
@@ -339,9 +340,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 ancestral_scroller_ids: ptc.get_current_scroller_ids(),
                 runtime_properties_stack: ptc.clone_runtime_stack(),
             }));
-            ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&new_expanded_node));
+
             new_expanded_node
         };
+        ptc.engine.node_registry.borrow_mut().expanded_node_map.insert(id_chain, Rc::clone(&expanded_node));
         expanded_node
     }
 
@@ -902,6 +904,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             engine: &self,
             current_containing_component: None,
             current_instance_node: Rc::clone(&root_component_instance),
+            current_instance_id: root_component_instance.borrow().get_instance_id(),
             current_expanded_node: None,
             parent_expanded_node: None,
             containing_tab: TransformAndBounds {

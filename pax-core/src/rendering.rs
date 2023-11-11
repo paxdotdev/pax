@@ -168,6 +168,7 @@ fn min_max_projections(projections: &[f64]) -> (f64, f64) {
 }
 
 
+#[derive(Clone)]
 pub enum NodeType {
     Component,
     Primitive,

@@ -145,13 +145,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
 
-        let id_chain = ptc.get_id_chain();
+        let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);
 
         for instance_child in self.instance_children.borrow().iter() {
             let mut new_ptc = ptc.clone();
-            ptc.current_instance_node = Rc::clone(instance_child);
-            ptc.current_expanded_node = None;
+            new_ptc.current_instance_node = Rc::clone(instance_child);
+            new_ptc.current_instance_id = instance_child.borrow().get_instance_id();
+            new_ptc.current_expanded_node = None;
             let expanded_child = recurse_expand_nodes(&mut new_ptc);
             this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
         }
@@ -199,7 +200,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     }
 
     fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        let id_chain = ptc.get_id_chain();
+        let id_chain = ptc.get_id_chain(self.instance_id);
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
         let clipping_ids = ptc.get_current_clipping_ids();
