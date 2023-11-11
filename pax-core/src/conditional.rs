@@ -68,6 +68,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             let mut new_ptc = ptc.clone();
             new_ptc.current_expanded_node = None;
             new_ptc.current_instance_node = Rc::clone(child);
+            new_ptc.current_instance_id = child.borrow().get_instance_id();
 
             // handle false conditional by marking for unmount; continue to recurse into subtree and compute / expand
             if !evaluated_condition {

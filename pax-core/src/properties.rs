@@ -21,16 +21,26 @@ use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePt
 pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
 
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
-    let mut node_borrowed = this_instance_node.borrow_mut();
 
-    // First compute slot_children — that is, the children templated _inside_ a component.
-    // For example, in `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
-    // starting at `for` is the subtree of slot_children for the described instance of `Stacker`.
+    let node_type = this_instance_node.borrow_mut().get_node_type().clone();
+    // Expand the node
+
+    // In the case of the very root instance node (root component, root instance node)
+    // There is also a corrolary "very root expanded node."  That very root expanded node _does not have_ a containing
+    // component.  it represents the c
+
+    let this_expanded_node = Rc::clone(&this_instance_node.borrow_mut().expand_node_and_compute_properties(ptc));
+    if matches!(node_type, NodeType::Component) {
+        ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
+    }
+
+    // First compute slot_children — that is, the children passed into a component via template.
+    // For example, in the template fragment `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
+    // starting at `for` is the subtree of slot_children passed into the instance of `Stacker`.
     // Read more about slot children at [`InstanceNode#get_slot_children`]
-    let expanded_and_flattened_slot_children = if let Some(slot_children) = node_borrowed.get_slot_children() {
+    let expanded_and_flattened_slot_children = if let Some(slot_children) = this_instance_node.borrow_mut().get_slot_children().clone() {
 
         //Assert that this is indeed a Component (only Components may be registered with slot_children)
-        let node_type = this_instance_node.borrow().get_node_type();
         assert!(matches!(node_type, NodeType::Component), ""); // `this_expanded_node`'s related `instance_node` must be of type NodeType::Component.
 
         //Expand children in the context of the current containing component
@@ -38,7 +48,8 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
         for child in (*slot_children).borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(child);
-            new_ptc.current_expanded_node = None; // We don't want slot_children to stitch themselves to any parent; we handle that later inside Slot
+            new_ptc.current_expanded_node = None;
+            new_ptc.current_instance_id = child.borrow().get_instance_id();
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
             expanded_slot_children.push(child_expanded_node);
 
@@ -57,22 +68,20 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
         None
     };
 
-    // Attach component-evel e_a_f_s_c to `ptc` so that they can be used by components inside expand_node_and_compute_properties
+    // Attach component-level e_a_f_s_c to `ptc` so that they can be used by components inside expand_node_and_compute_properties
     ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
 
-    // Expand the node
-    let this_expanded_node = node_borrowed.expand_node_and_compute_properties(ptc);
+
     // Compute common properties
     this_expanded_node.borrow_mut().get_common_properties().borrow_mut().compute_properties(ptc);
 
-    let node_type = this_expanded_node.borrow().instance_node.borrow().get_node_type();
-    if matches!(node_type, NodeType::Component) {
-        ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
-    }
     ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+
+
 
     // Lifecycle: `mount`
     manage_handlers_mount(ptc);
+
 
 
 
@@ -87,11 +96,14 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
         //in this outer context, of a containing component, before we compute properties for the inner component's context.
         //This way, we can be assured that the slot_children present on any component have already
         //been properties-computed, thus expanded by Repeat and Conditional.
-        let children_to_recurse = node_borrowed.get_instance_children();
+        let children_to_recurse = this_instance_node.borrow().get_instance_children().clone();
 
         for child in (*children_to_recurse).borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(child);
+            new_ptc.current_instance_id = child.borrow().get_instance_id();
+            new_ptc.current_expanded_node = None;
+
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
 
             recurse_expand_nodes(ptc);
@@ -319,6 +331,8 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 
     /// A pointer to the current instance node
     pub current_instance_node: InstanceNodePtr<R>,
+    /// A copy of current_instance_node.borrow().get_instance_id(); stored in parallel to satisfy borrow checker
+    pub current_instance_id: u32,
 
     /// A pointer to the current expanded node.  Optional only for the init case; should be populated
     /// for every node visited during properties computation.
@@ -373,6 +387,7 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
             marked_for_unmount: self.marked_for_unmount,
             shared: Rc::clone(&self.shared),
             containing_tab: self.containing_tab.clone(),
+            current_instance_id: self.current_instance_id,
         }
     }
 }
@@ -439,8 +454,9 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
     pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        if self.shared.borrow_mut().runtime_properties_stack.len() > 0 {
-            Some(Rc::clone(&self.shared.borrow_mut().runtime_properties_stack[&self.shared.borrow_mut().runtime_properties_stack.len() - 1]))
+        let len = *&self.shared.borrow_mut().runtime_properties_stack.len();
+        if len > 0 {
+            Some(Rc::clone(&self.shared.borrow_mut().runtime_properties_stack[len - 1]))
         } else {
             None
         }
@@ -476,10 +492,9 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
     /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
     /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
-    pub fn get_id_chain(&self) -> Vec<u32> {
-        let id= self.current_instance_node.clone().borrow().get_instance_id();
+    pub fn get_id_chain(&self, instance_id: u32) -> Vec<u32> {
         let mut indices = (&self.get_list_of_repeat_indicies_from_stack()).clone();
-        indices.insert(0, id);
+        indices.insert(0, instance_id);
         indices
     }
 
