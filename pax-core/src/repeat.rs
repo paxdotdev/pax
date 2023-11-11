@@ -55,54 +55,64 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             ptc.engine.node_registry.borrow_mut().mark_for_unmount(cen.borrow().id_chain.clone());
         }
 
-        with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, RepeatProperties, |properties: &mut RepeatProperties| {
+        let (range_evaled,vec_evaled) = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, RepeatProperties, |properties: &mut RepeatProperties| {
             handle_vtable_update_optional!(ptc, properties.source_expression_range, std::ops::Range<isize>);
             handle_vtable_update_optional!(ptc, properties.source_expression_vec, std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>);
 
             if let Some(ref source) = properties.source_expression_range {
-                let range_evaled = source.get();
-                let mut index = 0;
-                for i in range_evaled.start..range_evaled.end {
-                    let i_as_datum = Rc::new(RefCell::new(PropertiesCoproduct::isize(i)));
-                    let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(i_as_datum, index)));
-
-                    ptc.push_stack_frame(new_repeat_item);
-
-                    for repeated_template_instance_root in self.repeated_template.borrow().iter() {
-                        let mut new_ptc = ptc.clone();
-                        new_ptc.current_expanded_node = None;
-                        new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                        new_ptc.current_instance_id = repeated_template_instance_root.borrow().get_instance_id();
-                        let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
-                        ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(&expanded_child.borrow().id_chain);
-                        this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
-                    }
-
-                    ptc.pop_stack_frame();
-                    index = index + 1;
-                }
-
+                (Some(source.get().clone()),None)
             } else if let Some(ref source) = properties.source_expression_vec {
                 let vec_evaled = source.get();
-
-                for pc in vec_evaled.iter().enumerate() {
-
-                    let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(pc.1), pc.0)));
-                    ptc.push_stack_frame(new_repeat_item);
-
-                    for repeated_template_instance_root in self.repeated_template.borrow().iter() {
-                        let mut new_ptc = ptc.clone();
-                        new_ptc.current_expanded_node = None;
-                        new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                        let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
-                        ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(&expanded_child.borrow().id_chain);
-                        this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
-                    }
-
-                    ptc.pop_stack_frame()
-                }
+                (None, Some(vec_evaled.clone()))
+            } else {
+                unreachable!();//A valid Repeat must have a repeat source
             }
         });
+
+        if let Some(range_evaled) = range_evaled {
+
+            let mut index = 0;
+            for i in range_evaled.start..range_evaled.end {
+                let i_as_datum = Rc::new(RefCell::new(PropertiesCoproduct::isize(i)));
+                let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(i_as_datum, index)));
+
+                ptc.push_stack_frame(new_repeat_item);
+
+                for repeated_template_instance_root in self.repeated_template.borrow().iter() {
+                    let mut new_ptc = ptc.clone();
+                    new_ptc.current_expanded_node = None;
+                    new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
+                    new_ptc.current_instance_id = repeated_template_instance_root.borrow().get_instance_id();
+                    let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+                    ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(&expanded_child.borrow().id_chain);
+                    this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
+                }
+
+                ptc.pop_stack_frame();
+                index = index + 1;
+            }
+        } else if let Some(vec_evaled) = vec_evaled {
+            for pc in vec_evaled.iter().enumerate() {
+
+                let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(pc.1), pc.0)));
+                ptc.push_stack_frame(new_repeat_item);
+
+                for repeated_template_instance_root in self.repeated_template.borrow().iter() {
+                    let mut new_ptc = ptc.clone();
+                    new_ptc.current_expanded_node = None;
+                    new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
+                    let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+                    ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(&expanded_child.borrow().id_chain);
+                    this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
+                }
+
+                ptc.pop_stack_frame()
+            }
+
+        }
+
+
+
         this_expanded_node
     }
 
