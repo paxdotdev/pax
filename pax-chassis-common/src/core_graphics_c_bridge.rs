@@ -113,7 +113,8 @@ pub extern "C" fn pax_interrupt(
                             modifiers,
                         },
                     };
-                    topmost_node.dispatch_click(args_click);
+                    let tnb = topmost_node.borrow_mut();
+                    tnb.dispatch_click(args_click);
                 }
                 _ => {}
             };
@@ -126,7 +127,8 @@ pub extern "C" fn pax_interrupt(
                         delta_x: args.delta_x,
                         delta_y: args.delta_y,
                     };
-                    topmost_node.dispatch_scroll(args_scroll);
+                    let tnb = topmost_node.borrow_mut();
+                    tnb.dispatch_scroll(args_scroll);
                 }
                 _ => {}
             };

@@ -39,7 +39,7 @@ use crate::building::{
 };
 
 use crate::code_generation::{
-    generate_and_overwrite_cartridge, generate_and_overwrite_properties_coproduct,
+    generate_and_overwrite_cartridge,
 };
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
@@ -128,7 +128,6 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
-    generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     let cartridge_path =
         generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info, &mut source_map);
     source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());

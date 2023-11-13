@@ -3,8 +3,7 @@ use core::option::Option::Some;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct};
+use std::any::Any;
 
 use kurbo::BezPath;
 use piet::RenderContext;
@@ -54,8 +53,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             instance_children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: args.common_properties,
+            instance_prototypical_properties: args.properties,
             handler_registry: args.handler_registry,
         }));
 

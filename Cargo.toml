@@ -5,7 +5,6 @@ authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 
 [workspace]
-
 members = [
     "pax-chassis-web",
     "pax-chassis-macos",
@@ -24,7 +23,6 @@ members = [
 exclude = [
     "pax-cartridge",
     "pax-compiler/new-project-template",
-    "pax-properties-coproduct",
     "pax-create-sandbox",
     "pax-language-server",
     "examples",

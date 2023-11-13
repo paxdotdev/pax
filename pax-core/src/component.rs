@@ -1,3 +1,4 @@
+use std::any::Any;
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -65,8 +66,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: args.common_properties,
+            instance_prototypical_properties: args.properties,
             compute_properties_fn: args
                 .compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),

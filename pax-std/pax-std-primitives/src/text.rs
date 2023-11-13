@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
     InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,

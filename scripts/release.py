@@ -36,7 +36,6 @@ PACKAGES = [
     "pax-language-server",
     "pax-macro",
     "pax-message",
-    "pax-properties-coproduct",
     "pax-runtime-api",
     "pax-std",
     "pax-std/pax-std-primitives"

@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::ops::RangeFrom;
@@ -425,10 +426,14 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
         let mut indices: Vec<u32> = vec![];
 
         self.shared.borrow_mut().runtime_properties_stack.iter().for_each(|frame_wrapped| {
-            if let PropertiesCoproduct::RepeatItem(_datum, i) =
-                &*(*(*(*frame_wrapped).borrow_mut()).properties).borrow()
+            let frame_rc_cloned = frame_wrapped.clone();
+            let frame_refcell_borrowed = frame_rc_cloned.borrow();
+            let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
+            let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
+
+            if let Some(mut ri) = properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>()
             {
-                indices.push(*i as u32)
+                indices.push(ri.i as u32)
             }
         });
         indices
@@ -497,7 +502,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
         indices
     }
 
-    pub fn compute_vtable_value(&self, vtable_id: usize) -> TypesCoproduct {
+    pub fn compute_vtable_value(&self, vtable_id: usize) -> Box<dyn Any> {
         if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
             let ec = ExpressionContext {
                 engine: self.engine,

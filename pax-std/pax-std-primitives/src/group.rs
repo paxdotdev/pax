@@ -2,7 +2,7 @@ use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, Instanc
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
-use pax_core::pax_properties_coproduct::PropertiesCoproduct;
+use std::any::Any;
 
 use pax_runtime_api::{CommonProperties, Layer, Size};
 
@@ -40,8 +40,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
             },
             handler_registry: args.handler_registry,
 
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: args.common_properties,
+            instance_prototypical_properties: args.properties,
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);

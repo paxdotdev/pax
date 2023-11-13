@@ -7,7 +7,6 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_expand_nodes};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
@@ -104,111 +103,112 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         _z_index: u32,
         subtree_depth: u32,
     ) {
-        let mut new_message: ScrollerPatch = Default::default();
-        new_message.id_chain = ptc.get_id_chain();
-        if !self.last_patches.contains_key(&new_message.id_chain) {
-            let mut patch = ScrollerPatch::default();
-            patch.id_chain = new_message.id_chain.clone();
-            self.last_patches
-                .insert(new_message.id_chain.clone(), patch);
-        }
-        let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
-        let mut has_any_updates = false;
-
-        let wrapped = ptc.current_expanded_node.as_ref().unwrap().clone().borrow().get_properties().clone();
-        with_properties_unsafe!(&wrapped, PropertiesCoproduct, Scroller, |properties: &mut Scroller| {
-            let val = subtree_depth;
-            let is_new_value = last_patch.subtree_depth != val;
-            if is_new_value {
-                new_message.subtree_depth = val;
-                last_patch.subtree_depth = val;
-                has_any_updates = true;
-            }
-
-        let val = computed_size.0;
-        let is_new_value = match &last_patch.size_x {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.size_x = Some(val);
-            last_patch.size_x = Some(val);
-            has_any_updates = true;
-        }
-
-        let val = computed_size.1;
-        let is_new_value = match &last_patch.size_y {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.size_y = Some(val);
-            last_patch.size_y = Some(val);
-            has_any_updates = true;
-        }
-
-        let val = Size::get_pixels(properties.size_inner_pane_x.get(), computed_size.0);
-        let is_new_value = match &last_patch.size_inner_pane_x {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.size_inner_pane_x = Some(val);
-            last_patch.size_inner_pane_x = Some(val);
-            has_any_updates = true;
-        }
-
-        let val = Size::get_pixels(properties.size_inner_pane_y.get(), computed_size.1);
-        let is_new_value = match &last_patch.size_inner_pane_y {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.size_inner_pane_y = Some(val);
-            last_patch.size_inner_pane_y = Some(val);
-            has_any_updates = true;
-        }
-
-        let val = properties.scroll_enabled_x.get();
-        let is_new_value = match &last_patch.scroll_x {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.scroll_x = Some(*val);
-            last_patch.scroll_x = Some(*val);
-            has_any_updates = true;
-        }
-
-        let val = properties.scroll_enabled_y.get();
-        let is_new_value = match &last_patch.scroll_y {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.scroll_y = Some(*val);
-            last_patch.scroll_y = Some(*val);
-            has_any_updates = true;
-        }
-
-            let latest_transform = transform_coeffs;
-            let is_new_transform = match &last_patch.transform {
-                Some(cached_transform) => latest_transform
-                    .iter()
-                    .enumerate()
-                    .any(|(i, elem)| *elem != cached_transform[i]),
-                None => true,
-            };
-            if is_new_transform {
-                new_message.transform = Some(latest_transform.clone());
-                last_patch.transform = Some(latest_transform.clone());
-                has_any_updates = true;
-            }
-
-            if has_any_updates {
-                ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(new_message));
-            }
-        });
+        // let mut new_message: ScrollerPatch = Default::default();
+        // new_message.id_chain = ptc.get_id_chain();
+        // if !self.last_patches.contains_key(&new_message.id_chain) {
+        //     let mut patch = ScrollerPatch::default();
+        //     patch.id_chain = new_message.id_chain.clone();
+        //     self.last_patches
+        //         .insert(new_message.id_chain.clone(), patch);
+        // }
+        // let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
+        // let mut has_any_updates = false;
+        //
+        // let wrapped = ptc.current_expanded_node.as_ref().unwrap().clone().borrow().get_properties().clone();
+        // with_properties_unsafe!(&wrapped, PropertiesCoproduct, Scroller, |properties: &mut Scroller| {
+        //     let val = subtree_depth;
+        //     let is_new_value = last_patch.subtree_depth != val;
+        //     if is_new_value {
+        //         new_message.subtree_depth = val;
+        //         last_patch.subtree_depth = val;
+        //         has_any_updates = true;
+        //     }
+        //
+        // let val = computed_size.0;
+        // let is_new_value = match &last_patch.size_x {
+        //     Some(cached_value) => !val.eq(cached_value),
+        //     None => true,
+        // };
+        // if is_new_value {
+        //     new_message.size_x = Some(val);
+        //     last_patch.size_x = Some(val);
+        //     has_any_updates = true;
+        // }
+        //
+        // let val = computed_size.1;
+        // let is_new_value = match &last_patch.size_y {
+        //     Some(cached_value) => !val.eq(cached_value),
+        //     None => true,
+        // };
+        // if is_new_value {
+        //     new_message.size_y = Some(val);
+        //     last_patch.size_y = Some(val);
+        //     has_any_updates = true;
+        // }
+        //
+        // let val = Size::get_pixels(properties.size_inner_pane_x.get(), computed_size.0);
+        // let is_new_value = match &last_patch.size_inner_pane_x {
+        //     Some(cached_value) => !val.eq(cached_value),
+        //     None => true,
+        // };
+        // if is_new_value {
+        //     new_message.size_inner_pane_x = Some(val);
+        //     last_patch.size_inner_pane_x = Some(val);
+        //     has_any_updates = true;
+        // }
+        //
+        // let val = Size::get_pixels(properties.size_inner_pane_y.get(), computed_size.1);
+        // let is_new_value = match &last_patch.size_inner_pane_y {
+        //     Some(cached_value) => !val.eq(cached_value),
+        //     None => true,
+        // };
+        // if is_new_value {
+        //     new_message.size_inner_pane_y = Some(val);
+        //     last_patch.size_inner_pane_y = Some(val);
+        //     has_any_updates = true;
+        // }
+        //
+        // let val = properties.scroll_enabled_x.get();
+        // let is_new_value = match &last_patch.scroll_x {
+        //     Some(cached_value) => !val.eq(cached_value),
+        //     None => true,
+        // };
+        // if is_new_value {
+        //     new_message.scroll_x = Some(*val);
+        //     last_patch.scroll_x = Some(*val);
+        //     has_any_updates = true;
+        // }
+        //
+        // let val = properties.scroll_enabled_y.get();
+        // let is_new_value = match &last_patch.scroll_y {
+        //     Some(cached_value) => !val.eq(cached_value),
+        //     None => true,
+        // };
+        // if is_new_value {
+        //     new_message.scroll_y = Some(*val);
+        //     last_patch.scroll_y = Some(*val);
+        //     has_any_updates = true;
+        // }
+        //
+        //     let latest_transform = transform_coeffs;
+        //     let is_new_transform = match &last_patch.transform {
+        //         Some(cached_transform) => latest_transform
+        //             .iter()
+        //             .enumerate()
+        //             .any(|(i, elem)| *elem != cached_transform[i]),
+        //         None => true,
+        //     };
+        //     if is_new_transform {
+        //         new_message.transform = Some(latest_transform.clone());
+        //         last_patch.transform = Some(latest_transform.clone());
+        //         has_any_updates = true;
+        //     }
+        //
+        //     if has_any_updates {
+        //         ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(new_message));
+        //     }
+        // });
+        todo!()
     }
 
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
@@ -230,18 +230,19 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     /// Scroller's `size` is the size of its inner pane
     fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
         let properties_wrapped = expanded_node.get_properties();
-        with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Scroller, |properties : &mut Scroller|{
-            (
-                properties
-                    .size_inner_pane_x
-                    .get()
-                    .clone(),
-                properties
-                    .size_inner_pane_y
-                    .get()
-                    .clone(),
-            )
-        })
+        // with_properties_unsafe!(properties_wrapped, PropertiesCoproduct, Scroller, |properties : &mut Scroller|{
+        //     (
+        //         properties
+        //             .size_inner_pane_x
+        //             .get()
+        //             .clone(),
+        //         properties
+        //             .size_inner_pane_y
+        //             .get()
+        //             .clone(),
+        //     )
+        // })
+        todo!()
     }
 
     fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {

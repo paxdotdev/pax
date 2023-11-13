@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::{Rc, Weak};
@@ -14,7 +15,7 @@ use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, N
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
-    pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
+    pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>>,
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
     viewport_tab: TransformAndBounds,
@@ -58,9 +59,10 @@ macro_rules! handle_vtable_update {
     ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
         let current_prop = &mut *$var.$field.as_mut();
         if let Some(vtable_id) = current_prop._get_vtable_id() {
-            let new_value_wrapped = $ptc.compute_vtable_value(vtable_id);
-            let new_value = unsafe_unwrap!(new_value_wrapped, TypesCoproduct, $inner_type);
-            current_prop.set(new_value);
+            let new_value_wrapped : Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
+            if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
+                current_prop.set(*downcast_value);
+            }else{panic!()} //downcast failed
         }
     }};
 }
@@ -79,9 +81,10 @@ macro_rules! handle_vtable_update_optional {
             let current_prop = &mut *$var.$field.as_mut().unwrap();
 
             if let Some(vtable_id) = current_prop._get_vtable_id() {
-                let new_value_wrapped = $ptc.compute_vtable_value(vtable_id);
-                let new_value = unsafe_unwrap!(new_value_wrapped, TypesCoproduct, $inner_type);
-                current_prop.set(new_value);
+                let new_value_wrapped : Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
+                if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
+                    current_prop.set(*downcast_value);
+                }else{panic!()} //downcast failed
             }
         }
     }};
@@ -298,8 +301,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             self.children_expanded_nodes_set.insert(id_chain);
             self.children_expanded_nodes.push(child_expanded_node);
         }
-
-
     }
 
     pub fn set_expanded_and_flattened_slot_children(&mut self, expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>) {
@@ -858,7 +859,7 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
         main_component_instance: Rc<RefCell<ComponentInstance<R>>>,
-        expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
+        expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
         node_registry: Rc<RefCell<NodeRegistry<R>>>,
