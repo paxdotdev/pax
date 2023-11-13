@@ -7,7 +7,6 @@ pub mod declarative_macros;
 pub mod engine;
 pub mod expressions;
 pub mod form_event;
-pub use pax_properties_coproduct;
 pub mod properties;
 pub mod rendering;
 pub mod repeat;

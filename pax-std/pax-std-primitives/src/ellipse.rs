@@ -2,7 +2,7 @@ use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, unsafe_wrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, with_properties_unsafe, handle_vtable_update};
+use pax_core::{Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, handle_vtable_update};
 
 use pax_std::primitives::Ellipse;
 use pax_std::types::{ColorVariant, Fill};
@@ -17,7 +17,7 @@ use std::rc::Rc;
 pub struct EllipseInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
@@ -73,7 +73,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
-        let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
+        let properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
         with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Ellipse, |properties : &mut Ellipse|{
 
             let rect = Rect::from_points((0.0, 0.0), (width, height));

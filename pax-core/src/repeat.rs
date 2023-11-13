@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_wrap, unsafe_unwrap, handle_vtable_update_optional};
-use pax_properties_coproduct::{PropertiesCoproduct, RepeatProperties, TypesCoproduct};
+use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update_optional};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
@@ -15,8 +14,18 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub repeated_template: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+}
+
+
+
+///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
+///is encoded as a Vec<T> (where T is a PropertiesCoproduct type) or as a Range<isize>
+#[derive(Default)]
+pub struct RepeatProperties {
+    pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
+    pub source_expression_range: Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {

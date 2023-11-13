@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
+    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
     InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
 };
 use pax_message::ImagePatch;
@@ -19,7 +19,7 @@ pub struct ImageInstance<R: 'static + RenderContext> {
     last_patches: HashMap<Vec<u32>, pax_message::ImagePatch>,
     pub image: Option<<R as RenderContext>::Image>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 

@@ -1050,7 +1050,7 @@ Can we resolve to the instance of `RootProperties`?
 The answer is probably yes, because properties are stored in an Rc<RefCell<>>, which we can clone into the node_registry
 
 So: Engine has an id and an event, looks up id in node_registry,
-gets an Rc<RefCell<PropertiesCoproduct>>
+gets an Rc<RefCell<dyn Any>>
 
 That PropertiesCoproduct needs to be unwrapped so the right
 type of &self can be passed to our stored fn.
@@ -3898,7 +3898,7 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
 [x] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, there's precedent in other worlds like .NET, and it's just a better naming scheme)
 [x] handle forwarded children in Repeat
 [x] handle triggering events in handle_registry given changes in runtime stack
-[x] probably introduce `get_properties` on dyn InstanceNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
+[x] probably introduce `get_properties` on dyn InstanceNode, returning something like an Rc<RefCell<dyn Any>>
 [-] Alternatively!  fire handlers at end of properties compute phase?
     Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
     when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera`
@@ -4303,7 +4303,7 @@ Since we're going so far as to keep a patch-in-progress on the ExpandedNode, it 
 
 How do we keep our recursion-evaluated _stacks_ (stack frames, clipping & scrolling) intact for our DAG traversal?
 Are these static enough that we can copy them onto ExpandedNodes ?
-Stack Frames keep an `Rc<RefCell<PropertiesCoproduct>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
+Stack Frames keep an `Rc<RefCell<dyn Any>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
 The primary question is whether these stacks are _stable_ after an expansion, or whether we may need to perform some sort of surgery.
 It seems like it's OK to copy them outright, keeping them immutable for the lifetime of an ExpandedNode
 
@@ -4464,7 +4464,7 @@ we can map this data into imperative Rust if/else if/else statements, like we do
         [x] Same with `get_common_properties`
         [x] Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
     [x] Upsert `ExpandedNode` during `recurse_compute_properties`, along with computed properties "stamp".
-        [x] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
+        [x] Refactor `handle_compute_properties` to return a `Rc<RefCell<dyn Any>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
             [x] Refactor one handler to figure out quite what this looks like on the handler side
             [x] Refactor all remaining handlers to match
         [x] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s

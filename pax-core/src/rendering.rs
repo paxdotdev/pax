@@ -1,10 +1,10 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Mul;
 use std::rc::Rc;
 
 use kurbo::{Affine, Point};
-use pax_properties_coproduct::PropertiesCoproduct;
 use pax_runtime_api::{Axis, CommonProperties, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
@@ -43,8 +43,8 @@ pub struct ScrollerArgs {
 }
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
-    pub common_properties: CommonProperties,
-    pub properties: PropertiesCoproduct,
+    pub common_properties: Rc<RefCell<CommonProperties>>,
+    pub properties: Rc<RefCell<dyn Any>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<InstanceNodePtrList<R>>,
@@ -54,7 +54,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation
     pub compute_properties_fn:
-        Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, &mut RenderTreeContext<R>)>>,
+        Option<Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut RenderTreeContext<R>)>>,
 }
 
 #[derive(Copy, Clone)]

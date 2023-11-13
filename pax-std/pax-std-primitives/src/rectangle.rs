@@ -2,7 +2,7 @@ use kurbo::{RoundedRect, Shape};
 use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, unsafe_wrap, handle_vtable_update, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, with_properties_unsafe, ExpandedNode, PropertiesTreeContext};
+use pax_core::{handle_vtable_update, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext};
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
@@ -17,7 +17,7 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
@@ -81,7 +81,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
 
-        let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
+        let properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
         with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, Rectangle, |properties : &mut Rectangle|{
 
             let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());

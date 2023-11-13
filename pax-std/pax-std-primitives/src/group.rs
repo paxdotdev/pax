@@ -13,7 +13,7 @@ pub struct GroupInstance<R: 'static + RenderContext> {
     pub primitive_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
