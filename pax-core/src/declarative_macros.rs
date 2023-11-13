@@ -2,28 +2,14 @@
 ///
 /// # Parameters:
 /// - `$source_enum`: The enum instance to extract the target value from.
-/// - `$enum_type`: The type of the enum.
+/// - `$enum_type`: The type of the enum, such as `PropertiesCoproduct` or `TypesCoproduct`
 /// - `$target_type`: The type of the target value to extract.
-///
 ///
 /// # Examples:
 ///
-/// ```
-/// use pax_core::unsafe_unwrap;
-///
-/// #[derive(Default)]
-/// struct Color { }
-/// #[derive(Default)]
-/// enum PropertiesCoproductTest {
-///     #[default]
-///     None,
-///     Color(Color),
-/// }
-///
-/// fn main() {
-///     let wrapped = PropertiesCoproductTest::Color(Color {});
-///     let unwrapped = unsafe_unwrap!(wrapped,PropertiesCoproductTest,Color);
-/// }
+/// ```text
+/// let wrapped = PropertiesCoproductTest::Color(Color { fill: "green".to_string() } );
+/// let unwrapped_color : Color = unsafe_unwrap!(wrapped, PropertiesCoproductTest, Color);
 /// ```
 #[macro_export]
 macro_rules! unsafe_unwrap {
@@ -60,23 +46,15 @@ macro_rules! unsafe_unwrap {
 
 /// Reverse of `unsafe_unwrap`, packs the provided struct into the provided enum unsafely.
 ///
+/// # Parameters:
+/// - `$value`: The local to wrap into enum form.
+/// - `$enum_type`: The type of the enum, such as `PropertiesCoproduct` or `TypesCoproduct`
+/// - `$target_type`: The type of the target value to extract.
+///
 /// # Example
-///```
-/// use pax_core::unsafe_wrap;
-///
-/// #[derive(Default)]
-/// struct Color { }
-/// #[derive(Default)]
-/// enum PropertiesCoproductTest {
-///    #[default]
-///    None,
-///    Color(Color),
-/// }
-///
-/// fn main() {
-///    let unwrapped = Color {};
-///    let wrapped = unsafe_wrap!(unwrapped,PropertiesCoproductTest, Color);
-/// }
+///```text
+/// let unwrapped = Color {fill: "orange".to_string()};
+/// let wrapped : PropertiesCoproductTest = unsafe_wrap!(unwrapped,PropertiesCoproductTest, Color);
 ///```
 
 #[macro_export]
@@ -115,25 +93,13 @@ macro_rules! unsafe_wrap {
 ///
 /// # Examples
 ///
-/// ```
-/// use std::cell::RefCell;
-/// use std::rc::Rc;
-/// use pax_core::{with_properties_unsafe, unsafe_wrap, unsafe_unwrap};
-///
-/// #[derive(Default)]
-/// struct Color { }
-/// #[derive(Default)]
-/// enum PropertiesCoproductTest {
-///     #[default]
-///     None,
-///     Color(Color),
-/// }
-///
-/// let wrapped : Rc<RefCell<PropertiesCoproductTest>> = Rc::new(RefCell::new(PropertiesCoproductTest::Color(Color {})));
-/// with_properties_unsafe!(&wrapped, PropertiesCoproductTest, Color, |color : &mut Color| {
+/// ```text
+/// let fully_wrapped : Rc<RefCell<PropertiesCoproductTest>> = Rc::new(RefCell::new(PropertiesCoproductTest::Color(Color {fill: "blue".to_string()})));
+/// with_properties_unsafe!(&fully_wrapped, PropertiesCoproductTest, Color, |color : &mut Color| {
 ///     // Perform operations on `color` here.
 ///     // This macro will handle repacking `color` into `wrapped`
 ///     // after this closure is evaluated.
+///     color.fill = "red";
 /// });
 /// ```
 #[macro_export]
