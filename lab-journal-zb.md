@@ -4641,4 +4641,6 @@ dyn Any refactor
     Simplifies build: no longer need to generate propertiescorproduct or deal with it in dependency graph
     Risk: consider dynamic linking & dyn Any 
     
+Scope out dyn any vs. debuggability / velocity with current thrust 
+    
     
