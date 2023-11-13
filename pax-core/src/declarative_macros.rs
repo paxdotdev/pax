@@ -43,7 +43,6 @@ macro_rules! unsafe_unwrap {
     }};
 }
 
-
 /// Reverse of `unsafe_unwrap`, packs the provided struct into the provided enum unsafely.
 ///
 /// # Parameters:
