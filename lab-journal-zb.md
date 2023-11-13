@@ -4195,6 +4195,265 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     they are prospectively used inside the second component in (2)
 6. make sure z-indexing remains pre-order
 
+
+### On computing properties + dirty DAG
+Nov 2 2023
+
+When we compute properties:
+
+handle_compute_properties is responsible for returning in `ExpandedNode`.
+that `ExpandedNode` either already exists (and should be retrieved, and updated as relevant)
+or it doesn't yet exist, in which case it should be created, computed, and registered
+
+we need access to the NodeRegistry here — and we have it: `ptc.engine.node_registry`
+this allows us to upsert ExpandedNodes by id_chain
+we also need the current id_chain: ptc.get_id_chain(self.instance_id);
+
+once we create/retrieve an ExpandedNode, we need to determine whether each property is dirty
+and then re-evaluate its vtable entry if so, storing the calculated value
+
+When do we mark a property no longer dirty? after the entire pass?  We need to make sure we
+traverse the DAG — which would require possibly many passes if we don't traverse that order intelligently
+(e.g. if the last node traversed marks dirty the first node traversed.)
+
+Perhaps we could traverse the dirty DAG entirely first?  And mark the nodes needing re-computation as dirty
+The problem is, even if we do this, but still traverse property computation in-order, we run into an ordering problem,
+because dependencies must be evaluated before dependents.
+(worth double-checking:  are there some ordering guarantees baked into our domain, i.e. the way ancestors can reach into
+descendent properties but not vice-versa, that let us take some kind of shortcut(s) here?)
+Also worth noting — we have already had this problem!  It's almost certain that it takes up to `n` frames for properties computation to "settle"
+when there are complex chains of dependencies, where those deps run contrary to the order of the tree traversal
+
+Effectively, we need to topologically sort the DAG and evaluate properties in that order.  This suggests some sort of self-encapsulated "calculate myself"
+logic on a property, which requires unpacking the PropertiesCoproduct in the context of the containing struct (unsafe_unwrap or similar)
+and then computing the vtable value, storing in that unwrapped property, and making sure it gets back into the containing struct.  Currently,
+the only reasonably elegant place to do that is in the `impl InstanceNode` block for a given InstanceNode, where we know what type we're dealing with.
+If properties kept a pointer to their InstanceNode, then they'd be able to call out to a type-aware handler within that InstanceNode,
+One challenge this introduces:  we can elegantly "stitch together" our ExpandedNode tree by visiting our instance nodes in rendering/recursion order.  Perhaps we still need to do this?
+This suggests that properties compute becomes two differently shaped passes:
+(1) traversal of DAG to compute properties, and (2) traversal of tree to stitch together ExpandedNodes.  
+The order of these might best be reversed (2, 1), where newly inserted properties stamps are simply clones of the prototypical properties, marked dirty, and then computed in the DAG pass
+
+This seems to converge on managing all properties in some sort of table, so that we can refer to that table and express edges (ROM-transistor-like in spirit)
+One possible approach is to unwrap all properties into a table each tick (either sharing memory, which might get sketch, or unpacking & repacking like `with_properties_unsafe`)
+Another possible approach is to wrap PropertyInstances in Rc<RefCell<>> instead of Box<>, which would solve the "unpacking" problem, because Rc<RefCell<>> gives us
+exactly such a table.
+- This seems feasible at first glance... (but see conclusion in this paragraph.)  We'd need to do some refactoring around `Clone` and `Default` and make sure we appease Rust's `orphan rule` (third party trait impl constraints)
+but it seems like if we keep a propertyinstance table, then refactor all PropertiesCoproduct entries to keep pointers to those same properties instances,
+instead of the instances themselves, then we
+(As an aside... this would drastically normalize the shape of PropertiesCoproduct structs; they would all be effectively lists of smart pointers
+instead of heterogeneous blobs of data.  I wonder if it would be feasible to eliminate PropertiesCoproduct entirely by this approach, using
+HashMap<String, Rc<RefCell<PropertyInstance>> to manage the properties of a given ExpandedNode ... would we be able to `self.foo.set()`, though?
+Indeed, the whole refactor to `Rc<RefCell<PropertyInstance>>` would harsh the ergonomics of userland properties.  Any .set or .get would require
+wrangling the Rc<RefCell<>>, which would be unlikely to be a crowd-pleaser.  This seems to be an impasse regarding Rc<RefCell<dyn PropertyInstance>)
+Our table could also be gatekept by instance or expanded nodes — in other words, the edges go between ExpandedNode, with a property id passed along as a param
+Instead of computing properties in a recursive tree order, we compute them in the order of the property DAG
+and instead of computing all properties on each visit, we only compute the one(s) parameterized (by ID, probably)
+This requires ExpandedNodes to be able to address their properties by ID.  this could be brute-forced by unwrapping properties and calling `get_property_id` on each until we find a match — there's certainly a path to making this more elegant.
+
+How do we assemble the dirty dag in the first place?  This is probably a compile-time concern — during expression compilation
+we know the relationships between properties
+(unpack what that means, to know the relationships between properties — can we boil this down to some sort of unique ID per property instance?)
+(we probably do need some sort of unique ID per property — we have this with vtable ids, but we need these for literal properties too, because
+they can be dependencies in dirty DAG)
+We _do_ already have unambiguous relationships between symbols and properties at compile-time — we resolve each symbol such a `self.foo` statically to determine e.g. the stack offset. We could
+elegantly register `self.foo` (the property found when we are determining stack offset) as a dependency of the expression in question at this time, and forward that graph to runtime. (probably codegen a HashMap<u64, Vec<u64>> as the "ROM" LUT of this graph.)
+Dirty DAG is baked at compile time, and edges cannot be _added_ (because expressions require compilation,) but they can be _removed_
+(because you can .set an expression value to a literal.  ways this might bend:
+- if we support reverting to original value, which would restore the vtable ID + expression definition
+- if we support interpreting PAXEL, which would enable runtime expression definitions and would require runtime manip. of dirty-DAG)
+So at compile time, when we compile an expression (because only expressions will have dependencies), when we resolve a symbol like `self.foo`, we
+need to establish an edge on the _instance_ (PropertyDefinition) graph
+Then, when we expand those definitions into instances (roughly, during the act of copying the "prototypical properties" into ExpandedNodes)
+we need to map those instance edges into expansion-aware edges
+Double-check this:  is there ever a case where a "parallel version" of a property can be dirty (and require downstream updates) independently
+of its other parallel versions?   One case that comes to mind is tactical / addressed changes e.g. to a vec of data, where some Repeat subtree should be updated while the others are not.
+Another variant is a Component inside a Repeat, where that Component has a simple instance representation, but has completely independent ExpandedNode + properties instances.  This latter case is clearer,
+that those _expanded_ property instances are indeed what should be "DAGged" between, as opposed to the definitions.
+It follows, then, that we would need to expand the static instance dag to an expanded dag.
+
+When do we mark properties "clean" again?
+Probably after the DAG pass.  Then, when properties may be set imperatively during subsequent lifecycle methods, they are marked `dirty` along the way, and by the next tick
+they're accurately considered `dirty` for that DAG pass.
+
+How do we handle built-ins like `$tick`?  Perhaps we handle these as special kinds of dyn PropertyInstance (`PropertyBuiltin`?)
+We would need to figure out if they also sit on some kind of synthetic ExpandedNode, or whether we have another way to address these (provided that the properties-update DAG passes through ExpandedNodes as its nodes)
+Either we would set $tick on every frame from a special spot in the lifecycle (whereby the act of `set`ting would mark it dirty), or we would
+
+Native patches;
+keep a `patch` object on the ExpandedNode (??) the problem with this is patches are polymorphic and ExpandedNodes are currently type-blind.  This would mean doing something like  
+PropertiesCoproduct or dyn Any for storing patches
+If we can solve this reasonably, though, we can keep a running patch as a register for freshly computed values, punching new values onto it as they're computed
+we could also keep a flag `needs_to_send_update_patch`, which we set true any time we punch one of these values, and then we set false again after sending the patch
+
+How far can we get without dirty DAG?  Re-compute every property on every tick, like we do today
+And continue to keep a cache of `last_patches`, but move them over to the stateful ExpandedNode#properties ?
+(we might also be able to get away without last_patches, and just sending a firehose of `*Update` messages
+across native bridges — this would reduce the need to double down on last_patches hacking, and would elegantly
+be solved with dirty dag, but it might introduce unacceptable perf drag in the meantime, e.g. especially if either of
+DOM or SwiftUI doesn't elegantly handle properties constantly "changing" to the same value )
+
+Decision: remove last_patches for hacked dirty-checking; send native patches greedily; step back into dirty-DAG as the optimization mechanism if we find the flood of native patches incurs too much of a perf hit
+We still need a stateful mechanism for storing the "patch-in-progress" as we compute properties.
+We could couple this to the computation of a property.  I.e. as we compute a property (as we do in one sweeping pass, pre-dirty-DAG) we populate that computed property to the patch.
+As long as we're committing to sending that patch every frame, without checking dirtiness, then we should populate all literal values along the way, too, as they may have been changed during handlers.
+Since we're going so far as to keep a patch-in-progress on the ExpandedNode, it would be pretty straight-forward to keep a last-patch, too, to continue our hacked dirty-check...
+(this could be a low-hanging alternative to full-blown dirty-DAG if indeed we hit a perf wall with firehose-patches.)
+
+
+How do we keep our recursion-evaluated _stacks_ (stack frames, clipping & scrolling) intact for our DAG traversal?
+Are these static enough that we can copy them onto ExpandedNodes ?
+Stack Frames keep an `Rc<RefCell<PropertiesCoproduct>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
+The primary question is whether these stacks are _stable_ after an expansion, or whether we may need to perform some sort of surgery.
+It seems like it's OK to copy them outright, keeping them immutable for the lifetime of an ExpandedNode
+
+
+### On tracking ExpandedNode parent-child relationships
+Nov 7 2023
+
+(Started as a code comment on a would-be addition to NodeRegistry for tracking ExpandedNode parent/child relationships independently of the node instances (as a relational LUT)
+
+Specifies relationships between expanded nodes — intended to be transient, relying on the persisting
+nature of ExpandedNodes and the consistency of `id_chain` to reassociate child relationships after possibly clearing them (e.g. on every tick.)
+
+Clearing them would get us clear & clean mutation handling under if / repeat, without having to perform surgery on existing
+relationships
+It would also let us short-circuit properties subtrees that don't need to be calculated (vs. having lingering ExpandedNodes
+if the child relationships persist.)
+
+Do we really need this, though?  The robust alternative may be to search through the on-ExpandedNode `children_expanded_nodes`
+for a particular id_chain to decide whether an ExpandedNode needs to add itself to a parent (e.g. in the case where a Repeat list expands.)
+"Perform surgery" each time we recurse_compute_properties, to see whether the ExpandedNode needs to be registered as a child of its parent
+
+One other trade-off is compute: recalculating child relationships each tick adds a CPU burden even for an idle program, vs. performing surgery
+reaches a steady low-draw state on idle
+
+With dirty-DAG, we really only need to be handling the _creation_ of ExpandedNodes — expanding / contracting the tree as necessary —
+while the _computation of properties_ happens on a separate pass.  In that world... do we even need parent/child relationships?  (yes — this is exactly used by rendering.)
+So: expand the tree, keep track of parent-child relationship
+
+In most cases, ExpandedNodes are totally static.  We could cache them aggressively.
+_Only_ for Repeat and If are the child ExpandedNodes subject to changing. (or via def. changes, e.g. HMR or runtime mutation API.)
+In fact, we might be able to _expand_ ExpandedNodes exactly once, at program init, and then "perform surgery" by API explicitly for the Repeat and If cases.
+
+Thereafter, instead of "expanding tree and computing properties," we just "compute properties."  The pre-dirty-DAG shape of this
+would be "just recurse through the tree computing properties." Thereafter, with dirty DAG, we traverse the DAG (when needed) instead
+of traversing the tree top-down.
+(Maybe we get this already in effect though by getting-or-creating ExpandedNodes as we go.  So there's really no harm in coupling these.)
+
+***Or maybe the entirety of the current `recurse_compute_properties` method is a one-time init function???***
+
+As long as component-side `handle_compute_properties` have the ability to "perform surgery" on parent/child relationships as needed by conditional + repeat,
+then Repeat and Conditional can keep the ExpandedNode tree updated via DAG
+
+Note that the surgery is "append-only."  We could later come back for some sort of explicit "garbage collection" as a feature, but as long as we don't require _removing children expanded nodes_ when e.g. Repeat contracts or If turns off,
+then we have an elegant solution for unmounting / mounting (mark subtree unmounted, continue to compute properties, but skip rendering entirely.)
+
+Note that currently EXPANSION and PROPERTIES-COMPUTE are tightly coupled.  In a dirty-DAG world we need to decouple these, and we should consider whether to do so also in a pre-dirty-dag world too.
+
+Repeat, for example, needs to affect expandednodes (parent/child relationships) as part of its compute_properties.
+
+In dirty-dag world, we probably need each property to be atomically computable, instead of the current "all properties are computed together in compute_properties" approach.
+This also suggests that all properties need to be uniquely identifiable and addressable in a single place (some sort of PropertyInstanceTable)
+This still runs up against the ergonomics wall of being able to .get and .set. (presuming the instances are wrapped in Rc<RefCell<>>)
+There must be some way to achieve tactical updates of properties in a generic, trait-wrappable way...
+Maybe we could address properties globally a la id_chain?  and an instance_node knows how to translate that address into an atomic compute method?  (in the context of a specific expandednode / stateful property container, of course)
+intuitive ways to address properties via their containing struct (ExpandedNode or PropertiesCoproduct instance)
+- index
+- string id
+- memory offset??? (`repr(C)`)
+
+Statically we know the property names that we're updating; we manually run through these in the boilerplate of `compute_properties`.  Perhaps, then, there's a
+natural place to introduce a static LUT of sorts, for string id => atomic compute_properties function.
+
+```
+properties_computers = HashMap::from(vec![
+    ("stroke",|properties : &mut Ellipse|{
+        handle_vtable_update!(properties.stroke, PropertiesCoproduct, Stroke);
+    }),
+    ("fill",|properties : &mut Ellipse|{
+        handle_vtable_update!(properties.fill, PropertiesCoproduct, Fill);
+    }),
+])
+```
+
+These properties_computers could be derived straight-forwardly from a struct (ultimately as part of derive(Pax))
+Main drawback is introduction of string properties IDs as runtime footprint overhead
+Dirty DAG, too, would need to address these properties by string ID, introducing duplicate overhead
+Instance dag addresses (instance id, property string id)
+Expanded dag addresses (id_chain, property string id)
+
+How does dirty-dag manage multiple dirty properties? Either the "lightning bolts" of downstream updates happen immediately, or they're enqueued
+It's possible that expression C depends on both properties A and B, and both A and B have changed.  Either we recompute C twice (immediate lightning bolts) or the operations
+are enqueued somehow and possibly de-duplicated.  Upon writing this out, it feels like an exotic feature / optimization.  Recomputing C twice, immediately, should be fine.
+
+So: compute properties _once_ at tree expansion time
+Then, only recompute properties (a) imperatively, e.g. manually by a developer with a `.set` method, or (b) as an immediate downstream effect of an upstream property `.set` (via DAG)
+
+One more important thing to sanity-check while we're speccing this out:
+async + channel-based property setting (as opposed to directly setting on the containing property object itself)
+Note that with the channel approach, we would have the ability to indirect between a `.set` method (on the thin channel object) and an unwrapped `.borrow_mut().etc` on an Rc<RefCell<PropertyInstance>> e.g. in a centralized propertyinstance table.
+This would afford an alternative to `properties_computers` — without the string lookup / association overhead, allowing simple int nodes on the DAG — while still providing
+simple .get/.set ergonomics to the user.
+
+(The above could ostensibly be optimized to use int ids instead of strings, requiring some sort of careful sequencing of application for int IDs => properties)
+
+If we charge forward here without dirty dag:
+1. keep properties compute and node expansion coupled; plan to re-run every frame (get-or-create expandednodes provides a hot path caching mechanism, at least)
+Figure out a hacked solution to parent / child relationships given a world where we re-run tree expansion every tick (check for presence in parent's child vec before appending; possibly opt. with a hashset alongside children_expanded_nodes for constant lookups)
+2. continue to allow "custom management of children" in the context of node expansion (manages_own_propertie_subtree)
+3. clone our clipping/scrolling/runtimeproperties stacks onto each expanded node, permanently (the Rc<RefCell<>>s hold exactly the right instances of e.g. properties for stack frame)
+4. on each tick, compute_properties for the entire tree from root (clumsy alternative to dag)
+
+
+### On repeat indices and a prospective `key` property
+Nov 8 2023
+
+On the topic of repeat, it's also worth deadend-scoping `key`-like functionality a la React.  Namely, the naive implementation will consider a node unique via its index under the repeat source vec/range.
+React offers a provision for the developer to specify the unique identity of a repeated node,
+
+Here's an example of `key` from the React docs:
+
+```
+<ul>
+  {props.posts.map((post) =>
+    <li key={post.id}>
+      {post.title}
+    </li>
+  )}
+</ul>
+```
+
+and this relevant snippet of doc:
+
+> When children have keys, React uses the key to match children in the original tree with children in the subsequent tree.
+from https://legacy.reactjs.org/docs/reconciliation.html#keys
+
+Is this relevant to us?  The primary cases for this are _insertions_ (where subtrees should be left alone if their identity / data is unchanged) and _reorders_ (converging on a case of insertion.)
+
+A naive approach would be to recompute all of Repeat's children / properties / subtrees on a data list change (insertion, deletion, change in foo or bar in `foo..bar`)
+
+What happens to the "identity" of a node if a repeat index changes?  Most notably, this would introduce a "shift" in id_chain — if we're repeating over [a,b,c]
+and we insert `d` such that we're iterating over [a,d,b,c]
+then `d` maps to the ID chain that used to be associated with `b`.  Let's say the for loop is `for x in my_vec { ... }` we need to ensure that `x` is set to the new value, `d` for the subtree represented by that id_chain.
+In a world with expanded dirty DAG, this should be straight-forward enough.
+In the naive approach, we do the same for `b` and `c`, because their id_chain vs datum relationships have both shifted.  This certainly incurs more property computation work than
+Is there a path to a less naive approach?
+- `key` becomes a common property, either a u32 or a String, and could be set anywhere, though is only read in the context of the top-level children of `Repeat`.
+- `key` _might_ become a member of the id chain!!  instead of the default int-index Vec<u64>.  Would need to figure out how to consolidate possible string key-ids with those u64s.  
+  one possible approach could be to shift u64 => i64, and to associate negative values with some sort of string LUT.  So -1 would map to "foo", which the user passes as key, and -1 gets inserted into the id_chain instead of the repeat index.
+  This would be portable across the native bridge; too — id_chain remains globablly unique/identifying, but the implementation details of the lookups / negative numbers are encapsulated by Repeat.
+
+
+### On `if` ... `else if` ... `else`,  if-else ladders
+Nov 8 2023
+(Deadend-scoping for properties engine refactor)
+We can probably update the grammar to match an `if_ladder` as an if statement, (some inner statements), some number of else-if statements, (some inner statements), and zero or one else statements.
+We could then model `ConditionalProperties` to have a Vec or linked list of conditional properties (one for each arm) along with a flag describing the kind of arm.  Finally, during properties computation for Conditional,
+we can map this data into imperative Rust if/else if/else statements, like we do with Repeat & friends.
+
+
+
 #### Second pass, TODOs:
 
 [x] Refactor Instance vs ExpandedNodes
@@ -4361,259 +4620,17 @@ Let's store a prototypical clone of the original properties on each InstanceNode
     [ ] Scrolling
 
 
+Considerations for ideal property management
 
-### On computing properties + dirty DAG
-Nov 2 2023
-
-When we compute properties:
-
-handle_compute_properties is responsible for returning in `ExpandedNode`.
-that `ExpandedNode` either already exists (and should be retrieved, and updated as relevant)
-or it doesn't yet exist, in which case it should be created, computed, and registered
-
-we need access to the NodeRegistry here — and we have it: `ptc.engine.node_registry`
-    this allows us to upsert ExpandedNodes by id_chain
-we also need the current id_chain: ptc.get_id_chain(self.instance_id);
-
-once we create/retrieve an ExpandedNode, we need to determine whether each property is dirty
-and then re-evaluate its vtable entry if so, storing the calculated value
-
-When do we mark a property no longer dirty? after the entire pass?  We need to make sure we
-traverse the DAG — which would require possibly many passes if we don't traverse that order intelligently
-(e.g. if the last node traversed marks dirty the first node traversed.)
-
-Perhaps we could traverse the dirty DAG entirely first?  And mark the nodes needing re-computation as dirty
-    The problem is, even if we do this, but still traverse property computation in-order, we run into an ordering problem,
-    because dependencies must be evaluated before dependents.
-    (worth double-checking:  are there some ordering guarantees baked into our domain, i.e. the way ancestors can reach into
-    descendent properties but not vice-versa, that let us take some kind of shortcut(s) here?)
-    Also worth noting — we have already had this problem!  It's almost certain that it takes up to `n` frames for properties computation to "settle"
-    when there are complex chains of dependencies, where those deps run contrary to the order of the tree traversal
-
-Effectively, we need to topologically sort the DAG and evaluate properties in that order.  This suggests some sort of self-encapsulated "calculate myself"
-logic on a property, which requires unpacking the PropertiesCoproduct in the context of the containing struct (unsafe_unwrap or similar)
-and then computing the vtable value, storing in that unwrapped property, and making sure it gets back into the containing struct.  Currently,
-the only reasonably elegant place to do that is in the `impl InstanceNode` block for a given InstanceNode, where we know what type we're dealing with.
-If properties kept a pointer to their InstanceNode, then they'd be able to call out to a type-aware handler within that InstanceNode,
-One challenge this introduces:  we can elegantly "stitch together" our ExpandedNode tree by visiting our instance nodes in rendering/recursion order.  Perhaps we still need to do this?
-    This suggests that properties compute becomes two differently shaped passes: 
-    (1) traversal of DAG to compute properties, and (2) traversal of tree to stitch together ExpandedNodes.  
-    The order of these might best be reversed (2, 1), where newly inserted properties stamps are simply clones of the prototypical properties, marked dirty, and then computed in the DAG pass
-
-This seems to converge on managing all properties in some sort of table, so that we can refer to that table and express edges (ROM-transistor-like in spirit)
-One possible approach is to unwrap all properties into a table each tick (either sharing memory, which might get sketch, or unpacking & repacking like `with_properties_unsafe`)
-Another possible approach is to wrap PropertyInstances in Rc<RefCell<>> instead of Box<>, which would solve the "unpacking" problem, because Rc<RefCell<>> gives us
-exactly such a table.
-    - This seems feasible at first glance... (but see conclusion in this paragraph.)  We'd need to do some refactoring around `Clone` and `Default` and make sure we appease Rust's `orphan rule` (third party trait impl constraints)
-      but it seems like if we keep a propertyinstance table, then refactor all PropertiesCoproduct entries to keep pointers to those same properties instances,
-      instead of the instances themselves, then we
-      (As an aside... this would drastically normalize the shape of PropertiesCoproduct structs; they would all be effectively lists of smart pointers
-      instead of heterogeneous blobs of data.  I wonder if it would be feasible to eliminate PropertiesCoproduct entirely by this approach, using
-      HashMap<String, Rc<RefCell<PropertyInstance>> to manage the properties of a given ExpandedNode ... would we be able to `self.foo.set()`, though?
-       Indeed, the whole refactor to `Rc<RefCell<PropertyInstance>>` would harsh the ergonomics of userland properties.  Any .set or .get would require
-       wrangling the Rc<RefCell<>>, which would be unlikely to be a crowd-pleaser.  This seems to be an impasse regarding Rc<RefCell<dyn PropertyInstance>)
-Our table could also be gatekept by instance or expanded nodes — in other words, the edges go between ExpandedNode, with a property id passed along as a param
-Instead of computing properties in a recursive tree order, we compute them in the order of the property DAG
-and instead of computing all properties on each visit, we only compute the one(s) parameterized (by ID, probably)
-This requires ExpandedNodes to be able to address their properties by ID.  this could be brute-forced by unwrapping properties and calling `get_property_id` on each until we find a match — there's certainly a path to making this more elegant.
-
-How do we assemble the dirty dag in the first place?  This is probably a compile-time concern — during expression compilation
-we know the relationships between properties
-    (unpack what that means, to know the relationships between properties — can we boil this down to some sort of unique ID per property instance?)
-    (we probably do need some sort of unique ID per property — we have this with vtable ids, but we need these for literal properties too, because
-    they can be dependencies in dirty DAG)
-    We _do_ already have unambiguous relationships between symbols and properties at compile-time — we resolve each symbol such a `self.foo` statically to determine e.g. the stack offset. We could
-    elegantly register `self.foo` (the property found when we are determining stack offset) as a dependency of the expression in question at this time, and forward that graph to runtime. (probably codegen a HashMap<u64, Vec<u64>> as the "ROM" LUT of this graph.)
-    Dirty DAG is baked at compile time, and edges cannot be _added_ (because expressions require compilation,) but they can be _removed_
-    (because you can .set an expression value to a literal.  ways this might bend:
-        - if we support reverting to original value, which would restore the vtable ID + expression definition
-        - if we support interpreting PAXEL, which would enable runtime expression definitions and would require runtime manip. of dirty-DAG)
-So at compile time, when we compile an expression (because only expressions will have dependencies), when we resolve a symbol like `self.foo`, we
-need to establish an edge on the _instance_ (PropertyDefinition) graph
-Then, when we expand those definitions into instances (roughly, during the act of copying the "prototypical properties" into ExpandedNodes)
-we need to map those instance edges into expansion-aware edges
-    Double-check this:  is there ever a case where a "parallel version" of a property can be dirty (and require downstream updates) independently
-    of its other parallel versions?   One case that comes to mind is tactical / addressed changes e.g. to a vec of data, where some Repeat subtree should be updated while the others are not.
-    Another variant is a Component inside a Repeat, where that Component has a simple instance representation, but has completely independent ExpandedNode + properties instances.  This latter case is clearer,
-    that those _expanded_ property instances are indeed what should be "DAGged" between, as opposed to the definitions.
-    It follows, then, that we would need to expand the static instance dag to an expanded dag.
-
-When do we mark properties "clean" again?
-    Probably after the DAG pass.  Then, when properties may be set imperatively during subsequent lifecycle methods, they are marked `dirty` along the way, and by the next tick 
-    they're accurately considered `dirty` for that DAG pass.
+[ ] unit tests for unsafe macros
+[ ] IDs annotated with each property definition
+[ ] static property DAG
+[ ] expanded property DAG, id_chain
+[ ] mechanism for computing properties atomically, plus addressing mechanism (either per-component `property-id-as-address : re-compute method` "property computers", or per-property addressing / table / RcRefCells)
+[ ] async: channel property containers, explore threading + wasm support
+[ ] dyn Any refactor?
+    Relieves need for PropertiesCoproduct and TypesCoproduct entirely
+    Removes unsafe_unwrap, unsafe_wrap
+    Risk: need to ensure it's compatible with Rc<RefCell<>> (probably is if done right)
     
-How do we handle built-ins like `$tick`?  Perhaps we handle these as special kinds of dyn PropertyInstance (`PropertyBuiltin`?)
-We would need to figure out if they also sit on some kind of synthetic ExpandedNode, or whether we have another way to address these (provided that the properties-update DAG passes through ExpandedNodes as its nodes)
-Either we would set $tick on every frame from a special spot in the lifecycle (whereby the act of `set`ting would mark it dirty), or we would 
-
-Native patches;
-    keep a `patch` object on the ExpandedNode (??) the problem with this is patches are polymorphic and ExpandedNodes are currently type-blind.  This would mean doing something like  
-    PropertiesCoproduct or dyn Any for storing patches
-    If we can solve this reasonably, though, we can keep a running patch as a register for freshly computed values, punching new values onto it as they're computed
-    we could also keep a flag `needs_to_send_update_patch`, which we set true any time we punch one of these values, and then we set false again after sending the patch
-
-How far can we get without dirty DAG?  Re-compute every property on every tick, like we do today
-And continue to keep a cache of `last_patches`, but move them over to the stateful ExpandedNode#properties ?
-    (we might also be able to get away without last_patches, and just sending a firehose of `*Update` messages
-    across native bridges — this would reduce the need to double down on last_patches hacking, and would elegantly
-    be solved with dirty dag, but it might introduce unacceptable perf drag in the meantime, e.g. especially if either of
-    DOM or SwiftUI doesn't elegantly handle properties constantly "changing" to the same value )
-
-Decision: remove last_patches for hacked dirty-checking; send native patches greedily; step back into dirty-DAG as the optimization mechanism if we find the flood of native patches incurs too much of a perf hit
-    We still need a stateful mechanism for storing the "patch-in-progress" as we compute properties.
-    We could couple this to the computation of a property.  I.e. as we compute a property (as we do in one sweeping pass, pre-dirty-DAG) we populate that computed property to the patch.
-    As long as we're committing to sending that patch every frame, without checking dirtiness, then we should populate all literal values along the way, too, as they may have been changed during handlers.
-Since we're going so far as to keep a patch-in-progress on the ExpandedNode, it would be pretty straight-forward to keep a last-patch, too, to continue our hacked dirty-check...
-    (this could be a low-hanging alternative to full-blown dirty-DAG if indeed we hit a perf wall with firehose-patches.)
     
-
-How do we keep our recursion-evaluated _stacks_ (stack frames, clipping & scrolling) intact for our DAG traversal?
-Are these static enough that we can copy them onto ExpandedNodes ?
-Stack Frames keep an `Rc<RefCell<PropertiesCoproduct>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
-The primary question is whether these stacks are _stable_ after an expansion, or whether we may need to perform some sort of surgery.
-It seems like it's OK to copy them outright, keeping them immutable for the lifetime of an ExpandedNode
-
-
-### On tracking ExpandedNode parent-child relationships 
-Nov 7 2023
-
-(Started as a code comment on a would-be addition to NodeRegistry for tracking ExpandedNode parent/child relationships independently of the node instances (as a relational LUT)
-
-Specifies relationships between expanded nodes — intended to be transient, relying on the persisting
-nature of ExpandedNodes and the consistency of `id_chain` to reassociate child relationships after possibly clearing them (e.g. on every tick.)
-
-Clearing them would get us clear & clean mutation handling under if / repeat, without having to perform surgery on existing
-relationships
-It would also let us short-circuit properties subtrees that don't need to be calculated (vs. having lingering ExpandedNodes
-if the child relationships persist.)
-
-Do we really need this, though?  The robust alternative may be to search through the on-ExpandedNode `children_expanded_nodes`
-for a particular id_chain to decide whether an ExpandedNode needs to add itself to a parent (e.g. in the case where a Repeat list expands.)
-"Perform surgery" each time we recurse_compute_properties, to see whether the ExpandedNode needs to be registered as a child of its parent
-
-One other trade-off is compute: recalculating child relationships each tick adds a CPU burden even for an idle program, vs. performing surgery
-reaches a steady low-draw state on idle
-
-With dirty-DAG, we really only need to be handling the _creation_ of ExpandedNodes — expanding / contracting the tree as necessary —
-while the _computation of properties_ happens on a separate pass.  In that world... do we even need parent/child relationships?  (yes — this is exactly used by rendering.)
-So: expand the tree, keep track of parent-child relationship
-
-In most cases, ExpandedNodes are totally static.  We could cache them aggressively.
-_Only_ for Repeat and If are the child ExpandedNodes subject to changing. (or via def. changes, e.g. HMR or runtime mutation API.)
-In fact, we might be able to _expand_ ExpandedNodes exactly once, at program init, and then "perform surgery" by API explicitly for the Repeat and If cases.
-
-Thereafter, instead of "expanding tree and computing properties," we just "compute properties."  The pre-dirty-DAG shape of this
-would be "just recurse through the tree computing properties." Thereafter, with dirty DAG, we traverse the DAG (when needed) instead
-of traversing the tree top-down.
-(Maybe we get this already in effect though by getting-or-creating ExpandedNodes as we go.  So there's really no harm in coupling these.)
-
-***Or maybe the entirety of the current `recurse_compute_properties` method is a one-time init function???***
-
-As long as component-side `handle_compute_properties` have the ability to "perform surgery" on parent/child relationships as needed by conditional + repeat,
-then Repeat and Conditional can keep the ExpandedNode tree updated via DAG
-
-Note that the surgery is "append-only."  We could later come back for some sort of explicit "garbage collection" as a feature, but as long as we don't require _removing children expanded nodes_ when e.g. Repeat contracts or If turns off,
-then we have an elegant solution for unmounting / mounting (mark subtree unmounted, continue to compute properties, but skip rendering entirely.)
-
-Note that currently EXPANSION and PROPERTIES-COMPUTE are tightly coupled.  In a dirty-DAG world we need to decouple these, and we should consider whether to do so also in a pre-dirty-dag world too.
-
-Repeat, for example, needs to affect expandednodes (parent/child relationships) as part of its compute_properties.  
-
-In dirty-dag world, we probably need each property to be atomically computable, instead of the current "all properties are computed together in compute_properties" approach.
-This also suggests that all properties need to be uniquely identifiable and addressable in a single place (some sort of PropertyInstanceTable)
-This still runs up against the ergonomics wall of being able to .get and .set. (presuming the instances are wrapped in Rc<RefCell<>>)
-There must be some way to achieve tactical updates of properties in a generic, trait-wrappable way...
-Maybe we could address properties globally a la id_chain?  and an instance_node knows how to translate that address into an atomic compute method?  (in the context of a specific expandednode / stateful property container, of course)
-intuitive ways to address properties via their containing struct (ExpandedNode or PropertiesCoproduct instance)
-    - index
-    - string id
-    - memory offset??? (`repr(C)`)
-
-Statically we know the property names that we're updating; we manually run through these in the boilerplate of `compute_properties`.  Perhaps, then, there's a
-natural place to introduce a static LUT of sorts, for string id => atomic compute_properties function.
-
-```
-properties_computers = HashMap::from(vec![
-    ("stroke",|properties : &mut Ellipse|{
-        handle_vtable_update!(properties.stroke, PropertiesCoproduct, Stroke);
-    }),
-    ("fill",|properties : &mut Ellipse|{
-        handle_vtable_update!(properties.fill, PropertiesCoproduct, Fill);
-    }),
-])
-```
-
-These properties_computers could be derived straight-forwardly from a struct (ultimately as part of derive(Pax))
-Main drawback is introduction of string properties IDs as runtime footprint overhead
-Dirty DAG, too, would need to address these properties by string ID, introducing duplicate overhead
-Instance dag addresses (instance id, property string id)
-Expanded dag addresses (id_chain, property string id)
-
-How does dirty-dag manage multiple dirty properties? Either the "lightning bolts" of downstream updates happen immediately, or they're enqueued
-It's possible that expression C depends on both properties A and B, and both A and B have changed.  Either we recompute C twice (immediate lightning bolts) or the operations
-are enqueued somehow and possibly de-duplicated.  Upon writing this out, it feels like an exotic feature / optimization.  Recomputing C twice, immediately, should be fine.
-
-So: compute properties _once_ at tree expansion time
-Then, only recompute properties (a) imperatively, e.g. manually by a developer with a `.set` method, or (b) as an immediate downstream effect of an upstream property `.set` (via DAG)
-
-One more important thing to sanity-check while we're speccing this out:
-async + channel-based property setting (as opposed to directly setting on the containing property object itself)
-Note that with the channel approach, we would have the ability to indirect between a `.set` method (on the thin channel object) and an unwrapped `.borrow_mut().etc` on an Rc<RefCell<PropertyInstance>> e.g. in a centralized propertyinstance table.
-This would afford an alternative to `properties_computers` — without the string lookup / association overhead, allowing simple int nodes on the DAG — while still providing
-simple .get/.set ergonomics to the user.
-
-(The above could ostensibly be optimized to use int ids instead of strings, requiring some sort of careful sequencing of application for int IDs => properties)
-
-If we charge forward here without dirty dag:
-    1. keep properties compute and node expansion coupled; plan to re-run every frame (get-or-create expandednodes provides a hot path caching mechanism, at least)
-        Figure out a hacked solution to parent / child relationships given a world where we re-run tree expansion every tick (check for presence in parent's child vec before appending; possibly opt. with a hashset alongside children_expanded_nodes for constant lookups)
-    2. continue to allow "custom management of children" in the context of node expansion (manages_own_propertie_subtree)
-    3. clone our clipping/scrolling/runtimeproperties stacks onto each expanded node, permanently (the Rc<RefCell<>>s hold exactly the right instances of e.g. properties for stack frame)
-    4. on each tick, compute_properties for the entire tree from root (clumsy alternative to dag)
-
-
-### On repeat indices and a prospective `key` property
-Nov 8 2023
-
-On the topic of repeat, it's also worth deadend-scoping `key`-like functionality a la React.  Namely, the naive implementation will consider a node unique via its index under the repeat source vec/range.
-React offers a provision for the developer to specify the unique identity of a repeated node,
-
-Here's an example of `key` from the React docs:
-
-```
-<ul>
-  {props.posts.map((post) =>
-    <li key={post.id}>
-      {post.title}
-    </li>
-  )}
-</ul>
-```
-
-and this relevant snippet of doc:
-
-> When children have keys, React uses the key to match children in the original tree with children in the subsequent tree.
-from https://legacy.reactjs.org/docs/reconciliation.html#keys
-
-Is this relevant to us?  The primary cases for this are _insertions_ (where subtrees should be left alone if their identity / data is unchanged) and _reorders_ (converging on a case of insertion.)
-
-A naive approach would be to recompute all of Repeat's children / properties / subtrees on a data list change (insertion, deletion, change in foo or bar in `foo..bar`)
-
-What happens to the "identity" of a node if a repeat index changes?  Most notably, this would introduce a "shift" in id_chain — if we're repeating over [a,b,c]
-and we insert `d` such that we're iterating over [a,d,b,c]
-then `d` maps to the ID chain that used to be associated with `b`.  Let's say the for loop is `for x in my_vec { ... }` we need to ensure that `x` is set to the new value, `d` for the subtree represented by that id_chain.
-In a world with expanded dirty DAG, this should be straight-forward enough.
-In the naive approach, we do the same for `b` and `c`, because their id_chain vs datum relationships have both shifted.  This certainly incurs more property computation work than
-Is there a path to a less naive approach?
-- `key` becomes a common property, either a u32 or a String, and could be set anywhere, though is only read in the context of the top-level children of `Repeat`.
-- `key` _might_ become a member of the id chain!!  instead of the default int-index Vec<u64>.  Would need to figure out how to consolidate possible string key-ids with those u64s.  
-one possible approach could be to shift u64 => i64, and to associate negative values with some sort of string LUT.  So -1 would map to "foo", which the user passes as key, and -1 gets inserted into the id_chain instead of the repeat index.
-This would be portable across the native bridge; too — id_chain remains globablly unique/identifying, but the implementation details of the lookups / negative numbers are encapsulated by Repeat.
-
-
-### On `if` ... `else if` ... `else`,  if-else ladders
-Nov 8 2023
-(Deadend-scoping for properties engine refactor)
-We can probably update the grammar to match an `if_ladder` as an if statement, (some inner statements), some number of else-if statements, (some inner statements), and zero or one else statements.
-We could then model `ConditionalProperties` to have a Vec or linked list of conditional properties (one for each arm) along with a flag describing the kind of arm.  Finally, during properties computation for Conditional,
-we can map this data into imperative Rust if/else if/else statements, like we do with Repeat & friends.
