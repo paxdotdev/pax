@@ -60,7 +60,7 @@ pub fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 30] = [
+    const IMPORTS_BUILTINS: [&str; 28] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
@@ -87,8 +87,6 @@ pub fn generate_and_overwrite_cartridge(
         "pax_core::ConditionalInstance",
         "pax_core::SlotInstance",
         "pax_core::properties::RuntimePropertiesStackFrame",
-        "pax_core::pax_properties_coproduct::PropertiesCoproduct",
-        "pax_core::pax_properties_coproduct::TypesCoproduct",
         "pax_core::repeat::RepeatInstance",
         "piet_common::RenderContext",
     ];
@@ -744,120 +742,3 @@ fn generate_cartridge_component_factory_literal(
     press_template_codegen_cartridge_component_factory(args)
 }
 
-pub fn generate_and_overwrite_properties_coproduct(
-    pax_dir: &PathBuf,
-    manifest: &PaxManifest,
-    host_crate_info: &HostCrateInfo,
-) {
-    let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-properties-coproduct");
-
-    let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
-    let mut target_cargo_toml_contents =
-        toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
-            .unwrap();
-
-    //insert new entry pointing to userland crate, where `pax_app` is defined
-    std::mem::swap(
-        target_cargo_toml_contents["dependencies"]
-            .get_mut(&host_crate_info.name)
-            .unwrap(),
-        &mut Item::from_str("{ path=\"../../..\" }").unwrap(),
-    );
-
-    //write patched Cargo.toml
-    fs::write(
-        &target_cargo_full_path,
-        &target_cargo_toml_contents.to_string(),
-    )
-    .unwrap();
-
-    //build tuples for PropertiesCoproduct
-    let mut properties_coproduct_tuples: Vec<(String, String)> = manifest
-        .components
-        .iter()
-        .map(|comp_def| {
-            let mod_path = if &comp_def.1.module_path == "crate" {
-                "".to_string()
-            } else {
-                comp_def.1.module_path.replace("crate::", "") + "::"
-            };
-            (
-                comp_def.1.type_id_escaped.clone(),
-                format!(
-                    "{}{}{}",
-                    &host_crate_info.import_prefix, &mod_path, &comp_def.1.pascal_identifier
-                ),
-            )
-        })
-        .collect();
-    let set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
-    properties_coproduct_tuples.extend(set.into_iter());
-    properties_coproduct_tuples.sort();
-
-    //build tuples for TypesCoproduct
-    // - include all Property types, representing all possible return types for Expressions
-    // - include all T such that T is the iterator type for some Property<Vec<T>>
-    let mut types_coproduct_tuples: Vec<(String, String)> = manifest
-        .components
-        .iter()
-        .map(|cd| {
-            cd.1.get_property_definitions(&manifest.type_table)
-                .iter()
-                .map(|pm| {
-                    let td = pm.get_type_definition(&manifest.type_table);
-
-                    (
-                        td.type_id_escaped.clone(),
-                        host_crate_info.import_prefix.to_string()
-                            + &td.type_id.clone().replace("crate::", ""),
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-        .flatten()
-        .collect::<Vec<_>>();
-
-    let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
-
-    #[allow(non_snake_case)]
-    let TYPES_COPRODUCT_BUILT_INS = vec![
-        ("f64", "f64"),
-        ("bool", "bool"),
-        ("isize", "isize"),
-        ("usize", "usize"),
-        ("String", "String"),
-        (
-            "stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRcoreCOCOcellCOCORefCellLABRPropertiesCoproductRABRRABRRABR",
-            "std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>",
-        ),
-        ("Transform2D", "pax_runtime_api::Transform2D"),
-        ("stdCOCOopsCOCORangeLABRisizeRABR", "std::ops::Range<isize>"),
-        ("Size", "pax_runtime_api::Size"),
-        ("Rotation", "pax_runtime_api::Rotation"),
-        ("SizePixels", "pax_runtime_api::SizePixels"),
-        ("Numeric", "pax_runtime_api::Numeric"),
-        ("StringBox", "pax_runtime_api::StringBox"),
-    ];
-
-    TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {
-        set.insert((builtin.0.to_string(), builtin.1.to_string()));
-    });
-    types_coproduct_tuples.extend(set.into_iter());
-    types_coproduct_tuples.sort();
-
-    types_coproduct_tuples = types_coproduct_tuples
-        .into_iter()
-        .unique_by(|elem| elem.0.to_string())
-        .collect::<Vec<(String, String)>>();
-
-    //press template into String
-    let generated_lib_rs = templating::press_template_codegen_properties_coproduct_lib(
-        templating::TemplateArgsCodegenPropertiesCoproductLib {
-            properties_coproduct_tuples,
-            types_coproduct_tuples,
-        },
-    );
-
-    //write String to file
-    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
-}

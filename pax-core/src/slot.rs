@@ -1,12 +1,13 @@
 use core::cell::RefCell;
 use core::option::Option;
 use core::option::Option::{None, Some};
+use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext, handle_vtable_update};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext, handle_vtable_update, with_properties_unwrapped};
 use pax_runtime_api::{CommonProperties, Layer, Numeric, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
@@ -47,8 +48,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: args.common_properties,
+            instance_prototypical_properties: args.properties,
         }));
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
@@ -73,7 +74,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
             ptc.engine.node_registry.borrow_mut().mark_for_unmount(cen.borrow().id_chain.clone());
         }
 
-        let current_index : usize = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, SlotProperties, |properties: &mut SlotProperties| {
+        let current_index : usize = with_properties_unwrapped!(&properties_wrapped, SlotProperties, |properties: &mut SlotProperties| {
             handle_vtable_update!(ptc, properties.index, Numeric);
             properties.index.get().get_as_int().try_into().expect("Slot index must be non-negative")
         });

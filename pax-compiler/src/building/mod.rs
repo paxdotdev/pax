@@ -108,7 +108,7 @@ pub fn update_property_prefixes_in_place(
 /// this temp directory enables Pax to codegen and building in the context of the larger monorepo,
 /// working around various constraints with Cargo (for example, limits surrounding the `patch` directive.)
 ///
-/// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge and pax-properties-coproduct)
+/// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge)
 /// and where we build chassis and chassis-interfaces. (for example, running `wasm-pack` inside `.pax/pkg/pax-chassis-web`.
 /// This assumes that you are in the examples/src directory in the monorepo
 pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {

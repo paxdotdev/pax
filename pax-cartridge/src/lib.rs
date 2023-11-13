@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::any::Any;
 
-use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_core::{ComponentInstance, ExpressionContext, NodeRegistry, InstantiationArgs};
 use piet_common::RenderContext;
 use std::rc::Rc;
@@ -9,7 +9,7 @@ use std::rc::Rc;
 const PLACEHOLDER_ERROR : &str = "Fatal: the development placeholder cartridge is still attached -- a defined cartridge must be attached during compilation.  This means that Pax compilation failed -- please try again with `pax build` or `pax run`.";
 
 pub fn instantiate_expression_table<R: 'static + RenderContext>(
-) -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
+) -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>> {
     unreachable!("{}", PLACEHOLDER_ERROR)
 }
 

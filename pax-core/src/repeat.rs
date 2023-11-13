@@ -1,7 +1,8 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update_optional};
+use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update_optional, with_properties_unwrapped};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
@@ -28,6 +29,11 @@ pub struct RepeatProperties {
     pub source_expression_range: Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
 }
 
+pub struct RepeatItem {
+    pub datum: Rc<RefCell<dyn Any>>,
+    pub i: usize,
+}
+
 impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
@@ -46,8 +52,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                 Some(children) => children,
             },
 
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: args.common_properties,
+            instance_prototypical_properties: args.properties,
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
@@ -64,9 +70,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             ptc.engine.node_registry.borrow_mut().mark_for_unmount(cen.borrow().id_chain.clone());
         }
 
-        let (range_evaled,vec_evaled) = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, RepeatProperties, |properties: &mut RepeatProperties| {
+        let (range_evaled,vec_evaled) = with_properties_unwrapped!(&properties_wrapped, RepeatProperties, |properties: &mut RepeatProperties| {
             handle_vtable_update_optional!(ptc, properties.source_expression_range, std::ops::Range<isize>);
-            handle_vtable_update_optional!(ptc, properties.source_expression_vec, std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>);
+            handle_vtable_update_optional!(ptc, properties.source_expression_vec, std::vec::Vec<std::rc::Rc<core::cell::RefCell<dyn Any>>>);
 
             if let Some(ref source) = properties.source_expression_range {
                 (Some(source.get().clone()),None)
@@ -82,8 +88,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
 
             let mut index = 0;
             for i in range_evaled.start..range_evaled.end {
-                let i_as_datum = Rc::new(RefCell::new(PropertiesCoproduct::isize(i)));
-                let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(i_as_datum, index)));
+                let i_as_datum = Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>> ;
+                let new_repeat_item = Rc::new(RefCell::new(crate::RepeatItem{datum: i_as_datum, i: index})) as Rc<RefCell<dyn Any>>;
 
                 ptc.push_stack_frame(new_repeat_item);
 
@@ -103,7 +109,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         } else if let Some(vec_evaled) = vec_evaled {
             for pc in vec_evaled.iter().enumerate() {
 
-                let new_repeat_item = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(pc.1), pc.0)));
+                let new_repeat_item = Rc::new(RefCell::new(RepeatItem{datum: Rc::clone(pc.1), i: pc.0}));
                 ptc.push_stack_frame(new_repeat_item);
 
                 for repeated_template_instance_root in self.repeated_template.borrow().iter() {

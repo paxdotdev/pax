@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update, recurse_expand_nodes};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update, recurse_expand_nodes, with_properties_unwrapped};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -42,8 +42,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: args.common_properties,
+            instance_prototypical_properties: args.properties,
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
@@ -58,7 +58,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
         let properties_wrapped =  this_expanded_node.borrow().get_properties();
 
         // evaluate boolean expression
-        let evaluated_condition = with_properties_unsafe!(&properties_wrapped, PropertiesCoproduct, ConditionalProperties, |properties: &mut ConditionalProperties| {
+        let evaluated_condition = with_properties_unwrapped!(&properties_wrapped, ConditionalProperties, |properties: &mut ConditionalProperties| {
             handle_vtable_update!(ptc, properties.boolean_expression, bool);
             //return evaluated value
             *properties.boolean_expression.get()
