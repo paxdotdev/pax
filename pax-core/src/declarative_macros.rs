@@ -4,6 +4,27 @@
 /// - `$source_enum`: The enum instance to extract the target value from.
 /// - `$enum_type`: The type of the enum.
 /// - `$target_type`: The type of the target value to extract.
+///
+///
+/// # Examples:
+///
+/// ```
+/// use pax_core::unsafe_unwrap;
+///
+/// #[derive(Default)]
+/// struct Color { }
+/// #[derive(Default)]
+/// enum PropertiesCoproductTest {
+///     #[default]
+///     None,
+///     Color(Color),
+/// }
+///
+/// fn main() {
+///     let wrapped = PropertiesCoproductTest::Color(Color {});
+///     let unwrapped = unsafe_unwrap!(wrapped,PropertiesCoproductTest,Color);
+/// }
+/// ```
 #[macro_export]
 macro_rules! unsafe_unwrap {
     ($source_enum:expr, $enum_type:ty, $target_type:ty) => {{
@@ -35,6 +56,28 @@ macro_rules! unsafe_unwrap {
         unwrap_impl::<$enum_type, $target_type>($source_enum)
     }};
 }
+
+
+/// Reverse of `unsafe_unwrap`, packs the provided struct into the provided enum unsafely.
+///
+/// # Example
+///```
+/// use pax_core::unsafe_wrap;
+///
+/// #[derive(Default)]
+/// struct Color { }
+/// #[derive(Default)]
+/// enum PropertiesCoproductTest {
+///    #[default]
+///    None,
+///    Color(Color),
+/// }
+///
+/// fn main() {
+///    let unwrapped = Color {};
+///    let wrapped = unsafe_wrap!(unwrapped,PropertiesCoproductTest, Color);
+/// }
+///```
 
 #[macro_export]
 macro_rules! unsafe_wrap {
@@ -72,13 +115,25 @@ macro_rules! unsafe_wrap {
 ///
 /// # Examples
 ///
-/// ```text
-/// let wrapped : Rc<RefCell<PropertiesCoproduct>> = foo();
-/// with_properties_unsafe!(&wrapped, PropertiesCoproduct, Color, |color| {
-///     // color is of type &mut Color
+/// ```
+/// use std::cell::RefCell;
+/// use std::rc::Rc;
+/// use pax_core::{with_properties_unsafe, unsafe_wrap, unsafe_unwrap};
+///
+/// #[derive(Default)]
+/// struct Color { }
+/// #[derive(Default)]
+/// enum PropertiesCoproductTest {
+///     #[default]
+///     None,
+///     Color(Color),
+/// }
+///
+/// let wrapped : Rc<RefCell<PropertiesCoproductTest>> = Rc::new(RefCell::new(PropertiesCoproductTest::Color(Color {})));
+/// with_properties_unsafe!(&wrapped, PropertiesCoproductTest, Color, |color : &mut Color| {
 ///     // Perform operations on `color` here.
-///     // This macro will handle repacking `color` into the Rc<RefCell<PropertiesCoproduct>>
-///     // after the block is evaluated.
+///     // This macro will handle repacking `color` into `wrapped`
+///     // after this closure is evaluated.
 /// });
 /// ```
 #[macro_export]
