@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use pax_core::form_event::FormEvent;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable,
+    HandlerRegistry, InstantiationArgs, PropertiesComputable,
     InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, CheckboxPatch};
@@ -22,7 +22,7 @@ pub struct CheckboxInstance<R: 'static + RenderContext> {
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::CheckboxPatch>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
@@ -56,14 +56,15 @@ impl<R: 'static + RenderContext> InstanceNode<R> for CheckboxInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
-
-        if let Some(checked) = rtc.compute_vtable_value(properties.checked._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(checked, TypesCoproduct, bool);
-            properties.checked.set(new_value);
-        }
-
-        self.common_properties.compute_properties(rtc);
+        // let properties = &mut *self.properties.as_ref().borrow_mut();
+        //
+        // if let Some(checked) = rtc.compute_vtable_value(properties.checked._get_vtable_id()) {
+        //     let new_value = unsafe_unwrap!(checked, TypesCoproduct, bool);
+        //     properties.checked.set(new_value);
+        // }
+        //
+        // self.common_properties.compute_properties(rtc);
+        todo!()
     }
 
     fn handle_native_patches(

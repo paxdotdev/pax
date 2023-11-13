@@ -8,7 +8,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, unsafe_wrap, with_properties_unsafe, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_expand_nodes};
+use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_expand_nodes};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
     ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
@@ -31,7 +31,7 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 

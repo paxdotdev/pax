@@ -4,10 +4,9 @@ use core::option::Option::{None, Some};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct, SlotProperties};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_unwrap, unsafe_wrap, handle_vtable_update};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext, handle_vtable_update};
 use pax_runtime_api::{CommonProperties, Layer, Numeric, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
@@ -25,8 +24,14 @@ pub struct SlotInstance {
     // pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     // cached_computed_children: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+}
+
+///Contains the index value for slot, either a literal or an expression.
+#[derive(Default)]
+pub struct SlotProperties {
+    pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {

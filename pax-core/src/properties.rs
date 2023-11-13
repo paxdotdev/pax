@@ -3,7 +3,6 @@ use std::collections::VecDeque;
 use std::ops::RangeFrom;
 use std::rc::{Rc, Weak};
 use kurbo::Affine;
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet::RenderContext;
 use pax_message::NativeMessage;
 use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation};
@@ -472,7 +471,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(
         &mut self,
-        properties: Rc<RefCell<PropertiesCoproduct>>
+        properties: Rc<RefCell<dyn Any>>
     ) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
@@ -521,13 +520,13 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 /// `Component`s push `RuntimePropertiesStackFrame`s before computing properties and pop them after computing, thus providing a
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 pub struct RuntimePropertiesStackFrame {
-    properties: Rc<RefCell<PropertiesCoproduct>>,
+    properties: Rc<RefCell<dyn Any>>,
     parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
 }
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
-        properties: Rc<RefCell<PropertiesCoproduct>>,
+        properties: Rc<RefCell<dyn Any>>,
         parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
     ) -> Self {
         RuntimePropertiesStackFrame {
@@ -559,7 +558,7 @@ impl RuntimePropertiesStackFrame {
             .recurse_peek_nth(n, new_depth)
     }
 
-    pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+    pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {
         Rc::clone(&self.properties)
     }
 }

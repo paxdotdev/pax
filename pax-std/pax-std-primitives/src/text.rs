@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
+    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
     InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
@@ -25,7 +25,7 @@ pub struct TextInstance<R: 'static + RenderContext> {
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
@@ -58,119 +58,120 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        //
+        // let properties = &mut *self.properties.as_ref().borrow_mut();
+        //
+        // if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
+        //     let new_value = unsafe_unwrap!(text, TypesCoproduct, StringBox);
+        //     properties.text.set(new_value);
+        // }
+        //
+        // if let Some(style_font) =
+        //     rtc.compute_vtable_value(properties.style.get().font._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+        //     properties.style.get_mut().font.set(new_value);
+        // }
+        //
+        // if let Some(style_font_size) =
+        //     rtc.compute_vtable_value(properties.style.get().font_size._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+        //     properties.style.get_mut().font_size.set(new_value);
+        // }
+        //
+        // if let Some(style_fill) =
+        //     rtc.compute_vtable_value(properties.style.get().fill._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+        //     properties.style.get_mut().fill.set(new_value);
+        // }
+        //
+        // if let Some(style_underline) =
+        //     rtc.compute_vtable_value(properties.style.get().underline._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+        //     properties.style.get_mut().underline.set(new_value);
+        // }
+        //
+        // if let Some(style_align_multiline) =
+        //     rtc.compute_vtable_value(properties.style.get().align_multiline._get_vtable_id())
+        // {
+        //     let new_value =
+        //         unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+        //     properties.style.get_mut().align_multiline.set(new_value);
+        // }
+        //
+        // if let Some(style_align_vertical) =
+        //     rtc.compute_vtable_value(properties.style.get().align_vertical._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+        //     properties.style.get_mut().align_vertical.set(new_value);
+        // }
+        //
+        // if let Some(style_align_horizontal) =
+        //     rtc.compute_vtable_value(properties.style.get().align_horizontal._get_vtable_id())
+        // {
+        //     let new_value =
+        //         unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+        //     properties.style.get_mut().align_horizontal.set(new_value);
+        // }
+        //
+        // if let Some(style_link) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()) {
+        //     let new_value = unsafe_unwrap!(style_link, TypesCoproduct, TextStyle);
+        //     properties.style_link.set(new_value);
+        // }
+        //
+        // let style_link = properties.style_link.get_mut();
+        // if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
+        //     let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+        //     style_link.font.set(new_value);
+        // }
+        //
+        // if let Some(style_font_size) =
+        //     rtc.compute_vtable_value(style_link.font_size._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+        //     style_link.font_size.set(new_value);
+        // }
+        //
+        // if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
+        //     let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+        //     style_link.fill.set(new_value);
+        // }
+        //
+        // if let Some(style_underline) =
+        //     rtc.compute_vtable_value(style_link.underline._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+        //     style_link.underline.set(new_value);
+        // }
+        //
+        // if let Some(style_align_multiline) =
+        //     rtc.compute_vtable_value(style_link.align_multiline._get_vtable_id())
+        // {
+        //     let new_value =
+        //         unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+        //     style_link.align_multiline.set(new_value);
+        // }
+        //
+        // if let Some(style_align_vertical) =
+        //     rtc.compute_vtable_value(style_link.align_vertical._get_vtable_id())
+        // {
+        //     let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+        //     style_link.align_vertical.set(new_value);
+        // }
+        //
+        // if let Some(style_align_horizontal) =
+        //     rtc.compute_vtable_value(style_link.align_horizontal._get_vtable_id())
+        // {
+        //     let new_value =
+        //         unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+        //     style_link.align_horizontal.set(new_value);
+        // }
 
-        let properties = &mut *self.properties.as_ref().borrow_mut();
-
-        if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(text, TypesCoproduct, StringBox);
-            properties.text.set(new_value);
-        }
-
-        if let Some(style_font) =
-            rtc.compute_vtable_value(properties.style.get().font._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
-            properties.style.get_mut().font.set(new_value);
-        }
-
-        if let Some(style_font_size) =
-            rtc.compute_vtable_value(properties.style.get().font_size._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
-            properties.style.get_mut().font_size.set(new_value);
-        }
-
-        if let Some(style_fill) =
-            rtc.compute_vtable_value(properties.style.get().fill._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
-            properties.style.get_mut().fill.set(new_value);
-        }
-
-        if let Some(style_underline) =
-            rtc.compute_vtable_value(properties.style.get().underline._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
-            properties.style.get_mut().underline.set(new_value);
-        }
-
-        if let Some(style_align_multiline) =
-            rtc.compute_vtable_value(properties.style.get().align_multiline._get_vtable_id())
-        {
-            let new_value =
-                unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
-            properties.style.get_mut().align_multiline.set(new_value);
-        }
-
-        if let Some(style_align_vertical) =
-            rtc.compute_vtable_value(properties.style.get().align_vertical._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
-            properties.style.get_mut().align_vertical.set(new_value);
-        }
-
-        if let Some(style_align_horizontal) =
-            rtc.compute_vtable_value(properties.style.get().align_horizontal._get_vtable_id())
-        {
-            let new_value =
-                unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
-            properties.style.get_mut().align_horizontal.set(new_value);
-        }
-
-        if let Some(style_link) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_link, TypesCoproduct, TextStyle);
-            properties.style_link.set(new_value);
-        }
-
-        let style_link = properties.style_link.get_mut();
-        if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
-            style_link.font.set(new_value);
-        }
-
-        if let Some(style_font_size) =
-            rtc.compute_vtable_value(style_link.font_size._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
-            style_link.font_size.set(new_value);
-        }
-
-        if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
-            style_link.fill.set(new_value);
-        }
-
-        if let Some(style_underline) =
-            rtc.compute_vtable_value(style_link.underline._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
-            style_link.underline.set(new_value);
-        }
-
-        if let Some(style_align_multiline) =
-            rtc.compute_vtable_value(style_link.align_multiline._get_vtable_id())
-        {
-            let new_value =
-                unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
-            style_link.align_multiline.set(new_value);
-        }
-
-        if let Some(style_align_vertical) =
-            rtc.compute_vtable_value(style_link.align_vertical._get_vtable_id())
-        {
-            let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
-            style_link.align_vertical.set(new_value);
-        }
-
-        if let Some(style_align_horizontal) =
-            rtc.compute_vtable_value(style_link.align_horizontal._get_vtable_id())
-        {
-            let new_value =
-                unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
-            style_link.align_horizontal.set(new_value);
-        }
-
-        self.common_properties.compute_properties(rtc);
+        // self.common_properties.compute_properties(rtc);
+        todo!()
     }
 
     fn handle_native_patches(

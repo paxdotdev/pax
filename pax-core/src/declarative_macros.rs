@@ -83,7 +83,7 @@ macro_rules! unsafe_wrap {
     }};
 }
 
-/// Manages unpacking an Rc<RefCell<PropertiesCoproduct>>, [`unsafe_unwrap!`]ping into
+/// Manages unpacking an Rc<RefCell<dyn Any>>, [`unsafe_unwrap!`]ping into
 /// the parameterized variant/type, and executing a provided closure in the
 /// context of that unwrapped variant (including support for mutable operations),
 /// then cleaning up by repacking that variant into the Rc<RefCell<>> after

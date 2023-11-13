@@ -6,7 +6,6 @@ use kurbo::{Point, Vec2};
 use piet_common::RenderContext;
 
 use pax_message::NativeMessage;
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Numeric, Transform2D, TransitionManager, ZIndex, Axis};
 
@@ -95,8 +94,6 @@ pub trait PropertiesComputable<R: 'static + RenderContext> {
     fn compute_properties(&mut self, rtc: &mut PropertiesTreeContext<R>);
 }
 
-use crate::unsafe_unwrap;
-
 impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
     fn compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         handle_vtable_update!(ptc, self.width, Size);
@@ -176,8 +173,8 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub double_click_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsDoubleClick)>,
     pub context_menu_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsContextMenu)>,
     pub wheel_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsWheel)>,
-    pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
-    pub mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub pre_render_handlers: Vec<fn(Rc<RefCell<dyn Any>>, RuntimeContext)>,
+    pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, RuntimeContext)>,
 }
 
 impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
@@ -263,7 +260,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
-    computed_properties: Rc<RefCell<PropertiesCoproduct>>,
+    computed_properties: Rc<RefCell<dyn Any>>,
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     computed_common_properties: Rc<RefCell<CommonProperties>>,
@@ -313,7 +310,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         &self.expanded_and_flattened_slot_children
     }
 
-    pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<PropertiesCoproduct>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
+    pub fn get_or_create_with_prototypical_properties(ptc: &mut PropertiesTreeContext<R>, prototypical_properties: &Rc<RefCell<dyn Any>>, prototypical_common_properties: &Rc<RefCell<CommonProperties>>) -> Rc<RefCell<Self>> {
 
         let id_chain = ptc.get_id_chain(ptc.current_instance_id);
         let expanded_node = if let Some(already_registered_node) = ptc.engine.node_registry.borrow().get_expanded_node(&id_chain) {
@@ -347,7 +344,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         expanded_node
     }
 
-    pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+    pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {
         //need to refactor signature and pass in id_chain + either rtc + registry or just registry
         Rc::clone(&self.computed_properties)
     }

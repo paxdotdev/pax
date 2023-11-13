@@ -1,9 +1,9 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unsafe, unsafe_unwrap, unsafe_wrap, handle_vtable_update, recurse_expand_nodes};
-use pax_properties_coproduct::{ConditionalProperties, PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update, recurse_expand_nodes};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -15,13 +15,14 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     instance_children: InstanceNodePtrList<R>,
 
-    // pub boolean_expression: Box<dyn PropertyInstance<bool>>,
-    // pub true_branch_children: InstanceNodePtrList<R>,
-    // pub false_branch_children: InstanceNodePtrList<R>,
-    // pub cleanup_children: InstanceNodePtrList<R>,
-
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+}
+
+///Contains the expression of a conditional, evaluated as an expression.
+#[derive(Default)]
+pub struct ConditionalProperties {
+    pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {

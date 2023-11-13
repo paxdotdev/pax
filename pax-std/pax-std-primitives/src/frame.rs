@@ -28,7 +28,7 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
-    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 
 }
@@ -173,7 +173,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
-        let properties_wrapped : Rc<RefCell<PropertiesCoproduct>> = rtc.current_expanded_node.borrow().get_properties();
+        let properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
