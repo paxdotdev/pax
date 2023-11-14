@@ -22,7 +22,7 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
 
 
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
-///is encoded as a Vec<T> (where T is a PropertiesCoproduct type) or as a Range<isize>
+///is encoded as a Vec<T> (where T is a `dyn Any` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
     pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,

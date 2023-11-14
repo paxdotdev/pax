@@ -58,10 +58,6 @@ pub struct ExpressionSpec {
 
     /// Special-handling for Repeat codegen
     pub is_repeat_source_iterable_expression: bool,
-
-    /// The PropertiesCoproduct variant (type_id_escaped) of the inner
-    /// type `T` for some iterable repeat source type, e.g. `Vec<T>`
-    pub repeat_source_iterable_type_id_escaped: String,
 }
 
 /// The spec of an expression `invocation`, the necessary configuration
@@ -307,8 +303,8 @@ impl TypeDefinition {
     }
 
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
-    pub fn builtin_vec_rc_ref_cell_properties_coproduct(inner_iterable_type_id: String) -> Self {
-        let type_id = "std::vec::Vec<std::rc::Rc<core::cell::RefCell<PropertiesCoproduct>>>";
+    pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: String) -> Self {
+        let type_id = "std::vec::Vec<std::rc::Rc<core::cell::RefCell<dyn Any>>>";
         Self {
             type_id: type_id.to_string(),
             type_id_escaped: escape_identifier(type_id.to_string()),

@@ -46,18 +46,20 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
                 {% endif %}
                 {%- if entry.0.content in ['pre_render','mount'] -%}
                     |properties, ctx|{
+
                        let properties = &mut *properties.as_ref().borrow_mut();
+                       if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                           {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx);
+                       } else {panic!()};
 
-
-                       let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
-                       {{ pascal_identifier }}::{{entry.1.content}}(properties, ctx);
                     },
                 {% else %}
                     |node, ctx, args|{
                         let properties = (*node).borrow().get_properties();
                         let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
-                        {{ pascal_identifier }}::{{entry.1.content}}(properties, ctx, args);
+                        if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                            {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx,args);
+                        } else {panic!()};
                     },
                 {% endif %}
                 {% if entry.1.source_map_end_marker %}

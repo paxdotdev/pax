@@ -26,7 +26,6 @@
       <sourceFolder url="file://$MODULE_DIR$/pax-std/pax-std-primitives/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/src/camera/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/examples/src/color-grid/.pax/pkg/pax-chassis-web/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/src/color-grid/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/src/fireworks/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/src/grids/src" isTestSource="false" />
@@ -40,7 +39,6 @@
       <excludeFolder url="file://$MODULE_DIR$/pax-example/build" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/camera/target" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/camera/.pax" />
-      <excludeFolder url="file://$MODULE_DIR$/examples/src/color-grid/.pax/pkg/pax-chassis-web/target" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/color-grid/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/color-grid/target" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/fireworks/target" />

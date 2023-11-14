@@ -10,19 +10,6 @@ use crate::manifest::{ExpressionSpec, PropertyDefinition};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-// #[derive(Serialize)]
-// pub struct TemplateArgsCodegenPropertiesCoproductLib {
-//     //e.g. `Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle)`
-//     //      |-------| |--------------------------------------------------------|
-//     //      tuple.0   tuple.1
-//     pub properties_coproduct_tuples: Vec<(String, String)>,
-//
-//     //e.g. `Stroke(    pax_example::pax_reexports::pax_std::types::Stroke)`
-//     //      |----|     |--------------------------------------------------------|
-//     //      tuple.0    tuple.1
-//     pub types_coproduct_tuples: Vec<(String, String)>,
-// }
-
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeLib {
     /// List of fully qualified import strings, e.g. pax_example::pax_reexports::...
@@ -110,29 +97,6 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub type_id_escaped: String,
     pub events: Vec<(MappedString, MappedString)>,
 }
-
-//properties_coproduct_variant: Repeat
-//component_properties_struct: RepeatProperties
-//defined_properties: (string key [need to annotate], literal value [hopefully already-existing])
-//
-// #[allow(unused)]
-// static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB: &str =
-//     include_str!("../../templates/properties-coproduct-lib.tera");
-// pub fn press_template_codegen_properties_coproduct_lib(
-//     args: TemplateArgsCodegenPropertiesCoproductLib,
-// ) -> String {
-//     let template = TEMPLATE_DIR
-//         .get_file("properties-coproduct-lib.tera")
-//         .unwrap()
-//         .contents_utf8()
-//         .unwrap();
-//     Tera::one_off(
-//         template.into(),
-//         &tera::Context::from_serialize(args).unwrap(),
-//         false,
-//     )
-//     .unwrap()
-// }
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str = include_str!("../../templates/cartridge-lib.tera");

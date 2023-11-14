@@ -51,7 +51,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub component_template: Option<InstanceNodePtrList<R>>,
     pub scroller_args: Option<ScrollerArgs>,
 
-    ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
+    ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation
     pub compute_properties_fn:
         Option<Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut RenderTreeContext<R>)>>,

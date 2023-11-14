@@ -473,7 +473,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     }
 
     /// Add a new frame to the stack, passing a list of slot_children
-    /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
+    /// that may be handled by `Slot` and a scope that includes the `dyn Any` properties of the associated Component
     pub fn push_stack_frame(
         &mut self,
         properties: Rc<RefCell<dyn Any>>

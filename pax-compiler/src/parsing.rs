@@ -169,7 +169,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     _ => unimplemented!("")
                 };
 
-                format!("{}", op0_out + &op1_out + &op2_out)
+                format!("({} as isize){}({} as isize)", &op0_out, &op1_out, &op2_out)
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();
