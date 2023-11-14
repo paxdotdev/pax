@@ -56,7 +56,7 @@ pub enum NativeInterrupt {
 #[repr(C)]
 pub struct FormCheckboxToggleArgs {
     pub state: bool,
-    pub id_chain: Vec<u32>
+    pub id_chain: Vec<u32>,
 }
 
 #[derive(Deserialize)]

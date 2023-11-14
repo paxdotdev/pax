@@ -1,11 +1,15 @@
-use std::any::Any;
 use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
 use piet::RenderContext;
+use std::any::Any;
 
-use pax_core::{HandlerRegistry, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, handle_vtable_update, with_properties_unwrapped};
+use pax_core::{
+    handle_vtable_update, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    RenderTreeContext,
+};
 
 use pax_std::primitives::Ellipse;
-use pax_std::types::{Fill};
+use pax_std::types::Fill;
 
 use pax_runtime_api::CommonProperties;
 
@@ -34,7 +38,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
     where
         Self: Sized,
     {
-
         let mut node_registry = (*args.node_registry).borrow_mut();
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(EllipseInstance {
@@ -54,11 +57,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
             _ => None,
         }
     }
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+            ptc,
+            &self.instance_prototypical_properties,
+            &self.instance_prototypical_common_properties,
+        );
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
-        with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties : &mut Ellipse| {
+        with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {
             handle_vtable_update!(ptc, properties.stroke, pax_std::types::Stroke);
             handle_vtable_update!(ptc, properties.fill, pax_std::types::Fill);
         });
@@ -71,9 +81,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
-        let properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
-        with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties : &mut Ellipse|{
-
+        let properties_wrapped: Rc<RefCell<dyn Any>> =
+            rtc.current_expanded_node.borrow().get_properties();
+        with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = KurboEllipse::from_rect(rect);
             let accuracy = 0.1;
@@ -100,6 +110,5 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance<R> {
                 );
             }
         });
-
     }
 }

@@ -38,9 +38,7 @@ use crate::building::{
     build_chassis_with_cartridge, clone_all_to_pkg_dir, update_property_prefixes_in_place,
 };
 
-use crate::code_generation::{
-    generate_and_overwrite_cartridge,
-};
+use crate::code_generation::generate_and_overwrite_cartridge;
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
 

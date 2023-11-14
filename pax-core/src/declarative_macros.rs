@@ -1,4 +1,3 @@
-
 /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
 /// the parameterized `target_type`, and executing a provided closure `body` in the
 /// context of that unwrapped variant (including support for mutable operations),
@@ -15,10 +14,14 @@ macro_rules! with_properties_unwrapped {
         let mut borrowed = rc.borrow_mut();
 
         // Downcast the unwrapped value to the specified `target_type` (or panic)
-        let mut unwrapped_value = if let Some(val) = (&mut *borrowed).downcast_mut::<$target_type>() {val} else {panic!()}; // Failed to downcast
+        let mut unwrapped_value = if let Some(val) = (&mut *borrowed).downcast_mut::<$target_type>()
+        {
+            val
+        } else {
+            panic!()
+        }; // Failed to downcast
 
         // Evaluate the passed closure and return its return value
         $body(&mut unwrapped_value)
     }};
 }
-

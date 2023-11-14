@@ -1,8 +1,8 @@
-use std::collections::HashSet;
 use colored::{ColoredString, Colorize};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -322,7 +322,6 @@ pub const IMPORTS_BUILTINS: [&str; 31] = [
 ];
 
 impl<'a> HostCrateInfo {
-
     pub fn fully_qualify_path(&self, path: &str) -> String {
         #[allow(non_snake_case)]
         let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);

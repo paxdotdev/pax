@@ -2,8 +2,12 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::{
+    handle_vtable_update, recurse_expand_nodes, with_properties_unwrapped, ExpandedNode,
+    InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    RenderTreeContext,
+};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, handle_vtable_update, recurse_expand_nodes, with_properties_unwrapped};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -52,17 +56,27 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
-        let properties_wrapped =  this_expanded_node.borrow().get_properties();
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+            ptc,
+            &self.instance_prototypical_properties,
+            &self.instance_prototypical_common_properties,
+        );
+        let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         // evaluate boolean expression
-        let evaluated_condition = with_properties_unwrapped!(&properties_wrapped, ConditionalProperties, |properties: &mut ConditionalProperties| {
-            handle_vtable_update!(ptc, properties.boolean_expression, bool);
-            //return evaluated value
-            *properties.boolean_expression.get()
-        });
+        let evaluated_condition = with_properties_unwrapped!(
+            &properties_wrapped,
+            ConditionalProperties,
+            |properties: &mut ConditionalProperties| {
+                handle_vtable_update!(ptc, properties.boolean_expression, bool);
+                //return evaluated value
+                *properties.boolean_expression.get()
+            }
+        );
 
         // recurse into instance children, stitch ExpandedNode subtree and return subtree root (this_expanded_node)
         for child in self.instance_children.borrow().iter() {
@@ -77,7 +91,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             }
 
             let expanded_child = recurse_expand_nodes(&mut new_ptc);
-            this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
+            this_expanded_node
+                .borrow_mut()
+                .append_child_expanded_node(expanded_child);
         }
 
         this_expanded_node

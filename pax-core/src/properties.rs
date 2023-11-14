@@ -1,13 +1,16 @@
+use crate::{
+    ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList,
+    NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds,
+};
+use kurbo::Affine;
+use pax_message::NativeMessage;
+use pax_runtime_api::{Numeric, Rotation, RuntimeContext, Size, Timeline, Transform2D};
+use piet::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::ops::RangeFrom;
 use std::rc::{Rc, Weak};
-use kurbo::Affine;
-use piet::RenderContext;
-use pax_message::NativeMessage;
-use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation, Numeric};
-use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds};
 
 /// Recursive workhorse method for expanding nodes.  Visits all instance nodes in tree, stitching
 /// together a tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
@@ -18,8 +21,9 @@ use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePt
 /// once we support "dirty DAG" for tactical property updates and no-properties-computation-at-rest, then
 /// this expansion should only need to happen once, at program init, or when a program definition is mutated,
 /// e.g. via hot-module reloading.
-pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-
+pub fn recurse_expand_nodes<R: 'static + RenderContext>(
+    ptc: &mut PropertiesTreeContext<R>,
+) -> Rc<RefCell<ExpandedNode<R>>> {
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
 
     let node_type = this_instance_node.borrow_mut().get_node_type().clone();
@@ -29,7 +33,11 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
     // There is also a corrolary "very root expanded node."  That very root expanded node _does not have_ a containing
     // component.  it represents the c
 
-    let this_expanded_node = Rc::clone(&this_instance_node.borrow_mut().expand_node_and_compute_properties(ptc));
+    let this_expanded_node = Rc::clone(
+        &this_instance_node
+            .borrow_mut()
+            .expand_node_and_compute_properties(ptc),
+    );
     if matches!(node_type, NodeType::Component) {
         ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
     }
@@ -38,59 +46,60 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
     // For example, in the template fragment `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
     // starting at `for` is the subtree of slot_children passed into the instance of `Stacker`.
     // Read more about slot children at [`InstanceNode#get_slot_children`]
-    let expanded_and_flattened_slot_children = if let Some(slot_children) = this_instance_node.borrow_mut().get_slot_children().clone() {
+    let expanded_and_flattened_slot_children =
+        if let Some(slot_children) = this_instance_node.borrow_mut().get_slot_children().clone() {
+            //Assert that this is indeed a Component (only Components may be registered with slot_children)
+            assert!(matches!(node_type, NodeType::Component), ""); // `this_expanded_node`'s related `instance_node` must be of type NodeType::Component.
 
-        //Assert that this is indeed a Component (only Components may be registered with slot_children)
-        assert!(matches!(node_type, NodeType::Component), ""); // `this_expanded_node`'s related `instance_node` must be of type NodeType::Component.
+            //Expand children in the context of the current containing component
+            let mut expanded_slot_children = vec![];
+            for child in (*slot_children).borrow().iter() {
+                let mut new_ptc = ptc.clone();
+                new_ptc.current_instance_node = Rc::clone(child);
+                new_ptc.current_expanded_node = None;
+                new_ptc.current_instance_id = child.borrow().get_instance_id();
+                let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+                expanded_slot_children.push(child_expanded_node);
+            }
 
-        //Expand children in the context of the current containing component
-        let mut expanded_slot_children = vec![];
-        for child in (*slot_children).borrow().iter() {
-            let mut new_ptc = ptc.clone();
-            new_ptc.current_instance_node = Rc::clone(child);
-            new_ptc.current_expanded_node = None;
-            new_ptc.current_instance_id = child.borrow().get_instance_id();
-            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
-            expanded_slot_children.push(child_expanded_node);
+            //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
+            //[`ConditionalInstance`] and [`RepeatInstance`]
+            let mut expanded_and_flattened_slot_children = vec![];
+            for expanded_slot_child in expanded_slot_children {
+                expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(
+                    &Rc::clone(&expanded_slot_child),
+                ));
+            }
 
-        }
-
-        //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
-        //[`ConditionalInstance`] and [`RepeatInstance`]
-        let mut expanded_and_flattened_slot_children = vec![];
-        for expanded_slot_child in expanded_slot_children {
-            expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(&Rc::clone(&expanded_slot_child)));
-        }
-
-        Some(expanded_and_flattened_slot_children)
-        // this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
-    } else {
-        None
-    };
+            Some(expanded_and_flattened_slot_children)
+            // this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
+        } else {
+            None
+        };
 
     // Attach component-level e_a_f_s_c to `ptc` so that they can be used by components inside expand_node_and_compute_properties
     ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
 
-
     // Compute common properties
-    this_expanded_node.borrow_mut().get_common_properties().borrow_mut().compute_properties(ptc);
+    this_expanded_node
+        .borrow_mut()
+        .get_common_properties()
+        .borrow_mut()
+        .compute_properties(ptc);
 
     ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
 
-
-
     // Lifecycle: `mount`
     manage_handlers_mount(ptc);
-
-
-
 
     let new_tab = compute_tab(ptc);
     ptc.containing_tab = new_tab;
 
     // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.  If this is such a node,
-    if !this_instance_node.borrow().manages_own_subtree_for_expansion() {
-
+    if !this_instance_node
+        .borrow()
+        .manages_own_subtree_for_expansion()
+    {
         //Strictly following computation of slot children, we recurse into instance_children.
         //This ordering is required because the properties for slot children must be computed
         //in this outer context, of a containing component, before we compute properties for the inner component's context.
@@ -108,7 +117,9 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
 
             recurse_expand_nodes(ptc);
 
-            this_expanded_node.borrow_mut().append_child_expanded_node(child_expanded_node);
+            this_expanded_node
+                .borrow_mut()
+                .append_child_expanded_node(child_expanded_node);
         }
     }
 
@@ -129,9 +140,10 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(ptc: &mut PropertiesTree
     this_expanded_node
 }
 
-
 /// Helper function that accepts a
-fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(node: &Rc<RefCell<ExpandedNode<R>>>) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
+fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(
+    node: &Rc<RefCell<ExpandedNode<R>>>,
+) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
     let mut result = vec![];
 
     let is_invisible_to_slot = {
@@ -155,7 +167,9 @@ fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(node: &Rc<RefCell<
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`]
 /// Intended as a helper method to be called during properties computation, for creating a new `tab` to attach to
 /// `ptc` for downstream calculations.
-fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -> TransformAndBounds {
+fn compute_tab<R: 'static + RenderContext>(
+    ptc: &mut PropertiesTreeContext<R>,
+) -> TransformAndBounds {
     let node = Rc::clone(&ptc.current_expanded_node.as_ref().unwrap());
 
     //get the size of this node (calc'd or otherwise) and use
@@ -171,10 +185,14 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
         let node_borrowed = ptc.current_expanded_node.as_ref().unwrap().borrow_mut();
 
         let computed_transform2d_matrix = node_borrowed
-            .get_common_properties().borrow()
+            .get_common_properties()
+            .borrow()
             .transform
             .get()
-            .compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.containing_tab.bounds);
+            .compute_transform2d_matrix(
+                new_accumulated_bounds_and_current_node_size.clone(),
+                ptc.containing_tab.bounds,
+            );
 
         computed_transform2d_matrix
     };
@@ -250,7 +268,10 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
         };
         desugared_transform2d.rotate = Some(rotate);
 
-        desugared_transform2d.compute_transform2d_matrix(new_accumulated_bounds_and_current_node_size.clone(), ptc.containing_tab.bounds)
+        desugared_transform2d.compute_transform2d_matrix(
+            new_accumulated_bounds_and_current_node_size.clone(),
+            ptc.containing_tab.bounds,
+        )
     };
 
     let new_accumulated_transform =
@@ -267,19 +288,34 @@ fn compute_tab<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) -
         transform: new_accumulated_transform,
         bounds: new_accumulated_bounds_and_current_node_size,
     }
-
 }
 
 /// Handle node unmounting, including check for whether unmount handlers should be fired
 /// (thus this function can be called on all nodes at end of properties computation
 fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
-    let id_chain : Vec<u32> = ptc.current_expanded_node.as_ref().unwrap().borrow().id_chain.clone();
+    let id_chain: Vec<u32> = ptc
+        .current_expanded_node
+        .as_ref()
+        .unwrap()
+        .borrow()
+        .id_chain
+        .clone();
 
-    let currently_mounted = matches!(ptc.engine.node_registry.borrow().get_expanded_node(&id_chain), Some(_));
+    let currently_mounted = matches!(
+        ptc.engine
+            .node_registry
+            .borrow()
+            .get_expanded_node(&id_chain),
+        Some(_)
+    );
     if ptc.marked_for_unmount && !currently_mounted {
-        ptc.current_instance_node.clone().borrow_mut().handle_unmount(ptc);
+        ptc.current_instance_node
+            .clone()
+            .borrow_mut()
+            .handle_unmount(ptc);
 
-        ptc.engine.node_registry
+        ptc.engine
+            .node_registry
             .borrow_mut()
             .remove_expanded_node(&id_chain);
     }
@@ -293,7 +329,10 @@ fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeCon
     {
         let mut node_registry = (*ptc.engine.node_registry).borrow_mut();
 
-        let id_chain = <Vec<u32> as AsRef<Vec<u32>>>::as_ref(&ptc.current_expanded_node.clone().unwrap().borrow().id_chain).clone();
+        let id_chain = <Vec<u32> as AsRef<Vec<u32>>>::as_ref(
+            &ptc.current_expanded_node.clone().unwrap().borrow().id_chain,
+        )
+        .clone();
         if !node_registry.is_mounted(&id_chain) {
             //Fire primitive-level mount lifecycle method
             let mut instance_node = Rc::clone(&ptc.current_instance_node);
@@ -306,8 +345,17 @@ fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeCon
                 //on instance in order to dispatch cartridge method
                 for handler in (*registry).borrow().mount_handlers.iter() {
                     handler(
-                        ptc.current_expanded_node.clone().unwrap().borrow_mut().get_properties(),
-                        ptc.current_expanded_node.clone().unwrap().borrow().node_context.clone(),
+                        ptc.current_expanded_node
+                            .clone()
+                            .unwrap()
+                            .borrow_mut()
+                            .get_properties(),
+                        ptc.current_expanded_node
+                            .clone()
+                            .unwrap()
+                            .borrow()
+                            .node_context
+                            .clone(),
                     );
                 }
             }
@@ -318,7 +366,6 @@ fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeCon
 
 /// Shared context for properties pass recursion
 pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
-
     pub engine: &'a PaxEngine<R>,
 
     /// A pointer to the node representing the current Component, for which we may be
@@ -352,7 +399,6 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 /// current pointers without overwriting others, some state within `ptc` needs to be shared-mutable.  `PropertiesTreeShared` is intended
 /// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
 pub struct PropertiesTreeShared {
-
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
     /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
     /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
@@ -393,7 +439,6 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
 }
 
 impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
-
     pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         self.shared.borrow().runtime_properties_stack.clone()
     }
@@ -425,17 +470,22 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
         let mut indices: Vec<u32> = vec![];
 
-        self.shared.borrow_mut().runtime_properties_stack.iter().for_each(|frame_wrapped| {
-            let frame_rc_cloned = frame_wrapped.clone();
-            let frame_refcell_borrowed = frame_rc_cloned.borrow();
-            let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
-            let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
+        self.shared
+            .borrow_mut()
+            .runtime_properties_stack
+            .iter()
+            .for_each(|frame_wrapped| {
+                let frame_rc_cloned = frame_wrapped.clone();
+                let frame_refcell_borrowed = frame_rc_cloned.borrow();
+                let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
+                let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
 
-            if let Some(mut ri) = properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>()
-            {
-                indices.push(ri.i as u32)
-            }
-        });
+                if let Some(mut ri) =
+                    properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>()
+                {
+                    indices.push(ri.i as u32)
+                }
+            });
         indices
     }
 
@@ -460,7 +510,9 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         let len = *&self.shared.borrow_mut().runtime_properties_stack.len();
         if len > 0 {
-            Some(Rc::clone(&self.shared.borrow_mut().runtime_properties_stack[len - 1]))
+            Some(Rc::clone(
+                &self.shared.borrow_mut().runtime_properties_stack[len - 1],
+            ))
         } else {
             None
         }
@@ -474,16 +526,15 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 
     /// Add a new frame to the stack, passing a list of slot_children
     /// that may be handled by `Slot` and a scope that includes the `dyn Any` properties of the associated Component
-    pub fn push_stack_frame(
-        &mut self,
-        properties: Rc<RefCell<dyn Any>>
-    ) {
+    pub fn push_stack_frame(&mut self, properties: Rc<RefCell<dyn Any>>) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
-        self.shared.borrow_mut().runtime_properties_stack.push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
-            properties,
-            parent,
-        ))));
+        self.shared
+            .borrow_mut()
+            .runtime_properties_stack
+            .push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
+                properties, parent,
+            ))));
     }
 
     /// Get an `id_chain` for this element, a `Vec<u64>` used collectively as a single unique ID across native bridges.
@@ -506,13 +557,11 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
         if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
             let ec = ExpressionContext {
                 engine: self.engine,
-                stack_frame: Rc::clone(
-                    &self.peek_stack_frame().unwrap(),
-                ),
+                stack_frame: Rc::clone(&self.peek_stack_frame().unwrap()),
             };
             (**evaluator)(ec)
-        }else{
-            panic!()//unhandled error if an invalid id is passed or if vtable is incorrectly initialized
+        } else {
+            panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly initialized
         }
     }
 }
@@ -534,10 +583,7 @@ impl RuntimePropertiesStackFrame {
         properties: Rc<RefCell<dyn Any>>,
         parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
     ) -> Self {
-        RuntimePropertiesStackFrame {
-            properties,
-            parent,
-        }
+        RuntimePropertiesStackFrame { properties, parent }
     }
 
     /// Traverses stack recursively `n` times to retrieve ancestor;
@@ -552,7 +598,11 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
-    fn recurse_peek_nth(&self, n: isize, depth: isize) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
+    fn recurse_peek_nth(
+        &self,
+        n: isize,
+        depth: isize,
+    ) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {

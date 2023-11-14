@@ -7,7 +7,11 @@ use std::rc::Rc;
 
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext, handle_vtable_update, with_properties_unwrapped};
+use crate::{
+    flatten_slot_invisible_nodes_recursive, handle_vtable_update, with_properties_unwrapped,
+    ExpandedNode, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
+    PropertiesTreeContext, RenderTreeContext,
+};
 use pax_runtime_api::{CommonProperties, Layer, Numeric, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
@@ -24,7 +28,6 @@ pub struct SlotInstance {
     pub instance_id: u32,
     // pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     // cached_computed_children: InstanceNodePtrList<R>,
-
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
@@ -36,7 +39,6 @@ pub struct SlotProperties {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
-
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -56,7 +58,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
     }
 
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-
     }
 
     /// Slot has strictly zero instance_children, but will likely have ExpandedNode children
@@ -64,29 +65,54 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
-        let properties_wrapped =  this_expanded_node.borrow().get_properties();
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+            ptc,
+            &self.instance_prototypical_properties,
+            &self.instance_prototypical_common_properties,
+        );
+        let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this
         //method for attached nodes.  This enables changes / shifts in slot index + firing mount / unmount lifecycle events along the way.
         for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
-            ptc.engine.node_registry.borrow_mut().mark_for_unmount(cen.borrow().id_chain.clone());
+            ptc.engine
+                .node_registry
+                .borrow_mut()
+                .mark_for_unmount(cen.borrow().id_chain.clone());
         }
 
-        let current_index : usize = with_properties_unwrapped!(&properties_wrapped, SlotProperties, |properties: &mut SlotProperties| {
-            handle_vtable_update!(ptc, properties.index, Numeric);
-            properties.index.get().get_as_int().try_into().expect("Slot index must be non-negative")
-        });
+        let current_index: usize = with_properties_unwrapped!(
+            &properties_wrapped,
+            SlotProperties,
+            |properties: &mut SlotProperties| {
+                handle_vtable_update!(ptc, properties.index, Numeric);
+                properties
+                    .index
+                    .get()
+                    .get_as_int()
+                    .try_into()
+                    .expect("Slot index must be non-negative")
+            }
+        );
 
         let ccc = ptc.current_containing_component.as_ref().unwrap();
         let cccb = ccc.borrow();
-        let containing_component_flattened_slot_children = cccb.get_expanded_and_flattened_slot_children();
+        let containing_component_flattened_slot_children =
+            cccb.get_expanded_and_flattened_slot_children();
 
         if let Some(slot_children) = containing_component_flattened_slot_children {
             if let Some(child_to_forward) = slot_children.get(current_index) {
-                this_expanded_node.borrow_mut().append_child_expanded_node(Rc::clone(child_to_forward));
-                ptc.engine.node_registry.borrow_mut().revert_mark_for_unmount(&child_to_forward.borrow().id_chain);
+                this_expanded_node
+                    .borrow_mut()
+                    .append_child_expanded_node(Rc::clone(child_to_forward));
+                ptc.engine
+                    .node_registry
+                    .borrow_mut()
+                    .revert_mark_for_unmount(&child_to_forward.borrow().id_chain);
             }
         }
 

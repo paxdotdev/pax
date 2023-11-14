@@ -9,12 +9,12 @@ use std::slice::IterMut;
 
 use crate::errors::source_map::SourceMap;
 use crate::errors::PaxTemplateError;
+use crate::helpers::HostCrateInfo;
 use crate::manifest::{PropertyDefinitionFlags, Token, TypeDefinition, TypeTable};
 use crate::parsing::escape_identifier;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
-use crate::helpers::HostCrateInfo;
 
 const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
     ("transform", "Transform2D"),
@@ -50,27 +50,27 @@ pub fn compile_all_expressions<'a>(
             let mut active_node_def = TemplateNodeDefinition::default();
             std::mem::swap(&mut active_node_def, template.index_mut(0));
 
-                let mut ctx = ExpressionCompilationContext {
-                    template,
-                    active_node_def,
-                    scope_stack: vec![component_def
-                        .get_property_definitions(&manifest.type_table)
-                        .iter()
-                        .map(|pd| (pd.name.clone(), pd.clone()))
-                        .collect()],
-                    vtable_uid_gen: vtable_uid_track..,
-                    all_components: manifest.components.clone(),
-                    expression_specs: &mut swap_expression_specs,
-                    component_def: &read_only_component_def,
-                    type_table: &manifest.type_table,
-                    host_crate_info,
-                };
+            let mut ctx = ExpressionCompilationContext {
+                template,
+                active_node_def,
+                scope_stack: vec![component_def
+                    .get_property_definitions(&manifest.type_table)
+                    .iter()
+                    .map(|pd| (pd.name.clone(), pd.clone()))
+                    .collect()],
+                vtable_uid_gen: vtable_uid_track..,
+                all_components: manifest.components.clone(),
+                expression_specs: &mut swap_expression_specs,
+                component_def: &read_only_component_def,
+                type_table: &manifest.type_table,
+                host_crate_info,
+            };
 
-                ctx = recurse_compile_expressions(ctx, source_map)?;
-                vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
-                all_expression_specs.extend(ctx.expression_specs.to_owned());
-                std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
-            }
+            ctx = recurse_compile_expressions(ctx, source_map)?;
+            vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
+            all_expression_specs.extend(ctx.expression_specs.to_owned());
+            std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
+        }
 
         std::mem::swap(component_def, &mut new_component_def);
     }
@@ -638,10 +638,13 @@ fn resolve_symbol_as_invocation(
         let root_identifier = split_symbols.next().unwrap().to_string();
         let root_prop_def = prop_def_chain.first().unwrap();
 
-        let fully_qualified_properties_struct_type = ctx.host_crate_info.fully_qualify_path(&ctx.component_def.type_id);
+        let fully_qualified_properties_struct_type = ctx
+            .host_crate_info
+            .fully_qualify_path(&ctx.component_def.type_id);
 
         let fully_qualified_iterable_type = if root_prop_def.flags.is_binding_repeat_elem {
-            ctx.host_crate_info.fully_qualify_path(&root_prop_def.type_id)
+            ctx.host_crate_info
+                .fully_qualify_path(&root_prop_def.type_id)
         } else if root_prop_def.flags.is_binding_repeat_i {
             "usize".to_string()
         } else {
@@ -695,12 +698,8 @@ fn resolve_symbol_as_invocation(
         Ok(ExpressionSpecInvocation {
             root_identifier,
             is_numeric: ExpressionSpecInvocation::is_numeric(&property_type),
-            is_bool: ExpressionSpecInvocation::is_primitive_bool(
-                &property_type,
-            ),
-            is_string: ExpressionSpecInvocation::is_primitive_string(
-                &property_type,
-            ),
+            is_bool: ExpressionSpecInvocation::is_primitive_bool(&property_type),
+            is_string: ExpressionSpecInvocation::is_primitive_string(&property_type),
             escaped_identifier,
             stack_offset,
             fully_qualified_iterable_type,

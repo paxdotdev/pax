@@ -1,18 +1,18 @@
 use core::option::Option;
 use core::option::Option::Some;
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::any::Any;
 
 use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, InstanceNode, ExpandedNode, InstanceNodePtr,
-    InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, recurse_expand_nodes
+    recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
-use pax_message::{AnyCreatePatch};
+use pax_message::AnyCreatePatch;
 use pax_runtime_api::{CommonProperties, Layer, Size};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -29,7 +29,6 @@ pub struct FrameInstance<R: 'static + RenderContext> {
 
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
-
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
@@ -82,67 +81,74 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     //     _z_index: u32,
     //     _subtree_depth: u32,
     // ) {
-        // let mut new_message: FramePatch = Default::default();
-        // new_message.id_chain = rtc.get_id_chain(self.instance_id);
-        // if !self.last_patches.contains_key(&new_message.id_chain) {
-        //     let mut patch = FramePatch::default();
-        //     patch.id_chain = new_message.id_chain.clone();
-        //     self.last_patches
-        //         .insert(new_message.id_chain.clone(), patch);
-        // }
-        // let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
-        // let mut has_any_updates = false;
-        //
-        // let val = computed_size.0;
-        // let is_new_value = match &last_patch.size_x {
-        //     Some(cached_value) => !val.eq(cached_value),
-        //     None => true,
-        // };
-        // if is_new_value {
-        //     new_message.size_x = Some(val);
-        //     last_patch.size_x = Some(val);
-        //     has_any_updates = true;
-        // }
-        //
-        // let val = computed_size.1;
-        // let is_new_value = match &last_patch.size_y {
-        //     Some(cached_value) => !val.eq(cached_value),
-        //     None => true,
-        // };
-        // if is_new_value {
-        //     new_message.size_y = Some(val);
-        //     last_patch.size_y = Some(val);
-        //     has_any_updates = true;
-        // }
-        //
-        // let latest_transform = transform_coeffs;
-        // let is_new_transform = match &last_patch.transform {
-        //     Some(cached_transform) => latest_transform
-        //         .iter()
-        //         .enumerate()
-        //         .any(|(i, elem)| *elem != cached_transform[i]),
-        //     None => true,
-        // };
-        // if is_new_transform {
-        //     new_message.transform = Some(latest_transform.clone());
-        //     last_patch.transform = Some(latest_transform.clone());
-        //     has_any_updates = true;
-        // }
-        //
-        // if has_any_updates {
-        //     (*rtc.engine.runtime)
-        //         .borrow_mut()
-        //         .enqueue_native_message(pax_message::NativeMessage::FrameUpdate(new_message));
-        // }
-        // todo!()
+    // let mut new_message: FramePatch = Default::default();
+    // new_message.id_chain = rtc.get_id_chain(self.instance_id);
+    // if !self.last_patches.contains_key(&new_message.id_chain) {
+    //     let mut patch = FramePatch::default();
+    //     patch.id_chain = new_message.id_chain.clone();
+    //     self.last_patches
+    //         .insert(new_message.id_chain.clone(), patch);
+    // }
+    // let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
+    // let mut has_any_updates = false;
+    //
+    // let val = computed_size.0;
+    // let is_new_value = match &last_patch.size_x {
+    //     Some(cached_value) => !val.eq(cached_value),
+    //     None => true,
+    // };
+    // if is_new_value {
+    //     new_message.size_x = Some(val);
+    //     last_patch.size_x = Some(val);
+    //     has_any_updates = true;
+    // }
+    //
+    // let val = computed_size.1;
+    // let is_new_value = match &last_patch.size_y {
+    //     Some(cached_value) => !val.eq(cached_value),
+    //     None => true,
+    // };
+    // if is_new_value {
+    //     new_message.size_y = Some(val);
+    //     last_patch.size_y = Some(val);
+    //     has_any_updates = true;
+    // }
+    //
+    // let latest_transform = transform_coeffs;
+    // let is_new_transform = match &last_patch.transform {
+    //     Some(cached_transform) => latest_transform
+    //         .iter()
+    //         .enumerate()
+    //         .any(|(i, elem)| *elem != cached_transform[i]),
+    //     None => true,
+    // };
+    // if is_new_transform {
+    //     new_message.transform = Some(latest_transform.clone());
+    //     last_patch.transform = Some(latest_transform.clone());
+    //     has_any_updates = true;
+    // }
+    //
+    // if has_any_updates {
+    //     (*rtc.engine.runtime)
+    //         .borrow_mut()
+    //         .enqueue_native_message(pax_message::NativeMessage::FrameUpdate(new_message));
+    // }
+    // todo!()
     // }
 
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.instance_children)
     }
 
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+            ptc,
+            &self.instance_prototypical_properties,
+            &self.instance_prototypical_common_properties,
+        );
 
         let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);
@@ -153,7 +159,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             new_ptc.current_instance_id = instance_child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
             let expanded_child = recurse_expand_nodes(&mut new_ptc);
-            this_expanded_node.borrow_mut().append_child_expanded_node(expanded_child);
+            this_expanded_node
+                .borrow_mut()
+                .append_child_expanded_node(expanded_child);
         }
 
         ptc.pop_clipping_stack_id();
@@ -166,13 +174,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         rtc: &mut RenderTreeContext<R>,
         rcs: &mut HashMap<std::string::String, R>,
     ) {
-
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = &expanded_node.tab;
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
-        let _properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
+        let _properties_wrapped: Rc<RefCell<dyn Any>> =
+            rtc.current_expanded_node.borrow().get_properties();
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -188,14 +196,16 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
             rc.clip(transformed_bez_path.clone());
         }
-
     }
-    fn handle_post_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+    fn handle_post_render(
+        &mut self,
+        _rtc: &mut RenderTreeContext<R>,
+        _rcs: &mut HashMap<String, R>,
+    ) {
         for (_key, rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
         }
-
     }
 
     fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
@@ -208,17 +218,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
         let z_index = ptc.current_expanded_node.as_ref().unwrap().borrow().z_index;
 
-        ptc.enqueue_native_message(
-            pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-                id_chain: id_chain.clone(),
-                clipping_ids,
-                scroller_ids,
-                z_index,
-            }),
-        );
+        ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
+            id_chain: id_chain.clone(),
+            clipping_ids,
+            scroller_ids,
+            z_index,
+        }));
     }
 
-    fn handle_unmount(&mut self, _ptc: &mut PropertiesTreeContext<R>) {
-
-    }
+    fn handle_unmount(&mut self, _ptc: &mut PropertiesTreeContext<R>) {}
 }
