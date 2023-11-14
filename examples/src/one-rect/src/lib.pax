@@ -1,0 +1,16 @@
+<Rectangle class=centered class=half
+     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+/>
+
+@settings {
+    .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    }
+    .half {
+        width: 50%
+        height: 50%
+    }
+}

@@ -68,7 +68,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 {% else %}
 
                     let properties_borrowed = properties.borrow();
-                    if let Some(p) = properties_borrowed.downcast_ref::<{{invocation.fully_qualified_properties_struct_type}}>();
+                    if let Some(p) = properties_borrowed.downcast_ref::<{{invocation.fully_qualified_properties_struct_type}}>(){
 
                         {% if invocation.is_numeric %}
                             //binding simple numeric property
