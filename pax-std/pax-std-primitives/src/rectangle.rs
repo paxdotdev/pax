@@ -2,9 +2,9 @@ use std::any::Any;
 use kurbo::{RoundedRect, Shape};
 use piet::{LinearGradient, RadialGradient, RenderContext};
 
-use pax_core::{handle_vtable_update, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unwrapped};
+use pax_core::{handle_vtable_update, HandlerRegistry, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode, PropertiesTreeContext, with_properties_unwrapped};
 use pax_std::primitives::Rectangle;
-use pax_std::types::{Fill, RectangleCornerRadii};
+use pax_std::types::{Fill};
 
 use pax_runtime_api::CommonProperties;
 
