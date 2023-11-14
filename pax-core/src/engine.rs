@@ -962,16 +962,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     fn manage_handlers_pre_render(rtc: &mut RenderTreeContext<R>) {
         //fire `pre_render` handlers
         let node = Rc::clone(&rtc.current_expanded_node);
-        let registry = (*rtc.current_expanded_node)
-            .borrow()
+        let node_borrowed = (*node).borrow();
+        let registry = node_borrowed
             .instance_node
             .borrow()
-            .get_handler_registry();
+            .get_handler_registry().clone();
         if let Some(registry) = registry {
             for handler in (*registry).borrow().pre_render_handlers.iter() {
                 handler(
-                    node.borrow_mut().get_properties(),
-                    node.borrow().node_context.clone(),
+                    Rc::clone(&node_borrowed.get_properties()),
+                    node_borrowed.node_context.clone(),
                 );
             }
         }

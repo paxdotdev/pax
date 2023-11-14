@@ -18,17 +18,10 @@ pub struct OneRect {
 }
 
 impl OneRect {
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
-        self.message.set("Click me".to_string());
-    }
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
+
+    pub fn handle_pre_render(&mut self, ctx: RuntimeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn increment(&mut self, ctx: RuntimeContext, args: ArgsClick){
-        let old_num_clicks = self.num_clicks.get();
-        self.num_clicks.set(old_num_clicks + 1);
-        self.message.set(format!("{} clicks", self.num_clicks.get()));
-    }
 }
