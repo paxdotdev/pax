@@ -4,7 +4,7 @@ use crate::{
 };
 use kurbo::Affine;
 use pax_message::NativeMessage;
-use pax_runtime_api::{Numeric, Rotation, RuntimeContext, Size, Timeline, Transform2D};
+use pax_runtime_api::{Interpolatable, Numeric, Rotation, RuntimeContext, Size, Timeline, Transform2D, TransitionManager};
 use piet::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
@@ -439,6 +439,9 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
 }
 
 impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
+
+
+
     pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         self.shared.borrow().runtime_properties_stack.clone()
     }
@@ -487,6 +490,46 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
                 }
             });
         indices
+    }
+
+    pub fn compute_eased_value<T: Clone + Interpolatable>(
+        &self,
+        transition_manager: Option<&mut TransitionManager<T>>,
+    ) -> Option<T> {
+        if let Some(tm) = transition_manager {
+            if tm.queue.len() > 0 {
+                let current_transition = tm.queue.get_mut(0).unwrap();
+                if let None = current_transition.global_frame_started {
+                    current_transition.global_frame_started = Some(self.engine.frames_elapsed);
+                }
+                let progress = (1.0 + self.engine.frames_elapsed as f64
+                    - current_transition.global_frame_started.unwrap() as f64)
+                    / (current_transition.duration_frames as f64);
+                return if progress >= 1.0 {
+                    //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
+                    let new_value = current_transition.curve.interpolate(
+                        &current_transition.starting_value,
+                        &current_transition.ending_value,
+                        progress,
+                    );
+                    tm.value = Some(new_value.clone());
+
+                    tm.queue.pop_front();
+                    self.compute_eased_value(Some(tm))
+                } else {
+                    let new_value = current_transition.curve.interpolate(
+                        &current_transition.starting_value,
+                        &current_transition.ending_value,
+                        progress,
+                    );
+                    tm.value = Some(new_value.clone());
+                    tm.value.clone()
+                };
+            } else {
+                return tm.value.clone();
+            }
+        }
+        None
     }
 
     pub fn distill_userland_node_context(&self) -> RuntimeContext {

@@ -43,9 +43,6 @@ pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
 
-    /// Used to wrap the return type in TypesCoproduct
-    pub pascalized_return_type: String,
-
     /// Representations of symbols used in an expression, and the necessary
     /// metadata to "invoke" those symbols from the runtime
     pub invocations: Vec<ExpressionSpecInvocation>,
