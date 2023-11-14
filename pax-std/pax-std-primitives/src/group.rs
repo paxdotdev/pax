@@ -1,10 +1,10 @@
-use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, TransformAndBounds, PropertiesTreeContext, ExpandedNode};
+use pax_core::{HandlerRegistry, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, PropertiesTreeContext, ExpandedNode};
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::any::Any;
 
-use pax_runtime_api::{CommonProperties, Layer, Size};
+use pax_runtime_api::{CommonProperties, Layer};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.

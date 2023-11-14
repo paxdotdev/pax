@@ -2,10 +2,10 @@ use std::any::Any;
 use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
 use piet::RenderContext;
 
-use pax_core::{Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, handle_vtable_update, with_properties_unwrapped};
+use pax_core::{HandlerRegistry, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, handle_vtable_update, with_properties_unwrapped};
 
 use pax_std::primitives::Ellipse;
-use pax_std::types::{ColorVariant, Fill};
+use pax_std::types::{Fill};
 
 use pax_runtime_api::CommonProperties;
 

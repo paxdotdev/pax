@@ -9,10 +9,10 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, ExpandedNode, InstanceNodePtr,
+    HandlerRegistry, InstantiationArgs, InstanceNode, ExpandedNode, InstanceNodePtr,
     InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, recurse_expand_nodes
 };
-use pax_message::{AnyCreatePatch, FramePatch};
+use pax_message::{AnyCreatePatch};
 use pax_runtime_api::{CommonProperties, Layer, Size};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -172,7 +172,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
-        let properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
+        let _properties_wrapped : Rc<RefCell<dyn Any>> = rtc.current_expanded_node.borrow().get_properties();
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -190,7 +190,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         }
 
     }
-    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+    fn handle_post_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         for (_key, rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
