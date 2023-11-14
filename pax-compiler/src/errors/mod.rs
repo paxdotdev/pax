@@ -113,7 +113,11 @@ impl fmt::Display for PaxTemplateError {
 
 impl Error for PaxTemplateError {}
 
-pub fn process_messages(output: Output, source_map: &SourceMap, verbose: bool) -> Result<(), Report> {
+pub fn process_messages(
+    output: Output,
+    source_map: &SourceMap,
+    verbose: bool,
+) -> Result<(), Report> {
     let stderr_stream = Cursor::new(output.stdout);
     let reader = BufReader::new(stderr_stream);
 

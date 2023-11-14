@@ -15,7 +15,7 @@ use pax_core::{NodeRegistry, PaxEngine};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
-    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
+    ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
     ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
     ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey,
     MouseButton, MouseEventArgs, Touch,
@@ -146,8 +146,7 @@ impl PaxChassisWeb {
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let engine_borrowed = (*self.engine).borrow();
                 let node_registry_borrowed = engine_borrowed.node_registry.borrow();
-                let node =
-                    node_registry_borrowed
+                let node = node_registry_borrowed
                     .get_expanded_node(&args.id_chain)
                     .expect("couldn't find node");
                 node.borrow().dispatch_checkbox_change(ArgsCheckboxChange {
@@ -301,7 +300,9 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_double_click(args_double_click);
+                    topmost_node
+                        .borrow()
+                        .dispatch_double_click(args_double_click);
                 }
             }
             NativeInterrupt::MouseMove(args) => {
@@ -441,7 +442,9 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_context_menu(args_context_menu);
+                    topmost_node
+                        .borrow()
+                        .dispatch_context_menu(args_context_menu);
                 }
             }
         };

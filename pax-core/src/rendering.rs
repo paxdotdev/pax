@@ -9,10 +9,12 @@ use pax_runtime_api::{Axis, CommonProperties, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsScroll, Layer, Size, PropertyInstance};
+use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size};
 
-use crate::{ExpandedNode, HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeContext};
 use crate::form_event::FormEvent;
+use crate::{
+    ExpandedNode, HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeContext,
+};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -21,7 +23,9 @@ pub type InstanceNodePtrList<R> = Rc<RefCell<Vec<InstanceNodePtr<R>>>>;
 
 /// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
 /// and return another InstanceNodePtrList with a flattened top-level list of nodes.
-pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(input_nodes: InstanceNodePtrList<R>) -> InstanceNodePtrList<R> {
+pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(
+    input_nodes: InstanceNodePtrList<R>,
+) -> InstanceNodePtrList<R> {
     let mut output_nodes = Vec::new();
 
     for node in input_nodes.borrow().iter() {
@@ -167,7 +171,6 @@ fn min_max_projections(projections: &[f64]) -> (f64, f64) {
     (min_projection, max_projection)
 }
 
-
 #[derive(Clone)]
 pub enum NodeType {
     Component,
@@ -228,7 +231,10 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
         let common_properties = expanded_node.get_common_properties();
         let common_properties_borrowed = common_properties.borrow();
-        (common_properties_borrowed.width.get().clone(), common_properties_borrowed.height.get().clone())
+        (
+            common_properties_borrowed.width.get().clone(),
+            common_properties_borrowed.height.get().clone(),
+        )
     }
 
     #[allow(unused_variables)]
@@ -261,7 +267,10 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
@@ -287,11 +296,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
     #[allow(unused_variables)]
-    fn handle_pre_render(
-        &mut self,
-        rtc: &mut RenderTreeContext<R>,
-        rcs: &mut HashMap<String, R>,
-    ) {
+    fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
         //no-op default implementation
     }
 
@@ -310,11 +315,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
     #[allow(unused_variables)]
-    fn handle_post_render(
-        &mut self,
-        rtc: &mut RenderTreeContext<R>,
-        rcs: &mut HashMap<String, R>,
-    ) {
+    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
         //no-op default implementation
     }
 

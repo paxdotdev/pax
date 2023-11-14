@@ -9,7 +9,7 @@ use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
 use std::borrow::Borrow;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
 
@@ -63,7 +63,7 @@ pub fn generate_and_overwrite_cartridge(
     let mut imports: Vec<String> = manifest
         .import_paths
         .iter()
-        .map(|e|{host_crate_info.fully_qualify_path(e)})
+        .map(|e| host_crate_info.fully_qualify_path(e))
         .collect();
 
     imports.append(
@@ -170,7 +170,6 @@ fn recurse_literal_block(
 
     // Iterating through each (key, value) pair in the settings_key_value_pairs
     for (key, value_definition) in block.settings_key_value_pairs.iter() {
-
         let type_id = &type_definition
             .property_definitions
             .iter()
@@ -307,8 +306,14 @@ fn recurse_generate_render_nodes_literal(
             properties_coproduct_variant: "Repeat".to_string(),
             component_properties_struct: "RepeatProperties".to_string(),
             defined_properties: vec![
-                (MappedString::new("source_expression_vec".to_string()),rse_vec),
-                (MappedString::new("source_expression_range".to_string()),rse_range),
+                (
+                    MappedString::new("source_expression_vec".to_string()),
+                    rse_vec,
+                ),
+                (
+                    MappedString::new("source_expression_range".to_string()),
+                    rse_range,
+                ),
             ],
             common_properties_literal,
             children_literal,
@@ -361,9 +366,10 @@ fn recurse_generate_render_nodes_literal(
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "Conditional".to_string(),
             component_properties_struct: "ConditionalProperties".to_string(),
-            defined_properties: vec![
-                (MappedString::new("boolean_expression".to_string()),conditional_mapped_string),
-            ],
+            defined_properties: vec![(
+                MappedString::new("boolean_expression".to_string()),
+                conditional_mapped_string,
+            )],
             common_properties_literal,
             children_literal,
             pascal_identifier: rngc
@@ -414,9 +420,7 @@ fn recurse_generate_render_nodes_literal(
             primitive_instance_import_path: Some("SlotInstance".into()),
             properties_coproduct_variant: "Slot".to_string(),
             component_properties_struct: "SlotProperties".to_string(),
-            defined_properties: vec![
-                (MappedString::new("index".to_string()),slot_mapped_string),
-            ],
+            defined_properties: vec![(MappedString::new("index".to_string()), slot_mapped_string)],
             common_properties_literal,
             children_literal,
             pascal_identifier: rngc
@@ -466,7 +470,10 @@ fn recurse_generate_render_nodes_literal(
                                         let value_source_map_id = source_map.insert(lv.clone());
                                         let value_mapped_string = source_map
                                             .generate_mapped_string(
-                                                format!("Box::new(PropertyLiteral::new({}))", lv.token_value),
+                                                format!(
+                                                    "Box::new(PropertyLiteral::new({}))",
+                                                    lv.token_value
+                                                ),
                                                 value_source_map_id,
                                             );
                                         Some((key_mapped_string.clone(), value_mapped_string))
@@ -545,7 +552,10 @@ fn recurse_generate_render_nodes_literal(
                         .find(|vd| vd.0.token_value == *identifier_and_type.0)
                     {
                         let key_source_map_id = source_map.insert(matched_setting.0.clone());
-                        let key_mapped_string = source_map.generate_mapped_string(matched_setting.0.token_value.clone(), key_source_map_id);
+                        let key_mapped_string = source_map.generate_mapped_string(
+                            matched_setting.0.token_value.clone(),
+                            key_source_map_id,
+                        );
 
                         (
                             key_mapped_string,
@@ -554,14 +564,13 @@ fn recurse_generate_render_nodes_literal(
                                     let value_source_map_id = source_map.insert(lv.clone());
                                     let mut literal_value = format!(
                                         "Box::new(PropertyLiteral::new(Into::<{}>::into({})))",
-                                        identifier_and_type.1,
-                                        lv.token_value,
+                                        identifier_and_type.1, lv.token_value,
                                     );
                                     if is_optional(&identifier_and_type.0) {
                                         literal_value = format!("Some({})", literal_value);
                                     }
-                                    let value_mapped_string = source_map.generate_mapped_string(literal_value,
-                                         value_source_map_id);
+                                    let value_mapped_string = source_map
+                                        .generate_mapped_string(literal_value, value_source_map_id);
 
                                     value_mapped_string
                                 }
@@ -575,8 +584,8 @@ fn recurse_generate_render_nodes_literal(
                                     if is_optional(&identifier_and_type.0) {
                                         literal_value = format!("Some({})", literal_value);
                                     }
-                                    let value_mapped_string = source_map.generate_mapped_string(literal_value,
-                                        value_source_map_id);
+                                    let value_mapped_string = source_map
+                                        .generate_mapped_string(literal_value, value_source_map_id);
                                     value_mapped_string
                                 }
                                 _ => {
@@ -587,7 +596,9 @@ fn recurse_generate_render_nodes_literal(
                     } else {
                         (
                             MappedString::new(identifier_and_type.0.to_string()),
-                            MappedString::new(default_common_property_value(&identifier_and_type.0)),
+                            MappedString::new(default_common_property_value(
+                                &identifier_and_type.0,
+                            )),
                         )
                     }
                 } else {
@@ -701,4 +712,3 @@ fn generate_cartridge_component_factory_literal(
 
     press_template_codegen_cartridge_component_factory(args)
 }
-

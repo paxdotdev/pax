@@ -1,8 +1,11 @@
-use pax_core::{HandlerRegistry, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, PropertiesTreeContext, ExpandedNode};
+use pax_core::{
+    ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList,
+    InstantiationArgs, PropertiesTreeContext,
+};
 use piet_common::RenderContext;
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::any::Any;
 
 use pax_runtime_api::{CommonProperties, Layer};
 
@@ -65,10 +68,15 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         Layer::DontCare
     }
 
-
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(ptc, &self.instance_prototypical_properties, &self.instance_prototypical_common_properties);
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+            ptc,
+            &self.instance_prototypical_properties,
+            &self.instance_prototypical_common_properties,
+        );
         this_expanded_node
     }
-
 }
