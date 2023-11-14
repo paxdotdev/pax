@@ -213,7 +213,9 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     pub ancestral_scroller_ids: Vec<Vec<u32>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
-    /// getting a reference to slot_children for `slot`.
+    /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
+    /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
+    /// thus `containing_component` is `Option`al.
     pub containing_component: Option<Rc<RefCell<ExpandedNode<R>>>>,
 
     /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
@@ -990,7 +992,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
 
         let accumulated_bounds = rtc.current_expanded_node.borrow().tab.bounds;
-        let node = Rc::clone(&rtc.current_expanded_node);
+        let expanded_node = Rc::clone(&rtc.current_expanded_node);
 
         // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
         if rtc
@@ -998,12 +1000,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .node_registry
             .borrow()
             .marked_for_unmount_set
-            .contains(&node.borrow().id_chain)
+            .contains(&expanded_node.borrow().id_chain)
         {
             return;
         }
 
-        rtc.current_instance_node = Rc::clone(&node.borrow().instance_node);
+        rtc.current_instance_node = Rc::clone(&expanded_node.borrow().instance_node);
 
         //scroller IDs are used by chassis, for identifying native scrolling containers
         let scroller_ids = rtc
@@ -1027,7 +1029,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //keep recursing through children
         let mut child_z_index_info = z_index_info.clone();
         if z_index_info.get_current_layer() == Layer::Scroller {
-            let id_chain = node.borrow().id_chain.clone();
+            let id_chain = expanded_node.borrow().id_chain.clone();
             child_z_index_info = ZIndex::new(Some(id_chain));
             // let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
             // let mut reset_transform = Affine::default();
@@ -1036,11 +1038,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             // rtc.transform_scroller_reset = reset_transform.clone();
         }
 
-        let children_cloned = node.borrow_mut().children_expanded_nodes.clone();
+        let children_cloned = expanded_node.borrow_mut().children_expanded_nodes.clone();
 
         children_cloned.iter().rev().for_each(|expanded_node| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
+            new_rtc.current_expanded_node = Rc::clone(expanded_node);
             // if it's a scroller reset the z-index context for its children
             self.recurse_render(
                 &mut new_rtc,
@@ -1053,12 +1056,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             subtree_depth = subtree_depth.max(child_z_index_info.get_level());
         });
 
-        let is_viewport_culled = !node.borrow().tab.intersects(&self.viewport_tab);
+        let is_viewport_culled = !expanded_node.borrow().tab.intersects(&self.viewport_tab);
 
-        let clipping = node
+        let clipping = expanded_node
             .borrow_mut()
             .compute_clipping_within_bounds(accumulated_bounds);
-        let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
+        let clipping_bounds = match expanded_node.borrow_mut().get_clipping_bounds() {
             None => None,
             Some(_) => Some(clipping),
         };
@@ -1074,7 +1077,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //this is this node's time to do its own rendering, aside
             //from the rendering of its children. Its children have already been rendered.
             if !is_viewport_culled {
-                node.borrow_mut()
+                expanded_node.borrow()
                     .instance_node
                     .borrow_mut()
                     .handle_render(rtc, rc);
@@ -1082,7 +1085,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         } else {
             if let Some(rc) = rcs.get_mut("0") {
                 if !is_viewport_culled {
-                    node.borrow_mut()
+                    expanded_node.borrow()
                         .instance_node
                         .borrow_mut()
                         .handle_render(rtc, rc);
@@ -1091,7 +1094,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
 
         //lifecycle: post_render
-        node.borrow_mut()
+        expanded_node.borrow()
             .instance_node
             .borrow_mut()
             .handle_post_render(rtc, rcs);

@@ -27,17 +27,11 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
 
     let node_type = this_instance_node.borrow_mut().get_node_type().clone();
-    // Expand the node
 
-    // In the case of the very root instance node (root component, root instance node)
-    // There is also a corrolary "very root expanded node."  That very root expanded node _does not have_ a containing
-    // component.  it represents the c
-
-    let this_expanded_node = Rc::clone(
-        &this_instance_node
+    let this_expanded_node = this_instance_node
             .borrow_mut()
-            .expand_node_and_compute_properties(ptc),
-    );
+            .expand_node_and_compute_properties(ptc);
+
     if matches!(node_type, NodeType::Component) {
         ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
     }
@@ -95,7 +89,8 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     let new_tab = compute_tab(ptc);
     ptc.containing_tab = new_tab;
 
-    // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.  If this is such a node,
+    // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.
+    // The following logic is for default nodes, which don't perform such overrides.
     if !this_instance_node
         .borrow()
         .manages_own_subtree_for_expansion()

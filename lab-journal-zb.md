@@ -4618,13 +4618,24 @@ we can map this data into imperative Rust if/else if/else statements, like we do
     [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.
     [ ] Clipping
     [ ] Scrolling
+[x] dyn Any refactor
+    Relieves need for PropertiesCoproduct and TypesCoproduct entirely
+    Removes unsafe_unwrap, unsafe_wrap
+    Risk: need to ensure it's compatible with Rc<RefCell<>> (probably is if done right)
+    Simplifies build: no longer need to generate propertiescorproduct or deal with it in dependency graph
+    Risk: consider dynamic linking & dyn Any
+    [x] Scope out dyn any vs. debuggability / velocity with current thrust
+    [x] execute dyn Any refactor
+    [x] static code
+    [x] codegen
+    [x] achieve run
+[x] unit tests for unsafe macros
+    [x] draft as examples
+    [x] vnext as stand-alone tests, create -> mutate -> assert flows
+
 
 
 Considerations for ideal property management
-
-[ ] unit tests for unsafe macros
-    [x] draft as examples
-    [ ] vnext as stand-alone tests, create -> mutate -> assert flows
 Dirty DAG:
 [ ] IDs annotated with each property definition
 [ ] static property DAG, baked into codegen
@@ -4634,13 +4645,5 @@ Dirty DAG:
         channel property containers, where does data live?
         explore threading + wasm support; can e.g. network requests be non-blocking via unobtrusive threads?  instead of biting off async (userland `async` ergonomics and tooling complexity surface area feel like the points of friction here)
 
-dyn Any refactor
-    Relieves need for PropertiesCoproduct and TypesCoproduct entirely
-    Removes unsafe_unwrap, unsafe_wrap
-    Risk: need to ensure it's compatible with Rc<RefCell<>> (probably is if done right)
-    Simplifies build: no longer need to generate propertiescorproduct or deal with it in dependency graph
-    Risk: consider dynamic linking & dyn Any 
-    
-Scope out dyn any vs. debuggability / velocity with current thrust 
-    
+
     
