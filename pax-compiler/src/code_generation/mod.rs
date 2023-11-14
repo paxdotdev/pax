@@ -3,13 +3,13 @@
 //! The `code_generation` module provides structures and functions for generating Pax Cartridges
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
-use crate::helpers::{HostCrateInfo, PKG_DIR_NAME};
+use crate::helpers::{HostCrateInfo, IMPORTS_BUILTINS, PKG_DIR_NAME};
 use crate::manifest::{PaxManifest, Token};
 use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
 use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::fs;
 use std::str::FromStr;
 
@@ -60,52 +60,10 @@ pub fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 28] = [
-        "std::cell::RefCell",
-        "std::collections::HashMap",
-        "std::collections::VecDeque",
-        "std::ops::Deref",
-        "std::rc::Rc",
-        "pax_properties_coproduct::RepeatProperties",
-        "pax_properties_coproduct::ConditionalProperties",
-        "pax_properties_coproduct::SlotProperties",
-        "pax_runtime_api::PropertyInstance",
-        "pax_runtime_api::PropertyLiteral",
-        "pax_runtime_api::CommonProperties",
-        "pax_core::ComponentInstance",
-        "pax_core::InstanceNodePtr",
-        "pax_core::PropertyExpression",
-        "pax_core::InstanceNodePtrList",
-        "pax_core::RenderTreeContext",
-        "pax_core::PropertiesTreeContext",
-        "pax_core::ExpressionContext",
-        "pax_core::PaxEngine",
-        "pax_core::InstanceNode",
-        "pax_core::NodeRegistry",
-        "pax_core::HandlerRegistry",
-        "pax_core::InstantiationArgs",
-        "pax_core::ConditionalInstance",
-        "pax_core::SlotInstance",
-        "pax_core::properties::RuntimePropertiesStackFrame",
-        "pax_core::repeat::RepeatInstance",
-        "piet_common::RenderContext",
-    ];
-
-    let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
-
-    #[allow(non_snake_case)]
-    let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-
     let mut imports: Vec<String> = manifest
         .import_paths
         .iter()
-        .map(|path| {
-            if !imports_builtins_set.contains(&**path) {
-                IMPORT_PREFIX.clone() + &path.replace("crate::", "")
-            } else {
-                "".to_string()
-            }
-        })
+        .map(|e|{host_crate_info.fully_qualify_path(e)})
         .collect();
 
     imports.append(
@@ -205,24 +163,24 @@ fn recurse_literal_block(
     host_crate_info: &HostCrateInfo,
     source_map: &mut SourceMap,
 ) -> String {
-    let qualified_path = host_crate_info.import_prefix.to_string()
-        + &type_definition.import_path.clone().replace("crate::", "");
+    let qualified_path = host_crate_info.fully_qualify_path(&type_definition.import_path);
 
     // Buffer to store the string representation of the struct
     let mut struct_representation = format!("\n{{ let mut ret = {}::default();", qualified_path);
 
     // Iterating through each (key, value) pair in the settings_key_value_pairs
     for (key, value_definition) in block.settings_key_value_pairs.iter() {
-        let fully_qualified_type = host_crate_info.import_prefix.to_string()
-            + &type_definition
-                .property_definitions
-                .iter()
-                .find(|pd| &pd.name == &key.token_value)
-                .expect(&format!(
-                    "Property {} not found on type {}",
-                    key.token_value, type_definition.type_id
-                ))
-                .type_id;
+
+        let type_id = &type_definition
+            .property_definitions
+            .iter()
+            .find(|pd| &pd.name == &key.token_value)
+            .expect(&format!(
+                "Property {} not found on type {}",
+                key.token_value, type_definition.type_id
+            ))
+            .type_id;
+        let fully_qualified_type = host_crate_info.fully_qualify_path(type_id);
 
         let mut source_map_start_marker: Option<String> = None;
         let mut source_map_end_marker: Option<String> = None;
@@ -714,6 +672,8 @@ fn generate_cartridge_component_factory_literal(
         type_table: &manifest.type_table,
     };
 
+    let fully_qualified_properties_type = host_crate_info.fully_qualify_path(&cd.type_id);
+
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_main_component: cd.is_main_component,
         snake_case_type_id: cd.get_snake_case_id(),
@@ -736,7 +696,7 @@ fn generate_cartridge_component_factory_literal(
             host_crate_info,
             source_map,
         ),
-        properties_coproduct_variant: cd.type_id_escaped.to_string(),
+        fully_qualified_properties_type,
     };
 
     press_template_codegen_cartridge_component_factory(args)

@@ -17,16 +17,17 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
                         {%- if entry.0.content in ['pre_render','mount'] -%}
                             |properties, ctx|{
                                 let properties = &mut *properties.as_ref().borrow_mut();
-                                let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                                {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
+                                if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                                    {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx);
+                                } else {panic!()};
                             },
                         {% else %}
                         |node, ctx, args|{
                             let properties = ((*node).borrow().get_properties());
                             let properties = &mut *properties.as_ref().borrow_mut();
-                            let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                                {{ component_properties_struct }}::{{handler.content}}(properties,ctx,args);
-                            },
+                            if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                                {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx, args);
+                            } else {panic!()};
                         {% endif %}
                         {% if handler.source_map_end_marker %}
                             {{handler.source_map_end_marker}}
@@ -46,16 +47,18 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
         scroller_args: None,
         compute_properties_fn: Some(Box::new(|properties, rtc|{
             let properties = &mut *properties.as_ref().borrow_mut();
-            let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
 
-            {% for prop in properties %}
-            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
-            properties.{{ prop.0.name }}.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
-            properties.{{ prop.0.name }}.set(new_value);
+            if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                {% for prop in properties %}
+                    if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                        properties.{{ prop.0.name }}.set(new_value);
+                    } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
+                        let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
+                        properties.{{ prop.0.name }}.set(new_value);
+                    }
+                {% endfor %}
             }
-            {% endfor %}
+
         })),
     })
 }
@@ -79,16 +82,19 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_reg
         {% endif %}
          {%- if entry.0.content in ['pre_render','mount'] -%}
              |properties, ctx|{
-             let properties = &mut *properties.as_ref().borrow_mut();
-             let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-             {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
+                 let properties = &mut *properties.as_ref().borrow_mut();
+
+                 if let Some(mut properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                     {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
+                 } else {panic!()};
              },
      {% else %}
          |node, ctx, args|{
-         let properties = ((*node).borrow().get_properties());
-         let properties = &mut *properties.as_ref().borrow_mut();
-         let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-         {{ component_properties_struct }}::{{handler.content}}(properties,ctx,args);
+             let properties = ((*node).borrow().get_properties());
+             let properties = &mut *properties.as_ref().borrow_mut();
+             if let Some(mut properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                {{ component_properties_struct }}::{{handler.content}}(properties,ctx, args);
+             } else {panic!()};
          },
      {% endif %}
      {% if handler.source_map_end_marker %}
@@ -104,16 +110,17 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_reg
 
     args.compute_properties_fn = Some(Box::new(|properties, rtc|{
         let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+        if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
 
-        {% for prop in properties %}
-            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
-            properties.{{ prop.0.name }}.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
-            properties.{{ prop.0.name }}.set(new_value);
-            }
-        {% endfor %}
+            {% for prop in properties %}
+                if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                properties.{{ prop.0.name }}.set(new_value);
+                } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
+                properties.{{ prop.0.name }}.set(new_value);
+                }
+            {% endfor %}
+        }
     }));
 
     ComponentInstance::instantiate(args)

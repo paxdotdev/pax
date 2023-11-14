@@ -124,7 +124,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
     let mut source_map = SourceMap::new();
 
     println!("{} 🧮 Compiling expressions", *PAX_BADGE);
-    expressions::compile_all_expressions(&mut manifest, &mut source_map)?;
+    expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);

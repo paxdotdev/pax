@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use colored::{ColoredString, Colorize};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
@@ -284,6 +285,54 @@ pub struct HostCrateInfo {
     pub identifier: String,
     /// for example: `some_crate::pax_reexports`,
     pub import_prefix: String,
+}
+
+pub const IMPORTS_BUILTINS: [&str; 31] = [
+    "std::any::Any",
+    "std::cell::RefCell",
+    "std::collections::HashMap",
+    "std::collections::VecDeque",
+    "std::ops::Deref",
+    "std::rc::Rc",
+    "pax_core::RepeatItem",
+    "pax_core::RepeatProperties",
+    "pax_core::ConditionalProperties",
+    "pax_core::SlotProperties",
+    "pax_core::get_numeric_from_wrapped_properties",
+    "pax_runtime_api::PropertyInstance",
+    "pax_runtime_api::PropertyLiteral",
+    "pax_runtime_api::CommonProperties",
+    "pax_core::ComponentInstance",
+    "pax_core::InstanceNodePtr",
+    "pax_core::PropertyExpression",
+    "pax_core::InstanceNodePtrList",
+    "pax_core::RenderTreeContext",
+    "pax_core::PropertiesTreeContext",
+    "pax_core::ExpressionContext",
+    "pax_core::PaxEngine",
+    "pax_core::InstanceNode",
+    "pax_core::NodeRegistry",
+    "pax_core::HandlerRegistry",
+    "pax_core::InstantiationArgs",
+    "pax_core::ConditionalInstance",
+    "pax_core::SlotInstance",
+    "pax_core::properties::RuntimePropertiesStackFrame",
+    "pax_core::repeat::RepeatInstance",
+    "piet_common::RenderContext",
+];
+
+impl<'a> HostCrateInfo {
+
+    pub fn fully_qualify_path(&self, path: &str) -> String {
+        #[allow(non_snake_case)]
+        let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);
+        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
+        if !imports_builtins_set.contains(path) {
+            IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+        } else {
+            "".to_string()
+        }
+    }
 }
 
 pub fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {

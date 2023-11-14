@@ -2,7 +2,6 @@ use pax_std::primitives::Image;
 use piet::{ImageFormat, InterpolationMode, RenderContext};
 use std::collections::HashMap;
 
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
     InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,

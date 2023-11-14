@@ -6,7 +6,7 @@ use std::rc::{Rc, Weak};
 use kurbo::Affine;
 use piet::RenderContext;
 use pax_message::NativeMessage;
-use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation};
+use pax_runtime_api::{RuntimeContext, Timeline, Transform2D, Size, Rotation, Numeric};
 use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds};
 
 /// Recursive workhorse method for expanding nodes.  Visits all instance nodes in tree, stitching
@@ -565,5 +565,39 @@ impl RuntimePropertiesStackFrame {
 
     pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {
         Rc::clone(&self.properties)
+    }
+}
+
+pub fn get_numeric_from_wrapped_properties(wrapped: Rc<RefCell<dyn Any>>) -> Numeric {
+    //"u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f64"
+    let wrapped_borrowed = wrapped.borrow();
+    if let Some(unwrapped_u8) = wrapped_borrowed.downcast_ref::<u8>() {
+        Numeric::from(*unwrapped_u8)
+    } else if let Some(unwrapped_u16) = wrapped_borrowed.downcast_ref::<u16>() {
+        Numeric::from(*unwrapped_u16)
+    } else if let Some(unwrapped_u32) = wrapped_borrowed.downcast_ref::<u32>() {
+        Numeric::from(*unwrapped_u32)
+    } else if let Some(unwrapped_u64) = wrapped_borrowed.downcast_ref::<u64>() {
+        Numeric::from(*unwrapped_u64)
+    } else if let Some(unwrapped_u128) = wrapped_borrowed.downcast_ref::<u128>() {
+        Numeric::from(*unwrapped_u128)
+    } else if let Some(unwrapped_usize) = wrapped_borrowed.downcast_ref::<usize>() {
+        Numeric::from(*unwrapped_usize)
+    } else if let Some(unwrapped_i8) = wrapped_borrowed.downcast_ref::<i8>() {
+        Numeric::from(*unwrapped_i8)
+    } else if let Some(unwrapped_i16) = wrapped_borrowed.downcast_ref::<i16>() {
+        Numeric::from(*unwrapped_i16)
+    } else if let Some(unwrapped_i32) = wrapped_borrowed.downcast_ref::<i32>() {
+        Numeric::from(*unwrapped_i32)
+    } else if let Some(unwrapped_i64) = wrapped_borrowed.downcast_ref::<i64>() {
+        Numeric::from(*unwrapped_i64)
+    } else if let Some(unwrapped_i128) = wrapped_borrowed.downcast_ref::<i128>() {
+        Numeric::from(*unwrapped_i128)
+    } else if let Some(unwrapped_isize) = wrapped_borrowed.downcast_ref::<isize>() {
+        Numeric::from(*unwrapped_isize)
+    } else if let Some(unwrapped_f64) = wrapped_borrowed.downcast_ref::<f64>() {
+        Numeric::from(*unwrapped_f64)
+    } else {
+        panic!("Non-Numeric passed; tried to coerce into Numeric")
     }
 }

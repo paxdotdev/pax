@@ -82,12 +82,11 @@ pub struct ExpressionSpecInvocation {
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
 
-    /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
-    pub properties_coproduct_type: String,
+    /// Type of the containing Properties struct, for downcasting from dyn Any.
+    pub fully_qualified_properties_struct_type: String,
 
-    /// For symbolic invocations that refer to repeat elements, this is the enum identifier within
-    /// the TypesCoproduct that represents the appropriate `datum_cast` type
-    pub iterable_type_id_escaped: String,
+    /// For symbolic invocations that refer to repeat elements, this is the fully qualified type of each such repeated element
+    pub fully_qualified_iterable_type: String,
 
     /// Flags used for particular corner cases of `Repeat` codegen
     pub is_numeric: bool,
@@ -113,16 +112,16 @@ pub const SUPPORTED_NUMERIC_PRIMITIVES: [&str; 13] = [
 pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 
 impl ExpressionSpecInvocation {
-    pub fn is_primitive_string(property_properties_coproduct_type: &str) -> bool {
-        &SUPPORTED_NONNUMERIC_PRIMITIVES[0] == &property_properties_coproduct_type
+    pub fn is_primitive_string(property_type: &str) -> bool {
+        &SUPPORTED_NONNUMERIC_PRIMITIVES[0] == &property_type
     }
 
-    pub fn is_primitive_bool(property_properties_coproduct_type: &str) -> bool {
-        &SUPPORTED_NONNUMERIC_PRIMITIVES[1] == &property_properties_coproduct_type
+    pub fn is_primitive_bool(property_type: &str) -> bool {
+        &SUPPORTED_NONNUMERIC_PRIMITIVES[1] == &property_type
     }
 
-    pub fn is_numeric(property_properties_coproduct_type: &str) -> bool {
-        SUPPORTED_NUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
+    pub fn is_numeric(property_type: &str) -> bool {
+        SUPPORTED_NUMERIC_PRIMITIVES.contains(&property_type)
     }
 }
 
