@@ -14,6 +14,7 @@ use crate::parsing::escape_identifier;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
+use crate::helpers::HostCrateInfo;
 
 const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
     ("transform", "Transform2D"),
@@ -33,6 +34,7 @@ const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
 pub fn compile_all_expressions<'a>(
     manifest: &'a mut PaxManifest,
     source_map: &'a mut SourceMap,
+    host_crate_info: &'a HostCrateInfo,
 ) -> eyre::Result<(), Report> {
     let mut swap_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
     let mut all_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
@@ -61,6 +63,7 @@ pub fn compile_all_expressions<'a>(
                     expression_specs: &mut swap_expression_specs,
                     component_def: &read_only_component_def,
                     type_table: &manifest.type_table,
+                    host_crate_info,
                 };
 
                 ctx = recurse_compile_expressions(ctx, source_map)?;
@@ -647,10 +650,10 @@ fn resolve_symbol_as_invocation(
         let root_identifier = split_symbols.next().unwrap().to_string();
         let root_prop_def = prop_def_chain.first().unwrap();
 
-        let properties_coproduct_type = ctx.component_def.type_id_escaped.clone();
+        let fully_qualified_properties_struct_type = ctx.host_crate_info.fully_qualify_path(&ctx.component_def.type_id);
 
-        let iterable_type_id_escaped = if root_prop_def.flags.is_binding_repeat_elem {
-            escape_identifier(root_prop_def.type_id.clone())
+        let fully_qualified_iterable_type = if root_prop_def.flags.is_binding_repeat_elem {
+            ctx.host_crate_info.fully_qualify_path(&root_prop_def.type_id)
         } else if root_prop_def.flags.is_binding_repeat_i {
             "usize".to_string()
         } else {
@@ -680,7 +683,7 @@ fn resolve_symbol_as_invocation(
             token.clone(),
         ))?;
         let property_flags = found_val.flags;
-        let property_properties_coproduct_type = &root_prop_def
+        let property_type = &root_prop_def
             .get_type_definition(ctx.type_table)
             .type_id
             .split("::")
@@ -703,17 +706,17 @@ fn resolve_symbol_as_invocation(
 
         Ok(ExpressionSpecInvocation {
             root_identifier,
-            is_numeric: ExpressionSpecInvocation::is_numeric(&property_properties_coproduct_type),
+            is_numeric: ExpressionSpecInvocation::is_numeric(&property_type),
             is_bool: ExpressionSpecInvocation::is_primitive_bool(
-                &property_properties_coproduct_type,
+                &property_type,
             ),
             is_string: ExpressionSpecInvocation::is_primitive_string(
-                &property_properties_coproduct_type,
+                &property_type,
             ),
             escaped_identifier,
             stack_offset,
-            iterable_type_id_escaped,
-            properties_coproduct_type,
+            fully_qualified_iterable_type,
+            fully_qualified_properties_struct_type,
             property_flags,
             nested_symbol_tail_literal,
             is_nested_numeric,
@@ -776,6 +779,8 @@ pub struct ExpressionCompilationContext<'a> {
 
     /// Type table, used for looking up property types by string type_ids
     pub type_table: &'a TypeTable,
+
+    pub host_crate_info: &'a HostCrateInfo,
 }
 
 lazy_static! {

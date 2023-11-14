@@ -30,7 +30,7 @@ pub struct RepeatProperties {
 }
 
 pub struct RepeatItem {
-    pub datum: Rc<RefCell<dyn Any>>,
+    pub elem: Rc<RefCell<dyn Any>>,
     pub i: usize,
 }
 
@@ -89,7 +89,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             let mut index = 0;
             for i in range_evaled.start..range_evaled.end {
                 let i_as_datum = Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>> ;
-                let new_repeat_item = Rc::new(RefCell::new(crate::RepeatItem{datum: i_as_datum, i: index})) as Rc<RefCell<dyn Any>>;
+                let new_repeat_item = Rc::new(RefCell::new(crate::RepeatItem{ elem: i_as_datum, i: index})) as Rc<RefCell<dyn Any>>;
 
                 ptc.push_stack_frame(new_repeat_item);
 
@@ -109,7 +109,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         } else if let Some(vec_evaled) = vec_evaled {
             for pc in vec_evaled.iter().enumerate() {
 
-                let new_repeat_item = Rc::new(RefCell::new(RepeatItem{datum: Rc::clone(pc.1), i: pc.0}));
+                let new_repeat_item = Rc::new(RefCell::new(RepeatItem{ elem: Rc::clone(pc.1), i: pc.0}));
                 ptc.push_stack_frame(new_repeat_item);
 
                 for repeated_template_instance_root in self.repeated_template.borrow().iter() {

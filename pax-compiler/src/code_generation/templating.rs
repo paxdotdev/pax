@@ -46,7 +46,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub properties: Vec<(PropertyDefinition, String)>, //PropertyDefinition, TypeIdPascalized
     pub events: Vec<(MappedString, Vec<MappedString>)>,
     pub render_nodes_literal: String,
-    pub properties_coproduct_variant: String,
+    pub fully_qualified_properties_type: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
