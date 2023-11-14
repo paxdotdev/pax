@@ -45,16 +45,18 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
         children: None,
         component_template: Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}]))),
         scroller_args: None,
-        compute_properties_fn: Some(Box::new(|properties, rtc|{
+        compute_properties_fn: Some(Box::new(|properties, ptc|{
             let properties = &mut *properties.as_ref().borrow_mut();
 
             if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
                 {% for prop in properties %}
-                    if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                    if let Some(new_value) = ptc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
                         properties.{{ prop.0.name }}.set(new_value);
-                    } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
-                        let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
-                        properties.{{ prop.0.name }}.set(new_value);
+                    } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
+                        let new_value_wrapped = ptc.compute_vtable_value(vtable_id);
+                        if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
+                            properties.{{ prop.0.name }}.set(*new_value);
+                        }
                     }
                 {% endfor %}
             }
@@ -108,16 +110,18 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_reg
      {% endfor %}
      handler_registry})));
 
-    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
+    args.compute_properties_fn = Some(Box::new(|properties, ptc|{
         let properties = &mut *properties.as_ref().borrow_mut();
         if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
 
             {% for prop in properties %}
-                if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
-                properties.{{ prop.0.name }}.set(new_value);
-                } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
-                let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
-                properties.{{ prop.0.name }}.set(new_value);
+                if let Some(new_value) = ptc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                    properties.{{ prop.0.name }}.set(new_value);
+                } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
+                    let new_value_wrapped = ptc.compute_vtable_value(vtable_id);
+                    if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
+                        properties.{{ prop.0.name }}.set(new_value);
+                    }
                 }
             {% endfor %}
         }

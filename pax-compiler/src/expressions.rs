@@ -16,21 +16,6 @@ use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
 
-const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
-    ("transform", "Transform2D"),
-    ("width", "Size"),
-    ("height", "Size"),
-    ("x", "Size"),
-    ("y", "Size"),
-    ("anchor_x", "Size"),
-    ("anchor_y", "Size"),
-    ("skew_x", "Numeric"),
-    ("skew_y", "Numeric"),
-    ("scale_x", "Size"),
-    ("scale_y", "Size"),
-    ("rotate", "Rotation"),
-];
-
 pub fn compile_all_expressions<'a>(
     manifest: &'a mut PaxManifest,
     source_map: &'a mut SourceMap,
@@ -203,28 +188,6 @@ fn recurse_compile_literal_block<'a>(
 
                 let (output_statement, invocations) = compile_paxel_to_ril(input.clone(), &ctx)?;
 
-                let pascalized_return_type = if let Some(type_string) = BUILTIN_TYPES
-                    .iter()
-                    .find(|type_str| type_str.0 == &*pair.0.token_value)
-                    .map(|type_str| type_str.1)
-                {
-                    type_string.to_string()
-                } else {
-                    (current_property_definitions
-                        .iter()
-                        .find(|property_def| property_def.name == pair.0.token_value)
-                        .ok_or::<eyre::Report>(PaxTemplateError::new(
-                            Some(format!(
-                                "Property `{}` not found on `{}`",
-                                &pair.0.token_value, type_id
-                            )),
-                            pair.0.clone(),
-                        ))?
-                        .get_type_definition(ctx.type_table)
-                        .type_id_escaped)
-                        .clone()
-                };
-
                 let mut whitespace_removed_input = input.clone().token_value;
                 whitespace_removed_input.retain(|c| !c.is_whitespace());
 
@@ -236,7 +199,6 @@ fn recurse_compile_literal_block<'a>(
                     id,
                     ExpressionSpec {
                         id,
-                        pascalized_return_type,
                         invocations,
                         output_statement,
                         input_statement,
@@ -270,21 +232,10 @@ fn recurse_compile_literal_block<'a>(
                     let input_statement = source_map
                         .generate_mapped_string(identifier.token_value.clone(), source_map_id);
 
-                    let pascalized_return_type = (&ctx
-                        .component_def
-                        .get_property_definitions(ctx.type_table)
-                        .iter()
-                        .find(|property_def| property_def.name == pair.0.token_value)
-                        .unwrap()
-                        .get_type_definition(ctx.type_table)
-                        .type_id_escaped)
-                        .clone();
-
                     ctx.expression_specs.insert(
                         id,
                         ExpressionSpec {
                             id,
-                            pascalized_return_type,
                             invocations,
                             output_statement,
                             input_statement,
@@ -507,7 +458,6 @@ fn recurse_compile_expressions<'a>(
                 id,
                 ExpressionSpec {
                     id,
-                    pascalized_return_type: return_type.type_id_escaped,
                     invocations,
                     output_statement,
                     input_statement,
@@ -533,7 +483,6 @@ fn recurse_compile_expressions<'a>(
                 id,
                 ExpressionSpec {
                     id,
-                    pascalized_return_type: "bool".to_string(),
                     invocations,
                     output_statement,
                     input_statement,
@@ -559,7 +508,6 @@ fn recurse_compile_expressions<'a>(
                 id,
                 ExpressionSpec {
                     id,
-                    pascalized_return_type: "Numeric".to_string(),
                     invocations,
                     output_statement,
                     input_statement,

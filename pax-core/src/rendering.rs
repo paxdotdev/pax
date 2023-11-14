@@ -58,7 +58,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation
     pub compute_properties_fn:
-        Option<Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut RenderTreeContext<R>)>>,
+        Option<Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>>,
 }
 
 #[derive(Copy, Clone)]

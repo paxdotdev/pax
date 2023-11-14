@@ -128,48 +128,6 @@ impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
     }
 }
 
-impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
-    pub fn compute_eased_value<T: Clone + Interpolatable>(
-        &self,
-        transition_manager: Option<&mut TransitionManager<T>>,
-    ) -> Option<T> {
-        if let Some(tm) = transition_manager {
-            if tm.queue.len() > 0 {
-                let current_transition = tm.queue.get_mut(0).unwrap();
-                if let None = current_transition.global_frame_started {
-                    current_transition.global_frame_started = Some(self.engine.frames_elapsed);
-                }
-                let progress = (1.0 + self.engine.frames_elapsed as f64
-                    - current_transition.global_frame_started.unwrap() as f64)
-                    / (current_transition.duration_frames as f64);
-                return if progress >= 1.0 {
-                    //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
-                    let new_value = current_transition.curve.interpolate(
-                        &current_transition.starting_value,
-                        &current_transition.ending_value,
-                        progress,
-                    );
-                    tm.value = Some(new_value.clone());
-
-                    tm.queue.pop_front();
-                    self.compute_eased_value(Some(tm))
-                } else {
-                    let new_value = current_transition.curve.interpolate(
-                        &current_transition.starting_value,
-                        &current_transition.ending_value,
-                        progress,
-                    );
-                    tm.value = Some(new_value.clone());
-                    tm.value.clone()
-                };
-            } else {
-                return tm.value.clone();
-            }
-        }
-        None
-    }
-}
-
 pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub scroll_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsScroll)>,
     pub clap_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsClap)>,

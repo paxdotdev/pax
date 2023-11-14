@@ -695,9 +695,7 @@ fn generate_cartridge_component_factory_literal(
             .map(|pd| {
                 (
                     pd.clone(),
-                    pd.get_type_definition(&manifest.type_table)
-                        .type_id_escaped
-                        .clone(),
+                    host_crate_info.fully_qualify_path(&pd.get_type_definition(&manifest.type_table).type_id),
                 )
             })
             .collect(),

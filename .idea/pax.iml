@@ -42,6 +42,8 @@
       <excludeFolder url="file://$MODULE_DIR$/examples/src/camera/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/color-grid/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/color-grid/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/one-rect/.pax" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/src/one-rect/target" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/fireworks/target" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/fireworks/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/examples/src/grids/target" />

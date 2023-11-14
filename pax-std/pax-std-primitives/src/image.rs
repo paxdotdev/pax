@@ -56,21 +56,22 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
             _ => None,
         }
     }
-    fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+    fn expand_node_and_compute_properties(&mut self, rtc: &mut PropertiesTreeContext<R>) {
+        // let properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(path) = rtc.compute_vtable_value(properties.path._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::String(v) = path {
-                v
-            } else {
-                unreachable!()
-            };
-            properties
-                .path
-                .set(pax_runtime_api::StringBox { string: new_value });
-        }
-
-        self.common_properties.compute_properties(rtc);
+        // if let Some(path) = rtc.compute_vtable_value(properties.path._get_vtable_id()) {
+        //     let new_value = if let TypesCoproduct::String(v) = path {
+        //         v
+        //     } else {
+        //         unreachable!()
+        //     };
+        //     properties
+        //         .path
+        //         .set(pax_runtime_api::StringBox { string: new_value });
+        // }
+        //
+        // self.common_properties.compute_properties(rtc);
+        todo!()
     }
 
     fn handle_native_patches(

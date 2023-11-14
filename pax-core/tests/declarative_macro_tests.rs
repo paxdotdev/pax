@@ -22,6 +22,6 @@ fn test_with_properties_unwrapped() {
     if let Some(color) = pc_borrowed.downcast_ref::<Color>() {
         assert_eq!(color.fill, "red");
     } else {
-        panic!("with_properties_unsafe failed to unpack the expected type")
+        panic!("with_properties_unwrapped failed to unpack the expected type")
     }
 }

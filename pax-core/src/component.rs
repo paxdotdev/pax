@@ -24,7 +24,7 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub slot_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut RenderTreeContext<R>)>,
+    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
 
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,

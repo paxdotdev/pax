@@ -11,13 +11,13 @@ use pax_std::components::Stacker;
 #[derive(Pax)]
 #[main]
 #[file("lib.pax")]
-pub struct Example {
+pub struct OneRect {
     pub ticks: Property<usize>,
     pub num_clicks: Property<usize>,
     pub message: Property<String>,
 }
 
-impl Example {
+impl OneRect {
     pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
         self.message.set("Click me".to_string());
     }
