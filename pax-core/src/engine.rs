@@ -422,8 +422,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn get_scroll_offset(&mut self) -> (f64, f64) {
         // (0.0, 0.0)
         todo!("patch into an ExpandedNode-friendly way to track this state");
-        // Perhaps we simply add scroll_offset_x and scroll_offset_y globally to `ExpandedNode`?  The alternative
-        // seems to be to store them inside PropertiesCoproduct and deal with un/wrapping.
     }
 
     pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
@@ -1013,8 +1011,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             // rtc.transform_scroller_reset = reset_transform.clone();
         }
 
-        &node.borrow_mut().children_expanded_nodes
-            .iter()
+        let children_cloned = node.borrow_mut().children_expanded_nodes.clone();
+
+        children_cloned.iter()
             .rev()
             .for_each(|expanded_node| {
                 //note that we're iterating starting from the last child, for z-index (.rev())

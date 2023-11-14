@@ -241,7 +241,6 @@ fn recurse_compile_literal_block<'a>(
                         output_statement,
                         input_statement,
                         is_repeat_source_iterable_expression: false,
-                        repeat_source_iterable_type_id_escaped: "".to_string(),
                     },
                 );
 
@@ -290,7 +289,6 @@ fn recurse_compile_literal_block<'a>(
                             output_statement,
                             input_statement,
                             is_repeat_source_iterable_expression: false,
-                            repeat_source_iterable_type_id_escaped: "".to_string(),
                         },
                     );
                 }
@@ -385,18 +383,11 @@ fn recurse_compile_expressions<'a>(
                     .clone();
                 (
                     symbolic_binding.clone(),
-                    TypeDefinition::builtin_vec_rc_ref_cell_properties_coproduct(inner_iterable_type_id),
+                    TypeDefinition::builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id),
                 )
             } else {
                 unreachable!()
             };
-
-            let repeat_source_iterable_type_id_escaped =
-                if let Some(iiti) = return_type.inner_iterable_type_id {
-                    escape_identifier(iiti.clone())
-                } else {
-                    "".to_string()
-                };
 
             //Though we are compiling this as an arbitrary expression, we must already have validated
             //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
@@ -521,7 +512,6 @@ fn recurse_compile_expressions<'a>(
                     output_statement,
                     input_statement,
                     is_repeat_source_iterable_expression: is_repeat_source_iterable,
-                    repeat_source_iterable_type_id_escaped,
                 },
             );
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
@@ -548,7 +538,6 @@ fn recurse_compile_expressions<'a>(
                     output_statement,
                     input_statement,
                     is_repeat_source_iterable_expression: false,
-                    repeat_source_iterable_type_id_escaped: "".to_string(),
                 },
             );
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
@@ -575,7 +564,6 @@ fn recurse_compile_expressions<'a>(
                     output_statement,
                     input_statement,
                     is_repeat_source_iterable_expression: false,
-                    repeat_source_iterable_type_id_escaped: "".to_string(),
                 },
             );
         } else {
