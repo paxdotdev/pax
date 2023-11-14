@@ -36,7 +36,7 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
         ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
     }
 
-    // First compute slot_children — that is, the children passed into a component via template.
+    // First expand slot_children — that is, the children passed into a component via template.
     // For example, in the template fragment `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
     // starting at `for` is the subtree of slot_children passed into the instance of `Stacker`.
     // Read more about slot children at [`InstanceNode#get_slot_children`]
@@ -173,8 +173,6 @@ fn compute_tab<R: 'static + RenderContext>(
     let new_accumulated_bounds_and_current_node_size = node
         .borrow_mut()
         .compute_size_within_bounds(ptc.containing_tab.bounds);
-
-    let mut node_size: (f64, f64) = (0.0, 0.0);
 
     let node_transform_property_computed = {
         let node_borrowed = ptc.current_expanded_node.as_ref().unwrap().borrow_mut();

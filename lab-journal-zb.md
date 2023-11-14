@@ -4300,12 +4300,21 @@ As long as we're committing to sending that patch every frame, without checking 
 Since we're going so far as to keep a patch-in-progress on the ExpandedNode, it would be pretty straight-forward to keep a last-patch, too, to continue our hacked dirty-check...
 (this could be a low-hanging alternative to full-blown dirty-DAG if indeed we hit a perf wall with firehose-patches.)
 
-
 How do we keep our recursion-evaluated _stacks_ (stack frames, clipping & scrolling) intact for our DAG traversal?
 Are these static enough that we can copy them onto ExpandedNodes ?
 Stack Frames keep an `Rc<RefCell<dyn Any>>`, which is exactly a pointer to the owning-Component's PropertiesCoproduct (etc. for repeat)
 The primary question is whether these stacks are _stable_ after an expansion, or whether we may need to perform some sort of surgery.
 It seems like it's OK to copy them outright, keeping them immutable for the lifetime of an ExpandedNode
+
+Considerations for ideal property management
+Dirty DAG:
+[ ] IDs annotated with each property definition
+[ ] static property DAG, baked into codegen
+[ ] expanded property DAG, id_chain
+[ ] mechanism for computing properties atomically, plus addressing mechanism (either per-component `property-id-as-address : re-compute method` "property computers", or per-property addressing / table / RcRefCells
+    Consider async: 
+        channel property containers, where does data live?
+        explore threading + wasm support; can e.g. network requests be non-blocking via unobtrusive threads?  instead of biting off async (userland `async` ergonomics and tooling complexity surface area feel like the points of friction here)
 
 
 ### On tracking ExpandedNode parent-child relationships
@@ -4489,29 +4498,24 @@ we can map this data into imperative Rust if/else if/else statements, like we do
         This extends beyond these two nodes — we also need to manage some stack representation of e.g. `current_containing_component` and its slot children.
             Cloning `ptc` is pretty clean, if we bite off an Rc<RefCell<>> for the native message queue + shared state
 [x] Unplug most of pax_std to reduce iterative surface area
-      [ ] Come back at the end, plug back in, and normalize the rest
-[ ] Native patches
-      [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
-      [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
-      [ ] Refactor and hook back up patches
-[ ] clipping_ids & scroller_ids in property compute
+[x] clipping_ids & scroller_ids in property compute
       [-] 1. might not need them at the *Create stage; might be able to not worry about this
       [x] 2. could make clipping & scrolling containers responsible for their own properties_compute recursion, managing their stacks similarly to components + stack frames
           what would it look like to keep clipping / scroller ids on ptc?
           need to manage pushing / popping pre/post recursion
           need to be able to refer to this during rendering, probably be keeping "expanded" ideas of the clipping / scrolling stack (clones of the vecs of ids?) on each expanded node.
           Can handle tracking clipping IDs (used strictly for native-side) independently of pre/post-render lifecycle methods + rendering clipping stack manip
-          [ ] Manually manage properties-compute recursion for Scroller + Frame, like we do with Component & friends
+          [x] Manually manage properties-compute recursion for Scroller + Frame, like we do with Component & friends
       [-] 3. revisit whether mount/unmount should be in the rendering pass instead?
-[ ] Handled prototypical / instantiation properties
+[x] Handled prototypical / instantiation properties
     [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
     [x] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
         start with internal; punch through trait methods if that becomes necessary
-    [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each of properties and commonproperties
+    [x] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each of properties and commonproperties
 [x] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
     [x] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
     [x] Refactor file boundaries along the way
-[ ] Refactor Repeat & Conditional properties computation
+[x] Refactor Repeat & Conditional properties computation
     [x] Refactor each of `Repeat`, `Slot`, and `Conditional` to be stateless (so that stateful expansions with ExpandedNodes actually work)
         [x] Figure out in particular how to store:
             [x] Repeat's cache (+ source expression?)
@@ -4526,7 +4530,7 @@ we can map this data into imperative Rust if/else if/else statements, like we do
         [x] Punch through the above refactor into codegen, templates, and specs
             [x] In particular, manage control flow + instantiation args; pack into PropertiesCoproduct instead of special flags
             [x] Keep an eye on doing this for Scroller, too
-        [ ] Refactor internals of control-flow to be stateless + expansion-friendly, patching into the new PropertiesCoproduct variants:
+        [x] Refactor internals of control-flow to be stateless + expansion-friendly, patching into the new PropertiesCoproduct variants:
             [x] Repeat
                 [x] Remove ComponentInstance from Repeat
                 [x] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties_recursive`
@@ -4548,7 +4552,7 @@ we can map this data into imperative Rust if/else if/else statements, like we do
                     For a given `i` in `slot(i)`, grab the `i`th element of the pool and stitch as the `ExpandedNode` child of this `slot`'s ExpandedNode.  
                 [x] Make sure we handle "is_invisible" (née flattening) correctly
             [x] Component - manually manage properties calc recursion + runtime properties stack
-            [ ] Scroller & Frame - manually manage properties calc recursion + scrolling + clipping stack
+            [x] Scroller & Frame - manually manage properties calc recursion + scrolling + clipping stack
 [x] Sanity-check id_chain + tree ambiguity + surface area for incorrectly unwrapping (unsafely) properties
     Broken case?
     ```
@@ -4564,19 +4568,8 @@ we can map this data into imperative Rust if/else if/else statements, like we do
     No - because the first int in the id_chain is the instance_id, which is married to a specific instance and globally unique
     So the repeat_indicies component of the id_chain (indicies after the zeroth) could become ambiguous in the tree above
     But the full id_chain remains sound.
-
-[ ] Refactor scroller
-    [ ] Make instance node stateless
-    [ ] Handle instantiation args => PropertiesCoproduct; remove ScrollerArgs
-    [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
-    [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
-[ ] Clipping
-    [ ] Hook back up computation (e.g. `get_clipping_bounds`)
-    [ ] possibly power through to web chassis, plugging back in e2e clipping
-    [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
 [x] Refactor "component template frame" computation order; support recursing mid-frame
     [x] Handle slot children: compute properties first, before recursing into next component template subtree
-[ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
 [x] Refactor `did_` and `will_` naming conventions, drop where unnecessary (e.g. mount/unmount)
 [x] Revisit cleanup children — may not be necessary in light of changes to properties compute, instances, and control-flow-internal-recursion of properties computation + node expansion
     [x] Start by ripping it out
@@ -4602,22 +4595,11 @@ we can map this data into imperative Rust if/else if/else statements, like we do
     Perhaps we just assume one ExpandedNode per visit of an InstanceNode (meaning we iterate+recurse through `get_instance_children` in `recurse_compute_properties`).  Then,
     the only places we get many or zero expandednodes is within Conditional + Repeat.
 [-] Decide: `ExpandedNode` vs. `RealizedNode` vs `ComputedNode`
-    Expanded is pretty clear, even if imperfect vis-a-vis its relationship to InstanceNode 
-[ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
-    [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
-        [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
-            ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
-    [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
+    Expanded is pretty clear, even if imperfect vis-a-vis its relationship to InstanceNode
 [x] Port sizing / bounds calculations over to the properties pass
     (1) compute native patches is dependent on these calculations
     (2) intuitively, these are property calculations, and rendering could/should be a pure function of these (just like all other properties)
     (3) bounds / size / etc. will be members of dirty-dag, and knowing if they change will be important for evaluation thereof
-[ ] Manual testing 
-    [ ] all of the examples    
-    [ ] Test some of the broken code from userland, e.g. `pax_gol`
-    [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.
-    [ ] Clipping
-    [ ] Scrolling
 [x] dyn Any refactor
     Relieves need for PropertiesCoproduct and TypesCoproduct entirely
     Removes unsafe_unwrap, unsafe_wrap
@@ -4634,16 +4616,44 @@ we can map this data into imperative Rust if/else if/else statements, like we do
     [x] vnext as stand-alone tests, create -> mutate -> assert flows
 
 
+### `tab` and slot children
 
-Considerations for ideal property management
-Dirty DAG:
-[ ] IDs annotated with each property definition
-[ ] static property DAG, baked into codegen
-[ ] expanded property DAG, id_chain
-[ ] mechanism for computing properties atomically, plus addressing mechanism (either per-component `property-id-as-address : re-compute method` "property computers", or per-property addressing / table / RcRefCells
-    Consider async: 
-        channel property containers, where does data live?
-        explore threading + wasm support; can e.g. network requests be non-blocking via unobtrusive threads?  instead of biting off async (userland `async` ergonomics and tooling complexity surface area feel like the points of friction here)
-
-
+currently, slot_children's properties are calculated entirely in the context of the component template that owns them
+This wrinkles around `bounds` — we want bounds to be calculated in the context of the "rendering" container — the slot that accepts the slot_children.
+    1. go back to calculating `tab` on-the-fly during render? instead of pre-computing during properties compute
+        This means we unpack what e.g. "100%" or "50%" means lazily, at the time of rendering (this is probably best)
+        This should robustly solve the slot transposition / container problem
+        Any drawbacks?
     
+
+### Refreshing TODOs as of Nov 14 2023
+
+[ ] Manual testing 
+    [ ] all of the examples    
+    [ ] Test some of the broken code from userland, e.g. `pax_gol`
+    [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.
+    [ ] Clipping
+    [ ] Scrolling
+[ ] Native patches
+      [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
+      [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+      [ ] Refactor and hook back up patches
+[ ] `pax-std`: plug back in, update remaining primitives, test
+[ ] Sizing & layout
+    [ ] Move `compute_tab` back to render pass, to solve slot transposition + ancestral bounds
+    [ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
+        [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
+            [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
+                ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
+        [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
+[ ] Refactor scroller
+    [ ] Make instance node stateless
+    [ ] Handle instantiation args => PropertiesCoproduct; remove ScrollerArgs
+    [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
+    [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
+[ ] Clipping
+    [ ] Hook back up computation (e.g. `get_clipping_bounds`)
+    [ ] possibly power through to web chassis, plugging back in e2e clipping
+    [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
+[ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
+    [ ] Ensure clean distinction between "a z-index for every element" vs. a "layer id"
