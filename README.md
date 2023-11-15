@@ -34,11 +34,11 @@ pub struct IncrementMe {
 }
 
 impl IncrementMe {
-    pub fn handle_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.num_clicks.set(0);
         self.message.set("0 clicks".to_string());
     }
-    pub fn increment(&mut self, ctx: RuntimeContext, args: ArgsClick){
+    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick){
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
         self.message.set(format!("{} clicks", self.num_clicks.get()));

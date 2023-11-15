@@ -81,7 +81,10 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub is_primitive: bool,
     pub snake_case_type_id: String,
     pub primitive_instance_import_path: Option<String>,
-    pub properties_coproduct_variant: String,
+
+    /// Used to generate invocations of event handlers, the `Foo` in `Foo::some_handler()`
+    pub containing_component_struct: String,
+
     pub component_properties_struct: String,
     pub defined_properties: Vec<(MappedString, MappedString)>,
     /// Tuple fields for `common_properties_literal`:
@@ -96,6 +99,7 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub pascal_identifier: String,
     pub type_id_escaped: String,
     pub events: Vec<(MappedString, MappedString)>,
+    pub fully_qualified_properties_type: String,
 }
 
 #[allow(unused)]

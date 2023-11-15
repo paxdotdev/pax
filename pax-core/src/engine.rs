@@ -12,96 +12,20 @@ use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, Interpolatable, Layer, Numeric, Rotation, RuntimeContext, Size, Transform2D,
+    CommonProperties, Interpolatable, Layer, Numeric, Rotation, NodeContext, Size, Transform2D,
     TransitionManager, ZIndex,
 };
 
-use crate::{
-    recurse_expand_nodes, Affine, ComponentInstance, ComputableTransform, ExpressionContext,
-    InstanceNodePtr, InstanceNodePtrList, NodeType, PropertiesTreeContext, PropertiesTreeShared,
-    RuntimePropertiesStackFrame, TransformAndBounds,
-};
+use crate::{recurse_expand_nodes, Affine, ComponentInstance, ComputableTransform, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeType, PropertiesTreeContext, PropertiesTreeShared, RuntimePropertiesStackFrame, TransformAndBounds, handle_vtable_update, handle_vtable_update_optional, RenderTreeContext, recurse_compute_layout, recurse_render};
 
+/// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>>,
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
-    viewport_tab: TransformAndBounds,
-}
-
-/// Shared context for render pass recursion
-pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
-    pub engine: &'a PaxEngine<R>,
-
-    /// A pointer to the current expanded node, the stateful atomic unit of traversal when rendering.
-    pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
-    /// A pointer to the current instance node, the stateless, instantiated representation of a template node.
-    pub current_instance_node: InstanceNodePtr<R>,
-}
-
-//Note that `#[derive(Clone)]` doesn't work because of trait bounds surrounding R, even though
-//the only places R is used are trivially cloned.
-impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
-    fn clone(&self) -> Self {
-        RenderTreeContext {
-            engine: self.engine, // Borrowed references are Copy, so they can be "cloned" trivially.
-            // transform_global: self.transform_global.clone(),
-            // transform_scroller_reset: self.transform_scroller_reset.clone(),
-            // bounds: self.bounds.clone(),
-            // clipping_stack: self.clipping_stack.clone(),
-            // scroller_stack: self.scroller_stack.clone(),
-            current_expanded_node: Rc::clone(&self.current_expanded_node),
-            current_instance_node: Rc::clone(&self.current_instance_node),
-        }
-    }
-}
-
-/// Manages vtable updates (if necessary) for a given `dyn PropertyInstance`, with the provided expected TypesCoproduct variant.
-/// Is a no-op for `PropertyLiteral`s, and mutates (by calling `.set`) `PropertyExpression` instances.
-/// # Examples
-/// ```text
-/// handle_vtable_update!(ptc, self.height, Size);
-/// ```
-#[macro_export]
-macro_rules! handle_vtable_update {
-    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
-        let current_prop = &mut *$var.$field.as_mut();
-        if let Some(vtable_id) = current_prop._get_vtable_id() {
-            let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
-            if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
-                current_prop.set(*downcast_value);
-            } else {
-                panic!()
-            } //downcast failed
-        }
-    }};
-}
-
-/// Does same as [`handle_vtable_update`], but manages case (as a no-op) where the property is wrapped in an outer Option,
-/// e.g. for CommonProperties.
-/// # Examples
-/// ```text
-/// // In this example `scale_x` is `Option`al (`Option<Rc<RefCell<dyn PropertyInstance<Size>>>>`)
-/// handle_vtable_update_optional!(ptc, self.scale_x, Size);
-/// ```
-#[macro_export]
-macro_rules! handle_vtable_update_optional {
-    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
-        if let Some(_) = $var.$field {
-            let current_prop = &mut *$var.$field.as_mut().unwrap();
-
-            if let Some(vtable_id) = current_prop._get_vtable_id() {
-                let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
-                if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
-                    current_prop.set(*downcast_value);
-                } else {
-                    panic!()
-                } //downcast failed
-            }
-        }
-    }};
+    pub viewport_tab: TransformAndBounds,
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -128,30 +52,30 @@ impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
     }
 }
 
-pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub scroll_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsScroll)>,
-    pub clap_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsClap)>,
-    pub touch_start_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchStart)>,
-    pub touch_move_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchMove)>,
-    pub touch_end_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchEnd)>,
-    pub key_down_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsKeyDown)>,
-    pub key_up_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsKeyUp)>,
-    pub key_press_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsKeyPress)>,
-    pub checkbox_change_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsCheckboxChange)>,
-    pub click_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsClick)>,
-    pub mouse_down_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseDown)>,
-    pub mouse_up_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseUp)>,
-    pub mouse_move_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseMove)>,
-    pub mouse_over_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseOver)>,
-    pub mouse_out_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseOut)>,
-    pub double_click_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsDoubleClick)>,
-    pub context_menu_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsContextMenu)>,
-    pub wheel_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsWheel)>,
-    pub pre_render_handlers: Vec<fn(Rc<RefCell<dyn Any>>, RuntimeContext)>,
-    pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, RuntimeContext)>,
+pub struct HandlerRegistry {
+    pub scroll_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsScroll)>,
+    pub clap_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsClap)>,
+    pub touch_start_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTouchStart)>,
+    pub touch_move_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTouchMove)>,
+    pub touch_end_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTouchEnd)>,
+    pub key_down_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyDown)>,
+    pub key_up_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyUp)>,
+    pub key_press_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyPress)>,
+    pub checkbox_change_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsCheckboxChange)>,
+    pub click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsClick)>,
+    pub mouse_down_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseDown)>,
+    pub mouse_up_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseUp)>,
+    pub mouse_move_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseMove)>,
+    pub mouse_over_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseOver)>,
+    pub mouse_out_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseOut)>,
+    pub double_click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsDoubleClick)>,
+    pub context_menu_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsContextMenu)>,
+    pub wheel_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsWheel)>,
+    pub pre_render_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
+    pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
 }
 
-impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
+impl Default for HandlerRegistry {
     fn default() -> Self {
         HandlerRegistry {
             scroll_handlers: Vec::new(),
@@ -198,13 +122,14 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     pub instance_node: InstanceNodePtr<R>,
 
     /// Computed transform and size of this ExpandedNode
-    pub tab: TransformAndBounds,
+    /// Optional because a ExpandedNode is initialized with `computed_tab: None`; this is computed later
+    pub computed_tab: Option<TransformAndBounds>,
 
-    /// A copy of the calculated z_index for this ExpandedNode
-    pub z_index: u32,
+    /// A copy of the computed z_index for this ExpandedNode
+    pub computed_z_index: Option<u32>,
 
-    /// A copy of the RuntimeContext appropriate for this ExpandedNode
-    pub node_context: RuntimeContext,
+    /// A copy of the NodeContext appropriate for this ExpandedNode
+    pub computed_node_context: Option<NodeContext>,
 
     /// A snapshot of the clipping stack above this element at the time of properties-computation
     pub ancestral_clipping_ids: Vec<Vec<u32>>,
@@ -307,16 +232,18 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 parent_expanded_node: None,
                 children_expanded_nodes: vec![],
                 instance_node: Rc::clone(&ptc.current_instance_node),
-                tab: ptc.containing_tab.clone(),
                 containing_component: ptc.current_containing_component.clone(),
                 clipping_stack: vec![],
-                z_index: 0,
-                node_context: ptc.distill_userland_node_context(),
                 computed_properties: Rc::clone(&prototypical_properties),
                 computed_common_properties: Rc::clone(&prototypical_common_properties),
                 scroller_stack: vec![],
                 expanded_and_flattened_slot_children: None,
                 children_expanded_nodes_set: HashSet::new(),
+
+                // Initialize the following to `None`, will assign values during `recurse_compute_layout`
+                computed_z_index: None,
+                computed_node_context: None,
+                computed_tab: None,
 
                 // Clone the following stacks from `ptc`
                 ancestral_clipping_ids: ptc.get_current_clipping_ids(),
@@ -353,16 +280,16 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         // if let None = self.get_size() {
         //     return false;
         // }
-        todo!("hook back up vacuous hit testing");
-
-        let inverted_transform = self.tab.transform.inverse();
+        // todo!("hook back up vacuous hit testing");
+        //
+        let inverted_transform = self.computed_tab.as_ref().unwrap().transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
         // let relevant_bounds = match self.tab.clipping_bounds {
         //     None => self.tab.bounds,
         //     Some(cp) => cp,
         // };
-        let relevant_bounds = self.tab.bounds;
+        let relevant_bounds = self.computed_tab.as_ref().unwrap().bounds;
 
         //Default implementation: rectilinear bounding hull
         transformed_ray.x > 0.0
@@ -417,8 +344,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().scroll_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_scroll.clone(),
                 );
             });
@@ -440,8 +367,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().clap_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_clap.clone(),
                 );
             });
@@ -457,8 +384,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().touch_start_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_touch_start.clone(),
                 );
             });
@@ -478,8 +405,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().touch_move_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_touch_move.clone(),
                 );
             });
@@ -499,8 +426,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().touch_end_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_touch_end.clone(),
                 );
             });
@@ -520,8 +447,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().key_down_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_key_down.clone(),
                 );
             });
@@ -541,8 +468,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().key_up_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_key_up.clone(),
                 );
             });
@@ -562,8 +489,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().key_press_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_key_press.clone(),
                 );
             });
@@ -583,8 +510,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().click_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_click.clone(),
                 );
             });
@@ -604,8 +531,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().checkbox_change_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_change.clone(),
                 );
             });
@@ -625,8 +552,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_down_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_mouse_down.clone(),
                 );
             });
@@ -646,8 +573,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_up_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_mouse_up.clone(),
                 );
             });
@@ -667,8 +594,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_move_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_mouse_move.clone(),
                 );
             });
@@ -688,8 +615,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_over_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_mouse_over.clone(),
                 );
             });
@@ -709,8 +636,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_out_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_mouse_out.clone(),
                 );
             });
@@ -730,8 +657,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().double_click_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_double_click.clone(),
                 );
             });
@@ -751,8 +678,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().context_menu_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_context_menu.clone(),
                 );
             });
@@ -772,8 +699,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             let handlers = &(*registry).borrow().wheel_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.instance_node),
-                    self.node_context.clone(),
+                    Rc::clone(&self.get_properties()),
+                    &self.computed_node_context.clone().unwrap(),
                     args_wheel.clone(),
                 );
             });
@@ -842,7 +769,7 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     /// Returns ExpandedNodes ordered by z-index descending; used at least by ray casting
     pub fn get_expanded_nodes_sorted_by_z_index_desc(&self) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
         let mut values: Vec<_> = self.expanded_node_map.values().cloned().collect();
-        values.sort_by(|a, b| b.borrow().z_index.cmp(&a.borrow().z_index));
+        values.sort_by(|a, b| b.borrow().computed_z_index.cmp(&a.borrow().computed_z_index));
         values
     }
 
@@ -860,6 +787,11 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     /// Evaluates whether an ExpandedNode has been marked mounted, for use in determining whether to fire a `mount` handler
     pub fn is_mounted(&self, id_chain: &Vec<u32>) -> bool {
         self.mounted_set.contains(id_chain)
+    }
+
+    /// Evaluates whether an ExpandedNode has been marked mounted, for use in determining whether to fire a `mount` handler
+    pub fn is_marked_for_unmount(&self, id_chain: &Vec<u32>) -> bool {
+        self.marked_for_unmount_set.contains(id_chain)
     }
 
     /// Mark an instance node for unmounting, which will happen during the upcoming tick
@@ -899,21 +831,21 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    /// Enact primary workhorse methods of a tick:
-    /// 1. Compute properties recursively, expanding control flow and storing computed properties in `ExpandedNodes`.
-    /// 2. Render the computed `ExpandedNode`s.
+    /// Primary workhorse methods of a tick
+    /// Broadly:
+    /// 1. expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
+    ///    together parent/child relationships between ExpandedNodes along the way.
+    /// 2. compute rendering properties (z-index & TransformAndBounds) by visiting ExpandedNode tree
+    ///    in rendering order, writing computed rendering-specific values to ExpandedNodes
+    /// 3. render:
+    ///     a. find lowest node (last child of last node)
+    ///     b. start rendering, from lowest node on-up, throughout tree
     fn compute_properties_and_render(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-        //Broadly:
-        // 1. compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
-        //    together parent/child relationships between ExpandedNodes along the way.
-        // 2. render:
-        //     a. find lowest node (last child of last node), accumulating transform along the way
-        //     b. start rendering, from lowest node on-up
 
         let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
         let mut z_index = ZIndex::new(None);
 
-        // COMPUTE PROPERTIES
+        // EXPAND NODES & COMPUTE ALL PROPERTIES
         let mut ptc = PropertiesTreeContext {
             engine: &self,
             current_containing_component: None,
@@ -921,11 +853,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_instance_id: root_component_instance.borrow().get_instance_id(),
             current_expanded_node: None,
             parent_expanded_node: None,
-            containing_tab: TransformAndBounds {
-                bounds: self.viewport_tab.bounds,
-                transform: Affine::default(),
-                // clipping_bounds: None,
-            },
             marked_for_unmount: false,
             shared: Rc::new(RefCell::new(PropertiesTreeShared {
                 clipping_stack: vec![],
@@ -938,166 +865,35 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
 
+
+        let mut z_index_gen = 0..;
+        // COMPUTE LAYOUT
+        // (Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode)
+        // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future
+        recurse_compute_layout(
+            &self,
+            &root_expanded_node,
+            &TransformAndBounds {
+                bounds: self.viewport_tab.bounds,
+                transform: Affine::default(),
+            },
+            &mut z_index_gen,
+        );
+
         // RENDER
+        // Generally side-effect-free aside from the rendering itself, express the current ExpandedNode tree as pixels.
         let mut rtc = RenderTreeContext {
             engine: &self,
-            // transform_global: Affine::default(),
-            // transform_scroller_reset: Affine::default(),
-            // bounds: self.viewport_tab.bounds,
-            // clipping_stack: vec![],
-            // scroller_stack: vec![],
             current_expanded_node: Rc::clone(&root_expanded_node),
             current_instance_node: Rc::clone(&root_expanded_node.borrow().instance_node),
         };
 
-        self.recurse_render(&mut rtc, rcs, &mut z_index, false);
-        //reset the marked_for_unmount set
-        self.node_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
+        recurse_render(&mut rtc, rcs, &mut z_index, false);
 
+        //reset the marked_for_unmount set
+        rtc.engine.node_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
         let native_render_queue = ptc.take_native_message_queue();
         native_render_queue.into()
-    }
-
-    /// Helper method to fire `pre_render` handlers for the node attached to the `rtc`
-    fn manage_handlers_pre_render(rtc: &mut RenderTreeContext<R>) {
-        //fire `pre_render` handlers
-        let node = Rc::clone(&rtc.current_expanded_node);
-        let node_borrowed = (*node).borrow();
-        let registry = node_borrowed
-            .instance_node
-            .borrow()
-            .get_handler_registry().clone();
-        if let Some(registry) = registry {
-            for handler in (*registry).borrow().pre_render_handlers.iter() {
-                handler(
-                    Rc::clone(&node_borrowed.get_properties()),
-                    node_borrowed.node_context.clone(),
-                );
-            }
-        }
-    }
-
-    fn recurse_render(
-        &self,
-        rtc: &mut RenderTreeContext<R>,
-        rcs: &mut HashMap<String, R>,
-        z_index_info: &mut ZIndex,
-        marked_for_unmount: bool,
-    ) {
-        //Recurse:
-
-        //  - fire lifecycle events for this node
-        //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  Read computed properties from ExpandedNodes, e.g. for transform and bounds.
-        //  - we now have the back-most leaf node.  Render it.  Return.
-        //  - we're now at the second back-most leaf node.  Render it.  Return ...
-
-        let accumulated_bounds = rtc.current_expanded_node.borrow().tab.bounds;
-        let expanded_node = Rc::clone(&rtc.current_expanded_node);
-
-        // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
-        if rtc
-            .engine
-            .node_registry
-            .borrow()
-            .marked_for_unmount_set
-            .contains(&expanded_node.borrow().id_chain)
-        {
-            return;
-        }
-
-        rtc.current_instance_node = Rc::clone(&expanded_node.borrow().instance_node);
-
-        //scroller IDs are used by chassis, for identifying native scrolling containers
-        let scroller_ids = rtc
-            .current_expanded_node
-            .borrow()
-            .ancestral_scroller_ids
-            .clone();
-        let scroller_id = match scroller_ids.last() {
-            None => None,
-            Some(v) => Some(v.clone()),
-        };
-        let canvas_id = ZIndex::assemble_canvas_id(
-            scroller_id.clone(),
-            rtc.current_expanded_node.borrow().z_index,
-        );
-
-        Self::manage_handlers_pre_render(rtc);
-
-        let mut subtree_depth = 0;
-
-        //keep recursing through children
-        let mut child_z_index_info = z_index_info.clone();
-        if z_index_info.get_current_layer() == Layer::Scroller {
-            let id_chain = expanded_node.borrow().id_chain.clone();
-            child_z_index_info = ZIndex::new(Some(id_chain));
-            // let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
-            // let mut reset_transform = Affine::default();
-            // reset_transform =
-            //     reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
-            // rtc.transform_scroller_reset = reset_transform.clone();
-        }
-
-        let children_cloned = expanded_node.borrow_mut().children_expanded_nodes.clone();
-
-        children_cloned.iter().rev().for_each(|expanded_node| {
-            //note that we're iterating starting from the last child, for z-index (.rev())
-            let mut new_rtc = rtc.clone();
-            new_rtc.current_expanded_node = Rc::clone(expanded_node);
-            // if it's a scroller reset the z-index context for its children
-            self.recurse_render(
-                &mut new_rtc,
-                rcs,
-                &mut child_z_index_info.clone(),
-                marked_for_unmount,
-            );
-            //FUTURE: for dependency management, return computed values from subtree above
-
-            subtree_depth = subtree_depth.max(child_z_index_info.get_level());
-        });
-
-        let is_viewport_culled = !expanded_node.borrow().tab.intersects(&self.viewport_tab);
-
-        let clipping = expanded_node
-            .borrow_mut()
-            .compute_clipping_within_bounds(accumulated_bounds);
-        let clipping_bounds = match expanded_node.borrow_mut().get_clipping_bounds() {
-            None => None,
-            Some(_) => Some(clipping),
-        };
-
-        // let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
-        //     cb
-        // } else {
-        //     new_accumulated_bounds
-        // };
-
-        if let Some(rc) = rcs.get_mut(&canvas_id) {
-            //lifecycle: render
-            //this is this node's time to do its own rendering, aside
-            //from the rendering of its children. Its children have already been rendered.
-            if !is_viewport_culled {
-                expanded_node.borrow()
-                    .instance_node
-                    .borrow_mut()
-                    .handle_render(rtc, rc);
-            }
-        } else {
-            if let Some(rc) = rcs.get_mut("0") {
-                if !is_viewport_culled {
-                    expanded_node.borrow()
-                        .instance_node
-                        .borrow_mut()
-                        .handle_render(rtc, rc);
-                }
-            }
-        }
-
-        //lifecycle: post_render
-        expanded_node.borrow()
-            .instance_node
-            .borrow_mut()
-            .handle_post_render(rtc, rcs);
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a

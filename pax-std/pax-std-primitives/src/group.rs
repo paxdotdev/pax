@@ -14,7 +14,7 @@ use pax_runtime_api::{CommonProperties, Layer};
 pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub primitive_children: InstanceNodePtrList<R>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
@@ -51,7 +51,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         ret
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),
             _ => None,

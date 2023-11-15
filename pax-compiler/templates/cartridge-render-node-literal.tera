@@ -48,17 +48,16 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
                     |properties, ctx|{
 
                        let properties = &mut *properties.as_ref().borrow_mut();
-                       if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
-                           {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx);
+                       if let Some(mut synthesized_self) = properties.downcast_mut::<{{containing_component_struct}}>() {
+                           {{ containing_component_struct }}::{{entry.1.content}}(&mut synthesized_self,ctx);
                        } else {panic!()};
 
                     },
                 {% else %}
-                    |node, ctx, args|{
-                        let properties = (*node).borrow().get_properties();
+                    |properties, ctx, args|{
                         let properties = &mut *properties.as_ref().borrow_mut();
-                        if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
-                            {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx,args);
+                        if let Some(mut synthesized_self) = properties.downcast_mut::<{{containing_component_struct}}>() {
+                            {{ containing_component_struct }}::{{entry.1.content}}(&mut synthesized_self,ctx,args);
                         } else {panic!()};
                     },
                 {% endif %}

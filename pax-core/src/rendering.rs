@@ -5,16 +5,14 @@ use std::ops::Mul;
 use std::rc::Rc;
 
 use kurbo::{Affine, Point};
-use pax_runtime_api::{Axis, CommonProperties, Transform2D};
+use pax_runtime_api::{Axis, CommonProperties, Transform2D, ZIndex};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
 use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size};
 
 use crate::form_event::FormEvent;
-use crate::{
-    ExpandedNode, HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeContext,
-};
+use crate::{ExpandedNode, HandlerRegistry, NodeRegistry, PaxEngine, PropertiesTreeContext};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -49,7 +47,7 @@ pub struct ScrollerArgs {
 pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub common_properties: Rc<RefCell<CommonProperties>>,
     pub properties: Rc<RefCell<dyn Any>>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<InstanceNodePtrList<R>>,
     pub component_template: Option<InstanceNodePtrList<R>>,
@@ -220,7 +218,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// Each node that can handle events is responsible for implementing this; Component instances generate
     /// the necessary code to wire up userland events like `<SomeNode @click=self.handler>`. Primitives must handle
     /// this explicitly, see e.g. `[pax_std_primitives::RectangleInstance#get_handler_registry]`.
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         None //default no-op
     }
 
@@ -353,102 +351,30 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     }
 }
 
-pub trait LifecycleNode {}
-
-pub trait ComputableTransform {
-    fn compute_transform2d_matrix(
-        &self,
-        node_size: (f64, f64),
-        container_bounds: (f64, f64),
-    ) -> Affine;
+/// Shared context for render pass recursion
+pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
+    /// Reference to the engine singleton
+    pub engine: &'a PaxEngine<R>,
+    /// A pointer to the current expanded node, the stateful atomic unit of traversal when rendering.
+    pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
+    /// A pointer to the current instance node, the stateless, instantiated representation of a template node.
+    pub current_instance_node: InstanceNodePtr<R>,
 }
 
-impl ComputableTransform for Transform2D {
-    //Distinction of note: scale, translate, rotate, anchor, and align are all AUTHOR-TIME properties
-    //                     node_size and container_bounds are (computed) RUNTIME properties
-    fn compute_transform2d_matrix(
-        &self,
-        node_size: (f64, f64),
-        container_bounds: (f64, f64),
-    ) -> Affine {
-        //Three broad strokes:
-        // a.) compute anchor
-        // b.) decompose "vanilla" affine matrix
-        // c.) combine with previous transform chain (assembled via multiplication of two Transform2Ds, e.g. in PAXEL)
-
-        // Compute anchor
-        let anchor_transform = match &self.anchor {
-            Some(anchor) => Affine::translate((
-                match anchor[0] {
-                    Size::Pixels(pix) => -pix.get_as_float(),
-                    Size::Percent(per) => -node_size.0 * (per / 100.0),
-                    Size::Combined(pix, per) => {
-                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
-                    }
-                },
-                match anchor[1] {
-                    Size::Pixels(pix) => -pix.get_as_float(),
-                    Size::Percent(per) => -node_size.1 * (per / 100.0),
-                    Size::Combined(pix, per) => {
-                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
-                    }
-                },
-            )),
-            //No anchor applied: treat as 0,0; identity matrix
-            None => Affine::default(),
-        };
-
-        //decompose vanilla affine matrix and pack into `Affine`
-        let (scale_x, scale_y) = if let Some(scale) = self.scale {
-            (scale[0].expect_percent(), scale[1].expect_percent())
-        } else {
-            (1.0, 1.0)
-        };
-
-        let (skew_x, skew_y) = if let Some(skew) = self.skew {
-            (skew[0], skew[1])
-        } else {
-            (0.0, 0.0)
-        };
-
-        let (translate_x, translate_y) = if let Some(translate) = &self.translate {
-            (
-                translate[0].evaluate(container_bounds, Axis::X),
-                translate[1].evaluate(container_bounds, Axis::Y),
-            )
-        } else {
-            (0.0, 0.0)
-        };
-
-        let rotate_rads = if let Some(rotate) = &self.rotate {
-            rotate.get_as_radians()
-        } else {
-            0.0
-        };
-
-        let cos_theta = rotate_rads.cos();
-        let sin_theta = rotate_rads.sin();
-
-        // Elements for a combined scale and rotation
-        let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
-        let b = scale_x * sin_theta + scale_y * skew_x * cos_theta;
-        let c = -scale_y * sin_theta + scale_x * skew_y * cos_theta;
-        let d = scale_y * cos_theta + scale_x * skew_y * sin_theta;
-
-        // Translation
-        let e = translate_x;
-        let f = translate_y;
-
-        let coeffs = [a, b, c, d, e, f];
-        let transform = Affine::new(coeffs);
-
-        // Compute and combine previous_transform
-        let previous_transform = match &self.previous {
-            Some(previous) => (*previous).compute_transform2d_matrix(node_size, container_bounds),
-            None => Affine::default(),
-        };
-
-        transform * anchor_transform * previous_transform
+//Note that `#[derive(Clone)]` doesn't work because of trait bounds surrounding R, even though
+//the only places R is used are trivially cloned.
+impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
+    fn clone(&self) -> Self {
+        RenderTreeContext {
+            engine: self.engine, // Borrowed references are Copy, so they can be "cloned" trivially.
+            // transform_global: self.transform_global.clone(),
+            // transform_scroller_reset: self.transform_scroller_reset.clone(),
+            // bounds: self.bounds.clone(),
+            // clipping_stack: self.clipping_stack.clone(),
+            // scroller_stack: self.scroller_stack.clone(),
+            current_expanded_node: Rc::clone(&self.current_expanded_node),
+            current_instance_node: Rc::clone(&self.current_instance_node),
+        }
     }
 }
 
@@ -457,5 +383,147 @@ pub struct StrokeInstance {
     pub color: Color,
     pub width: f64,
     pub style: StrokeStyle,
-    //FUTURE: stroke alignment, inner/outer/center?
+}
+
+/// Recursive workhorse method for rendering, conceptually "as a function of the ExpandedNode tree passed in"
+pub fn recurse_render<R: RenderContext + 'static>(
+    rtc: &mut RenderTreeContext<R>,
+    rcs: &mut HashMap<String, R>,
+    z_index_info: &mut ZIndex,
+    marked_for_unmount: bool,
+) {
+    //Recurse:
+    //  - fire lifecycle events for this node
+    //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  Read computed properties from ExpandedNodes, e.g. for transform and bounds.
+    //  - we now have the back-most leaf node.  Render it.  Return.
+    //  - we're now at the second back-most leaf node.  Render it.  Return ...
+
+
+    let accumulated_bounds = rtc.current_expanded_node.borrow().computed_tab.as_ref().unwrap().bounds;
+    let expanded_node = Rc::clone(&rtc.current_expanded_node);
+
+    // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
+    if rtc
+        .engine
+        .node_registry
+        .borrow()
+        .is_marked_for_unmount(&expanded_node.borrow().id_chain)
+    {
+        return;
+    }
+
+    rtc.current_instance_node = Rc::clone(&expanded_node.borrow().instance_node);
+
+    //scroller IDs are used by chassis, for identifying native scrolling containers
+    let scroller_ids = rtc
+        .current_expanded_node
+        .borrow()
+        .ancestral_scroller_ids
+        .clone();
+    let scroller_id = match scroller_ids.last() {
+        None => None,
+        Some(v) => Some(v.clone()),
+    };
+    let canvas_id = ZIndex::assemble_canvas_id(
+        scroller_id.clone(),
+        rtc.current_expanded_node.borrow().computed_z_index.unwrap(),
+    );
+
+    manage_handlers_pre_render(rtc);
+
+    let mut subtree_depth = 0;
+
+    //keep recursing through children
+    let mut child_z_index_info = z_index_info.clone();
+    if z_index_info.get_current_layer() == Layer::Scroller {
+        let id_chain = expanded_node.borrow().id_chain.clone();
+        child_z_index_info = ZIndex::new(Some(id_chain));
+        // let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
+        // let mut reset_transform = Affine::default();
+        // reset_transform =
+        //     reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
+        // rtc.transform_scroller_reset = reset_transform.clone();
+    }
+
+    let children_cloned = expanded_node.borrow_mut().get_children_expanded_nodes().clone();
+
+    children_cloned.iter().rev().for_each(|expanded_node| {
+        //note that we're iterating starting from the last child, for z-index (.rev())
+        let mut new_rtc = rtc.clone();
+        new_rtc.current_expanded_node = Rc::clone(expanded_node);
+        // if it's a scroller reset the z-index context for its children
+        recurse_render(
+            &mut new_rtc,
+            rcs,
+            &mut child_z_index_info.clone(),
+            marked_for_unmount,
+        );
+        //FUTURE: for dependency management, return computed values from subtree above
+
+        subtree_depth = subtree_depth.max(child_z_index_info.get_level());
+    });
+
+    let is_viewport_culled = !&expanded_node.borrow().computed_tab.as_ref().unwrap().intersects(&rtc.engine.viewport_tab);
+
+    let clipping = expanded_node
+        .borrow_mut()
+        .compute_clipping_within_bounds(accumulated_bounds);
+    let clipping_bounds = match expanded_node.borrow_mut().get_clipping_bounds() {
+        None => None,
+        Some(_) => Some(clipping),
+    };
+
+    // let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
+    //     cb
+    // } else {
+    //     new_accumulated_bounds
+    // };
+
+    if let Some(rc) = rcs.get_mut(&canvas_id) {
+        //lifecycle: render
+        //this is this node's time to do its own rendering, aside
+        //from the rendering of its children. Its children have already been rendered.
+        if !is_viewport_culled {
+            expanded_node.borrow()
+                .instance_node
+                .borrow_mut()
+                .handle_render(rtc, rc);
+        }
+    } else {
+        if let Some(rc) = rcs.get_mut("0") {
+            if !is_viewport_culled {
+                expanded_node.borrow()
+                    .instance_node
+                    .borrow_mut()
+                    .handle_render(rtc, rc);
+            }
+        }
+    }
+
+    //lifecycle: post_render
+    expanded_node.borrow()
+        .instance_node
+        .borrow_mut()
+        .handle_post_render(rtc, rcs);
+}
+
+
+
+/// Helper method to fire `pre_render` handlers for the node attached to the `rtc`
+fn manage_handlers_pre_render<R: 'static + RenderContext>(rtc: &mut RenderTreeContext<R>) {
+    //fire `pre_render` handlers
+    let node = Rc::clone(&rtc.current_expanded_node);
+    let node_borrowed = (*node).borrow();
+    let registry = node_borrowed
+        .instance_node
+        .borrow()
+        .get_handler_registry().clone();
+    if let Some(registry) = registry {
+        for handler in (*registry).borrow().pre_render_handlers.iter() {
+            handler(
+                Rc::clone(&node_borrowed.get_properties()),
+                &node_borrowed.computed_node_context.clone().unwrap(),
+            );
+        }
+    }
 }

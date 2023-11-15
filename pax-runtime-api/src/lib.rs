@@ -62,11 +62,13 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
-pub struct RuntimeContext {
+pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's immediate container (parent) in px
     pub bounds_parent: (f64, f64),
+    /// The bounds of this element in px
+    pub bounds_self: (f64, f64),
 }
 
 // Unified events

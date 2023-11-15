@@ -17,15 +17,15 @@ use std::rc::Rc;
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
-pub struct RectangleInstance<R: 'static + RenderContext> {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+pub struct RectangleInstance {
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_id: u32,
 
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
+impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -51,7 +51,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         ret
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(registry)),
             _ => None,
@@ -94,13 +94,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
 
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let expanded_node = rtc.current_expanded_node.borrow();
-        let tab = &expanded_node.tab;
+        let tab = &expanded_node.computed_tab.as_ref().unwrap();
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
 
         let properties_wrapped: Rc<RefCell<dyn Any>> =
             rtc.current_expanded_node.borrow().get_properties();
+
         with_properties_unwrapped!(
             &properties_wrapped,
             Rectangle,

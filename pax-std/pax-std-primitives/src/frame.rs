@@ -25,14 +25,14 @@ use pax_runtime_api::{CommonProperties, Layer, Size};
 pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub instance_children: InstanceNodePtrList<R>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),
             _ => None,
@@ -175,7 +175,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         rcs: &mut HashMap<std::string::String, R>,
     ) {
         let expanded_node = rtc.current_expanded_node.borrow();
-        let tab = &expanded_node.tab;
+        let tab = &expanded_node.computed_tab.as_ref().unwrap();
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
@@ -216,7 +216,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
         let scroller_ids = ptc.get_current_scroller_ids();
 
-        let z_index = ptc.current_expanded_node.as_ref().unwrap().borrow().z_index;
+        let z_index = ptc.current_expanded_node.as_ref().unwrap().borrow().computed_z_index.unwrap();
 
         ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
             id_chain: id_chain.clone(),

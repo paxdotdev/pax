@@ -22,7 +22,7 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub(crate) instance_id: u32,
     pub template: InstanceNodePtrList<R>,
     pub slot_children: InstanceNodePtrList<R>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
 
@@ -40,7 +40,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     fn get_node_type(&self) -> NodeType {
         NodeType::Component
     }
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),
             _ => None,
