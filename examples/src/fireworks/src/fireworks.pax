@@ -11,5 +11,5 @@
 </Group>
 
 @handlers {
-    will_render: handle_will_render
+    pre_render: handle_pre_render
 }

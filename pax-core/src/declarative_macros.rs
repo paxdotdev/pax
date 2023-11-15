@@ -25,3 +25,50 @@ macro_rules! with_properties_unwrapped {
         $body(&mut unwrapped_value)
     }};
 }
+
+
+/// Manages vtable updates (if necessary) for a given `dyn PropertyInstance`, with the provided expected TypesCoproduct variant.
+/// Is a no-op for `PropertyLiteral`s, and mutates (by calling `.set`) `PropertyExpression` instances.
+/// # Examples
+/// ```text
+/// handle_vtable_update!(ptc, self.height, Size);
+/// ```
+#[macro_export]
+macro_rules! handle_vtable_update {
+    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
+        let current_prop = &mut *$var.$field.as_mut();
+        if let Some(vtable_id) = current_prop._get_vtable_id() {
+            let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
+            if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
+                current_prop.set(*downcast_value);
+            } else {
+                panic!()
+            } //downcast failed
+        }
+    }};
+}
+
+/// Does same as [`handle_vtable_update`], but manages case (as a no-op) where the property is wrapped in an outer Option,
+/// e.g. for CommonProperties.
+/// # Examples
+/// ```text
+/// // In this example `scale_x` is `Option`al (`Option<Rc<RefCell<dyn PropertyInstance<Size>>>>`)
+/// handle_vtable_update_optional!(ptc, self.scale_x, Size);
+/// ```
+#[macro_export]
+macro_rules! handle_vtable_update_optional {
+    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
+        if let Some(_) = $var.$field {
+            let current_prop = &mut *$var.$field.as_mut().unwrap();
+
+            if let Some(vtable_id) = current_prop._get_vtable_id() {
+                let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
+                if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
+                    current_prop.set(*downcast_value);
+                } else {
+                    panic!()
+                } //downcast failed
+            }
+        }
+    }};
+}

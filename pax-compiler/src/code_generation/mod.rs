@@ -245,6 +245,9 @@ fn recurse_generate_render_nodes_literal(
     host_crate_info: &HostCrateInfo,
     source_map: &mut SourceMap,
 ) -> String {
+
+
+    let containing_component_struct = host_crate_info.fully_qualify_path(&rngc.active_component_definition.type_id);
     //first recurse, populating children_literal : Vec<String>
     let children_literal: Vec<String> = tnd
         .child_ids
@@ -258,6 +261,13 @@ fn recurse_generate_render_nodes_literal(
 
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone(), source_map);
+
+
+    //Handlers not expected on control-flow; at time of authoring this type is used only for handlers
+    //in the context of cartridge-render-node-literal so `"()"` is suitable
+    const CONTROL_FLOW_STUBBED_PROPERTIES_TYPE : &str = "()";
+
+
     let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
         // Repeat
         let rsd = tnd
@@ -303,7 +313,6 @@ fn recurse_generate_render_nodes_literal(
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("RepeatInstance".into()),
-            properties_coproduct_variant: "Repeat".to_string(),
             component_properties_struct: "RepeatProperties".to_string(),
             defined_properties: vec![
                 (
@@ -326,6 +335,8 @@ fn recurse_generate_render_nodes_literal(
                 rngc.active_component_definition.type_id.to_string(),
             ),
             events,
+            fully_qualified_properties_type: CONTROL_FLOW_STUBBED_PROPERTIES_TYPE.to_string(),
+            containing_component_struct,
         }
     } else if tnd.type_id == parsing::TYPE_ID_IF {
         // If
@@ -364,7 +375,6 @@ fn recurse_generate_render_nodes_literal(
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
-            properties_coproduct_variant: "Conditional".to_string(),
             component_properties_struct: "ConditionalProperties".to_string(),
             defined_properties: vec![(
                 MappedString::new("boolean_expression".to_string()),
@@ -380,6 +390,8 @@ fn recurse_generate_render_nodes_literal(
                 rngc.active_component_definition.type_id.to_string(),
             ),
             events,
+            fully_qualified_properties_type: CONTROL_FLOW_STUBBED_PROPERTIES_TYPE.to_string(),
+            containing_component_struct,
         }
     } else if tnd.type_id == parsing::TYPE_ID_SLOT {
         // Slot
@@ -418,7 +430,6 @@ fn recurse_generate_render_nodes_literal(
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("SlotInstance".into()),
-            properties_coproduct_variant: "Slot".to_string(),
             component_properties_struct: "SlotProperties".to_string(),
             defined_properties: vec![(MappedString::new("index".to_string()), slot_mapped_string)],
             common_properties_literal,
@@ -431,11 +442,11 @@ fn recurse_generate_render_nodes_literal(
                 rngc.active_component_definition.type_id.to_string(),
             ),
             events,
+            fully_qualified_properties_type: CONTROL_FLOW_STUBBED_PROPERTIES_TYPE.to_string(),
+            containing_component_struct,
         }
     } else {
         //Handle anything that's not a built-in
-
-        let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
 
         //Properties:
         //  - for each property on cfcn, there will either be:
@@ -447,6 +458,9 @@ fn recurse_generate_render_nodes_literal(
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
+        let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
+        let fully_qualified_properties_type = host_crate_info.fully_qualify_path(&component_for_current_node.type_id);
+
         let property_ril_tuples: Vec<Option<(MappedString, MappedString)>> =
             component_for_current_node
                 .get_property_definitions(rngc.type_table)
@@ -609,6 +623,7 @@ fn recurse_generate_render_nodes_literal(
                 }
             })
             .collect();
+
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
@@ -616,7 +631,6 @@ fn recurse_generate_render_nodes_literal(
             primitive_instance_import_path: component_for_current_node
                 .primitive_instance_import_path
                 .clone(),
-            properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
             defined_properties,
             common_properties_literal,
@@ -629,6 +643,8 @@ fn recurse_generate_render_nodes_literal(
                 rngc.active_component_definition.type_id.to_string(),
             ),
             events,
+            fully_qualified_properties_type,
+            containing_component_struct,
         }
     };
 

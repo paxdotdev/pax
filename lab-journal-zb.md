@@ -4619,12 +4619,31 @@ we can map this data into imperative Rust if/else if/else statements, like we do
 ### `tab` and slot children
 
 currently, slot_children's properties are calculated entirely in the context of the component template that owns them
-This wrinkles around `bounds` — we want bounds to be calculated in the context of the "rendering" container — the slot that accepts the slot_children.
+This introduces wrinkles around `bounds` (`TransformAndBounds`, more specifically.) — we want bounds to be calculated in the context of the "rendering" container — the slot that accepts the slot_children.
     1. go back to calculating `tab` on-the-fly during render? instead of pre-computing during properties compute
         This means we unpack what e.g. "100%" or "50%" means lazily, at the time of rendering (this is probably best)
         This should robustly solve the slot transposition / container problem
         Any drawbacks?
-    
+    2. as a light alternative to this, introduce a separate traversal of the ExpandedNode tree in between expansion & rendering, something like `compute_rendering_state` or `compute_layout`
+
+There are two kinds of properties computation that we want to happen in the context of the rendering tree
+ -- or at least in the _same order_ as that used by rendering the tree.
+ (1) z-index
+ (2) TransformAndBounds calculation
+ Either we calculate these on the fly as we render (easy, but unclean "side-effect free" division between rendering / computation)
+   Incurs expected baseline compute cost on every tick
+ Or we visit the tree on a separate recursive pass before rendering, performing + caching these values for "side-effect-free rendering"
+   In the latter case, we could compute these values only when mutations occur, revisiting a subtree when necessary
+ In the place we "stitch together" nodes, e.g. via Slot, we are traversing in the correct order... it may be that
+ by allowing recursion to continue through slot, we would compute properties twice, but that they settle correctly?
+   Properties probably would not settle correctly in the above case because they would be recomputed in the context
+   of the incorrect containing component (the second time) undoing the special-casing we did for computing them in the context of their
+   containing template in the first place.
+ Perhaps the very cleanest approach is to have a separate `compute_rendering_properties` pass, specifically for z-index and
+ TransformAndBounds, which fires after recurse_compute_properties, which visits ExpandedNodes in render order, and which caches these values onto ExpandedNodes.
+ This method could be called tactically on sub-trees in a more optimized world, e.g. after an insertion
+
+
 
 ### Refreshing TODOs as of Nov 14 2023
 

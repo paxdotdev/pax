@@ -1,10 +1,7 @@
-use crate::{
-    ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList,
-    NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds,
-};
+use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds};
 use kurbo::Affine;
 use pax_message::NativeMessage;
-use pax_runtime_api::{Interpolatable, Numeric, Rotation, RuntimeContext, Size, Timeline, Transform2D, TransitionManager};
+use pax_runtime_api::{Interpolatable, Numeric, Rotation, NodeContext, Size, Timeline, Transform2D, TransitionManager};
 use piet::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
@@ -83,11 +80,8 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
 
     ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
 
-    // Lifecycle: `mount`
-    manage_handlers_mount(ptc);
 
-    let new_tab = compute_tab(ptc);
-    ptc.containing_tab = new_tab;
+
 
     // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.
     // The following logic is for default nodes, which don't perform such overrides.
@@ -159,130 +153,6 @@ fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(
     result
 }
 
-/// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`]
-/// Intended as a helper method to be called during properties computation, for creating a new `tab` to attach to
-/// `ptc` for downstream calculations.
-fn compute_tab<R: 'static + RenderContext>(
-    ptc: &mut PropertiesTreeContext<R>,
-) -> TransformAndBounds {
-    let node = Rc::clone(&ptc.current_expanded_node.as_ref().unwrap());
-
-    //get the size of this node (calc'd or otherwise) and use
-    //it as the new accumulated bounds: both for this node's children (their parent container bounds)
-    //and for this node itself (e.g. for specifying the size of a Rectangle node)
-    let new_accumulated_bounds_and_current_node_size = node
-        .borrow_mut()
-        .compute_size_within_bounds(ptc.containing_tab.bounds);
-
-    let node_transform_property_computed = {
-        let node_borrowed = ptc.current_expanded_node.as_ref().unwrap().borrow_mut();
-
-        let computed_transform2d_matrix = node_borrowed
-            .get_common_properties()
-            .borrow()
-            .transform
-            .get()
-            .compute_transform2d_matrix(
-                new_accumulated_bounds_and_current_node_size.clone(),
-                ptc.containing_tab.bounds,
-            );
-
-        computed_transform2d_matrix
-    };
-
-    // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
-    let desugared_transform = {
-        //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-        let node_borrowed = ptc.current_expanded_node.as_ref().unwrap().borrow();
-        let comm = node_borrowed.get_common_properties();
-        let comm = comm.borrow();
-        let mut desugared_transform2d = Transform2D::default();
-
-        let translate = [
-            if let Some(ref val) = comm.x {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-            if let Some(ref val) = comm.y {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-        ];
-        desugared_transform2d.translate = Some(translate);
-
-        let anchor = [
-            if let Some(ref val) = comm.anchor_x {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-            if let Some(ref val) = comm.anchor_y {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-        ];
-        desugared_transform2d.anchor = Some(anchor);
-
-        let scale = [
-            if let Some(ref val) = comm.scale_x {
-                val.get().clone()
-            } else {
-                Size::Percent(pax_runtime_api::Numeric::from(100.0))
-            },
-            if let Some(ref val) = comm.scale_y {
-                val.get().clone()
-            } else {
-                Size::Percent(pax_runtime_api::Numeric::from(100.0))
-            },
-        ];
-        desugared_transform2d.scale = Some(scale);
-
-        let skew = [
-            if let Some(ref val) = comm.skew_x {
-                val.get().get_as_float()
-            } else {
-                0.0
-            },
-            if let Some(ref val) = comm.skew_y {
-                val.get().get_as_float()
-            } else {
-                0.0
-            },
-        ];
-        desugared_transform2d.skew = Some(skew);
-
-        let rotate = if let Some(ref val) = comm.rotate {
-            val.get().clone()
-        } else {
-            Rotation::ZERO()
-        };
-        desugared_transform2d.rotate = Some(rotate);
-
-        desugared_transform2d.compute_transform2d_matrix(
-            new_accumulated_bounds_and_current_node_size.clone(),
-            ptc.containing_tab.bounds,
-        )
-    };
-
-    let new_accumulated_transform =
-        ptc.containing_tab.transform * desugared_transform * node_transform_property_computed;
-
-    // let new_scroller_normalized_accumulated_transform =
-    //     accumulated_scroller_normalized_transform
-    //         * desugared_transform
-    //         * node_transform_property_computed;
-
-    // rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
-
-    TransformAndBounds {
-        transform: new_accumulated_transform,
-        bounds: new_accumulated_bounds_and_current_node_size,
-    }
-}
-
 /// Handle node unmounting, including check for whether unmount handlers should be fired
 /// (thus this function can be called on all nodes at end of properties computation
 fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
@@ -314,49 +184,6 @@ fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeC
     }
 }
 
-/// Helper method to fire `mount` event if this is this expandednode's first frame
-/// (or first frame remounting, if previously mounted then unmounted.)
-/// Note that this must happen after initial `compute_properties`, which performs the
-/// necessary side-effect of creating the `self` that must be passed to handlers.
-fn manage_handlers_mount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
-    {
-        let mut node_registry = (*ptc.engine.node_registry).borrow_mut();
-
-        let id_chain = <Vec<u32> as AsRef<Vec<u32>>>::as_ref(
-            &ptc.current_expanded_node.clone().unwrap().borrow().id_chain,
-        )
-        .clone();
-        if !node_registry.is_mounted(&id_chain) {
-            //Fire primitive-level mount lifecycle method
-            let mut instance_node = Rc::clone(&ptc.current_instance_node);
-            instance_node.borrow_mut().handle_mount(ptc);
-
-            //Fire registered mount events
-            let registry = (*ptc.current_instance_node).borrow().get_handler_registry();
-            if let Some(registry) = registry {
-                //grab Rc of properties from stack frame; pass to type-specific handler
-                //on instance in order to dispatch cartridge method
-                for handler in (*registry).borrow().mount_handlers.iter() {
-                    handler(
-                        ptc.current_expanded_node
-                            .clone()
-                            .unwrap()
-                            .borrow_mut()
-                            .get_properties(),
-                        ptc.current_expanded_node
-                            .clone()
-                            .unwrap()
-                            .borrow()
-                            .node_context
-                            .clone(),
-                    );
-                }
-            }
-            node_registry.mark_mounted(id_chain);
-        }
-    }
-}
-
 /// Shared context for properties pass recursion
 pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
@@ -384,8 +211,6 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     pub marked_for_unmount: bool,
 
     pub shared: Rc<RefCell<PropertiesTreeShared>>,
-
-    pub containing_tab: TransformAndBounds,
 }
 
 /// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
@@ -425,7 +250,6 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
             parent_expanded_node: self.parent_expanded_node.clone(),
             marked_for_unmount: self.marked_for_unmount,
             shared: Rc::clone(&self.shared),
-            containing_tab: self.containing_tab.clone(),
             current_instance_id: self.current_instance_id,
         }
     }
@@ -523,13 +347,6 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
             }
         }
         None
-    }
-
-    pub fn distill_userland_node_context(&self) -> RuntimeContext {
-        RuntimeContext {
-            bounds_parent: self.containing_tab.bounds,
-            frames_elapsed: self.engine.frames_elapsed,
-        }
     }
 
     //return current state of native message queue, passing in a freshly initialized queue for next frame
