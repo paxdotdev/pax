@@ -1,6 +1,6 @@
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
-COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
+COMMENT = { ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
 
 ////// ////// //////
@@ -63,16 +63,13 @@ node_inner_content = { literal_value | expression_wrapped }
 
 
 //string/inner/char from https://pest.rs/book/examples/json.html
-string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ (inner_templated | inner) ~ "`") }
+string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ inner ~ "`") }
 inner = @{ char* }
 char = {
     !("\"" | "\\") ~ ANY
     | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
-
-inner_templated = { (char* ~ ("{" ~ inner_templated_dynamic ~ "}"))+ }
-inner_templated_dynamic = {char*}
 
 
 ////// ////// //////

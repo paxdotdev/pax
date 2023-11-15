@@ -396,7 +396,8 @@ fn recurse_visit_tag_pairs_for_template(
                     inner_nodes.into_inner().for_each(|sub_tag_pair| {
                         recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
                     })
-                }
+                },
+                Rule::COMMENT => {},
                 _ => {
                     panic!("wrong prospective inner nodes (or nth)")
                 }

@@ -41,6 +41,7 @@ use crate::building::{
 use crate::cartridge_generation::{
     generate_and_overwrite_cartridge, generate_and_overwrite_properties_coproduct,
 };
+use crate::code::serialization::press_code_serialization_template;
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
 
@@ -114,6 +115,13 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
     let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest: PaxManifest =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+
+    let serialized = press_code_serialization_template(manifest.components.get(manifest.main_component_type_id.as_str()).unwrap().clone());
+    println!("{}", serialized);
+    println!("Formatting generated code...");
+    let formatted_code = code::format::pax_format(serialized)?;
+    println!("{}", formatted_code);
+    panic!();
 
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
