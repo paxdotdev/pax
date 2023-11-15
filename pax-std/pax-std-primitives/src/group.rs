@@ -13,7 +13,7 @@ use pax_runtime_api::{CommonProperties, Layer};
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
-    pub primitive_children: InstanceNodePtrList<R>,
+    pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
     instance_prototypical_properties: Rc<RefCell<dyn Any>>,
@@ -26,7 +26,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
     }
 
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::clone(&self.primitive_children)
+        Rc::clone(&self.instance_children)
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
@@ -37,7 +37,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            primitive_children: match args.children {
+            instance_children: match args.children {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
@@ -49,6 +49,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
+    }
+
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
+        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+            ptc,
+            &self.instance_prototypical_properties,
+            &self.instance_prototypical_common_properties,
+        );
+        this_expanded_node
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
@@ -68,15 +80,5 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         Layer::DontCare
     }
 
-    fn expand_node_and_compute_properties(
-        &mut self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            ptc,
-            &self.instance_prototypical_properties,
-            &self.instance_prototypical_common_properties,
-        );
-        this_expanded_node
-    }
+
 }

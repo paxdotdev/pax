@@ -187,7 +187,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         &mut self,
         child_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
     ) {
-        //check if expanded node is already a child of this node ()
+        //check if expanded node is already a child of this node (and no-op if it is)
         let cenb = child_expanded_node.borrow();
         let id_chain_ref = &cenb.id_chain;
 
@@ -200,6 +200,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         }
     }
 
+    // Register expanded & flattened slot_children on a Component that received them, so that they
+    // may be referred to by a `slot` inside that component's template.
     pub fn set_expanded_and_flattened_slot_children(
         &mut self,
         expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,

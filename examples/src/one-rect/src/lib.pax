@@ -1,6 +1,8 @@
-<Rectangle class=one_rect
-     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
-/>
+<Group>
+    <Rectangle class=one_rect
+         fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+    />
+</Group>
 
 @settings {
     .one_rect {

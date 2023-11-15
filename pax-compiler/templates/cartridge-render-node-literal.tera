@@ -50,7 +50,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
                        let properties = &mut *properties.as_ref().borrow_mut();
                        if let Some(mut synthesized_self) = properties.downcast_mut::<{{containing_component_struct}}>() {
                            {{ containing_component_struct }}::{{entry.1.content}}(&mut synthesized_self,ctx);
-                       } else {panic!()};
+                       } else {panic!()}; //failed to downcast
 
                     },
                 {% else %}
@@ -58,7 +58,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
                         let properties = &mut *properties.as_ref().borrow_mut();
                         if let Some(mut synthesized_self) = properties.downcast_mut::<{{containing_component_struct}}>() {
                             {{ containing_component_struct }}::{{entry.1.content}}(&mut synthesized_self,ctx,args);
-                        } else {panic!()};
+                        } else {panic!()}; //failed to downcast
                     },
                 {% endif %}
                 {% if entry.1.source_map_end_marker %}

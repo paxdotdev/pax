@@ -76,6 +76,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Mark all of Repeat's existing children (from previous tick) for unmount.  Then, when we iterate and append_children below, ensure that the mark-for-unmount is reverted
+        //This enables changes in repeat source to be mapped to new elements (unchanged elements are marked for unmount / remount before unmount handlers are fired, resulting in no effective changes.)
         for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
             ptc.engine
                 .node_registry
@@ -104,7 +105,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     let vec_evaled = source.get();
                     (None, Some(vec_evaled.clone()))
                 } else {
-                    unreachable!(); //A valid Repeat must have a repeat source
+                    unreachable!(); //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
                 }
             }
         );
