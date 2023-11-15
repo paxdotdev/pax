@@ -42,6 +42,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
+
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,

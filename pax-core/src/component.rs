@@ -120,4 +120,5 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
     }
+
 }

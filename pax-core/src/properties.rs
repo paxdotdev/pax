@@ -104,8 +104,6 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
 
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
 
-            recurse_expand_nodes(ptc);
-
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);
@@ -214,7 +212,7 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 }
 
 /// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
-/// current pointers without overwriting others, some state within `ptc` needs to be shared-mutable.  `PropertiesTreeShared` is intended
+/// current pointers without overwriting others, some state within `ptc` needs to be a shared singleton.  `PropertiesTreeShared` is intended
 /// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
 pub struct PropertiesTreeShared {
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
@@ -380,7 +378,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Add a new frame to the stack, passing a list of slot_children
     /// that may be handled by `Slot` and a scope that includes the `dyn Any` properties of the associated Component
     pub fn push_stack_frame(&mut self, properties: Rc<RefCell<dyn Any>>) {
-        let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
+        let parent = self.peek_stack_frame().as_ref().map(Rc::clone);
 
         self.shared
             .borrow_mut()
@@ -428,13 +426,13 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 pub struct RuntimePropertiesStackFrame {
     properties: Rc<RefCell<dyn Any>>,
-    parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
+    parent: Option<Rc<RefCell<RuntimePropertiesStackFrame>>>,
 }
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
         properties: Rc<RefCell<dyn Any>>,
-        parent: Option<Weak<RefCell<RuntimePropertiesStackFrame>>>,
+        parent: Option<Rc<RefCell<RuntimePropertiesStackFrame>>>,
     ) -> Self {
         RuntimePropertiesStackFrame { properties, parent }
     }
@@ -459,9 +457,9 @@ impl RuntimePropertiesStackFrame {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {
-            return Some(parent.upgrade().unwrap());
+            return Some(parent.clone());
         }
-        (*parent.upgrade().unwrap())
+        (*parent.clone())
             .borrow()
             .recurse_peek_nth(n, new_depth)
     }

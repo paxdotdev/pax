@@ -4614,6 +4614,10 @@ we can map this data into imperative Rust if/else if/else statements, like we do
 [x] unit tests for unsafe macros
     [x] draft as examples
     [x] vnext as stand-alone tests, create -> mutate -> assert flows
+[ ] Milestones via examples
+    [x] Get `one-rect` running correctly + Group
+    [ ] Get `fireworks` running correctly + event handlers
+    [ ] Get `color-grid` running correctly
 
 
 ### `tab` and slot children
