@@ -45,8 +45,8 @@ pub struct ScrollerArgs {
 }
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
-    pub common_properties: Rc<RefCell<CommonProperties>>,
-    pub properties: Rc<RefCell<dyn Any>>,
+    pub prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    pub prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<InstanceNodePtrList<R>>,

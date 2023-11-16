@@ -24,8 +24,8 @@ pub struct TextInstance<R: 'static + RenderContext> {
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
 
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+
+    pub prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
@@ -43,8 +43,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(TextInstance {
             instance_id,
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
         }));

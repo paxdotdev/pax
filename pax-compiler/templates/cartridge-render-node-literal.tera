@@ -5,7 +5,7 @@
 instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
 {% endif %}
  InstantiationArgs {
-    common_properties: Rc::new(RefCell::new(CommonProperties {
+    prototypical_common_properties_factory: Box::new(||{Rc::new(RefCell::new(CommonProperties {
         {% for cpl_tuple in common_properties_literal %}
             {% if cpl_tuple.1.source_map_start_marker %}
                 {{cpl_tuple.1.source_map_start_marker}}
@@ -15,8 +15,8 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
                 {{cpl_tuple.1.source_map_end_marker}}
             {% endif %}
         {% endfor %}
-    })),
-    properties: Rc::new(RefCell::new(
+    }))}),
+    prototypical_properties_factory: Box::new(||{Rc::new(RefCell::new(
         {
             let mut cps = {{component_properties_struct}}::default();
 
@@ -32,7 +32,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
 
             cps
         }
-    )),
+    ))}),
     handler_registry:  Some(Rc::new(RefCell::new({
         #[allow(unused_mut)]
         let mut handler_registry = HandlerRegistry::default();

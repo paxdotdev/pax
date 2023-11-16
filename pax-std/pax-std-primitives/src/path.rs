@@ -17,8 +17,8 @@ pub struct PathInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
 
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
@@ -41,8 +41,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
         let ret = Rc::new(RefCell::new(PathInstance {
             instance_id,
             handler_registry: args.handler_registry,
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
