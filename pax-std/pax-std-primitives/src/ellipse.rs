@@ -66,6 +66,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
             &self.instance_prototypical_properties,
             &self.instance_prototypical_common_properties,
         );
+
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {

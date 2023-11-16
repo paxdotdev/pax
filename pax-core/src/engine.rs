@@ -131,12 +131,6 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// A copy of the NodeContext appropriate for this ExpandedNode
     pub computed_node_context: Option<NodeContext>,
 
-    /// A snapshot of the clipping stack above this element at the time of properties-computation
-    pub ancestral_clipping_ids: Vec<Vec<u32>>,
-
-    /// A snapshot of the scroller stack above this element at the time of properties-computation
-    pub ancestral_scroller_ids: Vec<Vec<u32>>,
-
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
     /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
@@ -149,9 +143,11 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
 
     /// Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
+    /// A snapshot of the clipping stack above this element at the time of properties-computation
     pub clipping_stack: Vec<Vec<u32>>,
 
     /// Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
+    /// A snapshot of the scroller stack above this element at the time of properties-computation
     pub scroller_stack: Vec<Vec<u32>>,
 
     /// For component instances only, tracks the expanded + flattened slot_children
@@ -235,10 +231,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 children_expanded_nodes: vec![],
                 instance_node: Rc::clone(&ptc.current_instance_node),
                 containing_component: ptc.current_containing_component.clone(),
-                clipping_stack: vec![],
-                computed_properties: Rc::clone(&prototypical_properties),
-                computed_common_properties: Rc::clone(&prototypical_common_properties),
-                scroller_stack: vec![],
+
+                computed_properties: todo!("deep clone"),// Rc::clone(&prototypical_properties),
+                computed_common_properties: todo!("deep clone"),// Rc::clone(&prototypical_common_properties),
+
                 expanded_and_flattened_slot_children: None,
                 children_expanded_nodes_set: HashSet::new(),
 
@@ -248,8 +244,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 computed_tab: None,
 
                 // Clone the following stacks from `ptc`
-                ancestral_clipping_ids: ptc.get_current_clipping_ids(),
-                ancestral_scroller_ids: ptc.get_current_scroller_ids(),
+                clipping_stack: ptc.get_current_clipping_ids(),
+                scroller_stack: ptc.get_current_scroller_ids(),
                 runtime_properties_stack: ptc.clone_runtime_stack(),
             }));
 
@@ -260,6 +256,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             .borrow_mut()
             .expanded_node_map
             .insert(id_chain, Rc::clone(&expanded_node));
+
+        //Side-effect: attach an Rc pointer for the current expanded_node to `ptc`.
+        ptc.current_expanded_node = Some(Rc::clone(&expanded_node));
+
         expanded_node
     }
 
@@ -856,12 +856,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_expanded_node: None,
             parent_expanded_node: None,
             marked_for_unmount: false,
+            clipping_stack: vec![],
+            scroller_stack: vec![],
+            runtime_properties_stack: vec![],
             shared: Rc::new(RefCell::new(PropertiesTreeShared {
-                clipping_stack: vec![],
-                scroller_stack: vec![],
                 native_message_queue: Default::default(),
-                runtime_properties_stack: vec![],
-                z_index_gen: 0..,
             })),
             expanded_and_flattened_slot_children: None,
         };
