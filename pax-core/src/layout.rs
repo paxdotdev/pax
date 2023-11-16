@@ -28,8 +28,9 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
         bounds_self: computed_tab.bounds,
     });
 
+    // Drop to appease borrow-checker (mount must borrow again to fire handlers)
     drop(node_borrowed);
-    // Lifecycle: `mount` must happen after
+    // Lifecycle: `mount`
     manage_handlers_mount(engine, &current_expanded_node);
 
     let node_borrowed = current_expanded_node.borrow_mut();

@@ -93,12 +93,15 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             &self.instance_prototypical_properties,
             &self.instance_prototypical_common_properties,
         );
-        // let properties_wrapped =  this_expanded_node.borrow().get_properties();
+
         this_expanded_node
             .borrow_mut()
             .set_expanded_and_flattened_slot_children(
                 ptc.expanded_and_flattened_slot_children.take(),
             );
+
+        //Compute properties
+        (*self.compute_properties_fn)(Rc::clone(&this_expanded_node.borrow().get_properties()), ptc);
 
         ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
 

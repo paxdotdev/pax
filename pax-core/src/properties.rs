@@ -68,20 +68,15 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
             None
         };
 
-    // Attach component-level e_a_f_s_c to `ptc` so that they can be used by components inside expand_node_and_compute_properties
+    // Attach component-level `expanded_and_flattened_slot_children` to `ptc` so that they can be used by components inside `expand_node_and_compute_properties`
     ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
 
     // Compute common properties
-    this_expanded_node
+    let common_properties = Rc::clone(&this_expanded_node
         .borrow_mut()
-        .get_common_properties()
-        .borrow_mut()
+        .get_common_properties());
+    common_properties.borrow_mut()
         .compute_properties(ptc);
-
-    ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
-
-
-
 
     // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.
     // The following logic is for default nodes, which don't perform such overrides.
@@ -208,13 +203,6 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 
     pub marked_for_unmount: bool,
 
-    pub shared: Rc<RefCell<PropertiesTreeShared>>,
-}
-
-/// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
-/// current pointers without overwriting others, some state within `ptc` needs to be a shared singleton.  `PropertiesTreeShared` is intended
-/// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
-pub struct PropertiesTreeShared {
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
     /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
     /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
@@ -229,9 +217,13 @@ pub struct PropertiesTreeShared {
     /// Similar to clipping stack but for scroller containers
     pub scroller_stack: Vec<Vec<u32>>,
 
-    /// Iterator for tracking current z-index; expected to be reset at the beginning of every properties computation pass
-    pub z_index_gen: RangeFrom<isize>,
+    pub shared: Rc<RefCell<PropertiesTreeShared>>,
+}
 
+/// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
+/// current pointers without overwriting others, some state within `ptc` needs to be a shared singleton.  `PropertiesTreeShared` is intended
+/// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
+pub struct PropertiesTreeShared {
     /// Queue for native "CRUD" message (e.g. TextCreate), populated during properties
     /// computation and passed across native bridge each tick after canvas rendering
     pub native_message_queue: VecDeque<NativeMessage>,
@@ -247,6 +239,9 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
             current_expanded_node: self.current_expanded_node.clone(),
             parent_expanded_node: self.parent_expanded_node.clone(),
             marked_for_unmount: self.marked_for_unmount,
+            runtime_properties_stack: self.runtime_properties_stack.clone(),
+            clipping_stack: self.clipping_stack.clone(),
+            scroller_stack: self.scroller_stack.clone(),
             shared: Rc::clone(&self.shared),
             current_instance_id: self.current_instance_id,
         }
@@ -258,39 +253,37 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 
 
     pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        self.shared.borrow().runtime_properties_stack.clone()
+        self.runtime_properties_stack.clone()
     }
 
     pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
-        self.shared.borrow_mut().clipping_stack.push(id_chain);
+        self.clipping_stack.push(id_chain);
     }
 
     pub fn pop_clipping_stack_id(&mut self) {
-        self.shared.borrow_mut().clipping_stack.pop();
+        self.clipping_stack.pop();
     }
 
     pub fn get_current_clipping_ids(&self) -> Vec<Vec<u32>> {
-        self.shared.borrow_mut().clipping_stack.clone()
+        self.clipping_stack.clone()
     }
 
     pub fn push_scroller_stack_id(&mut self, id_chain: Vec<u32>) {
-        self.shared.borrow_mut().scroller_stack.push(id_chain);
+        self.scroller_stack.push(id_chain);
     }
 
     pub fn pop_scroller_stack_id(&mut self) {
-        self.shared.borrow_mut().scroller_stack.pop();
+        self.scroller_stack.pop();
     }
 
     pub fn get_current_scroller_ids(&self) -> Vec<Vec<u32>> {
-        self.shared.borrow_mut().scroller_stack.clone()
+        self.scroller_stack.clone()
     }
 
     pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
         let mut indices: Vec<u32> = vec![];
 
-        self.shared
-            .borrow_mut()
-            .runtime_properties_stack
+        self.runtime_properties_stack
             .iter()
             .for_each(|frame_wrapped| {
                 let frame_rc_cloned = frame_wrapped.clone();
@@ -359,10 +352,10 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
     pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        let len = *&self.shared.borrow_mut().runtime_properties_stack.len();
+        let len = *&self.runtime_properties_stack.len();
         if len > 0 {
             Some(Rc::clone(
-                &self.shared.borrow_mut().runtime_properties_stack[len - 1],
+                &self.runtime_properties_stack[len - 1],
             ))
         } else {
             None
@@ -372,7 +365,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     /// Remove the top element from the stack.  Currently does
     /// nothing with the value of the popped StackFrame.
     pub fn pop_stack_frame(&mut self) {
-        self.shared.borrow_mut().runtime_properties_stack.pop(); //NOTE: handle value here if needed
+        self.runtime_properties_stack.pop(); //NOTE: handle value here if needed
     }
 
     /// Add a new frame to the stack, passing a list of slot_children
@@ -380,9 +373,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     pub fn push_stack_frame(&mut self, properties: Rc<RefCell<dyn Any>>) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::clone);
 
-        self.shared
-            .borrow_mut()
-            .runtime_properties_stack
+        self.runtime_properties_stack
             .push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
                 properties, parent,
             ))));
@@ -406,9 +397,13 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
 
     pub fn compute_vtable_value(&self, vtable_id: usize) -> Box<dyn Any> {
         if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
+            let expanded_node = &self.current_expanded_node.as_ref().unwrap().borrow();
+            // pax_runtime_api::log(&format!("Computing vtable for id_chain: {:?}", &expanded_node.id_chain));
+            let stack_frame = Rc::clone(expanded_node.runtime_properties_stack.get(expanded_node.runtime_properties_stack.len() - 1).unwrap());
+
             let ec = ExpressionContext {
                 engine: self.engine,
-                stack_frame: Rc::clone(&self.peek_stack_frame().unwrap()),
+                stack_frame,
             };
             (**evaluator)(ec)
         } else {

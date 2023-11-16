@@ -418,7 +418,7 @@ pub fn recurse_render<R: RenderContext + 'static>(
     let scroller_ids = rtc
         .current_expanded_node
         .borrow()
-        .ancestral_scroller_ids
+        .scroller_stack
         .clone();
     let scroller_id = match scroller_ids.last() {
         None => None,

@@ -4680,3 +4680,25 @@ There are two kinds of properties computation that we want to happen in the cont
     [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
     [ ] Ensure clean distinction between "a z-index for every element" vs. a "layer id"
+
+
+
+### ExpandedNodes and StackFrames
+
+TreeFrame ?
+
+We want each node to keep a pointer to its relevant stack frame
+That stack frame should be able to traverse to its parent
+
+Since that 'stack' may no longer exist in a sequentially evaluated world, but we still care about
+these parent relationships, this structure may be more 'tree' than 'stack.'
+
+Do we need to keep all stackframes in a table somewhere?  Or can these exist more ephemerally?
+
+Table is nice because allocation is explicit (even though Rc does its own decentralization)
+
+1. when pushing to the runtime stack, create an entry in a shared table (write-only? or perhaps keyed by id_chain of the creating entity, such as a Component or a For, such that the frame can later be mutated)
+2. Maybe there's an even simpler way?  Instead of keeping a separate stack, allow ExpandedNodes to attach an optional RuntimePropertiesStackFrame to themselves (e.g. both For and Component would do this.)  
+   An ExpandedNode can traverse its ancestral tree (linked list) to collect stack frames into a singular stack through which to evaluate an expression
+   Back to the originally charted approach:  can that stack be pre-calculated / cached / Rc-cloned during expansion or properties computation?
+

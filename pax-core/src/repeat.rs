@@ -76,7 +76,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Mark all of Repeat's existing children (from previous tick) for unmount.  Then, when we iterate and append_children below, ensure that the mark-for-unmount is reverted
-        //This enables changes in repeat source to be mapped to new elements (unchanged elements are marked for unmount / remount before unmount handlers are fired, resulting in no effective changes.)
+        //This enables changes in repeat source to be mapped to new elements (unchanged elements are marked for unmount / remount before unmount handlers are fired, resulting in no effective changes for persistent nodes.)
         for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
             ptc.engine
                 .node_registry
@@ -153,7 +153,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     new_ptc.current_expanded_node = None;
                     new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
                     let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
-                    ptc.engine
+                    new_ptc.engine
                         .node_registry
                         .borrow_mut()
                         .revert_mark_for_unmount(&expanded_child.borrow().id_chain);

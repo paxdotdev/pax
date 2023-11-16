@@ -36,6 +36,7 @@ macro_rules! with_properties_unwrapped {
 #[macro_export]
 macro_rules! handle_vtable_update {
     ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
+        assert!($ptc.current_expanded_node.is_some());//Cannot update vtable without first registering an ExpandedNode on ptc
         let current_prop = &mut *$var.$field.as_mut();
         if let Some(vtable_id) = current_prop._get_vtable_id() {
             let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
@@ -58,6 +59,7 @@ macro_rules! handle_vtable_update {
 #[macro_export]
 macro_rules! handle_vtable_update_optional {
     ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
+        assert!($ptc.current_expanded_node.is_some());//Cannot update vtable without first registering an ExpandedNode on ptc
         if let Some(_) = $var.$field {
             let current_prop = &mut *$var.$field.as_mut().unwrap();
 
