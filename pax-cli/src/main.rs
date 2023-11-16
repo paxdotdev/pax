@@ -68,9 +68,6 @@ fn main() -> Result<(), Report> {
         .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
 
-    #[allow(non_snake_case)]
-    let ARG_LSP = App::new("lsp").about("Start the Pax LSP server");
-
     let matches = App::new("pax")
         .name("pax")
         .bin_name("pax-cli")
@@ -120,7 +117,15 @@ fn main() -> Result<(), Report> {
                 )
                 .about("Collection of tools for internal library development")
         )
-        .subcommand(ARG_LSP.clone())
+        .subcommand(App::new("lsp").about("Start the Pax LSP server"))
+        .subcommand(
+            App::new("format")
+                .about("Format a Pax File")
+                .arg(Arg::with_name("file")
+                    .help("File to format. If not provided with --file, it should directly follow 'format'")
+                    .takes_value(true)
+                    .index(1))
+        )
         .get_matches();
 
     // Clap doesn't easily let us check a "global" arg without performing individual `match`es.
@@ -234,6 +239,15 @@ fn perform_nominal_action(
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(pax_language_server::start_server());
+            Ok(())
+        }
+        ("format", Some(args)) => {
+            let file = args.value_of("file").unwrap().to_string();
+            // current directory 
+            let path = std::env::current_dir().unwrap();
+            let file_path = path.join(file);
+
+            pax_compiler::formatting::format_file(file_path.to_str().unwrap())?;
             Ok(())
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable

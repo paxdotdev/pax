@@ -396,8 +396,7 @@ fn recurse_visit_tag_pairs_for_template(
                     inner_nodes.into_inner().for_each(|sub_tag_pair| {
                         recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
                     })
-                },
-                Rule::COMMENT => {},
+                }
                 _ => {
                     panic!("wrong prospective inner nodes (or nth)")
                 }
@@ -628,6 +627,9 @@ fn recurse_visit_tag_pairs_for_template(
             //For example:  `<Text>"I am inner content"</Text>`
             unimplemented!("Inner content not yet supported");
         }
+        Rule::COMMENT => {
+            panic!("hello");
+        }
         _ => {
             unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
         }
@@ -693,16 +695,18 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         key_location,
                         pax,
                     );
-                    let raw_value = kv.next().unwrap().into_inner().next().unwrap();
-                    let location_info = span_to_location(&raw_value.as_span());
-                    let value = match raw_value.as_rule() {
+                    // exact tokens used, includes {} from expression wrapped
+                    let raw_value = kv.peek().unwrap().as_str();
+                    let value = kv.next().unwrap().into_inner().next().unwrap();
+                    let location_info = span_to_location(&value.as_span());
+                    let value_definition = match value.as_rule() {
                         Rule::literal_value => {
                             //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
                             let (output_string, _) =
-                                crate::parsing::run_pratt_parser(raw_value.as_str());
+                                crate::parsing::run_pratt_parser(value.as_str());
                             let literal_value_token = Token::new_with_raw_value(
                                 output_string,
-                                raw_value.as_str().to_string(),
+                                raw_value.to_string(),
                                 TokenType::LiteralValue,
                                 location_info,
                                 pax,
@@ -710,11 +714,12 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             ValueDefinition::LiteralValue(literal_value_token)
                         }
                         Rule::literal_object => ValueDefinition::Block(
-                            derive_value_definition_from_literal_object_pair(raw_value, pax),
+                            derive_value_definition_from_literal_object_pair(value, pax),
                         ),
                         Rule::expression_body => {
-                            let expression_token = Token::new(
-                                raw_value.as_str().to_string(),
+                            let expression_token = Token::new_with_raw_value(
+                                value.as_str().to_string(),
+                                raw_value.to_string(),
                                 TokenType::Expression,
                                 location_info,
                                 pax,
@@ -723,7 +728,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         }
                         Rule::identifier => {
                             let identifier_token = Token::new(
-                                raw_value.as_str().to_string(),
+                                value.as_str().to_string(),
                                 TokenType::Identifier,
                                 location_info,
                                 pax,
@@ -731,10 +736,10 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             ValueDefinition::Identifier(identifier_token, None)
                         }
                         _ => {
-                            unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());
+                            unreachable!("Parsing error 3342638857230: {:?}", value.as_rule());
                         }
                     };
-                    (key_token, value)
+                    (key_token, value_definition)
                 }
             }
         })
@@ -781,16 +786,16 @@ fn derive_value_definition_from_literal_object_pair(
                     setting_key_location,
                     pax,
                 );
-                let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
-                let location_info = span_to_location(&raw_value.as_span());
-                let setting_value = match raw_value.as_rule() {
+                let raw_value = pairs.peek().unwrap().as_str();
+                let value = pairs.next().unwrap().into_inner().next().unwrap();
+                let location_info = span_to_location(&value.as_span());
+                let setting_value_definition = match value.as_rule() {
                     Rule::literal_value => {
                         //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
-                        let (output_string, _) =
-                            crate::parsing::run_pratt_parser(raw_value.as_str());
+                        let (output_string, _) = crate::parsing::run_pratt_parser(value.as_str());
                         let token = Token::new_with_raw_value(
                             output_string,
-                            raw_value.as_str().to_string(),
+                            raw_value.to_string(),
                             TokenType::LiteralValue,
                             location_info,
                             pax,
@@ -800,13 +805,14 @@ fn derive_value_definition_from_literal_object_pair(
                     Rule::literal_object => {
                         ValueDefinition::Block(
                             //Recurse
-                            derive_value_definition_from_literal_object_pair(raw_value, pax),
+                            derive_value_definition_from_literal_object_pair(value, pax),
                         )
                     }
                     // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
                     Rule::expression_body => {
-                        let token = Token::new(
-                            raw_value.as_str().to_string(),
+                        let token = Token::new_with_raw_value(
+                            value.as_str().to_string(),
+                            raw_value.to_string(),
                             TokenType::Expression,
                             location_info,
                             pax,
@@ -814,11 +820,11 @@ fn derive_value_definition_from_literal_object_pair(
                         ValueDefinition::Expression(token, None)
                     }
                     _ => {
-                        unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());
+                        unreachable!("Parsing error 231453468: {:?}", value.as_rule());
                     }
                 };
 
-                (setting_key_token, setting_value)
+                (setting_key_token, setting_value_definition)
             })
             .collect(),
     }
@@ -1094,7 +1100,6 @@ pub fn assemble_component_definition(
     };
 
     parse_template_from_component_definition_string(&mut tpc, pax);
-
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {

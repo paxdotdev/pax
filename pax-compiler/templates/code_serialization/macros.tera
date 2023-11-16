@@ -1,20 +1,20 @@
 {%- macro render_control_flow_statement(cfd) -%}
     {%- if cfd.condition_expression_paxel -%}
-    if {{ "{" ~ cfd.condition_expression_paxel ~ "}" }} {
+    if {{ cfd.condition_expression_paxel.raw_value }} {
     {%- elif cfd.slot_index_expression_paxel -%}
-    slot({{ "{" ~ cfd.slot_index_expression_paxel ~ "}" }})
+    slot({{ cfd.slot_index_expression_paxel.raw_value }})
     {%- elif cfd.repeat_predicate_definition -%}
         for {% if cfd.repeat_predicate_definition.ElemId -%}
             {{cfd.repeat_predicate_definition.ElemId.raw_value}}
         {%- endif -%}
         {%- if cfd.repeat_predicate_definition.ElemIdIndexId -%}
             ({{cfd.repeat_predicate_definition.ElemIdIndexId.0.raw_value}}, {{cfd.repeat_predicate_definition.ElemIdIndexId.1.raw_value}})
-        {%- endif -%}
-    {%- endif %} in {% if cfd.repeat_source_definition.range_expression_paxel -%}
+        {%- endif %} in {% if cfd.repeat_source_definition.range_expression_paxel -%}
             {{cfd.repeat_source_definition.range_expression_paxel.raw_value}}
         {%- elif cfd.repeat_source_definition.symbolic_binding -%}
             {{cfd.repeat_source_definition.symbolic_binding.raw_value}}
         {%- endif %} {
+    {%- endif %}
 {%- endmacro -%}
 
 {%- macro render_value_definition(vd) -%}
@@ -25,7 +25,7 @@
         {{self::render_literal_block(lb=vd.Block)}}
     {%- endif -%}
     {%- if vd.Expression -%}
-        {{ "{" ~ vd.Expression.0.raw_value ~ "}" }}
+        {{ vd.Expression.0.raw_value  }}
     {%- endif -%}
     {%- if vd.Identifier -%}
         {{ vd.Identifier.0.raw_value }}
@@ -68,7 +68,7 @@
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro render_literal_block(lb) %}{%- if lb.explicit_type_pascal_identifier -%}{{lb.explicit_type_pascal_identifier.raw_value}}: {%endif-%}{
+{%- macro render_literal_block(lb) %}{%- if lb.explicit_type_pascal_identifier -%}{{lb.explicit_type_pascal_identifier.raw_value}} {%endif-%}{
     {%- for pair in lb.settings_key_value_pairs %}
         {{pair.0.raw_value}}: {{self::render_value_definition(vd=pair.1)}},
     {%- endfor %}
