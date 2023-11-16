@@ -7,7 +7,7 @@
 
 @settings {
     {%- for selector_block in settings %}
-    {{selector_block.selector.raw_value}}{{macros::render_literal_block(lb=selector_block.value_block)}},
+    {{selector_block.selector.raw_value}}{{macros::render_literal_block(lb=selector_block.value_block)}}
     {%- endfor %}
 }
 {%- endif -%}

@@ -1,6 +1,6 @@
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
-COMMENT = { ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
+COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
 
 ////// ////// //////
@@ -34,7 +34,7 @@ attribute_key_value_pair_error = { (!(attribute_key_value_pair | "/" | ">" | "<"
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
 matched_tag = {(open_tag | open_tag_error) ~ inner_nodes ~ closing_tag}
-inner_nodes = { node_inner_content | (any_tag_pair | inner_tag_error)* }
+inner_nodes = { node_inner_content | (COMMENT | any_tag_pair | inner_tag_error)* }
 inner_tag_error = {(!(any_tag_pair| "}" | ("<"~"/")  ) ~ ANY)+}
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
