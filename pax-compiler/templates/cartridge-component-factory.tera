@@ -1,7 +1,8 @@
 {% if is_main_component %}
 pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<RefCell<NodeRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
-        properties: Rc::new(RefCell::new( {{ component_properties_struct }}::default() )) as Rc<RefCell<dyn Any>>,
+        prototypical_properties_factory: Box::new(||{Rc::new(RefCell::new( {{ component_properties_struct }}::default() )) as Rc<RefCell<dyn Any>>}),
+        prototypical_common_properties_factory: Box::new(||{Rc::new(RefCell::new(CommonProperties::default()))}),
         handler_registry:  Some(Rc::new(RefCell::new({
             #[allow(unused_mut)]
             let mut handler_registry = HandlerRegistry::default();
@@ -41,7 +42,6 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
             handler_registry
         }))),
         node_registry: Rc::clone(&node_registry),
-        common_properties: Rc::new(RefCell::new(CommonProperties::default())),
         children: None,
         component_template: Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}]))),
         scroller_args: None,

@@ -30,8 +30,8 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
 
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
@@ -62,8 +62,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             scroll_y: 0.0,
             scroll_x_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
             scroll_y_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
-            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);

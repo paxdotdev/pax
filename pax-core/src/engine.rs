@@ -232,8 +232,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 instance_node: Rc::clone(&ptc.current_instance_node),
                 containing_component: ptc.current_containing_component.clone(),
 
-                computed_properties: todo!("deep clone"),// Rc::clone(&prototypical_properties),
-                computed_common_properties: todo!("deep clone"),// Rc::clone(&prototypical_common_properties),
+                computed_properties: Rc::clone(prototypical_properties),
+                computed_common_properties: Rc::clone(prototypical_common_properties),
 
                 expanded_and_flattened_slot_children: None,
                 children_expanded_nodes_set: HashSet::new(),

@@ -28,8 +28,8 @@ pub struct SlotInstance {
     pub instance_id: u32,
     // pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     // cached_computed_children: InstanceNodePtrList<R>,
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains the index value for slot, either a literal or an expression.
@@ -51,8 +51,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            instance_prototypical_common_properties: args.common_properties,
-            instance_prototypical_properties: args.properties,
+            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
@@ -78,8 +78,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
             ptc,
-            &self.instance_prototypical_properties,
-            &self.instance_prototypical_common_properties,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
         );
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 

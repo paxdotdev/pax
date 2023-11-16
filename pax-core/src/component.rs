@@ -26,8 +26,9 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
 
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
@@ -67,8 +68,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
-            instance_prototypical_common_properties: args.common_properties,
-            instance_prototypical_properties: args.properties,
+            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_properties_factory: args.prototypical_properties_factory,
             compute_properties_fn: args
                 .compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),
@@ -90,8 +91,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
             ptc,
-            &self.instance_prototypical_properties,
-            &self.instance_prototypical_common_properties,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
         );
 
         this_expanded_node

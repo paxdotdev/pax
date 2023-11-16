@@ -27,8 +27,8 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
@@ -52,8 +52,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             instance_children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
-            instance_prototypical_common_properties: args.common_properties,
-            instance_prototypical_properties: args.properties,
+            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_properties_factory: args.prototypical_properties_factory,
             handler_registry: args.handler_registry,
         }));
 
@@ -146,8 +146,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
             ptc,
-            &self.instance_prototypical_properties,
-            &self.instance_prototypical_common_properties,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
         );
 
         let id_chain = this_expanded_node.borrow().id_chain.clone();

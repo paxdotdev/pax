@@ -19,8 +19,8 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub repeated_template: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties: Rc<RefCell<dyn Any>>,
-    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
@@ -56,8 +56,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                 Some(children) => children,
             },
 
-            instance_prototypical_common_properties: args.common_properties,
-            instance_prototypical_properties: args.properties,
+            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
 
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
@@ -70,8 +70,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
             ptc,
-            &self.instance_prototypical_properties,
-            &self.instance_prototypical_common_properties,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
         );
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 

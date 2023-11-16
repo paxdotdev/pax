@@ -4702,3 +4702,15 @@ Table is nice because allocation is explicit (even though Rc does its own decent
    An ExpandedNode can traverse its ancestral tree (linked list) to collect stack frames into a singular stack through which to evaluate an expression
    Back to the originally charted approach:  can that stack be pre-calculated / cached / Rc-cloned during expansion or properties computation?
 
+
+
+
+instance_prototypical_properties_factory: Rc<RefCell<dyn Any>>,
+instance_prototypical_common_properties_factory: Rc<RefCell<CommonProperties>>,
+
+    pub prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    pub prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+
+
+
+### 
