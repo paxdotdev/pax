@@ -81,6 +81,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         ret
     }
 
+
+    fn is_invisible_to_raycasting(&self) -> bool {
+        true
+    }
+
     fn manages_own_subtree_for_expansion(&self) -> bool {
         true
     }
@@ -106,15 +111,16 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
 
         ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
 
-        for template_instance_root in self.template.borrow().iter() {
+        for child in self.template.borrow().iter() {
             let mut new_ptc = ptc.clone();
-            new_ptc.current_instance_node = Rc::clone(template_instance_root);
-            new_ptc.current_instance_id = template_instance_root.borrow().get_instance_id();
+            new_ptc.current_instance_node = Rc::clone(child);
+            new_ptc.current_instance_id = child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
-            let template_expanded_root = recurse_expand_nodes(&mut new_ptc);
+            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
             this_expanded_node
                 .borrow_mut()
-                .append_child_expanded_node(template_expanded_root);
+                .append_child_expanded_node(child_expanded_node);
         }
 
         ptc.pop_stack_frame();

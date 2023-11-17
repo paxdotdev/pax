@@ -116,6 +116,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
                 this_expanded_node
                     .borrow_mut()
                     .append_child_expanded_node(Rc::clone(child_to_forward));
+
+                child_to_forward.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+
                 ptc.engine
                     .node_registry
                     .borrow_mut()

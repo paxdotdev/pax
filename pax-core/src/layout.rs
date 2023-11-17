@@ -54,7 +54,7 @@ pub fn compute_tab<R: 'static + RenderContext>(
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
     let new_accumulated_bounds_and_current_node_size = node
         .borrow_mut()
-        .compute_size_within_bounds(container_tab.bounds);
+        .get_size_computed(container_tab.bounds);
 
     let node_transform_property_computed = {
         let node_borrowed = node.borrow();

@@ -3667,7 +3667,7 @@ we can:
 [x] introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, skew_x, skew_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...})
     [x] Refactor size: get_size to return Option<(Size, Size)>
     [x] Introduce Size#evaluate to DRY evaluation-given-bounds
-    [x] Refactor get_clipping_bounds to match type of get_size
+    [x] Refactor get_clipping_size to match type of get_size
     [x] Default-impl get_size to call self.get_common_properties and to pull out `width` and `height` (also decide based on usage whether to pass `bounds` into `get_size(bounds)`
     [x] Do the same as the above for `get_transform` — note that get_transform is currently called exactly once, so we have leeway to change the interface substantially, easily
     [x] Refactor every impl of RenderNode (primitives + component primitive) to keep some state representing common_properties, and to return an Rc::clone of it when called
@@ -4675,7 +4675,7 @@ There are two kinds of properties computation that we want to happen in the cont
     [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
     [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
 [ ] Clipping
-    [ ] Hook back up computation (e.g. `get_clipping_bounds`)
+    [ ] Hook back up computation (e.g. `get_clipping_size`)
     [ ] possibly power through to web chassis, plugging back in e2e clipping
     [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
@@ -4713,4 +4713,27 @@ instance_prototypical_common_properties_factory: Rc<RefCell<CommonProperties>>,
 
 
 
-### 
+### Filling out event handlers
+
+1. create const list of all handler types
+2. abstract `dispatch_*` in expandednode
+3. abstract `handle_*` in instancenode
+4. solve possible mismatch of properties being sent into handler
+
+In the following codegenned example:
+
+```
+handler_registry.wheel_handlers = vec![
+    |properties, ctx, args|{
+        let properties = &mut *properties.as_ref().borrow_mut();
+        if let Some(mut synthesized_self) = properties.downcast_mut::<fireworks::pax_reexports::Fireworks>() {
+            fireworks::pax_reexports::Fireworks::handle_scroll(&mut synthesized_self,ctx,args);
+        } else {panic!()}; //failed to downcast
+    },
+];
+            
+```
+
+The wrong `properties` is getting sent in.  
+Hypothesis:
+    - We should be sending in "properties for the containing component" rather than "properties for this expanded node."

@@ -99,6 +99,8 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
 
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
 
+            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);

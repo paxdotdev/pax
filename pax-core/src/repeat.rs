@@ -127,14 +127,17 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
                     new_ptc.current_instance_id =
                         repeated_template_instance_root.borrow().get_instance_id();
-                    let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+                    let child_expanded_node = crate::recurse_expand_nodes(&mut new_ptc);
                     ptc.engine
                         .node_registry
                         .borrow_mut()
-                        .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
+                        .revert_mark_for_unmount(&child_expanded_node.borrow().id_chain);
+
+                    child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+
                     this_expanded_node
                         .borrow_mut()
-                        .append_child_expanded_node(expanded_child);
+                        .append_child_expanded_node(child_expanded_node);
                 }
 
                 ptc.pop_stack_frame();

@@ -275,15 +275,12 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
-        //short-circuit fail for Group and other size-None elements.
-        //This doesn't preclude event handlers on Groups and size-None elements --
-        //it just requires the event to "bubble".  otherwise, `Component A > Component B` will
-        //never allow events to be bound to `B` — they will be vacuously intercepted by `A`
-        // if let None = self.get_size() {
-        //     return false;
-        // }
-        // todo!("hook back up vacuous hit testing");
-        //
+
+        // Don't vacuously hit for `invisible_to_raycasting` nodes
+        if self.instance_node.borrow().is_invisible_to_raycasting() {
+            return false;
+        }
+
         let inverted_transform = self.computed_tab.as_ref().unwrap().transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
@@ -294,16 +291,14 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         let relevant_bounds = self.computed_tab.as_ref().unwrap().bounds;
 
         //Default implementation: rectilinear bounding hull
-        transformed_ray.x > 0.0
+        let res = transformed_ray.x > 0.0
             && transformed_ray.y > 0.0
             && transformed_ray.x < relevant_bounds.0
-            && transformed_ray.y < relevant_bounds.1
-    }
+            && transformed_ray.y < relevant_bounds.1;
 
-    /// Used at least by ray-casting; only nodes that clip content (and thus should
-    /// not allow outside content to respond to ray-casting) should return a value
-    pub fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
-        None
+        pax_runtime_api::log(&format!("ray_cast_test:  {} for id {:?}", res, self.id_chain));
+
+        res
     }
 
     /// Returns the size of this node, or `None` if this node
@@ -312,9 +307,9 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         self.instance_node.borrow().get_size(self)
     }
 
-    /// Returns the size of this node in pixels, requiring
-    /// parent bounds for calculation of `Percent` values
-    pub fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+    /// Returns the size of this node in pixels, requiring this node's containing bounds
+    /// for calculation of `Percent` values
+    pub fn get_size_computed(&self, bounds: (f64, f64)) -> (f64, f64) {
         let size = self.get_size();
         (
             size.0.evaluate(bounds, Axis::X),
@@ -322,10 +317,16 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         )
     }
 
+    /// Used at least by ray-casting; only nodes that clip content (and thus should
+    /// not allow outside content to respond to ray-casting) should return a value
+    pub fn get_clipping_size(&self) -> Option<(Size, Size)> {
+        None
+    }
+
     /// Returns the clipping bounds of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
-    pub fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        match self.get_clipping_bounds() {
+    pub fn get_clipping_size_computed(&self, bounds: (f64, f64)) -> (f64, f64) {
+        match self.get_clipping_size() {
             None => bounds,
             Some(size_raw) => (
                 size_raw.0.evaluate(bounds, Axis::X),
@@ -699,9 +700,14 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn dispatch_wheel(&self, args_wheel: ArgsWheel) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().wheel_handlers;
+            let component_properties = if let Some(cc) = self.containing_component.as_ref() {
+                Rc::clone(&cc.borrow().get_properties())
+            } else {
+                Rc::clone(&self.get_properties())
+            };
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.get_properties()),
+                    Rc::clone(&component_properties),
                     &self.computed_node_context.clone().unwrap(),
                     args_wheel.clone(),
                 );
@@ -946,7 +952,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
-                        if let Some(_) = (*unwrapped_parent).borrow().get_clipping_bounds() {
+                        if let Some(_) = (*unwrapped_parent).borrow().get_clipping_size() {
                             ancestral_clipping_bounds_are_satisfied =
                                 (*unwrapped_parent).borrow().ray_cast_test(&ray);
                             break;
@@ -973,6 +979,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     pub fn get_focused_element(&self) -> Option<Rc<RefCell<ExpandedNode<R>>>> {
         let (x, y) = self.viewport_tab.bounds;
+
+        pax_runtime_api::log(&format!("test for element under {} {}", x, y));
 
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }

@@ -236,7 +236,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     }
 
     #[allow(unused_variables)]
-    fn get_clipping_bounds(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+    fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
         None
     }
 
@@ -250,6 +250,13 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
     /// `Repeat` and `Conditional` override `is_invisible_to_slot` to return true
     fn is_invisible_to_slot(&self) -> bool {
+        false
+    }
+
+    /// Certain elements, such as Groups and Components, are invisible to ray-casting.
+    /// Since these container elements are on top of the elements they contain,
+    /// this is needed otherwise the containers would intercept rays that should hit their contents.
+    fn is_invisible_to_raycasting(&self) -> bool {
         false
     }
 
@@ -465,13 +472,14 @@ pub fn recurse_render<R: RenderContext + 'static>(
 
     let is_viewport_culled = !&expanded_node.borrow().computed_tab.as_ref().unwrap().intersects(&rtc.engine.viewport_tab);
 
-    let clipping = expanded_node
-        .borrow_mut()
-        .compute_clipping_within_bounds(accumulated_bounds);
-    let clipping_bounds = match expanded_node.borrow_mut().get_clipping_bounds() {
-        None => None,
-        Some(_) => Some(clipping),
-    };
+    // let clipping = expanded_node
+    //     .borrow_mut()
+    //     .get_clipping_size_computed(accumulated_bounds);
+    //
+    // let clipping_bounds = match expanded_node.borrow_mut().get_clipping_size() {
+    //     None => None,
+    //     Some(_) => Some(clipping),
+    // };
 
     // let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
     //     cb

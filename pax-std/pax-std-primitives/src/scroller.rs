@@ -215,7 +215,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         Rc::clone(&self.children)
     }
 
-    fn get_clipping_bounds(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+    fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
         let comm_props = expanded_node.get_common_properties();
 
         // `ret` temp appeases borrow checker
