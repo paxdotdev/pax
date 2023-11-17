@@ -61,7 +61,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         ret
     }
 
-    fn get_clipping_bounds(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+    fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
         Some(self.get_size(expanded_node))
     }
 
@@ -158,10 +158,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             new_ptc.current_instance_node = Rc::clone(instance_child);
             new_ptc.current_instance_id = instance_child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
-            let expanded_child = recurse_expand_nodes(&mut new_ptc);
+            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
             this_expanded_node
                 .borrow_mut()
-                .append_child_expanded_node(expanded_child);
+                .append_child_expanded_node(child_expanded_node);
         }
 
         ptc.pop_clipping_stack_id();
@@ -227,4 +228,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     }
 
     fn handle_unmount(&mut self, _ptc: &mut PropertiesTreeContext<R>) {}
+
+    fn is_invisible_to_raycasting(&self) -> bool {
+        true
+    }
 }

@@ -80,5 +80,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         Layer::DontCare
     }
 
+    fn is_invisible_to_raycasting(&self) -> bool {
+        true
+    }
+
 
 }
