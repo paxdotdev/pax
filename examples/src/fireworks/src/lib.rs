@@ -15,6 +15,7 @@ const ROTATION_COEFFICIENT: f64 = 0.00010;
 impl Fireworks {
 
     pub fn handle_scroll(&mut self, ctx: &NodeContext, args: ArgsWheel) {
+        pax_lang::api::log("scroll handled");
         let old_t = self.rotation.get();
         let new_t = old_t - args.delta_y * ROTATION_COEFFICIENT;
         self.rotation.set(f64::max(0.0,new_t));

@@ -301,7 +301,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 
     /// Used at least by ray-casting; only nodes that clip content (and thus should
-    /// not allow outside content to respond to ray-casting) should return true
+    /// not allow outside content to respond to ray-casting) should return a value
     pub fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         None
     }
@@ -833,21 +833,23 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    /// Primary workhorse methods of a tick
-    /// Broadly:
-    /// 1. expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
+    /// Workhorse methods of every tick.  Will be executed up to 240 Hz.
+    /// Three phases:
+    /// 1. Expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
     ///    together parent/child relationships between ExpandedNodes along the way.
-    /// 2. compute rendering properties (z-index & TransformAndBounds) by visiting ExpandedNode tree
+    /// 2. Compute layout (z-index & TransformAndBounds) by visiting ExpandedNode tree
     ///    in rendering order, writing computed rendering-specific values to ExpandedNodes
-    /// 3. render:
+    /// 3. Render:
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
-    fn compute_properties_and_render(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
+    pub fn tick(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
 
         let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
         let mut z_index = ZIndex::new(None);
 
-        // EXPAND NODES & COMPUTE ALL PROPERTIES
+        //
+        // 1. EXPAND NODES & COMPUTE PROPERTIES
+        //
         let mut ptc = PropertiesTreeContext {
             engine: &self,
             current_containing_component: None,
@@ -866,11 +868,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
 
-
+        //
+        // 2. COMPUTE LAYOUT
+        // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
+        // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future.
+        //
         let mut z_index_gen = 0..;
-        // COMPUTE LAYOUT
-        // (Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode)
-        // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future
         recurse_compute_layout(
             &self,
             &root_expanded_node,
@@ -881,17 +884,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             &mut z_index_gen,
         );
 
-        // RENDER
-        // Generally side-effect-free aside from the rendering itself, express the current ExpandedNode tree as pixels.
+        //
+        // 3. RENDER
+        // Render as a function of the now-computed ExpandedNode tree.
+        //
         let mut rtc = RenderTreeContext {
             engine: &self,
             current_expanded_node: Rc::clone(&root_expanded_node),
             current_instance_node: Rc::clone(&root_expanded_node.borrow().instance_node),
         };
-
         recurse_render(&mut rtc, rcs, &mut z_index, false);
 
-        //reset the marked_for_unmount set
+        //Reset for next tick
         rtc.engine.node_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
         let native_render_queue = ptc.take_native_message_queue();
         native_render_queue.into()
@@ -926,7 +930,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // remove root element that is moved to top during reversal
         nodes_ordered.remove(0);
 
-        // let ray = Point {x: ray.0,y: ray.1};
         let mut ret: Option<Rc<RefCell<ExpandedNode<R>>>> = None;
         for node in nodes_ordered {
             if (*node).borrow().ray_cast_test(&ray) {
@@ -970,6 +973,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     pub fn get_focused_element(&self) -> Option<Rc<RefCell<ExpandedNode<R>>>> {
         let (x, y) = self.viewport_tab.bounds;
+
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
 
@@ -980,11 +984,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     /// Workhorse method to advance rendering and property calculation by one discrete tick
     /// Will be executed synchronously up to 240 times/second.
-    pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-        let native_render_queue = self.compute_properties_and_render(rcs);
-        self.frames_elapsed = self.frames_elapsed + 1;
-        native_render_queue
-    }
+    // pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
+    //
+    // }
 
     pub fn load_image(
         &mut self,
