@@ -149,6 +149,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
         | Rule::expression_body_error
+        | Rule::comment
         | Rule::xo_neg
         | Rule::xo_bool_not
         | Rule::xo_add
@@ -178,7 +179,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::char
         | Rule::any_tag_pair
         | Rule::WHITESPACE
-        | Rule::COMMENT
         | Rule::empty => vec![Box::new(IgnoreRule)],
     }
 }

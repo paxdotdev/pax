@@ -1,0 +1,7 @@
+/*
+Seriaization test
+Take a formatted pax file with associated manifest
+seriailize the manifest into code
+run formatter on that code
+compare diff. It should be identiical to the original file
+*/

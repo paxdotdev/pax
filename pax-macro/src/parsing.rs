@@ -154,7 +154,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
                             Rule::node_inner_content => {
                                 //literal or expression content; no pascal identifiers to worry about here
                             }
-                            Rule::COMMENT => {}
+                            Rule::comment => {}
                             _ => {
                                 unreachable!(
                                     "Parsing error 88779273: {:?}",
@@ -164,7 +164,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
                         }
                     })
                 }
-                Rule::COMMENT => {}
+                Rule::comment => {}
                 _ => {
                     unreachable!(
                         "Parsing error 45834823: {:?}",

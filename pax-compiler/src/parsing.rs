@@ -7,8 +7,8 @@ use std::ops::RangeFrom;
 
 use crate::manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
-    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, EventDefinition,
-    LiteralBlockDefinition, LocationInfo, PropertyDefinition, SettingsSelectorBlockDefinition,
+    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, HandlersBlockElement,
+    LiteralBlockDefinition, SettingElement, LocationInfo, PropertyDefinition, SettingsBlockElement,
     TemplateNodeDefinition, Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
 };
 
@@ -339,6 +339,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
             control_flow_settings: None,
             settings: None,
             pascal_identifier: "<UNREACHABLE>".to_string(),
+            raw_comment_string: None,
         },
     );
 }
@@ -357,6 +358,7 @@ struct TemplateNodeParseContext {
 pub static TYPE_ID_IF: &str = "IF";
 pub static TYPE_ID_REPEAT: &str = "REPEAT";
 pub static TYPE_ID_SLOT: &str = "SLOT";
+pub static TYPE_ID_COMMENT: &str = "COMMENT";
 
 fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
@@ -413,6 +415,7 @@ fn recurse_visit_tag_pairs_for_template(
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
+                raw_comment_string: None,
             };
             std::mem::swap(
                 ctx.template_node_definitions.get_mut(new_id).unwrap(),
@@ -434,6 +437,7 @@ fn recurse_visit_tag_pairs_for_template(
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
+                raw_comment_string: None,
             };
             std::mem::swap(
                 ctx.template_node_definitions.get_mut(new_id).unwrap(),
@@ -481,6 +485,7 @@ fn recurse_visit_tag_pairs_for_template(
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
+                        raw_comment_string: None,
                     }
                 }
                 Rule::statement_for => {
@@ -577,6 +582,7 @@ fn recurse_visit_tag_pairs_for_template(
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
+                        raw_comment_string: None,
                     }
                 }
                 Rule::statement_slot => {
@@ -611,6 +617,7 @@ fn recurse_visit_tag_pairs_for_template(
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
+                        raw_comment_string: None,
                     }
                 }
                 _ => {
@@ -623,12 +630,24 @@ fn recurse_visit_tag_pairs_for_template(
                 &mut template_node_definition,
             );
         }
+        Rule::comment => {
+            let mut template_node = TemplateNodeDefinition {
+                id: *&new_id,
+                control_flow_settings: None,
+                type_id: TYPE_ID_COMMENT.to_string(),
+                settings: None,
+                child_ids: vec![],
+                pascal_identifier: "Comment".to_string(),
+                raw_comment_string: Some(any_tag_pair.as_str().to_string()),
+            }; 
+            std::mem::swap(
+                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                &mut template_node,
+            );
+        }
         Rule::node_inner_content => {
             //For example:  `<Text>"I am inner content"</Text>`
             unimplemented!("Inner content not yet supported");
-        }
-        Rule::COMMENT => {
-            panic!("hello");
         }
         _ => {
             unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
@@ -639,8 +658,8 @@ fn recurse_visit_tag_pairs_for_template(
 fn parse_inline_attribute_from_final_pairs_of_tag(
     final_pairs_of_tag: Pairs<Rule>,
     pax: &str,
-) -> Option<Vec<(Token, ValueDefinition)>> {
-    let vec: Vec<(Token, ValueDefinition)> = final_pairs_of_tag
+) -> Option<Vec<SettingElement>> {
+    let vec: Vec<SettingElement> = final_pairs_of_tag
         .map(|attribute_key_value_pair| {
             match attribute_key_value_pair
                 .clone()
@@ -678,7 +697,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         location_info,
                         pax,
                     );
-                    (
+                    SettingElement::Setting(
                         event_id_token,
                         ValueDefinition::EventBindingTarget(literal_function_token),
                     )
@@ -739,7 +758,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             unreachable!("Parsing error 3342638857230: {:?}", value.as_rule());
                         }
                     };
-                    (key_token, value_definition)
+                    SettingElement::Setting(key_token, value_definition)
                 }
             }
         })
@@ -757,6 +776,13 @@ fn derive_value_definition_from_literal_object_pair(
     pax: &str,
 ) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
+    
+    if let None = literal_object_pairs.peek() {
+        return LiteralBlockDefinition {
+            explicit_type_pascal_identifier: None,
+            elements: vec![],
+        };
+    }
 
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
         Rule::pascal_identifier => {
@@ -775,107 +801,131 @@ fn derive_value_definition_from_literal_object_pair(
 
     LiteralBlockDefinition {
         explicit_type_pascal_identifier,
-        settings_key_value_pairs: literal_object_pairs
+        elements: literal_object_pairs
             .map(|settings_key_value_pair| {
-                let mut pairs = settings_key_value_pair.into_inner();
-                let setting_key = pairs.next().unwrap().into_inner().next().unwrap();
-                let setting_key_location = span_to_location(&setting_key.as_span());
-                let setting_key_token = Token::new(
-                    setting_key.as_str().to_string(),
-                    TokenType::SettingKey,
-                    setting_key_location,
-                    pax,
-                );
-                let raw_value = pairs.peek().unwrap().as_str();
-                let value = pairs.next().unwrap().into_inner().next().unwrap();
-                let location_info = span_to_location(&value.as_span());
-                let setting_value_definition = match value.as_rule() {
-                    Rule::literal_value => {
-                        //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
-                        let (output_string, _) = crate::parsing::run_pratt_parser(value.as_str());
-                        let token = Token::new_with_raw_value(
-                            output_string,
-                            raw_value.to_string(),
-                            TokenType::LiteralValue,
-                            location_info,
+                match settings_key_value_pair.as_rule() {
+                    Rule::settings_key_value_pair => {
+                        let mut pairs = settings_key_value_pair.into_inner();
+                        let setting_key = pairs.next().unwrap().into_inner().next().unwrap();
+                        let setting_key_location = span_to_location(&setting_key.as_span());
+                        let setting_key_token = Token::new(
+                            setting_key.as_str().to_string(),
+                            TokenType::SettingKey,
+                            setting_key_location,
                             pax,
                         );
-                        ValueDefinition::LiteralValue(token)
+                        let raw_value = pairs.peek().unwrap().as_str();
+                        let value = pairs.next().unwrap().into_inner().next().unwrap();
+                        let location_info = span_to_location(&value.as_span());
+                        let setting_value_definition = match value.as_rule() {
+                            Rule::literal_value => {
+                                //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
+                                let (output_string, _) =
+                                    crate::parsing::run_pratt_parser(value.as_str());
+                                let token = Token::new_with_raw_value(
+                                    output_string,
+                                    raw_value.to_string(),
+                                    TokenType::LiteralValue,
+                                    location_info,
+                                    pax,
+                                );
+                                ValueDefinition::LiteralValue(token)
+                            }
+                            Rule::literal_object => {
+                                ValueDefinition::Block(
+                                    //Recurse
+                                    derive_value_definition_from_literal_object_pair(value, pax),
+                                )
+                            }
+                            // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
+                            Rule::expression_body => {
+                                let token = Token::new_with_raw_value(
+                                    value.as_str().to_string(),
+                                    raw_value.to_string(),
+                                    TokenType::Expression,
+                                    location_info,
+                                    pax,
+                                );
+                                ValueDefinition::Expression(token, None)
+                            }
+                            _ => {
+                                unreachable!("Parsing error 231453468: {:?}", value.as_rule());
+                            }
+                        };
+
+                        SettingElement::Setting(setting_key_token, setting_value_definition)
                     }
-                    Rule::literal_object => {
-                        ValueDefinition::Block(
-                            //Recurse
-                            derive_value_definition_from_literal_object_pair(value, pax),
-                        )
-                    }
-                    // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
-                    Rule::expression_body => {
-                        let token = Token::new_with_raw_value(
-                            value.as_str().to_string(),
-                            raw_value.to_string(),
-                            TokenType::Expression,
-                            location_info,
-                            pax,
-                        );
-                        ValueDefinition::Expression(token, None)
+                    Rule::comment => {
+                        let comment = settings_key_value_pair.as_str().to_string();
+                        SettingElement::Comment(comment)
                     }
                     _ => {
-                        unreachable!("Parsing error 231453468: {:?}", value.as_rule());
+                        unreachable!(
+                            "Parsing error 2314314145: {:?}",
+                            settings_key_value_pair.as_rule()
+                        );
                     }
-                };
-
-                (setting_key_token, setting_value_definition)
+                }
             })
             .collect(),
     }
 }
 
-fn parse_settings_from_component_definition_string(
-    pax: &str,
-) -> Option<Vec<SettingsSelectorBlockDefinition>> {
+fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<SettingsBlockElement>> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
         .unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    let mut ret: Vec<SettingsSelectorBlockDefinition> = vec![];
+    let mut ret: Vec<SettingsBlockElement> = vec![];
 
     pax_component_definition
         .into_inner()
         .for_each(|top_level_pair| {
             match top_level_pair.as_rule() {
                 Rule::settings_block_declaration => {
-                    let selector_block_definitions: Vec<SettingsSelectorBlockDefinition> =
-                        top_level_pair
-                            .into_inner()
-                            .map(|selector_block| {
-                                //selector_block => settings_key_value_pair where v is a ValueDefinition
-                                let mut selector_block_pairs = selector_block.into_inner();
-                                //first pair is the selector itself
-                                let raw_selector = selector_block_pairs.next().unwrap();
-                                let raw_value_location = span_to_location(&raw_selector.as_span());
-                                let selector: String = raw_selector
-                                    .as_str()
-                                    .chars()
-                                    .filter(|c| !c.is_whitespace())
-                                    .collect();
-                                let token = Token::new(
-                                    selector,
-                                    TokenType::Selector,
-                                    raw_value_location,
-                                    pax,
-                                );
-                                let literal_object = selector_block_pairs.next().unwrap();
-
-                                SettingsSelectorBlockDefinition {
-                                    selector: token,
-                                    value_block: derive_value_definition_from_literal_object_pair(
-                                        literal_object,
+                    let selector_block_definitions: Vec<SettingsBlockElement> = top_level_pair
+                        .into_inner()
+                        .map(|selector_block| {
+                            match selector_block.as_rule() {
+                                Rule::selector_block => {
+                                    //selector_block => settings_key_value_pair where v is a ValueDefinition
+                                    let mut selector_block_pairs = selector_block.into_inner();
+                                    //first pair is the selector itself
+                                    let raw_selector = selector_block_pairs.next().unwrap();
+                                    let raw_value_location =
+                                        span_to_location(&raw_selector.as_span());
+                                    let selector: String = raw_selector
+                                        .as_str()
+                                        .chars()
+                                        .filter(|c| !c.is_whitespace())
+                                        .collect();
+                                    let token = Token::new(
+                                        selector,
+                                        TokenType::Selector,
+                                        raw_value_location,
                                         pax,
-                                    ),
+                                    );
+                                    let literal_object = selector_block_pairs.next().unwrap();
+
+                                    SettingsBlockElement::SelectorBlock(
+                                        token,
+                                        derive_value_definition_from_literal_object_pair(
+                                            literal_object,
+                                            pax,
+                                        ),
+                                    )
                                 }
-                            })
-                            .collect();
+                                Rule::comment => {
+                                    let comment = selector_block.as_str().to_string();
+                                    SettingsBlockElement::Comment(comment)
+                                }
+                                _ => {
+                                    unreachable!("Parsing error: {:?}", selector_block.as_rule());
+                                }
+                            }
+                        })
+                        .collect();
 
                     ret.extend(selector_block_definitions);
                 }
@@ -885,61 +935,78 @@ fn parse_settings_from_component_definition_string(
     Some(ret)
 }
 
-fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventDefinition>> {
+fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<HandlersBlockElement>> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
         .unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    let mut ret: Vec<EventDefinition> = vec![];
+    let mut ret: Vec<HandlersBlockElement> = vec![];
 
     pax_component_definition
         .into_inner()
         .for_each(|top_level_pair| match top_level_pair.as_rule() {
             Rule::handlers_block_declaration => {
-                let event_definitions: Vec<EventDefinition> = top_level_pair
+                let event_definitions: Vec<HandlersBlockElement> = top_level_pair
                     .into_inner()
-                    .map(|handlers_key_value_pair| {
-                        let mut pairs = handlers_key_value_pair.into_inner();
-                        let key = pairs.next().unwrap().into_inner().next().unwrap();
-                        let key_value = key.as_str().to_string();
-                        let key_location = span_to_location(&key.as_span());
-                        let raw_values = pairs.next().unwrap().into_inner().next().unwrap();
-                        let value = match raw_values.as_rule() {
-                            Rule::literal_function => {
-                                let raw_value = raw_values.into_inner().next().unwrap();
-                                let raw_value_location = span_to_location(&raw_value.as_span());
-                                let token = Token::new(
-                                    raw_value.as_str().to_string(),
-                                    TokenType::Handler,
-                                    raw_value_location,
-                                    pax,
-                                );
-                                vec![token]
+                    .map(
+                        |handlers_key_value_pair| match handlers_key_value_pair.as_rule() {
+                            Rule::handlers_key_value_pair => {
+                                let mut pairs = handlers_key_value_pair.into_inner();
+                                let key = pairs.next().unwrap().into_inner().next().unwrap();
+                                let key_value = key.as_str().to_string();
+                                let key_location = span_to_location(&key.as_span());
+                                let raw_values = pairs.next().unwrap().into_inner().next().unwrap();
+                                let value = match raw_values.as_rule() {
+                                    Rule::literal_function => {
+                                        let raw_value = raw_values.into_inner().next().unwrap();
+                                        let raw_value_location =
+                                            span_to_location(&raw_value.as_span());
+                                        let token = Token::new(
+                                            raw_value.as_str().to_string(),
+                                            TokenType::Handler,
+                                            raw_value_location,
+                                            pax,
+                                        );
+                                        vec![token]
+                                    }
+                                    Rule::function_list => raw_values
+                                        .into_inner()
+                                        .map(|literal_function| {
+                                            let raw_value =
+                                                literal_function.into_inner().next().unwrap();
+                                            let raw_value_location =
+                                                span_to_location(&raw_value.as_span());
+                                            let token = Token::new(
+                                                raw_value.as_str().to_string(),
+                                                TokenType::Handler,
+                                                raw_value_location,
+                                                pax,
+                                            );
+                                            token
+                                        })
+                                        .collect(),
+                                    _ => {
+                                        unreachable!("Parsing error: {:?}", raw_values.as_rule());
+                                    }
+                                };
+                                HandlersBlockElement::Handler(
+                                    Token::new(key_value, TokenType::EventId, key_location, pax),
+                                    value,
+                                )
                             }
-                            Rule::function_list => raw_values
-                                .into_inner()
-                                .map(|literal_function| {
-                                    let raw_value = literal_function.into_inner().next().unwrap();
-                                    let raw_value_location = span_to_location(&raw_value.as_span());
-                                    let token = Token::new(
-                                        raw_value.as_str().to_string(),
-                                        TokenType::Handler,
-                                        raw_value_location,
-                                        pax,
-                                    );
-                                    token
-                                })
-                                .collect(),
+                            Rule::comment => {
+                                let comment = handlers_key_value_pair.as_str().to_string();
+                                HandlersBlockElement::Comment(comment)
+                            }
                             _ => {
-                                unreachable!("Parsing error: {:?}", raw_values.as_rule());
+                                unreachable!(
+                                    "Parsing error: {:?}",
+                                    handlers_key_value_pair.as_rule()
+                                );
                             }
-                        };
-                        EventDefinition {
-                            key: Token::new(key_value, TokenType::EventId, key_location, pax),
-                            value,
-                        }
-                    })
+                        },
+                    )
                     .collect();
 
                 ret.extend(event_definitions);
@@ -1119,7 +1186,7 @@ pub fn assemble_component_definition(
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
-        events: parse_events_from_component_definition_string(pax),
+        handlers: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
     };
 
@@ -1153,7 +1220,7 @@ pub fn assemble_struct_only_component_definition(
         primitive_instance_import_path: None,
         template: None,
         settings: None,
-        events: None,
+        handlers: None,
     };
 
     (ctx, new_def)
@@ -1178,7 +1245,7 @@ pub fn assemble_primitive_definition(
         template: None,
         settings: None,
         module_path: modified_module_path,
-        events: None,
+        handlers: None,
     }
 }
 

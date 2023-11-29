@@ -38,7 +38,7 @@ impl Ord for ExpressionSpec {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
@@ -69,7 +69,7 @@ pub struct ExpressionSpec {
 /// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
 /// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ExpressionSpecInvocation {
     /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
     /// identifier itself for non-nested symbols (`foo` for `foo`)
@@ -148,8 +148,8 @@ pub struct ComponentDefinition {
     /// to store an additional import path to use when instantiating.
     pub primitive_instance_import_path: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>,
-    pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
-    pub events: Option<Vec<EventDefinition>>,
+    pub settings: Option<Vec<SettingsBlockElement>>,
+    pub handlers: Option<Vec<HandlersBlockElement>>,
 }
 
 impl ComponentDefinition {
@@ -168,6 +168,18 @@ impl ComponentDefinition {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SettingsBlockElement {
+    SelectorBlock(Token, LiteralBlockDefinition),
+    Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum HandlersBlockElement {
+    Handler(Token, Vec<Token>),
+    Comment(String),
+}
+
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 /// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
 /// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
@@ -183,9 +195,11 @@ pub struct TemplateNodeDefinition {
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
-    pub settings: Option<Vec<(Token, ValueDefinition)>>,
+    pub settings: Option<Vec<SettingElement>>,
     /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
+    /// IFF this TND is a comment node: raw comment string
+    pub raw_comment_string: Option<String>,
 }
 
 pub type TypeTable = HashMap<String, TypeDefinition>;
@@ -395,19 +409,34 @@ pub struct ControlFlowRepeatSourceDefinition {
     pub symbolic_binding: Option<Token>,
 }
 
-/// Container for parsed Settings blocks (inside `@settings`)
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SettingsSelectorBlockDefinition {
-    pub selector: Token,
-    pub value_block: LiteralBlockDefinition,
-}
-
-/// Container for a parsed
+/// Container for a parsed Literal object
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
-    pub settings_key_value_pairs: Vec<(Token, ValueDefinition)>,
+    pub elements: Vec<SettingElement>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SettingElement {
+    Setting(Token, ValueDefinition),
+    Comment(String),
+}
+
+impl LiteralBlockDefinition {
+    pub fn get_all_settings<'a>(&'a self) -> Vec<(&'a Token, &'a ValueDefinition)> {
+        self.elements
+            .iter()
+            .filter_map(|lbe| {
+                if let SettingElement::Setting(t, vd) = lbe {
+                    Some((t, vd))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
 
 /// Container for parsed values with optional location information
 /// Location is optional in case this token was generated dynamically
@@ -503,10 +532,4 @@ pub enum Number {
 pub enum Unit {
     Pixels,
     Percent,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventDefinition {
-    pub key: Token,
-    pub value: Vec<Token>,
 }

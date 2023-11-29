@@ -3,9 +3,9 @@ mod rules;
 use crate::parsing::{PaxParser, Rule};
 use color_eyre::eyre::{self, Report};
 use pest::Parser;
-use syn::visit::Visit;
 use std::fs;
 use std::path::Path;
+use syn::visit::Visit;
 use syn::{parse_file, Attribute, Lit, Meta, NestedMeta};
 
 pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
@@ -40,7 +40,7 @@ fn format_pax_file(path: &Path) -> Result<(), Report> {
 fn format_pax_in_rust_file(path: &Path) -> Result<(), Report> {
     let content = fs::read_to_string(path)?;
     let ast = parse_file(&content)?;
-    
+
     let mut finder = InlinedTemplateFinder::new();
     finder.visit_file(&ast);
 
