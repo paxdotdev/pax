@@ -1,6 +1,7 @@
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
-COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
+// Comment rule is explicit so parser doesn't accept them anywhere vs. built-ins are accepted anywhere
+comment = @{  ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
 
 ////// ////// //////
@@ -16,7 +17,7 @@ pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration |
 empty = {SOI}
 block_level_error = { (!(root_tag_pair | settings_block_declaration | handlers_block_declaration) ~ ANY)+}
 root_tag_pair = { any_tag_pair }
-any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | tag_error}
+any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment | tag_error}
 tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@handlers" | "@settings") ~ ANY)* ~ WHITESPACE* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="..."> 
@@ -34,7 +35,7 @@ attribute_key_value_pair_error = { (!(attribute_key_value_pair | "/" | ">" | "<"
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
 matched_tag = {(open_tag | open_tag_error) ~ inner_nodes ~ closing_tag}
-inner_nodes = { node_inner_content | (COMMENT | any_tag_pair | inner_tag_error)* }
+inner_nodes = { node_inner_content | (any_tag_pair | inner_tag_error)* }
 inner_tag_error = {(!(any_tag_pair| "}" | ("<"~"/")  ) ~ ANY)+}
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
@@ -76,10 +77,10 @@ char = {
 /// BEGIN SETTINGS
 //////
 
-settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (selector_block | selector_block_error)* ~ "}"}
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (selector_block | comment | selector_block_error)* ~ "}"}
 selector_block_error = {(!(WHITESPACE | "}") ~ ANY)+ ~ "}"}
 selector_block = {selector ~ literal_object}
-literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair)* ~ "}" }
+literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair | comment)* ~ "}" }
 //Describes a CSS-style selector, used for joining settings to elements
 //Note: only basic `id` and `class` syntax supported for now; could be extended
 //Example: `#some-element`
@@ -94,7 +95,7 @@ settings_value = { literal_value | literal_object | expression_wrapped }
 /// BEGIN HANDLERS
 //////
 
-handlers_block_declaration = {"@" ~ "handlers" ~ "{" ~ (handlers_key_value_pair | handler_key_value_pair_error)* ~ "}"}
+handlers_block_declaration = {"@" ~ "handlers" ~ "{" ~ (handlers_key_value_pair | comment |  handler_key_value_pair_error)* ~ "}"}
 handler_key_value_pair_error = {(!(handlers_key_value_pair | "}") ~ ANY)+}
 //Describes a key-value pair in a event handlers block;
 //keys are event names and values are functions to call
@@ -136,7 +137,7 @@ literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
 expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
 
 expression_wrapped = _{
-    "{" ~ (expression_body| expression_body_error) ~ "}"
+    "{" ~ comment? ~ (expression_body| expression_body_error) ~ "}"
 }
 
 expression_body_error = { ( !(expression_body | "}") ~ ANY) + }

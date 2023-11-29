@@ -3,26 +3,35 @@
         {{ macros::render_template_node(node_list=template, index=0) }}
 {%- endif -%}
 
-{%- if settings %}
-
+{%- if settings -%}
 @settings {
-    {%- for selector_block in settings %}
-    {{selector_block.selector.raw_value}}{{macros::render_literal_block(lb=selector_block.value_block)}}
-    {%- endfor %}
+    {%- for settings_block_element in settings -%}
+        {%- if settings_block_element.SelectorBlock -%}
+            {{settings_block_element.SelectorBlock.0.raw_value}}{{macros::render_literal_block(lb=settings_block_element.SelectorBlock.1)}}
+        {%- elif settings_block_element.Comment %}
+            {{settings_block_element.Comment}}}
+        {% endif -%}
+    {%- endfor -%}
 }
 {%- endif -%}
 
-{%- if events %}
-
+{%- if events -%}
 @handlers {
-    {%- for event in events %}
-        {{event.key.raw_value}}:
-        {%- if  event.value | length() >  1 %} [
-            {%- for handler in event.value -%}
-                {{handler.raw_value}}
-                {%- if not loop.last -%}, {% endif -%}{% endfor -%}],
-        {%- else %} {{event.value[0].raw_value}}, 
-        {%- endif -%}
-    {%- endfor %}
+    {%- for handlers_block_element in handlers -%}
+        {%- if handlers_block_element.Handler -%}
+            {{handlers_block_element.Handler.0.raw_value}}:
+            {%- if  handlers_block_element.Handler.1 | length() >  1 %} 
+                [
+                    {%- for handler in handlers_block_element.Handler.1 -%}
+                        {{handler.raw_value}} {%- if not loop.last -%},{% endif -%}
+                    {% endfor -%}
+                ],
+            {%- else -%}
+                {{handlers_block_element.Handler.1[0].raw_value}}, 
+            {%- endif -%}
+        {%- elif handlers_block_element.Comment %}
+            {{handlers_block_element.Comment}}}
+        {% endif -%}
+    {%- endfor -%}
 }
 {%- endif -%}

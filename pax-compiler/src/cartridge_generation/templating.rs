@@ -44,7 +44,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub snake_case_type_id: String,
     pub component_properties_struct: String,
     pub properties: Vec<(PropertyDefinition, String)>, //PropertyDefinition, TypeIdPascalized
-    pub events: Vec<(MappedString, Vec<MappedString>)>,
+    pub handlers: Vec<(MappedString, Vec<MappedString>)>,
     pub render_nodes_literal: String,
     pub properties_coproduct_variant: String,
 }
@@ -106,7 +106,7 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub conditional_boolean_expression_literal: MappedString,
     pub pascal_identifier: String,
     pub type_id_escaped: String,
-    pub events: Vec<(MappedString, MappedString)>,
+    pub handlers: Vec<(MappedString, MappedString)>,
 }
 
 #[allow(unused)]

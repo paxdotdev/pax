@@ -4,7 +4,7 @@
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
 use crate::helpers::{HostCrateInfo, PKG_DIR_NAME};
-use crate::manifest::{PaxManifest, Token};
+use crate::manifest::{PaxManifest, Token, HandlersBlockElement, SettingElement};
 use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
@@ -14,7 +14,7 @@ use std::fs;
 use std::str::FromStr;
 
 use crate::manifest::{
-    ComponentDefinition, EventDefinition, ExpressionSpec, LiteralBlockDefinition,
+    ComponentDefinition, ExpressionSpec, LiteralBlockDefinition,
     TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition,
 };
 
@@ -164,6 +164,11 @@ fn generate_cartridge_render_nodes_literal(
     let children_literal: Vec<String> = implicit_root
         .child_ids
         .iter()
+        .filter(|child_id| {
+            let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
+            let active_tnd = &tnd_map[**child_id];
+            active_tnd.type_id != parsing::TYPE_ID_COMMENT
+        })
         .map(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
             let active_tnd = &tnd_map[*child_id];
@@ -174,24 +179,26 @@ fn generate_cartridge_render_nodes_literal(
     children_literal.join(",")
 }
 
-fn generate_bound_events(
-    inline_settings: Option<Vec<(Token, ValueDefinition)>>,
+fn generate_bound_handlers(
+    inline_settings: Option<Vec<SettingElement>>,
     source_map: &mut SourceMap,
 ) -> Vec<(MappedString, MappedString)> {
     let mut ret: HashMap<MappedString, MappedString> = HashMap::new();
     if let Some(ref inline) = inline_settings {
-        for (key, value) in inline.iter() {
-            if let ValueDefinition::EventBindingTarget(s) = value {
-                let key_source_map_id = source_map.insert(key.clone());
-                let key_mapped_string =
-                    source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
+        for e in inline.iter() {
+            if let SettingElement::Setting(key, value ) = e {
+                if let ValueDefinition::EventBindingTarget(s) = value {
+                    let key_source_map_id = source_map.insert(key.clone());
+                    let key_mapped_string =
+                        source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
 
-                let value_source_map_id = source_map.insert(s.clone());
-                let value_mapped_string =
-                    source_map.generate_mapped_string(s.token_value.clone(), value_source_map_id);
+                    let value_source_map_id = source_map.insert(s.clone());
+                    let value_mapped_string =
+                        source_map.generate_mapped_string(s.token_value.clone(), value_source_map_id);
 
-                ret.insert(key_mapped_string, value_mapped_string);
-            };
+                    ret.insert(key_mapped_string, value_mapped_string);
+                }
+            }
         }
     };
     ret.into_iter().collect()
@@ -210,7 +217,7 @@ fn recurse_literal_block(
     let mut struct_representation = format!("\n{{ let mut ret = {}::default();", qualified_path);
 
     // Iterating through each (key, value) pair in the settings_key_value_pairs
-    for (key, value_definition) in block.settings_key_value_pairs.iter() {
+    for (key, value_definition) in block.get_all_settings().iter() {
         let fully_qualified_type = host_crate_info.import_prefix.to_string()
             + &type_definition
                 .property_definitions
@@ -246,7 +253,7 @@ fn recurse_literal_block(
                 format!(
                     "ret.{} = Box::new(PropertyExpression::new({}));",
                     key.token_value,
-                    id.expect("Tried to use expression but it wasn't compiled")
+                    id.expect(format!("Tried to use expression but it wasn't compiled: {:?} with id: {:?}",token.token_location.clone(), id.clone()).as_str())
                 )
             }
             ValueDefinition::Block(inner_block) => format!(
@@ -290,6 +297,11 @@ fn recurse_generate_render_nodes_literal(
     let children_literal: Vec<String> = tnd
         .child_ids
         .iter()
+        .filter(|child_id| {
+            let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
+            let active_tnd = &tnd_map[**child_id];
+            active_tnd.type_id != parsing::TYPE_ID_COMMENT
+        })
         .map(|child_id| {
             let active_tnd =
                 &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
@@ -298,7 +310,7 @@ fn recurse_generate_render_nodes_literal(
         .collect();
 
     //pull inline event binding and store into map
-    let events = generate_bound_events(tnd.settings.clone(), source_map);
+    let events = generate_bound_handlers(tnd.settings.clone(), source_map);
     let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
         // Repeat
         let rsd = tnd
@@ -358,7 +370,7 @@ fn recurse_generate_render_nodes_literal(
             type_id_escaped: escape_identifier(
                 rngc.active_component_definition.type_id.to_string(),
             ),
-            events,
+            handlers: events,
             repeat_source_expression_literal_vec: rse_vec,
             repeat_source_expression_literal_range: rse_range,
         }
@@ -415,7 +427,7 @@ fn recurse_generate_render_nodes_literal(
             type_id_escaped: escape_identifier(
                 rngc.active_component_definition.type_id.to_string(),
             ),
-            events,
+            handlers: events,
         }
     } else if tnd.type_id == parsing::TYPE_ID_SLOT {
         // Slot
@@ -470,7 +482,7 @@ fn recurse_generate_render_nodes_literal(
             type_id_escaped: escape_identifier(
                 rngc.active_component_definition.type_id.to_string(),
             ),
-            events,
+            handlers: events,
         }
     } else {
         //Handle anything that's not a built-in
@@ -496,52 +508,61 @@ fn recurse_generate_render_nodes_literal(
                         if let Some(merged_settings) = &tnd.settings {
                             if let Some(matched_setting) = merged_settings
                                 .iter()
-                                .find(|avd| avd.0.token_value == pd.name)
+                                .find(|avd| {
+                                    match avd {
+                                        SettingElement::Setting(key, _) => key.token_value == pd.name,
+                                        _ => false
+                                    }
+                                })
                             {
-                                let setting_source_map_id =
-                                    source_map.insert(matched_setting.0.clone());
-                                let key_mapped_string = source_map.generate_mapped_string(
-                                    matched_setting.0.token_value.clone(),
-                                    setting_source_map_id,
-                                );
+                                if let SettingElement::Setting(key, value) = matched_setting {
+                                    let setting_source_map_id =
+                                        source_map.insert(key.clone());
+                                    let key_mapped_string = source_map.generate_mapped_string(
+                                        key.token_value.clone(),
+                                        setting_source_map_id,
+                                    );
 
-                                match &matched_setting.1 {
-                                    ValueDefinition::LiteralValue(lv) => {
-                                        let value_source_map_id = source_map.insert(lv.clone());
-                                        let value_mapped_string = source_map
-                                            .generate_mapped_string(
-                                                format!("PropertyLiteral::new({})", lv.token_value),
-                                                value_source_map_id,
-                                            );
-                                        Some((key_mapped_string.clone(), value_mapped_string))
-                                    }
-                                    ValueDefinition::Expression(t, id)
-                                    | ValueDefinition::Identifier(t, id) => {
-                                        let value_source_map_id = source_map.insert(t.clone());
-                                        let value_mapped_string = source_map
-                                            .generate_mapped_string(
-                                                format!(
-                                    "PropertyExpression::new({})",
-                                    id.expect("Tried to use expression but it wasn't compiled")),
-                                                value_source_map_id,
-                                            );
-                                        Some((key_mapped_string.clone(), value_mapped_string))
-                                    }
-                                    ValueDefinition::Block(block) => Some((
-                                        key_mapped_string.clone(),
-                                        MappedString::new(format!(
-                                            "PropertyLiteral::new({})",
-                                            recurse_literal_block(
-                                                block.clone(),
-                                                pd.get_type_definition(&rngc.type_table),
-                                                host_crate_info,
-                                                source_map
-                                            )
+                                    match &value{
+                                        ValueDefinition::LiteralValue(lv) => {
+                                            let value_source_map_id = source_map.insert(lv.clone());
+                                            let value_mapped_string = source_map
+                                                .generate_mapped_string(
+                                                    format!("PropertyLiteral::new({})", lv.token_value),
+                                                    value_source_map_id,
+                                                );
+                                            Some((key_mapped_string.clone(), value_mapped_string))
+                                        }
+                                        ValueDefinition::Expression(t, id)
+                                        | ValueDefinition::Identifier(t, id) => {
+                                            let value_source_map_id = source_map.insert(t.clone());
+                                            let value_mapped_string = source_map
+                                                .generate_mapped_string(
+                                                    format!(
+                                        "PropertyExpression::new({})",
+                                        id.expect("Tried to use expression but it wasn't compiled")),
+                                                    value_source_map_id,
+                                                );
+                                            Some((key_mapped_string.clone(), value_mapped_string))
+                                        }
+                                        ValueDefinition::Block(block) => Some((
+                                            key_mapped_string.clone(),
+                                            MappedString::new(format!(
+                                                "PropertyLiteral::new({})",
+                                                recurse_literal_block(
+                                                    block.clone(),
+                                                    pd.get_type_definition(&rngc.type_table),
+                                                    host_crate_info,
+                                                    source_map
+                                                )
+                                            )),
                                         )),
-                                    )),
-                                    _ => {
-                                        panic!("Incorrect value bound to inline setting")
+                                        _ => {
+                                            panic!("Incorrect value bound to inline setting")
+                                        }
                                     }
+                                } else {
+                                    None
                                 }
                             } else {
                                 None
@@ -588,14 +609,23 @@ fn recurse_generate_render_nodes_literal(
                 if let Some(inline_settings) = &tnd.settings {
                     if let Some(matched_setting) = inline_settings
                         .iter()
-                        .find(|vd| vd.0.token_value == *identifier_and_type.0)
+                        .find(|e|
+                             {
+                                if let SettingElement::Setting(key, _) = e {
+                                    key.token_value == *identifier_and_type.0
+                                } else {
+                                    false
+                                }
+                            }
+                            )
                     {
-                        let key_source_map_id = source_map.insert(matched_setting.0.clone());
-                        let key_mapped_string = source_map.generate_mapped_string(matched_setting.0.token_value.clone(), key_source_map_id);
+                        if let SettingElement::Setting(key, value) = matched_setting {
+                        let key_source_map_id = source_map.insert(key.clone());
+                        let key_mapped_string = source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
 
                         (
                             key_mapped_string,
-                            match &matched_setting.1 {
+                            match &value {
                                 ValueDefinition::LiteralValue(lv) => {
                                     let value_source_map_id = source_map.insert(lv.clone());
                                     let mut literal_value = format!(
@@ -637,6 +667,12 @@ fn recurse_generate_render_nodes_literal(
                         )
                     }
                 } else {
+                        (
+                            MappedString::new(identifier_and_type.0.to_string()),
+                            MappedString::new(default_common_property_value(&identifier_and_type.0)),
+                        )
+                    }
+                } else {
                     (
                         MappedString::new(identifier_and_type.0.to_string()),
                         MappedString::new(default_common_property_value(&identifier_and_type.0)),
@@ -667,7 +703,7 @@ fn recurse_generate_render_nodes_literal(
             type_id_escaped: escape_identifier(
                 rngc.active_component_definition.type_id.to_string(),
             ),
-            events,
+            handlers: events,
         }
     };
 
@@ -680,16 +716,24 @@ struct RenderNodesGenerationContext<'a> {
     type_table: &'a TypeTable,
 }
 
-fn generate_events_map(
-    events: Option<Vec<EventDefinition>>,
+fn generate_handlers_map(
+    handlers: Option<Vec<HandlersBlockElement>>,
     source_map: &mut SourceMap,
 ) -> Vec<(MappedString, Vec<MappedString>)> {
     let mut ret = HashMap::new();
-    let _ = match events {
-        Some(event_list) => {
-            for e in event_list.iter() {
-                let event_values: Vec<MappedString> = e
-                    .value
+    let _ = match handlers {
+        Some(handler_elements) => {
+            let handler_pairs : Vec<(Token, Vec<Token>)> = handler_elements.iter().filter(
+                |he| match he {
+                    HandlersBlockElement::Handler(_, _) => true,
+                    _ => false,
+                })
+                .map(|he| match he {
+                    HandlersBlockElement::Handler(key, value) => (key.clone(), value.clone()),
+                    _ => unreachable!("Non-handler elements should have been filtered out")
+                }).collect();
+            for e in handler_pairs.iter() {
+                let handler_values: Vec<MappedString> = e.1
                     .clone()
                     .iter()
                     .map(|et| {
@@ -699,10 +743,10 @@ fn generate_events_map(
                         et_mapped_string
                     })
                     .collect();
-                let key_source_map_id = source_map.insert(e.key.clone());
+                let key_source_map_id = source_map.insert(e.0.clone());
                 let key_mapped_string =
-                    source_map.generate_mapped_string(e.key.token_value.clone(), key_source_map_id);
-                ret.insert(key_mapped_string, event_values);
+                    source_map.generate_mapped_string(e.0.token_value.clone(), key_source_map_id);
+                ret.insert(key_mapped_string, handler_values);
             }
         }
         _ => {}
@@ -738,7 +782,7 @@ fn generate_cartridge_component_factory_literal(
                 )
             })
             .collect(),
-        events: generate_events_map(cd.events.clone(), source_map),
+        handlers: generate_handlers_map(cd.handlers.clone(), source_map),
         render_nodes_literal: generate_cartridge_render_nodes_literal(
             &rngc,
             host_crate_info,
