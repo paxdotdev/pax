@@ -8,7 +8,7 @@ use std::ops::RangeFrom;
 use crate::manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
     ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, HandlersBlockElement,
-    LiteralBlockDefinition, SettingElement, LocationInfo, PropertyDefinition, SettingsBlockElement,
+    LiteralBlockDefinition, LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement,
     TemplateNodeDefinition, Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
 };
 
@@ -639,7 +639,7 @@ fn recurse_visit_tag_pairs_for_template(
                 child_ids: vec![],
                 pascal_identifier: "Comment".to_string(),
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
-            }; 
+            };
             std::mem::swap(
                 ctx.template_node_definitions.get_mut(new_id).unwrap(),
                 &mut template_node,
@@ -776,7 +776,7 @@ fn derive_value_definition_from_literal_object_pair(
     pax: &str,
 ) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
-    
+
     if let None = literal_object_pairs.peek() {
         return LiteralBlockDefinition {
             explicit_type_pascal_identifier: None,
@@ -959,11 +959,13 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<Handle
                                 let raw_values = pairs.next().unwrap().into_inner().next().unwrap();
                                 let value = match raw_values.as_rule() {
                                     Rule::literal_function => {
-                                        let raw_value = raw_values.into_inner().next().unwrap();
-                                        let raw_value_location =
-                                            span_to_location(&raw_value.as_span());
-                                        let token = Token::new(
-                                            raw_value.as_str().to_string(),
+                                        let raw_value =
+                                            raw_values.as_str().replace(",", "").trim().to_string();
+                                        let value = raw_values.into_inner().next().unwrap();
+                                        let raw_value_location = span_to_location(&value.as_span());
+                                        let token = Token::new_with_raw_value(
+                                            value.as_str().to_string(),
+                                            raw_value,
                                             TokenType::Handler,
                                             raw_value_location,
                                             pax,
@@ -973,12 +975,18 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<Handle
                                     Rule::function_list => raw_values
                                         .into_inner()
                                         .map(|literal_function| {
-                                            let raw_value =
+                                            let raw_value_full = literal_function
+                                                .as_str()
+                                                .replace(",", "")
+                                                .trim()
+                                                .to_string();
+                                            let value: Pair<'_, Rule> =
                                                 literal_function.into_inner().next().unwrap();
                                             let raw_value_location =
-                                                span_to_location(&raw_value.as_span());
-                                            let token = Token::new(
-                                                raw_value.as_str().to_string(),
+                                                span_to_location(&value.as_span());
+                                            let token = Token::new_with_raw_value(
+                                                value.as_str().to_string(),
+                                                raw_value_full,
                                                 TokenType::Handler,
                                                 raw_value_location,
                                                 pax,

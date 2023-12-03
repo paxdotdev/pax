@@ -13,7 +13,7 @@ extern crate core;
 
 mod building;
 mod cartridge_generation;
-mod code_serialization;
+pub mod code_serialization;
 pub mod errors;
 pub mod expressions;
 pub mod formatting;
@@ -42,7 +42,6 @@ use crate::building::{
 use crate::cartridge_generation::{
     generate_and_overwrite_cartridge, generate_and_overwrite_properties_coproduct,
 };
-use crate::code_serialization::serialization::press_code_serialization_template;
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
 

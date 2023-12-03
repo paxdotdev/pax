@@ -12,8 +12,7 @@ pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, code.as_str())?
         .next()
         .unwrap();
-    let formatted_code = rules::apply_formatting_rules(pax_component_definition);
-    Ok(formatted_code)
+    Ok(rules::format(pax_component_definition))
 }
 
 pub fn format_file(file_path: &str) -> Result<(), Report> {
