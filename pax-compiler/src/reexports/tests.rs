@@ -1,6 +1,7 @@
 use super::NamespaceTrieNode;
 use std::collections::HashMap;
 
+#[test]
 fn test_serialize_to_reexports() {
     let input_vec = vec![
         "crate::Example",
