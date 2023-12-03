@@ -7,6 +7,7 @@ const LINE_LIMIT: usize = 120;
 const INDENTATION: usize = 4;
 
 pub const PREFIX_OPERATORS: [Rule; 2] = [Rule::xo_neg, Rule::xo_bool_not];
+pub const DO_NOT_INSERT_TAB_MARKER: &str = "|-DO_NOT_INSERT_TAB-|";
 
 pub const INFIX_OPERATORS: [Rule; 16] = [
     Rule::xo_add,
@@ -37,6 +38,10 @@ pub const PRIMARY_OPERANDS: [Rule; 8] = [
     Rule::xo_literal,
     Rule::xo_symbol,
 ];
+
+pub fn format(component: Pair<Rule>) -> String {
+    apply_formatting_rules(component).replace(DO_NOT_INSERT_TAB_MARKER, "")
+}
 
 pub fn apply_formatting_rules(pair: Pair<Rule>) -> String {
     let children = pair.clone().into_inner();
@@ -139,7 +144,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::inner_tag_error
         | Rule::identifier
         | Rule::pascal_identifier
-        | Rule::string
         | Rule::selector_block_error
         | Rule::handler_key_value_pair_error
         | Rule::attribute_key_value_pair_error
@@ -180,6 +184,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::any_tag_pair
         | Rule::WHITESPACE
         | Rule::empty => vec![Box::new(IgnoreRule)],
+
+        Rule::string => vec![Box::new(DoNotIndentRule)],
     }
 }
 
@@ -392,7 +398,7 @@ impl FormattingRule for SelectorBlockDefaultRule {
 struct RemoveWhitespaceRule;
 
 impl FormattingRule for RemoveWhitespaceRule {
-    fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String {
+    fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
         let trim_node: String = node
             .as_str()
             .chars()
@@ -833,6 +839,24 @@ impl FormattingRule for WrapExpressionRule {
     }
 }
 
+#[derive(Clone)]
+struct DoNotIndentRule;
+
+impl FormattingRule for DoNotIndentRule {
+    fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
+        let value: String = node.as_str().trim().to_string();
+        let mut formatted_value = Vec::new();
+        for (i, line) in value.lines().enumerate() {
+            let mut line_str = line.to_string();
+            if i > 0 {
+                line_str.insert_str(0, DO_NOT_INSERT_TAB_MARKER);
+            }
+            formatted_value.push(line_str);
+        }
+        formatted_value.join("\n")
+    }
+}
+
 fn is_prefix(child: &Child) -> bool {
     PREFIX_OPERATORS.contains(&child.node_type)
 }
@@ -903,7 +927,9 @@ fn n_indentation_string(n: usize) -> String {
 pub fn indent_every_line_of_string(string: String) -> String {
     let mut result = String::new();
     for line in string.lines() {
-        result.push_str(&n_indentation_string(1));
+        if !line.contains(DO_NOT_INSERT_TAB_MARKER) {
+            result.push_str(&n_indentation_string(1));
+        }
         result.push_str(line);
         result.push_str("\n");
     }

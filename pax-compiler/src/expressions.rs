@@ -10,7 +10,7 @@ use std::slice::IterMut;
 use crate::errors::source_map::SourceMap;
 use crate::errors::PaxTemplateError;
 use crate::manifest::{
-    SettingElement, PropertyDefinitionFlags, SettingsBlockElement, Token, TypeDefinition, TypeTable,
+    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, Token, TypeDefinition, TypeTable,
 };
 use crate::parsing::escape_identifier;
 use color_eyre::eyre;
@@ -85,14 +85,10 @@ fn pull_matched_identifiers_from_inline(
 ) -> Vec<Token> {
     let mut ret = Vec::new();
     if let Some(val) = inline_settings {
-        let matched_settings = val.iter().filter(
-            |e| {
-                match e {
-                    SettingElement::Setting(token, _) => token.token_value == s.as_str(),
-                    _ => false,
-                }
-            }
-        );
+        let matched_settings = val.iter().filter(|e| match e {
+            SettingElement::Setting(token, _) => token.token_value == s.as_str(),
+            _ => false,
+        });
         for e in matched_settings {
             if let SettingElement::Setting(_, value) = e {
                 match value {
@@ -222,7 +218,8 @@ fn recurse_compile_literal_block<'a>(
                 ValueDefinition::Expression(input, manifest_id) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                     let id = ctx.uid_gen.next().unwrap();
-                    let (output_statement, invocations) = compile_paxel_to_ril(input.clone(), &ctx)?;
+                    let (output_statement, invocations) =
+                        compile_paxel_to_ril(input.clone(), &ctx)?;
 
                     let pascalized_return_type = if let Some(type_string) = BUILTIN_TYPES
                         .iter()

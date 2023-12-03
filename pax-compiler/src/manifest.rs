@@ -437,7 +437,6 @@ impl LiteralBlockDefinition {
     }
 }
 
-
 /// Container for parsed values with optional location information
 /// Location is optional in case this token was generated dynamically
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

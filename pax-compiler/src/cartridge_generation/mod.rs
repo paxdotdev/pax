@@ -4,7 +4,7 @@
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
 use crate::helpers::{HostCrateInfo, PKG_DIR_NAME};
-use crate::manifest::{PaxManifest, Token, HandlersBlockElement, SettingElement};
+use crate::manifest::{HandlersBlockElement, PaxManifest, SettingElement, Token};
 use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
@@ -14,8 +14,8 @@ use std::fs;
 use std::str::FromStr;
 
 use crate::manifest::{
-    ComponentDefinition, ExpressionSpec, LiteralBlockDefinition,
-    TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition,
+    ComponentDefinition, ExpressionSpec, LiteralBlockDefinition, TemplateNodeDefinition,
+    TypeDefinition, TypeTable, ValueDefinition,
 };
 
 use crate::errors::source_map::SourceMap;
@@ -186,15 +186,15 @@ fn generate_bound_handlers(
     let mut ret: HashMap<MappedString, MappedString> = HashMap::new();
     if let Some(ref inline) = inline_settings {
         for e in inline.iter() {
-            if let SettingElement::Setting(key, value ) = e {
+            if let SettingElement::Setting(key, value) = e {
                 if let ValueDefinition::EventBindingTarget(s) = value {
                     let key_source_map_id = source_map.insert(key.clone());
-                    let key_mapped_string =
-                        source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
+                    let key_mapped_string = source_map
+                        .generate_mapped_string(key.token_value.clone(), key_source_map_id);
 
                     let value_source_map_id = source_map.insert(s.clone());
-                    let value_mapped_string =
-                        source_map.generate_mapped_string(s.token_value.clone(), value_source_map_id);
+                    let value_mapped_string = source_map
+                        .generate_mapped_string(s.token_value.clone(), value_source_map_id);
 
                     ret.insert(key_mapped_string, value_mapped_string);
                 }
@@ -253,7 +253,14 @@ fn recurse_literal_block(
                 format!(
                     "ret.{} = Box::new(PropertyExpression::new({}));",
                     key.token_value,
-                    id.expect(format!("Tried to use expression but it wasn't compiled: {:?} with id: {:?}",token.token_location.clone(), id.clone()).as_str())
+                    id.expect(
+                        format!(
+                            "Tried to use expression but it wasn't compiled: {:?} with id: {:?}",
+                            token.token_location.clone(),
+                            id.clone()
+                        )
+                        .as_str()
+                    )
                 )
             }
             ValueDefinition::Block(inner_block) => format!(
@@ -723,26 +730,28 @@ fn generate_handlers_map(
     let mut ret = HashMap::new();
     let _ = match handlers {
         Some(handler_elements) => {
-            let handler_pairs : Vec<(Token, Vec<Token>)> = handler_elements.iter().filter(
-                |he| match he {
+            let handler_pairs: Vec<(Token, Vec<Token>)> = handler_elements
+                .iter()
+                .filter(|he| match he {
                     HandlersBlockElement::Handler(_, _) => true,
                     _ => false,
                 })
                 .map(|he| match he {
                     HandlersBlockElement::Handler(key, value) => (key.clone(), value.clone()),
-                    _ => unreachable!("Non-handler elements should have been filtered out")
-                }).collect();
+                    _ => unreachable!("Non-handler elements should have been filtered out"),
+                })
+                .collect();
             for e in handler_pairs.iter() {
-                let handler_values: Vec<MappedString> = e.1
-                    .clone()
-                    .iter()
-                    .map(|et| {
-                        let et_source_map_id = source_map.insert(et.clone());
-                        let et_mapped_string = source_map
-                            .generate_mapped_string(et.token_value.clone(), et_source_map_id);
-                        et_mapped_string
-                    })
-                    .collect();
+                let handler_values: Vec<MappedString> =
+                    e.1.clone()
+                        .iter()
+                        .map(|et| {
+                            let et_source_map_id = source_map.insert(et.clone());
+                            let et_mapped_string = source_map
+                                .generate_mapped_string(et.token_value.clone(), et_source_map_id);
+                            et_mapped_string
+                        })
+                        .collect();
                 let key_source_map_id = source_map.insert(e.0.clone());
                 let key_mapped_string =
                     source_map.generate_mapped_string(e.0.token_value.clone(), key_source_map_id);
