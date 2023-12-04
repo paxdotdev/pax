@@ -4614,10 +4614,7 @@ we can map this data into imperative Rust if/else if/else statements, like we do
 [x] unit tests for unsafe macros
     [x] draft as examples
     [x] vnext as stand-alone tests, create -> mutate -> assert flows
-[ ] Milestones via examples
-    [x] Get `one-rect` running correctly + Group
-    [ ] Get `fireworks` running correctly + event handlers
-    [ ] Get `color-grid` running correctly
+
 
 
 ### `tab` and slot children
@@ -4646,41 +4643,6 @@ There are two kinds of properties computation that we want to happen in the cont
  Perhaps the very cleanest approach is to have a separate `compute_rendering_properties` pass, specifically for z-index and
  TransformAndBounds, which fires after recurse_compute_properties, which visits ExpandedNodes in render order, and which caches these values onto ExpandedNodes.
  This method could be called tactically on sub-trees in a more optimized world, e.g. after an insertion
-
-
-
-### Refreshing TODOs as of Nov 14 2023
-
-[ ] Manual testing 
-    [ ] all of the examples    
-    [ ] Test some of the broken code from userland, e.g. `pax_gol`
-    [ ] Drum up some examples that push the limits of "every property now has its own persistent home", e.g. nesting Stackers, `for` and more.
-    [ ] Clipping
-    [ ] Scrolling
-[ ] Native patches
-      [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
-      [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
-      [ ] Refactor and hook back up patches
-[ ] `pax-std`: plug back in, update remaining primitives, test
-[ ] Sizing & layout
-    [ ] Move `compute_tab` back to render pass, to solve slot transposition + ancestral bounds
-    [ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
-        [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
-            [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
-                ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
-        [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
-[ ] Refactor scroller
-    [ ] Make instance node stateless
-    [ ] Handle instantiation args => PropertiesCoproduct; remove ScrollerArgs
-    [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
-    [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
-[ ] Clipping
-    [ ] Hook back up computation (e.g. `get_clipping_size`)
-    [ ] possibly power through to web chassis, plugging back in e2e clipping
-    [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
-[ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
-    [ ] Ensure clean distinction between "a z-index for every element" vs. a "layer id"
-
 
 
 ### ExpandedNodes and StackFrames
@@ -4736,4 +4698,48 @@ handler_registry.wheel_handlers = vec![
 
 The wrong `properties` is getting sent in.  
 Hypothesis:
-    - We should be sending in "properties for the containing component" rather than "properties for this expanded node."
+- We should be sending in "properties for the containing component" rather than "properties for this expanded node."
+  Tried the above, no dice
+- Simple logical error in how nodes are being attached to each other
+
+
+
+### Refreshing TODOs as of Nov 14 2023
+
+[ ] Manual testing - examples as milestones
+    [x] Get `one-rect` running correctly + Group
+    [ ] Get `fireworks` running correctly + event handlers
+    [ ] Get `color-grid` running correctly
+[ ] Native patches
+      [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
+      [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+      [ ] Refactor and hook back up patches
+[ ] `pax-std`: plug back in, update remaining primitives, test
+[ ] Sizing & layout
+    [ ] Move `compute_tab` back to render pass, to solve slot transposition + ancestral bounds
+    [ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
+        [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
+            [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None
+                ^ this could be tackled with `is_invisible_to_ray_casting`, alongside `is_invisible_to_slot` (also decide whether we should negate => `visible`)
+        [ ] or introduce a new instance-level distinction for whether `is_sized() -> bool`, for example
+[ ] Refactor scroller
+    [ ] Make instance node stateless
+    [ ] Handle instantiation args => PropertiesCoproduct; remove ScrollerArgs
+    [ ] Untangle instantiation args (dyn PropertyInstance) from stateful properties on ScrollerInstance
+    [ ] Manage reset / offset transform calculation (formerly: `transform_scroller_reset`.
+[ ] Clipping
+    [ ] Hook back up computation (e.g. `get_clipping_size`)
+    [ ] possibly power through to web chassis, plugging back in e2e clipping
+    [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
+[ ] Occlusion
+    [ ] Hook back up "contiguous layer id" (nee z-index) — probably rename to `LayerIndex` instead of `ZIndex`
+[x] Make sure element-level z-indexing is working correctly (incremented on pre-order)
+[ ] Events
+    [ ] Abstract and macro-ize 
+    [ ] Add remaining event handlers default impls to `trait InstanceNode`
+    [ ] Resolve correct properties type to pass into event handler `synthetic self`
+[ ] Dev tooling
+    [ ] Debuggability; assess in light of latest .pax/pkg paradigm (or in dynamic linking paradigm)
+    [ ] Print instance / expanded trees and relevant metadata (can use for both debugging & unit tests)
+
+
