@@ -715,10 +715,11 @@ impl FormattingRule for ObjectDefaultRule {
             .filter(|child| {
                 child.node_type == Rule::xo_object_settings_key_value_pair
                     || child.node_type == Rule::settings_key_value_pair
+                    || child.node_type == Rule::comment
             })
             .map(|child| child.formatted_node.clone())
             .collect::<Vec<String>>()
-            .join(",\n");
+            .join("\n");
         let indented_settings_pairs = indent_every_line_of_string(settings_pairs);
         formatted_node
             .push_str(format!("{}{{\n{}\n}}", pascal_identifier, indented_settings_pairs).as_str());
