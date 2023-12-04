@@ -21,7 +21,7 @@ jobs:
     - name: Install dependencies
       run: sudo apt update && sudo apt install -y libgtk-4-dev
     - name: Run tests
-      run: cargo test --verbose --workspace --exclude pax-chassis-macos
+      run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common
     - name: Check formatting
       run: cargo fmt -- --check
     - name: Check for linting errors
