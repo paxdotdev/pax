@@ -146,39 +146,49 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
                     pkg, pax_version
                 ));
 
-                let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
+                if resp.status().is_success() {
+                    let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
 
-                // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
-                let cursor = std::io::Cursor::new(&tarball_bytes[..]);
+                    // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
+                    let cursor = std::io::Cursor::new(&tarball_bytes[..]);
 
-                // Create a GzDecoder to handle the gzip layer.
-                let gz = GzDecoder::new(cursor);
+                    // Create a GzDecoder to handle the gzip layer.
+                    let gz = GzDecoder::new(cursor);
 
-                // Pass the GzDecoder to tar::Archive.
-                let mut archive = Archive::new(gz);
-                // Iterate over the entries in the archive and modify the paths before extracting.
-                for entry_result in archive.entries().expect("Failed to read entries") {
-                    let mut entry = entry_result.expect("Failed to read entry");
-                    let path = match entry
-                        .path()
-                        .expect("Failed to get path")
-                        .components()
-                        .skip(1)
-                        .collect::<PathBuf>()
-                        .as_path()
-                        .to_owned()
-                    {
-                        path if path.to_string_lossy() == "" => continue, // Skip the root folder
-                        path => dest.join(path),
-                    };
-                    if entry.header().entry_type().is_dir() {
-                        fs::create_dir_all(&path).expect("Failed to create directory");
-                    } else {
-                        if let Some(parent) = path.parent() {
-                            fs::create_dir_all(&parent).expect("Failed to create parent directory");
+                    // Pass the GzDecoder to tar::Archive.
+                    let mut archive = Archive::new(gz);
+                    // Iterate over the entries in the archive and modify the paths before extracting.
+                    for entry_result in archive.entries().expect("Failed to read entries") {
+                        let mut entry = entry_result.expect("Failed to read entry");
+                        let path = match entry
+                            .path()
+                            .expect("Failed to get path")
+                            .components()
+                            .skip(1)
+                            .collect::<PathBuf>()
+                            .as_path()
+                            .to_owned()
+                        {
+                            path if path.to_string_lossy() == "" => continue, // Skip the root folder
+                            path => dest.join(path),
+                        };
+                        if entry.header().entry_type().is_dir() {
+                            fs::create_dir_all(&path).expect("Failed to create directory");
+                        } else {
+                            if let Some(parent) = path.parent() {
+                                fs::create_dir_all(&parent)
+                                    .expect("Failed to create parent directory");
+                            }
+                            entry.unpack(&path).expect("Failed to unpack file");
                         }
-                        entry.unpack(&path).expect("Failed to unpack file");
                     }
+                } else {
+                    eprintln!(
+                        "Failed to download tarball for {} at version {}. Status: {}",
+                        pkg,
+                        pax_version,
+                        resp.status()
+                    );
                 }
             }
         }
