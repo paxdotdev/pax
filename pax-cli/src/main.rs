@@ -121,6 +121,7 @@ fn main() -> Result<(), Report> {
         .subcommand(
             App::new("format")
                 .about("Format a Pax File")
+                .alias("fmt")
                 .arg(Arg::with_name("file")
                     .help("File to format. If not provided with --file, it should directly follow 'format'")
                     .takes_value(true)
@@ -243,7 +244,7 @@ fn perform_nominal_action(
         }
         ("format", Some(args)) => {
             let file = args.value_of("file").unwrap().to_string();
-            // current directory 
+            // current directory
             let path = std::env::current_dir().unwrap();
             let file_path = path.join(file);
 

@@ -1981,6 +1981,7 @@ dependencies = [
  "pest",
  "pest_derive",
  "portpicker",
+ "proc-macro2",
  "rand",
  "regex",
  "reqwest",
