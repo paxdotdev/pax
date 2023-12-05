@@ -12,11 +12,16 @@ use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, Interpolatable, Layer, Numeric, Rotation, NodeContext, Size, Transform2D,
+    CommonProperties, Interpolatable, Layer, NodeContext, Numeric, Rotation, Size, Transform2D,
     TransitionManager, ZIndex,
 };
 
-use crate::{recurse_expand_nodes, Affine, ComponentInstance, ComputableTransform, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeType, PropertiesTreeContext, PropertiesTreeShared, RuntimePropertiesStackFrame, TransformAndBounds, handle_vtable_update, handle_vtable_update_optional, RenderTreeContext, recurse_compute_layout, recurse_render};
+use crate::{
+    handle_vtable_update, handle_vtable_update_optional, recurse_compute_layout,
+    recurse_expand_nodes, recurse_render, Affine, ComponentInstance, ComputableTransform,
+    ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeType, PropertiesTreeContext,
+    PropertiesTreeShared, RenderTreeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+};
 
 /// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine<R: 'static + RenderContext> {
@@ -275,7 +280,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
-
         // Don't vacuously hit for `invisible_to_raycasting` nodes
         if self.instance_node.borrow().is_invisible_to_raycasting() {
             return false;
@@ -296,7 +300,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             && transformed_ray.x < relevant_bounds.0
             && transformed_ray.y < relevant_bounds.1;
 
-        pax_runtime_api::log(&format!("ray_cast_test:  {} for id {:?}", res, self.id_chain));
+        /*pax_runtime_api::log(&format!(
+            "ray_cast_test:  {} for id {:?}",
+            res, self.id_chain
+        ));*/
 
         res
     }
@@ -698,11 +705,18 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 
     pub fn dispatch_wheel(&self, args_wheel: ArgsWheel) {
+        pax_runtime_api::log(&format!("dispatch_wheel"));
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            pax_runtime_api::log(&format!("has registry"));
             let handlers = &(*registry).borrow().wheel_handlers;
+            // containing_component populated during expansion, populated incorrectly?
+            // create dispatch macro
             let component_properties = if let Some(cc) = self.containing_component.as_ref() {
+                pax_runtime_api::log(&format!("has parent"));
                 Rc::clone(&cc.borrow().get_properties())
+                //is this else triggered?
             } else {
+                pax_runtime_api::log(&format!("NO parent"));
                 Rc::clone(&self.get_properties())
             };
             handlers.iter().for_each(|handler| {
@@ -712,6 +726,8 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                     args_wheel.clone(),
                 );
             });
+        } else {
+            pax_runtime_api::log(&format!("no registry"));
         }
 
         if let Some(parent) = &self.parent_expanded_node {
@@ -777,7 +793,11 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     /// Returns ExpandedNodes ordered by z-index descending; used at least by ray casting
     pub fn get_expanded_nodes_sorted_by_z_index_desc(&self) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
         let mut values: Vec<_> = self.expanded_node_map.values().cloned().collect();
-        values.sort_by(|a, b| b.borrow().computed_z_index.cmp(&a.borrow().computed_z_index));
+        values.sort_by(|a, b| {
+            b.borrow()
+                .computed_z_index
+                .cmp(&a.borrow().computed_z_index)
+        });
         values
     }
 
@@ -849,7 +869,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-
         let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
         let mut z_index = ZIndex::new(None);
 
