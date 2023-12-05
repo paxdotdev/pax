@@ -1,7 +1,12 @@
-use crate::{ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds};
+use crate::{
+    ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList,
+    NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds,
+};
 use kurbo::Affine;
 use pax_message::NativeMessage;
-use pax_runtime_api::{Interpolatable, Numeric, Rotation, NodeContext, Size, Timeline, Transform2D, TransitionManager};
+use pax_runtime_api::{
+    Interpolatable, NodeContext, Numeric, Rotation, Size, Timeline, Transform2D, TransitionManager,
+};
 use piet::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
@@ -26,10 +31,16 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     let node_type = this_instance_node.borrow_mut().get_node_type().clone();
 
     let this_expanded_node = this_instance_node
-            .borrow_mut()
-            .expand_node_and_compute_properties(ptc);
+        .borrow_mut()
+        .expand_node_and_compute_properties(ptc);
+
+    let parent = ptc
+        .current_containing_component
+        .as_ref()
+        .map(|v| Rc::clone(&v));
 
     if matches!(node_type, NodeType::Component) {
+        //pax_runtime_api::log("is_component");
         ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
     }
 
@@ -72,11 +83,8 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
 
     // Compute common properties
-    let common_properties = Rc::clone(&this_expanded_node
-        .borrow_mut()
-        .get_common_properties());
-    common_properties.borrow_mut()
-        .compute_properties(ptc);
+    let common_properties = Rc::clone(&this_expanded_node.borrow_mut().get_common_properties());
+    common_properties.borrow_mut().compute_properties(ptc);
 
     // Some nodes must manage their own properties computation recursion, e.g. Repeat and Conditional.
     // The following logic is for default nodes, which don't perform such overrides.
@@ -99,7 +107,8 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
 
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
 
-            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+            child_expanded_node.borrow_mut().parent_expanded_node =
+                Some(Rc::downgrade(&this_expanded_node));
 
             this_expanded_node
                 .borrow_mut()
@@ -121,6 +130,10 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
 
     // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);
+
+    if matches!(node_type, NodeType::Component) {
+        ptc.current_containing_component = parent;
+    }
     this_expanded_node
 }
 
@@ -251,9 +264,6 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
 }
 
 impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
-
-
-
     pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         self.runtime_properties_stack.clone()
     }
@@ -356,9 +366,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         let len = *&self.runtime_properties_stack.len();
         if len > 0 {
-            Some(Rc::clone(
-                &self.runtime_properties_stack[len - 1],
-            ))
+            Some(Rc::clone(&self.runtime_properties_stack[len - 1]))
         } else {
             None
         }
@@ -375,10 +383,9 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     pub fn push_stack_frame(&mut self, properties: Rc<RefCell<dyn Any>>) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::clone);
 
-        self.runtime_properties_stack
-            .push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
-                properties, parent,
-            ))));
+        self.runtime_properties_stack.push(Rc::new(RefCell::new(
+            RuntimePropertiesStackFrame::new(properties, parent),
+        )));
     }
 
     /// Get an `id_chain` for this element, a `Vec<u64>` used collectively as a single unique ID across native bridges.
@@ -401,7 +408,12 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
         if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
             let expanded_node = &self.current_expanded_node.as_ref().unwrap().borrow();
             // pax_runtime_api::log(&format!("Computing vtable for id_chain: {:?}", &expanded_node.id_chain));
-            let stack_frame = Rc::clone(expanded_node.runtime_properties_stack.get(expanded_node.runtime_properties_stack.len() - 1).unwrap());
+            let stack_frame = Rc::clone(
+                expanded_node
+                    .runtime_properties_stack
+                    .get(expanded_node.runtime_properties_stack.len() - 1)
+                    .unwrap(),
+            );
 
             let ec = ExpressionContext {
                 engine: self.engine,
@@ -456,9 +468,7 @@ impl RuntimePropertiesStackFrame {
         if new_depth == n {
             return Some(parent.clone());
         }
-        (*parent.clone())
-            .borrow()
-            .recurse_peek_nth(n, new_depth)
+        (*parent.clone()).borrow().recurse_peek_nth(n, new_depth)
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {
