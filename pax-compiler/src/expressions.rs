@@ -250,11 +250,6 @@ fn recurse_compile_literal_block<'a>(
                     let input_statement =
                         source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
-                    if let Some(l) = input.token_location.clone() {
-                        if l.start_line_col.0 == 109 {
-                            println!("{:?} has id {:?}", input, id.clone());
-                        }
-                    }
                     ctx.expression_specs.insert(
                         id,
                         ExpressionSpec {
