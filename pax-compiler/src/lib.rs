@@ -12,9 +12,11 @@
 extern crate core;
 
 mod building;
-mod code_generation;
+mod cartridge_generation;
+pub mod code_serialization;
 pub mod errors;
 pub mod expressions;
+pub mod formatting;
 mod helpers;
 pub mod manifest;
 pub mod parsing;
@@ -25,7 +27,6 @@ use color_eyre::eyre::Report;
 use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
-use include_dir::{include_dir, Dir};
 use manifest::PaxManifest;
 use std::fs;
 use std::io::Write;
@@ -38,7 +39,7 @@ use crate::building::{
     build_chassis_with_cartridge, clone_all_to_pkg_dir, update_property_prefixes_in_place,
 };
 
-use crate::code_generation::{
+use crate::cartridge_generation::{
     generate_and_overwrite_cartridge, generate_and_overwrite_properties_coproduct,
 };
 use crate::errors::source_map::SourceMap;
@@ -53,9 +54,6 @@ use crate::helpers::{
     update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME,
     PAX_CREATE_TEMPLATE,
 };
-
-#[allow(unused)]
-static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 pub struct RunContext {
     pub target: RunTarget,
@@ -117,6 +115,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
     let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest: PaxManifest =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
