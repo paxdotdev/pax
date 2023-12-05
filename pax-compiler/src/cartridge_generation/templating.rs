@@ -8,7 +8,7 @@ use tera::{Context, Tera};
 
 use crate::manifest::{ExpressionSpec, PropertyDefinition};
 
-static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
+static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenPropertiesCoproductLib {
@@ -44,7 +44,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub snake_case_type_id: String,
     pub component_properties_struct: String,
     pub properties: Vec<(PropertyDefinition, String)>, //PropertyDefinition, TypeIdPascalized
-    pub events: Vec<(MappedString, Vec<MappedString>)>,
+    pub handlers: Vec<(MappedString, Vec<MappedString>)>,
     pub render_nodes_literal: String,
     pub properties_coproduct_variant: String,
 }
@@ -106,12 +106,12 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub conditional_boolean_expression_literal: MappedString,
     pub pascal_identifier: String,
     pub type_id_escaped: String,
-    pub events: Vec<(MappedString, MappedString)>,
+    pub handlers: Vec<(MappedString, MappedString)>,
 }
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB: &str =
-    include_str!("../../templates/properties-coproduct-lib.tera");
+    include_str!("../../templates/cartridge_generation/properties-coproduct-lib.tera");
 pub fn press_template_codegen_properties_coproduct_lib(
     args: TemplateArgsCodegenPropertiesCoproductLib,
 ) -> String {
@@ -129,7 +129,8 @@ pub fn press_template_codegen_properties_coproduct_lib(
 }
 
 #[allow(unused)]
-static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str = include_str!("../../templates/cartridge-lib.tera");
+static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str =
+    include_str!("../../templates/cartridge_generation/cartridge-lib.tera");
 pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib) -> String {
     let template = TEMPLATE_DIR
         .get_file("cartridge-lib.tera")
@@ -146,7 +147,7 @@ pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLi
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_COMPONENT_FACTORY: &str =
-    include_str!("../../templates/cartridge-component-factory.tera");
+    include_str!("../../templates/cartridge_generation/cartridge-component-factory.tera");
 pub fn press_template_codegen_cartridge_component_factory(
     args: TemplateArgsCodegenCartridgeComponentFactory,
 ) -> String {
@@ -165,7 +166,7 @@ pub fn press_template_codegen_cartridge_component_factory(
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_RENDER_NODE_LITERAL: &str =
-    include_str!("../../templates/cartridge-render-node-literal.tera");
+    include_str!("../../templates/cartridge_generation/cartridge-render-node-literal.tera");
 pub fn press_template_codegen_cartridge_render_node_literal(
     args: TemplateArgsCodegenCartridgeRenderNodeLiteral,
 ) -> String {

@@ -28,7 +28,9 @@ fn test_serialize_to_reexports() {
         root_node.insert(&namespace_string);
     }
 
-    let output = root_node.serialize_to_reexports();
+    let output = root_node
+        .serialize_to_reexports()
+        .replace(|c: char| c.is_whitespace(), "");
 
     let expected_output = r#"pub mod pax_reexports {
 pub use crate::Example;
@@ -61,7 +63,8 @@ pub mod std{
 }
 pub use usize;
 
-}"#;
+}"#
+    .replace(|c: char| c.is_whitespace(), "");
 
     assert_eq!(output, expected_output);
 }

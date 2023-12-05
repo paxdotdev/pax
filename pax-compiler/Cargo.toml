@@ -61,3 +61,5 @@ log = "0.4"
 regex = "1"
 cargo_metadata = "0.18.1"
 color-eyre = "0.6.2"
+syn = { version = "1.0", features = ["full", "parsing", "visit"] }
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
