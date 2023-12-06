@@ -8,6 +8,7 @@ default-run = "run"
 pax-lang = { version="VERSION_PLACEHOLDER" }
 pax-std = { version="VERSION_PLACEHOLDER" }
 pax-compiler = {version = "VERSION_PLACEHOLDER", optional = true}
+pax-manifest = { version="VERSION_PLACEHOLDER" }
 serde_json = {version = "1.0.95", optional = true}
 
 [[bin]]

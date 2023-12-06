@@ -2177,6 +2177,7 @@ dependencies = [
  "lazy_static",
  "pax-compiler 0.10.7",
  "pax-lang",
+ "pax-manifest",
  "pax-message 0.10.7",
  "pax-runtime-api 0.10.7",
  "piet",
