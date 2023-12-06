@@ -10,7 +10,7 @@ use pax_core::{
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
 
-use pax_runtime_api::CommonProperties;
+use pax_runtime_api::{CommonProperties, Size};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -21,8 +21,9 @@ pub struct RectangleInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_id: u32,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
@@ -43,7 +44,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
         let ret = Rc::new(RefCell::new(RectangleInstance {
             instance_id,
             handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
 
@@ -92,6 +94,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
         this_expanded_node
     }
 
+    fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+        Some(self.get_size(expanded_node))
+    }
+
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = &expanded_node.computed_tab.as_ref().unwrap();
@@ -106,7 +112,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
             &properties_wrapped,
             Rectangle,
             |properties: &mut Rectangle| {
-
                 let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
                 let bez_path = rect.to_path(0.1);
 
@@ -147,5 +152,26 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
                 }
             }
         );
+    }
+
+    fn is_invisible_to_raycasting(&self) -> bool {
+        false
+    }
+
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Rectangle");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        let mut rect_debug = |r: &mut Rectangle| {
+            //Debug print rectangle properties
+            debug_builder
+                .field("corner_radii_top_left", r.corner_radii.get().top_left.get())
+                .finish()
+        };
+        with_properties_unwrapped!(&expanded_node.get_properties(), Rectangle, rect_debug)
     }
 }

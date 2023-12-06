@@ -4703,20 +4703,19 @@ Hypothesis:
 - Simple logical error in how nodes are being attached to each other
 
 
-
 ### Refreshing TODOs as of Nov 14 2023
 
 [ ] Manual testing - examples as milestones
     [x] Get `one-rect` running correctly + Group
-    [ ] Get `fireworks` running correctly + event handlers
-    [ ] Get `color-grid` running correctly
+    [x] Get `fireworks` running correctly + event handlers
+    [x] Get `color-grid` running correctly
 [ ] Native patches
       [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
       [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
       [ ] Refactor and hook back up patches
 [ ] `pax-std`: plug back in, update remaining primitives, test
 [ ] Sizing & layout
-    [ ] Move `compute_tab` back to render pass, to solve slot transposition + ancestral bounds
+    [x] Move `compute_tab` back to render pass, to solve slot transposition + ancestral bounds
     [ ] Revisit None-sizing -- now "whether a node is sized" is an instance-side concern, while "the current computed size" is an ExpandedNode concern
         [ ] Either remove None-sizing entirely — figuring out a better API for Group/etc. (default Size @ 100% might get us there; just create a `<Group>` and it fills its container)
             [ ] The above requires figuring out at least "vacuous ray-cast interception", which we current get around by checking whether size is None

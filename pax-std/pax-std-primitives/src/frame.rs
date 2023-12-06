@@ -6,11 +6,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use kurbo::BezPath;
+use pax_std::primitives::Frame;
 use piet::RenderContext;
 
 use pax_core::{
-    recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
-    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
+    recurse_expand_nodes, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    RenderTreeContext,
 };
 use pax_message::AnyCreatePatch;
 use pax_runtime_api::{CommonProperties, Layer, Size};
@@ -27,8 +29,9 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
@@ -52,7 +55,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             instance_children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
             handler_registry: args.handler_registry,
         }));
@@ -159,7 +163,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             new_ptc.current_instance_id = instance_child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
-            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+            child_expanded_node.borrow_mut().parent_expanded_node =
+                Some(Rc::downgrade(&this_expanded_node));
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);
@@ -217,7 +222,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
         let scroller_ids = ptc.get_current_scroller_ids();
 
-        let z_index = ptc.current_expanded_node.as_ref().unwrap().borrow().computed_z_index.unwrap();
+        let z_index = ptc
+            .current_expanded_node
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .computed_z_index
+            .unwrap();
 
         ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
             id_chain: id_chain.clone(),
@@ -231,5 +242,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
     fn is_invisible_to_raycasting(&self) -> bool {
         true
+    }
+
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Frame");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        let debug = |o| {
+            //Debug print frame properties, return builder
+            debug_builder
+        };
+        with_properties_unwrapped!(&expanded_node.get_properties(), Frame, debug).finish()
     }
 }

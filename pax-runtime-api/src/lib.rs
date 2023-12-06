@@ -21,6 +21,7 @@ pub struct TransitionQueueEntry<T> {
     pub starting_value: T,
     pub ending_value: T,
 }
+
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyInstance<T: Default + Clone> {

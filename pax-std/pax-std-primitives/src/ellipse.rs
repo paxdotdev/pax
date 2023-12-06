@@ -21,8 +21,9 @@ use std::rc::Rc;
 pub struct EllipseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_id: u32,
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
@@ -43,7 +44,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
         let ret = Rc::new(RefCell::new(EllipseInstance {
             instance_id,
             handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
 
@@ -111,5 +113,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
                 );
             }
         });
+    }
+
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Ellipse");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        let debug = |o| {
+            //Debug print rectangle properties, return builder
+            debug_builder
+        };
+        with_properties_unwrapped!(&expanded_node.get_properties(), Ellipse, debug).finish()
     }
 }

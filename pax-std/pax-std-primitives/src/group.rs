@@ -1,7 +1,8 @@
 use pax_core::{
-    ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList,
-    InstantiationArgs, PropertiesTreeContext,
+    with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
 };
+use pax_std::primitives::{Group, Rectangle};
 use piet_common::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
@@ -16,8 +17,9 @@ pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
@@ -43,7 +45,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
             },
             handler_registry: args.handler_registry,
 
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
 
@@ -84,5 +87,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         true
     }
 
-
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Group");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        let debug = |o| {
+            //Debug print properties, return builder
+            debug_builder
+        };
+        with_properties_unwrapped!(&expanded_node.get_properties(), Group, debug).finish()
+    }
 }

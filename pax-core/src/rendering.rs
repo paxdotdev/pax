@@ -45,8 +45,8 @@ pub struct ScrollerArgs {
 }
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
-    pub prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
-    pub prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    pub prototypical_common_properties_factory: Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    pub prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<InstanceNodePtrList<R>>,
@@ -268,6 +268,16 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         false
     }
 
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result;
+    // {
+    //     "Generic InstanceNode (hasn't implemented resolve_debug)"
+    // }
+
     /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
@@ -405,8 +415,13 @@ pub fn recurse_render<R: RenderContext + 'static>(
     //  - we now have the back-most leaf node.  Render it.  Return.
     //  - we're now at the second back-most leaf node.  Render it.  Return ...
 
-
-    let accumulated_bounds = rtc.current_expanded_node.borrow().computed_tab.as_ref().unwrap().bounds;
+    let accumulated_bounds = rtc
+        .current_expanded_node
+        .borrow()
+        .computed_tab
+        .as_ref()
+        .unwrap()
+        .bounds;
     let expanded_node = Rc::clone(&rtc.current_expanded_node);
 
     // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
@@ -422,11 +437,7 @@ pub fn recurse_render<R: RenderContext + 'static>(
     rtc.current_instance_node = Rc::clone(&expanded_node.borrow().instance_node);
 
     //scroller IDs are used by chassis, for identifying native scrolling containers
-    let scroller_ids = rtc
-        .current_expanded_node
-        .borrow()
-        .scroller_stack
-        .clone();
+    let scroller_ids = rtc.current_expanded_node.borrow().scroller_stack.clone();
     let scroller_id = match scroller_ids.last() {
         None => None,
         Some(v) => Some(v.clone()),
@@ -452,7 +463,10 @@ pub fn recurse_render<R: RenderContext + 'static>(
         // rtc.transform_scroller_reset = reset_transform.clone();
     }
 
-    let children_cloned = expanded_node.borrow_mut().get_children_expanded_nodes().clone();
+    let children_cloned = expanded_node
+        .borrow_mut()
+        .get_children_expanded_nodes()
+        .clone();
 
     children_cloned.iter().rev().for_each(|expanded_node| {
         //note that we're iterating starting from the last child, for z-index (.rev())
@@ -470,7 +484,12 @@ pub fn recurse_render<R: RenderContext + 'static>(
         subtree_depth = subtree_depth.max(child_z_index_info.get_level());
     });
 
-    let is_viewport_culled = !&expanded_node.borrow().computed_tab.as_ref().unwrap().intersects(&rtc.engine.viewport_tab);
+    let is_viewport_culled = !&expanded_node
+        .borrow()
+        .computed_tab
+        .as_ref()
+        .unwrap()
+        .intersects(&rtc.engine.viewport_tab);
 
     // let clipping = expanded_node
     //     .borrow_mut()
@@ -492,7 +511,8 @@ pub fn recurse_render<R: RenderContext + 'static>(
         //this is this node's time to do its own rendering, aside
         //from the rendering of its children. Its children have already been rendered.
         if !is_viewport_culled {
-            expanded_node.borrow()
+            expanded_node
+                .borrow()
                 .instance_node
                 .borrow_mut()
                 .handle_render(rtc, rc);
@@ -500,7 +520,8 @@ pub fn recurse_render<R: RenderContext + 'static>(
     } else {
         if let Some(rc) = rcs.get_mut("0") {
             if !is_viewport_culled {
-                expanded_node.borrow()
+                expanded_node
+                    .borrow()
                     .instance_node
                     .borrow_mut()
                     .handle_render(rtc, rc);
@@ -509,13 +530,12 @@ pub fn recurse_render<R: RenderContext + 'static>(
     }
 
     //lifecycle: post_render
-    expanded_node.borrow()
+    expanded_node
+        .borrow()
         .instance_node
         .borrow_mut()
         .handle_post_render(rtc, rcs);
 }
-
-
 
 /// Helper method to fire `pre_render` handlers for the node attached to the `rtc`
 fn manage_handlers_pre_render<R: 'static + RenderContext>(rtc: &mut RenderTreeContext<R>) {
@@ -525,7 +545,8 @@ fn manage_handlers_pre_render<R: 'static + RenderContext>(rtc: &mut RenderTreeCo
     let registry = node_borrowed
         .instance_node
         .borrow()
-        .get_handler_registry().clone();
+        .get_handler_registry()
+        .clone();
     if let Some(registry) = registry {
         for handler in (*registry).borrow().pre_render_handlers.iter() {
             handler(
