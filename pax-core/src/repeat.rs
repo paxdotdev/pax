@@ -19,8 +19,9 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub repeated_template: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
@@ -56,7 +57,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                 Some(children) => children,
             },
 
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
 
@@ -75,8 +77,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         );
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
-        //Mark all of Repeat's existing children (from previous tick) for unmount.  Then, when we iterate and append_children below, ensure that the mark-for-unmount is reverted
-        //This enables changes in repeat source to be mapped to new elements (unchanged elements are marked for unmount / remount before unmount handlers are fired, resulting in no effective changes for persistent nodes.)
+        //Mark all of Repeat's existing children (from previous tick) for
+        //unmount.  Then, when we iterate and append_children below, ensure
+        //that the mark-for-unmount is reverted This enables changes in repeat
+        //source to be mapped to new elements (unchanged elements are marked for
+        //unmount / remount before unmount handlers are fired, resulting in no
+        //effective changes for persistent nodes.)
         for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
             ptc.engine
                 .node_registry
@@ -133,7 +139,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                         .borrow_mut()
                         .revert_mark_for_unmount(&child_expanded_node.borrow().id_chain);
 
-                    child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+                    child_expanded_node.borrow_mut().parent_expanded_node =
+                        Some(Rc::downgrade(&this_expanded_node));
 
                     this_expanded_node
                         .borrow_mut()
@@ -156,7 +163,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     new_ptc.current_expanded_node = None;
                     new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
                     let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
-                    new_ptc.engine
+                    new_ptc
+                        .engine
                         .node_registry
                         .borrow_mut()
                         .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
@@ -176,6 +184,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         true
     }
 
+    fn is_invisible_to_raycasting(&self) -> bool {
+        true
+    }
+
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.repeated_template)
     }
@@ -186,5 +198,21 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
 
     fn manages_own_subtree_for_expansion(&self) -> bool {
         true
+    }
+
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Repeat");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        debug_builder.finish()
+        // let debug = |o| {
+        //     //Debug print properties, return builder
+        //     debug_builder
+        // };
+        //with_properties_unwrapped!(&expanded_node.get_properties(), RepeatInstance, debug).finish();
     }
 }

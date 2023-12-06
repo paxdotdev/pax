@@ -34,20 +34,12 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
         .borrow_mut()
         .expand_node_and_compute_properties(ptc);
 
-    let parent = ptc
-        .current_containing_component
-        .as_ref()
-        .map(|v| Rc::clone(&v));
-
-    if matches!(node_type, NodeType::Component) {
-        //pax_runtime_api::log("is_component");
-        ptc.current_containing_component = Some(Rc::clone(&this_expanded_node));
-    }
-
     // First expand slot_children — that is, the children passed into a component via template.
     // For example, in the template fragment `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
     // starting at `for` is the subtree of slot_children passed into the instance of `Stacker`.
     // Read more about slot children at [`InstanceNode#get_slot_children`]
+
+    //Right now, the slot children are created before the "parent". how can they then be modified by the parent?
     let expanded_and_flattened_slot_children =
         if let Some(slot_children) = this_instance_node.borrow_mut().get_slot_children().clone() {
             //Assert that this is indeed a Component (only Components may be registered with slot_children)
@@ -131,9 +123,6 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);
 
-    if matches!(node_type, NodeType::Component) {
-        ptc.current_containing_component = parent;
-    }
     this_expanded_node
 }
 
@@ -198,7 +187,7 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
 
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
-    pub current_containing_component: Option<Rc<RefCell<ExpandedNode<R>>>>,
+    pub current_containing_component: Weak<RefCell<ExpandedNode<R>>>,
 
     /// A register used for passing slot children to components.  This is passed via `ptc` to satisfy sequencing concerns.
     /// Decoupling expansion from properties computation should enable removing this from `PropertiesTreeContext`
@@ -407,7 +396,6 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
     pub fn compute_vtable_value(&self, vtable_id: usize) -> Box<dyn Any> {
         if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
             let expanded_node = &self.current_expanded_node.as_ref().unwrap().borrow();
-            // pax_runtime_api::log(&format!("Computing vtable for id_chain: {:?}", &expanded_node.id_chain));
             let stack_frame = Rc::clone(
                 expanded_node
                     .runtime_properties_stack

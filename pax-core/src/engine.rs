@@ -113,6 +113,15 @@ impl Default for HandlerRegistry {
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 /// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
 /// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
+
+#[cfg(debug_assertions)]
+impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.instance_node.borrow().resolve_debug(self, f)?;
+        Ok(())
+    }
+}
+
 pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
@@ -140,7 +149,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
     /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
     /// thus `containing_component` is `Option`al.
-    pub containing_component: Option<Rc<RefCell<ExpandedNode<R>>>>,
+    pub containing_component: Weak<RefCell<ExpandedNode<R>>>,
 
     /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
     /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
@@ -288,10 +297,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         let inverted_transform = self.computed_tab.as_ref().unwrap().transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
-        // let relevant_bounds = match self.tab.clipping_bounds {
-        //     None => self.tab.bounds,
-        //     Some(cp) => cp,
-        // };
         let relevant_bounds = self.computed_tab.as_ref().unwrap().bounds;
 
         //Default implementation: rectilinear bounding hull
@@ -299,11 +304,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             && transformed_ray.y > 0.0
             && transformed_ray.x < relevant_bounds.0
             && transformed_ray.y < relevant_bounds.1;
-
-        /*pax_runtime_api::log(&format!(
-            "ray_cast_test:  {} for id {:?}",
-            res, self.id_chain
-        ));*/
 
         res
     }
@@ -705,18 +705,13 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 
     pub fn dispatch_wheel(&self, args_wheel: ArgsWheel) {
-        pax_runtime_api::log(&format!("dispatch_wheel"));
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            pax_runtime_api::log(&format!("has registry"));
             let handlers = &(*registry).borrow().wheel_handlers;
             // containing_component populated during expansion, populated incorrectly?
             // create dispatch macro
-            let component_properties = if let Some(cc) = self.containing_component.as_ref() {
-                pax_runtime_api::log(&format!("has parent"));
+            let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                 Rc::clone(&cc.borrow().get_properties())
-                //is this else triggered?
             } else {
-                pax_runtime_api::log(&format!("NO parent"));
                 Rc::clone(&self.get_properties())
             };
             handlers.iter().for_each(|handler| {
@@ -726,8 +721,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                     args_wheel.clone(),
                 );
             });
-        } else {
-            pax_runtime_api::log(&format!("no registry"));
         }
 
         if let Some(parent) = &self.parent_expanded_node {
@@ -737,6 +730,34 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 .borrow()
                 .dispatch_wheel(args_wheel);
         }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn resolve_expanded_fields(&self, debug_builder: &mut std::fmt::DebugStruct) {
+        debug_builder
+            .field("id_chain", &self.id_chain)
+            .field(
+                "children",
+                &self
+                    .children_expanded_nodes
+                    .iter()
+                    .map(|v| v.borrow())
+                    .collect::<Vec<_>>(),
+            )
+            .field(
+                "parent",
+                &self
+                    .parent_expanded_node
+                    .as_ref()
+                    .and_then(|v| v.upgrade().map(|v| v.borrow().id_chain.clone())),
+            )
+            .field(
+                "containing_component",
+                &self
+                    .containing_component
+                    .upgrade()
+                    .map(|v| v.borrow().id_chain.clone()),
+            );
     }
 }
 
@@ -877,7 +898,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
         let mut ptc = PropertiesTreeContext {
             engine: &self,
-            current_containing_component: None,
+            current_containing_component: Weak::new(),
             current_instance_node: Rc::clone(&root_component_instance),
             current_instance_id: root_component_instance.borrow().get_instance_id(),
             current_expanded_node: None,
@@ -898,6 +919,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
         // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future.
         //
+
         let mut z_index_gen = 0..;
         recurse_compute_layout(
             &self,
@@ -953,7 +975,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .get_expanded_nodes_sorted_by_z_index_desc();
 
         // remove root element that is moved to top during reversal
-        nodes_ordered.remove(0);
+        nodes_ordered.pop();
 
         let mut ret: Option<Rc<RefCell<ExpandedNode<R>>>> = None;
         for node in nodes_ordered {
@@ -973,6 +995,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     if let Some(unwrapped_parent) = parent {
                         if let Some(_) = (*unwrapped_parent).borrow().get_clipping_size() {
                             ancestral_clipping_bounds_are_satisfied =
+                            //clew
                                 (*unwrapped_parent).borrow().ray_cast_test(&ray);
                             break;
                         }
@@ -992,15 +1015,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 }
             }
         }
-
         ret
     }
 
     pub fn get_focused_element(&self) -> Option<Rc<RefCell<ExpandedNode<R>>>> {
         let (x, y) = self.viewport_tab.bounds;
-
-        pax_runtime_api::log(&format!("test for element under {} {}", x, y));
-
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
 

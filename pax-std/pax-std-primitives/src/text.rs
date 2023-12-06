@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
+    HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
+    PropertiesComputable, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{CommonProperties, Layer, SizePixels, StringBox};
@@ -24,12 +24,10 @@ pub struct TextInstance<R: 'static + RenderContext> {
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
 
-
-    pub prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
+    pub prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
-
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -38,12 +36,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
     where
         Self: Sized,
     {
-
         let mut node_registry = (*args.node_registry).borrow_mut();
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(TextInstance {
             instance_id,
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(
+                args.common_properties,
+            )),
             instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
@@ -200,7 +199,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
             None => true,
         };
         if is_new_value {
-            //pax_runtime_api::log(format!("Text update {:?}{:?}", new_message.id_chain, val.clone()).as_str());
             new_message.content = Some(val.clone());
             last_patch.content = Some(val.clone());
             has_any_updates = true;

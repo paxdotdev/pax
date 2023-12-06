@@ -28,8 +28,9 @@ pub struct SlotInstance {
     pub instance_id: u32,
     // pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     // cached_computed_children: InstanceNodePtrList<R>,
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains the index value for slot, either a literal or an expression.
@@ -51,7 +52,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
@@ -106,7 +108,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
             }
         );
 
-        let ccc = ptc.current_containing_component.as_ref().unwrap();
+        let ccc = ptc.current_containing_component.upgrade().unwrap();
         let cccb = ccc.borrow();
         let containing_component_flattened_slot_children =
             cccb.get_expanded_and_flattened_slot_children();
@@ -117,7 +119,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
                     .borrow_mut()
                     .append_child_expanded_node(Rc::clone(child_to_forward));
 
-                child_to_forward.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+                child_to_forward.borrow_mut().parent_expanded_node =
+                    Some(Rc::downgrade(&this_expanded_node));
 
                 ptc.engine
                     .node_registry
@@ -131,5 +134,21 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
+    }
+
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Rectangle");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        debug_builder.finish()
+        // let rect_debug = |r| {
+        //     //Debug print rectangle properties, return builder
+        //     debug_builder
+        // };
+        // with_properties_unwrapped!(&expanded_node.get_properties(), Rectangle, rect_debug).finish();
     }
 }

@@ -19,8 +19,9 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     instance_children: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains the expression of a conditional, evaluated as an expression.
@@ -46,7 +47,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
         }));
 
@@ -91,7 +93,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             }
 
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
-            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+            child_expanded_node.borrow_mut().parent_expanded_node =
+                Some(Rc::downgrade(&this_expanded_node));
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);
@@ -110,5 +113,21 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
+    }
+
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Frame");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        debug_builder.finish()
+        // let debug = |o| {
+        //     //Debug print rectangle properties, return builder
+        //     debug_builder
+        // };
+        // with_properties_unwrapped!(&expanded_node.get_properties(), Condit, debug).finish();
     }
 }

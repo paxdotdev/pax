@@ -4,8 +4,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
-    InstanceNodePtrList, InstantiationArgs, NodeType, PropertiesTreeContext, RenderTreeContext,
+    recurse_expand_nodes, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, NodeType, PropertiesTreeContext,
+    RenderTreeContext,
 };
 
 use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
@@ -26,9 +27,9 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
-
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
@@ -38,9 +39,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.template)
     }
+
     fn get_node_type(&self) -> NodeType {
         NodeType::Component
     }
+
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),
@@ -68,7 +71,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
-            instance_prototypical_common_properties_factory: args.prototypical_common_properties_factory,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
             compute_properties_fn: args
                 .compute_properties_fn
@@ -80,7 +84,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
-
 
     fn is_invisible_to_raycasting(&self) -> bool {
         true
@@ -100,6 +103,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             &(self.instance_prototypical_common_properties_factory)(),
         );
 
+        //TODOSAM: make sure this is the right place to do this when we have more than one component!
+        let last_containing_component = std::mem::replace(
+            &mut ptc.current_containing_component,
+            Rc::downgrade(&this_expanded_node),
+        );
+
         this_expanded_node
             .borrow_mut()
             .set_expanded_and_flattened_slot_children(
@@ -107,7 +116,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             );
 
         //Compute properties
-        (*self.compute_properties_fn)(Rc::clone(&this_expanded_node.borrow().get_properties()), ptc);
+        (*self.compute_properties_fn)(
+            Rc::clone(&this_expanded_node.borrow().get_properties()),
+            ptc,
+        );
 
         ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
 
@@ -117,13 +129,15 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             new_ptc.current_instance_id = child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
-            child_expanded_node.borrow_mut().parent_expanded_node = Some(Rc::downgrade(&this_expanded_node));
+            child_expanded_node.borrow_mut().parent_expanded_node =
+                Some(Rc::downgrade(&this_expanded_node));
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);
         }
 
         ptc.pop_stack_frame();
+        ptc.current_containing_component = last_containing_component;
         this_expanded_node
     }
 
@@ -131,4 +145,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         Layer::DontCare
     }
 
+    #[cfg(debug_assertions)]
+    fn resolve_debug(
+        &self,
+        expanded_node: &ExpandedNode<R>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let mut debug_builder = f.debug_struct("Component");
+        expanded_node.resolve_expanded_fields(&mut debug_builder);
+        debug_builder.finish()
+        // let rect_debug = |r| {
+        //     //Debug print rectangle properties
+        // };
+        // with_properties_unwrapped!(&expanded_node.get_properties(), Rectangle, rect_debug);
+    }
 }

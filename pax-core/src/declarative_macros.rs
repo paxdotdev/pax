@@ -26,7 +26,6 @@ macro_rules! with_properties_unwrapped {
     }};
 }
 
-
 /// Manages vtable updates (if necessary) for a given `dyn PropertyInstance`, with the provided expected TypesCoproduct variant.
 /// Is a no-op for `PropertyLiteral`s, and mutates (by calling `.set`) `PropertyExpression` instances.
 /// # Examples
