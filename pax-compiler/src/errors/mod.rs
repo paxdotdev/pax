@@ -16,7 +16,7 @@ use std::{
 };
 
 pub mod source_map;
-use crate::manifest::{Token, TokenType};
+use pax_manifest::{Token, TokenType};
 
 use self::source_map::SourceMap;
 

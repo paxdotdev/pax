@@ -4,7 +4,6 @@
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
 use crate::helpers::{HostCrateInfo, PKG_DIR_NAME};
-use crate::manifest::{HandlersBlockElement, PaxManifest, SettingElement, Token};
 use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
@@ -13,20 +12,19 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::str::FromStr;
 
-use crate::manifest::{
-    ComponentDefinition, ExpressionSpec, LiteralBlockDefinition, TemplateNodeDefinition,
-    TypeDefinition, TypeTable, ValueDefinition,
+use pax_manifest::{
+    escape_identifier, ComponentDefinition, ExpressionSpec, HandlersBlockElement,
+    LiteralBlockDefinition, MappedString, PaxManifest, SettingElement, TemplateNodeDefinition,
+    Token, TypeDefinition, TypeTable, ValueDefinition,
 };
 
 use crate::errors::source_map::SourceMap;
 use std::path::PathBuf;
 use toml_edit::Item;
 
-use crate::parsing::escape_identifier;
-
 use self::templating::{
     press_template_codegen_cartridge_component_factory,
-    press_template_codegen_cartridge_render_node_literal, MappedString,
+    press_template_codegen_cartridge_render_node_literal,
     TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral,
 };
 

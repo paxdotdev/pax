@@ -3,7 +3,7 @@ use std::io::{self, Read};
 
 use pax_compiler::code_serialization::press_code_serialization_template;
 use pax_compiler::formatting::format_pax_template;
-use pax_compiler::manifest::PaxManifest;
+use pax_manifest::PaxManifest;
 
 #[test]
 fn test_code_serializaton() {
