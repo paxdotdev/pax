@@ -214,6 +214,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
                 }
             }
         }
+        Rule::comment => {},
         _ => {
             unreachable!("Parsing error 123123121: {:?}", any_tag_pair.as_rule());
         }
