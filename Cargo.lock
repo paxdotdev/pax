@@ -1976,6 +1976,7 @@ dependencies = [
  "libc",
  "log",
  "nix",
+ "pax-manifest",
  "pax-message 0.10.7",
  "pax-runtime-api 0.10.7",
  "pest",
@@ -2102,6 +2103,15 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "pax-manifest"
+version = "0.10.7"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "serde_json",
 ]
 
 [[package]]

@@ -10,7 +10,7 @@ use itertools::Itertools;
 
 use std::path::{Path, PathBuf};
 
-use crate::manifest::PaxManifest;
+use pax_manifest::PaxManifest;
 mod namespace_trie_node;
 pub use namespace_trie_node::NamespaceTrieNode;
 

@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
-use crate::cartridge_generation::templating::MappedString;
-use crate::parsing::escape_identifier;
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
@@ -531,4 +529,61 @@ pub enum Number {
 pub enum Unit {
     Pixels,
     Percent,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+pub struct MappedString {
+    pub content: String,
+    /// Markers used to identify generated code range for source map.
+    pub source_map_start_marker: Option<String>,
+    pub source_map_end_marker: Option<String>,
+}
+
+impl PartialEq for MappedString {
+    fn eq(&self, other: &Self) -> bool {
+        self.content == other.content
+    }
+}
+
+impl Eq for MappedString {}
+
+impl Hash for MappedString {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.content.hash(state);
+    }
+}
+
+impl MappedString {
+    pub fn none() -> Self {
+        MappedString {
+            content: "None".to_string(),
+            source_map_start_marker: None,
+            source_map_end_marker: None,
+        }
+    }
+
+    pub fn new(content: String) -> Self {
+        MappedString {
+            content,
+            source_map_start_marker: None,
+            source_map_end_marker: None,
+        }
+    }
+}
+
+pub fn escape_identifier(input: String) -> String {
+    input
+        .replace("(", "LPAR")
+        .replace("::", "COCO")
+        .replace(")", "RPAR")
+        .replace("<", "LABR")
+        .replace(">", "RABR")
+        .replace(",", "COMM")
+        .replace(".", "PERI")
+        .replace("[", "LSQB")
+        .replace("]", "RSQB")
+        .replace("/", "FSLA")
+        .replace("\\", "BSLA")
+        .replace("#", "HASH")
+        .replace("-", "HYPH")
 }
