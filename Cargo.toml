@@ -9,6 +9,7 @@ edition = "2021"
 members = [
     "pax-chassis-web",
     "pax-chassis-macos",
+    "pax-chassis-ios",
     "pax-chassis-common",
     "pax-lang",
     "pax-core",
