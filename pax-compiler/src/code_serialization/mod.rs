@@ -1,7 +1,7 @@
 use tera::{Context, Tera};
 
-use crate::manifest::ComponentDefinition;
 use include_dir::{include_dir, Dir};
+use pax_manifest::ComponentDefinition;
 
 #[allow(unused)]
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/code_serialization");

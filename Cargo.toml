@@ -9,6 +9,7 @@ edition = "2021"
 members = [
     "pax-chassis-web",
     "pax-chassis-macos",
+    "pax-chassis-ios",
     "pax-chassis-common",
     "pax-lang",
     "pax-core",
@@ -19,6 +20,7 @@ members = [
     "pax-cli",
     "pax-std",
     "pax-std/pax-std-primitives",
+    "pax-manifest",
 ]
 
 exclude = [

@@ -4,6 +4,7 @@
 //! The `build_chassis_with_cartridge` function is the main entrypoint
 
 use flate2::read::GzDecoder;
+use pax_manifest::PaxManifest;
 use std::{
     collections::HashMap,
     fs,
@@ -18,7 +19,6 @@ use tar::Archive;
 use crate::{
     errors::source_map::SourceMap,
     helpers::{copy_dir_recursively, HostCrateInfo, ALL_PKGS, DIR_IGNORE_LIST_MACOS, PKG_DIR_NAME},
-    manifest::PaxManifest,
     RunContext, RunTarget,
 };
 
