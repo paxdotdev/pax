@@ -1,6 +1,6 @@
 [package]
 name = "pax-message"
-version = "0.10.8"
+version = "0.10.9"
 edition = "2021"
 authors = ["Zack Brown <zack@pax.dev>"]
 license = "MIT OR Apache-2.0"
