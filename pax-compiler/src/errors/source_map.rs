@@ -1,5 +1,4 @@
-use crate::cartridge_generation::templating::MappedString;
-use crate::manifest::Token;
+use pax_manifest::{MappedString, Token};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::io::Write;

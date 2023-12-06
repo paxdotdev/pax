@@ -3,9 +3,10 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use itertools::{Itertools, MultiPeek};
+use pax_manifest::escape_identifier;
 use std::ops::RangeFrom;
 
-use crate::manifest::{
+use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
     ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, HandlersBlockElement,
     LiteralBlockDefinition, LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement,
@@ -1278,23 +1279,6 @@ pub fn assemble_type_definition(
         .insert(self_type_id.to_string(), new_def.clone());
 
     (ctx, new_def)
-}
-
-pub fn escape_identifier(input: String) -> String {
-    input
-        .replace("(", "LPAR")
-        .replace("::", "COCO")
-        .replace(")", "RPAR")
-        .replace("<", "LABR")
-        .replace(">", "RABR")
-        .replace(",", "COMM")
-        .replace(".", "PERI")
-        .replace("[", "LSQB")
-        .replace("]", "RSQB")
-        .replace("/", "FSLA")
-        .replace("\\", "BSLA")
-        .replace("#", "HASH")
-        .replace("-", "HYPH")
 }
 
 /// Given a Pest Span returns starting and ending (line,col)

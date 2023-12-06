@@ -3,10 +3,9 @@ use include_dir::{include_dir, Dir};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use std::hash::{Hash, Hasher};
 use tera::{Context, Tera};
 
-use crate::manifest::{ExpressionSpec, PropertyDefinition};
+use pax_manifest::{ExpressionSpec, MappedString, PropertyDefinition};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");
 
@@ -47,46 +46,6 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub handlers: Vec<(MappedString, Vec<MappedString>)>,
     pub render_nodes_literal: String,
     pub properties_coproduct_variant: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
-pub struct MappedString {
-    pub content: String,
-    /// Markers used to identify generated code range for source map.
-    pub source_map_start_marker: Option<String>,
-    pub source_map_end_marker: Option<String>,
-}
-
-impl PartialEq for MappedString {
-    fn eq(&self, other: &Self) -> bool {
-        self.content == other.content
-    }
-}
-
-impl Eq for MappedString {}
-
-impl Hash for MappedString {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.content.hash(state);
-    }
-}
-
-impl MappedString {
-    pub fn none() -> Self {
-        MappedString {
-            content: "None".to_string(),
-            source_map_start_marker: None,
-            source_map_end_marker: None,
-        }
-    }
-
-    pub fn new(content: String) -> Self {
-        MappedString {
-            content,
-            source_map_start_marker: None,
-            source_map_end_marker: None,
-        }
-    }
 }
 
 #[derive(Serialize)]

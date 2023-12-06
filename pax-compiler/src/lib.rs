@@ -18,7 +18,6 @@ pub mod errors;
 pub mod expressions;
 pub mod formatting;
 mod helpers;
-pub mod manifest;
 pub mod parsing;
 mod reexports;
 
@@ -27,7 +26,7 @@ use color_eyre::eyre::Report;
 use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
-use manifest::PaxManifest;
+use pax_manifest::PaxManifest;
 use std::fs;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
