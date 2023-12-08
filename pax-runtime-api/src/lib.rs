@@ -1040,6 +1040,16 @@ impl LayerId {
     }
 }
 
+impl Interpolatable for StringBox {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        if t > 0.5 {
+            other.clone()
+        } else {
+            self.clone()
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StringBox {
     pub string: String,

@@ -4703,6 +4703,7 @@ Hypothesis:
 - Simple logical error in how nodes are being attached to each other
 
 
+ctx.scope_stack
 ### Refreshing TODOs as of Nov 14 2023
 
 [ ] Manual testing - examples as milestones

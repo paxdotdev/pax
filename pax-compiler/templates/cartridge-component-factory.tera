@@ -119,7 +119,7 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_reg
                 } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
                     let new_value_wrapped = ptc.compute_vtable_value(vtable_id);
                     if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
-                        properties.{{ prop.0.name }}.set(new_value);
+                        properties.{{ prop.0.name }}.set(*new_value);
                     }
                 }
             {% endfor %}

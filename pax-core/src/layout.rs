@@ -318,14 +318,10 @@ fn manage_handlers_mount<'a, R: 'static + RenderContext>(
                 //grab Rc of properties from stack frame; pass to type-specific handler
                 //on instance in order to dispatch cartridge method
                 for handler in (*registry).borrow().mount_handlers.iter() {
+                    let node_borrowed = current_expanded_node.borrow_mut();
                     handler(
-                        current_expanded_node.clone().borrow_mut().get_properties(),
-                        &current_expanded_node
-                            .clone()
-                            .borrow()
-                            .computed_node_context
-                            .clone()
-                            .unwrap(),
+                        node_borrowed.get_properties(),
+                        &node_borrowed.computed_node_context.clone().unwrap(),
                     );
                 }
             }

@@ -1,0 +1,5 @@
+<Inner text={self.message}/>
+
+@handlers {
+    mount: handle_mount
+}
