@@ -245,9 +245,8 @@ fn recurse_generate_render_nodes_literal(
     host_crate_info: &HostCrateInfo,
     source_map: &mut SourceMap,
 ) -> String {
-
-
-    let containing_component_struct = host_crate_info.fully_qualify_path(&rngc.active_component_definition.type_id);
+    let containing_component_struct =
+        host_crate_info.fully_qualify_path(&rngc.active_component_definition.type_id);
     //first recurse, populating children_literal : Vec<String>
     let children_literal: Vec<String> = tnd
         .child_ids
@@ -262,11 +261,9 @@ fn recurse_generate_render_nodes_literal(
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone(), source_map);
 
-
     //Handlers not expected on control-flow; at time of authoring this type is used only for handlers
     //in the context of cartridge-render-node-literal so `"()"` is suitable
-    const CONTROL_FLOW_STUBBED_PROPERTIES_TYPE : &str = "()";
-
+    const CONTROL_FLOW_STUBBED_PROPERTIES_TYPE: &str = "()";
 
     let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
         // Repeat
@@ -412,7 +409,7 @@ fn recurse_generate_render_nodes_literal(
 
         let slot_source_map_id = source_map.insert(slot_expression.clone());
         let slot_mapped_string = source_map.generate_mapped_string(
-            format!("Some(Box::new(PropertyExpression::new({})))", id),
+            format!("Box::new(PropertyExpression::new({}))", id),
             slot_source_map_id,
         );
 
@@ -459,7 +456,8 @@ fn recurse_generate_render_nodes_literal(
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
-        let fully_qualified_properties_type = host_crate_info.fully_qualify_path(&component_for_current_node.type_id);
+        let fully_qualified_properties_type =
+            host_crate_info.fully_qualify_path(&component_for_current_node.type_id);
 
         let property_ril_tuples: Vec<Option<(MappedString, MappedString)>> =
             component_for_current_node
@@ -711,7 +709,8 @@ fn generate_cartridge_component_factory_literal(
             .map(|pd| {
                 (
                     pd.clone(),
-                    host_crate_info.fully_qualify_path(&pd.get_type_definition(&manifest.type_table).type_id),
+                    host_crate_info
+                        .fully_qualify_path(&pd.get_type_definition(&manifest.type_table).type_id),
                 )
             })
             .collect(),

@@ -1,0 +1,5 @@
+<Text text={self.text}/>
+
+@handlers {
+    mount: handle_mount
+}

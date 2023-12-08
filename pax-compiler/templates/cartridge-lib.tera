@@ -27,7 +27,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 } else {
                     Rc::clone(&ec.stack_frame)
                 }.borrow().deref().get_properties();
-                let borrowed = &*(*properties).borrow();
+                let mut borrowed = &mut *(*properties).borrow_mut();
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
                     if let Some(unwrapped_repeat_item) = borrowed.downcast_ref::<RepeatItem>() {
@@ -52,8 +52,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             elem.clone()
                         {% else %}
                             //iterable complex type
-                            let elem_borrowed = elem.borrow_mut();
-                            if let Some(dc) = elem_borrowed.downcast_mut::<{{invocation.fully_qualified_properties_struct_type}}>() {
+                            let mut elem_borrowed = elem.borrow_mut();
+                            if let Some(dc) = elem_borrowed.downcast_mut::<{{invocation.fully_qualified_iterable_type}}>() {
                                 dc.clone()
                             } else {unreachable!()}
                         {% endif %}
@@ -62,13 +62,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
-                    let mut unwrapped_repeat_item = if let Some(val) = (&mut *borrowed).downcast_mut::<RepeatItem>() {val} else {panic!()}; // Failed to downcast
+                    let mut unwrapped_repeat_item = if let Some(val) = borrowed.downcast_mut::<RepeatItem>() {val} else {panic!()}; // Failed to downcast
                     let i = unwrapped_repeat_item.i;
-                    Numeric::from(*i)
+                    Numeric::from(i)
                 {% else %}
 
-                    let properties_borrowed = properties.borrow();
-                    if let Some(p) = properties_borrowed.downcast_ref::<{{invocation.fully_qualified_properties_struct_type}}>(){
+                    if let Some(p) = borrowed.downcast_ref::<{{invocation.fully_qualified_properties_struct_type}}>(){
 
                         {% if invocation.is_numeric %}
                             //binding simple numeric property
@@ -93,7 +92,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
             {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<Rc<RefCell<dyn Any>>> for Repeat #}
             {% for invocation in expression_spec.invocations %}
                 let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
-                    Rc::new(RefCell::new(t.clone()))
+                    let converted_cell: Rc<RefCell<(dyn Any + 'static)>> = Rc::new(RefCell::new(t.clone()));
+                    converted_cell
                 }).collect::<Vec<Rc<RefCell<dyn Any>>>>();
             {% endfor %}
         {% endif %}

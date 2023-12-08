@@ -257,7 +257,7 @@ fn recurse_compile_expressions<'a>(
     mut ctx: ExpressionCompilationContext<'a>,
     mut source_map: &mut SourceMap,
 ) -> eyre::Result<ExpressionCompilationContext<'a>, Report> {
-    let incremented = false;
+    let mut incremented = false;
 
     let cloned_settings_block = ctx.component_def.settings.clone();
     let cloned_inline_settings = ctx.active_node_def.settings.clone();
@@ -375,6 +375,7 @@ fn recurse_compile_expressions<'a>(
                         (elem_id.token_value.clone(), property_definition),
                     ]);
 
+                    incremented = true;
                     ctx.scope_stack.push(scope);
                 }
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
@@ -430,6 +431,7 @@ fn recurse_compile_expressions<'a>(
                         is_property_wrapped: true,
                     };
 
+                    incremented = true;
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone().token_value, elem_property_definition),
@@ -575,7 +577,13 @@ fn resolve_symbol_as_invocation(
                 Some(format!("symbol not found: {}", &sym)),
                 token.clone(),
             ))?;
+        let nested_prop_def = prop_def_chain.last().unwrap();
 
+        let split_symbols = clean_and_split_symbols(&sym);
+        let is_nested_numeric = split_symbols.len() > 1
+            && ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
+
+        let escaped_identifier = escape_identifier(split_symbols.join("."));
         let nested_prop_def = prop_def_chain.last().unwrap();
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
 
