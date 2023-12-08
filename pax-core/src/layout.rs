@@ -1,44 +1,73 @@
+use crate::{
+    ExpandedNode, PaxEngine, PropertiesTreeContext, RenderTreeContext, TransformAndBounds,
+};
+use kurbo::Affine;
+use pax_runtime_api::{Axis, CommonProperties, LayerId, NodeContext, Size, Transform2D};
+use piet::RenderContext;
 use std::cell::RefCell;
 use std::ops::RangeFrom;
 use std::rc::Rc;
-use kurbo::Affine;
-use piet::RenderContext;
-use pax_runtime_api::{Axis, CommonProperties, NodeContext, Size, Transform2D};
-use crate::{ExpandedNode, PaxEngine, RenderTreeContext, TransformAndBounds};
 
 /// Visits ExpandedNode tree attached to `subtree_root_expanded_node` in rendering order and
 /// computes + writes (mutates in-place) `z_index`, `node_context`, and `computed_tab` on each visited ExpandedNode.
 pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     engine: &'a PaxEngine<R>,
+    ptc: &mut PropertiesTreeContext<R>,
     current_expanded_node: &Rc<RefCell<ExpandedNode<R>>>,
     container_tab: &TransformAndBounds,
     z_index_gen: &mut RangeFrom<u32>,
+    canvas_index_gen: &mut LayerId,
 ) {
-
     let current_expanded_node = Rc::clone(current_expanded_node);
     let current_z_index = z_index_gen.next().unwrap();
     let computed_tab = compute_tab(&current_expanded_node, &container_tab);
 
-    let mut node_borrowed = current_expanded_node.borrow_mut();
-    node_borrowed.computed_z_index = Some(current_z_index);
-    node_borrowed.computed_tab = Some(computed_tab.clone());
-    node_borrowed.computed_node_context = Some(NodeContext {
-        frames_elapsed: engine.frames_elapsed,
-        bounds_parent: container_tab.bounds,
-        bounds_self: computed_tab.bounds,
-    });
-
-    // Drop to appease borrow-checker (mount must borrow again to fire handlers)
-    drop(node_borrowed);
-    // Lifecycle: `mount`
-    manage_handlers_mount(engine, &current_expanded_node);
-
-    let node_borrowed = current_expanded_node.borrow_mut();
-    for child in node_borrowed.get_children_expanded_nodes() {
-        let child = Rc::clone(child);
-        recurse_compute_layout(engine, &child, &computed_tab, z_index_gen);
+    {
+        let mut node_borrowed = current_expanded_node.borrow_mut();
+        node_borrowed.computed_z_index = Some(current_z_index);
+        node_borrowed.computed_tab = Some(computed_tab.clone());
+        node_borrowed.computed_node_context = Some(NodeContext {
+            frames_elapsed: engine.frames_elapsed,
+            bounds_parent: container_tab.bounds,
+            bounds_self: computed_tab.bounds,
+        });
     }
 
+    {
+        let node_borrowed = current_expanded_node.borrow();
+        // Drop to appease borrow-checker (mount must borrow again to fire handlers)
+        // Lifecycle: `mount`
+        for child in node_borrowed.get_children_expanded_nodes() {
+            let child = Rc::clone(child);
+            recurse_compute_layout(
+                engine,
+                ptc,
+                &child,
+                &computed_tab,
+                z_index_gen,
+                canvas_index_gen,
+            );
+        }
+    }
+
+    {
+        let node_borrowed = current_expanded_node.borrow();
+        let mut node_instance_borrowed = node_borrowed.instance_node.borrow_mut();
+        let node_type = node_instance_borrowed.get_layer_type();
+        canvas_index_gen.update_z_index(node_type.clone());
+    }
+    {
+        let mut node_borrowed = current_expanded_node.borrow_mut();
+        node_borrowed.computed_canvas_index = Some(canvas_index_gen.get_level());
+        node_borrowed.computed_canvas_index = Some(canvas_index_gen.get_level());
+    }
+    manage_handlers_mount(engine, ptc, &current_expanded_node);
+
+    {
+        let node_borrowed = current_expanded_node.borrow_mut();
+        let mut node_instance_borrowed = node_borrowed.instance_node.borrow_mut();
+        node_instance_borrowed.handle_native_patches(ptc, &node_borrowed);
+    }
 }
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
@@ -52,9 +81,8 @@ pub fn compute_tab<R: 'static + RenderContext>(
     //get the size of this node (calc'd or otherwise) and use
     //it as the new accumulated bounds: both for this node's children (their parent container bounds)
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
-    let new_accumulated_bounds_and_current_node_size = node
-        .borrow_mut()
-        .get_size_computed(container_tab.bounds);
+    let new_accumulated_bounds_and_current_node_size =
+        node.borrow_mut().get_size_computed(container_tab.bounds);
 
     let node_transform_property_computed = {
         let node_borrowed = node.borrow();
@@ -262,22 +290,27 @@ impl ComputableTransform for Transform2D {
     }
 }
 
-
 /// Helper method to fire `mount` event if this is this expandednode's first frame
 /// (or first frame remounting, if previously mounted then unmounted.)
 /// Note that this must happen after initial `compute_properties`, which performs the
 /// necessary side-effect of creating the `self` that must be passed to handlers.
-fn manage_handlers_mount<'a, R: 'static + RenderContext>(engine: &'a PaxEngine<R>, current_expanded_node: &Rc<RefCell<ExpandedNode<R>>>) {
+fn manage_handlers_mount<'a, R: 'static + RenderContext>(
+    engine: &'a PaxEngine<R>,
+    ptc: &mut PropertiesTreeContext<R>,
+    current_expanded_node: &Rc<RefCell<ExpandedNode<R>>>,
+) {
     {
         let mut node_registry = (*engine.node_registry).borrow_mut();
 
-        let id_chain = <Vec<u32> as AsRef<Vec<u32>>>::as_ref(
-            &current_expanded_node.clone().borrow().id_chain,
-        )
-            .clone();
+        let id_chain =
+            <Vec<u32> as AsRef<Vec<u32>>>::as_ref(&current_expanded_node.clone().borrow().id_chain)
+                .clone();
         if !node_registry.is_mounted(&id_chain) {
             //Fire primitive-level mount lifecycle method
             let instance_node = Rc::clone(&current_expanded_node.borrow().instance_node);
+            instance_node
+                .borrow_mut()
+                .handle_mount(ptc, &current_expanded_node.borrow());
 
             //Fire registered mount events
             let registry = instance_node.borrow().get_handler_registry();
@@ -286,10 +319,7 @@ fn manage_handlers_mount<'a, R: 'static + RenderContext>(engine: &'a PaxEngine<R
                 //on instance in order to dispatch cartridge method
                 for handler in (*registry).borrow().mount_handlers.iter() {
                     handler(
-                        current_expanded_node
-                            .clone()
-                            .borrow_mut()
-                            .get_properties(),
+                        current_expanded_node.clone().borrow_mut().get_properties(),
                         &current_expanded_node
                             .clone()
                             .borrow()

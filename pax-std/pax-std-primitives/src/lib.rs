@@ -6,7 +6,7 @@ pub mod group;
 // pub mod path;
 pub mod rectangle;
 // pub mod scroller;
-// pub mod text;
+pub mod text;
 
 fn patch_if_needed<T: PartialEq + Clone>(
     old_state: &mut Option<T>,

@@ -7,7 +7,11 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode, recurse_expand_nodes};
+use pax_core::{
+    recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, InstantiationArgs, PropertiesComputable, PropertiesTreeContext,
+    RenderTreeContext,
+};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
     ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
@@ -30,8 +34,9 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
@@ -47,7 +52,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     where
         Self: Sized,
     {
-
         let mut node_registry = args.node_registry.borrow_mut();
         let instance_id = node_registry.mint_instance_id();
 
@@ -62,7 +66,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             scroll_y: 0.0,
             scroll_x_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
             scroll_y_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(
+                args.common_properties,
+            )),
             instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
         }));
 
@@ -81,12 +87,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             .ease_to(self.scroll_y, 2, EasingCurve::Linear);
     }
 
-    // fn get_scroll_offset(&mut self) -> (f64, f64) {
-    //     (
-    //         (*self.scroll_x_offset).borrow().get().clone(),
-    //         (*self.scroll_y_offset).borrow().get().clone(),
-    //     )
-    // }
+    fn get_scroll_offset(&mut self) -> (f64, f64) {
+        (
+            (*self.scroll_x_offset).borrow().get().clone(),
+            (*self.scroll_y_offset).borrow().get().clone(),
+        )
+    }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
@@ -226,7 +232,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         ret
     }
 
-
     /// Scroller's `size` is the size of its inner pane
     fn get_size(&self, expanded_node: &ExpandedNode<R>) -> (Size, Size) {
         let properties_wrapped = expanded_node.get_properties();
@@ -245,11 +250,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         todo!()
     }
 
-    fn expand_node_and_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn expand_node_and_compute_properties(
+        &mut self,
+        ptc: &mut PropertiesTreeContext<R>,
+    ) -> Rc<RefCell<ExpandedNode<R>>> {
         let id_chain = ptc.get_id_chain();
 
         // if true {
-            todo!("manage vtable evaluation for own properties");
+        todo!("manage vtable evaluation for own properties");
         // }
 
         ptc.push_clipping_stack_id(id_chain.clone());
@@ -356,9 +364,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             rc.clip(transformed_bez_path.clone());
         }
         let id_chain = rtc.current_expanded_node.borrow().id_chain.clone();
-
     }
-    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+    fn handle_post_render(
+        &mut self,
+        rtc: &mut RenderTreeContext<R>,
+        _rcs: &mut HashMap<String, R>,
+    ) {
         for (_key, rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
@@ -374,14 +385,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
 
         let scroller_ids = ptc.get_current_scroller_ids();
 
-        ptc.enqueue_native_message(
-            pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
-                id_chain: id_chain.clone(),
-                clipping_ids,
-                scroller_ids,
-                z_index,
-            }),
-        );
+        ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
+            id_chain: id_chain.clone(),
+            clipping_ids,
+            scroller_ids,
+            z_index,
+        }));
     }
 
     fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {

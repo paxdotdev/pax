@@ -214,24 +214,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         }
     }
 
-    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        let id_chain = ptc.get_id_chain(self.instance_id);
+    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
+        let id_chain = node.id_chain.clone();
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
         let clipping_ids = ptc.get_current_clipping_ids();
 
         let scroller_ids = ptc.get_current_scroller_ids();
 
-        let z_index = ptc
-            .current_expanded_node
-            .as_ref()
-            .unwrap()
-            .borrow()
-            .computed_z_index
-            .unwrap();
+        let z_index = node.computed_z_index.unwrap();
 
         ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-            id_chain: id_chain.clone(),
+            id_chain,
             clipping_ids,
             scroller_ids,
             z_index,
