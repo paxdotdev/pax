@@ -158,18 +158,18 @@ fn generate_cartridge_render_nodes_literal(
             "tried to generate render nodes literal for component, but template was undefined",
         );
 
-    let implicit_root = nodes[0].borrow();
+    let implicit_root = nodes[&0].borrow();
     let children_literal: Vec<String> = implicit_root
         .child_ids
         .iter()
         .filter(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
-            let active_tnd = &tnd_map[**child_id];
+            let active_tnd = &tnd_map[*child_id];
             active_tnd.type_id != parsing::TYPE_ID_COMMENT
         })
         .map(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
-            let active_tnd = &tnd_map[*child_id];
+            let active_tnd = &tnd_map[child_id];
             recurse_generate_render_nodes_literal(rngc, active_tnd, host_crate_info, source_map)
         })
         .collect();
@@ -304,12 +304,11 @@ fn recurse_generate_render_nodes_literal(
         .iter()
         .filter(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
-            let active_tnd = &tnd_map[**child_id];
+            let active_tnd = &tnd_map[*child_id];
             active_tnd.type_id != parsing::TYPE_ID_COMMENT
         })
         .map(|child_id| {
-            let active_tnd =
-                &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+            let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[child_id];
             recurse_generate_render_nodes_literal(rngc, active_tnd, host_crate_info, source_map)
         })
         .collect();

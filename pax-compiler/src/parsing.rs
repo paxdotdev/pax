@@ -330,7 +330,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
     // This IMPLICIT_ROOT placeholder node, at index 0 of the TND vec,
     // is a container for the child_ids that act as "multi-roots," which enables
     // templates to be authored without requiring a single top-level container
-    ctx.template_node_definitions.remove(0);
+    ctx.template_node_definitions.remove(&0);
     ctx.template_node_definitions.insert(
         0,
         TemplateNodeDefinition {
@@ -346,7 +346,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
 }
 
 struct TemplateNodeParseContext {
-    pub template_node_definitions: Vec<TemplateNodeDefinition>,
+    pub template_node_definitions: HashMap<usize, TemplateNodeDefinition>,
     pub pascal_identifier_to_type_id_map: HashMap<String, String>,
     //each frame of the outer vec represents a list of
     //children for a given node;
@@ -419,7 +419,7 @@ fn recurse_visit_tag_pairs_for_template(
                 raw_comment_string: None,
             };
             std::mem::swap(
-                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
                 &mut template_node,
             );
         }
@@ -441,7 +441,7 @@ fn recurse_visit_tag_pairs_for_template(
                 raw_comment_string: None,
             };
             std::mem::swap(
-                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
                 &mut template_node,
             );
         }
@@ -627,7 +627,7 @@ fn recurse_visit_tag_pairs_for_template(
             };
 
             std::mem::swap(
-                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
                 &mut template_node_definition,
             );
         }
@@ -642,7 +642,7 @@ fn recurse_visit_tag_pairs_for_template(
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
             };
             std::mem::swap(
-                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
                 &mut template_node,
             );
         }
@@ -1036,7 +1036,7 @@ pub struct ParsingContext {
 
     pub template_map: HashMap<String, String>,
 
-    pub template_node_definitions: Vec<TemplateNodeDefinition>,
+    pub template_node_definitions: HashMap<usize, TemplateNodeDefinition>,
 
     pub type_table: TypeTable,
 
@@ -1051,7 +1051,7 @@ impl Default for ParsingContext {
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
             type_table: get_primitive_type_table(),
-            template_node_definitions: vec![],
+            template_node_definitions: HashMap::new(),
             import_paths: HashSet::new(),
         }
     }
@@ -1166,7 +1166,7 @@ pub fn assemble_component_definition(
 
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_type_id_map: template_map,
-        template_node_definitions: vec![],
+        template_node_definitions: HashMap::new(),
         //each frame of the outer vec represents a list of
         //children for a given node; child order matters because of z-index defaults;
         //a new frame is added when descending the tree
@@ -1197,6 +1197,7 @@ pub fn assemble_component_definition(
         settings: parse_settings_from_component_definition_string(pax),
         handlers: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
+        next_id: Some(*tpc.uid_gen.peek().unwrap()),
     };
 
     (ctx, new_def)
@@ -1230,6 +1231,7 @@ pub fn assemble_struct_only_component_definition(
         template: None,
         settings: None,
         handlers: None,
+        next_id: None,
     };
 
     (ctx, new_def)
@@ -1255,6 +1257,7 @@ pub fn assemble_primitive_definition(
         settings: None,
         module_path: modified_module_path,
         handlers: None,
+        next_id: None,
     }
 }
 
