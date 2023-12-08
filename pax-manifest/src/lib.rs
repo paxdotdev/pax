@@ -145,9 +145,10 @@ pub struct ComponentDefinition {
     /// and the Definition struct.  For primitives, then, we need
     /// to store an additional import path to use when instantiating.
     pub primitive_instance_import_path: Option<String>,
-    pub template: Option<Vec<TemplateNodeDefinition>>,
+    pub template: Option<HashMap<usize, TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsBlockElement>>,
     pub handlers: Option<Vec<HandlersBlockElement>>,
+    pub next_id: Option<usize>,
 }
 
 impl ComponentDefinition {
