@@ -1197,7 +1197,7 @@ pub fn assemble_component_definition(
         settings: parse_settings_from_component_definition_string(pax),
         handlers: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
-        next_id: Some(*tpc.uid_gen.peek().unwrap()),
+        next_template_id: Some(*tpc.uid_gen.peek().unwrap()),
     };
 
     (ctx, new_def)
@@ -1231,7 +1231,7 @@ pub fn assemble_struct_only_component_definition(
         template: None,
         settings: None,
         handlers: None,
-        next_id: None,
+        next_template_id: None,
     };
 
     (ctx, new_def)
@@ -1257,7 +1257,7 @@ pub fn assemble_primitive_definition(
         settings: None,
         module_path: modified_module_path,
         handlers: None,
-        next_id: None,
+        next_template_id: None,
     }
 }
 

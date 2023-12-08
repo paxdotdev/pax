@@ -148,7 +148,7 @@ pub struct ComponentDefinition {
     pub template: Option<HashMap<usize, TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsBlockElement>>,
     pub handlers: Option<Vec<HandlersBlockElement>>,
-    pub next_id: Option<usize>,
+    pub next_template_id: Option<usize>,
 }
 
 impl ComponentDefinition {

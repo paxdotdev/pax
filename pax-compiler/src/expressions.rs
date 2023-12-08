@@ -5,7 +5,7 @@ use pax_manifest::{
     ValueDefinition,
 };
 use std::collections::HashMap;
-use std::ops::{IndexMut, RangeFrom};
+use std::ops::RangeFrom;
 use std::slice::IterMut;
 
 use crate::errors::source_map::SourceMap;
