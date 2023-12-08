@@ -5,7 +5,7 @@ use pax_manifest::{
     ValueDefinition,
 };
 use std::collections::HashMap;
-use std::ops::{IndexMut, RangeFrom};
+use std::ops::RangeFrom;
 use std::slice::IterMut;
 
 use crate::errors::source_map::SourceMap;
@@ -45,7 +45,7 @@ pub fn compile_all_expressions<'a>(
 
         if let Some(ref mut template) = new_component_def.template {
             let mut active_node_def = TemplateNodeDefinition::default();
-            std::mem::swap(&mut active_node_def, template.index_mut(0));
+            std::mem::swap(&mut active_node_def, template.get_mut(&0).unwrap());
 
             let mut ctx = ExpressionCompilationContext {
                 template,
@@ -65,7 +65,7 @@ pub fn compile_all_expressions<'a>(
             ctx = recurse_compile_expressions(ctx, source_map)?;
             uid_track = ctx.uid_gen.next().unwrap();
             all_expression_specs.extend(ctx.expression_specs.to_owned());
-            std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
+            std::mem::swap(&mut ctx.active_node_def, template.get_mut(&0).unwrap());
         }
 
         std::mem::swap(component_def, &mut new_component_def);
@@ -615,7 +615,7 @@ fn recurse_compile_expressions<'a>(
         let mut old_active_node_def = TemplateNodeDefinition::default();
 
         //Swap the first blank for the node with specified id
-        std::mem::swap(&mut active_node_def, ctx.template.get_mut(*id).unwrap());
+        std::mem::swap(&mut active_node_def, ctx.template.get_mut(id).unwrap());
 
         //Swap the second blank for the current ctx.active_node_def value, so we can pass it back
         //to caller when done
@@ -628,7 +628,7 @@ fn recurse_compile_expressions<'a>(
         ctx = recurse_compile_expressions(ctx, source_map)?;
 
         //Pull the (presumably mutated) active_node_def back out of ctx and attach it back into `template`
-        std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(*id).unwrap());
+        std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(id).unwrap());
 
         //Put old active_node_def back in place so we can return it to caller
         std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
@@ -774,7 +774,7 @@ pub struct ExpressionCompilationContext<'a> {
     pub component_def: &'a ComponentDefinition,
 
     /// Container for mutable list of TemplateNodeDefinitions,
-    pub template: &'a mut Vec<TemplateNodeDefinition>,
+    pub template: &'a mut HashMap<usize, TemplateNodeDefinition>,
 
     /// Static stack of addressable properties, by string
     /// Enables resolution of scope-nested symbolic identifiers, including shadowing
