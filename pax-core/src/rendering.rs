@@ -5,7 +5,7 @@ use std::ops::Mul;
 use std::rc::Rc;
 
 use kurbo::{Affine, Point};
-use pax_runtime_api::{Axis, CommonProperties, Transform2D, ZIndex};
+use pax_runtime_api::{Axis, CommonProperties, LayerId, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
@@ -297,10 +297,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     fn handle_native_patches(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
-        computed_size: (f64, f64),
-        transform_coeffs: Vec<f64>,
-        z_index: u32,
-        subtree_depth: u32,
+        expanded_node: &ExpandedNode<R>,
     ) {
         //no-op default implementation
     }
@@ -339,7 +336,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
+    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
         //no-op default implementation
     }
 
@@ -406,7 +403,7 @@ pub struct StrokeInstance {
 pub fn recurse_render<R: RenderContext + 'static>(
     rtc: &mut RenderTreeContext<R>,
     rcs: &mut HashMap<String, R>,
-    z_index_info: &mut ZIndex,
+    z_index_info: &mut LayerId,
     marked_for_unmount: bool,
 ) {
     //Recurse:
@@ -415,13 +412,6 @@ pub fn recurse_render<R: RenderContext + 'static>(
     //  - we now have the back-most leaf node.  Render it.  Return.
     //  - we're now at the second back-most leaf node.  Render it.  Return ...
 
-    let accumulated_bounds = rtc
-        .current_expanded_node
-        .borrow()
-        .computed_tab
-        .as_ref()
-        .unwrap()
-        .bounds;
     let expanded_node = Rc::clone(&rtc.current_expanded_node);
 
     // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
@@ -435,6 +425,7 @@ pub fn recurse_render<R: RenderContext + 'static>(
     }
 
     rtc.current_instance_node = Rc::clone(&expanded_node.borrow().instance_node);
+    //depth work
 
     //scroller IDs are used by chassis, for identifying native scrolling containers
     let scroller_ids = rtc.current_expanded_node.borrow().scroller_stack.clone();
@@ -442,9 +433,9 @@ pub fn recurse_render<R: RenderContext + 'static>(
         None => None,
         Some(v) => Some(v.clone()),
     };
-    let canvas_id = ZIndex::assemble_canvas_id(
+    let canvas_id = LayerId::assemble_canvas_id(
         scroller_id.clone(),
-        rtc.current_expanded_node.borrow().computed_z_index.unwrap(),
+        expanded_node.borrow().computed_canvas_index.unwrap(),
     );
 
     manage_handlers_pre_render(rtc);
@@ -455,7 +446,7 @@ pub fn recurse_render<R: RenderContext + 'static>(
     let mut child_z_index_info = z_index_info.clone();
     if z_index_info.get_current_layer() == Layer::Scroller {
         let id_chain = expanded_node.borrow().id_chain.clone();
-        child_z_index_info = ZIndex::new(Some(id_chain));
+        child_z_index_info = LayerId::new(Some(id_chain));
         // let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
         // let mut reset_transform = Affine::default();
         // reset_transform =
@@ -491,10 +482,17 @@ pub fn recurse_render<R: RenderContext + 'static>(
         .unwrap()
         .intersects(&rtc.engine.viewport_tab);
 
+    // let accumulated_bounds = rtc
+    //     .current_expanded_node
+    //     .borrow()
+    //     .computed_tab
+    //     .as_ref()
+    //     .unwrap()
+    //     .bounds;
     // let clipping = expanded_node
     //     .borrow_mut()
     //     .get_clipping_size_computed(accumulated_bounds);
-    //
+
     // let clipping_bounds = match expanded_node.borrow_mut().get_clipping_size() {
     //     None => None,
     //     Some(_) => Some(clipping),

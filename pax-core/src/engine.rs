@@ -12,8 +12,8 @@ use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, Interpolatable, Layer, NodeContext, Numeric, Rotation, Size, Transform2D,
-    TransitionManager, ZIndex,
+    CommonProperties, Interpolatable, Layer, LayerId, NodeContext, Numeric, Rotation, Size,
+    Transform2D, TransitionManager,
 };
 
 use crate::{
@@ -107,13 +107,6 @@ impl Default for HandlerRegistry {
     }
 }
 
-/// The atomic unit of rendering; also the container for each unique tuple of computed properties.
-/// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
-/// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
-/// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
-/// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
-/// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
-
 #[cfg(debug_assertions)]
 impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -122,6 +115,12 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
     }
 }
 
+/// The atomic unit of rendering; also the container for each unique tuple of computed properties.
+/// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
+/// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
+/// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
+/// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
+/// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
 pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
@@ -141,6 +140,9 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
     /// A copy of the computed z_index for this ExpandedNode
     pub computed_z_index: Option<u32>,
+
+    /// A copy of the computed canvas_index for this ExpandedNode
+    pub computed_canvas_index: Option<u32>,
 
     /// A copy of the NodeContext appropriate for this ExpandedNode
     pub computed_node_context: Option<NodeContext>,
@@ -254,6 +256,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
 
                 // Initialize the following to `None`, will assign values during `recurse_compute_layout`
                 computed_z_index: None,
+                computed_canvas_index: None,
                 computed_node_context: None,
                 computed_tab: None,
 
@@ -262,7 +265,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 scroller_stack: ptc.get_current_scroller_ids(),
                 runtime_properties_stack: ptc.clone_runtime_stack(),
             }));
-
             new_expanded_node
         };
         ptc.engine
@@ -736,6 +738,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn resolve_expanded_fields(&self, debug_builder: &mut std::fmt::DebugStruct) {
         debug_builder
             .field("id_chain", &self.id_chain)
+            .field("computed_z_index", &self.computed_z_index)
             .field(
                 "children",
                 &self
@@ -891,7 +894,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
         let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
-        let mut z_index = ZIndex::new(None);
+        let mut z_index = LayerId::new(None);
 
         //
         // 1. EXPAND NODES & COMPUTE PROPERTIES
@@ -923,12 +926,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let mut z_index_gen = 0..;
         recurse_compute_layout(
             &self,
+            &mut ptc,
             &root_expanded_node,
             &TransformAndBounds {
                 bounds: self.viewport_tab.bounds,
                 transform: Affine::default(),
             },
             &mut z_index_gen,
+            &mut LayerId::new(None),
         );
 
         //
@@ -1027,12 +1032,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.viewport_tab.bounds = new_viewport_size;
     }
-
-    /// Workhorse method to advance rendering and property calculation by one discrete tick
-    /// Will be executed synchronously up to 240 times/second.
-    // pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-    //
-    // }
 
     pub fn load_image(
         &mut self,

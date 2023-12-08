@@ -992,17 +992,19 @@ pub enum Layer {
 /// Captures information about z-index during render node traversal
 /// Used for generating chassis side rendering architecture
 #[derive(Clone)]
-pub struct ZIndex {
+pub struct LayerId {
     z_index: u32,
+    pub canvas_index: u32,
     layer: Layer,
     #[allow(dead_code)]
     parent_scroller: Option<Vec<u32>>,
 }
 
-impl ZIndex {
+impl LayerId {
     pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
-        ZIndex {
+        LayerId {
             z_index: 0,
+            canvas_index: 0,
             layer: Layer::Canvas,
             parent_scroller: scroller_id,
         }
