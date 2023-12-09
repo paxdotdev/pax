@@ -174,7 +174,11 @@ pub enum NodeType {
     Component,
     Primitive,
 }
-
+impl<R: RenderContext + 'static> std::fmt::Debug for dyn InstanceNode<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.resolve_debug(f, None)
+    }
+}
 /// Central runtime representation of a properties-computable and renderable node.
 /// `InstanceNode`s are conceptually stateless, and rely on [`ExpandedNode`]s for stateful representations.
 ///
@@ -271,12 +275,9 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result;
-    // {
-    //     "Generic InstanceNode (hasn't implemented resolve_debug)"
-    // }
 
     /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the

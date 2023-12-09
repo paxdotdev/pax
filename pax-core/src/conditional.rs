@@ -118,16 +118,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        _expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
-        let mut debug_builder = f.debug_struct("Frame");
-        expanded_node.resolve_expanded_fields(&mut debug_builder);
-        debug_builder.finish()
-        // let debug = |o| {
-        //     //Debug print rectangle properties, return builder
-        //     debug_builder
-        // };
-        // with_properties_unwrapped!(&expanded_node.get_properties(), Condit, debug).finish();
+        f.debug_struct("Conditional").finish()
     }
 }

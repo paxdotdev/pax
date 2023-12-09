@@ -204,16 +204,17 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &pax_core::ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
-        let mut debug_builder = f.debug_struct("Rectangle");
-        expanded_node.resolve_expanded_fields(&mut debug_builder);
-        let mut rect_debug = |r: &mut Text| {
-            //Debug print rectangle properties
-            debug_builder.field("text", r.text.get()).finish()
-        };
-        with_properties_unwrapped!(&expanded_node.get_properties(), Text, rect_debug)
+        match expanded_node {
+            Some(expanded_node) => {
+                with_properties_unwrapped!(&expanded_node.get_properties(), Text, |r: &mut Text| {
+                    f.debug_struct("Text").field("text", r.text.get()).finish()
+                })
+            }
+            None => f.debug_struct("Text").finish_non_exhaustive(),
+        }
     }
 }
 /*fn expand_node_and_compute_properties(

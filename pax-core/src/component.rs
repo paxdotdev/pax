@@ -148,15 +148,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        _expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
-        let mut debug_builder = f.debug_struct("Component");
-        expanded_node.resolve_expanded_fields(&mut debug_builder);
-        debug_builder.finish()
-        // let rect_debug = |r| {
-        //     //Debug print rectangle properties
-        // };
-        // with_properties_unwrapped!(&expanded_node.get_properties(), Rectangle, rect_debug);
+        f.debug_struct("Component").finish()
     }
 }

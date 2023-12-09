@@ -241,15 +241,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
-        let mut debug_builder = f.debug_struct("Frame");
-        expanded_node.resolve_expanded_fields(&mut debug_builder);
-        let debug = |o| {
-            //Debug print frame properties, return builder
-            debug_builder
-        };
-        with_properties_unwrapped!(&expanded_node.get_properties(), Frame, debug).finish()
+        match expanded_node {
+            Some(expanded_node) => {
+                with_properties_unwrapped!(
+                    &expanded_node.get_properties(),
+                    Frame,
+                    |r: &mut Frame| { f.debug_struct("Frame").finish() }
+                )
+            }
+            None => f.debug_struct("Frame").finish_non_exhaustive(),
+        }
     }
 }
