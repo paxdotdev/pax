@@ -161,17 +161,22 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
-        let mut debug_builder = f.debug_struct("Rectangle");
-        expanded_node.resolve_expanded_fields(&mut debug_builder);
-        let mut rect_debug = |r: &mut Rectangle| {
-            //Debug print rectangle properties
-            debug_builder
-                .field("corner_radii_top_left", r.corner_radii.get().top_left.get())
-                .finish()
-        };
-        with_properties_unwrapped!(&expanded_node.get_properties(), Rectangle, rect_debug)
+        match expanded_node {
+            Some(expanded_node) => {
+                with_properties_unwrapped!(
+                    &expanded_node.get_properties(),
+                    Rectangle,
+                    |r: &mut Rectangle| {
+                        f.debug_struct("Rectangle")
+                            .field("corner_radii_top_left", r.corner_radii.get().top_left.get())
+                            .finish()
+                    }
+                )
+            }
+            None => f.debug_struct("Rectangle").finish_non_exhaustive(),
+        }
     }
 }

@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::rc::{Rc, Weak};
 
 use kurbo::{Point, Vec2};
@@ -110,8 +111,64 @@ impl Default for HandlerRegistry {
 #[cfg(debug_assertions)]
 impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.instance_node.borrow().resolve_debug(self, f)?;
-        Ok(())
+        //see: https://users.rust-lang.org/t/reusing-an-fmt-formatter/8531/4
+        //maybe this utility should be moved to a more accessible place?
+        pub struct Fmt<F>(pub F)
+        where
+            F: Fn(&mut fmt::Formatter) -> fmt::Result;
+
+        impl<F> fmt::Debug for Fmt<F>
+        where
+            F: Fn(&mut fmt::Formatter) -> fmt::Result,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                (self.0)(f)
+            }
+        }
+
+        f.debug_struct("ExpandedNode")
+            .field(
+                "instance_node:",
+                &Fmt(|f| {
+                    self.instance_node
+                        .as_ref()
+                        .borrow()
+                        .resolve_debug(f, Some(self))
+                }),
+            )
+            .field("id_chain", &self.id_chain)
+            .field("computed_z_index", &self.computed_z_index)
+            .field(
+                "children",
+                &self
+                    .children_expanded_nodes
+                    .iter()
+                    .map(|v| v.borrow())
+                    .collect::<Vec<_>>(),
+            )
+            .field(
+                "parent",
+                &self
+                    .parent_expanded_node
+                    .as_ref()
+                    .and_then(|v| v.upgrade().map(|v| v.borrow().id_chain.clone())),
+            )
+            .field(
+                "slot_children",
+                &self.expanded_and_flattened_slot_children.as_ref().map(|o| {
+                    o.iter()
+                        .map(|v| v.borrow().id_chain.clone())
+                        .collect::<Vec<_>>()
+                }),
+            )
+            .field(
+                "containing_component",
+                &self
+                    .containing_component
+                    .upgrade()
+                    .map(|v| v.borrow().id_chain.clone()),
+            )
+            .finish()
     }
 }
 
@@ -733,35 +790,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 .dispatch_wheel(args_wheel);
         }
     }
-
-    #[cfg(debug_assertions)]
-    pub fn resolve_expanded_fields(&self, debug_builder: &mut std::fmt::DebugStruct) {
-        debug_builder
-            .field("id_chain", &self.id_chain)
-            .field("computed_z_index", &self.computed_z_index)
-            .field(
-                "children",
-                &self
-                    .children_expanded_nodes
-                    .iter()
-                    .map(|v| v.borrow())
-                    .collect::<Vec<_>>(),
-            )
-            .field(
-                "parent",
-                &self
-                    .parent_expanded_node
-                    .as_ref()
-                    .and_then(|v| v.upgrade().map(|v| v.borrow().id_chain.clone())),
-            )
-            .field(
-                "containing_component",
-                &self
-                    .containing_component
-                    .upgrade()
-                    .map(|v| v.borrow().id_chain.clone()),
-            );
-    }
 }
 
 pub struct NodeRegistry<R: 'static + RenderContext> {
@@ -935,6 +963,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             &mut z_index_gen,
             &mut LayerId::new(None),
         );
+
+        pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
 
         //
         // 3. RENDER

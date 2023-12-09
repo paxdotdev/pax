@@ -27,12 +27,10 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     ptc: &mut PropertiesTreeContext<R>,
 ) -> Rc<RefCell<ExpandedNode<R>>> {
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
+    let mut node_borrowed = this_instance_node.borrow_mut();
+    let node_type = node_borrowed.get_node_type().clone();
 
-    let node_type = this_instance_node.borrow_mut().get_node_type().clone();
-
-    let this_expanded_node = this_instance_node
-        .borrow_mut()
-        .expand_node_and_compute_properties(ptc);
+    let this_expanded_node = node_borrowed.expand_node_and_compute_properties(ptc);
 
     // First expand slot_children — that is, the children passed into a component via template.
     // For example, in the template fragment `<Stacker>for i in 0..5 { <Rectangle /> }</Stacker>`, the subtree
@@ -40,8 +38,11 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     // Read more about slot children at [`InstanceNode#get_slot_children`]
 
     //Right now, the slot children are created before the "parent". how can they then be modified by the parent?
+    drop(node_borrowed);
     let expanded_and_flattened_slot_children =
-        if let Some(slot_children) = this_instance_node.borrow_mut().get_slot_children().clone() {
+        if let Some(slot_children) = this_instance_node.borrow().get_slot_children().clone() {
+            pax_runtime_api::log(&format!("has slots: {:#?}", this_expanded_node));
+            pax_runtime_api::log(&format!("slot_children: {:#?}", slot_children));
             //Assert that this is indeed a Component (only Components may be registered with slot_children)
             assert!(matches!(node_type, NodeType::Component), ""); // `this_expanded_node`'s related `instance_node` must be of type NodeType::Component.
 
@@ -65,14 +66,20 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
                 ));
             }
 
+            pax_runtime_api::log(&format!(
+                "flattened slot children: {:#?}",
+                expanded_and_flattened_slot_children,
+            ));
             Some(expanded_and_flattened_slot_children)
-            // this_expanded_node.borrow_mut().set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
         } else {
             None
         };
+    this_expanded_node
+        .borrow_mut()
+        .set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
 
     // Attach component-level `expanded_and_flattened_slot_children` to `ptc` so that they can be used by components inside `expand_node_and_compute_properties`
-    ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
+    //ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
 
     // Compute common properties
     let common_properties = Rc::clone(&this_expanded_node.borrow_mut().get_common_properties());
@@ -107,18 +114,6 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
                 .append_child_expanded_node(child_expanded_node);
         }
     }
-
-    //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
-    //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-    // node_borrowed.instance_node.borrow_mut().handle_native_patches(
-    //     ptc,
-    //     clipping_aware_bounds,
-    //     new_scroller_normalized_accumulated_transform
-    //         .as_coeffs()
-    //         .to_vec(),
-    //     node.borrow().z_index,
-    //     subtree_depth,
-    // );
 
     // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);

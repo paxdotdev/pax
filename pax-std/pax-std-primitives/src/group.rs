@@ -90,15 +90,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        expanded_node: &ExpandedNode<R>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut std::fmt::Formatter,
+        expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
-        let mut debug_builder = f.debug_struct("Group");
-        expanded_node.resolve_expanded_fields(&mut debug_builder);
-        let debug = |o| {
-            //Debug print properties, return builder
-            debug_builder
-        };
-        with_properties_unwrapped!(&expanded_node.get_properties(), Group, debug).finish()
+        match expanded_node {
+            Some(expanded_node) => {
+                with_properties_unwrapped!(
+                    &expanded_node.get_properties(),
+                    Group,
+                    |r: &mut Group| { f.debug_struct("Group").finish() }
+                )
+            }
+            None => f.debug_struct("Group").finish_non_exhaustive(),
+        }
     }
 }
