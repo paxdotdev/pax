@@ -3,11 +3,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    handle_vtable_update_optional, with_properties_unwrapped, ComponentInstance, ExpandedNode,
-    InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
+    handle_vtable_update_optional, with_properties_unwrapped, ExpandedNode, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
 };
-use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
+use pax_runtime_api::{CommonProperties, Layer};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive associated with the `for` statement.

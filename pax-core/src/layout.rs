@@ -1,8 +1,6 @@
-use crate::{
-    ExpandedNode, PaxEngine, PropertiesTreeContext, RenderTreeContext, TransformAndBounds,
-};
+use crate::{ExpandedNode, PaxEngine, PropertiesTreeContext, TransformAndBounds};
 use kurbo::Affine;
-use pax_runtime_api::{Axis, CommonProperties, LayerId, NodeContext, Size, Transform2D};
+use pax_runtime_api::{Axis, LayerId, NodeContext, Size, Transform2D};
 use piet::RenderContext;
 use std::cell::RefCell;
 use std::ops::RangeFrom;
@@ -34,10 +32,7 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     }
 
     {
-        let node_borrowed = current_expanded_node.borrow();
-        // Drop to appease borrow-checker (mount must borrow again to fire handlers)
-        // Lifecycle: `mount`
-        for child in node_borrowed.get_children_expanded_nodes() {
+        for child in current_expanded_node.borrow().get_children_expanded_nodes() {
             let child = Rc::clone(child);
             recurse_compute_layout(
                 engine,
@@ -80,18 +75,14 @@ pub fn compute_tab<R: 'static + RenderContext>(
     node: &Rc<RefCell<ExpandedNode<R>>>,
     container_tab: &TransformAndBounds,
 ) -> TransformAndBounds {
-    let node = Rc::clone(node);
-
     //get the size of this node (calc'd or otherwise) and use
     //it as the new accumulated bounds: both for this node's children (their parent container bounds)
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
     let new_accumulated_bounds_and_current_node_size =
-        node.borrow_mut().get_size_computed(container_tab.bounds);
+        { node.borrow_mut().get_size_computed(container_tab.bounds) };
 
     let node_transform_property_computed = {
-        let node_borrowed = node.borrow();
-
-        let computed_transform2d_matrix = node_borrowed
+        node.borrow()
             .get_common_properties()
             .borrow()
             .transform
@@ -99,9 +90,7 @@ pub fn compute_tab<R: 'static + RenderContext>(
             .compute_transform2d_matrix(
                 new_accumulated_bounds_and_current_node_size.clone(),
                 container_tab.bounds,
-            );
-
-        computed_transform2d_matrix
+            )
     };
 
     // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.

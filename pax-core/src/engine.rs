@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::rc::{Rc, Weak};
 
-use kurbo::{Point, Vec2};
+use kurbo::Point;
 use piet_common::RenderContext;
 
 use pax_message::NativeMessage;
@@ -13,15 +13,14 @@ use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, Interpolatable, Layer, LayerId, NodeContext, Numeric, Rotation, Size,
-    Transform2D, TransitionManager,
+    CommonProperties, LayerId, NodeContext, Numeric, Rotation, Size, Transform2D,
 };
 
 use crate::{
     handle_vtable_update, handle_vtable_update_optional, recurse_compute_layout,
-    recurse_expand_nodes, recurse_render, Affine, ComponentInstance, ComputableTransform,
-    ExpressionContext, InstanceNodePtr, InstanceNodePtrList, NodeType, PropertiesTreeContext,
-    PropertiesTreeShared, RenderTreeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+    recurse_expand_nodes, recurse_render, Affine, ComponentInstance, ExpressionContext,
+    InstanceNodePtr, PropertiesTreeContext, PropertiesTreeShared, RenderTreeContext,
+    RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 /// Singleton struct storing everything related to properties computation & rendering
@@ -626,13 +625,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             expanded_and_flattened_slot_children: None,
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
-        pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
+
         //
         // 2. COMPUTE LAYOUT
         // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
         // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future.
         //
-
         let mut z_index_gen = 0..;
         recurse_compute_layout(
             &self,
@@ -645,6 +643,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             &mut z_index_gen,
             &mut LayerId::new(None),
         );
+
+        pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
 
         //
         // 3. RENDER

@@ -4,14 +4,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    recurse_expand_nodes, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, NodeType, PropertiesTreeContext,
-    RenderTreeContext,
+    recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, InstantiationArgs, NodeType, PropertiesTreeContext,
 };
 
-use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
-
-use crate::PropertiesComputable;
+use pax_runtime_api::{CommonProperties, Layer, Timeline};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `slot_children` and

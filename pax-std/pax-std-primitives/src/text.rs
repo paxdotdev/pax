@@ -3,18 +3,15 @@ use std::cell::RefCell;
 use core::any::Any;
 use pax_core::{
     handle_vtable_update, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PaxEngine, PropertiesComputable,
-    PropertiesTreeContext, RenderTreeContext,
+    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{CommonProperties, Layer, SizePixels, StringBox};
+use pax_runtime_api::{CommonProperties, Layer};
 use pax_std::primitives::Text;
 use piet::RenderContext;
 use std::collections::HashMap;
 use std::rc::Rc;
-
-use pax_std::types::text::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
-use pax_std::types::Color;
 
 pub struct TextInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
