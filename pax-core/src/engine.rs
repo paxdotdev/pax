@@ -128,7 +128,7 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
 
         f.debug_struct("ExpandedNode")
             .field(
-                "instance_node:",
+                "instance_node",
                 &Fmt(|f| {
                     self.instance_node
                         .as_ref()
@@ -184,13 +184,49 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// and the subsequent u32s represent addresses within an expanded tree via Repeat.
     pub id_chain: Vec<u32>,
 
+    /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
+    pub instance_node: InstanceNodePtr<R>,
+
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
     pub parent_expanded_node: Option<Weak<RefCell<ExpandedNode<R>>>>,
 
-    /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
-    pub instance_node: InstanceNodePtr<R>,
+    /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
+    /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
+    /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
+    /// thus `containing_component` is `Option`al.
+    pub containing_component: Weak<RefCell<ExpandedNode<R>>>,
 
+    /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
+    /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
+    /// explicitly updated to accommodate.)
+    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
+
+    //TODOSAM remake these to follow the same apttern as runtime_properties_stack
+    /// Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
+    /// A snapshot of the clipping stack above this element at the time of properties-computation
+    pub clipping_stack: Vec<Vec<u32>>,
+
+    /// Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
+    /// A snapshot of the scroller stack above this element at the time of properties-computation
+    pub scroller_stack: Vec<Vec<u32>>,
+
+    /// For component instances only, tracks the expanded + flattened slot_children
+    expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
+
+    //TODOSAM replace these two with an orderedSet
+    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
+    children_expanded_nodes: Vec<Rc<RefCell<ExpandedNode<R>>>>,
+
+    /// Constant-time lookup for presence of children expanded nodes; maintained duplicatively of children_expanded_nodes
+    /// and used for performant checking-for-presence-before-inserting of children_nodes.
+    /// Note that this only checks for presence, not for ordering.  If we support
+    /// changing the index of children at any point (e.g. possibly via `key` as a feature of `RepeatInstance`) then this should be
+    /// updated to be order-aware.
+    children_expanded_nodes_set: HashSet<Vec<u32>>,
+
+    //COMPUTED_PROPERTIES: that depend on other computed properties higher up in the tree
+    //
     /// Computed transform and size of this ExpandedNode
     /// Optional because a ExpandedNode is initialized with `computed_tab: None`; this is computed later
     pub computed_tab: Option<TransformAndBounds>,
@@ -204,43 +240,11 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// A copy of the NodeContext appropriate for this ExpandedNode
     pub computed_node_context: Option<NodeContext>,
 
-    /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
-    /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
-    /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
-    /// thus `containing_component` is `Option`al.
-    pub containing_component: Weak<RefCell<ExpandedNode<R>>>,
-
-    /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
-    /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
-    /// explicitly updated to accommodate.)
-    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
-
-    /// Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
-    /// A snapshot of the clipping stack above this element at the time of properties-computation
-    pub clipping_stack: Vec<Vec<u32>>,
-
-    /// Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
-    /// A snapshot of the scroller stack above this element at the time of properties-computation
-    pub scroller_stack: Vec<Vec<u32>>,
-
-    /// For component instances only, tracks the expanded + flattened slot_children
-    expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
-
     /// Each ExpandedNode has a unique "stamp" of computed properties
     computed_properties: Rc<RefCell<dyn Any>>,
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     computed_common_properties: Rc<RefCell<CommonProperties>>,
-
-    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    children_expanded_nodes: Vec<Rc<RefCell<ExpandedNode<R>>>>,
-
-    /// Constant-time lookup for presence of children expanded nodes; maintained duplicatively of children_expanded_nodes
-    /// and used for performant checking-for-presence-before-inserting of children_nodes.
-    /// Note that this only checks for presence, not for ordering.  If we support
-    /// changing the index of children at any point (e.g. possibly via `key` as a feature of `RepeatInstance`) then this should be
-    /// updated to be order-aware.
-    children_expanded_nodes_set: HashSet<Vec<u32>>,
 }
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
@@ -285,11 +289,12 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 
     pub fn get_or_create_with_prototypical_properties(
+        node_id: u32,
         ptc: &mut PropertiesTreeContext<R>,
         prototypical_properties: &Rc<RefCell<dyn Any>>,
         prototypical_common_properties: &Rc<RefCell<CommonProperties>>,
     ) -> Rc<RefCell<Self>> {
-        let id_chain = ptc.get_id_chain(ptc.current_instance_id);
+        let id_chain = ptc.get_id_chain(node_id);
         let expanded_node = if let Some(already_registered_node) = ptc
             .engine
             .node_registry
@@ -911,6 +916,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
+    // NOTES: this is the order of different things being computed in recurse-expand-nodes
+    // - expanded_node instantiated from instance_node.
+
     /// Workhorse methods of every tick.  Will be executed up to 240 Hz.
     /// Three phases:
     /// 1. Expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
@@ -931,7 +939,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             engine: &self,
             current_containing_component: Weak::new(),
             current_instance_node: Rc::clone(&root_component_instance),
-            current_instance_id: root_component_instance.borrow().get_instance_id(),
             current_expanded_node: None,
             parent_expanded_node: None,
             marked_for_unmount: false,
@@ -944,7 +951,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             expanded_and_flattened_slot_children: None,
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
-
+        pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
         //
         // 2. COMPUTE LAYOUT
         // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
@@ -963,8 +970,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             &mut z_index_gen,
             &mut LayerId::new(None),
         );
-
-        pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
 
         //
         // 3. RENDER

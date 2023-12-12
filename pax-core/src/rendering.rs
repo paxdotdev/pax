@@ -45,8 +45,8 @@ pub struct ScrollerArgs {
 }
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
-    pub prototypical_common_properties_factory: Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
-    pub prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    pub prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    pub prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<InstanceNodePtrList<R>>,
@@ -264,13 +264,14 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         false
     }
 
-    /// Allows an `InstanceNode` to specify that the properties computation engine should not expand nodes
-    /// for its subtree (to stop recursing externally,) because this node will manage its own recursion for expanding its subtree.
-    /// It's expected that node that returns `true` will call `recurse_expand_nodes` on instance nodes in its subtree.
-    /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their properties subtree is calculated.
-    fn manages_own_subtree_for_expansion(&self) -> bool {
-        false
-    }
+    //TODOSAM make sure this is ok
+    // /// Allows an `InstanceNode` to specify that the properties computation engine should not expand nodes
+    // /// for its subtree (to stop recursing externally,) because this node will manage its own recursion for expanding its subtree.
+    // /// It's expected that node that returns `true` will call `recurse_expand_nodes` on instance nodes in its subtree.
+    // /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their properties subtree is calculated.
+    // fn manages_own_subtree_for_expansion(&self) -> bool {
+    //     false
+    // }
 
     #[cfg(debug_assertions)]
     fn resolve_debug(
@@ -279,6 +280,10 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result;
 
+    // Returns an expanded node
+    //TODOSAM this can probably have default impl if it's parts are methods (to get factories)
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+
     /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
@@ -286,7 +291,27 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+    ) -> Rc<RefCell<crate::ExpandedNode<R>>> {
+        let this_expanded_node = self.expand(ptc);
+
+        let children_to_recurse = self.get_instance_children();
+
+        for child in (*children_to_recurse).borrow().iter() {
+            let mut new_ptc = ptc.clone();
+            new_ptc.current_instance_node = Rc::clone(child);
+            new_ptc.current_expanded_node = None;
+
+            let child_expanded_node = crate::recurse_expand_nodes(&mut new_ptc);
+
+            child_expanded_node.borrow_mut().parent_expanded_node =
+                Some(Rc::downgrade(&this_expanded_node));
+
+            this_expanded_node
+                .borrow_mut()
+                .append_child_expanded_node(child_expanded_node);
+        }
+        this_expanded_node
+    }
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience

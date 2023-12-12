@@ -19,9 +19,8 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     instance_children: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains the expression of a conditional, evaluated as an expression.
@@ -55,20 +54,23 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
         node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
-    fn manages_own_subtree_for_expansion(&self) -> bool {
-        true
+
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
+            ptc,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
+        )
     }
+
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        );
-        let properties_wrapped = this_expanded_node.borrow().get_properties();
+        let this_expanded_node = self.expand(ptc);
 
+        let properties_wrapped = this_expanded_node.borrow().get_properties();
         // evaluate boolean expression
         let evaluated_condition = with_properties_unwrapped!(
             &properties_wrapped,
@@ -85,7 +87,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             let mut new_ptc = ptc.clone();
             new_ptc.current_expanded_node = None;
             new_ptc.current_instance_node = Rc::clone(child);
-            new_ptc.current_instance_id = child.borrow().get_instance_id();
 
             // handle false conditional by marking for unmount; continue to recurse into subtree and compute / expand
             if !evaluated_condition {

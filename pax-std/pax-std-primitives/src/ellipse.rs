@@ -21,9 +21,8 @@ use std::rc::Rc;
 pub struct EllipseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_id: u32,
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
@@ -59,16 +58,21 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
             _ => None,
         }
     }
+
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
+            ptc,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
+        )
+    }
+
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        );
-
+        let this_expanded_node = self.expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {
@@ -78,6 +82,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
 
         this_expanded_node
     }
+
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = expanded_node.computed_tab.as_ref().unwrap();

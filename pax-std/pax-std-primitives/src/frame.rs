@@ -29,9 +29,8 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
@@ -71,10 +70,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
-    }
-
-    fn manages_own_subtree_for_expansion(&self) -> bool {
-        true
     }
 
     // fn handle_native_patches(
@@ -144,23 +139,26 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         Rc::clone(&self.instance_children)
     }
 
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
+            ptc,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
+        )
+    }
+
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        );
-
+        let this_expanded_node = self.expand(ptc);
         let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);
 
         for instance_child in self.instance_children.borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(instance_child);
-            new_ptc.current_instance_id = instance_child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
@@ -249,7 +247,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
                 with_properties_unwrapped!(
                     &expanded_node.get_properties(),
                     Frame,
-                    |r: &mut Frame| { f.debug_struct("Frame").finish() }
+                    |_f: &mut Frame| { f.debug_struct("Frame").finish() }
                 )
             }
             None => f.debug_struct("Frame").finish_non_exhaustive(),

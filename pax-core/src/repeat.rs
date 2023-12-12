@@ -19,9 +19,8 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub repeated_template: InstanceNodePtrList<R>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
@@ -66,15 +65,20 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         ret
     }
 
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
+            ptc,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
+        )
+    }
+
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        );
+        let this_expanded_node = self.expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Mark all of Repeat's existing children (from previous tick) for
@@ -131,8 +135,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     let mut new_ptc = ptc.clone();
                     new_ptc.current_expanded_node = None;
                     new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                    new_ptc.current_instance_id =
-                        repeated_template_instance_root.borrow().get_instance_id();
                     let child_expanded_node = crate::recurse_expand_nodes(&mut new_ptc);
                     ptc.engine
                         .node_registry
@@ -194,10 +196,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
-    }
-
-    fn manages_own_subtree_for_expansion(&self) -> bool {
-        true
     }
 
     #[cfg(debug_assertions)]

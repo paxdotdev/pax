@@ -27,9 +27,8 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
@@ -89,19 +88,52 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         true
     }
 
-    fn manages_own_subtree_for_expansion(&self) -> bool {
-        true
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
+            ptc,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
+        )
     }
 
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        );
+        let this_expanded_node = self.expand(ptc);
+
+        let expanded_and_flattened_slot_children =
+            if let Some(slot_children) = self.get_slot_children().clone() {
+                //Expand children in the context of the current containing component
+                let mut expanded_slot_children = vec![];
+                for child in (*slot_children).borrow().iter() {
+                    let mut new_ptc = ptc.clone();
+                    new_ptc.current_instance_node = Rc::clone(child);
+                    new_ptc.current_expanded_node = None;
+                    let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+                    expanded_slot_children.push(child_expanded_node);
+                }
+
+                //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
+                //[`ConditionalInstance`] and [`RepeatInstance`]
+                let mut expanded_and_flattened_slot_children = vec![];
+                for expanded_slot_child in expanded_slot_children {
+                    expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(
+                        &Rc::clone(&expanded_slot_child),
+                    ));
+                }
+
+                Some(expanded_and_flattened_slot_children)
+            } else {
+                None
+            };
+
+        // Attach component-level `expanded_and_flattened_slot_children` to `ptc` so that they can be used by components inside `expand_node_and_compute_properties`
+        //ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
+        this_expanded_node
+            .borrow_mut()
+            .set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
 
         //TODOSAM: make sure this is the right place to do this when we have more than one component!
         let last_containing_component = std::mem::replace(
@@ -126,7 +158,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         for child in self.template.borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(child);
-            new_ptc.current_instance_id = child.borrow().get_instance_id();
             new_ptc.current_expanded_node = None;
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
@@ -153,4 +184,28 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     ) -> std::fmt::Result {
         f.debug_struct("Component").finish()
     }
+}
+
+/// Helper function that accepts a
+fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(
+    node: &Rc<RefCell<ExpandedNode<R>>>,
+) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
+    let mut result = vec![];
+
+    let is_invisible_to_slot = {
+        let node_borrowed = node.borrow();
+        let instance_node_borrowed = node_borrowed.instance_node.borrow();
+        instance_node_borrowed.is_invisible_to_slot()
+    };
+    if is_invisible_to_slot {
+        // If the node is invisible, recurse on its children
+        for child in node.borrow().get_children_expanded_nodes().iter() {
+            result.extend(flatten_expanded_node_for_slot(child));
+        }
+    } else {
+        // If the node is visible, add it to the result
+        result.push(Rc::clone(node));
+    }
+
+    result
 }
