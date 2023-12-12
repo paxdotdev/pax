@@ -100,7 +100,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.expand(ptc);
 
-        let expanded_and_flattened_slot_children =
+        let expanded_and_flattened_slot_children = {
             if let Some(slot_children) = self.get_slot_children().clone() {
                 //Expand children in the context of the current containing component
                 let mut expanded_slot_children = vec![];
@@ -124,25 +124,26 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 Some(expanded_and_flattened_slot_children)
             } else {
                 None
-            };
+            }
+        };
 
-        // Attach component-level `expanded_and_flattened_slot_children` to `ptc` so that they can be used by components inside `expand_node_and_compute_properties`
-        //ptc.expanded_and_flattened_slot_children = expanded_and_flattened_slot_children;
-        this_expanded_node
-            .borrow_mut()
-            .set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
+        // pax_runtime_api::log(&format!(
+        //     "id {:#?} has slot children {:#?}",
+        //     this_expanded_node.borrow().id_chain,
+        //     expanded_and_flattened_slot_children
+        // ));
+
+        {
+            this_expanded_node
+                .borrow_mut()
+                .set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
+        }
 
         //TODOSAM: make sure this is the right place to do this when we have more than one component!
         let last_containing_component = std::mem::replace(
             &mut ptc.current_containing_component,
             Rc::downgrade(&this_expanded_node),
         );
-
-        this_expanded_node
-            .borrow_mut()
-            .set_expanded_and_flattened_slot_children(
-                ptc.expanded_and_flattened_slot_children.take(),
-            );
 
         //Compute properties
         (*self.compute_properties_fn)(

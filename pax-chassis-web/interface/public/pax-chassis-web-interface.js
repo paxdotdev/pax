@@ -375,7 +375,7 @@ var Pax = (() => {
     }
   };
 
-  // node_modules/snarkdown/dist/snarkdown.es.js
+  // ../node_modules/snarkdown/dist/snarkdown.es.js
   var e = { "": ["<em>", "</em>"], _: ["<strong>", "</strong>"], "*": ["<strong>", "</strong>"], "~": ["<s>", "</s>"], "\n": ["<br />"], " ": ["<br />"], "-": ["<hr />"] };
   function n(e2) {
     return e2.replace(RegExp("^" + (e2.match(/^(\t| )+/) || "")[0], "gm"), "");
@@ -661,7 +661,6 @@ var Pax = (() => {
       });
     }
     checkboxCreate(patch) {
-      console.log("checkbox create");
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
@@ -709,7 +708,6 @@ var Pax = (() => {
       console.assert(leaf !== void 0);
       let checkbox = leaf.firstChild;
       if (patch.checked !== null) {
-        console.log("from engine:", patch.checked);
         checkbox.checked = patch.checked;
       }
       if (patch.size_x != null) {
@@ -730,7 +728,6 @@ var Pax = (() => {
       }
     }
     textCreate(patch) {
-      console.log("text create");
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
