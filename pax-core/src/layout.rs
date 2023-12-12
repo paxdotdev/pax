@@ -51,22 +51,26 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     }
 
     {
-        let node_borrowed = current_expanded_node.borrow();
-        let mut node_instance_borrowed = node_borrowed.instance_node.borrow_mut();
-        let node_type = node_instance_borrowed.get_layer_type();
-        canvas_index_gen.update_z_index(node_type.clone());
+        canvas_index_gen.update_z_index(
+            current_expanded_node
+                .borrow()
+                .instance_node
+                .borrow_mut()
+                .get_layer_type(),
+        );
     }
     {
-        let mut node_borrowed = current_expanded_node.borrow_mut();
-        node_borrowed.computed_canvas_index = Some(canvas_index_gen.get_level());
-        node_borrowed.computed_canvas_index = Some(canvas_index_gen.get_level());
+        current_expanded_node.borrow_mut().computed_canvas_index =
+            Some(canvas_index_gen.get_level());
     }
     manage_handlers_mount(engine, ptc, &current_expanded_node);
 
     {
         let node_borrowed = current_expanded_node.borrow_mut();
-        let mut node_instance_borrowed = node_borrowed.instance_node.borrow_mut();
-        node_instance_borrowed.handle_native_patches(ptc, &node_borrowed);
+        node_borrowed
+            .instance_node
+            .borrow_mut()
+            .handle_native_patches(ptc, &node_borrowed);
     }
 }
 

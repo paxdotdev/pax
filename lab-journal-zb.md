@@ -4696,14 +4696,13 @@ handler_registry.wheel_handlers = vec![
             
 ```
 
-The wrong `properties` is getting sent in.  
-Hypothesis:
-- We should be sending in "properties for the containing component" rather than "properties for this expanded node."
-  Tried the above, no dice
-- Simple logical error in how nodes are being attached to each other
+# Types
+ExpandedNode {
+    
+}
+# Tick Expansion Order
 
 
-ctx.scope_stack
 ### Refreshing TODOs as of Nov 14 2023
 
 [ ] Manual testing - examples as milestones

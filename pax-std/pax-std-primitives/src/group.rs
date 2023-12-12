@@ -17,9 +17,8 @@ pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
@@ -54,16 +53,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         ret
     }
 
-    fn expand_node_and_compute_properties(
-        &mut self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
+    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
             ptc,
             &(self.instance_prototypical_properties_factory)(),
             &(self.instance_prototypical_common_properties_factory)(),
-        );
-        this_expanded_node
+        )
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
@@ -72,12 +68,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
             _ => None,
         }
     }
-
-    /// Can never hit a Group directly -- can only hit elements inside of it.
-    /// Events can still be propagated to a group.
-    // fn ray_cast_test(&self, _ray: &(f64, f64), _tab: &TransformAndBounds) -> bool {
-    //     false
-    // }
 
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
