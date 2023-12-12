@@ -5,9 +5,8 @@ use std::rc::Rc;
 use crate::{
     handle_vtable_update, recurse_expand_nodes, with_properties_unwrapped, ExpandedNode,
     InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
 };
-use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
+use pax_runtime_api::{CommonProperties, Layer};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a

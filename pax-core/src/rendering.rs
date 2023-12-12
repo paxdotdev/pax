@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::ops::Mul;
 use std::rc::Rc;
 
-use kurbo::{Affine, Point};
-use pax_runtime_api::{Axis, CommonProperties, LayerId, Transform2D};
+use kurbo::Affine;
+use pax_runtime_api::{CommonProperties, LayerId};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 

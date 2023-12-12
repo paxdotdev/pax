@@ -2,7 +2,7 @@ use pax_core::{
     with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
     InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
 };
-use pax_std::primitives::{Group, Rectangle};
+use pax_std::primitives::Group;
 use piet_common::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
@@ -88,7 +88,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
                 with_properties_unwrapped!(
                     &expanded_node.get_properties(),
                     Group,
-                    |r: &mut Group| { f.debug_struct("Group").finish() }
+                    |_g: &mut Group| { f.debug_struct("Group").finish() }
                 )
             }
             None => f.debug_struct("Group").finish_non_exhaustive(),

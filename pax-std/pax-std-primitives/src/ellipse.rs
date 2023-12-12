@@ -131,7 +131,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
                 with_properties_unwrapped!(
                     &expanded_node.get_properties(),
                     Ellipse,
-                    |r: &mut Ellipse| { f.debug_struct("Ellipse").finish() }
+                    |_e: &mut Ellipse| { f.debug_struct("Ellipse").finish() }
                 )
             }
             None => f.debug_struct("Ellipse").finish_non_exhaustive(),

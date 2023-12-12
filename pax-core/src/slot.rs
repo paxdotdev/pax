@@ -1,6 +1,5 @@
 use core::cell::RefCell;
 use core::option::Option;
-use core::option::Option::{None, Some};
 use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -8,11 +7,10 @@ use std::rc::Rc;
 use piet_common::RenderContext;
 
 use crate::{
-    flatten_slot_invisible_nodes_recursive, handle_vtable_update, with_properties_unwrapped,
-    ExpandedNode, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
-    PropertiesTreeContext, RenderTreeContext,
+    handle_vtable_update, with_properties_unwrapped, ExpandedNode, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
-use pax_runtime_api::{CommonProperties, Layer, Numeric, PropertyInstance, Size};
+use pax_runtime_api::{CommonProperties, Layer, Numeric};
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
 /// an slot_child can be rendered.  Slot relies on `slot_children` being present
@@ -59,7 +57,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         ret
     }
 
-    fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+    fn handle_pre_render(
+        &mut self,
+        _rtc: &mut RenderTreeContext<R>,
+        _rcs: &mut HashMap<String, R>,
+    ) {
     }
 
     /// Slot has strictly zero instance_children, but will likely have ExpandedNode children

@@ -1,17 +1,11 @@
-use crate::{
-    ComputableTransform, ExpandedNode, ExpressionContext, InstanceNodePtr, InstanceNodePtrList,
-    NodeRegistry, NodeType, PaxEngine, PropertiesComputable, TransformAndBounds,
-};
-use kurbo::Affine;
+use crate::{ExpandedNode, ExpressionContext, InstanceNodePtr, PaxEngine, PropertiesComputable};
+
 use pax_message::NativeMessage;
-use pax_runtime_api::{
-    Interpolatable, NodeContext, Numeric, Rotation, Size, Timeline, Transform2D, TransitionManager,
-};
+use pax_runtime_api::{Interpolatable, Numeric, TransitionManager};
 use piet::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::ops::RangeFrom;
 use std::rc::{Rc, Weak};
 
 /// Recursive workhorse method for expanding nodes.  Visits all instance nodes in tree, stitching
@@ -33,6 +27,7 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
             .expand_node_and_compute_properties(ptc)
     };
 
+    //TODOSAM move this to compute pass?
     // Compute common properties
     let common_properties = Rc::clone(&this_expanded_node.borrow_mut().get_common_properties());
     common_properties.borrow_mut().compute_properties(ptc);
@@ -183,9 +178,7 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
                 let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
                 let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
 
-                if let Some(mut ri) =
-                    properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>()
-                {
+                if let Some(ri) = properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>() {
                     indices.push(ri.i as u32)
                 }
             });

@@ -312,6 +312,7 @@ fn recurse_compile_expressions<'a>(
             let is_repeat_source_range = repeat_source_definition.range_expression_paxel.is_some();
             let is_repeat_source_iterable = repeat_source_definition.symbolic_binding.is_some();
 
+            #[allow(unused)]
             let (paxel, return_type) = if let Some(range_expression_paxel) =
                 &repeat_source_definition.range_expression_paxel
             {
@@ -580,9 +581,11 @@ fn resolve_symbol_as_invocation(
         let nested_prop_def = prop_def_chain.last().unwrap();
 
         let split_symbols = clean_and_split_symbols(&sym);
+        #[allow(unused)]
         let is_nested_numeric = split_symbols.len() > 1
             && ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
 
+        #[allow(unused)]
         let escaped_identifier = escape_identifier(split_symbols.join("."));
         let nested_prop_def = prop_def_chain.last().unwrap();
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
