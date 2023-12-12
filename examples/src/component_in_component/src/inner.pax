@@ -1,5 +1,7 @@
-<Text text={self.text}/>
-
-@handlers {
-    mount: handle_mount
-}
+<Rectangle 
+    width=50%
+    height=50%
+    x={self.x}  
+    y={self.y}  
+    fill={Fill::Solid(Color::hlc(0, 75.0, 150.0))}
+/>

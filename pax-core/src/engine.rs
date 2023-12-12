@@ -247,6 +247,32 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     computed_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
+macro_rules! dispatch_event_handler {
+    ($fn_name:ident, $arg_type:ty, $handler_field:ident) => {
+        pub fn $fn_name(&self, args: $arg_type) {
+            if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+                let handlers = &(*registry).borrow().$handler_field;
+                let component_properties = if let Some(cc) = self.containing_component.upgrade() {
+                    Rc::clone(&cc.borrow().get_properties())
+                } else {
+                    Rc::clone(&self.get_properties())
+                };
+                handlers.iter().for_each(|handler| {
+                    handler(
+                        Rc::clone(&component_properties),
+                        &self.computed_node_context.clone().unwrap(),
+                        args.clone(),
+                    );
+                });
+            }
+
+            if let Some(parent) = &self.parent_expanded_node {
+                parent.upgrade().unwrap().borrow().$fn_name(args);
+            }
+        }
+    };
+}
+
 impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn get_children_expanded_nodes(&self) -> &Vec<Rc<RefCell<ExpandedNode<R>>>> {
         &self.children_expanded_nodes
@@ -413,388 +439,37 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         todo!("patch into an ExpandedNode-friendly way to track this state");
     }
 
-    pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().scroll_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_scroll.clone(),
-                );
-            });
-        }
-        (*self.instance_node)
-            .borrow_mut()
-            .handle_scroll(args_scroll.clone());
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_scroll(args_scroll);
-        }
-    }
+    dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);
+    dispatch_event_handler!(dispatch_clap, ArgsClap, clap_handlers);
+    dispatch_event_handler!(dispatch_touch_start, ArgsTouchStart, touch_start_handlers);
 
-    pub fn dispatch_clap(&self, args_clap: ArgsClap) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().clap_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_clap.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent.upgrade().unwrap().borrow().dispatch_clap(args_clap);
-        }
-    }
-
-    pub fn dispatch_touch_start(&self, args_touch_start: ArgsTouchStart) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().touch_start_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_touch_start.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_touch_start(args_touch_start);
-        }
-    }
-
-    pub fn dispatch_touch_move(&self, args_touch_move: ArgsTouchMove) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().touch_move_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_touch_move.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_touch_move(args_touch_move);
-        }
-    }
-
-    pub fn dispatch_touch_end(&self, args_touch_end: ArgsTouchEnd) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().touch_end_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_touch_end.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_touch_end(args_touch_end);
-        }
-    }
-
-    pub fn dispatch_key_down(&self, args_key_down: ArgsKeyDown) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().key_down_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_key_down.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_key_down(args_key_down);
-        }
-    }
-
-    pub fn dispatch_key_up(&self, args_key_up: ArgsKeyUp) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().key_up_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_key_up.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_key_up(args_key_up);
-        }
-    }
-
-    pub fn dispatch_key_press(&self, args_key_press: ArgsKeyPress) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().key_press_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_key_press.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_key_press(args_key_press);
-        }
-    }
-
-    pub fn dispatch_click(&self, args_click: ArgsClick) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().click_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_click.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_click(args_click);
-        }
-    }
-
-    pub fn dispatch_checkbox_change(&self, args_change: ArgsCheckboxChange) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().checkbox_change_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_change.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_checkbox_change(args_change);
-        }
-    }
-
-    pub fn dispatch_mouse_down(&self, args_mouse_down: ArgsMouseDown) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().mouse_down_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_mouse_down.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_mouse_down(args_mouse_down);
-        }
-    }
-
-    pub fn dispatch_mouse_up(&self, args_mouse_up: ArgsMouseUp) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().mouse_up_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_mouse_up.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_mouse_up(args_mouse_up);
-        }
-    }
-
-    pub fn dispatch_mouse_move(&self, args_mouse_move: ArgsMouseMove) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().mouse_move_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_mouse_move.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_mouse_move(args_mouse_move);
-        }
-    }
-
-    pub fn dispatch_mouse_over(&self, args_mouse_over: ArgsMouseOver) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().mouse_over_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_mouse_over.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_mouse_over(args_mouse_over);
-        }
-    }
-
-    pub fn dispatch_mouse_out(&self, args_mouse_out: ArgsMouseOut) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().mouse_out_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_mouse_out.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_mouse_out(args_mouse_out);
-        }
-    }
-
-    pub fn dispatch_double_click(&self, args_double_click: ArgsDoubleClick) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().double_click_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_double_click.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_double_click(args_double_click);
-        }
-    }
-
-    pub fn dispatch_context_menu(&self, args_context_menu: ArgsContextMenu) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().context_menu_handlers;
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&self.get_properties()),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_context_menu.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_context_menu(args_context_menu);
-        }
-    }
-
-    pub fn dispatch_wheel(&self, args_wheel: ArgsWheel) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            let handlers = &(*registry).borrow().wheel_handlers;
-            // containing_component populated during expansion, populated incorrectly?
-            // create dispatch macro
-            let component_properties = if let Some(cc) = self.containing_component.upgrade() {
-                Rc::clone(&cc.borrow().get_properties())
-            } else {
-                Rc::clone(&self.get_properties())
-            };
-            handlers.iter().for_each(|handler| {
-                handler(
-                    Rc::clone(&component_properties),
-                    &self.computed_node_context.clone().unwrap(),
-                    args_wheel.clone(),
-                );
-            });
-        }
-
-        if let Some(parent) = &self.parent_expanded_node {
-            parent
-                .upgrade()
-                .unwrap()
-                .borrow()
-                .dispatch_wheel(args_wheel);
-        }
-    }
+    dispatch_event_handler!(dispatch_touch_move, ArgsTouchMove, touch_move_handlers);
+    dispatch_event_handler!(dispatch_touch_end, ArgsTouchEnd, touch_end_handlers);
+    dispatch_event_handler!(dispatch_key_down, ArgsKeyDown, key_down_handlers);
+    dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, key_up_handlers);
+    dispatch_event_handler!(dispatch_key_press, ArgsKeyPress, key_press_handlers);
+    dispatch_event_handler!(
+        dispatch_checkbox_change,
+        ArgsCheckboxChange,
+        checkbox_change_handlers
+    );
+    dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, mouse_down_handlers);
+    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, mouse_up_handlers);
+    dispatch_event_handler!(dispatch_mouse_move, ArgsMouseMove, mouse_move_handlers);
+    dispatch_event_handler!(dispatch_mouse_over, ArgsMouseOver, mouse_over_handlers);
+    dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, mouse_out_handlers);
+    dispatch_event_handler!(
+        dispatch_double_click,
+        ArgsDoubleClick,
+        double_click_handlers
+    );
+    dispatch_event_handler!(
+        dispatch_context_menu,
+        ArgsContextMenu,
+        context_menu_handlers
+    );
+    dispatch_event_handler!(dispatch_click, ArgsClick, click_handlers);
+    dispatch_event_handler!(dispatch_wheel, ArgsWheel, wheel_handlers);
 }
 
 pub struct NodeRegistry<R: 'static + RenderContext> {
