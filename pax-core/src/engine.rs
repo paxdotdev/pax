@@ -136,6 +136,7 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
                 }),
             )
             .field("id_chain", &self.id_chain)
+            .field("computed_canvas_index", &self.computed_canvas_index)
             .field("computed_z_index", &self.computed_z_index)
             .field(
                 "children",
