@@ -1,6 +1,4 @@
-<Stacker cells=1>
-    <Text text = "test2"/>
-</Stacker>
+<Inner x={self.x} y={self.y}/>
 
 @handlers {
     mount: handle_mount
