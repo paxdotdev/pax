@@ -1,6 +1,4 @@
-use crate::{
-    ExpandedNode, PaxEngine, PropertiesComputable, PropertiesTreeContext, TransformAndBounds,
-};
+use crate::{ExpandedNode, PaxEngine, PropertiesTreeContext, TransformAndBounds};
 use kurbo::Affine;
 use pax_runtime_api::{Axis, LayerId, NodeContext, Size, Transform2D};
 use piet::RenderContext;
@@ -13,10 +11,6 @@ pub fn recurse_compute_canvas_indicies<'a, R: 'static + RenderContext>(
     canvas_index_gen: &mut LayerId,
 ) {
     {
-        pax_runtime_api::log(&format!(
-            "z_ind update: {:#?}, gen_state: {:#?}",
-            expanded_node, canvas_index_gen
-        ));
         canvas_index_gen.update_z_index(
             expanded_node
                 .borrow()

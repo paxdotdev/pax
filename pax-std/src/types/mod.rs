@@ -25,7 +25,8 @@ impl Default for Stroke {
     }
 }
 
-#[derive(Pax, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Pax)]
 #[custom(Imports)]
 pub struct StackerCell {
     pub x_px: f64,
@@ -145,7 +146,8 @@ impl Fill {
     }
 }
 
-#[derive(Pax, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Pax)]
 #[custom(Default, Imports)]
 pub struct Color {
     pub color_variant: ColorVariant,
@@ -248,7 +250,8 @@ impl PartialEq<ColorVariantMessage> for Color {
     }
 }
 
-#[derive(Pax, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Pax)]
 #[custom(Default, Imports)]
 pub enum ColorVariant {
     Hlca([f64; 4]),

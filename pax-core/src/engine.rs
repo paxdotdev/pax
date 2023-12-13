@@ -137,7 +137,7 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
             )
             .field("id_chain", &self.id_chain)
             .field("computed_canvas_index", &self.computed_canvas_index)
-            // .field("bounds", &self.computed_tab)
+            .field("bounds", &self.computed_tab)
             .field("computed_z_index", &self.computed_z_index)
             .field(
                 "children",
@@ -277,6 +277,11 @@ macro_rules! dispatch_event_handler {
 impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn get_children_expanded_nodes(&self) -> &Vec<Rc<RefCell<ExpandedNode<R>>>> {
         &self.children_expanded_nodes
+    }
+
+    pub fn clear_child_expanded_nodes(&mut self) {
+        self.children_expanded_nodes.clear();
+        self.children_expanded_nodes_set.clear();
     }
 
     // Appends the passed `child_expanded_node` to be a child of this ExpandedNode, after first ensuring this node
@@ -478,7 +483,7 @@ pub struct NodeRegistry<R: 'static + RenderContext> {
     instance_node_map: HashMap<u32, InstanceNodePtr<R>>,
 
     /// Allows look up of an `ExpandedNode` by id_chain
-    expanded_node_map: HashMap<Vec<u32>, Rc<RefCell<ExpandedNode<R>>>>,
+    pub expanded_node_map: HashMap<Vec<u32>, Rc<RefCell<ExpandedNode<R>>>>,
 
     ///Tracks which `ExpandedNode`s are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<Vec<u32>>,
@@ -628,12 +633,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
 
+        // Compute canvas indicies (visit in reverse child order)
+        recurse_compute_canvas_indicies(&root_expanded_node, &mut LayerId::new(None));
         //
         // 2. COMPUTE LAYOUT
         // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
         // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future.
         //
-        recurse_compute_canvas_indicies(&root_expanded_node, &mut LayerId::new(None));
         let mut z_index_gen = 0..;
         recurse_compute_layout(
             &self,
@@ -645,8 +651,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             },
             &mut z_index_gen,
         );
-
-        pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
 
         //
         // 3. RENDER
