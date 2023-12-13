@@ -25,7 +25,7 @@ impl Default for Stroke {
     }
 }
 
-#[derive(Pax)]
+#[derive(Pax, Debug)]
 #[custom(Imports)]
 pub struct StackerCell {
     pub x_px: f64,
@@ -50,6 +50,7 @@ pub enum SidebarDirection {
     Right,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Pax)]
 #[custom(Default, Imports)]
 pub enum Fill {
@@ -58,6 +59,7 @@ pub enum Fill {
     RadialGradient(RadialGradient),
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Pax)]
 #[custom(Default, Imports)]
 pub struct LinearGradient {
@@ -66,6 +68,7 @@ pub struct LinearGradient {
     pub stops: Vec<GradientStop>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Pax)]
 #[custom(Default, Imports)]
 pub struct RadialGradient {
@@ -75,6 +78,7 @@ pub struct RadialGradient {
     pub stops: Vec<GradientStop>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct GradientStop {
@@ -141,7 +145,7 @@ impl Fill {
     }
 }
 
-#[derive(Pax)]
+#[derive(Pax, Debug)]
 #[custom(Default, Imports)]
 pub struct Color {
     pub color_variant: ColorVariant,

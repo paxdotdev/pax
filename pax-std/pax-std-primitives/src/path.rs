@@ -2,8 +2,8 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
+    HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
+    PropertiesComputable, RenderTreeContext,
 };
 use pax_runtime_api::{CommonProperties, Size};
 use pax_std::primitives::Path;
@@ -17,12 +17,12 @@ pub struct PathInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
 
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
+    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory:
+        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
-
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -35,13 +35,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
     where
         Self: Sized,
     {
-
         let mut node_registry = (*args.node_registry).borrow_mut();
         let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(PathInstance {
             instance_id,
             handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(
+                args.common_properties,
+            )),
             instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
         }));
 
@@ -88,7 +89,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
         //     properties.segments.set(new_value);
         // }
         //
-        // self.common_properties.compute_properties(rtc);
         todo!()
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
