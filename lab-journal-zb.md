@@ -4710,8 +4710,9 @@ ExpandedNode {
     [x] Get `fireworks` running correctly + event handlers
     [x] Get `color-grid` running correctly
 [ ] Native patches
-      [ ] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
-      [ ] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+      [x] Figure out to what extent we need to hook back up hacked caching for various dirty-watchers.  Either make these caches stateful inside ExpandedNodes, or power through dirty-DAG
+      [x] Decide (and enact) whether we continue to track last_patches, or whether we firehose update methods until dirty dag 
+            ^ decided to hook back up last_patches
       [ ] Refactor and hook back up patches
 [ ] `pax-std`: plug back in, update remaining primitives, test
 [ ] Sizing & layout
@@ -4730,15 +4731,31 @@ ExpandedNode {
     [ ] Hook back up computation (e.g. `get_clipping_size`)
     [ ] possibly power through to web chassis, plugging back in e2e clipping
     [ ] Figure out unplugged TransformAndBounds#clipping_bounds, possibly needed for viewport culling
-[ ] Occlusion
-    [ ] Hook back up "contiguous layer id" (nee z-index) — probably rename to `LayerIndex` instead of `ZIndex`
+[x] Occlusion
+    [x] Hook back up "contiguous layer id" (nee z-index) — probably rename to `LayerIndex` instead of `ZIndex`
 [x] Make sure element-level z-indexing is working correctly (incremented on pre-order)
 [ ] Events
-    [ ] Abstract and macro-ize 
+    [x] Abstract and macro-ize 
     [ ] Add remaining event handlers default impls to `trait InstanceNode`
     [ ] Resolve correct properties type to pass into event handler `synthetic self`
 [ ] Dev tooling
     [ ] Debuggability; assess in light of latest .pax/pkg paradigm (or in dynamic linking paradigm)
-    [ ] Print instance / expanded trees and relevant metadata (can use for both debugging & unit tests)
+    [x] Print instance / expanded trees and relevant metadata (can use for both debugging & unit tests)
 
 
+###  TODOs as of Dec 13 2023 (Samuel Notes)
+
+Essentials:
+[ ] Fix StringBox problem in nested components
+[ ] Hook back up last_patches for the other primitives (text is done)
+[ ] Scroller
+[ ] Clipping
+[ ] Test Conditional
+
+Other:
+[ ] Improve repeat node handling (currently fully re-creates on each tick)
+[ ] Implement slightly less naive version of canvas_id creation (keep track of a single "bounding box sum")
+[ ] Create flowchart with order of property computations (for example, native
+    patches needs to be sent after canvas_id has been defined, canvas_id will (later
+    on) depend on computed tab) to improve stability. introduce new lifecycle hooks such as "after/before properties compute"
+[ ] replace dyn Any properties with dyn Property (custom trait) that can be debug printed (and maybe other things)

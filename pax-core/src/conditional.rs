@@ -89,12 +89,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
 
             // handle false conditional by marking for unmount; continue to recurse into subtree and compute / expand
             if !evaluated_condition {
-                new_ptc.marked_for_unmount = true
+                // ptc.engine.node_registry.borrow().mark_for_unmount()
             }
 
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+
             child_expanded_node.borrow_mut().parent_expanded_node =
                 Some(Rc::downgrade(&this_expanded_node));
+
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);

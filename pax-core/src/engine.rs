@@ -215,7 +215,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// For component instances only, tracks the expanded + flattened slot_children
     expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
 
-    //TODOSAM replace these two with an orderedSet
+    //TODOSAM replace these two with BTreeSet?
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
     children_expanded_nodes: Vec<Rc<RefCell<ExpandedNode<R>>>>,
 
@@ -621,15 +621,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_containing_component: Weak::new(),
             current_instance_node: Rc::clone(&root_component_instance),
             current_expanded_node: None,
-            parent_expanded_node: None,
-            marked_for_unmount: false,
             clipping_stack: vec![],
             scroller_stack: vec![],
             runtime_properties_stack: vec![],
             shared: Rc::new(RefCell::new(PropertiesTreeShared {
                 native_message_queue: Default::default(),
             })),
-            expanded_and_flattened_slot_children: None,
         };
         let root_expanded_node = recurse_expand_nodes(&mut ptc);
 

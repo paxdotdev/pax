@@ -207,15 +207,6 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// (see [`get_slot_children`] for the way to retrieve the latter.)
     fn get_instance_children(&self) -> InstanceNodePtrList<R>;
 
-    /// For Components only, return the slot children passed into that Component.  For example, for `<Stacker><Group /></Stacker>`,
-    /// Stacker#get_slot_children would return the `<Group />` that was passed in by the component-template where both the `<Stacker>` and the `<Group>` were defined.
-    /// Note that `get_instance_children`, in contrast, would return the root of Stacker's own template, not the `<Group />`.
-    /// This is used when computing properties, in order to compute, for example, both Stacker and Group in the context of the same parent
-    /// component and its runtime stack, instead of evaluating Group in the context of Stacker's internal template + runtime stack.
-    fn get_slot_children(&self) -> Option<InstanceNodePtrList<R>> {
-        None
-    }
-
     /// Describes the type of this node; Primitive by default, overridden by Component
     fn get_node_type(&self) -> NodeType {
         NodeType::Primitive
