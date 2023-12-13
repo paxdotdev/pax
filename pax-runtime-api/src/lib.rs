@@ -48,6 +48,15 @@ pub trait PropertyInstance<T: Default + Clone> {
     // ^ for the above, consider the transient changes to dirty-DAG when we switch between a Literal and Expression.
 }
 
+#[cfg(debug_assertions)]
+impl<T: Default + std::fmt::Debug + Clone + 'static> std::fmt::Debug
+    for Box<dyn PropertyInstance<T>>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.get().fmt(f)
+    }
+}
+
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
         Box::new(PropertyLiteral::new(Default::default()))
@@ -368,6 +377,7 @@ impl Size {
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
 // Retrieved via <dyn InstanceNode>#get_common_properties
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default)]
 pub struct CommonProperties {
     pub x: Option<Box<dyn PropertyInstance<Size>>>,
@@ -419,6 +429,7 @@ impl CommonProperties {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub enum Rotation {
     Radians(Numeric),
@@ -650,6 +661,7 @@ impl Mul for Size {
 ///             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Clone)]
 pub struct Transform2D {
     /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
@@ -982,7 +994,8 @@ pub struct Timeline {
     pub is_playing: bool,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, PartialEq)]
 pub enum Layer {
     Native,
     Scroller,
@@ -1050,7 +1063,8 @@ impl Interpolatable for StringBox {
     }
 }
 
-#[derive(Clone, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct StringBox {
     pub string: String,
 }

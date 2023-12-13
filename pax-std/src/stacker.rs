@@ -141,7 +141,6 @@ impl Stacker {
             })
             .collect();
 
-        pax_runtime_api::log(&format!("stacker render bounds: {:?}", new_cell_specs));
         self._cell_specs.set(new_cell_specs);
     }
 }

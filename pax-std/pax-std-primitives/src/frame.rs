@@ -153,6 +153,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.expand(ptc);
+
         let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);
 

@@ -3,10 +3,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    handle_vtable_update_optional, with_properties_unwrapped, ExpandedNode, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    handle_vtable_update, handle_vtable_update_optional, with_properties_unwrapped, ExpandedNode,
+    InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
 };
-use pax_runtime_api::{CommonProperties, Layer};
+use pax_runtime_api::{CommonProperties, Layer, Numeric};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive associated with the `for` statement.
@@ -152,6 +152,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                 index = index + 1;
             }
         } else if let Some(vec_evaled) = vec_evaled {
+            {
+                this_expanded_node.borrow_mut().clear_child_expanded_nodes();
+            }
             for pc in vec_evaled.iter().enumerate() {
                 let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
                     elem: Rc::clone(pc.1),
@@ -163,12 +166,31 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     let mut new_ptc = ptc.clone();
                     new_ptc.current_expanded_node = None;
                     new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
+                    let id_chain = ptc
+                        .get_id_chain(repeated_template_instance_root.borrow().get_instance_id());
+
+                    new_ptc
+                        .engine
+                        .node_registry
+                        .borrow_mut()
+                        .remove_expanded_node(&id_chain);
+
                     let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+                    expanded_child.borrow_mut().parent_expanded_node =
+                        Some(Rc::downgrade(&this_expanded_node));
+                    new_ptc
+                        .engine
+                        .node_registry
+                        .borrow_mut()
+                        .expanded_node_map
+                        .insert(id_chain, Rc::clone(&expanded_child));
+
                     new_ptc
                         .engine
                         .node_registry
                         .borrow_mut()
                         .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
+
                     this_expanded_node
                         .borrow_mut()
                         .append_child_expanded_node(expanded_child);

@@ -105,7 +105,8 @@ impl Mul<Point2D> for Affine {
 
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
-#[derive(Clone, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct TransformAndBounds {
     pub transform: Affine,
     pub bounds: (f64, f64),
@@ -174,6 +175,8 @@ pub enum NodeType {
     Component,
     Primitive,
 }
+
+#[cfg(debug_assertions)]
 impl<R: RenderContext + 'static> std::fmt::Debug for dyn InstanceNode<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.resolve_debug(f, None)
