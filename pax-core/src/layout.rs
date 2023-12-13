@@ -1,10 +1,44 @@
-use crate::{ExpandedNode, PaxEngine, PropertiesTreeContext, TransformAndBounds};
+use crate::{
+    ExpandedNode, PaxEngine, PropertiesComputable, PropertiesTreeContext, TransformAndBounds,
+};
 use kurbo::Affine;
 use pax_runtime_api::{Axis, LayerId, NodeContext, Size, Transform2D};
 use piet::RenderContext;
 use std::cell::RefCell;
 use std::ops::RangeFrom;
 use std::rc::Rc;
+
+pub fn recurse_compute_canvas_indicies<'a, R: 'static + RenderContext>(
+    expanded_node: &Rc<RefCell<ExpandedNode<R>>>,
+    canvas_index_gen: &mut LayerId,
+) {
+    {
+        pax_runtime_api::log(&format!(
+            "z_ind update: {:#?}, gen_state: {:#?}",
+            expanded_node, canvas_index_gen
+        ));
+        canvas_index_gen.update_z_index(
+            expanded_node
+                .borrow()
+                .instance_node
+                .borrow_mut()
+                .get_layer_type(),
+        );
+    }
+    {
+        expanded_node.borrow_mut().computed_canvas_index = Some(canvas_index_gen.get_level());
+    }
+    {
+        for child in expanded_node
+            .borrow()
+            .get_children_expanded_nodes()
+            .iter()
+            .rev()
+        {
+            recurse_compute_canvas_indicies(child, canvas_index_gen);
+        }
+    }
+}
 
 /// Visits ExpandedNode tree attached to `subtree_root_expanded_node` in rendering order and
 /// computes + writes (mutates in-place) `z_index`, `node_context`, and `computed_tab` on each visited ExpandedNode.
@@ -14,9 +48,7 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     current_expanded_node: &Rc<RefCell<ExpandedNode<R>>>,
     container_tab: &TransformAndBounds,
     z_index_gen: &mut RangeFrom<u32>,
-    canvas_index_gen: &mut LayerId,
 ) {
-    let current_expanded_node = Rc::clone(current_expanded_node);
     let current_z_index = z_index_gen.next().unwrap();
     let computed_tab = compute_tab(&current_expanded_node, &container_tab);
 
@@ -34,30 +66,10 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     {
         for child in current_expanded_node.borrow().get_children_expanded_nodes() {
             let child = Rc::clone(child);
-            recurse_compute_layout(
-                engine,
-                ptc,
-                &child,
-                &computed_tab,
-                z_index_gen,
-                canvas_index_gen,
-            );
+            recurse_compute_layout(engine, ptc, &child, &computed_tab, z_index_gen);
         }
     }
 
-    {
-        canvas_index_gen.update_z_index(
-            current_expanded_node
-                .borrow()
-                .instance_node
-                .borrow_mut()
-                .get_layer_type(),
-        );
-    }
-    {
-        current_expanded_node.borrow_mut().computed_canvas_index =
-            Some(canvas_index_gen.get_level());
-    }
     manage_handlers_mount(engine, ptc, &current_expanded_node);
 
     {

@@ -108,6 +108,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                     let mut new_ptc = ptc.clone();
                     new_ptc.current_instance_node = Rc::clone(child);
                     new_ptc.current_expanded_node = None;
+                    //TODOSAM does the stack need to be modified here?
                     let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
                     expanded_slot_children.push(child_expanded_node);
                 }
@@ -126,12 +127,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 None
             }
         };
-
-        // pax_runtime_api::log(&format!(
-        //     "id {:#?} has slot children {:#?}",
-        //     this_expanded_node.borrow().id_chain,
-        //     expanded_and_flattened_slot_children
-        // ));
 
         {
             this_expanded_node

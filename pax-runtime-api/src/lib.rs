@@ -282,6 +282,7 @@ pub struct ArgsContextMenu {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Copy, Clone)]
 pub enum Size {
     Pixels(Numeric),
@@ -991,10 +992,10 @@ pub enum Layer {
 
 /// Captures information about z-index during render node traversal
 /// Used for generating chassis side rendering architecture
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct LayerId {
-    z_index: u32,
-    pub canvas_index: u32,
+    canvas_index: u32,
     layer: Layer,
     #[allow(dead_code)]
     parent_scroller: Option<Vec<u32>>,
@@ -1003,7 +1004,6 @@ pub struct LayerId {
 impl LayerId {
     pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
         LayerId {
-            z_index: 0,
             canvas_index: 0,
             layer: Layer::Canvas,
             parent_scroller: scroller_id,
@@ -1011,7 +1011,7 @@ impl LayerId {
     }
 
     pub fn get_level(&mut self) -> u32 {
-        self.z_index
+        self.canvas_index
     }
 
     pub fn get_current_layer(&mut self) -> Layer {
@@ -1023,7 +1023,7 @@ impl LayerId {
             _ => {
                 if self.layer != layer {
                     if layer == Layer::Canvas || layer == Layer::Scroller {
-                        self.z_index += 1;
+                        self.canvas_index += 1;
                     }
                 }
                 self.layer = layer.clone();

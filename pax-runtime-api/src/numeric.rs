@@ -5,7 +5,8 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 /// Numeric is a module that wraps numeric literals in Pax
 /// It encapsulates the built-in Rust numeric scalar types and defines behavior across them
-#[derive(Clone, Copy, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 pub enum Numeric {
     Integer(isize),
     Float(f64),

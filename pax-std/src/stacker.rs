@@ -3,7 +3,7 @@ use crate::types::{StackerCell, StackerDirection};
 use pax_lang::api::numeric::Numeric;
 use pax_lang::api::{Property, Size, Transform2D};
 use pax_lang::*;
-use pax_runtime_api::{PropertyLiteral, NodeContext};
+use pax_runtime_api::{NodeContext, PropertyLiteral};
 
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
@@ -54,6 +54,7 @@ impl Stacker {
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let cells = self.cells.get().get_as_float();
         let bounds = ctx.bounds_parent;
+
         let active_bound = match *self.direction.get() {
             StackerDirection::Horizontal => bounds.0,
             StackerDirection::Vertical => bounds.1,
@@ -140,6 +141,7 @@ impl Stacker {
             })
             .collect();
 
+        pax_runtime_api::log(&format!("stacker render bounds: {:?}", new_cell_specs));
         self._cell_specs.set(new_cell_specs);
     }
 }

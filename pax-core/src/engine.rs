@@ -17,10 +17,10 @@ use pax_runtime_api::{
 };
 
 use crate::{
-    handle_vtable_update, handle_vtable_update_optional, recurse_compute_layout,
-    recurse_expand_nodes, recurse_render, Affine, ComponentInstance, ExpressionContext,
-    InstanceNodePtr, PropertiesTreeContext, PropertiesTreeShared, RenderTreeContext,
-    RuntimePropertiesStackFrame, TransformAndBounds,
+    handle_vtable_update, handle_vtable_update_optional, recurse_compute_canvas_indicies,
+    recurse_compute_layout, recurse_expand_nodes, recurse_render, Affine, ComponentInstance,
+    ExpressionContext, InstanceNodePtr, PropertiesTreeContext, PropertiesTreeShared,
+    RenderTreeContext, RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 /// Singleton struct storing everything related to properties computation & rendering
@@ -137,6 +137,7 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
             )
             .field("id_chain", &self.id_chain)
             .field("computed_canvas_index", &self.computed_canvas_index)
+            // .field("bounds", &self.computed_tab)
             .field("computed_z_index", &self.computed_z_index)
             .field(
                 "children",
@@ -632,6 +633,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
         // This could be cordoned off to specific subtrees based on dirtiness-awareness in the future.
         //
+        recurse_compute_canvas_indicies(&root_expanded_node, &mut LayerId::new(None));
         let mut z_index_gen = 0..;
         recurse_compute_layout(
             &self,
@@ -642,7 +644,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 transform: Affine::default(),
             },
             &mut z_index_gen,
-            &mut LayerId::new(None),
         );
 
         pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));

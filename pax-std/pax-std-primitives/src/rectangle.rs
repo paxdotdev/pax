@@ -175,7 +175,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance {
                     Rectangle,
                     |r: &mut Rectangle| {
                         f.debug_struct("Rectangle")
-                            .field("corner_radii_top_left", r.corner_radii.get().top_left.get())
+                            .field("fill", r.fill.get())
                             .finish()
                     }
                 )
