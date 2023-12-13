@@ -56,7 +56,13 @@ fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeC
             .get_expanded_node(&id_chain),
         Some(_)
     );
-    if ptc.marked_for_unmount && !currently_mounted {
+    if ptc
+        .engine
+        .node_registry
+        .borrow()
+        .is_marked_for_unmount(&id_chain)
+        && !currently_mounted
+    {
         ptc.current_instance_node
             .clone()
             .borrow_mut()
@@ -77,22 +83,12 @@ pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
     /// rendering some member of its template.
     pub current_containing_component: Weak<RefCell<ExpandedNode<R>>>,
 
-    //TODOSAM try doing this
-    /// A register used for passing slot children to components.  This is passed via `ptc` to satisfy sequencing concerns.
-    /// Decoupling expansion from properties computation should enable removing this from `PropertiesTreeContext`
-    pub expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
-
     /// A pointer to the current instance node
     pub current_instance_node: InstanceNodePtr<R>,
 
     /// A pointer to the current expanded node.  Optional only for the init case; should be populated
     /// for every node visited during properties computation.
     pub current_expanded_node: Option<Rc<RefCell<ExpandedNode<R>>>>,
-
-    /// A pointer to the current expanded node's parent expanded node, useful at least for appending children
-    pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
-
-    pub marked_for_unmount: bool,
 
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
     /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
@@ -123,13 +119,10 @@ pub struct PropertiesTreeShared {
 impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
     fn clone(&self) -> Self {
         Self {
-            expanded_and_flattened_slot_children: self.expanded_and_flattened_slot_children.clone(),
             engine: &self.engine,
             current_containing_component: self.current_containing_component.clone(),
             current_instance_node: Rc::clone(&self.current_instance_node),
             current_expanded_node: self.current_expanded_node.clone(),
-            parent_expanded_node: self.parent_expanded_node.clone(),
-            marked_for_unmount: self.marked_for_unmount,
             runtime_properties_stack: self.runtime_properties_stack.clone(),
             clipping_stack: self.clipping_stack.clone(),
             scroller_stack: self.scroller_stack.clone(),

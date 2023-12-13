@@ -47,10 +47,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         }
     }
 
-    fn get_slot_children(&self) -> Option<InstanceNodePtrList<R>> {
-        Some(Rc::clone(&self.slot_children))
-    }
-
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
         let mut node_registry = (*args.node_registry).borrow_mut();
         let instance_id = node_registry.mint_instance_id();
@@ -101,37 +97,36 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         let this_expanded_node = self.expand(ptc);
 
         let expanded_and_flattened_slot_children = {
-            if let Some(slot_children) = self.get_slot_children().clone() {
-                //Expand children in the context of the current containing component
-                let mut expanded_slot_children = vec![];
-                for child in (*slot_children).borrow().iter() {
-                    let mut new_ptc = ptc.clone();
-                    new_ptc.current_instance_node = Rc::clone(child);
-                    new_ptc.current_expanded_node = None;
-                    //TODOSAM does the stack need to be modified here?
-                    let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
-                    expanded_slot_children.push(child_expanded_node);
-                }
-
-                //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
-                //[`ConditionalInstance`] and [`RepeatInstance`]
-                let mut expanded_and_flattened_slot_children = vec![];
-                for expanded_slot_child in expanded_slot_children {
-                    expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(
-                        &Rc::clone(&expanded_slot_child),
-                    ));
-                }
-
-                Some(expanded_and_flattened_slot_children)
-            } else {
-                None
+            let slot_children = self.slot_children.borrow();
+            //Expand children in the context of the current containing component
+            let mut expanded_slot_children = vec![];
+            for child in (*slot_children).iter() {
+                let mut new_ptc = ptc.clone();
+                new_ptc.current_instance_node = Rc::clone(child);
+                new_ptc.current_expanded_node = None;
+                //TODOSAM does the stack need to be modified here?
+                let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+                expanded_slot_children.push(child_expanded_node);
             }
+
+            //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
+            //[`ConditionalInstance`] and [`RepeatInstance`]
+            let mut expanded_and_flattened_slot_children = vec![];
+            for expanded_slot_child in expanded_slot_children {
+                expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(
+                    &Rc::clone(&expanded_slot_child),
+                ));
+            }
+
+            expanded_and_flattened_slot_children
         };
 
         {
             this_expanded_node
                 .borrow_mut()
-                .set_expanded_and_flattened_slot_children(expanded_and_flattened_slot_children);
+                .set_expanded_and_flattened_slot_children(Some(
+                    expanded_and_flattened_slot_children,
+                ));
         }
 
         //TODOSAM: make sure this is the right place to do this when we have more than one component!
