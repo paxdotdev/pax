@@ -232,6 +232,10 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// Optional because a ExpandedNode is initialized with `computed_tab: None`; this is computed later
     pub computed_tab: Option<TransformAndBounds>,
 
+    ///Used for hack in repeat to make stacker work better while dirty watching isn't a thing, can be removed later
+    pub tab_changed: bool,
+    pub last_repeat_source_len: usize,
+
     /// A copy of the computed z_index for this ExpandedNode
     pub computed_z_index: Option<u32>,
 
@@ -358,6 +362,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
                 clipping_stack: ptc.get_current_clipping_ids(),
                 scroller_stack: ptc.get_current_scroller_ids(),
                 runtime_properties_stack: ptc.clone_runtime_stack(),
+
+                // For repeat/stacker hack (remove after dirty watching exists)
+                tab_changed: false,
+                last_repeat_source_len: 0,
             }));
             new_expanded_node
         };
