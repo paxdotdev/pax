@@ -1,0 +1,76 @@
+
+
+
+<Stacker cells=2>
+<Frame>
+	<Text text={self.message} class=centered class=small id=text />
+	<Rectangle class=centered class=small @click=self.increment
+	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Frame>
+if self.activated {
+	<Frame>
+		<Text text="This is some text that appears and dissapears" class=centered width=50% height=50% id=text />
+		<Rectangle class=centered width=50% height=50%  @click=self.increment
+		     fill={Fill::Solid(Color::rgb(0, 255, 0))}
+		    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+		/>
+	</Frame>
+}
+if self.not_activated {
+	<Stacker cells=10>
+		for i in 0..10 {
+			<Frame>
+				<Stacker cells={i} direction=StackerDirection::Vertical>
+					for j in 0..i {
+						<Rectangle
+						     fill={Fill::Solid(Color::hlc((i + 4)*(j + 2)*10, 100, 40))}
+						/>
+					}
+				</Stacker>
+			</Frame>
+		}
+	</Stacker>
+}
+</Stacker>
+
+//TODO
+// event handlers not always working on the if part when activated and then diactivated
+// when uncommenting red rectangle above, can't click!
+
+
+//Things that are wrong:
+
+// - text doesn't dissapear
+// - needs to be a frame in the stacker thing
+// - green rectangle visible when moving
+// - should text be invisible to raycasts?
+
+@handlers{
+     mount: handle_mount
+     pre_render: handle_pre_render
+}
+
+@settings {
+     .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    }
+    .small {
+        width: 120px
+        height: 120px
+    }
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 32px,
+                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

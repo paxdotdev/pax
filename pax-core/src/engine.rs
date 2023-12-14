@@ -137,7 +137,7 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
             )
             .field("id_chain", &self.id_chain)
             .field("computed_canvas_index", &self.computed_canvas_index)
-            .field("bounds", &self.computed_tab)
+            // .field("bounds", &self.computed_tab)
             .field("computed_z_index", &self.computed_z_index)
             .field(
                 "children",
@@ -398,7 +398,10 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             return false;
         }
 
-        let inverted_transform = self.computed_tab.as_ref().unwrap().transform.inverse();
+        let Some(computed_tab) = self.computed_tab.as_ref() else {
+            return false;
+        };
+        let inverted_transform = computed_tab.transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
         let relevant_bounds = self.computed_tab.as_ref().unwrap().bounds;
@@ -577,6 +580,11 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     pub fn revert_mark_for_unmount(&mut self, id_chain: &Vec<u32>) {
         self.marked_for_unmount_set.remove(id_chain);
     }
+
+    /// Remove from marked_for_mount_set
+    pub fn revert_mark_for_mount(&mut self, id_chain: &Vec<u32>) {
+        self.mounted_set.remove(id_chain);
+    }
 }
 
 /// Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
@@ -620,7 +628,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn tick(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
         let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
         let mut z_index = LayerId::new(None);
-
         //
         // 1. EXPAND NODES & COMPUTE PROPERTIES
         //
@@ -667,6 +674,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_instance_node: Rc::clone(&root_expanded_node.borrow().instance_node),
         };
         recurse_render(&mut rtc, rcs, &mut z_index, false);
+
+        // pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
 
         //Reset for next tick
         rtc.engine.node_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
@@ -741,6 +750,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 }
             }
         }
+        pax_runtime_api::log(&format!("ray hit: {:#?}", ret));
         ret
     }
 

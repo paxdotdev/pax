@@ -32,6 +32,10 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     let common_properties = Rc::clone(&this_expanded_node.borrow_mut().get_common_properties());
     common_properties.borrow_mut().compute_properties(ptc);
 
+    //TODOSAM this needs to be moved, current problem:
+    // A expanded_node that has been marked as unmount still needs to call recurse_exand_nodes to handle this.
+    // Would be nice to not have to do that.
+
     // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);
 
@@ -49,25 +53,21 @@ fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeC
         .id_chain
         .clone();
 
-    let currently_mounted = matches!(
-        ptc.engine
-            .node_registry
-            .borrow()
-            .get_expanded_node(&id_chain),
-        Some(_)
-    );
     if ptc
         .engine
         .node_registry
         .borrow()
         .is_marked_for_unmount(&id_chain)
-        && !currently_mounted
     {
         ptc.current_instance_node
             .clone()
             .borrow_mut()
             .handle_unmount(ptc);
 
+        ptc.engine
+            .node_registry
+            .borrow_mut()
+            .revert_mark_for_mount(&id_chain);
         ptc.engine
             .node_registry
             .borrow_mut()

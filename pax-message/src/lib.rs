@@ -9,6 +9,7 @@ use wasm_bindgen::prelude::*;
 
 use serde::Serialize;
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 pub enum NativeMessage {
     TextCreate(AnyCreatePatch),
@@ -272,6 +273,7 @@ pub struct AddedLayerArgs {
     pub num_layers_added: u32,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct FramePatch {
@@ -281,6 +283,7 @@ pub struct FramePatch {
     pub transform: Option<Vec<f64>>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct CheckboxPatch {
@@ -298,6 +301,7 @@ pub struct CheckboxStyleMessage {
     //pub fill: Option<ColorVariantMessage>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
@@ -310,6 +314,7 @@ pub struct TextPatch {
     pub style_link: Option<TextStyleMessage>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextStyleMessage {
@@ -322,6 +327,7 @@ pub struct TextStyleMessage {
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ImagePatch {
@@ -329,6 +335,7 @@ pub struct ImagePatch {
     pub path: Option<String>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub enum ColorVariantMessage {
@@ -344,6 +351,7 @@ impl Default for ColorVariantMessage {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub enum TextAlignHorizontalMessage {
@@ -353,6 +361,7 @@ pub enum TextAlignHorizontalMessage {
     Right,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub enum TextAlignVerticalMessage {
@@ -371,6 +380,7 @@ pub struct LinkStyleMessage {
     pub size: Option<f64>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ScrollerPatch {
@@ -385,6 +395,7 @@ pub struct ScrollerPatch {
     pub subtree_depth: u32,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub struct AnyCreatePatch {
@@ -404,6 +415,7 @@ pub struct AnyCreatePatch {
 //     pub set_decoration: Option<String>,
 // }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub enum FontPatch {
@@ -418,6 +430,7 @@ impl Default for FontPatch {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub struct SystemFontMessage {
@@ -436,6 +449,7 @@ impl Default for SystemFontMessage {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub struct WebFontMessage {
@@ -445,6 +459,7 @@ pub struct WebFontMessage {
     pub weight: Option<FontWeightMessage>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub struct LocalFontMessage {
@@ -453,6 +468,8 @@ pub struct LocalFontMessage {
     pub style: Option<FontStyleMessage>,
     pub weight: Option<FontWeightMessage>,
 }
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Serialize)]
 #[repr(C)]
 pub enum FontStyleMessage {
@@ -461,6 +478,7 @@ pub enum FontStyleMessage {
     Oblique,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Serialize)]
 #[repr(C)]
 pub enum FontWeightMessage {
@@ -475,6 +493,7 @@ pub enum FontWeightMessage {
     Black,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
 pub struct LayerAddPatch {

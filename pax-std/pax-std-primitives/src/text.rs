@@ -198,6 +198,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance {
         }));
     }
 
+    fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
+        let id_chain = ptc.get_id_chain(self.instance_id);
+        self.last_patches.remove(&id_chain);
+        ptc.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
+    }
+
     fn get_layer_type(&mut self) -> Layer {
         Layer::Native
     }

@@ -364,7 +364,7 @@ fn recurse_generate_render_nodes_literal(
 
         let conditional_source_map_id = source_map.insert(conditional_expression_paxel.clone());
         let conditional_mapped_string = source_map.generate_mapped_string(
-            format!("Some(Box::new(PropertyExpression::new({})))", id),
+            format!("Box::new(PropertyExpression::new({}))", id),
             conditional_source_map_id,
         );
 
