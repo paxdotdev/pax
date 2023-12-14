@@ -49,6 +49,7 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     {
         let mut node_borrowed = current_expanded_node.borrow_mut();
         node_borrowed.computed_z_index = Some(current_z_index);
+        node_borrowed.tab_changed = node_borrowed.computed_tab.as_ref() != Some(&computed_tab);
         node_borrowed.computed_tab = Some(computed_tab.clone());
         node_borrowed.computed_node_context = Some(NodeContext {
             frames_elapsed: engine.frames_elapsed,

@@ -1,6 +1,6 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::{any::Any, ops::Range};
 
 use crate::{
     handle_vtable_update, handle_vtable_update_optional, with_properties_unwrapped, ExpandedNode,
@@ -86,12 +86,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         //source to be mapped to new elements (unchanged elements are marked for
         //unmount / remount before unmount handlers are fired, resulting in no
         //effective changes for persistent nodes.)
-        for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
-            ptc.engine
-                .node_registry
-                .borrow_mut()
-                .mark_for_unmount(cen.borrow().id_chain.clone());
-        }
 
         let (range_evaled, vec_evaled) = with_properties_unwrapped!(
             &properties_wrapped,
@@ -119,85 +113,86 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             }
         );
 
-        if let Some(range_evaled) = range_evaled {
-            let mut index = 0;
-            for i in range_evaled.start..range_evaled.end {
-                let i_as_datum = Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>>;
-                let new_repeat_item = Rc::new(RefCell::new(crate::RepeatItem {
-                    elem: i_as_datum,
-                    i: index,
-                })) as Rc<RefCell<dyn Any>>;
+        let mut node = this_expanded_node.borrow_mut();
 
-                ptc.push_stack_frame(new_repeat_item);
+        //THIS IS A HACK!!! Will be removed once dirty checking is a thing.
+        //Is here to let Stacker re-render children on resize.
+        let source_len = range_evaled
+            .as_ref()
+            .map(Range::len)
+            .or(vec_evaled.as_ref().map(Vec::len));
+        let update_repeat_children =
+            !node.tab_changed && source_len == Some(node.last_repeat_source_len);
+        node.last_repeat_source_len = source_len.unwrap();
 
-                for repeated_template_instance_root in self.repeated_template.borrow().iter() {
-                    let mut new_ptc = ptc.clone();
-                    new_ptc.current_expanded_node = None;
-                    new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                    let child_expanded_node = crate::recurse_expand_nodes(&mut new_ptc);
-                    ptc.engine
-                        .node_registry
-                        .borrow_mut()
-                        .revert_mark_for_unmount(&child_expanded_node.borrow().id_chain);
+        drop(node);
 
-                    child_expanded_node.borrow_mut().parent_expanded_node =
-                        Some(Rc::downgrade(&this_expanded_node));
+        if !update_repeat_children {
+            return this_expanded_node;
+        }
 
-                    this_expanded_node
-                        .borrow_mut()
-                        .append_child_expanded_node(child_expanded_node);
-                }
+        for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
+            ptc.engine
+                .node_registry
+                .borrow_mut()
+                .mark_for_unmount(cen.borrow().id_chain.clone());
+        }
 
-                ptc.pop_stack_frame();
-                index = index + 1;
+        let vec_range_source = vec_evaled
+            .or(range_evaled.map(|v| {
+                v.map(|i| Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>>)
+                    .collect::<Vec<_>>()
+            }))
+            .unwrap();
+
+        {
+            this_expanded_node.borrow_mut().clear_child_expanded_nodes();
+        }
+
+        for (i, elem) in vec_range_source.iter().enumerate() {
+            let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
+                i,
+                elem: Rc::clone(elem),
+            }));
+            ptc.push_stack_frame(new_repeat_item);
+
+            for repeated_template_instance_root in self.repeated_template.borrow().iter() {
+                let mut new_ptc = ptc.clone();
+                new_ptc.current_expanded_node = None;
+                new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
+                let id_chain =
+                    ptc.get_id_chain(repeated_template_instance_root.borrow().get_instance_id());
+
+                //Part of hack (see above)
+                new_ptc
+                    .engine
+                    .node_registry
+                    .borrow_mut()
+                    .remove_expanded_node(&id_chain);
+
+                let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+                expanded_child.borrow_mut().parent_expanded_node =
+                    Some(Rc::downgrade(&this_expanded_node));
+
+                new_ptc
+                    .engine
+                    .node_registry
+                    .borrow_mut()
+                    .expanded_node_map
+                    .insert(id_chain, Rc::clone(&expanded_child));
+
+                new_ptc
+                    .engine
+                    .node_registry
+                    .borrow_mut()
+                    .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
+
+                this_expanded_node
+                    .borrow_mut()
+                    .append_child_expanded_node(expanded_child);
             }
-        } else if let Some(vec_evaled) = vec_evaled {
-            {
-                this_expanded_node.borrow_mut().clear_child_expanded_nodes();
-            }
-            for pc in vec_evaled.iter().enumerate() {
-                let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
-                    elem: Rc::clone(pc.1),
-                    i: pc.0,
-                }));
-                ptc.push_stack_frame(new_repeat_item);
 
-                for repeated_template_instance_root in self.repeated_template.borrow().iter() {
-                    let mut new_ptc = ptc.clone();
-                    new_ptc.current_expanded_node = None;
-                    new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                    let id_chain = ptc
-                        .get_id_chain(repeated_template_instance_root.borrow().get_instance_id());
-
-                    new_ptc
-                        .engine
-                        .node_registry
-                        .borrow_mut()
-                        .remove_expanded_node(&id_chain);
-
-                    let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
-                    expanded_child.borrow_mut().parent_expanded_node =
-                        Some(Rc::downgrade(&this_expanded_node));
-                    new_ptc
-                        .engine
-                        .node_registry
-                        .borrow_mut()
-                        .expanded_node_map
-                        .insert(id_chain, Rc::clone(&expanded_child));
-
-                    new_ptc
-                        .engine
-                        .node_registry
-                        .borrow_mut()
-                        .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
-
-                    this_expanded_node
-                        .borrow_mut()
-                        .append_child_expanded_node(expanded_child);
-                }
-
-                ptc.pop_stack_frame()
-            }
+            ptc.pop_stack_frame()
         }
 
         this_expanded_node

@@ -106,7 +106,7 @@ impl Mul<Point2D> for Affine {
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct TransformAndBounds {
     pub transform: Affine,
     pub bounds: (f64, f64),

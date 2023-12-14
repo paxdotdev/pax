@@ -4745,17 +4745,22 @@ ExpandedNode {
 
 ###  TODOs as of Dec 13 2023 (Samuel Notes)
 
+[ ] Repeat cardinality check hack (shore up “native element churning”)
+[ ] Slightly less naive canvas_id creation (seems like we shouldn't need an additional O(n) traversal? not a huge deal, but should be low-hanging fruit)
+[ ] Test Conditional 
+[ ] Test Repeat > Stacker > Repeat
+[ ] Test other permutations of Conditional, Repeat, Components, Slots, and Primitives
+[ ] Clipping
+[ ] Robust native elements
+
 Essentials:
 [ ] Fix StringBox problem in nested components
-[ ] Hook back up last_patches for the other primitives (text is done)
 [ ] Scroller
-[ ] Clipping
-[ ] Test Conditional
 
 Other:
 [ ] Improve repeat node handling (currently fully re-creates on each tick)
 [ ] Implement slightly less naive version of canvas_id creation (keep track of a single "bounding box sum")
 [ ] Create flowchart with order of property computations (for example, native
     patches needs to be sent after canvas_id has been defined, canvas_id will (later
-    on) depend on computed tab) to improve stability. introduce new lifecycle hooks such as "after/before properties compute"
-[ ] replace dyn Any properties with dyn Property (custom trait) that can be debug printed (and maybe other things)
+    on) depend on computed tab) to improve stability. maybe introduce new lifecycle hooks such as "after/before properties compute"
+[ ] move from recursive functions to a visitor system: https://docs.rs/derive-visitor/latest/derive_visitor/ (if it simplifies things)
