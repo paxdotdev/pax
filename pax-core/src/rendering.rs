@@ -435,11 +435,12 @@ pub fn recurse_render<R: RenderContext + 'static>(
     let expanded_node = Rc::clone(&rtc.current_expanded_node);
 
     // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
+    let id_chain = { expanded_node.borrow().id_chain.clone() };
     if rtc
         .engine
         .node_registry
         .borrow()
-        .is_marked_for_unmount(&expanded_node.borrow().id_chain)
+        .is_marked_for_unmount(&id_chain)
     {
         return;
     }

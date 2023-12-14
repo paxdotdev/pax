@@ -4745,9 +4745,10 @@ ExpandedNode {
 
 ###  TODOs as of Dec 13 2023 (Samuel Notes)
 
-[ ] Repeat cardinality check hack (shore up “native element churning”)
+[x] Repeat cardinality check hack (shore up “native element churning”)
 [ ] Slightly less naive canvas_id creation (seems like we shouldn't need an additional O(n) traversal? not a huge deal, but should be low-hanging fruit)
-[ ] Test Conditional 
+    ^ wrong order
+[ ] Test Conditional <- need to restructure how mounted/unmounted is called
 [ ] Test Repeat > Stacker > Repeat
 [ ] Test other permutations of Conditional, Repeat, Components, Slots, and Primitives
 [ ] Clipping

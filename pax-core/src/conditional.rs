@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    handle_vtable_update, recurse_expand_nodes, with_properties_unwrapped, ExpandedNode,
-    InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    handle_vtable_update, with_properties_unwrapped, ExpandedNode, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
 };
 use pax_runtime_api::{CommonProperties, Layer};
 use piet_common::RenderContext;
@@ -69,6 +69,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.expand(ptc);
 
+        ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+
         let properties_wrapped = this_expanded_node.borrow().get_properties();
         // evaluate boolean expression
         let evaluated_condition = with_properties_unwrapped!(
@@ -81,31 +83,57 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             }
         );
 
-        // recurse into instance children, stitch ExpandedNode subtree and return subtree root (this_expanded_node)
-        for child in self.instance_children.borrow().iter() {
-            let mut new_ptc = ptc.clone();
-            new_ptc.current_expanded_node = None;
-            new_ptc.current_instance_node = Rc::clone(child);
+        let id_chain = ptc.get_id_chain(self.instance_id);
+        //Use this to do not do re-computations each frame
+        let _present_last_frame = ptc
+            .engine
+            .node_registry
+            .borrow()
+            .expanded_node_map
+            .contains_key(&id_chain);
 
-            // handle false conditional by marking for unmount; continue to recurse into subtree and compute / expand
-            if !evaluated_condition {
-                // ptc.engine.node_registry.borrow().mark_for_unmount()
+        if !evaluated_condition {
+            for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
+                ptc.engine
+                    .node_registry
+                    .borrow_mut()
+                    .mark_for_unmount(cen.borrow().id_chain.clone());
             }
 
-            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
-
-            child_expanded_node.borrow_mut().parent_expanded_node =
-                Some(Rc::downgrade(&this_expanded_node));
-
-            this_expanded_node
-                .borrow_mut()
-                .append_child_expanded_node(child_expanded_node);
+            {
+                this_expanded_node.borrow_mut().clear_child_expanded_nodes();
+            }
         }
 
+        for conditional_child in self.instance_children.borrow().iter() {
+            let mut new_ptc = ptc.clone();
+            new_ptc.current_expanded_node = None;
+            new_ptc.current_instance_node = Rc::clone(conditional_child);
+
+            let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+
+            expanded_child.borrow_mut().parent_expanded_node =
+                Some(Rc::downgrade(&this_expanded_node));
+
+            if evaluated_condition {
+                new_ptc
+                    .engine
+                    .node_registry
+                    .borrow_mut()
+                    .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
+                this_expanded_node
+                    .borrow_mut()
+                    .append_child_expanded_node(expanded_child);
+            }
+        }
         this_expanded_node
     }
 
     fn is_invisible_to_slot(&self) -> bool {
+        true
+    }
+
+    fn is_invisible_to_raycasting(&self) -> bool {
         true
     }
 

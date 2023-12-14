@@ -136,6 +136,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         Layer::DontCare
     }
 
+    fn is_invisible_to_raycasting(&self) -> bool {
+        true
+    }
+
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
