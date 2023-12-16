@@ -3,8 +3,8 @@ use piet::{ImageFormat, InterpolationMode, RenderContext};
 use std::collections::HashMap;
 
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
+    HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
+    PropertiesComputable, RenderTreeContext,
 };
 use pax_message::ImagePatch;
 use pax_runtime_api::CommonProperties;
@@ -13,48 +13,27 @@ use std::rc::Rc;
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`
 pub struct ImageInstance<R: 'static + RenderContext> {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u32,
+    base: BaseInstance,
     last_patches: HashMap<Vec<u32>, pax_message::ImagePatch>,
     pub image: Option<<R as RenderContext>::Image>,
-
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn new(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(ImageInstance {
-            instance_id,
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
-            handler_registry: args.handler_registry,
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(args),
             last_patches: Default::default(),
             image: None,
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
+        }))
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
-        match &self.handler_registry {
-            Some(registry) => Some(Rc::clone(registry)),
-            _ => None,
-        }
-    }
     fn expand_node_and_compute_properties(&mut self, rtc: &mut PropertiesTreeContext<R>) {
         // let properties = &mut *self.properties.as_ref().borrow_mut();
 
@@ -135,5 +114,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
         if let Some(image) = &self.image {
             rc.draw_image(&image, transformed_bounds, InterpolationMode::Bilinear);
         }
+    }
+
+    fn base(&self) -> &BaseInstance {
+        &self.base
     }
 }

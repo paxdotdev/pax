@@ -25,55 +25,31 @@ use pax_std::primitives::Scroller;
 /// When both scrolling axes are disabled, `Scroller` acts exactly like a `Frame`, with a possibly-
 /// transformed `Group` surrounding its contents.
 pub struct ScrollerInstance<R: 'static + RenderContext> {
-    pub instance_id: u32,
-    pub children: InstanceNodePtrList<R>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+    base: BaseInstance,
     pub scroll_x: f64,
     pub scroll_y: f64,
     pub scroll_x_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
-
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
     fn get_layer_type(&mut self) -> Layer {
         Layer::Scroller
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn new(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = args.node_registry.borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-
-        let ret = Rc::new(RefCell::new(Self {
-            instance_id,
-            children: args
-                .children
-                .expect("Scroller expects primitive_children, even if empty Vec"),
+        Rc::new(RefCell::new(Self {
             last_patches: HashMap::new(),
-            handler_registry: args.handler_registry,
             scroll_x: 0.0,
             scroll_y: 0.0,
             scroll_x_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
             scroll_y_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(
-                args.common_properties,
-            )),
-            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
+            base: BaseInstance::new(args),
+        }))
     }
 
     fn handle_scroll(&mut self, args_scroll: ArgsScroll) {
@@ -397,5 +373,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         let id_chain = ptc.get_id_chain();
         self.last_patches.remove(&id_chain);
         ptc.enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id_chain));
+    }
+
+    fn base(&self) -> &BaseInstance {
+        &self.base
     }
 }

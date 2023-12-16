@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::Mul;
+use std::ops::{Deref, Mul};
 use std::rc::Rc;
 
 use kurbo::Affine;
@@ -18,26 +18,6 @@ use crate::{ExpandedNode, HandlerRegistry, NodeRegistry, PaxEngine, PropertiesTr
 /// RefCells for instance nodes.
 pub type InstanceNodePtr<R> = Rc<RefCell<dyn InstanceNode<R>>>;
 pub type InstanceNodePtrList<R> = Rc<RefCell<Vec<InstanceNodePtr<R>>>>;
-
-/// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
-/// and return another InstanceNodePtrList with a flattened top-level list of nodes.
-pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(
-    input_nodes: InstanceNodePtrList<R>,
-) -> InstanceNodePtrList<R> {
-    let mut output_nodes = Vec::new();
-
-    for node in input_nodes.borrow().iter() {
-        if node.borrow().is_invisible_to_slot() {
-            let children = node.borrow().get_instance_children();
-            let flattened_children = flatten_slot_invisible_nodes_recursive(children);
-            output_nodes.extend(flattened_children.borrow().iter().cloned());
-        } else {
-            output_nodes.push(node.clone());
-        }
-    }
-
-    Rc::new(RefCell::new(output_nodes))
-}
 
 pub struct ScrollerArgs {
     pub size_inner_pane: [Box<dyn PropertyInstance<f64>>; 2],
@@ -182,6 +162,7 @@ impl<R: RenderContext + 'static> std::fmt::Debug for dyn InstanceNode<R> {
         self.resolve_debug(f, None)
     }
 }
+
 /// Central runtime representation of a properties-computable and renderable node.
 /// `InstanceNode`s are conceptually stateless, and rely on [`ExpandedNode`]s for stateful representations.
 ///
@@ -196,29 +177,13 @@ impl<R: RenderContext + 'static> std::fmt::Debug for dyn InstanceNode<R> {
 /// [`ExpandedNode`]s are "type-blind".  The latter store polymorphic data but cannot operate on it without the type-aware assistance of their linked `InstanceNode`.
 ///
 /// (See [`RepeatInstance#expand_node`] where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
-pub trait InstanceNode<R: 'static + RenderContext> {
+pub trait InstanceNode<R: RenderContext> {
+    ///Retrieves the base instance, containing common functionality that all instances share
+    fn base(&self) -> &BaseInstance<R>;
+
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized;
-
-    /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
-    /// instance nodes mapping exactly to the template node definitions.
-    /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
-    /// (see [`get_slot_children`] for the way to retrieve the latter.)
-    fn get_instance_children(&self) -> InstanceNodePtrList<R>;
-
-    /// Describes the type of this node; Primitive by default, overridden by Component
-    fn get_node_type(&self) -> NodeType {
-        NodeType::Primitive
-    }
-
-    /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
-    /// Each node that can handle events is responsible for implementing this; Component instances generate
-    /// the necessary code to wire up userland events like `<SomeNode @click=self.handler>`. Primitives must handle
-    /// this explicitly, see e.g. `[pax_std_primitives::RectangleInstance#get_handler_registry]`.
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
-        None //default no-op
-    }
 
     /// Returns the bounds of an InstanceNode.  This computation requires a stateful [`ExpandedNode`], yet requires
     /// customization at the trait-implementor level (dyn InstanceNode), thus this method accepts an expanded_node
@@ -238,45 +203,12 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         None
     }
 
-    /// Returns unique integer ID of this RenderNode instance.  Note that
-    /// individual rendered elements may share an instance_id, for example
-    /// inside of `Repeat`.  See also `ExpandedNode` and `RenderTreeContext::get_id_chain`, which enables globally
-    /// unique node addressing in the context of an in-progress render tree traversal.
-    fn get_instance_id(&self) -> u32;
-
-    /// Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
-    /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
-    /// `Repeat` and `Conditional` override `is_invisible_to_slot` to return true
-    fn is_invisible_to_slot(&self) -> bool {
-        false
-    }
-
-    /// Certain elements, such as Groups and Components, are invisible to ray-casting.
-    /// Since these container elements are on top of the elements they contain,
-    /// this is needed otherwise the containers would intercept rays that should hit their contents.
-    fn is_invisible_to_raycasting(&self) -> bool {
-        false
-    }
-
-    //TODOSAM make sure this is ok
-    // /// Allows an `InstanceNode` to specify that the properties computation engine should not expand nodes
-    // /// for its subtree (to stop recursing externally,) because this node will manage its own recursion for expanding its subtree.
-    // /// It's expected that node that returns `true` will call `recurse_expand_nodes` on instance nodes in its subtree.
-    // /// Use-cases include Repeat, Conditional, and Component, which, for various reasons, must custom-manage how their properties subtree is calculated.
-    // fn manages_own_subtree_for_expansion(&self) -> bool {
-    //     false
-    // }
-
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
         expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result;
-
-    // Returns an expanded node
-    //TODOSAM this can probably have default impl if it's parts are methods (to get factories)
-    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
@@ -286,9 +218,9 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<crate::ExpandedNode<R>>> {
-        let this_expanded_node = self.expand(ptc);
+        let this_expanded_node = self.base().expand(ptc);
 
-        let children_to_recurse = self.get_instance_children();
+        let children_to_recurse = self.base().get_children();
 
         for child in (*children_to_recurse).borrow().iter() {
             let mut new_ptc = ptc.clone();
@@ -298,7 +230,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
             let child_expanded_node = crate::recurse_expand_nodes(&mut new_ptc);
 
             child_expanded_node.borrow_mut().parent_expanded_node =
-                Some(Rc::downgrade(&this_expanded_node));
+                Rc::downgrade(&this_expanded_node);
 
             this_expanded_node
                 .borrow_mut()
@@ -366,14 +298,6 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         //no-op default implementation
     }
-
-    /// Returns the layer type (`Layer::Native` or `Layer::Canvas`) for this RenderNode.
-    /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
-    /// content.
-    fn get_layer_type(&mut self) -> Layer {
-        Layer::Canvas
-    }
-
     /// Invoked by event interrupts to pass scroll information to render node
     #[allow(unused_variables)]
     fn handle_scroll(&mut self, args_scroll: ArgsScroll) {
@@ -382,6 +306,86 @@ pub trait InstanceNode<R: 'static + RenderContext> {
 
     fn handle_form_event(&mut self, event: FormEvent) {
         panic!("form event sent to non-compatible component: {:?}", event)
+    }
+}
+
+pub struct BaseInstance<R> {
+    handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    instance_id: u32,
+    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    instance_children: InstanceNodePtrList<R>,
+    flags: InstanceFlags,
+}
+
+pub struct InstanceFlags {
+    /// Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
+    /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
+    /// `Repeat` and `Conditional` override `is_invisible_to_slot` to return true
+    pub invisible_to_slot: bool,
+    /// Certain elements, such as Groups and Components, are invisible to ray-casting.
+    /// Since these container elements are on top of the elements they contain,
+    /// this is needed otherwise the containers would intercept rays that should hit their contents.
+    pub invisible_to_raycasting: bool,
+    /// The layer type (`Layer::Native` or `Layer::Canvas`) for this RenderNode.
+    /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
+    /// content.
+    pub layer: Layer,
+}
+
+impl<R: RenderContext + 'static> BaseInstance<R> {
+    pub fn new(args: InstantiationArgs<R>, flags: InstanceFlags) -> Self {
+        let mut node_registry = (*args.node_registry).borrow_mut();
+        let instance_id = node_registry.mint_instance_id();
+        BaseInstance {
+            instance_id,
+            handler_registry: args.handler_registry,
+            instance_prototypical_common_properties_factory: args
+                .prototypical_common_properties_factory,
+            instance_prototypical_properties_factory: args.prototypical_properties_factory,
+            instance_children: args.children.unwrap_or_default(),
+            flags,
+        }
+    }
+
+    /// Returns unique integer ID of this RenderNode instance.  Note that
+    /// individual rendered elements may share an instance_id, for example
+    /// inside of `Repeat`.  See also `ExpandedNode` and `RenderTreeContext::get_id_chain`, which enables globally
+    /// unique node addressing in the context of an in-progress render tree traversal.
+    pub fn get_instance_id(&self) -> u32 {
+        self.instance_id
+    }
+
+    /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
+    /// Each node that can handle events is responsible for implementing this; Component instances generate
+    /// the necessary code to wire up userland events like `<SomeNode @click=self.handler>`. Primitives must handle
+    /// this explicitly, see e.g. `[pax_std_primitives::RectangleInstance#get_handler_registry]`.
+    pub fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+        match &self.handler_registry {
+            Some(registry) => Some(Rc::clone(registry)),
+            _ => None,
+        }
+    }
+
+    pub fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        ExpandedNode::get_or_create_with_prototypical_properties(
+            self.instance_id,
+            ptc,
+            &(self.instance_prototypical_properties_factory)(),
+            &(self.instance_prototypical_common_properties_factory)(),
+        )
+    }
+
+    /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
+    /// instance nodes mapping exactly to the template node definitions.
+    /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
+    /// (see [`get_slot_children`] for the way to retrieve the latter.)
+    pub fn get_children(&self) -> InstanceNodePtrList<R> {
+        return Rc::clone(&self.instance_children);
+    }
+
+    pub fn flags(&self) -> &InstanceFlags {
+        &self.flags
     }
 }
 
@@ -564,6 +568,7 @@ fn manage_handlers_pre_render<R: 'static + RenderContext>(rtc: &mut RenderTreeCo
     let registry = node_borrowed
         .instance_node
         .borrow()
+        .base()
         .get_handler_registry()
         .clone();
     if let Some(registry) = registry {

@@ -11,8 +11,10 @@ use pax_std::types::*;
 #[derive(Pax)]
 #[file("inner.pax")]
 pub struct Inner {
-    pub x: Property<Size>,
-    pub y: Property<Size>,
+    pub message_inner: Property<String>,
+    pub x_pos: Property<Size>,
 }
 
-impl Inner {}
+impl Inner {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {}
+}

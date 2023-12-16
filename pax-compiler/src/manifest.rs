@@ -38,6 +38,7 @@ impl Ord for ExpressionSpec {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
@@ -62,6 +63,7 @@ pub struct ExpressionSpec {
 /// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
 /// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ExpressionSpecInvocation {
     /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the

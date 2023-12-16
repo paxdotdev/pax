@@ -25,7 +25,7 @@ pub struct TemplateArgsCodegenCartridgeLib {
     pub component_factories_literal: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub is_main_component: bool,
     pub snake_case_type_id: String,

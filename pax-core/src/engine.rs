@@ -151,8 +151,8 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
                 "parent",
                 &self
                     .parent_expanded_node
-                    .as_ref()
-                    .and_then(|v| v.upgrade().map(|v| v.borrow().id_chain.clone())),
+                    .upgrade()
+                    .map(|v| v.borrow().id_chain.clone()),
             )
             .field(
                 "slot_children",
@@ -190,7 +190,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
-    pub parent_expanded_node: Option<Weak<RefCell<ExpandedNode<R>>>>,
+    pub parent_expanded_node: Weak<RefCell<ExpandedNode<R>>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
@@ -255,7 +255,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_field:ident) => {
         pub fn $fn_name(&self, args: $arg_type) {
-            if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            if let Some(registry) = (*self.instance_node).borrow().base().get_handler_registry() {
                 let handlers = &(*registry).borrow().$handler_field;
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.borrow().get_properties())
@@ -271,8 +271,8 @@ macro_rules! dispatch_event_handler {
                 });
             }
 
-            if let Some(parent) = &self.parent_expanded_node {
-                parent.upgrade().unwrap().borrow().$fn_name(args);
+            if let Some(parent) = &self.parent_expanded_node.upgrade() {
+                parent.borrow().$fn_name(args);
             }
         }
     };
@@ -341,7 +341,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         } else {
             let new_expanded_node = Rc::new(RefCell::new(ExpandedNode {
                 id_chain: id_chain.clone(),
-                parent_expanded_node: None,
+                parent_expanded_node: Weak::new(),
                 children_expanded_nodes: vec![],
                 instance_node: Rc::clone(&ptc.current_instance_node),
                 containing_component: ptc.current_containing_component.clone(),
@@ -394,7 +394,13 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if self.instance_node.borrow().is_invisible_to_raycasting() {
+        if self
+            .instance_node
+            .borrow()
+            .base()
+            .flags()
+            .invisible_to_raycasting
+        {
             return false;
         }
 
@@ -490,9 +496,6 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
 }
 
 pub struct NodeRegistry<R: 'static + RenderContext> {
-    /// Allows look up of an `InstanceNodePtr` by instance id
-    instance_node_map: HashMap<u32, InstanceNodePtr<R>>,
-
     /// Allows look up of an `ExpandedNode` by id_chain
     pub expanded_node_map: HashMap<Vec<u32>, Rc<RefCell<ExpandedNode<R>>>>,
 
@@ -514,7 +517,6 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
         Self {
             mounted_set: HashSet::new(),
             marked_for_unmount_set: HashSet::new(),
-            instance_node_map: HashMap::new(),
             expanded_node_map: HashMap::new(),
             instance_uid_gen: 0..,
         }
@@ -523,11 +525,6 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     /// Mint a new, monotonically increasing id for use in creating new instance nodes
     pub fn mint_instance_id(&mut self) -> u32 {
         self.instance_uid_gen.next().unwrap()
-    }
-
-    /// Add an instance to the NodeRegistry, incrementing its Rc count and giving it a canonical home
-    pub fn register(&mut self, instance_id: u32, node: InstanceNodePtr<R>) {
-        self.instance_node_map.insert(instance_id, node);
     }
 
     pub fn remove_expanded_node(&mut self, id_chain: &Vec<u32>) {
@@ -548,12 +545,6 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
                 .cmp(&a.borrow().computed_z_index)
         });
         values
-    }
-
-    /// Remove an instance from the instance_node_map.  This roughly only decrements the `Rc` surrounding
-    /// the instance and is exposed to enable complete deletion of an Rc where the final reference may have been in the instance_node_map.
-    pub fn deregister(&mut self, instance_id: u32) {
-        self.instance_node_map.remove(&instance_id);
     }
 
     /// Mark an ExpandedNode as mounted, so that `mount` handlers will not fire on subsequent frames
@@ -720,11 +711,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<RefCell<ExpandedNode<R>>>> = node
-                    .borrow()
-                    .parent_expanded_node
-                    .as_ref()
-                    .and_then(|weak| weak.upgrade());
+                let mut parent: Option<Rc<RefCell<ExpandedNode<R>>>> =
+                    node.borrow().parent_expanded_node.upgrade();
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
@@ -734,11 +722,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                                 (*unwrapped_parent).borrow().ray_cast_test(&ray);
                             break;
                         }
-                        parent = unwrapped_parent
-                            .borrow()
-                            .parent_expanded_node
-                            .as_ref()
-                            .and_then(|weak| weak.upgrade());
+                        parent = unwrapped_parent.borrow().parent_expanded_node.upgrade();
                     } else {
                         break;
                     }

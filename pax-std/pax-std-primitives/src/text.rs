@@ -2,72 +2,48 @@ use std::cell::RefCell;
 
 use core::any::Any;
 use pax_core::{
-    handle_vtable_update, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
+    handle_vtable_update, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
+    InstanceNode, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{CommonProperties, Layer};
+use pax_runtime_api::Layer;
 use pax_std::primitives::Text;
 use piet::RenderContext;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct TextInstance {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_id: u32,
+pub struct TextInstance<R> {
+    base: BaseInstance<R>,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
+impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(TextInstance {
-            instance_id,
-            handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: args
-                .prototypical_common_properties_factory,
-            instance_prototypical_properties_factory: args.prototypical_properties_factory,
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    layer: Layer::Native,
+                },
+            ),
             last_patches: HashMap::default(),
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-
-        ret
-    }
-
-    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::new(RefCell::new(vec![]))
-    }
-
-    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
+        }))
     }
 
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.expand(ptc);
+        let this_expanded_node = self.base().expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Text, |properties: &mut Text| {
@@ -199,13 +175,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance {
     }
 
     fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
-        let id_chain = ptc.get_id_chain(self.instance_id);
+        let id_chain = ptc.get_id_chain(self.base().get_instance_id());
         self.last_patches.remove(&id_chain);
         ptc.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
-    }
-
-    fn get_layer_type(&mut self) -> Layer {
-        Layer::Native
     }
 
     #[cfg(debug_assertions)]
@@ -222,6 +194,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance {
             }
             None => f.debug_struct("Text").finish_non_exhaustive(),
         }
+    }
+
+    fn base(&self) -> &BaseInstance<R> {
+        &self.base
     }
 }
 /*fn expand_node_and_compute_properties(

@@ -10,12 +10,11 @@ use pax_std::primitives::Frame;
 use piet::RenderContext;
 
 use pax_core::{
-    recurse_expand_nodes, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
+    recurse_expand_nodes, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
+    InstanceNode, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
 use pax_message::AnyCreatePatch;
-use pax_runtime_api::{CommonProperties, Layer, Size};
+use pax_runtime_api::{Layer, Size};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -25,51 +24,28 @@ use pax_runtime_api::{CommonProperties, Layer, Size};
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: 'static + RenderContext> {
-    pub instance_id: u32,
-    pub instance_children: InstanceNodePtrList<R>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    base: BaseInstance<R>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
-        match &self.handler_registry {
-            Some(registry) => Some(Rc::clone(&registry)),
-            _ => None,
-        }
-    }
-
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = args.node_registry.borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(Self {
-            instance_id,
-            instance_children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
-            instance_prototypical_common_properties_factory: args
-                .prototypical_common_properties_factory,
-            instance_prototypical_properties_factory: args.prototypical_properties_factory,
-            handler_registry: args.handler_registry,
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    layer: Layer::Canvas,
+                },
+            ),
+        }))
     }
 
     fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
         Some(self.get_size(expanded_node))
-    }
-
-    fn get_layer_type(&mut self) -> Layer {
-        Layer::DontCare
     }
 
     // fn handle_native_patches(
@@ -135,35 +111,22 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     // todo!()
     // }
 
-    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::clone(&self.instance_children)
-    }
-
-    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
-    }
-
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.expand(ptc);
+        let this_expanded_node = self.base().expand(ptc);
 
         let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);
 
-        for instance_child in self.instance_children.borrow().iter() {
+        for instance_child in self.base().get_children().borrow().iter() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(instance_child);
             new_ptc.current_expanded_node = None;
             let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
-                Some(Rc::downgrade(&this_expanded_node));
+                Rc::downgrade(&this_expanded_node);
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);
@@ -202,6 +165,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             rc.clip(transformed_bez_path.clone());
         }
     }
+
     fn handle_post_render(
         &mut self,
         _rtc: &mut RenderTreeContext<R>,
@@ -233,10 +197,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
 
     fn handle_unmount(&mut self, _ptc: &mut PropertiesTreeContext<R>) {}
 
-    fn is_invisible_to_raycasting(&self) -> bool {
-        true
-    }
-
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
@@ -253,5 +213,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             }
             None => f.debug_struct("Frame").finish_non_exhaustive(),
         }
+    }
+
+    fn base(&self) -> &BaseInstance<R> {
+        &self.base
     }
 }

@@ -14,13 +14,13 @@ use pax_std::types::*;
 #[main]
 #[file("lib.pax")]
 pub struct Example {
+    pub message_outer: Property<String>,
     pub x: Property<Size>,
-    pub y: Property<Size>,
 }
 
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.x.set(Size::Percent(12.5.into()));
-        self.y.set(Size::Percent(12.5.into()));
+        self.message_outer.set("testing".to_string());
+        self.x.set(Size::Percent(30.into()));
     }
 }

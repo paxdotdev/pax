@@ -98,6 +98,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
             {% endfor %}
         {% endif %}
 
+
+        //TODOSAM this is where to add special casing for the string output
+
         Box::new({{expression_spec.output_statement}})
 
     }));
