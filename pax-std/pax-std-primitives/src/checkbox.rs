@@ -2,8 +2,8 @@ use std::cell::RefCell;
 
 use pax_core::form_event::FormEvent;
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable,
-    InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
+    HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
+    PropertiesComputable, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, CheckboxPatch};
 use pax_runtime_api::{CommonProperties, Layer};
@@ -13,42 +13,23 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct CheckboxInstance<R: 'static + RenderContext> {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u32,
+    base: BaseInstance,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Checkbox` instance
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::CheckboxPatch>,
-
-    instance_prototypical_properties_factory: Box<dyn FnMut()->Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn FnMut()->Rc<RefCell<CommonProperties>>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for CheckboxInstance<R> {
-
-
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn new(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(CheckboxInstance {
-            instance_id,
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(args.common_properties)),
-            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
-            handler_registry: args.handler_registry,
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(args),
             last_patches: Default::default(),
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
+        }))
     }
 
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
@@ -152,10 +133,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for CheckboxInstance<R> {
         }
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
-        match &self.handler_registry {
-            Some(registry) => Some(Rc::clone(registry)),
-            _ => None,
-        }
+    fn base(&self) -> &BaseInstance {
+        &self.base
     }
 }

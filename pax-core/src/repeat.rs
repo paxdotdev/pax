@@ -3,10 +3,10 @@ use std::rc::Rc;
 use std::{any::Any, ops::Range};
 
 use crate::{
-    handle_vtable_update, handle_vtable_update_optional, with_properties_unwrapped, ExpandedNode,
-    InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    handle_vtable_update_optional, with_properties_unwrapped, BaseInstance, ExpandedNode,
+    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
 };
-use pax_runtime_api::{CommonProperties, Layer, Numeric};
+use pax_runtime_api::Layer;
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive associated with the `for` statement.
@@ -15,11 +15,7 @@ use piet_common::RenderContext;
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `source_expression[i]`
 pub struct RepeatInstance<R: 'static + RenderContext> {
-    pub instance_id: u32,
-    pub repeated_template: InstanceNodePtrList<R>,
-
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    pub base: BaseInstance<R>,
 }
 
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
@@ -38,46 +34,27 @@ pub struct RepeatItem {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(RepeatInstance {
-            instance_id,
-            repeated_template: match args.children {
-                None => Rc::new(RefCell::new(vec![])),
-                Some(children) => children,
-            },
-
-            instance_prototypical_common_properties_factory: args
-                .prototypical_common_properties_factory,
-            instance_prototypical_properties_factory: args.prototypical_properties_factory,
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
-    }
-
-    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: true,
+                    invisible_to_raycasting: true,
+                    layer: Layer::DontCare,
+                },
+            ),
+        }))
     }
 
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.expand(ptc);
+        let this_expanded_node = self.base().expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Mark all of Repeat's existing children (from previous tick) for
@@ -156,12 +133,16 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             }));
             ptc.push_stack_frame(new_repeat_item);
 
-            for repeated_template_instance_root in self.repeated_template.borrow().iter() {
+            for repeated_template_instance_root in self.base().get_children().borrow().iter() {
                 let mut new_ptc = ptc.clone();
                 new_ptc.current_expanded_node = None;
                 new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                let id_chain =
-                    ptc.get_id_chain(repeated_template_instance_root.borrow().get_instance_id());
+                let id_chain = ptc.get_id_chain(
+                    repeated_template_instance_root
+                        .borrow()
+                        .base()
+                        .get_instance_id(),
+                );
 
                 //Part of hack (see above)
                 new_ptc
@@ -172,7 +153,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
 
                 let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
                 expanded_child.borrow_mut().parent_expanded_node =
-                    Some(Rc::downgrade(&this_expanded_node));
+                    Rc::downgrade(&this_expanded_node);
 
                 new_ptc
                     .engine
@@ -198,22 +179,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         this_expanded_node
     }
 
-    fn is_invisible_to_slot(&self) -> bool {
-        true
-    }
-
-    fn is_invisible_to_raycasting(&self) -> bool {
-        true
-    }
-
-    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::clone(&self.repeated_template)
-    }
-
-    fn get_layer_type(&mut self) -> Layer {
-        Layer::DontCare
-    }
-
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
@@ -221,5 +186,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         _expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
         f.debug_struct("Repeat").finish()
+    }
+
+    fn base(&self) -> &BaseInstance<R> {
+        &self.base
     }
 }

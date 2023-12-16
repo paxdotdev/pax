@@ -1,16 +1,16 @@
 use core::cell::RefCell;
 use core::option::Option;
 use std::any::Any;
-use std::collections::HashMap;
+
 use std::rc::Rc;
 
 use piet_common::RenderContext;
 
 use crate::{
-    handle_vtable_update, with_properties_unwrapped, ExpandedNode, InstanceNode, InstanceNodePtr,
-    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
+    handle_vtable_update, rendering, with_properties_unwrapped, BaseInstance, ExpandedNode,
+    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
 };
-use pax_runtime_api::{CommonProperties, Layer, Numeric};
+use pax_runtime_api::{Layer, Numeric};
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
 /// an slot_child can be rendered.  Slot relies on `slot_children` being present
@@ -22,12 +22,8 @@ use pax_runtime_api::{CommonProperties, Layer, Numeric};
 /// the outside.  Inside Stacker's template, there are a number of Slots — this primitive —
 /// that become the final rendered home of those slot_children.  This same technique
 /// is portable and applicable elsewhere via Slot.
-pub struct SlotInstance {
-    pub instance_id: u32,
-    // pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
-    // cached_computed_children: InstanceNodePtrList<R>,
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+pub struct SlotInstance<R> {
+    base: BaseInstance<R>,
 }
 
 ///Contains the index value for slot, either a literal or an expression.
@@ -36,53 +32,29 @@ pub struct SlotProperties {
     pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
+impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = args.node_registry.borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(Self {
-            instance_id,
-            instance_prototypical_common_properties_factory: args
-                .prototypical_common_properties_factory,
-            instance_prototypical_properties_factory: args.prototypical_properties_factory,
-        }));
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
-    }
-
-    fn handle_pre_render(
-        &mut self,
-        _rtc: &mut RenderTreeContext<R>,
-        _rcs: &mut HashMap<String, R>,
-    ) {
-    }
-
-    /// Slot has strictly zero instance_children, but will likely have ExpandedNode children
-    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::new(RefCell::new(vec![]))
-    }
-
-    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    layer: Layer::DontCare,
+                },
+            ),
+        }))
     }
 
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.expand(ptc);
+        let this_expanded_node =
+            <SlotInstance<R> as rendering::InstanceNode<R>>::base(self).expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this
@@ -120,7 +92,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
                     .append_child_expanded_node(Rc::clone(child_to_forward));
 
                 child_to_forward.borrow_mut().parent_expanded_node =
-                    Some(Rc::downgrade(&this_expanded_node));
+                    Rc::downgrade(&this_expanded_node);
 
                 ptc.engine
                     .node_registry
@@ -132,14 +104,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         this_expanded_node
     }
 
-    fn get_layer_type(&mut self) -> Layer {
-        Layer::DontCare
-    }
-
-    fn is_invisible_to_raycasting(&self) -> bool {
-        true
-    }
-
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
@@ -147,5 +111,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance {
         _expanded_node: Option<&ExpandedNode<R>>,
     ) -> std::fmt::Result {
         f.debug_struct("Slot").finish()
+    }
+
+    fn base(&self) -> &BaseInstance<R> {
+        &self.base
     }
 }

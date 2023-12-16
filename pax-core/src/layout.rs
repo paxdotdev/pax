@@ -15,8 +15,10 @@ pub fn recurse_compute_canvas_indicies<'a, R: 'static + RenderContext>(
             expanded_node
                 .borrow()
                 .instance_node
-                .borrow_mut()
-                .get_layer_type(),
+                .borrow()
+                .base()
+                .flags()
+                .layer,
         );
     }
     {
@@ -313,7 +315,7 @@ fn manage_handlers_mount<'a, R: 'static + RenderContext>(
                 .handle_mount(ptc, &current_expanded_node.borrow());
 
             //Fire registered mount events
-            let registry = instance_node.borrow().get_handler_registry();
+            let registry = instance_node.borrow().base().get_handler_registry();
             if let Some(registry) = registry {
                 //grab Rc of properties from stack frame; pass to type-specific handler
                 //on instance in order to dispatch cartridge method

@@ -1,4 +1,5 @@
-<Inner x={self.x} y={self.y}/>
+<Inner x_pos={self.x} message_inner={self.message_outer + "testingouter"}/>
+// <Text x=20% text={self.message}/>
 
 @handlers {
     mount: handle_mount

@@ -22,6 +22,18 @@ pub struct TransitionQueueEntry<T> {
     pub ending_value: T,
 }
 
+#[cfg(debug_assertions)]
+impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransitionQueueEntry")
+            .field("global_frame_started", &self.global_frame_started)
+            .field("duration_frames", &self.duration_frames)
+            .field("starting_value", &self.starting_value)
+            .field("ending_value", &self.ending_value)
+            .finish()
+    }
+}
+
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyInstance<T: Default + Clone> {
@@ -720,6 +732,16 @@ pub struct TransitionManager<T> {
     pub value: Option<T>,
 }
 
+#[cfg(debug_assertions)]
+impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransitionManager")
+            .field("queue", &self.queue)
+            .field("value", &self.value)
+            .finish()
+    }
+}
+
 impl<T> TransitionManager<T> {
     pub fn new() -> Self {
         Self {
@@ -733,6 +755,16 @@ impl<T> TransitionManager<T> {
 pub struct PropertyLiteral<T> {
     value: T,
     transition_manager: TransitionManager<T>,
+}
+
+#[cfg(debug_assertions)]
+impl<T: std::fmt::Debug> std::fmt::Debug for PropertyLiteral<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PropertyLiteral")
+            .field("value", &self.value)
+            .field("transition_manager", &self.transition_manager)
+            .finish()
+    }
 }
 
 impl<T> Into<Box<dyn PropertyInstance<T>>> for PropertyLiteral<T>
@@ -810,6 +842,18 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     }
 
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
+        // log(&format!("property T not printable"));
+        if let None = self.transition_manager.value {
+            None
+        } else {
+            Some(&mut self.transition_manager)
+        }
+    }
+}
+
+impl<T: std::fmt::Debug> PropertyLiteral<T> {
+    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
+        // log(&format!("property: {:?}", self));
         if let None = self.transition_manager.value {
             None
         } else {
@@ -995,7 +1039,7 @@ pub struct Timeline {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Layer {
     Native,
     Scroller,
@@ -1053,15 +1097,7 @@ impl LayerId {
     }
 }
 
-impl Interpolatable for StringBox {
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
-        if t > 0.5 {
-            other.clone()
-        } else {
-            self.clone()
-        }
-    }
-}
+impl Interpolatable for StringBox {}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
@@ -1081,7 +1117,7 @@ impl Add for StringBox {
 impl Default for StringBox {
     fn default() -> Self {
         Self {
-            string: String::new(),
+            string: String::from("WRONG"),
         }
     }
 }
@@ -1110,6 +1146,6 @@ impl From<&String> for StringBox {
 
 impl From<StringBox> for String {
     fn from(value: StringBox) -> Self {
-        String::from(value.string)
+        value.string
     }
 }

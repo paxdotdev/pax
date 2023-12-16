@@ -1,78 +1,47 @@
 use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
+use pax_runtime_api::Layer;
 use piet::RenderContext;
 use std::any::Any;
 
 use pax_core::{
-    handle_vtable_update, with_properties_unwrapped, ExpandedNode, HandlerRegistry, InstanceNode,
-    InstanceNodePtr, InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
+    handle_vtable_update, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
+    InstanceNode, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
 
 use pax_std::primitives::Ellipse;
 use pax_std::types::Fill;
-
-use pax_runtime_api::CommonProperties;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 /// A basic 2D vector ellipse, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
-pub struct EllipseInstance {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_id: u32,
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+pub struct EllipseInstance<R> {
+    base: BaseInstance<R>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
-    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::new(RefCell::new(vec![]))
-    }
-
+impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(EllipseInstance {
-            instance_id,
-            handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: args
-                .prototypical_common_properties_factory,
-            instance_prototypical_properties_factory: args.prototypical_properties_factory,
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
-    }
-
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
-        match &self.handler_registry {
-            Some(registry) => Some(Rc::clone(registry)),
-            _ => None,
-        }
-    }
-
-    fn expand(&self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
+        Rc::new(RefCell::new(EllipseInstance {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    layer: Layer::Canvas,
+                },
+            ),
+        }))
     }
 
     fn expand_node_and_compute_properties(
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.expand(ptc);
+        let this_expanded_node = self.base().expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {
@@ -136,5 +105,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for EllipseInstance {
             }
             None => f.debug_struct("Ellipse").finish_non_exhaustive(),
         }
+    }
+
+    fn base(&self) -> &BaseInstance<R> {
+        &self.base
     }
 }

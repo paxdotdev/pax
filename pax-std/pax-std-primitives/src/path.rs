@@ -14,47 +14,22 @@ use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
 pub struct PathInstance<R: 'static + RenderContext> {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u32,
-
-    instance_prototypical_properties_factory: Box<dyn FnMut() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory:
-        Box<dyn FnMut() -> Rc<RefCell<CommonProperties>>>,
+    base: BaseInstance,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
-    fn get_instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
     fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn new(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
     {
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
-        let ret = Rc::new(RefCell::new(PathInstance {
-            instance_id,
-            handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: Rc::new(RefCell::new(
-                args.common_properties,
-            )),
-            instance_prototypical_properties_factory: Rc::new(RefCell::new(args.properties)),
-        }));
-
-        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
-        ret
-    }
-
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
-        match &self.handler_registry {
-            Some(registry) => Some(Rc::clone(registry)),
-            _ => None,
-        }
+        Rc::new(RefCell::new(Self {
+            base: BaseInstance::new(args),
+            last_patches: Default::default(),
+        }))
     }
 
     fn get_size(&self) -> Option<(Size, Size)> {
@@ -122,5 +97,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for PathInstance<R> {
             &properties.stroke.get().color.get().to_piet_color(),
             *&properties.stroke.get().width.get().into(),
         );
+    }
+
+    fn base(&self) -> &BaseInstance {
+        &self.base
     }
 }
