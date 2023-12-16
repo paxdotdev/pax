@@ -46,12 +46,26 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     container_tab: &TransformAndBounds,
     z_index_gen: &mut RangeFrom<u32>,
 ) {
-    let current_z_index = z_index_gen.next().unwrap();
     let computed_tab = compute_tab(&current_expanded_node, &container_tab);
 
     {
+        for child in current_expanded_node
+            .borrow()
+            .get_children_expanded_nodes()
+            .iter()
+            .rev()
+        {
+            let child = Rc::clone(child);
+            recurse_compute_layout(engine, ptc, &child, &computed_tab, z_index_gen);
+        }
+    }
+
+    {
         let mut node_borrowed = current_expanded_node.borrow_mut();
+
+        let current_z_index = z_index_gen.next().unwrap();
         node_borrowed.computed_z_index = Some(current_z_index);
+
         node_borrowed.tab_changed = node_borrowed.computed_tab.as_ref() != Some(&computed_tab);
         node_borrowed.computed_tab = Some(computed_tab.clone());
         node_borrowed.computed_node_context = Some(NodeContext {
@@ -59,13 +73,6 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
             bounds_parent: container_tab.bounds,
             bounds_self: computed_tab.bounds,
         });
-    }
-
-    {
-        for child in current_expanded_node.borrow().get_children_expanded_nodes() {
-            let child = Rc::clone(child);
-            recurse_compute_layout(engine, ptc, &child, &computed_tab, z_index_gen);
-        }
     }
 
     manage_handlers_mount(engine, ptc, &current_expanded_node);
