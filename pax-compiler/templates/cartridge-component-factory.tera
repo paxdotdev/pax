@@ -61,10 +61,6 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
                                 "generated code tried to downcast to incompatible type \"{{prop.1}}\" for property \"{{prop.0.name}}\" on {{fully_qualified_properties_type}}"
                             );
                         }
-                    } else {
-                        // panic!(
-                        //     "generated code couldn't compute eased value or find vtable ID for property \"{{prop.0.name}}\" of type \"{{prop.1}}\" on {{fully_qualified_properties_type}}"
-                        // );
                     }
                 {% endfor %}
             } else {
@@ -135,10 +131,6 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_reg
                             "generated code tried to downcast to incompatible type \"{{prop.1}}\" for property \"{{prop.0.name}}\" on {{fully_qualified_properties_type}}"
                         );
                     }
-                } else {
-                    // panic!(
-                    //     "generated code couldn't compute eased value or find vtable ID for property \"{{prop.0.name}}\" of type \"{{prop.1}}\" on {{fully_qualified_properties_type}}"
-                    // );
                 }
             {% endfor %}
         } else {

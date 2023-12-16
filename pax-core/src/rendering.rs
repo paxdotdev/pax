@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::{Deref, Mul};
+use std::ops::Mul;
 use std::rc::Rc;
 
 use kurbo::Affine;

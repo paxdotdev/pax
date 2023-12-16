@@ -63,10 +63,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
 
         let id_chain = ptc.get_id_chain(self.base().get_instance_id());
 
-        //Use this to do not do re-computations each frame
+        //TODO use this to do not do re-computations each frame
         let _present_last_frame = ptc.engine.node_registry.borrow().is_mounted(&id_chain);
-
-        pax_runtime_api::log(&format!("present last frame: {:?}", _present_last_frame));
 
         if !evaluated_condition {
             for cen in this_expanded_node.borrow().get_children_expanded_nodes() {

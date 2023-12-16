@@ -53,8 +53,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
         &mut self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node =
-            <SlotInstance<R> as rendering::InstanceNode<R>>::base(self).expand(ptc);
+        let this_expanded_node = self.base().expand(ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this

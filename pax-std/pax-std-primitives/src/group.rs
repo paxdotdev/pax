@@ -1,6 +1,6 @@
 use pax_core::{
     with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags, InstanceNode,
-    InstanceNodePtrList, InstantiationArgs,
+    InstantiationArgs,
 };
 use pax_std::primitives::Group;
 use piet_common::RenderContext;
