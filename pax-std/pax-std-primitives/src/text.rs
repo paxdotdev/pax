@@ -31,7 +31,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: false,
+                    invisible_to_raycasting: true, //TODO make this optional?
                     layer: Layer::Native,
                 },
             ),

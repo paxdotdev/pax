@@ -406,6 +406,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
         let Some(computed_tab) = self.computed_tab.as_ref() else {
             return false;
         };
+
         let inverted_transform = computed_tab.transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
 
@@ -698,7 +699,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .get_expanded_nodes_sorted_by_z_index_desc();
 
         // remove root element that is moved to top during reversal
-        nodes_ordered.pop();
+        nodes_ordered.remove(0);
 
         let mut ret: Option<Rc<RefCell<ExpandedNode<R>>>> = None;
         for node in nodes_ordered {
