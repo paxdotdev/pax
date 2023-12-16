@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::ops::RangeFrom;
 use std::rc::Rc;
 
+//TODO combine with compute pass
 pub fn recurse_compute_canvas_indicies<'a, R: 'static + RenderContext>(
     expanded_node: &Rc<RefCell<ExpandedNode<R>>>,
     canvas_index_gen: &mut LayerId,

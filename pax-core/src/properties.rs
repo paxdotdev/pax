@@ -27,14 +27,10 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
             .expand_node_and_compute_properties(ptc)
     };
 
-    //TODOSAM move this to compute pass?
+    //TODO move this to compute pass?
     // Compute common properties
     let common_properties = Rc::clone(&this_expanded_node.borrow_mut().get_common_properties());
     common_properties.borrow_mut().compute_properties(ptc);
-
-    //TODOSAM this needs to be moved, current problem:
-    // A expanded_node that has been marked as unmount still needs to call recurse_exand_nodes to handle this.
-    // Would be nice to not have to do that.
 
     // Lifecycle: `unmount`
     manage_handlers_unmount(ptc);

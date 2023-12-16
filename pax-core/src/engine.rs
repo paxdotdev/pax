@@ -203,7 +203,6 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// explicitly updated to accommodate.)
     pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
 
-    //TODOSAM remake these to follow the same apttern as runtime_properties_stack
     /// Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
     /// A snapshot of the clipping stack above this element at the time of properties-computation
     pub clipping_stack: Vec<Vec<u32>>,
@@ -215,7 +214,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     /// For component instances only, tracks the expanded + flattened slot_children
     expanded_and_flattened_slot_children: Option<Vec<Rc<RefCell<ExpandedNode<R>>>>>,
 
-    //TODOSAM replace these two with BTreeSet?
+    //TODO replace these two with BTreeSet?
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
     children_expanded_nodes: Vec<Rc<RefCell<ExpandedNode<R>>>>,
 
@@ -666,8 +665,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
         recurse_render(&mut rtc, rcs, &mut z_index, false);
 
-        // pax_runtime_api::log(&format!("tree: {:#?}", root_expanded_node));
-
         //Reset for next tick
         rtc.engine.node_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
         let native_render_queue = ptc.take_native_message_queue();
@@ -734,7 +731,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 }
             }
         }
-        pax_runtime_api::log(&format!("ray hit: {:#?}", ret));
         ret
     }
 

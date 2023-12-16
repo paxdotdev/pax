@@ -1,5 +1,11 @@
-
-
+<Stacker cells=2>
+<Frame>
+	<Text text={self.message} class=centered class=small id=text />
+	<Rectangle class=centered class=small @click=self.increment
+	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Frame>
 if self.activated {
 	<Frame>
 		<Text text="This is some text that appears and dissapears" class=centered width=50% height=50% id=text />
@@ -9,50 +15,27 @@ if self.activated {
 		/>
 	</Frame>
 }
-
-// <Stacker cells=2>
-// <Frame>
-// 	<Text text={self.message} class=centered class=small id=text />
-// 	<Rectangle class=centered class=small @click=self.increment
-// 	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
-// 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-// 	/>
-// </Frame>
-// if self.activated {
-// 	// <Frame>
-// 		<Text text="This is some text that appears and dissapears" class=centered width=50% height=50% id=text />
-// 		// <Rectangle class=centered width=50% height=50%  @click=self.increment
-// 		//      fill={Fill::Solid(Color::rgb(0, 255, 0))}
-// 		//     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-// 		// />
-// 	// </Frame>
-// }
-// if self.not_activated {
-// 	<Stacker cells=10>
-// 		for i in 0..10 {
-// 			<Frame>
-// 				<Stacker cells={i} direction=StackerDirection::Vertical>
-// 					for j in 0..i {
-// 						<Rectangle
-// 						     fill={Fill::Solid(Color::hlc((i + 4)*(j + 2)*10, 100, 40))}
-// 						/>
-// 					}
-// 				</Stacker>
-// 			</Frame>
-// 		}
-// 	</Stacker>
-// }
-// </Stacker>
-
-//TODO
-// event handlers not always working on the if part when activated and then diactivated
-// when uncommenting red rectangle above, can't click!
+if self.not_activated {
+	<Stacker cells=10>
+		for i in 0..10 {
+			<Frame>
+				<Stacker cells={i} direction=StackerDirection::Vertical>
+					for j in 0..i {
+						<Rectangle
+						     fill={Fill::Solid(Color::hlc((i + 4)*(j + 2)*10, 100, 40))}
+						/>
+					}
+				</Stacker>
+			</Frame>
+		}
+	</Stacker>
+}
+</Stacker>
 
 
-//Things that are wrong:
-
+// Things that are broken in this example:
 // - text doesn't dissapear
-// - needs to be a frame in the stacker thing
+// - needs to be a frame in the stacker/for loop hierarchy
 // - green rectangle visible when moving
 // - should text be invisible to raycasts?
 

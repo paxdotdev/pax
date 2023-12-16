@@ -1100,7 +1100,7 @@ impl LayerId {
 impl Interpolatable for StringBox {}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct StringBox {
     pub string: String,
 }
@@ -1111,14 +1111,6 @@ impl Add for StringBox {
     fn add(mut self, rhs: Self) -> Self::Output {
         self.string.push_str(&rhs.string.as_str());
         self
-    }
-}
-
-impl Default for StringBox {
-    fn default() -> Self {
-        Self {
-            string: String::from("WRONG"),
-        }
     }
 }
 
