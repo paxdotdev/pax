@@ -69,10 +69,6 @@ impl InstanceNode for ConditionalInstance {
                     .borrow_mut()
                     .mark_for_unmount(cen.borrow().id_chain.clone());
             }
-
-            {
-                this_expanded_node.borrow_mut().clear_child_expanded_nodes();
-            }
         }
 
         for child in self.base().get_children() {

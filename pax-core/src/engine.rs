@@ -139,7 +139,11 @@ impl std::fmt::Debug for ExpandedNode {
             )
             .field("id_chain", &self.id_chain)
             .field("computed_canvas_index", &self.computed_canvas_index)
-            // .field("bounds", &self.computed_tab)
+            //.field("bounds", &self.computed_tab)
+            .field(
+                "common_properties",
+                &self.computed_common_properties.borrow(),
+            )
             .field("computed_z_index", &self.computed_z_index)
             .field(
                 "children",
@@ -336,6 +340,10 @@ impl ExpandedNode {
             .borrow()
             .get_expanded_node(&id_chain)
         {
+            //TODO SAM
+            already_registered_node
+                .borrow_mut()
+                .runtime_properties_stack = ptc.runtime_properties_stack.clone();
             Rc::clone(already_registered_node)
         } else {
             let new_expanded_node = Rc::new(RefCell::new(ExpandedNode {
