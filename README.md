@@ -2,14 +2,27 @@
 
 Pax is a user interface engine for native apps and websites.
 
-This repository includes:
- - The Pax compiler and language implementation
- - Native runtimes
+#### Pax aims to be:
+ - **Extremely fast** — 240FPS rendering on supporting hardware
+ - **Tiny & portable** — <100Kb network footprint for WebAssembly sites; <1MB disk footprint for native builds.  
+ - **Designable** — Pax renders in the same coordinate space as a design tool like Photoshop or Figma, and is authored through a highly declarative UI description language, readable & writable by machines as well as humans.  Pax's most fundamental goal is to enable [multi-modal collaboration](https://developing.pax.dev/p/a-utopian-future-for-graphical-user) i.e. _designability_ of user interfaces.
+
+## What's in this repo?
+ - The Pax compiler and an implementation of the Pax user interface description language
+ - Native renderers + runtimes for iOS, macOS, and browsers/WebAssembly
  - Language bindings for supported programming languages, currently only Rust
  - Pax's CLI for compiling and managing projects 
  - Example projects
 
+## Status
+
+This project is in _alpha_ and is not yet recommended for production use.  
+
+Currently any Pax project can compile to native iOS, native macOS, and browser/WebAssembly applications. We expect to support Android, Windows, Linux, and embedded applications as well.
+
 ## Example
+
+At least one production example exists, our website for [www.pax.dev](https://www.pax.dev/) — **[see the source code](https://www.github.com/pax-lang/www.pax.dev/) for a simple, real-world example of Pax.**
 
 Writing Pax is intended to feel familiar and the language borrows many ideas from [prior art](https://docs.pax.dev/intro-goals-prior-art.html#prior-art--inspiration).
 
