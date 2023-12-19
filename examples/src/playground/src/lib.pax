@@ -1,19 +1,23 @@
-<Frame width=50%>
-	<Rectangle class=centered class=small @click=self.toggle
-	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+
+
+
+for i in 0..1 {
+	<Rectangle y=20% anchor_x=50% anchor_y=50%  x={(10 + 70*i)%} class=small
+	     fill={Fill::Solid(Color::hlc(10, 75.0, 150.0))}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+}
+
+<Frame>
+	<Rectangle class=centered class=small
+	     fill={Fill::Solid(Color::hlc(10, 75.0, 150.0))}
 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 	/>
 </Frame>
 
-<Frame x=50% width=50%>
-	if self.conditional {
-		<Text text="This is some text" class=centered class=small id=text/>
-		<Rectangle class=centered class=small
-		     fill={Fill::Solid(Color::hlc(ticks + 100, 75.0, 150.0))}
-		    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-		/>
-	}
-</Frame>
+// <Frame x=50% width=50%>
+// 		// <Text text="This is some text" class=centered class=small id=text/>
+// </Frame>
 
 @handlers{
      mount: handle_mount

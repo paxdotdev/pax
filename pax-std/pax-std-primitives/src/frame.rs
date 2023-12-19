@@ -113,7 +113,7 @@ impl InstanceNode for FrameInstance {
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
         let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);

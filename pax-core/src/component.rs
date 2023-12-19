@@ -18,8 +18,7 @@ use pax_runtime_api::{Layer, Timeline};
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn:
-        Box<dyn Fn(Rc<RefCell<dyn Any>>, &Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>,
+    pub compute_properties_fn: Box<dyn Fn(&Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>,
     base: BaseInstance,
 }
 
@@ -37,20 +36,22 @@ impl InstanceNode for ComponentInstance {
                 layer: Layer::DontCare,
             },
         );
-        let ret = Rc::new(ComponentInstance {
+        Rc::new(ComponentInstance {
             base,
             template,
             compute_properties_fn: compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
-        });
-        ret
+        })
     }
 
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+
+        //Compute properties
+        (*self.compute_properties_fn)(&this_expanded_node, ptc);
 
         let expanded_and_flattened_slot_children = {
             let slot_children = self.base().get_children();
@@ -85,13 +86,6 @@ impl InstanceNode for ComponentInstance {
         let last_containing_component = std::mem::replace(
             &mut ptc.current_containing_component,
             Rc::downgrade(&this_expanded_node),
-        );
-
-        //Compute properties
-        (*self.compute_properties_fn)(
-            Rc::clone(&this_expanded_node.borrow().get_properties()),
-            &this_expanded_node,
-            ptc,
         );
 
         ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));

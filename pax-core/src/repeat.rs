@@ -4,7 +4,7 @@ use std::{any::Any, ops::Range};
 
 use crate::{
     handle_vtable_update_optional, with_properties_unwrapped, BaseInstance, ExpandedNode,
-    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
+    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesComputable, PropertiesTreeContext,
 };
 use pax_runtime_api::Layer;
 
@@ -52,7 +52,7 @@ impl InstanceNode for RepeatInstance {
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
@@ -98,10 +98,10 @@ impl InstanceNode for RepeatInstance {
         let source_len = range_evaled
             .as_ref()
             .map(Range::len)
-            .or(vec_evaled.as_ref().map(Vec::len));
-        let update_repeat_children =
-            node.tab_changed || source_len != Some(node.last_repeat_source_len);
-        node.last_repeat_source_len = source_len.unwrap();
+            .or(vec_evaled.as_ref().map(Vec::len))
+            .unwrap();
+        let update_repeat_children = node.tab_changed || source_len != node.last_repeat_source_len;
+        node.last_repeat_source_len = source_len;
 
         drop(node);
 
@@ -134,10 +134,9 @@ impl InstanceNode for RepeatInstance {
             }));
             ptc.push_stack_frame(new_repeat_item);
 
-            for repeated_template_instance_root in self.base().get_children().iter() {
+            for child in self.base().get_children().iter() {
                 let mut new_ptc = ptc.clone();
-                let id_chain =
-                    ptc.get_id_chain(repeated_template_instance_root.base().get_instance_id());
+                let id_chain = ptc.get_id_chain(child.base().get_instance_id());
 
                 //Part of hack (see above)
                 new_ptc
@@ -146,9 +145,7 @@ impl InstanceNode for RepeatInstance {
                     .borrow_mut()
                     .remove_expanded_node(&id_chain);
 
-                let expanded_child =
-                    Rc::clone(&repeated_template_instance_root).expand(&mut new_ptc);
-
+                let expanded_child = Rc::clone(&child).expand(&mut new_ptc);
                 expanded_child.borrow_mut().parent_expanded_node =
                     Rc::downgrade(&this_expanded_node);
 

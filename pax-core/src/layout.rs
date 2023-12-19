@@ -7,29 +7,6 @@ use std::cell::RefCell;
 use std::ops::RangeFrom;
 use std::rc::Rc;
 
-//TODO combine with compute pass
-pub fn recurse_compute_canvas_indicies(
-    expanded_node: &Rc<RefCell<ExpandedNode>>,
-    canvas_index_gen: &mut LayerId,
-) {
-    {
-        canvas_index_gen.update_z_index(expanded_node.borrow().instance_node.base().flags().layer);
-    }
-    {
-        expanded_node.borrow_mut().computed_canvas_index = Some(canvas_index_gen.get_level());
-    }
-    {
-        for child in expanded_node
-            .borrow()
-            .get_children_expanded_nodes()
-            .iter()
-            .rev()
-        {
-            recurse_compute_canvas_indicies(child, canvas_index_gen);
-        }
-    }
-}
-
 /// Handle node unmounting, including check for whether unmount handlers should be fired
 /// (thus this function can be called on all nodes at end of properties computation
 fn manage_handlers_unmount(node: &Rc<RefCell<ExpandedNode>>, ptc: &mut PropertiesTreeContext) {
@@ -62,9 +39,24 @@ pub fn recurse_compute_layout<'a>(
     current_expanded_node: &Rc<RefCell<ExpandedNode>>,
     container_tab: &TransformAndBounds,
     z_index_gen: &mut RangeFrom<u32>,
+    canvas_index_gen: &mut LayerId,
 ) {
     let computed_tab = compute_tab(&current_expanded_node, &container_tab);
 
+    {
+        canvas_index_gen.update_z_index(
+            current_expanded_node
+                .borrow()
+                .instance_node
+                .base()
+                .flags()
+                .layer,
+        );
+    }
+    {
+        current_expanded_node.borrow_mut().computed_canvas_index =
+            Some(canvas_index_gen.get_level());
+    }
     {
         for child in current_expanded_node
             .borrow()
@@ -72,8 +64,14 @@ pub fn recurse_compute_layout<'a>(
             .iter()
             .rev()
         {
-            let child = Rc::clone(child);
-            recurse_compute_layout(engine, ptc, &child, &computed_tab, z_index_gen);
+            recurse_compute_layout(
+                engine,
+                ptc,
+                &child,
+                &computed_tab,
+                z_index_gen,
+                canvas_index_gen,
+            );
         }
     }
 
@@ -83,7 +81,6 @@ pub fn recurse_compute_layout<'a>(
         common_properties
             .borrow_mut()
             .compute_properties(current_expanded_node, ptc);
-        manage_handlers_unmount(current_expanded_node, ptc);
     }
 
     {
@@ -102,6 +99,7 @@ pub fn recurse_compute_layout<'a>(
     }
 
     manage_handlers_mount(engine, ptc, &current_expanded_node);
+    manage_handlers_unmount(current_expanded_node, ptc);
 
     {
         let node_borrowed = current_expanded_node.borrow_mut();

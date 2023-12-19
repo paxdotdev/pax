@@ -45,8 +45,9 @@ pub fn instantiate_main_component(node_registry: Rc<RefCell<NodeRegistry>>) -> R
         children: None,
         component_template: Some(vec![{{render_nodes_literal}}]),
         scroller_args: None,
-        compute_properties_fn: Some(Box::new(|properties, node, ptc|{
-            let properties = &mut *properties.as_ref().borrow_mut();
+        compute_properties_fn: Some(Box::new(|node, ptc|{
+            let props = node.borrow().get_properties();
+            let properties = &mut props.as_ref().borrow_mut();
 
             if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
                 {% for prop in properties %}
@@ -115,8 +116,11 @@ pub fn instantiate_{{ snake_case_type_id }}(node_registry: Rc<RefCell<NodeRegist
      {% endfor %}
      handler_registry})));
 
-    args.compute_properties_fn = Some(Box::new(|properties, node, ptc|{
-        let properties = &mut *properties.as_ref().borrow_mut();
+    args.compute_properties_fn = Some(Box::new(|node, ptc|{
+
+        let props = node.borrow().get_properties();
+        let properties = &mut props.as_ref().borrow_mut();
+
         if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
 
             {% for prop in properties %}

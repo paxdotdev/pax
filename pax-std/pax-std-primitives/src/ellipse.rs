@@ -39,7 +39,7 @@ impl InstanceNode for EllipseInstance {
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {
