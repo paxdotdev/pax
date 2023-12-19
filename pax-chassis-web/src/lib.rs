@@ -2,6 +2,7 @@
 
 use js_sys::Uint8Array;
 use pax_runtime_api::ArgsCheckboxChange;
+use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -11,7 +12,7 @@ use web_sys::{window, HtmlCanvasElement};
 
 use piet_web::WebRenderContext;
 
-use pax_core::{NodeRegistry, PaxEngine};
+use pax_core::{NodeRegistry, PaxEngine, Renderer};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
@@ -56,8 +57,8 @@ pub fn wasm_memory() -> JsValue {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    engine: Rc<RefCell<PaxEngine<WebRenderContext<'static>>>>,
-    drawing_contexts: HashMap<String, WebRenderContext<'static>>,
+    engine: Rc<RefCell<PaxEngine>>,
+    drawing_contexts: HashMap<String, Box<dyn RenderContext>>,
 }
 
 #[wasm_bindgen]
@@ -70,8 +71,7 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let node_registry: Rc<RefCell<NodeRegistry<WebRenderContext>>> =
-            Rc::new(RefCell::new(NodeRegistry::new()));
+        let node_registry: Rc<RefCell<NodeRegistry>> = Rc::new(RefCell::new(NodeRegistry::new()));
         let main_component_instance =
             pax_cartridge::instantiate_main_component(Rc::clone(&node_registry));
         let expression_table = pax_cartridge::instantiate_expression_table();
@@ -84,8 +84,7 @@ impl PaxChassisWeb {
             node_registry,
         );
 
-        let engine_container: Rc<RefCell<PaxEngine<WebRenderContext>>> =
-            Rc::new(RefCell::new(engine));
+        let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
         Self {
             engine: engine_container,
@@ -116,7 +115,9 @@ impl PaxChassisWeb {
         canvas.set_height(height as u32);
         let _ = context.scale(dpr, dpr);
 
-        let render_context = WebRenderContext::new(context, window.clone());
+        let render_context = Box::new(Renderer {
+            backend: WebRenderContext::new(context, window.clone()),
+        }) as Box<dyn RenderContext>;
 
         self.drawing_contexts.insert(id, render_context);
     }

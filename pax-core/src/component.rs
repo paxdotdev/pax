@@ -1,4 +1,3 @@
-use piet_common::RenderContext;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -19,7 +18,8 @@ use pax_runtime_api::{Layer, Timeline};
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn Fn(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext)>,
+    pub compute_properties_fn:
+        Box<dyn Fn(Rc<RefCell<dyn Any>>, &Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>,
     base: BaseInstance,
 }
 
@@ -47,11 +47,10 @@ impl InstanceNode for ComponentInstance {
         ret
     }
 
-    fn expand_node_and_compute_properties(
-        self: Rc<Self>,
-        ptc: &mut PropertiesTreeContext,
-    ) -> Rc<RefCell<ExpandedNode>> {
-        let this_expanded_node = self.base().expand(&(self as Rc<dyn InstanceNode>), ptc);
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self
+            .base()
+            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
         let expanded_and_flattened_slot_children = {
             let slot_children = self.base().get_children();
@@ -59,7 +58,7 @@ impl InstanceNode for ComponentInstance {
             let mut expanded_slot_children = vec![];
             for child in slot_children {
                 let mut new_ptc = ptc.clone();
-                let child_expanded_node = child.expand_node_and_compute_properties(&mut new_ptc);
+                let child_expanded_node = Rc::clone(&child).expand(&mut new_ptc);
                 expanded_slot_children.push(child_expanded_node);
             }
 
@@ -91,6 +90,7 @@ impl InstanceNode for ComponentInstance {
         //Compute properties
         (*self.compute_properties_fn)(
             Rc::clone(&this_expanded_node.borrow().get_properties()),
+            &this_expanded_node,
             ptc,
         );
 
@@ -98,7 +98,7 @@ impl InstanceNode for ComponentInstance {
 
         for child in &self.template {
             let mut new_ptc = ptc.clone();
-            let child_expanded_node = child.expand_node_and_compute_properties(&mut new_ptc);
+            let child_expanded_node = Rc::clone(child).expand(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
                 Rc::downgrade(&this_expanded_node);
             this_expanded_node

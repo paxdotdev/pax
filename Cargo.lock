@@ -2112,6 +2112,8 @@ dependencies = [
  "lazy_static",
  "mut_static",
  "pax-message 0.10.7",
+ "piet",
+ "piet-common",
  "uuid",
 ]
 

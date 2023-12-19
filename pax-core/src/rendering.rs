@@ -34,8 +34,9 @@ pub struct InstantiationArgs {
 
     ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation
-    pub compute_properties_fn:
-        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext)>>,
+    pub compute_properties_fn: Option<
+        Box<dyn Fn(Rc<RefCell<dyn Any>>, &Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>,
+    >,
 }
 
 #[derive(Copy, Clone)]
@@ -213,34 +214,7 @@ pub trait InstanceNode {
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
-    fn expand_node_and_compute_properties(
-        self: Rc<Self>,
-        ptc: &mut PropertiesTreeContext,
-    ) -> Rc<RefCell<crate::ExpandedNode>> {
-        let this_expanded_node = ExpandedNode::get_or_create_with_prototypical_properties(
-            self.base().instance_id,
-            Rc::clone(&self),
-            ptc,
-            &(self.base().instance_prototypical_properties_factory)(),
-            &(self.base().instance_prototypical_common_properties_factory)(),
-        );
-        let children_to_recurse = self.base().get_children();
-
-        for child in children_to_recurse {
-            let mut new_ptc = ptc.clone();
-
-            let child_expanded_node = child.expand_node_and_compute_properties(&mut new_ptc);
-
-            child_expanded_node.borrow_mut().parent_expanded_node =
-                Rc::downgrade(&this_expanded_node);
-
-            this_expanded_node
-                .borrow_mut()
-                .append_child_expanded_node(child_expanded_node);
-        }
-        this_expanded_node
-    }
-
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>>;
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
     /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
@@ -375,7 +349,7 @@ impl BaseInstance {
 
     pub fn expand(
         &self,
-        template: &Rc<dyn InstanceNode>,
+        template: Rc<dyn InstanceNode>,
         ptc: &mut PropertiesTreeContext,
     ) -> Rc<RefCell<ExpandedNode>> {
         ExpandedNode::get_or_create_with_prototypical_properties(

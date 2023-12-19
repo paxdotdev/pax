@@ -4,11 +4,9 @@ use std::any::Any;
 
 use std::rc::Rc;
 
-use piet_common::RenderContext;
-
 use crate::{
-    handle_vtable_update, rendering, with_properties_unwrapped, BaseInstance, ExpandedNode,
-    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
+    handle_vtable_update, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
+    InstanceNode, InstantiationArgs, PropertiesTreeContext,
 };
 use pax_runtime_api::{Layer, Numeric};
 
@@ -49,11 +47,10 @@ impl InstanceNode for SlotInstance {
         })
     }
 
-    fn expand_node_and_compute_properties(
-        self: Rc<Self>,
-        ptc: &mut PropertiesTreeContext,
-    ) -> Rc<RefCell<ExpandedNode>> {
-        let this_expanded_node = self.base().expand(self, ptc);
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self
+            .base()
+            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this

@@ -1,19 +1,17 @@
-use std::cell::RefCell;
-
-use core::any::Any;
 use pax_core::{
     handle_vtable_update, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::Layer;
+use pax_runtime_api::{Layer, RenderContext};
 use pax_std::primitives::Text;
-use piet::RenderContext;
+use std::any::Any;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct TextInstance<R> {
-    base: BaseInstance<R>,
+pub struct TextInstance {
+    base: BaseInstance,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
@@ -21,8 +19,8 @@ pub struct TextInstance<R> {
     last_patches: RefCell<HashMap<Vec<u32>, pax_message::TextPatch>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
+impl InstanceNode for TextInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -39,25 +37,25 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         })
     }
 
-    fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self
+            .base()
+            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Text, |properties: &mut Text| {
-            handle_vtable_update!(ptc, properties.text, pax_runtime_api::StringBox);
+            handle_vtable_update!(
+                ptc,
+                this_expanded_node,
+                properties.text,
+                pax_runtime_api::StringBox
+            );
         });
 
         this_expanded_node
     }
 
-    fn handle_native_patches(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-        expanded_node: &ExpandedNode<R>,
-    ) {
+    fn handle_native_patches(&self, ptc: &mut PropertiesTreeContext, expanded_node: &ExpandedNode) {
         let mut last_patches = self.last_patches.borrow_mut();
         let mut new_message: TextPatch = Default::default();
         new_message.id_chain = expanded_node.id_chain.clone();
@@ -153,11 +151,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         });
     }
 
-    fn handle_render(&self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_render(&self, _rtc: &mut RenderTreeContext, _rc: &mut Box<dyn RenderContext>) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_mount(&self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
+    fn handle_mount(&self, ptc: &mut PropertiesTreeContext, node: &ExpandedNode) {
         let id_chain = node.id_chain.clone();
         let canvas_index = node.computed_canvas_index.expect("no canvas index");
 
@@ -174,7 +172,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         }));
     }
 
-    fn handle_unmount(&self, ptc: &mut PropertiesTreeContext<R>) {
+    fn handle_unmount(&self, ptc: &mut PropertiesTreeContext) {
         let id_chain = ptc.get_id_chain(self.base().get_instance_id());
         self.last_patches.borrow_mut().remove(&id_chain);
         ptc.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
@@ -184,7 +182,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        expanded_node: Option<&ExpandedNode<R>>,
+        expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
             Some(expanded_node) => {
@@ -196,7 +194,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         }
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }

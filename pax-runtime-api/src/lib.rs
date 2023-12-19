@@ -11,8 +11,10 @@ extern crate lazy_static;
 extern crate mut_static;
 
 pub use crate::numeric::Numeric;
+use kurbo::BezPath;
 use mut_static::MutStatic;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
+use piet::PaintBrush;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -1142,4 +1144,10 @@ impl From<StringBox> for String {
     }
 }
 
-pub trait RenderContext {}
+pub trait RenderContext {
+    fn fill(&mut self, path: BezPath, brush: &PaintBrush);
+    fn stroke(&mut self, path: BezPath, brush: &PaintBrush, width: f64);
+    fn save(&mut self);
+    fn restore(&mut self);
+    fn clip(&mut self, path: BezPath);
+}
