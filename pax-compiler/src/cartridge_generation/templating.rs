@@ -3,12 +3,11 @@ use include_dir::{include_dir, Dir};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use std::hash::{Hash, Hasher};
 use tera::{Context, Tera};
 
-use crate::manifest::{ExpressionSpec, PropertyDefinition};
+use pax_manifest::{ExpressionSpec, MappedString, PropertyDefinition};
 
-static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
+static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeLib {
@@ -31,49 +30,9 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub snake_case_type_id: String,
     pub component_properties_struct: String,
     pub properties: Vec<(PropertyDefinition, String)>, //PropertyDefinition, FullyQualifiedTypeId
-    pub events: Vec<(MappedString, Vec<MappedString>)>,
+    pub handlers: Vec<(MappedString, Vec<MappedString>)>,
     pub render_nodes_literal: String,
     pub fully_qualified_properties_type: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
-pub struct MappedString {
-    pub content: String,
-    /// Markers used to identify generated code range for source map.
-    pub source_map_start_marker: Option<String>,
-    pub source_map_end_marker: Option<String>,
-}
-
-impl PartialEq for MappedString {
-    fn eq(&self, other: &Self) -> bool {
-        self.content == other.content
-    }
-}
-
-impl Eq for MappedString {}
-
-impl Hash for MappedString {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.content.hash(state);
-    }
-}
-
-impl MappedString {
-    pub fn none() -> Self {
-        MappedString {
-            content: "None".to_string(),
-            source_map_start_marker: None,
-            source_map_end_marker: None,
-        }
-    }
-
-    pub fn new(content: String) -> Self {
-        MappedString {
-            content,
-            source_map_start_marker: None,
-            source_map_end_marker: None,
-        }
-    }
 }
 
 #[derive(Serialize)]
@@ -98,12 +57,13 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     // pub conditional_boolean_expression_literal: MappedString,
     pub pascal_identifier: String,
     pub type_id_escaped: String,
-    pub events: Vec<(MappedString, MappedString)>,
+    pub handlers: Vec<(MappedString, MappedString)>,
     pub fully_qualified_properties_type: String,
 }
 
 #[allow(unused)]
-static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str = include_str!("../../templates/cartridge-lib.tera");
+static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str =
+    include_str!("../../templates/cartridge_generation/cartridge-lib.tera");
 pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib) -> String {
     let template = TEMPLATE_DIR
         .get_file("cartridge-lib.tera")
@@ -120,7 +80,7 @@ pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLi
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_COMPONENT_FACTORY: &str =
-    include_str!("../../templates/cartridge-component-factory.tera");
+    include_str!("../../templates/cartridge_generation/cartridge-component-factory.tera");
 pub fn press_template_codegen_cartridge_component_factory(
     args: TemplateArgsCodegenCartridgeComponentFactory,
 ) -> String {
@@ -139,7 +99,7 @@ pub fn press_template_codegen_cartridge_component_factory(
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_RENDER_NODE_LITERAL: &str =
-    include_str!("../../templates/cartridge-render-node-literal.tera");
+    include_str!("../../templates/cartridge_generation/cartridge-render-node-literal.tera");
 pub fn press_template_codegen_cartridge_render_node_literal(
     args: TemplateArgsCodegenCartridgeRenderNodeLiteral,
 ) -> String {

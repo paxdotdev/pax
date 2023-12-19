@@ -1,0 +1,229 @@
+ <Frame width=100% height=100%>
+    // Nav fixed overlay
+    <Frame x=50% y=90px width=80% height=75px anchor_x=50% anchor_y=50% >
+         <Stacker cells=5 height=75px direction=StackerDirection::Horizontal gutter=8px>
+            <Image path="assets/images/pax-logo-light.png" width=125px height=42px y=50% anchor_y=50% x=20px />
+            <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" class=link />
+            <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
+            <Text text="<a href='https://discord.gg/Eq8KWAUc6b' target='_blank'>Discord</a>" class=link />
+            <Text text="<a href='https://developing.pax.rs' target='_blank'>Blog</a>" class=link />
+         </Stacker>
+        <Rectangle
+            fill={Fill::linearGradient(
+                (0%, 50%),
+                (100%, 50%),
+                [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}
+
+            corner_radii={
+                RectangleCornerRadii::radii(50.0,50.0,50.0,50.0)
+            }
+         />
+    </Frame>
+
+    // Scrolling content pane
+    <Scroller width=100% height=100% size_inner_pane_x=100% size_inner_pane_y=5000px scroll_enabled_x=false scroll_enabled_y=true>
+        <Stacker cells=5 direction=StackerDirection::Vertical>
+        <Group>
+            <Frame id=f1>
+                <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px sizes={[Option::Some(70%), Option::None]} >
+                    <Text text="Pax is a user interface engine \n for native apps & websites" class=h1 />
+                    <Text text="[Docs](https://docs.pax.rs) | [GitHub](https://www.github.com/pax-lang/pax) | [Get Started](https://www.github.com/pax-lang/pax)" id=l1 />
+                </Stacker>
+            </Frame>
+            <Rectangle width=100% height=100%
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [GradientStop::get(Color::rgb(1.0,1.0,0.0), 0%), GradientStop::get(Color::rgb(1.0,0.0,1.0), 100%)])}
+            />
+        </Group>
+        <Group>
+            <Frame id=f2>
+            <Stacker cells=3 direction=StackerDirection::Vertical gutter=20px sizes={[Option::Some(40%), Option::Some(20%), Option::None]}>
+                <Text text="BUILD CREATIVELY" class=h2/>
+                <Text text="Pax renders in the same coordinate space as a tool like Photoshop or Figma, with the addition of responsive positioning & sizing, as well as a fine-grained animation engine." class=p2 />
+                <Text text="Create and compose custom components into apps. Write application logic in Rust, while describing content & style in Pax’s declarative UI language." class=p2 />
+            </Stacker>
+            </Frame>
+        <Rectangle width=100% height=1000px
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [GradientStop::get(Color::rgb(0.0,1.0,1.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,0.0), 100%)])}
+        />
+        </Group>
+        <Group>
+        <Frame id=f2>
+        <Stacker cells=3 direction=StackerDirection::Vertical gutter=10px sizes={[Option::Some(40%), Option::Some(40%), Option::None]} >
+            <Text text="CREATE COLLABORATIVELY" class=h2/>
+            <Text text="Pax’s declarative language is grammatically constrained to be readable & writable by visual tooling. Our team is building a collaborative visual designer for Pax so anyone on your team can contribute to codebases" class=p2 />
+            <Text text="[Sign up for updates](https://developing.pax.rs)" id=l2 />
+        </Stacker>
+        </Frame>
+        <Rectangle width=100% height=1000px
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [GradientStop::get(Color::rgb(1.0,0.0,0.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,1.0), 100%)])}
+        />
+        </Group>
+         <Group>
+            <Frame id=f2>
+                <Stacker cells=3 direction=StackerDirection::Vertical gutter=10px sizes={[Option::Some(40%), Option::Some(20%), Option::None]} >
+                    <Text text="FAST & LIGHTWEIGHT" class=h2/>
+                    <Text text="Pax is built in Rust and C with native-language bindings (e.g. Swift & TypeScript for macOS & Web platforms, respectively.)" class=p2 />
+                    <Text text="Animations render at up to 240 frames per second. Footprints are tiny: <100KB for WebAssembly and <500KB for native builds." class=p2 />
+                </Stacker>
+            </Frame>
+            <Rectangle width=100% height=1000px
+                fill={Fill::linearGradient(
+                (0%, 0%),
+                (100%, 100%),
+                [GradientStop::get(Color::rgb(1.0,0.0,1.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,0.0), 100%)])}
+            />
+        </Group>
+        <Group >
+            <Frame id=f2>
+                <Stacker cells=3 direction=StackerDirection::Vertical gutter=10px sizes={[Option::None, Option::Some(20%), Option::None]} >
+                    <Text text="OPEN SOURCE" class=h2/>
+                    <Text text="Pax is as free as HTML. Licensed MIT or Apache 2.0, your choice. Pax has been under development already for two years and we plan to keep at it for many years to come.  Our motivations behind Pax are threefold:" class=p2 />
+                    <Text text="1. To make software creation more accessible to more of humanity
+2. To unlock the digital interactive medium as a medium for art & creative expression
+3. To build a business around enabling visual creatives & non-coders to create software hand-in-hand with software developers." class=p3 />
+                </Stacker>
+            </Frame>
+            <Rectangle width=100% height=1000px
+                fill={Fill::linearGradient(
+                (0%, 0%),
+                (100%, 100%),
+                [GradientStop::get(Color::rgb(0.0,0.0,1.0), 0%), GradientStop::get(Color::rgb(1.0,1.0,0.0), 100%)])}
+            />
+        </Group>
+        </Stacker>
+        </Scroller>
+</Frame>
+
+@settings {
+    .link {
+        style_link: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 22px,
+            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            underline: true
+        }
+        width: 80px,
+        height: 50px,
+        y: 50%,
+        anchor_y: 50%,
+    }
+    #f1 {
+        width: 80%,
+        height: 800px,
+        x: 50%,
+        y: 50%,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+    #f2 {
+        width: 75%,
+        height: 600px,
+        x: 50%,
+        y: 40%,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+    #f3 {
+        width: 75%,
+        height: 300px,
+        x: 50%,
+        y: 40%,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+    .h1 {
+        width: 100%,
+        style: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 72px,
+            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+        }
+    }
+    .h2 {
+        width: 100%,
+        style: {
+            font: {Font::system("Helvetica", FontStyle::Italic, FontWeight::Bold)},
+            font_size: 72px,
+            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+        }
+    }
+    .test {
+            width: 100%,
+            style: {
+                font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 54px,
+                fill: {Color::rgba(1.0,1.0,1.0,1.0)}
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center,
+            }
+        }
+    #l1 {
+        width: 100%
+        style_link: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 36px,
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: true,
+        }
+    }
+    #l2 {
+        width: 100%
+        style_link: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 36px,
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: true,
+        }
+    }
+    .p2 {
+        width: 100%,
+        style: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 28px,
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+        }
+    }
+    .p3 {
+        width: 100%,
+        style: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 20px,
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+        }
+    }
+}
+
+@handlers {
+    did_mount: self.handle_did_mount,
+    will_render: self.handle_will_render
+}

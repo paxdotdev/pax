@@ -6,7 +6,7 @@ pub fn instantiate_main_component(node_registry: Rc<RefCell<NodeRegistry>>) -> R
         handler_registry:  Some(Rc::new(RefCell::new({
             #[allow(unused_mut)]
             let mut handler_registry = HandlerRegistry::default();
-                {% for entry in events %}
+                {% for entry in handlers %}
                 {% if entry.0.source_map_start_marker %}
                     {{entry.0.source_map_start_marker}}
                 {% endif %}
@@ -80,7 +80,7 @@ pub fn instantiate_{{ snake_case_type_id }}(node_registry: Rc<RefCell<NodeRegist
     args.handler_registry = Some(Rc::new(RefCell::new({
      #[allow(unused_mut)]
      let mut handler_registry = HandlerRegistry::default();
-     {% for entry in events %}
+     {% for entry in handlers %}
      {% if entry.0.source_map_start_marker %}
         {{entry.0.source_map_start_marker}}
      {% endif %}
