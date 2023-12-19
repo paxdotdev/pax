@@ -1,5 +1,5 @@
 {% if is_main_component %}
-pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<RefCell<NodeRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<RefCell<NodeRegistry<R>>>) -> Rc<ComponentInstance<R>> {
     ComponentInstance::instantiate( InstantiationArgs{
         prototypical_properties_factory: Box::new(||{Rc::new(RefCell::new( {{ component_properties_struct }}::default() )) as Rc<RefCell<dyn Any>>}),
         prototypical_common_properties_factory: Box::new(||{Rc::new(RefCell::new(CommonProperties::default()))}),
@@ -43,7 +43,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
         }))),
         node_registry: Rc::clone(&node_registry),
         children: None,
-        component_template: Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}]))),
+        component_template: Some(vec![{{render_nodes_literal}}]),
         scroller_args: None,
         compute_properties_fn: Some(Box::new(|properties, ptc|{
             let properties = &mut *properties.as_ref().borrow_mut();
@@ -73,8 +73,8 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(node_registry: Rc<
 
 {% else %}
 #[allow(non_snake_case)]
-pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_registry: Rc<RefCell<NodeRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
-    args.component_template = Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}])));
+pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(node_registry: Rc<RefCell<NodeRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<ComponentInstance<R>>  {
+    args.component_template = Some(vec![{{render_nodes_literal}}]);
 
     args.handler_registry = Some(Rc::new(RefCell::new({
      #[allow(unused_mut)]

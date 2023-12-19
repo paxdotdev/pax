@@ -72,11 +72,11 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
         handler_registry
     }))),
     node_registry: Rc::clone(&node_registry),
-    children: Some(Rc::new(RefCell::new(vec![
+    children: Some(vec![
         {% for child_literal in children_literal %}
             {{ child_literal }},
         {% endfor %}
-    ]))),
+    ]),
     component_template: None,
     scroller_args: None,
     compute_properties_fn: None,

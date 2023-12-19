@@ -28,11 +28,11 @@ pub struct FrameInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(Self {
+        Rc::new(Self {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -41,7 +41,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
                     layer: Layer::Canvas,
                 },
             ),
-        }))
+        })
     }
 
     fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
@@ -112,7 +112,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     // }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);
@@ -120,7 +120,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         let id_chain = this_expanded_node.borrow().id_chain.clone();
         ptc.push_clipping_stack_id(id_chain);
 
-        for instance_child in self.base().get_children().borrow().iter() {
+        for instance_child in self.base().get_children() {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(instance_child);
             new_ptc.current_expanded_node = None;
@@ -138,7 +138,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     }
 
     fn handle_pre_render(
-        &mut self,
+        &self,
         rtc: &mut RenderTreeContext<R>,
         rcs: &mut HashMap<std::string::String, R>,
     ) {
@@ -166,18 +166,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         }
     }
 
-    fn handle_post_render(
-        &mut self,
-        _rtc: &mut RenderTreeContext<R>,
-        _rcs: &mut HashMap<String, R>,
-    ) {
+    fn handle_post_render(&self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         for (_key, rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
         }
     }
 
-    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
+    fn handle_mount(&self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
         let id_chain = node.id_chain.clone();
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -195,7 +191,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
         }));
     }
 
-    fn handle_unmount(&mut self, _ptc: &mut PropertiesTreeContext<R>) {}
+    fn handle_unmount(&self, _ptc: &mut PropertiesTreeContext<R>) {}
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

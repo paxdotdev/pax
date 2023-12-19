@@ -28,7 +28,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>>,
-    pub main_component: Rc<RefCell<ComponentInstance<R>>>,
+    pub main_component: Rc<ComponentInstance<R>>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
     pub viewport_tab: TransformAndBounds,
 }
@@ -128,12 +128,7 @@ impl<R: RenderContext> std::fmt::Debug for ExpandedNode<R> {
         f.debug_struct("ExpandedNode")
             .field(
                 "instance_node",
-                &Fmt(|f| {
-                    self.instance_node
-                        .as_ref()
-                        .borrow()
-                        .resolve_debug(f, Some(self))
-                }),
+                &Fmt(|f| self.instance_node.resolve_debug(f, Some(self))),
             )
             .field("id_chain", &self.id_chain)
             .field("computed_canvas_index", &self.computed_canvas_index)
@@ -254,7 +249,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_field:ident) => {
         pub fn $fn_name(&self, args: $arg_type) {
-            if let Some(registry) = (*self.instance_node).borrow().base().get_handler_registry() {
+            if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let handlers = &(*registry).borrow().$handler_field;
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.borrow().get_properties())
@@ -393,13 +388,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if self
-            .instance_node
-            .borrow()
-            .base()
-            .flags()
-            .invisible_to_raycasting
-        {
+        if self.instance_node.base().flags().invisible_to_raycasting {
             return false;
         }
 
@@ -424,7 +413,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     pub fn get_size(&self) -> (Size, Size) {
-        self.instance_node.borrow().get_size(self)
+        self.instance_node.get_size(self)
     }
 
     /// Returns the size of this node in pixels, requiring this node's containing bounds
@@ -583,7 +572,7 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
 ///
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
-        main_component_instance: Rc<RefCell<ComponentInstance<R>>>,
+        main_component_instance: Rc<ComponentInstance<R>>,
         expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
@@ -617,7 +606,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-        let root_component_instance: InstanceNodePtr<R> = self.main_component.clone();
+        let root_component_instance = Rc::clone(&self.main_component);
         let mut z_index = LayerId::new(None);
         //
         // 1. EXPAND NODES & COMPUTE PROPERTIES
@@ -625,7 +614,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let mut ptc = PropertiesTreeContext {
             engine: &self,
             current_containing_component: Weak::new(),
-            current_instance_node: Rc::clone(&root_component_instance),
+            current_instance_node: Rc::clone(&root_component_instance) as InstanceNodePtr<R>,
             current_expanded_node: None,
             clipping_stack: vec![],
             scroller_stack: vec![],

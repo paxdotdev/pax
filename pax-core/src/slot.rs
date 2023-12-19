@@ -33,11 +33,11 @@ pub struct SlotProperties {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(Self {
+        Rc::new(Self {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -46,11 +46,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
                     layer: Layer::DontCare,
                 },
             ),
-        }))
+        })
     }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);

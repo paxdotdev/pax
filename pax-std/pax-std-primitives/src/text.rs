@@ -18,15 +18,15 @@ pub struct TextInstance<R> {
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
     //      shares this last_patches cache
-    last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
+    last_patches: RefCell<HashMap<Vec<u32>, pax_message::TextPatch>>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(Self {
+        Rc::new(Self {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -35,12 +35,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
                     layer: Layer::Native,
                 },
             ),
-            last_patches: HashMap::default(),
-        }))
+            last_patches: Default::default(),
+        })
     }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);
@@ -54,19 +54,19 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
     }
 
     fn handle_native_patches(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
         expanded_node: &ExpandedNode<R>,
     ) {
+        let mut last_patches = self.last_patches.borrow_mut();
         let mut new_message: TextPatch = Default::default();
         new_message.id_chain = expanded_node.id_chain.clone();
-        if !self.last_patches.contains_key(&new_message.id_chain) {
+        if !last_patches.contains_key(&new_message.id_chain) {
             let mut patch = TextPatch::default();
             patch.id_chain = new_message.id_chain.clone();
-            self.last_patches
-                .insert(new_message.id_chain.clone(), patch);
+            last_patches.insert(new_message.id_chain.clone(), patch);
         }
-        let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
+        let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
         let properties = expanded_node.get_properties();
@@ -153,11 +153,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         });
     }
 
-    fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_render(&self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_mount(&mut self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
+    fn handle_mount(&self, ptc: &mut PropertiesTreeContext<R>, node: &ExpandedNode<R>) {
         let id_chain = node.id_chain.clone();
         let canvas_index = node.computed_canvas_index.expect("no canvas index");
 
@@ -174,9 +174,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         }));
     }
 
-    fn handle_unmount(&mut self, ptc: &mut PropertiesTreeContext<R>) {
+    fn handle_unmount(&self, ptc: &mut PropertiesTreeContext<R>) {
         let id_chain = ptc.get_id_chain(self.base().get_instance_id());
-        self.last_patches.remove(&id_chain);
+        self.last_patches.borrow_mut().remove(&id_chain);
         ptc.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
     }
 

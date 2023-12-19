@@ -14,8 +14,7 @@ macro_rules! with_properties_unwrapped {
         let mut borrowed = rc.borrow_mut();
 
         // Downcast the unwrapped value to the specified `target_type` (or panic)
-        let mut unwrapped_value = if let Some(val) = (&mut *borrowed).downcast_mut::<$target_type>()
-        {
+        let mut unwrapped_value = if let Some(val) = borrowed.downcast_mut::<$target_type>() {
             val
         } else {
             panic!()
