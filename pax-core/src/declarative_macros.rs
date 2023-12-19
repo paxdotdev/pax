@@ -33,11 +33,11 @@ macro_rules! with_properties_unwrapped {
 /// ```
 #[macro_export]
 macro_rules! handle_vtable_update {
-    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
-        assert!($ptc.current_expanded_node.is_some());//Cannot update vtable without first registering an ExpandedNode on ptc
+    ($ptc:expr, $expanded_node:ident, $var:ident . $field:ident, $inner_type:ty) => {{
         let current_prop = &mut *$var.$field.as_mut();
         if let Some(vtable_id) = current_prop._get_vtable_id() {
-            let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
+            let new_value_wrapped: Box<dyn Any> =
+                $ptc.compute_vtable_value(&$expanded_node, vtable_id);
             if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
                 current_prop.set(*downcast_value);
             } else {
@@ -56,13 +56,13 @@ macro_rules! handle_vtable_update {
 /// ```
 #[macro_export]
 macro_rules! handle_vtable_update_optional {
-    ($ptc:expr, $var:ident . $field:ident, $inner_type:ty) => {{
-        assert!($ptc.current_expanded_node.is_some());//Cannot update vtable without first registering an ExpandedNode on ptc
+    ($ptc:expr, $expanded_node:ident, $var:ident . $field:ident, $inner_type:ty) => {{
         if let Some(_) = $var.$field {
             let current_prop = &mut *$var.$field.as_mut().unwrap();
 
             if let Some(vtable_id) = current_prop._get_vtable_id() {
-                let new_value_wrapped: Box<dyn Any> = $ptc.compute_vtable_value(vtable_id);
+                let new_value_wrapped: Box<dyn Any> =
+                    $ptc.compute_vtable_value(&$expanded_node, vtable_id);
                 if let Ok(downcast_value) = new_value_wrapped.downcast::<$inner_type>() {
                     current_prop.set(*downcast_value);
                 } else {

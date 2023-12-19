@@ -22,8 +22,8 @@ use pax_runtime_api::{Layer, Numeric};
 /// the outside.  Inside Stacker's template, there are a number of Slots — this primitive —
 /// that become the final rendered home of those slot_children.  This same technique
 /// is portable and applicable elsewhere via Slot.
-pub struct SlotInstance<R> {
-    base: BaseInstance<R>,
+pub struct SlotInstance {
+    base: BaseInstance,
 }
 
 ///Contains the index value for slot, either a literal or an expression.
@@ -32,8 +32,8 @@ pub struct SlotProperties {
     pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
+impl InstanceNode for SlotInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -50,10 +50,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
     }
 
     fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
+        self: Rc<Self>,
+        ptc: &mut PropertiesTreeContext,
+    ) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self.base().expand(self, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this
@@ -69,7 +69,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
             &properties_wrapped,
             SlotProperties,
             |properties: &mut SlotProperties| {
-                handle_vtable_update!(ptc, properties.index, Numeric);
+                handle_vtable_update!(ptc, this_expanded_node, properties.index, Numeric);
                 properties
                     .index
                     .get()
@@ -107,12 +107,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        _expanded_node: Option<&ExpandedNode<R>>,
+        _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Slot").finish()
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }

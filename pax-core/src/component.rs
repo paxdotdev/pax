@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    recurse_expand_nodes, BaseInstance, ExpandedNode, InstanceFlags, InstanceNode,
-    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstanceNodePtrList,
+    InstantiationArgs, PropertiesTreeContext,
 };
 
 use pax_runtime_api::{Layer, Timeline};
@@ -16,15 +16,15 @@ use pax_runtime_api::{Layer, Timeline};
 /// applications, at the root of reusable components like `Stacker`, and
 /// in special applications like `Repeat` where it houses the `RepeatItem`
 /// properties attached to each of Repeat's virtual nodes.
-pub struct ComponentInstance<R: 'static + RenderContext> {
-    pub template: InstanceNodePtrList<R>,
+pub struct ComponentInstance {
+    pub template: InstanceNodePtrList,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn Fn(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
-    base: BaseInstance<R>,
+    pub compute_properties_fn: Box<dyn Fn(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext)>,
+    base: BaseInstance,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<Self> {
+impl InstanceNode for ComponentInstance {
+    fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
         let component_template = args.component_template.take();
         let template = component_template.unwrap_or_default();
 
@@ -48,10 +48,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     }
 
     fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
+        self: Rc<Self>,
+        ptc: &mut PropertiesTreeContext,
+    ) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self.base().expand(&(self as Rc<dyn InstanceNode>), ptc);
 
         let expanded_and_flattened_slot_children = {
             let slot_children = self.base().get_children();
@@ -59,9 +59,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             let mut expanded_slot_children = vec![];
             for child in slot_children {
                 let mut new_ptc = ptc.clone();
-                new_ptc.current_instance_node = Rc::clone(child);
-                new_ptc.current_expanded_node = None;
-                let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+                let child_expanded_node = child.expand_node_and_compute_properties(&mut new_ptc);
                 expanded_slot_children.push(child_expanded_node);
             }
 
@@ -100,9 +98,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
 
         for child in &self.template {
             let mut new_ptc = ptc.clone();
-            new_ptc.current_instance_node = Rc::clone(child);
-            new_ptc.current_expanded_node = None;
-            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+            let child_expanded_node = child.expand_node_and_compute_properties(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
                 Rc::downgrade(&this_expanded_node);
             this_expanded_node
@@ -119,12 +115,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        _expanded_node: Option<&ExpandedNode<R>>,
+        _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Component").finish()
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }
@@ -132,9 +128,9 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
 /// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
 /// and return another InstanceNodePtrList with a flattened top-level list of nodes.
 /// Helper function that accepts a
-fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(
-    node: &Rc<RefCell<ExpandedNode<R>>>,
-) -> Vec<Rc<RefCell<ExpandedNode<R>>>> {
+fn flatten_expanded_node_for_slot(
+    node: &Rc<RefCell<ExpandedNode>>,
+) -> Vec<Rc<RefCell<ExpandedNode>>> {
     let mut result = vec![];
 
     let is_invisible_to_slot = {

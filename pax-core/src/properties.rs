@@ -17,68 +17,14 @@ use std::rc::{Rc, Weak};
 /// once we support "dirty DAG" for tactical property updates and no-properties-computation-at-rest, then
 /// this expansion should only need to happen once, at program init, or when a program definition is mutated,
 /// e.g. via hot-module reloading.
-pub fn recurse_expand_nodes<R: 'static + RenderContext>(
-    ptc: &mut PropertiesTreeContext<R>,
-) -> Rc<RefCell<ExpandedNode<R>>> {
-    let this_instance_node = Rc::clone(&ptc.current_instance_node);
-    let this_expanded_node = { this_instance_node.expand_node_and_compute_properties(ptc) };
-
-    //TODO move this to compute pass?
-    // Compute common properties
-    let common_properties = Rc::clone(&this_expanded_node.borrow_mut().get_common_properties());
-    common_properties.borrow_mut().compute_properties(ptc);
-
-    // Lifecycle: `unmount`
-    manage_handlers_unmount(ptc);
-
-    this_expanded_node
-}
-
-/// Handle node unmounting, including check for whether unmount handlers should be fired
-/// (thus this function can be called on all nodes at end of properties computation
-fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeContext<R>) {
-    let id_chain: Vec<u32> = ptc
-        .current_expanded_node
-        .as_ref()
-        .unwrap()
-        .borrow()
-        .id_chain
-        .clone();
-
-    if ptc
-        .engine
-        .node_registry
-        .borrow()
-        .is_marked_for_unmount(&id_chain)
-    {
-        ptc.current_instance_node.clone().handle_unmount(ptc);
-
-        ptc.engine
-            .node_registry
-            .borrow_mut()
-            .revert_mark_for_mount(&id_chain);
-        ptc.engine
-            .node_registry
-            .borrow_mut()
-            .remove_expanded_node(&id_chain);
-    }
-}
 
 /// Shared context for properties pass recursion
-pub struct PropertiesTreeContext<'a, R: 'static + RenderContext> {
-    pub engine: &'a PaxEngine<R>,
+pub struct PropertiesTreeContext<'a> {
+    pub engine: &'a PaxEngine,
 
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
-    pub current_containing_component: Weak<RefCell<ExpandedNode<R>>>,
-
-    /// A pointer to the current instance node
-    pub current_instance_node: InstanceNodePtr<R>,
-
-    /// A pointer to the current expanded node.  Optional only for the init case; should be populated
-    /// for every node visited during properties computation.
-    pub current_expanded_node: Option<Rc<RefCell<ExpandedNode<R>>>>,
-
+    pub current_containing_component: Weak<RefCell<ExpandedNode>>,
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
     /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
     /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
@@ -105,13 +51,11 @@ pub struct PropertiesTreeShared {
     pub native_message_queue: VecDeque<NativeMessage>,
 }
 
-impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
+impl<'a> Clone for PropertiesTreeContext<'a> {
     fn clone(&self) -> Self {
         Self {
             engine: &self.engine,
             current_containing_component: self.current_containing_component.clone(),
-            current_instance_node: Rc::clone(&self.current_instance_node),
-            current_expanded_node: self.current_expanded_node.clone(),
             runtime_properties_stack: self.runtime_properties_stack.clone(),
             clipping_stack: self.clipping_stack.clone(),
             scroller_stack: self.scroller_stack.clone(),
@@ -120,7 +64,7 @@ impl<'a, R: 'static + RenderContext> Clone for PropertiesTreeContext<'a, R> {
     }
 }
 
-impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
+impl<'a> PropertiesTreeContext<'a> {
     pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         self.runtime_properties_stack.clone()
     }
@@ -259,9 +203,13 @@ impl<'a, R: 'static + RenderContext> PropertiesTreeContext<'a, R> {
         indices
     }
 
-    pub fn compute_vtable_value(&self, vtable_id: usize) -> Box<dyn Any> {
+    pub fn compute_vtable_value(
+        &self,
+        node: &Rc<RefCell<ExpandedNode>>,
+        vtable_id: usize,
+    ) -> Box<dyn Any> {
         if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
-            let expanded_node = &self.current_expanded_node.as_ref().unwrap().borrow();
+            let expanded_node = node.borrow();
             let stack_frame = Rc::clone(
                 expanded_node
                     .runtime_properties_stack
