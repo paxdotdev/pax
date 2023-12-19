@@ -20,6 +20,7 @@ PACKAGES = [
     "pax-runtime-api",
     "pax-std",
     "pax-std/pax-std-primitives"
+    "pax-manifest",
 ]
 
 # Create a mapping from package name to path

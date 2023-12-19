@@ -679,7 +679,7 @@ impl PaxEngine {
             &mut LayerId::new(None),
         );
 
-        pax_runtime_api::log(&format!("{:#?}", root_expanded_node));
+        // pax_runtime_api::log(&format!("{:#?}", root_expanded_node));
 
         //
         // 3. RENDER

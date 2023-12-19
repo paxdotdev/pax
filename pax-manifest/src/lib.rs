@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
-use crate::code_generation::templating::MappedString;
-use crate::parsing::escape_identifier;
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
@@ -141,9 +139,10 @@ pub struct ComponentDefinition {
     /// and the Definition struct.  For primitives, then, we need
     /// to store an additional import path to use when instantiating.
     pub primitive_instance_import_path: Option<String>,
-    pub template: Option<Vec<TemplateNodeDefinition>>,
-    pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
-    pub events: Option<Vec<EventDefinition>>,
+    pub template: Option<HashMap<usize, TemplateNodeDefinition>>,
+    pub settings: Option<Vec<SettingsBlockElement>>,
+    pub handlers: Option<Vec<HandlersBlockElement>>,
+    pub next_template_id: Option<usize>,
 }
 
 impl ComponentDefinition {
@@ -162,6 +161,18 @@ impl ComponentDefinition {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SettingsBlockElement {
+    SelectorBlock(Token, LiteralBlockDefinition),
+    Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum HandlersBlockElement {
+    Handler(Token, Vec<Token>),
+    Comment(String),
+}
+
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 /// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
 /// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
@@ -177,9 +188,11 @@ pub struct TemplateNodeDefinition {
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
-    pub settings: Option<Vec<(Token, ValueDefinition)>>,
+    pub settings: Option<Vec<SettingElement>>,
     /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
+    /// IFF this TND is a comment node: raw comment string
+    pub raw_comment_string: Option<String>,
 }
 
 pub type TypeTable = HashMap<String, TypeDefinition>;
@@ -378,18 +391,32 @@ pub struct ControlFlowRepeatSourceDefinition {
     pub symbolic_binding: Option<Token>,
 }
 
-/// Container for parsed Settings blocks (inside `@settings`)
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SettingsSelectorBlockDefinition {
-    pub selector: Token,
-    pub value_block: LiteralBlockDefinition,
-}
-
-/// Container for a parsed
+/// Container for a parsed Literal object
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
-    pub settings_key_value_pairs: Vec<(Token, ValueDefinition)>,
+    pub elements: Vec<SettingElement>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SettingElement {
+    Setting(Token, ValueDefinition),
+    Comment(String),
+}
+
+impl LiteralBlockDefinition {
+    pub fn get_all_settings<'a>(&'a self) -> Vec<(&'a Token, &'a ValueDefinition)> {
+        self.elements
+            .iter()
+            .filter_map(|lbe| {
+                if let SettingElement::Setting(t, vd) = lbe {
+                    Some((t, vd))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
 
 /// Container for parsed values with optional location information
@@ -488,8 +515,59 @@ pub enum Unit {
     Percent,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventDefinition {
-    pub key: Token,
-    pub value: Vec<Token>,
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+pub struct MappedString {
+    pub content: String,
+    /// Markers used to identify generated code range for source map.
+    pub source_map_start_marker: Option<String>,
+    pub source_map_end_marker: Option<String>,
+}
+
+impl PartialEq for MappedString {
+    fn eq(&self, other: &Self) -> bool {
+        self.content == other.content
+    }
+}
+
+impl Eq for MappedString {}
+
+impl Hash for MappedString {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.content.hash(state);
+    }
+}
+
+impl MappedString {
+    pub fn none() -> Self {
+        MappedString {
+            content: "None".to_string(),
+            source_map_start_marker: None,
+            source_map_end_marker: None,
+        }
+    }
+
+    pub fn new(content: String) -> Self {
+        MappedString {
+            content,
+            source_map_start_marker: None,
+            source_map_end_marker: None,
+        }
+    }
+}
+
+pub fn escape_identifier(input: String) -> String {
+    input
+        .replace("(", "LPAR")
+        .replace("::", "COCO")
+        .replace(")", "RPAR")
+        .replace("<", "LABR")
+        .replace(">", "RABR")
+        .replace(",", "COMM")
+        .replace(".", "PERI")
+        .replace("[", "LSQB")
+        .replace("]", "RSQB")
+        .replace("/", "FSLA")
+        .replace("\\", "BSLA")
+        .replace("#", "HASH")
+        .replace("-", "HYPH")
 }

@@ -24,7 +24,7 @@
         ctx.import_paths.insert(pax_lang::api::Rotation::get_import_path());
         ctx.import_paths.insert(pax_lang::api::Transform2D::get_import_path());
 
-        let manifest = pax_compiler::manifest::PaxManifest {
+        let manifest = pax_manifest::PaxManifest {
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,
             expression_specs: None,
@@ -71,9 +71,9 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
         Self::get_import_path()
     }
 
-    fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_compiler::manifest::PropertyDefinition>) {
+    fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
         let self_type_id = <%= pascal_identifier %>::get_type_id();
-        let mut property_definitions : Vec<pax_compiler::manifest::PropertyDefinition> = vec![];
+        let mut property_definitions : Vec<pax_manifest::PropertyDefinition> = vec![];
         let self_import_path = <%= pascal_identifier %>::get_import_path();
         ctx.import_paths.insert(self_import_path);
 
@@ -96,12 +96,12 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
             let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
 
 
-            let mut flags = pax_compiler::manifest::PropertyDefinitionFlags::default();
+            let mut flags = pax_manifest::PropertyDefinitionFlags::default();
             flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
-            property_definitions.push(pax_compiler::manifest::PropertyDefinition {
+            property_definitions.push(pax_manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
                 type_id: property_type_id,
-                flags: pax_compiler::manifest::PropertyDefinitionFlags::default(),
+                flags: pax_manifest::PropertyDefinitionFlags::default(),
             });
         <% } %>
 

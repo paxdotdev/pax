@@ -1,17 +1,16 @@
-use super::manifest::{
-    ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec,
-    ExpressionSpecInvocation, PaxManifest, PropertyDefinition, SettingsSelectorBlockDefinition,
-    TemplateNodeDefinition, ValueDefinition,
+use pax_manifest::{
+    escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec,
+    ExpressionSpecInvocation, PaxManifest, PropertyDefinition, PropertyDefinitionFlags,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeDefinition, TypeTable,
+    ValueDefinition,
 };
 use std::collections::HashMap;
-use std::ops::{IndexMut, RangeFrom};
+use std::ops::RangeFrom;
 use std::slice::IterMut;
 
 use crate::errors::source_map::SourceMap;
 use crate::errors::PaxTemplateError;
 use crate::helpers::HostCrateInfo;
-use crate::manifest::{PropertyDefinitionFlags, Token, TypeDefinition, TypeTable};
-use crate::parsing::escape_identifier;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
@@ -33,7 +32,7 @@ pub fn compile_all_expressions<'a>(
 
         if let Some(ref mut template) = new_component_def.template {
             let mut active_node_def = TemplateNodeDefinition::default();
-            std::mem::swap(&mut active_node_def, template.index_mut(0));
+            std::mem::swap(&mut active_node_def, template.get_mut(&0).unwrap());
 
             let mut ctx = ExpressionCompilationContext {
                 template,
@@ -54,7 +53,7 @@ pub fn compile_all_expressions<'a>(
             ctx = recurse_compile_expressions(ctx, source_map)?;
             vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
             all_expression_specs.extend(ctx.expression_specs.to_owned());
-            std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
+            std::mem::swap(&mut ctx.active_node_def, template.get_mut(&0).unwrap());
         }
 
         std::mem::swap(component_def, &mut new_component_def);
@@ -66,39 +65,51 @@ pub fn compile_all_expressions<'a>(
 }
 
 fn pull_matched_identifiers_from_inline(
-    inline_settings: &Option<Vec<(Token, ValueDefinition)>>,
+    inline_settings: &Option<Vec<SettingElement>>,
     s: String,
 ) -> Vec<Token> {
     let mut ret = Vec::new();
     if let Some(val) = inline_settings {
-        for (_, matched) in val.iter().filter(|avd| avd.0.token_value == s.as_str()) {
-            match matched {
-                ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
-                _ => {}
-            };
+        let matched_settings = val.iter().filter(|e| match e {
+            SettingElement::Setting(token, _) => token.token_value == s.as_str(),
+            _ => false,
+        });
+        for e in matched_settings {
+            if let SettingElement::Setting(_, value) = e {
+                match value {
+                    ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
+                    _ => {}
+                };
+            }
         }
     }
     ret
 }
 
 fn pull_settings_with_selector(
-    settings: &Option<Vec<SettingsSelectorBlockDefinition>>,
+    settings: &Option<Vec<SettingsBlockElement>>,
     selector: String,
-) -> Option<Vec<(Token, ValueDefinition)>> {
+) -> Option<Vec<SettingElement>> {
     settings.as_ref().and_then(|val| {
-        let merged_settings: Vec<(Token, ValueDefinition)> = val
-            .iter()
-            .filter(|block| block.selector.token_value == selector)
-            .flat_map(|block| block.value_block.settings_key_value_pairs.clone())
-            .collect();
-        (!merged_settings.is_empty()).then(|| merged_settings)
+        let mut merged_setting = Vec::new();
+        for settings_value in val.iter() {
+            match settings_value {
+                SettingsBlockElement::SelectorBlock(token, value) => {
+                    if token.token_value == selector {
+                        merged_setting.extend(value.elements.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        (!merged_setting.is_empty()).then(|| merged_setting)
     })
 }
 
 fn merge_inline_settings_with_settings_block(
-    inline_settings: &Option<Vec<(Token, ValueDefinition)>>,
-    settings_block: &Option<Vec<SettingsSelectorBlockDefinition>>,
-) -> Option<Vec<(Token, ValueDefinition)>> {
+    inline_settings: &Option<Vec<SettingElement>>,
+    settings_block: &Option<Vec<SettingsBlockElement>>,
+) -> Option<Vec<SettingElement>> {
     // collect id settings
     let ids = pull_matched_identifiers_from_inline(&inline_settings, "id".to_string());
 
@@ -128,21 +139,27 @@ fn merge_inline_settings_with_settings_block(
     let mut map = HashMap::new();
 
     // Iterate in reverse order of priority (class, then id, then inline)
-    for (key, value) in class_settings.into_iter() {
-        map.insert(key, value);
-    }
-
-    for (key, value) in id_settings.into_iter() {
-        map.insert(key, value);
-    }
-
-    if let Some(inline) = inline_settings.clone() {
-        for (key, value) in inline.into_iter() {
-            map.insert(key, value);
+    for e in class_settings.into_iter() {
+        if let SettingElement::Setting(key, _) = e.clone() {
+            map.insert(key, e);
         }
     }
 
-    let merged: Vec<(Token, ValueDefinition)> = map.into_iter().collect();
+    for e in id_settings.into_iter() {
+        if let SettingElement::Setting(key, _) = e.clone() {
+            map.insert(key, e);
+        }
+    }
+
+    if let Some(inline) = inline_settings.clone() {
+        for e in inline.into_iter() {
+            if let SettingElement::Setting(key, _) = e.clone() {
+                map.insert(key, e);
+            }
+        }
+    }
+    let merged: Vec<SettingElement> = map.values().cloned().collect();
+
     if merged.len() > 0 {
         Some(merged)
     } else {
@@ -151,86 +168,50 @@ fn merge_inline_settings_with_settings_block(
 }
 
 fn recurse_compile_literal_block<'a>(
-    settings_pairs: &mut IterMut<(Token, ValueDefinition)>,
+    settings_pairs: &mut IterMut<SettingElement>,
     ctx: &mut ExpressionCompilationContext,
     current_property_definitions: Vec<PropertyDefinition>,
     type_id: String,
     source_map: &mut SourceMap,
 ) -> Result<(), eyre::Report> {
-    settings_pairs.try_for_each(|pair| {
-        match &mut pair.1 {
-            // LiteralValue:       no need to compile literal values
-            // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
-            ValueDefinition::LiteralValue(_) | ValueDefinition::EventBindingTarget(_) => {}
-            ValueDefinition::Block(block) => {
-                let type_def = (current_property_definitions
-                    .iter()
-                    .find(|property_def| property_def.name == pair.0.token_value))
-                .ok_or::<eyre::Report>(PaxTemplateError::new(
-                    Some(format!(
-                        "Property `{}` not found on `{}`",
-                        &pair.0.token_value, type_id
-                    )),
-                    pair.0.clone(),
-                ))?
-                .get_type_definition(ctx.type_table);
-                recurse_compile_literal_block(
-                    &mut block.settings_key_value_pairs.iter_mut(),
-                    ctx,
-                    type_def.property_definitions.clone(),
-                    type_def.type_id_escaped.clone(),
-                    source_map,
-                )?;
-            }
-            ValueDefinition::Expression(input, manifest_id) => {
-                // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
-                let id = ctx.vtable_uid_gen.next().unwrap();
-
-                let (output_statement, invocations) = compile_paxel_to_ril(input.clone(), &ctx)?;
-
-                let mut whitespace_removed_input = input.clone().token_value;
-                whitespace_removed_input.retain(|c| !c.is_whitespace());
-
-                let source_map_id = source_map.insert(input.clone());
-                let input_statement =
-                    source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
-
-                ctx.expression_specs.insert(
-                    id,
-                    ExpressionSpec {
-                        id,
-                        invocations,
-                        output_statement,
-                        input_statement,
-                        is_repeat_source_iterable_expression: false,
-                    },
-                );
-
-                //Write this id back to the manifest, for downstream use by RIL component tree generator
-                let mut manifest_id_insert = Some(id);
-                std::mem::swap(manifest_id, &mut manifest_id_insert);
-            }
-            ValueDefinition::Identifier(identifier, manifest_id) => {
-                // e.g. the self.active_color in `bg_color=self.active_color`
-
-                if pair.0.token_value == "id" || pair.0.token_value == "class" {
-                    //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
-                    //so we skip the case where `id` is the key
-                } else {
+    settings_pairs.try_for_each(|e| {
+        if let SettingElement::Setting(token, value) = e {
+            match value {
+                // LiteralValue:       no need to compile literal values
+                // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
+                ValueDefinition::LiteralValue(_) | ValueDefinition::EventBindingTarget(_) => {}
+                ValueDefinition::Block(block) => {
+                    let type_def = (current_property_definitions
+                        .iter()
+                        .find(|property_def| property_def.name == token.token_value))
+                        .ok_or::<eyre::Report>(PaxTemplateError::new(
+                            Some(format!(
+                                "Property `{}` not found on `{}`",
+                                &token.token_value, type_id
+                            )),
+                            token.clone(),
+                        ))?
+                        .get_type_definition(ctx.type_table);
+                    recurse_compile_literal_block(
+                        &mut block.elements.iter_mut(),
+                        ctx,
+                        type_def.property_definitions.clone(),
+                        type_def.type_id_escaped.clone(),
+                        source_map,
+                    )?;
+                }
+                ValueDefinition::Expression(input, manifest_id) => {
+                    // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                     let id = ctx.vtable_uid_gen.next().unwrap();
-
-                    //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let mut manifest_id_insert: Option<usize> = Some(id);
-                    std::mem::swap(manifest_id, &mut manifest_id_insert);
-
-                    //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
-                    //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
                     let (output_statement, invocations) =
-                        compile_paxel_to_ril(identifier.clone(), &ctx)?;
+                        compile_paxel_to_ril(input.clone(), &ctx)?;
 
-                    let source_map_id = source_map.insert(identifier.clone());
-                    let input_statement = source_map
-                        .generate_mapped_string(identifier.token_value.clone(), source_map_id);
+                    let mut whitespace_removed_input = input.clone().token_value;
+                    whitespace_removed_input.retain(|c| !c.is_whitespace());
+
+                    let source_map_id = source_map.insert(input.clone());
+                    let input_statement =
+                        source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
                     ctx.expression_specs.insert(
                         id,
@@ -242,15 +223,54 @@ fn recurse_compile_literal_block<'a>(
                             is_repeat_source_iterable_expression: false,
                         },
                     );
+
+                    //Write this id back to the manifest, for downstream use by RIL component tree generator
+                    let mut manifest_id_insert = Some(id);
+                    std::mem::swap(manifest_id, &mut manifest_id_insert);
+                }
+                ValueDefinition::Identifier(identifier, manifest_id) => {
+                    // e.g. the self.active_color in `bg_color=self.active_color`
+
+                    if token.token_value == "id" || token.token_value == "class" {
+                        //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
+                        //so we skip the case where `id` is the key
+                    } else {
+                        let id = ctx.vtable_uid_gen.next().unwrap();
+
+                        //Write this id back to the manifest, for downstream use by RIL component tree generator
+                        let mut manifest_id_insert: Option<usize> = Some(id);
+                        std::mem::swap(manifest_id, &mut manifest_id_insert);
+
+                        //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
+                        //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
+                        let (output_statement, invocations) =
+                            compile_paxel_to_ril(identifier.clone(), &ctx)?;
+
+                        let source_map_id = source_map.insert(identifier.clone());
+                        let input_statement = source_map
+                            .generate_mapped_string(identifier.token_value.clone(), source_map_id);
+
+                        ctx.expression_specs.insert(
+                            id,
+                            ExpressionSpec {
+                                id,
+                                invocations,
+                                output_statement,
+                                input_statement,
+                                is_repeat_source_iterable_expression: false,
+                            },
+                        );
+                    }
+                }
+                _ => {
+                    unreachable!()
                 }
             }
-            _ => {
-                unreachable!()
-            }
-        }
+
+            Ok::<(), eyre::Report>(())
+        } else {Ok::<(), eyre::Report>(())};
         Ok::<(), eyre::Report>(())
-    })?;
-    Ok(())
+    })
 }
 
 fn recurse_compile_expressions<'a>(
@@ -537,7 +557,7 @@ fn recurse_compile_expressions<'a>(
         let mut old_active_node_def = TemplateNodeDefinition::default();
 
         //Swap the first blank for the node with specified id
-        std::mem::swap(&mut active_node_def, ctx.template.get_mut(*id).unwrap());
+        std::mem::swap(&mut active_node_def, ctx.template.get_mut(id).unwrap());
 
         //Swap the second blank for the current ctx.active_node_def value, so we can pass it back
         //to caller when done
@@ -550,7 +570,7 @@ fn recurse_compile_expressions<'a>(
         ctx = recurse_compile_expressions(ctx, source_map)?;
 
         //Pull the (presumably mutated) active_node_def back out of ctx and attach it back into `template`
-        std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(*id).unwrap());
+        std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(id).unwrap());
 
         //Put old active_node_def back in place so we can return it to caller
         std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
@@ -703,7 +723,7 @@ pub struct ExpressionCompilationContext<'a> {
     pub component_def: &'a ComponentDefinition,
 
     /// Container for mutable list of TemplateNodeDefinitions,
-    pub template: &'a mut Vec<TemplateNodeDefinition>,
+    pub template: &'a mut HashMap<usize, TemplateNodeDefinition>,
 
     /// Static stack of addressable properties, by string
     /// Enables resolution of scope-nested symbolic identifiers, including shadowing

@@ -31,14 +31,14 @@ PACKAGES = [
     "pax-cli",
     "pax-compiler",
     "pax-core",
-    "pax-example",
     "pax-lang",
     "pax-language-server",
     "pax-macro",
     "pax-message",
     "pax-runtime-api",
     "pax-std",
-    "pax-std/pax-std-primitives"
+    "pax-std/pax-std-primitives",
+    "pax-manifest",
 ]
 
 # Create a mapping from package name to path
