@@ -1,5 +1,5 @@
 use kurbo::{RoundedRect, Shape};
-use piet::{LinearGradient, RadialGradient, RenderContext};
+use piet::{LinearGradient, RadialGradient};
 use std::any::Any;
 
 use pax_core::{
@@ -9,19 +9,19 @@ use pax_core::{
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
 
-use pax_runtime_api::{Layer, Size};
+use pax_runtime_api::{Layer, RenderContext, Size};
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
-pub struct RectangleInstance<R> {
-    base: BaseInstance<R>,
+pub struct RectangleInstance {
+    base: BaseInstance,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self> {
+impl InstanceNode for RectangleInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self> {
         Rc::new(Self {
             base: BaseInstance::new(
                 args,
@@ -34,21 +34,31 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         })
     }
 
-    fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self
+            .base()
+            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(
             &properties_wrapped,
             Rectangle,
             |properties: &mut Rectangle| {
-                handle_vtable_update!(ptc, properties.stroke, pax_std::types::Stroke);
-                handle_vtable_update!(ptc, properties.fill, pax_std::types::Fill);
                 handle_vtable_update!(
                     ptc,
+                    this_expanded_node,
+                    properties.stroke,
+                    pax_std::types::Stroke
+                );
+                handle_vtable_update!(
+                    ptc,
+                    this_expanded_node,
+                    properties.fill,
+                    pax_std::types::Fill
+                );
+                handle_vtable_update!(
+                    ptc,
+                    this_expanded_node,
                     properties.corner_radii,
                     pax_std::types::RectangleCornerRadii
                 );
@@ -64,11 +74,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         this_expanded_node
     }
 
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode<R>) -> Option<(Size, Size)> {
+    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
         Some(self.get_size(expanded_node))
     }
 
-    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&self, rtc: &mut RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = &expanded_node.computed_tab.as_ref().unwrap();
 
@@ -90,7 +100,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
 
                 match properties.fill.get() {
                     Fill::Solid(color) => {
-                        rc.fill(transformed_bez_path, &color.to_piet_color());
+                        rc.fill(transformed_bez_path, &color.to_piet_color().into());
                     }
                     Fill::LinearGradient(linear) => {
                         let linear_gradient = LinearGradient::new(
@@ -98,7 +108,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
                             Fill::to_unit_point(linear.end, (width, height)),
                             Fill::to_piet_gradient_stops(linear.stops.clone()),
                         );
-                        rc.fill(transformed_bez_path, &linear_gradient)
+                        rc.fill(transformed_bez_path, &linear_gradient.into())
                     }
                     Fill::RadialGradient(radial) => {
                         let origin = Fill::to_unit_point(radial.start, (width, height));
@@ -107,7 +117,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
                         let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
                             .with_center(center)
                             .with_origin(origin);
-                        rc.fill(transformed_bez_path, &radial_gradient);
+                        rc.fill(transformed_bez_path, &radial_gradient.into());
                     }
                 }
 
@@ -116,7 +126,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
                 if width > f64::EPSILON {
                     rc.stroke(
                         duplicate_transformed_bez_path,
-                        &properties.stroke.get().color.get().to_piet_color(),
+                        &properties.stroke.get().color.get().to_piet_color().into(),
                         width,
                     );
                 }
@@ -128,7 +138,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        expanded_node: Option<&ExpandedNode<R>>,
+        expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
             Some(expanded_node) => {
@@ -146,7 +156,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         }
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }

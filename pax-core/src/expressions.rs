@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use piet::RenderContext;
 use std::rc::Rc;
 
 use crate::properties::RuntimePropertiesStackFrame;

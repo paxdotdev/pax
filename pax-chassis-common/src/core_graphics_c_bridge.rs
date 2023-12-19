@@ -18,18 +18,20 @@ use flexbuffers::DeserializationError;
 use serde::Serialize;
 
 use pax_cartridge;
-use pax_core::{NodeRegistry, PaxEngine};
+use pax_core::{NodeRegistry, PaxEngine, Renderer};
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime_api::{ArgsClick, ArgsScroll, ModifierKey, MouseButton, MouseEventArgs};
+use pax_runtime_api::{
+    ArgsClick, ArgsScroll, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
+};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
 pub struct PaxEngineContainer {
-    _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
+    _engine: *mut PaxEngine,
     //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
 }
 
@@ -39,20 +41,18 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
-    let node_registry: Rc<RefCell<NodeRegistry<CoreGraphicsContext<'static>>>> =
-        Rc::new(RefCell::new(NodeRegistry::new()));
+    let node_registry: Rc<RefCell<NodeRegistry>> = Rc::new(RefCell::new(NodeRegistry::new()));
     let main_component_instance =
         pax_cartridge::instantiate_main_component(Rc::clone(&node_registry));
     let expression_table = pax_cartridge::instantiate_expression_table();
 
-    let engine: ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> =
-        ManuallyDrop::new(Box::new(PaxEngine::new(
-            main_component_instance,
-            expression_table,
-            pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
-            (1.0, 1.0),
-            node_registry,
-        )));
+    let engine: ManuallyDrop<Box<PaxEngine>> = ManuallyDrop::new(Box::new(PaxEngine::new(
+        main_component_instance,
+        expression_table,
+        pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
+        (1.0, 1.0),
+        node_registry,
+    )));
 
     let container = ManuallyDrop::new(Box::new(PaxEngineContainer {
         _engine: Box::into_raw(ManuallyDrop::into_inner(engine)),
@@ -168,7 +168,9 @@ pub extern "C" fn pax_tick(
 
     let will_cast_cgContext = cgContext as *mut CGContext;
     let ctx = unsafe { &mut *will_cast_cgContext };
-    let render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
+    let render_context = Box::new(Renderer {
+        backend: CoreGraphicsContext::new_y_up(ctx, height as f64, None),
+    }) as Box<dyn RenderContext>;
     (*engine).set_viewport_size((width as f64, height as f64));
 
     let mut render_contexts = HashMap::new();

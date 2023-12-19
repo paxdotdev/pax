@@ -5,8 +5,6 @@ use std::fmt;
 use std::rc::{Rc, Weak};
 
 use kurbo::Point;
-use piet::TextLayout;
-use piet_common::RenderContext;
 
 use pax_message::NativeMessage;
 
@@ -14,7 +12,7 @@ use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, LayerId, NodeContext, Numeric, Rotation, Size, Transform2D,
+    CommonProperties, LayerId, NodeContext, Numeric, RenderContext, Rotation, Size, Transform2D,
 };
 
 use crate::{
@@ -324,9 +322,9 @@ impl ExpandedNode {
         &self.expanded_and_flattened_slot_children
     }
 
-    pub fn get_or_create_with_prototypical_properties<T: InstanceNode>(
+    pub fn get_or_create_with_prototypical_properties(
         node_id: u32,
-        template: Rc<T>,
+        template: Rc<dyn InstanceNode>,
         ptc: &mut PropertiesTreeContext,
         prototypical_properties: &Rc<RefCell<dyn Any>>,
         prototypical_common_properties: &Rc<RefCell<CommonProperties>>,
@@ -571,11 +569,33 @@ impl NodeRegistry {
     }
 }
 
-struct Renderer<R> {
-    backend: R,
+pub struct Renderer<R> {
+    pub backend: R,
 }
 
-impl<R: RenderContext> pax_runtime_api::RenderContext for Renderer<R> {}
+impl<R: piet::RenderContext> pax_runtime_api::RenderContext for Renderer<R> {
+    fn fill(&mut self, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
+        self.backend.fill(path, brush);
+    }
+
+    fn stroke(&mut self, path: kurbo::BezPath, brush: &piet_common::PaintBrush, width: f64) {
+        self.backend.stroke(path, brush, width);
+    }
+
+    fn save(&mut self) {
+        self.backend.save().expect("failed to save piet state");
+    }
+
+    fn clip(&mut self, path: kurbo::BezPath) {
+        self.backend.clip(path);
+    }
+
+    fn restore(&mut self) {
+        self.backend
+            .restore()
+            .expect("failed to restore piet state");
+    }
+}
 
 /// Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 /// Contains all rendering and runtime logic.
@@ -615,10 +635,7 @@ impl PaxEngine {
     /// 3. Render:
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
-    pub fn tick(
-        &self,
-        rcs: &mut HashMap<String, Box<dyn pax_runtime_api::RenderContext>>,
-    ) -> Vec<NativeMessage> {
+    pub fn tick(&self, rcs: &mut HashMap<String, Box<dyn RenderContext>>) -> Vec<NativeMessage> {
         let root_component_instance = Rc::clone(&self.main_component);
         let mut z_index = LayerId::new(None);
         //
@@ -634,8 +651,7 @@ impl PaxEngine {
                 native_message_queue: Default::default(),
             })),
         };
-        let root_expanded_node =
-            root_component_instance.expand_node_and_compute_properties(&mut ptc);
+        let root_expanded_node = root_component_instance.expand(&mut ptc);
 
         // Compute canvas indicies (visit in reverse child order)
         recurse_compute_canvas_indicies(&root_expanded_node, &mut LayerId::new(None));

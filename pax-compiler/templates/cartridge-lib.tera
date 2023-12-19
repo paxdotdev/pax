@@ -10,15 +10,15 @@ use {{ import }};
     {{ const }}
 {% endfor %}
 
-pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>> {
-    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> Box<dyn Any>>> = HashMap::new();
+pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>> {
+    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>> = HashMap::new();
 
     {% for expression_spec in expression_specs %}
     //{{ expression_spec.input_statement.content}}
     {% if expression_spec.input_statement.source_map_start_marker %}
         {{ expression_spec.input_statement.source_map_start_marker }}
     {% endif %}
-    vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> Box<dyn Any> {
+    vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext| -> Box<dyn Any> {
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} =
             {

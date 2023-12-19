@@ -1,6 +1,5 @@
 use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
-use pax_runtime_api::Layer;
-use piet::RenderContext;
+use pax_runtime_api::{Layer, RenderContext};
 use std::any::Any;
 
 use pax_core::{
@@ -16,12 +15,12 @@ use std::rc::Rc;
 
 /// A basic 2D vector ellipse, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
-pub struct EllipseInstance<R> {
-    base: BaseInstance<R>,
+pub struct EllipseInstance {
+    base: BaseInstance,
 }
 
-impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
+impl InstanceNode for EllipseInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -37,22 +36,31 @@ impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
         })
     }
 
-    fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self
+            .base()
+            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(&properties_wrapped, Ellipse, |properties: &mut Ellipse| {
-            handle_vtable_update!(ptc, properties.stroke, pax_std::types::Stroke);
-            handle_vtable_update!(ptc, properties.fill, pax_std::types::Fill);
+            handle_vtable_update!(
+                ptc,
+                this_expanded_node,
+                properties.stroke,
+                pax_std::types::Stroke
+            );
+            handle_vtable_update!(
+                ptc,
+                this_expanded_node,
+                properties.fill,
+                pax_std::types::Fill
+            );
         });
 
         this_expanded_node
     }
 
-    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&self, rtc: &mut RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = expanded_node.computed_tab.as_ref().unwrap();
 
@@ -75,14 +83,14 @@ impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
                 unimplemented!("gradients not supported on ellipse")
             };
 
-            rc.fill(transformed_bez_path, &color);
+            rc.fill(transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = *&properties.stroke.get().width.get().into();
             if width > f64::EPSILON {
                 rc.stroke(
                     duplicate_transformed_bez_path,
-                    &properties.stroke.get().color.get().to_piet_color(),
+                    &properties.stroke.get().color.get().to_piet_color().into(),
                     width,
                 );
             }
@@ -93,7 +101,7 @@ impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        expanded_node: Option<&ExpandedNode<R>>,
+        expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
             Some(expanded_node) => {
@@ -107,7 +115,7 @@ impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
         }
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }

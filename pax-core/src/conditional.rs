@@ -7,7 +7,6 @@ use crate::{
     InstanceNode, InstantiationArgs, PropertiesTreeContext,
 };
 use pax_runtime_api::Layer;
-use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
 /// subtree of a component template to be rendered conditionally,
@@ -41,11 +40,10 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn expand_node_and_compute_properties(
-        self: Rc<Self>,
-        ptc: &mut PropertiesTreeContext,
-    ) -> Rc<RefCell<ExpandedNode>> {
-        let this_expanded_node = self.base().expand(&(self as Rc<dyn InstanceNode>), ptc);
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self
+            .base()
+            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
         let properties_wrapped = this_expanded_node.borrow().get_properties();
         // evaluate boolean expression
@@ -80,7 +78,7 @@ impl InstanceNode for ConditionalInstance {
         for conditional_child in self.base().get_children() {
             let mut new_ptc = ptc.clone();
 
-            let expanded_child = conditional_child.expand_node_and_compute_properties(&mut new_ptc);
+            let expanded_child = Rc::clone(conditional_child).expand(&mut new_ptc);
 
             expanded_child.borrow_mut().parent_expanded_node = Rc::downgrade(&this_expanded_node);
 

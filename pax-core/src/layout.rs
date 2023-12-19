@@ -3,7 +3,6 @@ use crate::{
 };
 use kurbo::Affine;
 use pax_runtime_api::{Axis, LayerId, NodeContext, Size, Transform2D};
-use piet::RenderContext;
 use std::cell::RefCell;
 use std::ops::RangeFrom;
 use std::rc::Rc;
@@ -343,7 +342,7 @@ fn manage_handlers_mount<'a>(
                 .clone();
         if !node_registry.is_mounted(&id_chain) {
             //Fire primitive-level mount lifecycle method
-            let mut instance_node = Rc::clone(&current_expanded_node.borrow().instance_node);
+            let instance_node = Rc::clone(&current_expanded_node.borrow().instance_node);
             instance_node.handle_mount(ptc, &current_expanded_node.borrow());
 
             //Fire registered mount events
