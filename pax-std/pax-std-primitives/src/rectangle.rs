@@ -21,8 +21,8 @@ pub struct RectangleInstance<R> {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self> {
+        Rc::new(Self {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -31,11 +31,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
                     layer: Layer::Canvas,
                 },
             ),
-        }))
+        })
     }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);
@@ -68,7 +68,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
         Some(self.get_size(expanded_node))
     }
 
-    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = &expanded_node.computed_tab.as_ref().unwrap();
 

@@ -12,15 +12,7 @@ pub fn recurse_compute_canvas_indicies<'a, R: 'static + RenderContext>(
     canvas_index_gen: &mut LayerId,
 ) {
     {
-        canvas_index_gen.update_z_index(
-            expanded_node
-                .borrow()
-                .instance_node
-                .borrow()
-                .base()
-                .flags()
-                .layer,
-        );
+        canvas_index_gen.update_z_index(expanded_node.borrow().instance_node.base().flags().layer);
     }
     {
         expanded_node.borrow_mut().computed_canvas_index = Some(canvas_index_gen.get_level());
@@ -78,10 +70,9 @@ pub fn recurse_compute_layout<'a, R: 'static + RenderContext>(
     manage_handlers_mount(engine, ptc, &current_expanded_node);
 
     {
-        let node_borrowed = current_expanded_node.borrow_mut();
+        let mut node_borrowed = current_expanded_node.borrow_mut();
         node_borrowed
             .instance_node
-            .borrow_mut()
             .handle_native_patches(ptc, &node_borrowed);
     }
 }
@@ -317,13 +308,11 @@ fn manage_handlers_mount<'a, R: 'static + RenderContext>(
                 .clone();
         if !node_registry.is_mounted(&id_chain) {
             //Fire primitive-level mount lifecycle method
-            let instance_node = Rc::clone(&current_expanded_node.borrow().instance_node);
-            instance_node
-                .borrow_mut()
-                .handle_mount(ptc, &current_expanded_node.borrow());
+            let mut instance_node = Rc::clone(&current_expanded_node.borrow().instance_node);
+            instance_node.handle_mount(ptc, &current_expanded_node.borrow());
 
             //Fire registered mount events
-            let registry = instance_node.borrow().base().get_handler_registry();
+            let registry = instance_node.base().get_handler_registry();
             if let Some(registry) = registry {
                 //grab Rc of properties from stack frame; pass to type-specific handler
                 //on instance in order to dispatch cartridge method

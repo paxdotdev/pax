@@ -4,7 +4,6 @@ use pax_core::{
 };
 use pax_std::primitives::Group;
 use piet_common::RenderContext;
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_runtime_api::Layer;
@@ -16,11 +15,11 @@ pub struct GroupInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(Self {
+        Rc::new(Self {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -29,7 +28,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
                     layer: Layer::DontCare,
                 },
             ),
-        }))
+        })
     }
 
     #[cfg(debug_assertions)]

@@ -19,17 +19,14 @@ use pax_runtime_api::{Layer, Timeline};
 pub struct ComponentInstance<R: 'static + RenderContext> {
     pub template: InstanceNodePtrList<R>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
+    pub compute_properties_fn: Box<dyn Fn(Rc<RefCell<dyn Any>>, &mut PropertiesTreeContext<R>)>,
     base: BaseInstance<R>,
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<Self> {
         let component_template = args.component_template.take();
-        let template = match component_template {
-            Some(t) => t,
-            None => Rc::new(RefCell::new(vec![])),
-        };
+        let template = component_template.unwrap_or_default();
 
         let compute_properties_fn = args.compute_properties_fn.take();
         let base = BaseInstance::new(
@@ -40,18 +37,18 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 layer: Layer::DontCare,
             },
         );
-        let ret = Rc::new(RefCell::new(ComponentInstance {
+        let ret = Rc::new(ComponentInstance {
             base,
             template,
             compute_properties_fn: compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
-        }));
+        });
         ret
     }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);
@@ -60,7 +57,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             let slot_children = self.base().get_children();
             //Expand children in the context of the current containing component
             let mut expanded_slot_children = vec![];
-            for child in (*slot_children).borrow().iter() {
+            for child in slot_children {
                 let mut new_ptc = ptc.clone();
                 new_ptc.current_instance_node = Rc::clone(child);
                 new_ptc.current_expanded_node = None;
@@ -101,7 +98,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
 
         ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
 
-        for child in self.template.borrow().iter() {
+        for child in &self.template {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(child);
             new_ptc.current_expanded_node = None;
@@ -142,7 +139,7 @@ fn flatten_expanded_node_for_slot<R: 'static + RenderContext>(
 
     let is_invisible_to_slot = {
         let node_borrowed = node.borrow();
-        let instance_node_borrowed = node_borrowed.instance_node.borrow();
+        let instance_node_borrowed = Rc::clone(&node_borrowed.instance_node);
         instance_node_borrowed.base().flags().invisible_to_slot
     };
     if is_invisible_to_slot {

@@ -21,11 +21,11 @@ pub struct EllipseInstance<R> {
 }
 
 impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(EllipseInstance {
+        Rc::new(EllipseInstance {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -34,11 +34,11 @@ impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
                     layer: Layer::Canvas,
                 },
             ),
-        }))
+        })
     }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);
@@ -52,7 +52,7 @@ impl<R: RenderContext + 'static> InstanceNode<R> for EllipseInstance<R> {
         this_expanded_node
     }
 
-    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let expanded_node = rtc.current_expanded_node.borrow();
         let tab = expanded_node.computed_tab.as_ref().unwrap();
 

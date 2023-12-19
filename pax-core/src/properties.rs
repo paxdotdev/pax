@@ -21,11 +21,7 @@ pub fn recurse_expand_nodes<R: 'static + RenderContext>(
     ptc: &mut PropertiesTreeContext<R>,
 ) -> Rc<RefCell<ExpandedNode<R>>> {
     let this_instance_node = Rc::clone(&ptc.current_instance_node);
-    let this_expanded_node = {
-        this_instance_node
-            .borrow_mut()
-            .expand_node_and_compute_properties(ptc)
-    };
+    let this_expanded_node = { this_instance_node.expand_node_and_compute_properties(ptc) };
 
     //TODO move this to compute pass?
     // Compute common properties
@@ -55,10 +51,7 @@ fn manage_handlers_unmount<R: 'static + RenderContext>(ptc: &mut PropertiesTreeC
         .borrow()
         .is_marked_for_unmount(&id_chain)
     {
-        ptc.current_instance_node
-            .clone()
-            .borrow_mut()
-            .handle_unmount(ptc);
+        ptc.current_instance_node.clone().handle_unmount(ptc);
 
         ptc.engine
             .node_registry

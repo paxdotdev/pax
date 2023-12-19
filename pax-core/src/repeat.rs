@@ -34,11 +34,11 @@ pub struct RepeatItem {
 }
 
 impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(Self {
+        Rc::new(Self {
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -47,11 +47,11 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     layer: Layer::DontCare,
                 },
             ),
-        }))
+        })
     }
 
     fn expand_node_and_compute_properties(
-        &mut self,
+        &self,
         ptc: &mut PropertiesTreeContext<R>,
     ) -> Rc<RefCell<ExpandedNode<R>>> {
         let this_expanded_node = self.base().expand(ptc);
@@ -133,16 +133,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             }));
             ptc.push_stack_frame(new_repeat_item);
 
-            for repeated_template_instance_root in self.base().get_children().borrow().iter() {
+            for repeated_template_instance_root in self.base().get_children().iter() {
                 let mut new_ptc = ptc.clone();
                 new_ptc.current_expanded_node = None;
                 new_ptc.current_instance_node = Rc::clone(repeated_template_instance_root);
-                let id_chain = ptc.get_id_chain(
-                    repeated_template_instance_root
-                        .borrow()
-                        .base()
-                        .get_instance_id(),
-                );
+                let id_chain =
+                    ptc.get_id_chain(repeated_template_instance_root.base().get_instance_id());
 
                 //Part of hack (see above)
                 new_ptc
