@@ -43,7 +43,7 @@ impl InstanceNode for ConditionalInstance {
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
         let properties_wrapped = this_expanded_node.borrow().get_properties();
         // evaluate boolean expression
@@ -75,11 +75,9 @@ impl InstanceNode for ConditionalInstance {
             }
         }
 
-        for conditional_child in self.base().get_children() {
+        for child in self.base().get_children() {
             let mut new_ptc = ptc.clone();
-
-            let expanded_child = Rc::clone(conditional_child).expand(&mut new_ptc);
-
+            let expanded_child = Rc::clone(child).expand(&mut new_ptc);
             expanded_child.borrow_mut().parent_expanded_node = Rc::downgrade(&this_expanded_node);
 
             if evaluated_condition {

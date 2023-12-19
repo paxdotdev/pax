@@ -34,9 +34,8 @@ pub struct InstantiationArgs {
 
     ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation
-    pub compute_properties_fn: Option<
-        Box<dyn Fn(Rc<RefCell<dyn Any>>, &Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>,
-    >,
+    pub compute_properties_fn:
+        Option<Box<dyn Fn(&Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>>,
 }
 
 #[derive(Copy, Clone)]
@@ -347,7 +346,7 @@ impl BaseInstance {
         }
     }
 
-    pub fn expand(
+    pub fn expand_from_instance(
         &self,
         template: Rc<dyn InstanceNode>,
         ptc: &mut PropertiesTreeContext,

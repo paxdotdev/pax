@@ -37,7 +37,7 @@ impl InstanceNode for RectangleInstance {
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         with_properties_unwrapped!(

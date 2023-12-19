@@ -33,7 +33,7 @@ impl InstanceNode for GroupInstance {
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
         let this_expanded_node = self
             .base()
-            .expand(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         for child in self.base().get_children() {
             let mut new_ptc = ptc.clone();
             let child_expanded_node = Rc::clone(&child).expand(&mut new_ptc);

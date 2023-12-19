@@ -16,10 +16,10 @@ use pax_runtime_api::{
 };
 
 use crate::{
-    handle_vtable_update, handle_vtable_update_optional, recurse_compute_canvas_indicies,
-    recurse_compute_layout, recurse_render, Affine, ComponentInstance, ExpressionContext,
-    InstanceNode, InstanceNodePtr, PropertiesTreeContext, PropertiesTreeShared, RenderTreeContext,
-    RuntimePropertiesStackFrame, TransformAndBounds,
+    handle_vtable_update, handle_vtable_update_optional, recurse_compute_layout, recurse_render,
+    Affine, ComponentInstance, ExpressionContext, InstanceNode, InstanceNodePtr,
+    PropertiesTreeContext, PropertiesTreeShared, RenderTreeContext, RuntimePropertiesStackFrame,
+    TransformAndBounds,
 };
 
 /// Singleton struct storing everything related to properties computation & rendering
@@ -653,8 +653,6 @@ impl PaxEngine {
         };
         let root_expanded_node = root_component_instance.expand(&mut ptc);
 
-        // Compute canvas indicies (visit in reverse child order)
-        recurse_compute_canvas_indicies(&root_expanded_node, &mut LayerId::new(None));
         //
         // 2. COMPUTE LAYOUT
         // Visits ExpandedNodes in rendering order and calculates + writes z-index and tab to each ExpandedNode.
@@ -670,7 +668,10 @@ impl PaxEngine {
                 transform: Affine::default(),
             },
             &mut z_index_gen,
+            &mut LayerId::new(None),
         );
+
+        pax_runtime_api::log(&format!("{:#?}", root_expanded_node));
 
         //
         // 3. RENDER
