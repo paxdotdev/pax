@@ -14,8 +14,8 @@ use piet_common::RenderContext;
 /// based on the value of the property `boolean_expression`.
 /// The Pax compiler handles ConditionalInstance specially
 /// with the `if` syntax in templates.
-pub struct ConditionalInstance<R: 'static + RenderContext> {
-    base: BaseInstance<R>,
+pub struct ConditionalInstance {
+    base: BaseInstance,
 }
 
 ///Contains the expression of a conditional, evaluated as an expression.
@@ -24,8 +24,8 @@ pub struct ConditionalProperties {
     pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
+impl InstanceNode for ConditionalInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -42,12 +42,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     }
 
     fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
-
-        ptc.current_expanded_node = Some(Rc::clone(&this_expanded_node));
+        self: Rc<Self>,
+        ptc: &mut PropertiesTreeContext,
+    ) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self.base().expand(&(self as Rc<dyn InstanceNode>), ptc);
 
         let properties_wrapped = this_expanded_node.borrow().get_properties();
         // evaluate boolean expression
@@ -55,7 +53,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             &properties_wrapped,
             ConditionalProperties,
             |properties: &mut ConditionalProperties| {
-                handle_vtable_update!(ptc, properties.boolean_expression, bool);
+                handle_vtable_update!(ptc, this_expanded_node, properties.boolean_expression, bool);
                 //return evaluated value
                 *properties.boolean_expression.get()
             }
@@ -81,10 +79,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
 
         for conditional_child in self.base().get_children() {
             let mut new_ptc = ptc.clone();
-            new_ptc.current_expanded_node = None;
-            new_ptc.current_instance_node = Rc::clone(conditional_child);
 
-            let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+            let expanded_child = conditional_child.expand_node_and_compute_properties(&mut new_ptc);
 
             expanded_child.borrow_mut().parent_expanded_node = Rc::downgrade(&this_expanded_node);
 
@@ -106,12 +102,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        _expanded_node: Option<&ExpandedNode<R>>,
+        _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Conditional").finish()
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }

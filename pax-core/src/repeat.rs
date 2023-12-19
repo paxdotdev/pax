@@ -14,8 +14,8 @@ use piet_common::RenderContext;
 /// That is: for a `source_expression` of length `n`, `Repeat` will render its
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `source_expression[i]`
-pub struct RepeatInstance<R: 'static + RenderContext> {
-    pub base: BaseInstance<R>,
+pub struct RepeatInstance {
+    pub base: BaseInstance,
 }
 
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
@@ -33,8 +33,8 @@ pub struct RepeatItem {
     pub i: usize,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<Self>
+impl InstanceNode for RepeatInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -51,10 +51,10 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
     }
 
     fn expand_node_and_compute_properties(
-        &self,
-        ptc: &mut PropertiesTreeContext<R>,
-    ) -> Rc<RefCell<ExpandedNode<R>>> {
-        let this_expanded_node = self.base().expand(ptc);
+        self: Rc<Self>,
+        ptc: &mut PropertiesTreeContext,
+    ) -> Rc<RefCell<ExpandedNode>> {
+        let this_expanded_node = self.base().expand(self, ptc);
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Mark all of Repeat's existing children (from previous tick) for
@@ -70,11 +70,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             |properties: &mut RepeatProperties| {
                 handle_vtable_update_optional!(
                     ptc,
+                    this_expanded_node,
                     properties.source_expression_range,
                     std::ops::Range<isize>
                 );
                 handle_vtable_update_optional!(
                     ptc,
+                    this_expanded_node,
                     properties.source_expression_vec,
                     std::vec::Vec<std::rc::Rc<core::cell::RefCell<dyn Any>>>
                 );
@@ -147,7 +149,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                     .borrow_mut()
                     .remove_expanded_node(&id_chain);
 
-                let expanded_child = crate::recurse_expand_nodes(&mut new_ptc);
+                let expanded_child = repeated_template_instance_root
+                    .expand_node_and_compute_properties(&mut new_ptc);
                 expanded_child.borrow_mut().parent_expanded_node =
                     Rc::downgrade(&this_expanded_node);
 
@@ -179,12 +182,12 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        _expanded_node: Option<&ExpandedNode<R>>,
+        _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Repeat").finish()
     }
 
-    fn base(&self) -> &BaseInstance<R> {
+    fn base(&self) -> &BaseInstance {
         &self.base
     }
 }

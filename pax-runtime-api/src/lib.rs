@@ -1141,3 +1141,5 @@ impl From<StringBox> for String {
         value.string
     }
 }
+
+pub trait RenderContext {}

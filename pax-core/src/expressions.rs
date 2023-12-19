@@ -92,7 +92,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 /// Data structure used for dynamic injection of values
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
-pub struct ExpressionContext<'a, R: 'static + RenderContext> {
-    pub engine: &'a PaxEngine<R>,
+pub struct ExpressionContext<'a> {
+    pub engine: &'a PaxEngine,
     pub stack_frame: Rc<RefCell<RuntimePropertiesStackFrame>>,
 }

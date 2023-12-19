@@ -10,8 +10,8 @@ use pax_std::primitives::Frame;
 use piet::RenderContext;
 
 use pax_core::{
-    recurse_expand_nodes, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
+    with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags, InstanceNode,
+    InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
 };
 use pax_message::AnyCreatePatch;
 use pax_runtime_api::{Layer, Size};
@@ -124,7 +124,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
             let mut new_ptc = ptc.clone();
             new_ptc.current_instance_node = Rc::clone(instance_child);
             new_ptc.current_expanded_node = None;
-            let child_expanded_node = recurse_expand_nodes(&mut new_ptc);
+            let child_expanded_node =
+                instance_child.expand_node_and_compute_properties(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
                 Rc::downgrade(&this_expanded_node);
             this_expanded_node
