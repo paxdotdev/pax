@@ -1,6 +1,10 @@
 
 for (v, i) in self.vec {
-    <Rectangle x={Size::Pixels(v)} width=100px fill={Fill::Solid(Color::rgb(0.5, 0.5, 1.0 / (10.0 - 0.02*v)))} />
+    <Rectangle x={Size::Pixels(v)} width=100px fill={Fill::Solid(Color::rgb(0.5, 0.5, 1.0 / (10.0 - 0.01*v)))} />
+}
+
+for i in 0..2 {
+    <Rectangle x={Size::Percent(i*50 + 10)} width=10px fill={Fill::Solid(Color::rgb(0.9, 0.5, i/2))} />
 }
 
 @handlers{

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -88,6 +87,8 @@ impl InstanceNode for ComponentInstance {
             Rc::downgrade(&this_expanded_node),
         );
 
+        // TODO could this be replaced by looking at the current_containing_components properties as a default?
+        // (still need some way of keeping track of for loop values through)
         ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
 
         for child in &self.template {
@@ -95,6 +96,7 @@ impl InstanceNode for ComponentInstance {
             let child_expanded_node = Rc::clone(child).expand(&mut new_ptc);
             child_expanded_node.borrow_mut().parent_expanded_node =
                 Rc::downgrade(&this_expanded_node);
+
             this_expanded_node
                 .borrow_mut()
                 .append_child_expanded_node(child_expanded_node);

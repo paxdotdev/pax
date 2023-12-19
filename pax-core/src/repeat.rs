@@ -4,7 +4,7 @@ use std::{any::Any, ops::Range};
 
 use crate::{
     handle_vtable_update_optional, with_properties_unwrapped, BaseInstance, ExpandedNode,
-    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesComputable, PropertiesTreeContext,
+    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
 };
 use pax_runtime_api::Layer;
 
@@ -56,13 +56,6 @@ impl InstanceNode for RepeatInstance {
 
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
-        //Mark all of Repeat's existing children (from previous tick) for
-        //unmount.  Then, when we iterate and append_children below, ensure
-        //that the mark-for-unmount is reverted This enables changes in repeat
-        //source to be mapped to new elements (unchanged elements are marked for
-        //unmount / remount before unmount handlers are fired, resulting in no
-        //effective changes for persistent nodes.)
-
         let (range_evaled, vec_evaled) = with_properties_unwrapped!(
             &properties_wrapped,
             RepeatProperties,
@@ -100,15 +93,16 @@ impl InstanceNode for RepeatInstance {
             .map(Range::len)
             .or(vec_evaled.as_ref().map(Vec::len))
             .unwrap();
-        let update_repeat_children = node.tab_changed || source_len != node.last_repeat_source_len;
         node.last_repeat_source_len = source_len;
 
         drop(node);
 
-        if !update_repeat_children {
-            return this_expanded_node;
-        }
-
+        //Mark all of Repeat's existing children (from previous tick) for
+        //unmount.  Then, when we iterate and append_children below, ensure
+        //that the mark-for-unmount is reverted This enables changes in repeat
+        //source to be mapped to new elements (unchanged elements are marked for
+        //unmount / remount before unmount handlers are fired, resulting in no
+        //effective changes for persistent nodes.)
         for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
             ptc.engine
                 .node_registry
@@ -123,10 +117,6 @@ impl InstanceNode for RepeatInstance {
             }))
             .unwrap();
 
-        {
-            this_expanded_node.borrow_mut().clear_child_expanded_nodes();
-        }
-
         for (i, elem) in vec_range_source.iter().enumerate() {
             let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
                 i,
@@ -135,29 +125,11 @@ impl InstanceNode for RepeatInstance {
             ptc.push_stack_frame(new_repeat_item);
 
             for child in self.base().get_children().iter() {
-                let mut new_ptc = ptc.clone();
-                let id_chain = ptc.get_id_chain(child.base().get_instance_id());
-
-                //Part of hack (see above)
-                new_ptc
-                    .engine
-                    .node_registry
-                    .borrow_mut()
-                    .remove_expanded_node(&id_chain);
-
-                let expanded_child = Rc::clone(&child).expand(&mut new_ptc);
+                let expanded_child = Rc::clone(&child).expand(ptc);
                 expanded_child.borrow_mut().parent_expanded_node =
                     Rc::downgrade(&this_expanded_node);
 
-                new_ptc
-                    .engine
-                    .node_registry
-                    .borrow_mut()
-                    .expanded_node_map
-                    .insert(id_chain, Rc::clone(&expanded_child));
-
-                new_ptc
-                    .engine
+                ptc.engine
                     .node_registry
                     .borrow_mut()
                     .revert_mark_for_unmount(&expanded_child.borrow().id_chain);

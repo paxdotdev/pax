@@ -51,6 +51,7 @@ impl InstanceNode for SlotInstance {
         let this_expanded_node = self
             .base()
             .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+
         let properties_wrapped = this_expanded_node.borrow().get_properties();
 
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this

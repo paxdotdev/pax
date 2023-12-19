@@ -2,7 +2,7 @@
 
 
 for i in 0..1 {
-	<Rectangle y=20% anchor_x=50% anchor_y=50%  x={(10 + 70*i)%} class=small
+	<Rectangle y=20% anchor_x=50% anchor_y=50%  x={(10 + 30*i)%} class=small
 	     fill={Fill::Solid(Color::hlc(10, 75.0, 150.0))}
 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 	/>
