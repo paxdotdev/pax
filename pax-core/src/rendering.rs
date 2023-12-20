@@ -36,7 +36,7 @@ pub struct InstantiationArgs {
 
     ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation
-    pub compute_properties_fn: Option<Box<dyn Fn(&Rc<ExpandedNode>, &ExpressionTable, &Globals)>>,
+    pub compute_properties_fn: Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>,
 }
 
 #[derive(Copy, Clone)]
@@ -215,20 +215,21 @@ pub trait InstanceNode {
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
     fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode>;
-    /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
-    /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
-    /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
-    ///
-    /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
-    /// (e.g. by keeping a local patch object as a cache of last known values.)
-    #[allow(unused_variables)]
-    fn handle_native_patches(&self, ptc: &mut PropertiesTreeContext, expanded_node: &ExpandedNode) {
-        //no-op default implementation
-    }
+
+    // /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
+    // /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
+    // /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
+    // ///
+    // /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
+    // /// (e.g. by keeping a local patch object as a cache of last known values.)
+    // #[allow(unused_variables)]
+    // fn handle_native_patches(&self, ptc: &mut PropertiesTreeContext, expanded_node: &ExpandedNode) {
+    //     //no-op default implementation
+    // }
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &UpdateContext,
         messages: &mut Vec<NativeMessage>,
     );
@@ -254,11 +255,10 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn render(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
-        rtc: &mut RenderTreeContext,
+        expanded_node: &ExpandedNode,
+        rtc: &RenderTreeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
-        //no-op default implementation
     }
 
     /// Fourth and final lifecycle method during each render loop, occurs
@@ -303,7 +303,6 @@ pub trait InstanceNode {
 
 pub struct BaseInstance {
     handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    instance_id: u32,
     instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
     instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     instance_children: InstanceNodePtrList,
@@ -327,9 +326,7 @@ pub struct InstanceFlags {
 
 impl BaseInstance {
     pub fn new(args: InstantiationArgs, flags: InstanceFlags) -> Self {
-        let instance_id = 0;
         BaseInstance {
-            instance_id,
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties_factory: args
                 .prototypical_common_properties_factory,
@@ -337,14 +334,6 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
         }
-    }
-
-    /// Returns unique integer ID of this RenderNode instance.  Note that
-    /// individual rendered elements may share an instance_id, for example
-    /// inside of `Repeat`.  See also `ExpandedNode` and `RenderTreeContext::get_id_chain`, which enables globally
-    /// unique node addressing in the context of an in-progress render tree traversal.
-    pub fn get_instance_id(&self) -> u32 {
-        self.instance_id
     }
 
     /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
@@ -364,7 +353,6 @@ impl BaseInstance {
         ptc: &mut PropertiesTreeContext,
     ) -> Rc<ExpandedNode> {
         ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
             template,
             ptc,
             &(self.instance_prototypical_properties_factory)(),

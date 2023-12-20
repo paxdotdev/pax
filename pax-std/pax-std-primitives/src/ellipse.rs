@@ -43,17 +43,12 @@ impl InstanceNode for EllipseInstance {
 
     fn render(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
-        _rtc: &mut RenderTreeContext,
+        expanded_node: &ExpandedNode,
+        _rtc: &RenderTreeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
         let computed_props = expanded_node.computed_expanded_properties.borrow();
-        let tab = computed_props
-            .as_ref()
-            .unwrap()
-            .computed_tab
-            .as_ref()
-            .unwrap();
+        let tab = &computed_props.as_ref().unwrap().computed_tab;
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
@@ -105,7 +100,7 @@ impl InstanceNode for EllipseInstance {
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &pax_core::UpdateContext,
         messages: &mut Vec<pax_message::NativeMessage>,
     ) {

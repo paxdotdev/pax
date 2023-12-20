@@ -100,7 +100,7 @@ impl InstanceNode for SlotInstance {
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &crate::UpdateContext,
         _messages: &mut Vec<pax_message::NativeMessage>,
     ) {

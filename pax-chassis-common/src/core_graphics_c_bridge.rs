@@ -110,7 +110,7 @@ pub extern "C" fn pax_interrupt(
                             modifiers,
                         },
                     };
-                    topmost_node.dispatch_click(args_click);
+                    topmost_node.dispatch_click(args_click, &engine.globals);
                 }
                 _ => {}
             };
@@ -123,7 +123,7 @@ pub extern "C" fn pax_interrupt(
                         delta_x: args.delta_x,
                         delta_y: args.delta_y,
                     };
-                    topmost_node.dispatch_scroll(args_scroll);
+                    topmost_node.dispatch_scroll(args_scroll, &engine.globals);
                 }
                 _ => {}
             };

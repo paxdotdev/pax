@@ -1,163 +1,107 @@
-use crate::{ExpandedNode, ExpressionContext, PaxEngine};
+use crate::ExpandedNode;
 
-use pax_message::NativeMessage;
-use pax_runtime_api::{Interpolatable, Numeric, TransitionManager};
+use pax_runtime_api::Numeric;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
-/// Recursive workhorse method for expanding nodes.  Visits all instance nodes in tree, stitching
-/// together a tree of ExpandedNodes as it goes (mapping repeated instance nodes into multiple ExpandedNodes, for example.)
-/// All properties are computed within this pass, and computed properties are stored in individual ExpandedNodes.
-/// Rendering is then a function of these ExpandedNodes.
-///
-/// Note that `recurse_expand_nodes` could be called each frame to brute-force compute every property, but
-/// once we support "dirty DAG" for tactical property updates and no-properties-computation-at-rest, then
-/// this expansion should only need to happen once, at program init, or when a program definition is mutated,
-/// e.g. via hot-module reloading.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Uid(pub u32);
 
 /// Shared context for properties pass recursion
-pub struct PropertiesTreeContext {
+pub struct PropertiesTreeContext<'a> {
+    next_uid: &'a mut Uid,
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
-    pub current_containing_component: Weak<ExpandedNode>,
+    current_containing_component: Weak<ExpandedNode>,
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
     /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
     /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
     /// (Mismatches between the static compile-time stack and this runtime stack would result in an unrecoverable panic.)
-    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
-
-    /// Tracks the native ids (id_chain)s of clipping instances
-    /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
-    /// This list of `id_chain`s is passed along with `**Create`, in order to associate with the appropriate clipping elements on the native side
-    pub clipping_stack: Vec<Vec<u32>>,
-
-    /// Similar to clipping stack but for scroller containers
-    pub scroller_stack: Vec<Vec<u32>>,
-
-    pub shared: Rc<RefCell<PropertiesTreeShared>>,
+    runtime_properties_stack: Rc<RuntimePropertiesStackFrame>,
 }
 
-/// Whereas `ptc` is cloned for each new call site, giving each state of computation its own "sandbox" for e.g. writing
-/// current pointers without overwriting others, some state within `ptc` needs to be a shared singleton.  `PropertiesTreeShared` is intended
-/// to be wrapped in an `Rc<RefCell<>>`, so that it may be cloned along with `ptc` while preserving a reference to the same shared, mutable state.
-pub struct PropertiesTreeShared {
-    /// Queue for native "CRUD" message (e.g. TextCreate), populated during properties
-    /// computation and passed across native bridge each tick after canvas rendering
-    pub native_message_queue: VecDeque<NativeMessage>,
-}
-
-impl<'a> Clone for PropertiesTreeContext {
-    fn clone(&self) -> Self {
+impl<'a> PropertiesTreeContext<'a> {
+    pub fn new(next_uid: &'a mut Uid) -> Self {
         Self {
-            current_containing_component: self.current_containing_component.clone(),
-            runtime_properties_stack: self.runtime_properties_stack.clone(),
-            clipping_stack: self.clipping_stack.clone(),
-            scroller_stack: self.scroller_stack.clone(),
-            shared: Rc::clone(&self.shared),
-        }
-    }
-}
-
-impl PropertiesTreeContext {
-    pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        self.runtime_properties_stack.clone()
-    }
-
-    pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
-        self.clipping_stack.push(id_chain);
-    }
-
-    pub fn pop_clipping_stack_id(&mut self) {
-        self.clipping_stack.pop();
-    }
-
-    pub fn get_current_clipping_ids(&self) -> Vec<Vec<u32>> {
-        self.clipping_stack.clone()
-    }
-
-    pub fn push_scroller_stack_id(&mut self, id_chain: Vec<u32>) {
-        self.scroller_stack.push(id_chain);
-    }
-
-    pub fn pop_scroller_stack_id(&mut self) {
-        self.scroller_stack.pop();
-    }
-
-    pub fn get_current_scroller_ids(&self) -> Vec<Vec<u32>> {
-        self.scroller_stack.clone()
-    }
-
-    pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
-        let mut indices: Vec<u32> = vec![];
-
-        self.runtime_properties_stack
-            .iter()
-            .for_each(|frame_wrapped| {
-                let frame_rc_cloned = frame_wrapped.clone();
-                let frame_refcell_borrowed = frame_rc_cloned.borrow();
-                let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
-                let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
-
-                if let Some(ri) = properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>() {
-                    indices.push(ri.i as u32)
-                }
-            });
-        indices
-    }
-
-    //return current state of native message queue, passing in a freshly initialized queue for next frame
-    pub fn take_native_message_queue(&mut self) -> VecDeque<NativeMessage> {
-        std::mem::take(&mut self.shared.borrow_mut().native_message_queue)
-    }
-
-    pub fn enqueue_native_message(&mut self, msg: NativeMessage) {
-        self.shared.borrow_mut().native_message_queue.push_back(msg);
-    }
-
-    /// Return a pointer to the top StackFrame on the stack,
-    /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        let len = *&self.runtime_properties_stack.len();
-        if len > 0 {
-            Some(Rc::clone(&self.runtime_properties_stack[len - 1]))
-        } else {
-            None
+            next_uid,
+            current_containing_component: Weak::new(),
+            runtime_properties_stack: RuntimePropertiesStackFrame::new(
+                Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>
+            ),
         }
     }
 
-    /// Remove the top element from the stack.  Currently does
-    /// nothing with the value of the popped StackFrame.
-    pub fn pop_stack_frame(&mut self) {
-        self.runtime_properties_stack.pop(); //NOTE: handle value here if needed
+    pub fn with_scoped_properties(
+        &mut self,
+        properties: Rc<RefCell<dyn Any>>,
+        scoped_fn: impl FnOnce(&mut Self),
+    ) {
+        self.runtime_properties_stack = self.runtime_properties_stack.push(properties);
+        scoped_fn(self);
+        self.runtime_properties_stack = self.runtime_properties_stack.pop().unwrap();
     }
 
-    /// Add a new frame to the stack, passing a list of slot_children
-    /// that may be handled by `Slot` and a scope that includes the `dyn Any` properties of the associated Component
-    pub fn push_stack_frame(&mut self, properties: Rc<RefCell<dyn Any>>) {
-        let parent = self.peek_stack_frame().as_ref().map(Rc::clone);
-
-        self.runtime_properties_stack.push(Rc::new(RefCell::new(
-            RuntimePropertiesStackFrame::new(properties, parent),
-        )));
+    pub fn within_component(
+        &mut self,
+        containing_component: &Rc<ExpandedNode>,
+        scoped_fn: impl FnOnce(&mut Self),
+    ) {
+        let old_containing = std::mem::replace(
+            &mut self.current_containing_component,
+            Rc::downgrade(containing_component),
+        );
+        self.with_scoped_properties(Rc::clone(&containing_component.properties), scoped_fn);
+        self.current_containing_component = old_containing;
     }
 
-    /// Get an `id_chain` for this element, a `Vec<u64>` used collectively as a single unique ID across native bridges.
-    ///
-    /// The need for this emerges from the fact that `Repeat`ed elements share a single underlying
-    /// `instance`, where that instantiation happens once at init-time — specifically, it does not happen
-    /// when `Repeat`ed elements are added and removed to the render tree.  10 apparent rendered elements may share the same `instance_id` -- which doesn't work as a unique key for native renderers
-    /// that are expected to render and update 10 distinct elements.
-    ///
-    /// Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
-    /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
-    /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
-    pub fn get_id_chain(&self, instance_id: u32) -> Vec<u32> {
-        let mut indices = (&self.get_list_of_repeat_indicies_from_stack()).clone();
-        indices.insert(0, instance_id);
-        indices
+    pub fn get_stack(&self) -> Rc<RuntimePropertiesStackFrame> {
+        Rc::clone(&self.runtime_properties_stack)
     }
+
+    pub fn gen_uid(&mut self) -> Uid {
+        let id = *self.next_uid;
+        self.next_uid.0 += 1;
+        id
+    }
+
+    pub fn get_current_containing_component(&self) -> Weak<ExpandedNode> {
+        Weak::clone(&self.current_containing_component)
+    }
+
+    // pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
+    //     let mut indices: Vec<u32> = vec![];
+
+    //     self.runtime_properties_stack
+    //         .iter()
+    //         .for_each(|frame_wrapped| {
+    //             let frame_rc_cloned = frame_wrapped.clone();
+    //             let frame_refcell_borrowed = frame_rc_cloned.borrow();
+    //             let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
+    //             let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
+
+    //             if let Some(ri) = properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>() {
+    //                 indices.push(ri.i as u32)
+    //             }
+    //         });
+    //     indices
+    // }
+
+    // Get an `id_chain` for this element, a `Vec<u64>` used collectively as a single unique ID across native bridges.
+    //
+    // The need for this emerges from the fact that `Repeat`ed elements share a single underlying
+    // `instance`, where that instantiation happens once at init-time — specifically, it does not happen
+    // when `Repeat`ed elements are added and removed to the render tree.  10 apparent rendered elements may share the same `instance_id` -- which doesn't work as a unique key for native renderers
+    // that are expected to render and update 10 distinct elements.
+    //
+    // Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
+    // then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
+    // gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
+    // pub fn get_id_chain(&self, instance_id: u32) -> Vec<u32> {
+    //     let mut indices = (&self.get_list_of_repeat_indicies_from_stack()).clone();
+    //     indices.insert(0, instance_id);
+    //     indices
+    // }
 
     // pub fn compute_vtable_value(
     //     &self,
@@ -193,40 +137,37 @@ impl PropertiesTreeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 pub struct RuntimePropertiesStackFrame {
     properties: Rc<RefCell<dyn Any>>,
-    parent: Option<Rc<RefCell<RuntimePropertiesStackFrame>>>,
+    parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
 impl RuntimePropertiesStackFrame {
-    pub fn new(
-        properties: Rc<RefCell<dyn Any>>,
-        parent: Option<Rc<RefCell<RuntimePropertiesStackFrame>>>,
-    ) -> Self {
-        RuntimePropertiesStackFrame { properties, parent }
+    pub fn new(properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+        Rc::new(Self {
+            properties,
+            parent: None,
+        })
+    }
+
+    pub fn push(self: &Rc<Self>, properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+        Rc::new(RuntimePropertiesStackFrame {
+            parent: Some(Rc::clone(&self)),
+            properties,
+        })
+    }
+
+    pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
+        self.parent.clone()
     }
 
     /// Traverses stack recursively `n` times to retrieve ancestor;
     /// useful for runtime lookups for identifiers, where `n` is the statically known offset determined by the Pax compiler
     /// when resolving a symbol
-    pub fn peek_nth(&self, n: isize) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        if n == 0 {
-            //0th ancestor is self; handle by caller since caller owns the Rc containing `self`
-            None
-        } else {
-            self.recurse_peek_nth(n, 0)
+    pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<dyn Any>>> {
+        let mut curr = Rc::clone(self);
+        for _ in 0..n {
+            curr = Rc::clone(curr.parent.as_ref()?);
         }
-    }
-
-    fn recurse_peek_nth(
-        &self,
-        n: isize,
-        depth: isize,
-    ) -> Option<Rc<RefCell<RuntimePropertiesStackFrame>>> {
-        let new_depth = depth + 1;
-        let parent = self.parent.as_ref().unwrap();
-        if new_depth == n {
-            return Some(parent.clone());
-        }
-        (*parent.clone()).borrow().recurse_peek_nth(n, new_depth)
+        Some(Rc::clone(&curr.properties))
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {

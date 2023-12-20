@@ -12,7 +12,7 @@ use crate::{ExpandedNode, ExpressionTable};
 /// ```
 pub fn handle_vtable_update<V: Default + Clone + 'static>(
     table: &ExpressionTable,
-    node: &Rc<ExpandedNode>,
+    node: &ExpandedNode,
     property: &mut Box<dyn PropertyInstance<V>>,
 ) {
     if let Some(vtable_id) = property._get_vtable_id() {
@@ -35,7 +35,7 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
 /// ```
 pub fn handle_vtable_update_optional<V: Default + Clone + 'static>(
     table: &ExpressionTable,
-    node: &Rc<ExpandedNode>,
+    node: &ExpandedNode,
     optional_property: Option<&mut Box<dyn PropertyInstance<V>>>,
 ) {
     if let Some(property) = optional_property {
