@@ -117,20 +117,22 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
         if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
-            let pax_workspace_root = if let Ok(specified_override) = std::env::var("PAX_WORKSPACE_ROOT") {
-                PathBuf::from(&specified_override)
-            } else {
-                pax_dir
-                    .parent()
-                    .unwrap()
-                    .parent()
-                    .unwrap()
-                    .parent()
-                    .unwrap()
-                    .parent()
-                    .unwrap().into()
-            };
-             
+            let pax_workspace_root =
+                if let Ok(specified_override) = std::env::var("PAX_WORKSPACE_ROOT") {
+                    PathBuf::from(&specified_override)
+                } else {
+                    pax_dir
+                        .parent()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .into()
+                };
+
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
 

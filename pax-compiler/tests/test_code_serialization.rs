@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, Read};
 
 use pax_compiler::code_serialization::press_code_serialization_template;

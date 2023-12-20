@@ -18,12 +18,10 @@ use std::rc::{Rc, Weak};
 /// e.g. via hot-module reloading.
 
 /// Shared context for properties pass recursion
-pub struct PropertiesTreeContext<'a> {
-    pub engine: &'a PaxEngine,
-
+pub struct PropertiesTreeContext {
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
-    pub current_containing_component: Weak<RefCell<ExpandedNode>>,
+    pub current_containing_component: Weak<ExpandedNode>,
     /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
     /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
     /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
@@ -50,10 +48,9 @@ pub struct PropertiesTreeShared {
     pub native_message_queue: VecDeque<NativeMessage>,
 }
 
-impl<'a> Clone for PropertiesTreeContext<'a> {
+impl<'a> Clone for PropertiesTreeContext {
     fn clone(&self) -> Self {
         Self {
-            engine: &self.engine,
             current_containing_component: self.current_containing_component.clone(),
             runtime_properties_stack: self.runtime_properties_stack.clone(),
             clipping_stack: self.clipping_stack.clone(),
@@ -63,7 +60,7 @@ impl<'a> Clone for PropertiesTreeContext<'a> {
     }
 }
 
-impl<'a> PropertiesTreeContext<'a> {
+impl PropertiesTreeContext {
     pub fn clone_runtime_stack(&self) -> Vec<Rc<RefCell<RuntimePropertiesStackFrame>>> {
         self.runtime_properties_stack.clone()
     }
@@ -108,46 +105,6 @@ impl<'a> PropertiesTreeContext<'a> {
                 }
             });
         indices
-    }
-
-    pub fn compute_eased_value<T: Clone + Interpolatable>(
-        &self,
-        transition_manager: Option<&mut TransitionManager<T>>,
-    ) -> Option<T> {
-        if let Some(tm) = transition_manager {
-            if tm.queue.len() > 0 {
-                let current_transition = tm.queue.get_mut(0).unwrap();
-                if let None = current_transition.global_frame_started {
-                    current_transition.global_frame_started = Some(self.engine.frames_elapsed);
-                }
-                let progress = (1.0 + self.engine.frames_elapsed as f64
-                    - current_transition.global_frame_started.unwrap() as f64)
-                    / (current_transition.duration_frames as f64);
-                return if progress >= 1.0 {
-                    //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
-                    let new_value = current_transition.curve.interpolate(
-                        &current_transition.starting_value,
-                        &current_transition.ending_value,
-                        progress,
-                    );
-                    tm.value = Some(new_value.clone());
-
-                    tm.queue.pop_front();
-                    self.compute_eased_value(Some(tm))
-                } else {
-                    let new_value = current_transition.curve.interpolate(
-                        &current_transition.starting_value,
-                        &current_transition.ending_value,
-                        progress,
-                    );
-                    tm.value = Some(new_value.clone());
-                    tm.value.clone()
-                };
-            } else {
-                return tm.value.clone();
-            }
-        }
-        None
     }
 
     //return current state of native message queue, passing in a freshly initialized queue for next frame
@@ -202,29 +159,29 @@ impl<'a> PropertiesTreeContext<'a> {
         indices
     }
 
-    pub fn compute_vtable_value(
-        &self,
-        node: &Rc<RefCell<ExpandedNode>>,
-        vtable_id: usize,
-    ) -> Box<dyn Any> {
-        if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
-            let expanded_node = node.borrow();
-            let stack_frame = Rc::clone(
-                expanded_node
-                    .runtime_properties_stack
-                    .get(expanded_node.runtime_properties_stack.len() - 1)
-                    .unwrap(),
-            );
+    // pub fn compute_vtable_value(
+    //     &self,
+    //     node: &Rc<ExpandedNode>,
+    //     vtable_id: usize,
+    // ) -> Box<dyn Any> {
+    //     if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
+    //         let expanded_node = node.borrow();
+    //         let stack_frame = Rc::clone(
+    //             expanded_node
+    //                 .runtime_properties_stack
+    //                 .get(expanded_node.runtime_properties_stack.len() - 1)
+    //                 .unwrap(),
+    //         );
 
-            let ec = ExpressionContext {
-                engine: self.engine,
-                stack_frame,
-            };
-            (**evaluator)(ec)
-        } else {
-            panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly initialized
-        }
-    }
+    //         let ec = ExpressionContext {
+    //             engine: self.engine,
+    //             stack_frame,
+    //         };
+    //         (**evaluator)(ec)
+    //     } else {
+    //         panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly initialized
+    //     }
+    // }
 }
 
 /// Data structure for a single frame of our runtime stack, including

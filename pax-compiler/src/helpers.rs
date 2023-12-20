@@ -288,7 +288,7 @@ pub struct HostCrateInfo {
     pub import_prefix: String,
 }
 
-pub const IMPORTS_BUILTINS: [&str; 31] = [
+pub const IMPORTS_BUILTINS: [&str; 30] = [
     "std::any::Any",
     "std::cell::RefCell",
     "std::collections::HashMap",
@@ -312,7 +312,6 @@ pub const IMPORTS_BUILTINS: [&str; 31] = [
     "pax_core::ExpressionContext",
     "pax_core::PaxEngine",
     "pax_core::InstanceNode",
-    "pax_core::NodeRegistry",
     "pax_core::HandlerRegistry",
     "pax_core::InstantiationArgs",
     "pax_core::ConditionalInstance",
@@ -325,7 +324,7 @@ pub const IMPORTS_BUILTINS: [&str; 31] = [
 impl<'a> HostCrateInfo {
     pub fn fully_qualify_path(&self, path: &str) -> String {
         #[allow(non_snake_case)]
-            let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);
+        let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);
         let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
         if !imports_builtins_set.contains(path) {
             IMPORT_PREFIX.clone() + &path.replace("crate::", "")

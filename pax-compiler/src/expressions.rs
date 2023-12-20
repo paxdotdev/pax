@@ -184,14 +184,14 @@ fn recurse_compile_literal_block<'a>(
                     let type_def = (current_property_definitions
                         .iter()
                         .find(|property_def| property_def.name == token.token_value))
-                        .ok_or::<eyre::Report>(PaxTemplateError::new(
-                            Some(format!(
-                                "Property `{}` not found on `{}`",
-                                &token.token_value, type_id
-                            )),
-                            token.clone(),
-                        ))?
-                        .get_type_definition(ctx.type_table);
+                    .ok_or::<eyre::Report>(PaxTemplateError::new(
+                        Some(format!(
+                            "Property `{}` not found on `{}`",
+                            &token.token_value, type_id
+                        )),
+                        token.clone(),
+                    ))?
+                    .get_type_definition(ctx.type_table);
                     recurse_compile_literal_block(
                         &mut block.elements.iter_mut(),
                         ctx,
@@ -266,9 +266,7 @@ fn recurse_compile_literal_block<'a>(
                     unreachable!()
                 }
             }
-
-            Ok::<(), eyre::Report>(())
-        } else {Ok::<(), eyre::Report>(())};
+        };
         Ok::<(), eyre::Report>(())
     })
 }

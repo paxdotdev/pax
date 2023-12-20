@@ -1,6 +1,8 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
+use pax_core::ExpandedNode;
+use pax_core::ExpressionTable;
 use pax_runtime_api::ArgsCheckboxChange;
 use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
@@ -12,7 +14,7 @@ use web_sys::{window, HtmlCanvasElement};
 
 use piet_web::WebRenderContext;
 
-use pax_core::{NodeRegistry, PaxEngine, Renderer};
+use pax_core::{PaxEngine, Renderer};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
@@ -71,17 +73,16 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let node_registry: Rc<RefCell<NodeRegistry>> = Rc::new(RefCell::new(NodeRegistry::new()));
-        let main_component_instance =
-            pax_cartridge::instantiate_main_component(Rc::clone(&node_registry));
-        let expression_table = pax_cartridge::instantiate_expression_table();
+        let main_component_instance = pax_cartridge::instantiate_main_component();
+        let expression_table = ExpressionTable {
+            table: pax_cartridge::instantiate_expression_table(),
+        };
 
         let engine = pax_core::PaxEngine::new(
             main_component_instance,
             expression_table,
             pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
             (width, height),
-            node_registry,
         );
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
@@ -146,11 +147,8 @@ impl PaxChassisWeb {
             },
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let engine_borrowed = (*self.engine).borrow();
-                let node_registry_borrowed = engine_borrowed.node_registry.borrow();
-                let node = node_registry_borrowed
-                    .get_expanded_node(&args.id_chain)
-                    .expect("couldn't find node");
-                node.borrow().dispatch_checkbox_change(ArgsCheckboxChange {
+                let node: ExpandedNode = todo!(); //need a method to find a node from args.id_chain
+                node.dispatch_checkbox_change(ArgsCheckboxChange {
                     checked: args.state,
                 });
             }
@@ -172,7 +170,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_click(args_click);
+                    topmost_node.dispatch_click(args_click);
                 }
             }
             NativeInterrupt::Scroll(args) => {
@@ -182,7 +180,7 @@ impl PaxChassisWeb {
                         delta_x: args.delta_x,
                         delta_y: args.delta_y,
                     };
-                    topmost_node.borrow().dispatch_scroll(args_scroll);
+                    topmost_node.dispatch_scroll(args_scroll);
                 }
             }
             NativeInterrupt::Clap(args) => {
@@ -194,7 +192,7 @@ impl PaxChassisWeb {
                         x: args.x,
                         y: args.y,
                     };
-                    topmost_node.borrow().dispatch_clap(args_clap);
+                    topmost_node.dispatch_clap(args_clap);
                 }
             }
             NativeInterrupt::TouchStart(args) => {
@@ -205,7 +203,7 @@ impl PaxChassisWeb {
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_start = ArgsTouchStart { touches };
-                    topmost_node.borrow().dispatch_touch_start(args_touch_start);
+                    topmost_node.dispatch_touch_start(args_touch_start);
                 }
             }
             NativeInterrupt::TouchMove(args) => {
@@ -216,7 +214,7 @@ impl PaxChassisWeb {
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_move = ArgsTouchMove { touches };
-                    topmost_node.borrow().dispatch_touch_move(args_touch_move);
+                    topmost_node.dispatch_touch_move(args_touch_move);
                 }
             }
             NativeInterrupt::TouchEnd(args) => {
@@ -227,7 +225,7 @@ impl PaxChassisWeb {
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_end = ArgsTouchEnd { touches };
-                    topmost_node.borrow().dispatch_touch_end(args_touch_end);
+                    topmost_node.dispatch_touch_end(args_touch_end);
                 }
             }
             NativeInterrupt::KeyDown(args) => {
@@ -245,7 +243,7 @@ impl PaxChassisWeb {
                             is_repeat: args.is_repeat,
                         },
                     };
-                    topmost_node.borrow().dispatch_key_down(args_key_down);
+                    topmost_node.dispatch_key_down(args_key_down);
                 }
             }
             NativeInterrupt::KeyUp(args) => {
@@ -263,7 +261,7 @@ impl PaxChassisWeb {
                             is_repeat: args.is_repeat,
                         },
                     };
-                    topmost_node.borrow().dispatch_key_up(args_key_up);
+                    topmost_node.dispatch_key_up(args_key_up);
                 }
             }
             NativeInterrupt::KeyPress(args) => {
@@ -281,7 +279,7 @@ impl PaxChassisWeb {
                             is_repeat: args.is_repeat,
                         },
                     };
-                    topmost_node.borrow().dispatch_key_press(args_key_press);
+                    topmost_node.dispatch_key_press(args_key_press);
                 }
             }
             NativeInterrupt::DoubleClick(args) => {
@@ -301,9 +299,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node
-                        .borrow()
-                        .dispatch_double_click(args_double_click);
+                    topmost_node.dispatch_double_click(args_double_click);
                 }
             }
             NativeInterrupt::MouseMove(args) => {
@@ -323,7 +319,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_mouse_move(args_mouse_move);
+                    topmost_node.dispatch_mouse_move(args_mouse_move);
                 }
             }
             NativeInterrupt::Wheel(args) => {
@@ -343,7 +339,7 @@ impl PaxChassisWeb {
                         delta_y: args.delta_y,
                         modifiers,
                     };
-                    topmost_node.borrow().dispatch_wheel(args_wheel);
+                    topmost_node.dispatch_wheel(args_wheel);
                 }
             }
             NativeInterrupt::MouseDown(args) => {
@@ -363,7 +359,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_mouse_down(args_mouse_down);
+                    topmost_node.dispatch_mouse_down(args_mouse_down);
                 }
             }
             NativeInterrupt::MouseUp(args) => {
@@ -383,7 +379,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_mouse_up(args_mouse_up);
+                    topmost_node.dispatch_mouse_up(args_mouse_up);
                 }
             }
             NativeInterrupt::MouseOver(args) => {
@@ -403,7 +399,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_mouse_over(args_mouse_over);
+                    topmost_node.dispatch_mouse_over(args_mouse_over);
                 }
             }
             NativeInterrupt::MouseOut(args) => {
@@ -423,7 +419,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.borrow().dispatch_mouse_out(args_mouse_out);
+                    topmost_node.dispatch_mouse_out(args_mouse_out);
                 }
             }
             NativeInterrupt::ContextMenu(args) => {
@@ -443,9 +439,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node
-                        .borrow()
-                        .dispatch_context_menu(args_context_menu);
+                    topmost_node.dispatch_context_menu(args_context_menu);
                 }
             }
         };

@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use pax_core::{ComponentInstance, ExpressionContext, InstantiationArgs, NodeRegistry};
+use pax_core::{ComponentInstance, ExpressionContext, InstantiationArgs};
 use piet_common::RenderContext;
 use std::rc::Rc;
 
@@ -14,14 +14,11 @@ pub fn instantiate_expression_table(
 }
 
 pub fn instantiate_component_stacker<R: 'static + RenderContext>(
-    _node_registry: Rc<RefCell<NodeRegistry>>,
     _args: InstantiationArgs,
 ) -> Rc<RefCell<ComponentInstance>> {
     unreachable!("{}", PLACEHOLDER_ERROR)
 }
 
-pub fn instantiate_main_component(
-    _node_registry: Rc<RefCell<NodeRegistry>>,
-) -> Rc<ComponentInstance> {
+pub fn instantiate_main_component() -> Rc<ComponentInstance> {
     unreachable!("{}", PLACEHOLDER_ERROR)
 }

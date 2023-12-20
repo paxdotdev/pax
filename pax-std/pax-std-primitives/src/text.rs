@@ -1,11 +1,11 @@
+use pax_core::declarative_macros::handle_vtable_update;
 use pax_core::{
-    handle_vtable_update, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, PropertiesTreeContext, RenderTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs,
+    PropertiesTreeContext, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{Layer, RenderContext};
 use pax_std::primitives::Text;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -37,22 +37,27 @@ impl InstanceNode for TextInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
+    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
         let this_expanded_node = self
             .base()
             .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-        let properties_wrapped = this_expanded_node.borrow().get_properties();
-
-        with_properties_unwrapped!(&properties_wrapped, Text, |properties: &mut Text| {
-            handle_vtable_update!(
-                ptc,
-                this_expanded_node,
-                properties.text,
-                pax_runtime_api::StringBox
-            );
-        });
 
         this_expanded_node
+    }
+
+    fn update(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &pax_core::UpdateContext,
+        messages: &mut Vec<pax_message::NativeMessage>,
+    ) {
+        expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+            handle_vtable_update(
+                context.expression_table,
+                expanded_node,
+                &mut properties.text,
+            );
+        });
     }
 
     fn handle_native_patches(&self, ptc: &mut PropertiesTreeContext, expanded_node: &ExpandedNode) {
@@ -67,8 +72,7 @@ impl InstanceNode for TextInstance {
         let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let properties = expanded_node.get_properties();
-        with_properties_unwrapped!(&properties, Text, |properties: &mut Text| {
+        expanded_node.with_properties_unwrapped(|properties: &mut Text| {
             let val = properties.text.get().string.clone();
             let is_new_value = match &last_patch.content {
                 Some(cached_value) => !val.eq(cached_value),
@@ -104,7 +108,15 @@ impl InstanceNode for TextInstance {
                 has_any_updates = true;
             }
 
-            let val = expanded_node.computed_tab.as_ref().unwrap().bounds.0;
+            let computed_props = expanded_node.computed_expanded_properties.borrow();
+            let tab = computed_props
+                .as_ref()
+                .unwrap()
+                .computed_tab
+                .as_ref()
+                .unwrap();
+
+            let val = tab.bounds.0;
             let is_new_value = match &last_patch.size_x {
                 Some(cached_value) => !val.eq(cached_value),
                 None => true,
@@ -115,7 +127,7 @@ impl InstanceNode for TextInstance {
                 has_any_updates = true;
             }
 
-            let val = expanded_node.computed_tab.as_ref().unwrap().bounds.1;
+            let val = tab.bounds.1;
             let is_new_value = match &last_patch.size_y {
                 Some(cached_value) => !val.eq(cached_value),
                 None => true,
@@ -126,22 +138,18 @@ impl InstanceNode for TextInstance {
                 has_any_updates = true;
             }
 
-            let latest_transform = expanded_node
-                .computed_tab
-                .as_ref()
-                .unwrap()
-                .transform
-                .as_coeffs();
             let is_new_transform = match &last_patch.transform {
-                Some(cached_transform) => latest_transform
+                Some(cached_transform) => tab
+                    .transform
+                    .as_coeffs()
                     .iter()
                     .enumerate()
                     .any(|(i, elem)| *elem != cached_transform[i]),
                 None => true,
             };
             if is_new_transform {
-                new_message.transform = Some(latest_transform.to_vec());
-                last_patch.transform = Some(latest_transform.to_vec());
+                new_message.transform = Some(tab.transform.as_coeffs().to_vec());
+                last_patch.transform = Some(tab.transform.as_coeffs().to_vec());
                 has_any_updates = true;
             }
 
@@ -151,13 +159,25 @@ impl InstanceNode for TextInstance {
         });
     }
 
-    fn handle_render(&self, _rtc: &mut RenderTreeContext, _rc: &mut Box<dyn RenderContext>) {
+    fn render(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        _rtc: &mut RenderTreeContext,
+        _rc: &mut Box<dyn RenderContext>,
+    ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
     fn handle_mount(&self, ptc: &mut PropertiesTreeContext, node: &ExpandedNode) {
         let id_chain = node.id_chain.clone();
-        let canvas_index = node.computed_canvas_index.expect("no canvas index");
+        let canvas_index = *node
+            .computed_expanded_properties
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .computed_canvas_index
+            .as_ref()
+            .expect("no canvas index");
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
         let clipping_ids = ptc.get_current_clipping_ids();
@@ -185,11 +205,9 @@ impl InstanceNode for TextInstance {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
-            Some(expanded_node) => {
-                with_properties_unwrapped!(&expanded_node.get_properties(), Text, |r: &mut Text| {
-                    f.debug_struct("Text").field("text", r.text.get()).finish()
-                })
-            }
+            Some(expanded_node) => expanded_node.with_properties_unwrapped(|r: &mut Text| {
+                f.debug_struct("Text").field("text", r.text.get()).finish()
+            }),
             None => f.debug_struct("Text").finish_non_exhaustive(),
         }
     }
