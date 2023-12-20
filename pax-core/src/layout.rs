@@ -107,10 +107,7 @@ use std::rc::Rc;
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
 /// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.
-pub fn compute_tab(
-    node: &Rc<ExpandedNode>,
-    container_tab: &TransformAndBounds,
-) -> TransformAndBounds {
+pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> TransformAndBounds {
     //get the size of this node (calc'd or otherwise) and use
     //it as the new accumulated bounds: both for this node's children (their parent container bounds)
     //and for this node itself (e.g. for specifying the size of a Rectangle node)

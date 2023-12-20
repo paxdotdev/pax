@@ -64,6 +64,8 @@ impl InstanceNode for GroupInstance {
         context: &pax_core::UpdateContext,
         messages: &mut Vec<pax_message::NativeMessage>,
     ) {
-        todo!()
+        for child in expanded_node.children() {
+            child.update(context, messages);
+        }
     }
 }

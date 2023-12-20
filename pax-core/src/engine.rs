@@ -429,6 +429,10 @@ impl ExpandedNode {
         todo!("patch into an ExpandedNode-friendly way to track this state");
     }
 
+    pub fn children(&self) -> Vec<Rc<ExpandedNode>> {
+        self.children.borrow().iter().cloned().collect()
+    }
+
     dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);
     dispatch_event_handler!(dispatch_clap, ArgsClap, clap_handlers);
     dispatch_event_handler!(dispatch_touch_start, ArgsTouchStart, touch_start_handlers);
@@ -637,10 +641,10 @@ impl PaxEngine {
         // 3. RENDER
         // Render as a function of the now-computed ExpandedNode tree.
         //
-        // let mut rtc = RenderTreeContext {};
-        // for node in self.z_index_node_cache {
-        //     node.1.render();
-        // }
+        let rtc = RenderTreeContext {};
+        for (_, node) in &self.z_index_node_cache {
+            node.render(&rtc, &mut rcs.values_mut().next().unwrap());
+        }
         //TODOSAMS redo rendering logic as a method call on the root expanded node as well
 
         native_messages

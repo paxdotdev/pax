@@ -1,4 +1,4 @@
-use std::{any::Any, rc::Rc};
+use std::any::Any;
 
 use pax_runtime_api::PropertyInstance;
 
@@ -21,8 +21,11 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
             property.set(*downcast_value);
         } else {
             //downcast failed
-            panic!()
+            panic!("property has an unexpected type")
         }
+    } else {
+        //TODOSAM continue from here
+        // panic!("couldn't find v_table id")
     }
 }
 
