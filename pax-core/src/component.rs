@@ -98,6 +98,10 @@ impl InstanceNode for ComponentInstance {
     ) {
         //Compute properties
         (*self.compute_properties_fn)(&expanded_node, &context.expression_table, context.globals);
+
+        for child in expanded_node.children() {
+            child.update(context, messages);
+        }
     }
 
     #[cfg(debug_assertions)]

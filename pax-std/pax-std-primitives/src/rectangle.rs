@@ -1,5 +1,9 @@
 use kurbo::{RoundedRect, Shape};
-use pax_core::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_core::{
+    compute_tab, declarative_macros::handle_vtable_update, BaseInstance,
+    ComputedExpandedProperties, UpdateContext,
+};
+use pax_message::NativeMessage;
 use piet::{LinearGradient, RadialGradient};
 
 use pax_core::{
@@ -122,9 +126,16 @@ impl InstanceNode for RectangleInstance {
     fn update(
         &self,
         expanded_node: &ExpandedNode,
-        context: &pax_core::UpdateContext,
-        messages: &mut Vec<pax_message::NativeMessage>,
+        context: &UpdateContext,
+        _messages: &mut Vec<NativeMessage>,
     ) {
+        *expanded_node.computed_expanded_properties.borrow_mut() =
+            Some(ComputedExpandedProperties {
+                computed_tab: compute_tab(expanded_node, &context.globals.viewport),
+                computed_z_index: 0,
+                computed_canvas_index: 0,
+            });
+
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             handle_vtable_update(
                 context.expression_table,
