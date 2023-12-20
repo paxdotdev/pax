@@ -482,69 +482,65 @@ fn recurse_generate_render_nodes_literal(
                 .map(|pd| {
                     let ril_literal_string = {
                         if let Some(merged_settings) = &tnd.settings {
-                            if let Some(matched_setting) = merged_settings
-                                .iter()
-                                .find(|avd| {
-                                    match avd {
-                                        SettingElement::Setting(key, _) => key.token_value == pd.name,
-                                        _ => false
-                                    }
+                            if let Some(matched_setting) =
+                                merged_settings.iter().find(|avd| match avd {
+                                    SettingElement::Setting(key, _) => key.token_value == pd.name,
+                                    _ => false,
                                 })
                             {
                                 if let SettingElement::Setting(key, value) = matched_setting {
-                                    let setting_source_map_id =
-                                        source_map.insert(key.clone());
+                                    let setting_source_map_id = source_map.insert(key.clone());
                                     let key_mapped_string = source_map.generate_mapped_string(
                                         key.token_value.clone(),
                                         setting_source_map_id,
                                     );
 
-                                match &value {
-                                    ValueDefinition::LiteralValue(lv) => {
-                                        let value_source_map_id = source_map.insert(lv.clone());
-                                        let value_mapped_string = source_map
-                                            .generate_mapped_string(
-                                                format!(
-                                                    "Box::new(PropertyLiteral::new({}))",
-                                                    lv.token_value
-                                                ),
-                                                value_source_map_id,
-                                            );
-                                        Some((key_mapped_string.clone(), value_mapped_string))
-                                    }
-                                    ValueDefinition::Expression(t, id)
-                                    | ValueDefinition::Identifier(t, id) => {
-                                        let value_source_map_id = source_map.insert(t.clone());
-                                        let value_mapped_string = source_map
-                                            .generate_mapped_string(
-                                                format!(
+                                    match &value {
+                                        ValueDefinition::LiteralValue(lv) => {
+                                            let value_source_map_id = source_map.insert(lv.clone());
+                                            let value_mapped_string = source_map
+                                                .generate_mapped_string(
+                                                    format!(
+                                                        "Box::new(PropertyLiteral::new({}))",
+                                                        lv.token_value
+                                                    ),
+                                                    value_source_map_id,
+                                                );
+                                            Some((key_mapped_string.clone(), value_mapped_string))
+                                        }
+                                        ValueDefinition::Expression(t, id)
+                                        | ValueDefinition::Identifier(t, id) => {
+                                            let value_source_map_id = source_map.insert(t.clone());
+                                            let value_mapped_string = source_map
+                                                .generate_mapped_string(
+                                                    format!(
                                     "Box::new(PropertyExpression::new({}))",
                                     id.expect("Tried to use expression but it wasn't compiled")),
-                                                value_source_map_id,
-                                            );
-                                        Some((key_mapped_string.clone(), value_mapped_string))
-                                    }
-                                    ValueDefinition::Block(block) => Some((
-                                        key_mapped_string.clone(),
-                                        MappedString::new(format!(
-                                            "Box::new(PropertyLiteral::new({}))",
-                                            recurse_literal_block(
-                                                block.clone(),
-                                                pd.get_type_definition(&rngc.type_table),
-                                                host_crate_info,
-                                                source_map
-                                            )
+                                                    value_source_map_id,
+                                                );
+                                            Some((key_mapped_string.clone(), value_mapped_string))
+                                        }
+                                        ValueDefinition::Block(block) => Some((
+                                            key_mapped_string.clone(),
+                                            MappedString::new(format!(
+                                                "Box::new(PropertyLiteral::new({}))",
+                                                recurse_literal_block(
+                                                    block.clone(),
+                                                    pd.get_type_definition(&rngc.type_table),
+                                                    host_crate_info,
+                                                    source_map
+                                                )
+                                            )),
                                         )),
-                                    )),
-                                    _ => {
-                                        panic!("Incorrect value bound to inline setting")
+                                        _ => {
+                                            panic!("Incorrect value bound to inline setting")
+                                        }
                                     }
+                                } else {
+                                    None
                                 }
                             } else {
                                 None
-                            } }
-                                else {
-                            None
                             }
                         } else {
                             //no inline attributes at all; everything will be default
@@ -584,66 +580,70 @@ fn recurse_generate_render_nodes_literal(
             .iter()
             .map(|identifier_and_type| {
                 if let Some(inline_settings) = &tnd.settings {
-                    if let Some(matched_setting) = inline_settings
-                        .iter()
-                        .find(|e|
-                             {
-                                if let SettingElement::Setting(key, _) = e {
-                                    key.token_value == *identifier_and_type.0
-                                } else {
-                                    false
-                                }
-                            }
-                            )
-                    {
+                    if let Some(matched_setting) = inline_settings.iter().find(|e| {
+                        if let SettingElement::Setting(key, _) = e {
+                            key.token_value == *identifier_and_type.0
+                        } else {
+                            false
+                        }
+                    }) {
                         if let SettingElement::Setting(key, value) = matched_setting {
-                        let key_source_map_id = source_map.insert(key.clone());
-                        let key_mapped_string = source_map.generate_mapped_string(key.token_value.clone(), key_source_map_id);
+                            let key_source_map_id = source_map.insert(key.clone());
+                            let key_mapped_string = source_map
+                                .generate_mapped_string(key.token_value.clone(), key_source_map_id);
 
-                        (
-                            key_mapped_string,
-                            match &value {
-                                ValueDefinition::LiteralValue(lv) => {
-                                    let value_source_map_id = source_map.insert(lv.clone());
-                                    let mut literal_value = format!(
-                                        "Box::new(PropertyLiteral::new(Into::<{}>::into({})))",
-                                        identifier_and_type.1, lv.token_value,
-                                    );
-                                    if is_optional(&identifier_and_type.0) {
-                                        literal_value = format!("Some({})", literal_value);
+                            (
+                                key_mapped_string,
+                                match &value {
+                                    ValueDefinition::LiteralValue(lv) => {
+                                        let value_source_map_id = source_map.insert(lv.clone());
+                                        let mut literal_value = format!(
+                                            "Box::new(PropertyLiteral::new(Into::<{}>::into({})))",
+                                            identifier_and_type.1, lv.token_value,
+                                        );
+                                        if is_optional(&identifier_and_type.0) {
+                                            literal_value = format!("Some({})", literal_value);
+                                        }
+                                        let value_mapped_string = source_map
+                                            .generate_mapped_string(
+                                                literal_value,
+                                                value_source_map_id,
+                                            );
+
+                                        value_mapped_string
                                     }
-                                    let value_mapped_string = source_map
-                                        .generate_mapped_string(literal_value, value_source_map_id);
-
-                                    value_mapped_string
-                                }
-                                ValueDefinition::Expression(token, id)
-                                | ValueDefinition::Identifier(token, id) => {
-                                    let value_source_map_id = source_map.insert(token.clone());
-                                    let mut literal_value = format!(
+                                    ValueDefinition::Expression(token, id)
+                                    | ValueDefinition::Identifier(token, id) => {
+                                        let value_source_map_id = source_map.insert(token.clone());
+                                        let mut literal_value =
+                                            format!(
                                         "Box::new(PropertyExpression::new({}))",
                                         id.expect("Tried to use expression but it wasn't compiled")
                                     );
-                                    if is_optional(&identifier_and_type.0) {
-                                        literal_value = format!("Some({})", literal_value);
+                                        if is_optional(&identifier_and_type.0) {
+                                            literal_value = format!("Some({})", literal_value);
+                                        }
+                                        let value_mapped_string = source_map
+                                            .generate_mapped_string(
+                                                literal_value,
+                                                value_source_map_id,
+                                            );
+                                        value_mapped_string
                                     }
-                                    let value_mapped_string = source_map
-                                        .generate_mapped_string(literal_value, value_source_map_id);
-                                    value_mapped_string
-                                }
-                                _ => {
-                                    panic!("Incorrect value bound to attribute")
-                                }
-                            },
-                        )
+                                    _ => {
+                                        panic!("Incorrect value bound to attribute")
+                                    }
+                                },
+                            )
+                        } else {
+                            (
+                                MappedString::new(identifier_and_type.0.to_string()),
+                                MappedString::new(default_common_property_value(
+                                    &identifier_and_type.0,
+                                )),
+                            )
+                        }
                     } else {
-                        (
-                            MappedString::new(identifier_and_type.0.to_string()),
-                            MappedString::new(default_common_property_value(
-                                &identifier_and_type.0,
-                            )),
-                        )
-                    } } else {
                         (
                             MappedString::new(identifier_and_type.0.to_string()),
                             MappedString::new(default_common_property_value(
