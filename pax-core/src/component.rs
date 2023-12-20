@@ -18,7 +18,7 @@ use pax_runtime_api::{Layer, Timeline};
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn Fn(&Rc<ExpandedNode>, &ExpressionTable, &Globals)>,
+    pub compute_properties_fn: Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>,
     base: BaseInstance,
 }
 
@@ -50,6 +50,15 @@ impl InstanceNode for ComponentInstance {
             .base()
             .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
+        ptc.within_component(&this_expanded_node, |ptc| {
+            for child in &self.template {
+                let child_expanded_node = Rc::clone(child).expand(ptc);
+                this_expanded_node.append_child(child_expanded_node);
+            }
+        });
+
+        this_expanded_node
+
         // let expanded_and_flattened_slot_children = {
         //     let slot_children = self.base().get_children();
         //     //Expand children in the context of the current containing component
@@ -79,30 +88,11 @@ impl InstanceNode for ComponentInstance {
         //             expanded_and_flattened_slot_children,
         //         ));
         // }
-
-        let last_containing_component = std::mem::replace(
-            &mut ptc.current_containing_component,
-            Rc::downgrade(&this_expanded_node),
-        );
-
-        // TODO could this be replaced by looking at the current_containing_components properties as a default?
-        // (still need some way of keeping track of for loop values through)
-        ptc.push_stack_frame(Rc::clone(&this_expanded_node.properties));
-
-        for child in &self.template {
-            let mut new_ptc = ptc.clone();
-            let child_expanded_node = Rc::clone(child).expand(&mut new_ptc);
-            this_expanded_node.append_child(child_expanded_node);
-        }
-
-        ptc.pop_stack_frame();
-        ptc.current_containing_component = last_containing_component;
-        this_expanded_node
     }
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &UpdateContext,
         messages: &mut Vec<NativeMessage>,
     ) {

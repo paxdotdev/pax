@@ -43,12 +43,8 @@ impl InstanceNode for ConditionalInstance {
         let this_expanded_node = self
             .base()
             .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        let id_chain = ptc.get_id_chain(self.base().get_instance_id());
-
         for child in self.base().get_children() {
-            let mut new_ptc = ptc.clone();
-            let expanded_child = Rc::clone(child).expand(&mut new_ptc);
+            let expanded_child = Rc::clone(child).expand(ptc);
             this_expanded_node.append_child(expanded_child)
         }
         this_expanded_node
@@ -56,7 +52,7 @@ impl InstanceNode for ConditionalInstance {
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &UpdateContext,
         messages: &mut Vec<NativeMessage>,
     ) {

@@ -92,5 +92,5 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
 pub struct ExpressionContext {
-    pub stack_frame: Rc<RefCell<RuntimePropertiesStackFrame>>,
+    pub stack_frame: Rc<RuntimePropertiesStackFrame>,
 }

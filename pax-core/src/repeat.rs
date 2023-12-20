@@ -94,14 +94,13 @@ impl InstanceNode for RepeatInstance {
                 i,
                 elem: Rc::clone(elem),
             }));
-            ptc.push_stack_frame(new_repeat_item);
 
-            for child in self.base().get_children().iter() {
-                let expanded_child = Rc::clone(&child).expand(ptc);
-                this_expanded_node.append_child(expanded_child);
-            }
-
-            ptc.pop_stack_frame()
+            ptc.with_scoped_properties(new_repeat_item, |ptc| {
+                for child in self.base().get_children().iter() {
+                    let expanded_child = Rc::clone(&child).expand(ptc);
+                    this_expanded_node.append_child(expanded_child);
+                }
+            });
         }
 
         this_expanded_node
@@ -122,7 +121,7 @@ impl InstanceNode for RepeatInstance {
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &crate::UpdateContext,
         messages: &mut Vec<pax_message::NativeMessage>,
     ) {

@@ -35,8 +35,7 @@ impl InstanceNode for GroupInstance {
             .base()
             .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
         for child in self.base().get_children() {
-            let mut new_ptc = ptc.clone();
-            let child_expanded_node = Rc::clone(&child).expand(&mut new_ptc);
+            let child_expanded_node = Rc::clone(&child).expand(ptc);
             this_expanded_node.append_child(child_expanded_node);
         }
         this_expanded_node
@@ -61,7 +60,7 @@ impl InstanceNode for GroupInstance {
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &pax_core::UpdateContext,
         messages: &mut Vec<pax_message::NativeMessage>,
     ) {

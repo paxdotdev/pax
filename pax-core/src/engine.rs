@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, BinaryHeap, HashMap};
 use std::fmt;
 use std::rc::{Rc, Weak};
 
@@ -18,8 +18,7 @@ use pax_runtime_api::{
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
     Affine, ComponentInstance, ExpressionContext, InstanceNode, InstanceNodePtr,
-    PropertiesTreeContext, PropertiesTreeShared, RenderTreeContext, RuntimePropertiesStackFrame,
-    TransformAndBounds,
+    PropertiesTreeContext, RenderTreeContext, RuntimePropertiesStackFrame, TransformAndBounds, Uid,
 };
 
 pub struct Globals {
@@ -32,6 +31,7 @@ pub struct PaxEngine {
     pub globals: Globals,
     pub expression_table: ExpressionTable,
     pub main_expanded: Rc<ExpandedNode>,
+    pub z_index_node_cache: BinaryHeap<(u32, Rc<ExpandedNode>)>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
 }
 
@@ -180,17 +180,13 @@ pub struct ComputedExpandedProperties {
     //
     /// Computed transform and size of this ExpandedNode
     /// Optional because a ExpandedNode is initialized with `computed_tab: None`; this is computed later
-    pub computed_tab: Option<TransformAndBounds>,
-
-    ///Used for hack in repeat to make stacker work better while dirty watching isn't a thing, can be removed later
-    pub tab_changed: bool,
-    pub last_repeat_source_len: usize,
+    pub computed_tab: TransformAndBounds,
 
     /// A copy of the computed z_index for this ExpandedNode
-    pub computed_z_index: Option<u32>,
+    pub computed_z_index: u32,
 
     /// A copy of the computed canvas_index for this ExpandedNode
-    pub computed_canvas_index: Option<u32>,
+    pub computed_canvas_index: u32,
 }
 
 impl PartialOrd for ExpandedNode {
@@ -241,18 +237,7 @@ pub struct ExpandedNode {
     /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
     /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
     /// explicitly updated to accommodate.)
-    pub runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame>>>,
-
-    /// Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
-    /// A snapshot of the clipping stack above this element at the time of properties-computation
-    pub clipping_stack: Vec<Vec<u32>>,
-
-    /// Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
-    /// A snapshot of the scroller stack above this element at the time of properties-computation
-    pub scroller_stack: Vec<Vec<u32>>,
-
-    // /// For component instances only, tracks the expanded + flattened slot_children
-    // expanded_and_flattened_slot_children: Option<Vec<Rc<ExpandedNode>>>,
+    pub runtime_properties_stack: Rc<RuntimePropertiesStackFrame>,
 
     //TODO replace these two with BTreeSet?
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
@@ -265,11 +250,21 @@ pub struct ExpandedNode {
     computed_common_properties: Rc<RefCell<CommonProperties>>,
 
     pub computed_expanded_properties: RefCell<Option<ComputedExpandedProperties>>,
+    // Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
+    // A snapshot of the clipping stack above this element at the time of properties-computation
+    // pub clipping_stack: Vec<Vec<u32>>,
+
+    // Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
+    // A snapshot of the scroller stack above this element at the time of properties-computation
+    // pub scroller_stack: Vec<Vec<u32>>,
+
+    // /// For component instances only, tracks the expanded + flattened slot_children
+    // expanded_and_flattened_slot_children: Option<Vec<Rc<ExpandedNode>>>,
 }
 
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_field:ident) => {
-        pub fn $fn_name(&self, args: $arg_type) {
+        pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let handlers = &(*registry).borrow().$handler_field;
                 let component_properties =
@@ -279,10 +274,22 @@ macro_rules! dispatch_event_handler {
                         Rc::clone(&self.properties)
                     };
 
+                let comp_props = self.computed_expanded_properties.borrow();
+                let bounds_self = comp_props.as_ref().unwrap().computed_tab.bounds;
+                let bounds_parent = self
+                    .parent_expanded_node
+                    .borrow()
+                    .upgrade()
+                    .map(|parent| {
+                        let comp_props = parent.computed_expanded_properties.borrow();
+                        let bounds_parent = comp_props.as_ref().unwrap().computed_tab.bounds;
+                        bounds_parent
+                    })
+                    .expect("called handler on node with no parent (root node?)");
                 let context = NodeContext {
-                    bounds_self: todo!(),
-                    bounds_parent: todo!(),
-                    frames_elapsed: todo!(),
+                    bounds_self,
+                    bounds_parent,
+                    frames_elapsed: globals.frames_elapsed,
                 };
                 handlers.iter().for_each(|handler| {
                     handler(Rc::clone(&component_properties), &context, args.clone());
@@ -290,15 +297,19 @@ macro_rules! dispatch_event_handler {
             }
 
             if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
-                parent.$fn_name(args);
+                parent.$fn_name(args, globals);
             }
         }
     };
 }
 
 impl ExpandedNode {
-    pub fn update(self: &Rc<Self>, context: &UpdateContext, messages: &mut Vec<NativeMessage>) {
+    pub fn update(&self, context: &UpdateContext, messages: &mut Vec<NativeMessage>) {
         self.instance_node.update(&self, context, messages);
+    }
+
+    pub fn render(&self, context: &RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
+        self.instance_node.render(&self, context, rc);
     }
 
     pub fn append_child(self: &Rc<Self>, child: Rc<ExpandedNode>) {
@@ -307,25 +318,21 @@ impl ExpandedNode {
     }
 
     pub fn get_or_create_with_prototypical_properties(
-        node_id: u32,
         template: Rc<dyn InstanceNode>,
         ptc: &mut PropertiesTreeContext,
         prototypical_properties: &Rc<RefCell<dyn Any>>,
         prototypical_common_properties: &Rc<RefCell<CommonProperties>>,
     ) -> Rc<Self> {
-        let id_chain = ptc.get_id_chain(node_id);
         Rc::new(ExpandedNode {
-            id_chain: id_chain.clone(),
+            id_chain: vec![ptc.gen_uid().0],
             parent_expanded_node: RefCell::new(Weak::new()),
             children: RefCell::new(BTreeSet::new()),
-            containing_component: RefCell::new(ptc.current_containing_component.clone()),
+            containing_component: RefCell::new(ptc.get_current_containing_component()),
 
             properties: Rc::clone(prototypical_properties),
             computed_common_properties: Rc::clone(prototypical_common_properties),
             // Clone the following stacks from `ptc`
-            clipping_stack: ptc.get_current_clipping_ids(),
-            scroller_stack: ptc.get_current_scroller_ids(),
-            runtime_properties_stack: ptc.clone_runtime_stack(),
+            runtime_properties_stack: ptc.get_stack(),
             instance_node: template,
             computed_expanded_properties: RefCell::new(None),
         })
@@ -365,10 +372,7 @@ impl ExpandedNode {
         }
 
         let props = self.computed_expanded_properties.borrow();
-        let computed_tab = props.as_ref().unwrap().computed_tab.as_ref();
-        let Some(computed_tab) = computed_tab else {
-            return false;
-        };
+        let computed_tab = &props.as_ref().unwrap().computed_tab;
 
         let inverted_transform = computed_tab.transform.inverse();
         let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
@@ -491,13 +495,9 @@ pub struct ExpressionTable {
 }
 
 impl ExpressionTable {
-    pub fn compute_vtable_value(&self, node: &Rc<ExpandedNode>, vtable_id: usize) -> Box<dyn Any> {
+    pub fn compute_vtable_value(&self, node: &ExpandedNode, vtable_id: usize) -> Box<dyn Any> {
         if let Some(evaluator) = self.table.get(&vtable_id) {
-            let stack_frame = Rc::clone(
-                node.runtime_properties_stack
-                    .get(node.runtime_properties_stack.len() - 1)
-                    .unwrap(),
-            );
+            let stack_frame = Rc::clone(&node.runtime_properties_stack);
 
             let ec = ExpressionContext { stack_frame };
             (**evaluator)(ec)
@@ -565,15 +565,9 @@ impl PaxEngine {
     ) -> Self {
         pax_runtime_api::register_logger(logger);
 
-        let mut ptc = PropertiesTreeContext {
-            current_containing_component: Weak::new(),
-            clipping_stack: vec![],
-            scroller_stack: vec![],
-            runtime_properties_stack: vec![],
-            shared: Rc::new(RefCell::new(PropertiesTreeShared {
-                native_message_queue: Default::default(),
-            })),
-        };
+        //This should be used for UpdateContext as well
+        let mut next_uid = Uid(0);
+        let mut ptc = PropertiesTreeContext::new(&mut next_uid);
         let main_expanded = main_component_instance.expand(&mut ptc);
         PaxEngine {
             globals: Globals {
@@ -581,12 +575,12 @@ impl PaxEngine {
                 viewport: TransformAndBounds {
                     transform: Affine::default(),
                     bounds: viewport_size,
-                    // clipping_bounds: Some(viewport_size),
                 },
             },
             expression_table,
             main_expanded,
             image_map: HashMap::new(),
+            z_index_node_cache: BinaryHeap::new(),
         }
     }
 
@@ -602,8 +596,10 @@ impl PaxEngine {
     /// 3. Render:
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
-    pub fn tick(&self, rcs: &mut HashMap<String, Box<dyn RenderContext>>) -> Vec<NativeMessage> {
-        let mut z_index = LayerId::new(None);
+    pub fn tick(
+        &mut self,
+        rcs: &mut HashMap<String, Box<dyn RenderContext>>,
+    ) -> Vec<NativeMessage> {
         //
         // 1. UPDATE NODES (properties, etc.). This part should be able to
         // /completely remove once reactive properties dirty-dag is a thing.
@@ -616,25 +612,35 @@ impl PaxEngine {
         let mut native_messages = Vec::new();
         self.main_expanded.update(&context, &mut native_messages);
 
+        pax_runtime_api::log(&format!("{:#?}", self.main_expanded));
         //
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here. Info is not stored on
         // the nodes, but in a separate datastructure.
         //
-        let mut z_index_gen = 0..;
-        // somefunction(&mut LayerId::new(None), &mut z_index_gen);
-        //     &TransformAndBounds {
-        //         bounds: self.viewport_tab.bounds,
-        //         transform: Affine::default(),
-        //     },
-
-        // pax_runtime_api::log(&format!("{:#?}", root_expanded_node));
+        // let mut z_index_gen = 0..;
+        // let mut z_index = LayerId::new(None);
+        self.z_index_node_cache.clear();
+        fn assign_z_indicies(
+            n: &Rc<ExpandedNode>,
+            i: &mut u32,
+            cache: &mut BinaryHeap<(u32, Rc<ExpandedNode>)>,
+        ) {
+            for child in n.children.borrow().iter().rev() {
+                assign_z_indicies(child, i, cache);
+            }
+            cache.push((*i, Rc::clone(&n)));
+        }
+        assign_z_indicies(&self.main_expanded, &mut 0, &mut self.z_index_node_cache);
 
         //
         // 3. RENDER
         // Render as a function of the now-computed ExpandedNode tree.
         //
-        let mut rtc = RenderTreeContext {};
+        // let mut rtc = RenderTreeContext {};
+        // for node in self.z_index_node_cache {
+        //     node.1.render();
+        // }
         //TODOSAMS redo rendering logic as a method call on the root expanded node as well
 
         native_messages
@@ -653,19 +659,8 @@ impl PaxEngine {
         //Instead of storing a pointer to `last_rtc`, we should store a custom
         //struct with exactly the fields we need for ray-casting
 
-        //Need:
-        // - Cached computed transform `: Affine`
-        // - Pointer to parent:
-        //     for bubbling, i.e. propagating event
-        //     for finding ancestral clipping containers
-
-        let mut nodes_ordered: Vec<Rc<ExpandedNode>> = todo!(); //Probably precompute this from a fast node iteration at end of tick
-
-        // remove root element that is moved to top during reversal
-        nodes_ordered.remove(0);
-
         let mut ret: Option<Rc<ExpandedNode>> = None;
-        for node in nodes_ordered {
+        for (_, node) in self.z_index_node_cache.iter().skip(1) {
             if node.ray_cast_test(&ray) {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole

@@ -114,23 +114,23 @@ impl InstanceNode for FrameInstance {
             .base()
             .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
 
-        let id_chain = this_expanded_node.id_chain.clone();
-        ptc.push_clipping_stack_id(id_chain);
+        // let id_chain = this_expanded_node.id_chain.clone();
+
+        // ptc.push_clipping_stack_id(id_chain);
 
         for instance_child in self.base().get_children() {
-            let mut new_ptc = ptc.clone();
-            let child_expanded_node = Rc::clone(&instance_child).expand(&mut new_ptc);
+            let child_expanded_node = Rc::clone(&instance_child).expand(ptc);
             this_expanded_node.append_child(child_expanded_node);
         }
 
-        ptc.pop_clipping_stack_id();
+        // ptc.pop_clipping_stack_id();
 
         this_expanded_node
     }
 
     fn update(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &ExpandedNode,
         context: &pax_core::UpdateContext,
         messages: &mut Vec<pax_message::NativeMessage>,
     ) {
