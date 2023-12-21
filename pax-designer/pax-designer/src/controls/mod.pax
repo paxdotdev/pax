@@ -1,3 +1,21 @@
-<Tree id=tree />
-<Settings id=settings />
-<Toolbar id=toolbar />
+//The Controls layer describes the frame of UI around a
+//project in the designer
+
+<Group id=left_panel>
+    <LogoBar id=logo_bar />
+    <FileAndComponentPicker id=file_and_component_picker />
+    <Tree id=tree />
+    <Rectangle fill={Color::rgba(100%, 100%, 0%, 100%)} />
+</Group>
+
+<Group id="top_panel">
+    <Toolbar id=toolbar />
+    <Rectangle fill={Color::rgba(100%, 100%, 0%, 100%)} />
+</Group>
+
+<Group id=right_panel />
+    <Settings id=settings />
+    <Rectangle fill={Color::rgba(100%, 100%, 0%, 100%)} />
+</Group>
+
+@settings {
