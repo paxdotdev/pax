@@ -3,16 +3,15 @@
 use pax_lang::*;
 use pax_lang::api::*;
 
-pub mod hud;
+pub mod glass;
 pub mod controls;
+pub mod designtime_component_view;
 
-use crate::hud::Hud;
+use crate::glass::Glass;
 use crate::controls::Controls;
-
-//TODO: import userland project as `Renderer` for `<Renderer />`
+use crate::designtime_component_view::DesigntimeComponentView;
 
 #[derive(Pax)]
 #[main]
 #[file("lib.pax")]
 pub struct PaxDesigner {}
-
