@@ -11,6 +11,7 @@ use piet::UnitPoint;
 
 #[derive(Pax)]
 #[custom(Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Stroke {
     pub color: Property<Color>,
     pub width: Property<SizePixels>,
@@ -328,6 +329,7 @@ impl Path {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RectangleCornerRadii {
     pub top_left: Property<f64>,
     pub top_right: Property<f64>,

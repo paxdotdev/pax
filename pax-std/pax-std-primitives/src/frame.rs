@@ -1,15 +1,15 @@
 use core::option::Option;
 use core::option::Option::Some;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::{any::Any, iter};
 
 use kurbo::BezPath;
 
 use pax_core::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs,
-    PropertiesTreeContext, RenderTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext,
+    RuntimeContext,
 };
 use pax_message::AnyCreatePatch;
 use pax_runtime_api::{Layer, RenderContext, Size};
@@ -109,37 +109,24 @@ impl InstanceNode for FrameInstance {
     // todo!()
     // }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
+    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+        let env = Rc::clone(&expanded_node.stack);
+        let children_with_envs = self
             .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        // let id_chain = this_expanded_node.id_chain.clone();
-
-        // ptc.push_clipping_stack_id(id_chain);
-
-        for instance_child in self.base().get_children() {
-            let child_expanded_node = Rc::clone(&instance_child).expand(ptc);
-            this_expanded_node.append_child(child_expanded_node);
-        }
-
-        // ptc.pop_clipping_stack_id();
-
-        this_expanded_node
+            .get_template_children()
+            .iter()
+            .cloned()
+            .zip(iter::repeat(env));
+        expanded_node.set_children(children_with_envs, ptc);
     }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &pax_core::UpdateContext,
-        messages: &mut Vec<pax_message::NativeMessage>,
-    ) {
-    }
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {}
 
     fn handle_pre_render(
         &self,
-        rtc: &mut RenderTreeContext,
-        rcs: &mut HashMap<std::string::String, Box<dyn RenderContext>>,
+        expanded_node: &ExpandedNode,
+        rtc: &RenderTreeContext,
+        rc: &mut Box<dyn RenderContext>,
     ) {
         // let tab = &expanded_node.computed_tab.as_ref().unwrap();
 
@@ -175,7 +162,7 @@ impl InstanceNode for FrameInstance {
         // }
     }
 
-    fn handle_mount(&self, ptc: &mut PropertiesTreeContext, node: &ExpandedNode) {
+    fn handle_mount(&self, ptc: &mut RuntimeContext, node: &ExpandedNode) {
         // let id_chain = node.id_chain.clone();
 
         // //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -193,7 +180,7 @@ impl InstanceNode for FrameInstance {
         // }));
     }
 
-    fn handle_unmount(&self, _ptc: &mut PropertiesTreeContext) {}
+    fn handle_unmount(&self, _ptc: &mut RuntimeContext) {}
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

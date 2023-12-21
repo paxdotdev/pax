@@ -1,20 +1,18 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::iter;
 use std::ops::Mul;
 use std::rc::Rc;
 
 use kurbo::Affine;
-use pax_message::NativeMessage;
-use pax_runtime_api::{CommonProperties, LayerId, RenderContext};
+use pax_runtime_api::{CommonProperties, RenderContext};
 use piet::{Color, StrokeStyle};
 
 use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size};
 
 use crate::form_event::FormEvent;
-use crate::{
-    ExpandedNode, ExpressionTable, Globals, HandlerRegistry, PropertiesTreeContext, UpdateContext,
-};
+use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -214,7 +212,17 @@ pub trait InstanceNode {
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode>;
+    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+        //Forward the same environment to children
+        let env = Rc::clone(&expanded_node.stack);
+        let children_with_envs = self
+            .base()
+            .get_template_children()
+            .iter()
+            .cloned()
+            .zip(iter::repeat(env));
+        expanded_node.set_children(children_with_envs, ptc);
+    }
 
     // /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     // /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
@@ -227,12 +235,9 @@ pub trait InstanceNode {
     //     //no-op default implementation
     // }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &UpdateContext,
-        messages: &mut Vec<NativeMessage>,
-    );
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        //No op by default
+    }
 
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
@@ -242,8 +247,9 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn handle_pre_render(
         &self,
-        rtc: &mut RenderTreeContext,
-        rcs: &mut HashMap<String, Box<dyn RenderContext>>,
+        expanded_node: &ExpandedNode,
+        rtc: &RenderTreeContext,
+        rcs: &mut Box<dyn RenderContext>,
     ) {
         //no-op default implementation
     }
@@ -280,14 +286,14 @@ pub trait InstanceNode {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&self, ptc: &mut PropertiesTreeContext, node: &ExpandedNode) {
+    fn handle_mount(&self, ptc: &mut RuntimeContext, node: &ExpandedNode) {
         //no-op default implementation
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&self, ptc: &mut PropertiesTreeContext) {
+    fn handle_unmount(&self, ptc: &mut RuntimeContext) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node
@@ -302,11 +308,14 @@ pub trait InstanceNode {
 }
 
 pub struct BaseInstance {
-    handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    pub instance_prototypical_common_properties_factory:
+        Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
+
+    do_initial_expansion: RefCell<bool>,
 }
 
 pub struct InstanceFlags {
@@ -333,6 +342,7 @@ impl BaseInstance {
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
             instance_children: args.children.unwrap_or_default(),
             flags,
+            do_initial_expansion: RefCell::new(true),
         }
     }
 
@@ -347,29 +357,23 @@ impl BaseInstance {
         }
     }
 
-    pub fn expand_from_instance(
-        &self,
-        template: Rc<dyn InstanceNode>,
-        ptc: &mut PropertiesTreeContext,
-    ) -> Rc<ExpandedNode> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            template,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
-    }
-
     /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
     /// instance nodes mapping exactly to the template node definitions.
     /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
     /// (see [`get_slot_children`] for the way to retrieve the latter.)
-    pub fn get_children(&self) -> &InstanceNodePtrList {
+    pub fn get_template_children(&self) -> &InstanceNodePtrList {
         &self.instance_children
     }
 
     pub fn flags(&self) -> &InstanceFlags {
         &self.flags
+    }
+
+    pub fn do_initial_expansion(&self) -> bool {
+        let mut do_exp = self.do_initial_expansion.borrow_mut();
+        let ret = *do_exp;
+        *do_exp = false;
+        ret
     }
 }
 

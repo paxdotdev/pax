@@ -4,8 +4,7 @@ use std::{any::Any, ops::Range};
 
 use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs,
-    PropertiesTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_runtime_api::Layer;
 
@@ -50,13 +49,13 @@ impl InstanceNode for RepeatInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
+    fn update_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        _ptc: &mut RuntimeContext,
+    ) {
         let (range_evaled, vec_evaled) =
-            this_expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
+            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 if let Some(ref source) = properties.source_expression_range {
                     (Some(source.get().clone()), None)
                 } else if let Some(ref source) = properties.source_expression_vec {
@@ -69,7 +68,7 @@ impl InstanceNode for RepeatInstance {
 
         //THIS IS A HACK!!! Will be removed once dirty checking is a thing.
         //Is here to let Stacker re-render children on resize.
-        let source_len = range_evaled
+        let _source_len = range_evaled
             .as_ref()
             .map(Range::len)
             .or(vec_evaled.as_ref().map(Vec::len))
@@ -82,28 +81,25 @@ impl InstanceNode for RepeatInstance {
         //unmount / remount before unmount handlers are fired, resulting in no
         //effective changes for persistent nodes.)
 
-        let vec_range_source = vec_evaled
+        let _vec_range_source = vec_evaled
             .or(range_evaled.map(|v| {
                 v.map(|i| Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>>)
                     .collect::<Vec<_>>()
             }))
             .unwrap();
 
-        for (i, elem) in vec_range_source.iter().enumerate() {
-            let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
-                i,
-                elem: Rc::clone(elem),
-            }));
+        // for (i, elem) in vec_range_source.iter().enumerate() {
+        //     let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
+        //         i,
+        //         elem: Rc::clone(elem),
+        //     }));
 
-            ptc.with_scoped_properties(new_repeat_item, |ptc| {
-                for child in self.base().get_children().iter() {
-                    let expanded_child = Rc::clone(&child).expand(ptc);
-                    this_expanded_node.append_child(expanded_child);
-                }
-            });
-        }
+        //     for child in self.base().get_template_children() {
+        //         expanded_node.expand_child(child)
+        //     }
+        // }
 
-        this_expanded_node
+        // this_expanded_node
     }
 
     #[cfg(debug_assertions)]
@@ -119,21 +115,16 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &crate::UpdateContext,
-        messages: &mut Vec<pax_message::NativeMessage>,
-    ) {
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
             handle_vtable_update_optional(
-                context.expression_table,
-                &expanded_node,
+                context.expression_table(),
+                &expanded_node.stack,
                 properties.source_expression_range.as_mut(),
             );
             handle_vtable_update_optional(
-                context.expression_table,
-                &expanded_node,
+                context.expression_table(),
+                &expanded_node.stack,
                 properties.source_expression_vec.as_mut(),
             );
         });

@@ -1,7 +1,7 @@
 use pax_core::declarative_macros::handle_vtable_update;
 use pax_core::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs,
-    PropertiesTreeContext, RenderTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext,
+    RuntimeContext,
 };
 use pax_message::{AnyCreatePatch, NativeMessage, TextPatch};
 use pax_runtime_api::{Layer, RenderContext};
@@ -37,24 +37,19 @@ impl InstanceNode for TextInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        this_expanded_node
+    fn update_children(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _ptc: &mut RuntimeContext,
+    ) {
+        //Doesn't do anything with children
     }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &pax_core::UpdateContext,
-        messages: &mut Vec<pax_message::NativeMessage>,
-    ) {
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Text| {
             handle_vtable_update(
-                context.expression_table,
-                expanded_node,
+                context.expression_table(),
+                &expanded_node.stack,
                 &mut properties.text,
             );
         });
@@ -172,7 +167,7 @@ impl InstanceNode for TextInstance {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_mount(&self, ptc: &mut PropertiesTreeContext, node: &ExpandedNode) {
+    fn handle_mount(&self, ptc: &mut RuntimeContext, node: &ExpandedNode) {
         // let id_chain = node.id_chain.clone();
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -188,7 +183,7 @@ impl InstanceNode for TextInstance {
         // }));
     }
 
-    fn handle_unmount(&self, ptc: &mut PropertiesTreeContext) {
+    fn handle_unmount(&self, ptc: &mut RuntimeContext) {
         // let id_chain = ptc.get_id_chain(self.base().get_instance_id());
         // self.last_patches.borrow_mut().remove(&id_chain);
         // ptc.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));

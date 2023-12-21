@@ -1,9 +1,8 @@
 use pax_core::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs,
-    PropertiesTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_std::primitives::Group;
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 use pax_runtime_api::Layer;
 
@@ -30,15 +29,15 @@ impl InstanceNode for GroupInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
+    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+        let env = Rc::clone(&expanded_node.stack);
+        let children_with_envs = self
             .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-        for child in self.base().get_children() {
-            let child_expanded_node = Rc::clone(&child).expand(ptc);
-            this_expanded_node.append_child(child_expanded_node);
-        }
-        this_expanded_node
+            .get_template_children()
+            .iter()
+            .cloned()
+            .zip(iter::repeat(env));
+        expanded_node.set_children(children_with_envs, ptc);
     }
 
     #[cfg(debug_assertions)]
@@ -56,16 +55,5 @@ impl InstanceNode for GroupInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
-    }
-
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &pax_core::UpdateContext,
-        messages: &mut Vec<pax_message::NativeMessage>,
-    ) {
-        for child in expanded_node.children() {
-            child.update(context, messages);
-        }
     }
 }

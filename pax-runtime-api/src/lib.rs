@@ -581,6 +581,7 @@ impl From<Size> for SizePixels {
 }
 
 #[derive(Copy, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SizePixels(pub Numeric);
 
 impl Default for SizePixels {

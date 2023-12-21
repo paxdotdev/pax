@@ -1,9 +1,7 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
-use pax_core::ExpandedNode;
 use pax_core::ExpressionTable;
-use pax_runtime_api::ArgsCheckboxChange;
 use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -133,7 +131,8 @@ impl PaxChassisWeb {
     pub fn interrupt(&mut self, native_interrupt: String, additional_payload: &JsValue) {
         let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
 
-        let globals = &self.engine.borrow().globals;
+        let engine = self.engine.borrow();
+        let globals = engine.runtime_context.globals();
         match x {
             NativeInterrupt::Image(args) => match args {
                 ImageLoadInterruptArgs::Reference(_ref_args) => {}
@@ -147,8 +146,8 @@ impl PaxChassisWeb {
                     );
                 }
             },
-            NativeInterrupt::FormCheckboxToggle(args) => {
-                let engine_borrowed = (*self.engine).borrow();
+            NativeInterrupt::FormCheckboxToggle(_args) => {
+                // let engine_borrowed = (*self.engine).borrow();
                 //TODO need to hook this up again. how to find node by ID chain?
                 // let node: ExpandedNode = todo!(); //need a method to find a node from args.id_chain
                 // node.dispatch_checkbox_change(

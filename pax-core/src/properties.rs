@@ -1,72 +1,55 @@
-use crate::ExpandedNode;
-
+use pax_message::NativeMessage;
 use pax_runtime_api::Numeric;
 use std::any::Any;
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
+
+use crate::{ExpressionTable, Globals};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Uid(pub u32);
 
 /// Shared context for properties pass recursion
-pub struct PropertiesTreeContext<'a> {
-    next_uid: &'a mut Uid,
-    /// A pointer to the node representing the current Component, for which we may be
-    /// rendering some member of its template.
-    current_containing_component: Weak<ExpandedNode>,
-    /// Runtime stack managed for computing properties, for example for resolving symbols like `self.foo` or `i` (from `for i in 0..5`).
-    /// Stack offsets are resolved statically during computation.  For example, if `self.foo` is statically determined to be offset by 2 frames,
-    /// then at runtime it is expected that `self.foo` can be resolved 2 frames up from the top of this stack.
-    /// (Mismatches between the static compile-time stack and this runtime stack would result in an unrecoverable panic.)
-    runtime_properties_stack: Rc<RuntimePropertiesStackFrame>,
+pub struct RuntimeContext {
+    next_uid: Uid,
+    messages: Vec<NativeMessage>,
+    globals: Globals,
+    expression_table: ExpressionTable,
 }
 
-impl<'a> PropertiesTreeContext<'a> {
-    pub fn new(next_uid: &'a mut Uid) -> Self {
+impl RuntimeContext {
+    pub fn new(expression_table: ExpressionTable, globals: Globals) -> Self {
         Self {
-            next_uid,
-            current_containing_component: Weak::new(),
-            runtime_properties_stack: RuntimePropertiesStackFrame::new(
-                Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>
-            ),
+            next_uid: Uid(0),
+            messages: Vec::new(),
+            globals,
+            expression_table,
         }
     }
 
-    pub fn with_scoped_properties(
-        &mut self,
-        properties: Rc<RefCell<dyn Any>>,
-        scoped_fn: impl FnOnce(&mut Self),
-    ) {
-        self.runtime_properties_stack = self.runtime_properties_stack.push(properties);
-        scoped_fn(self);
-        self.runtime_properties_stack = self.runtime_properties_stack.pop().unwrap();
-    }
-
-    pub fn within_component(
-        &mut self,
-        containing_component: &Rc<ExpandedNode>,
-        scoped_fn: impl FnOnce(&mut Self),
-    ) {
-        let old_containing = std::mem::replace(
-            &mut self.current_containing_component,
-            Rc::downgrade(containing_component),
-        );
-        self.with_scoped_properties(Rc::clone(&containing_component.properties), scoped_fn);
-        self.current_containing_component = old_containing;
-    }
-
-    pub fn get_stack(&self) -> Rc<RuntimePropertiesStackFrame> {
-        Rc::clone(&self.runtime_properties_stack)
-    }
-
     pub fn gen_uid(&mut self) -> Uid {
-        let id = *self.next_uid;
         self.next_uid.0 += 1;
-        id
+        self.next_uid
     }
 
-    pub fn get_current_containing_component(&self) -> Weak<ExpandedNode> {
-        Weak::clone(&self.current_containing_component)
+    pub fn send_native_message(&mut self, message: NativeMessage) {
+        self.messages.push(message)
+    }
+
+    pub fn take_native_messages(&mut self) -> Vec<NativeMessage> {
+        std::mem::take(&mut self.messages)
+    }
+
+    pub fn globals(&self) -> &Globals {
+        &self.globals
+    }
+
+    pub fn globals_mut(&mut self) -> &mut Globals {
+        &mut self.globals
+    }
+
+    pub fn expression_table(&self) -> &ExpressionTable {
+        &self.expression_table
     }
 
     // pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
@@ -148,10 +131,10 @@ impl RuntimePropertiesStackFrame {
         })
     }
 
-    pub fn push(self: &Rc<Self>, properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn push(self: &Rc<Self>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             parent: Some(Rc::clone(&self)),
-            properties,
+            properties: Rc::clone(properties),
         })
     }
 

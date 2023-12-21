@@ -4,8 +4,7 @@ use pax_runtime_api::{Layer, RenderContext};
 use pax_std::{primitives::Ellipse, types::Fill};
 
 use pax_core::{
-    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
+    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext, RuntimeContext,
 };
 
 use std::rc::Rc;
@@ -33,12 +32,7 @@ impl InstanceNode for EllipseInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        this_expanded_node
+    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
     }
 
     fn render(
@@ -98,21 +92,16 @@ impl InstanceNode for EllipseInstance {
         &self.base
     }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &pax_core::UpdateContext,
-        messages: &mut Vec<pax_message::NativeMessage>,
-    ) {
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             handle_vtable_update(
-                context.expression_table,
-                expanded_node,
+                context.expression_table(),
+                &expanded_node.stack,
                 &mut properties.stroke,
             );
             handle_vtable_update(
-                context.expression_table,
-                expanded_node,
+                context.expression_table(),
+                &expanded_node.stack,
                 &mut properties.fill,
             );
         });
