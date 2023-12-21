@@ -1,12 +1,10 @@
-use std::cell::RefCell;
 use std::rc::Rc;
+use std::{cell::RefCell, iter};
 
 use crate::{
     BaseInstance, ExpandedNode, ExpressionTable, Globals, InstanceFlags, InstanceNode,
-    InstanceNodePtrList, InstantiationArgs, PropertiesTreeContext, UpdateContext,
+    InstanceNodePtrList, InstantiationArgs, RuntimeContext,
 };
-
-use pax_message::NativeMessage;
 use pax_runtime_api::{Layer, Timeline};
 
 /// A render node with its own runtime context.  Will push a frame
@@ -45,19 +43,13 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        ptc.within_component(&this_expanded_node, |ptc| {
-            for child in &self.template {
-                let child_expanded_node = Rc::clone(child).expand(ptc);
-                this_expanded_node.append_child(child_expanded_node);
-            }
-        });
-
-        this_expanded_node
+    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+        //change to expand children instead of self.template?
+        let new_env = expanded_node.stack.push(&expanded_node.properties);
+        let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
+        if self.base().do_initial_expansion() {
+            expanded_node.set_children(children_with_envs, ptc);
+        }
 
         // let expanded_and_flattened_slot_children = {
         //     let slot_children = self.base().get_children();
@@ -90,18 +82,13 @@ impl InstanceNode for ComponentInstance {
         // }
     }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &UpdateContext,
-        messages: &mut Vec<NativeMessage>,
-    ) {
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //Compute properties
-        (*self.compute_properties_fn)(&expanded_node, &context.expression_table, context.globals);
-
-        for child in expanded_node.children() {
-            child.update(context, messages);
-        }
+        (*self.compute_properties_fn)(
+            &expanded_node,
+            context.expression_table(),
+            context.globals(),
+        );
     }
 
     #[cfg(debug_assertions)]

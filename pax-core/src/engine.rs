@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, BinaryHeap, HashMap};
 use std::fmt;
@@ -12,13 +12,13 @@ use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, Interpolatable, LayerId, NodeContext, RenderContext, Size, TransitionManager,
+    CommonProperties, Interpolatable, NodeContext, RenderContext, Size, TransitionManager,
 };
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
-    Affine, ComponentInstance, ExpressionContext, InstanceNode, InstanceNodePtr,
-    PropertiesTreeContext, RenderTreeContext, RuntimePropertiesStackFrame, TransformAndBounds, Uid,
+    compute_tab, Affine, ComponentInstance, ExpressionContext, InstanceNode, InstanceNodePtr,
+    RenderTreeContext, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds, Uid,
 };
 
 pub struct Globals {
@@ -28,9 +28,8 @@ pub struct Globals {
 
 /// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine {
-    pub globals: Globals,
-    pub expression_table: ExpressionTable,
-    pub main_expanded: Rc<ExpandedNode>,
+    pub runtime_context: RuntimeContext,
+    pub root_node: Rc<ExpandedNode>,
     pub z_index_node_cache: BinaryHeap<(u32, Rc<ExpandedNode>)>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
 }
@@ -39,23 +38,31 @@ pub struct PaxEngine {
 //so that it can use the type RenderTreeContext (defined in pax_core, which depends on pax_runtime_api, which
 //defines CommonProperties, and which can thus not depend on pax_core due to a would-be circular dependency.)
 pub trait PropertiesComputable {
-    fn compute_properties(&mut self, node: &Rc<ExpandedNode>, table: &ExpressionTable);
+    fn compute_properties(
+        &mut self,
+        stack: &Rc<RuntimePropertiesStackFrame>,
+        table: &ExpressionTable,
+    );
 }
 
 impl PropertiesComputable for CommonProperties {
-    fn compute_properties(&mut self, node: &Rc<ExpandedNode>, table: &ExpressionTable) {
-        handle_vtable_update(table, node, &mut self.width);
-        handle_vtable_update(table, node, &mut self.height);
-        handle_vtable_update(table, node, &mut self.transform);
-        handle_vtable_update_optional(table, node, self.rotate.as_mut());
-        handle_vtable_update_optional(table, node, self.scale_x.as_mut());
-        handle_vtable_update_optional(table, node, self.scale_y.as_mut());
-        handle_vtable_update_optional(table, node, self.skew_x.as_mut());
-        handle_vtable_update_optional(table, node, self.skew_y.as_mut());
-        handle_vtable_update_optional(table, node, self.anchor_x.as_mut());
-        handle_vtable_update_optional(table, node, self.anchor_y.as_mut());
-        handle_vtable_update_optional(table, node, self.x.as_mut());
-        handle_vtable_update_optional(table, node, self.y.as_mut());
+    fn compute_properties(
+        &mut self,
+        stack: &Rc<RuntimePropertiesStackFrame>,
+        table: &ExpressionTable,
+    ) {
+        handle_vtable_update(table, stack, &mut self.width);
+        handle_vtable_update(table, stack, &mut self.height);
+        handle_vtable_update(table, stack, &mut self.transform);
+        handle_vtable_update_optional(table, stack, self.rotate.as_mut());
+        handle_vtable_update_optional(table, stack, self.scale_x.as_mut());
+        handle_vtable_update_optional(table, stack, self.scale_y.as_mut());
+        handle_vtable_update_optional(table, stack, self.skew_x.as_mut());
+        handle_vtable_update_optional(table, stack, self.skew_y.as_mut());
+        handle_vtable_update_optional(table, stack, self.anchor_x.as_mut());
+        handle_vtable_update_optional(table, stack, self.anchor_y.as_mut());
+        handle_vtable_update_optional(table, stack, self.x.as_mut());
+        handle_vtable_update_optional(table, stack, self.y.as_mut());
     }
 }
 
@@ -130,14 +137,11 @@ impl std::fmt::Debug for ExpandedNode {
         f.debug_struct("ExpandedNode")
             .field(
                 "instance_node",
-                &Fmt(|f| self.instance_node.resolve_debug(f, Some(self))),
+                &Fmt(|f| self.template.resolve_debug(f, Some(self))),
             )
             .field("id_chain", &self.id_chain)
             //.field("bounds", &self.computed_tab)
-            .field(
-                "common_properties",
-                &self.computed_common_properties.borrow(),
-            )
+            .field("common_properties", &self.common_properties.borrow())
             .field(
                 "computed_expanded_properties",
                 &self.computed_expanded_properties.borrow(),
@@ -150,7 +154,6 @@ impl std::fmt::Debug for ExpandedNode {
                 "parent",
                 &self
                     .parent_expanded_node
-                    .borrow()
                     .upgrade()
                     .map(|v| v.id_chain.clone()),
             )
@@ -166,7 +169,6 @@ impl std::fmt::Debug for ExpandedNode {
                 "containing_component",
                 &self
                     .containing_component
-                    .borrow()
                     .upgrade()
                     .map(|v| v.id_chain.clone()),
             )
@@ -222,22 +224,22 @@ pub struct ExpandedNode {
     pub id_chain: Vec<u32>,
 
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
-    pub instance_node: InstanceNodePtr,
+    pub template: InstanceNodePtr,
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
-    pub parent_expanded_node: RefCell<Weak<ExpandedNode>>,
+    pub parent_expanded_node: Weak<ExpandedNode>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
     /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
     /// thus `containing_component` is `Option`al.
-    pub containing_component: RefCell<Weak<ExpandedNode>>,
+    pub containing_component: Weak<ExpandedNode>,
 
     /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
     /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
     /// explicitly updated to accommodate.)
-    pub runtime_properties_stack: Rc<RuntimePropertiesStackFrame>,
+    pub stack: Rc<RuntimePropertiesStackFrame>,
 
     //TODO replace these two with BTreeSet?
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
@@ -247,7 +249,7 @@ pub struct ExpandedNode {
     pub properties: Rc<RefCell<dyn Any>>,
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
-    computed_common_properties: Rc<RefCell<CommonProperties>>,
+    common_properties: Rc<RefCell<CommonProperties>>,
 
     pub computed_expanded_properties: RefCell<Option<ComputedExpandedProperties>>,
     // Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
@@ -265,20 +267,18 @@ pub struct ExpandedNode {
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_field:ident) => {
         pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
-            if let Some(registry) = self.instance_node.base().get_handler_registry() {
+            if let Some(registry) = self.template.base().get_handler_registry() {
                 let handlers = &(*registry).borrow().$handler_field;
-                let component_properties =
-                    if let Some(cc) = self.containing_component.borrow().upgrade() {
-                        Rc::clone(&cc.properties)
-                    } else {
-                        Rc::clone(&self.properties)
-                    };
+                let component_properties = if let Some(cc) = self.containing_component.upgrade() {
+                    Rc::clone(&cc.properties)
+                } else {
+                    Rc::clone(&self.properties)
+                };
 
                 let comp_props = self.computed_expanded_properties.borrow();
                 let bounds_self = comp_props.as_ref().unwrap().computed_tab.bounds;
                 let bounds_parent = self
                     .parent_expanded_node
-                    .borrow()
                     .upgrade()
                     .map(|parent| {
                         let comp_props = parent.computed_expanded_properties.borrow();
@@ -296,7 +296,7 @@ macro_rules! dispatch_event_handler {
                 });
             }
 
-            if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
+            if let Some(parent) = &self.parent_expanded_node.upgrade() {
                 parent.$fn_name(args, globals);
             }
         }
@@ -304,38 +304,118 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
-    pub fn update(&self, context: &UpdateContext, messages: &mut Vec<NativeMessage>) {
-        self.instance_node.update(&self, context, messages);
-    }
-
-    pub fn render(&self, context: &RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
-        self.instance_node.render(&self, context, rc);
-    }
-
-    pub fn append_child(self: &Rc<Self>, child: Rc<ExpandedNode>) {
-        *child.parent_expanded_node.borrow_mut() = Rc::downgrade(&self);
-        self.children.borrow_mut().insert(child);
-    }
-
-    pub fn get_or_create_with_prototypical_properties(
+    pub fn new(
         template: Rc<dyn InstanceNode>,
-        ptc: &mut PropertiesTreeContext,
-        prototypical_properties: &Rc<RefCell<dyn Any>>,
-        prototypical_common_properties: &Rc<RefCell<CommonProperties>>,
+        env: Rc<RuntimePropertiesStackFrame>,
+        context: &mut RuntimeContext,
+        parent_expanded_node: Weak<ExpandedNode>,
+        containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        Rc::new(ExpandedNode {
-            id_chain: vec![ptc.gen_uid().0],
-            parent_expanded_node: RefCell::new(Weak::new()),
-            children: RefCell::new(BTreeSet::new()),
-            containing_component: RefCell::new(ptc.get_current_containing_component()),
+        let properties = (&template.base().instance_prototypical_properties_factory)();
+        let common_properties = (&template
+            .base()
+            .instance_prototypical_common_properties_factory)();
 
-            properties: Rc::clone(prototypical_properties),
-            computed_common_properties: Rc::clone(prototypical_common_properties),
-            // Clone the following stacks from `ptc`
-            runtime_properties_stack: ptc.get_stack(),
-            instance_node: template,
+        let root = Rc::new(ExpandedNode {
+            id_chain: vec![context.gen_uid().0],
+            template: Rc::clone(&template),
+            properties,
+            common_properties,
+            stack: env,
+
+            parent_expanded_node,
+            containing_component,
+
+            children: RefCell::new(BTreeSet::new()),
             computed_expanded_properties: RefCell::new(None),
-        })
+        });
+        root.update(context);
+        root.update_children(context);
+        root.mount(context.globals());
+        root
+    }
+
+    //Pre-order traversal that re-computes expanded node children
+    pub fn update_children(self: &Rc<Self>, context: &mut RuntimeContext) {
+        Rc::clone(&self.template).update_children(&self, context);
+        for child in self.children.borrow().iter() {
+            child.update_children(context);
+        }
+    }
+
+    //Pre-order traversal that computes
+    pub fn update(self: &Rc<Self>, context: &mut RuntimeContext) {
+        // Here everything type independent is computed
+        let viewport = self
+            .parent_expanded_node
+            .upgrade()
+            .and_then(|p| {
+                let props = p.computed_expanded_properties.borrow();
+                props.as_ref().map(|c| c.computed_tab.clone())
+            })
+            .unwrap_or(context.globals().viewport.clone());
+
+        *self.computed_expanded_properties.borrow_mut() = Some(ComputedExpandedProperties {
+            computed_tab: compute_tab(self, &viewport),
+            computed_z_index: 0,
+            computed_canvas_index: 0,
+        });
+
+        self.get_common_properties()
+            .borrow_mut()
+            .compute_properties(&self.stack, context.expression_table());
+
+        self.template.update(&self, context);
+        for child in self.children.borrow().iter() {
+            child.update(context);
+        }
+    }
+
+    //TODO how to render to different layers here?
+    pub fn render(&self, context: &RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
+        if let Some(ref registry) = self.template.base().handler_registry {
+            for handler in &registry.borrow().pre_render_handlers {
+                handler(
+                    Rc::clone(&self.properties),
+                    //TODOSAM fill in
+                    &NodeContext {
+                        frames_elapsed: 0,
+                        bounds_parent: (0.0, 0.0),
+                        bounds_self: (0.0, 0.0),
+                    },
+                )
+            }
+        }
+        for child in self.children.borrow().iter() {
+            child.render(context, rc);
+        }
+        self.template.render(&self, context, rc);
+    }
+
+    pub fn set_children(
+        self: &Rc<Self>,
+        templates: impl Iterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
+        context: &mut RuntimeContext,
+    ) {
+        let containing_component = if self.template.type_id() == TypeId::of::<ComponentInstance>() {
+            Rc::downgrade(&self)
+        } else {
+            Weak::clone(&self.containing_component)
+        };
+        let mut expanded_children = self.children.borrow_mut();
+
+        // TODO run unmount handlers for these children here
+
+        expanded_children.clear();
+        for (template, env) in templates {
+            expanded_children.insert(Self::new(
+                template,
+                env,
+                context,
+                Rc::downgrade(self),
+                Weak::clone(&containing_component),
+            ));
+        }
     }
 
     /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
@@ -359,15 +439,45 @@ impl ExpandedNode {
         callback(&mut unwrapped_value)
     }
 
+    fn mount(&self, globals: &Globals) {
+        if let Some(ref registry) = self.template.base().handler_registry {
+            let computed_props = self.computed_expanded_properties.borrow();
+            let bounds_self = computed_props
+                .as_ref()
+                .expect("node has been updated")
+                .computed_tab
+                .bounds;
+            let parent = self.parent_expanded_node.upgrade();
+            let bounds_parent = parent
+                .as_ref()
+                .and_then(|p| {
+                    let props = p.computed_expanded_properties.borrow();
+                    props.as_ref().map(|v| v.computed_tab.bounds)
+                })
+                .unwrap_or(globals.viewport.bounds);
+            for handler in &registry.borrow().mount_handlers {
+                handler(
+                    Rc::clone(&self.properties),
+                    //TODOSAM fill in
+                    &NodeContext {
+                        frames_elapsed: globals.frames_elapsed,
+                        bounds_parent,
+                        bounds_self,
+                    },
+                )
+            }
+        }
+    }
+
     pub fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
-        Rc::clone(&self.computed_common_properties)
+        Rc::clone(&self.common_properties)
     }
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if self.instance_node.base().flags().invisible_to_raycasting {
+        if self.template.base().flags().invisible_to_raycasting {
             return false;
         }
 
@@ -391,7 +501,7 @@ impl ExpandedNode {
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     pub fn get_size(&self) -> (Size, Size) {
-        self.instance_node.get_size(self)
+        self.template.get_size(self)
     }
 
     /// Returns the size of this node in pixels, requiring this node's containing bounds
@@ -427,10 +537,6 @@ impl ExpandedNode {
     pub fn get_scroll_offset(&mut self) -> (f64, f64) {
         // (0.0, 0.0)
         todo!("patch into an ExpandedNode-friendly way to track this state");
-    }
-
-    pub fn children(&self) -> Vec<Rc<ExpandedNode>> {
-        self.children.borrow().iter().cloned().collect()
     }
 
     dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);
@@ -499,10 +605,13 @@ pub struct ExpressionTable {
 }
 
 impl ExpressionTable {
-    pub fn compute_vtable_value(&self, node: &ExpandedNode, vtable_id: usize) -> Box<dyn Any> {
+    pub fn compute_vtable_value(
+        &self,
+        stack: &Rc<RuntimePropertiesStackFrame>,
+        vtable_id: usize,
+    ) -> Box<dyn Any> {
         if let Some(evaluator) = self.table.get(&vtable_id) {
-            let stack_frame = Rc::clone(&node.runtime_properties_stack);
-
+            let stack_frame = Rc::clone(stack);
             let ec = ExpressionContext { stack_frame };
             (**evaluator)(ec)
         } else {
@@ -552,11 +661,6 @@ impl ExpressionTable {
     }
 }
 
-pub struct UpdateContext<'a> {
-    pub globals: &'a Globals,
-    pub expression_table: &'a ExpressionTable,
-}
-
 /// Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 /// Contains all rendering and runtime logic.
 ///
@@ -569,20 +673,29 @@ impl PaxEngine {
     ) -> Self {
         pax_runtime_api::register_logger(logger);
 
-        //This should be used for UpdateContext as well
-        let mut next_uid = Uid(0);
-        let mut ptc = PropertiesTreeContext::new(&mut next_uid);
-        let main_expanded = main_component_instance.expand(&mut ptc);
-        PaxEngine {
-            globals: Globals {
-                frames_elapsed: 0,
-                viewport: TransformAndBounds {
-                    transform: Affine::default(),
-                    bounds: viewport_size,
-                },
+        let globals = Globals {
+            frames_elapsed: 0,
+            viewport: TransformAndBounds {
+                transform: Affine::default(),
+                bounds: viewport_size,
             },
-            expression_table,
-            main_expanded,
+        };
+        let root_env =
+            RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
+
+        let mut runtime_context = RuntimeContext::new(expression_table, globals);
+
+        let root_node = ExpandedNode::new(
+            main_component_instance,
+            root_env,
+            &mut runtime_context,
+            Weak::new(),
+            Weak::new(),
+        );
+
+        PaxEngine {
+            runtime_context,
+            root_node,
             image_map: HashMap::new(),
             z_index_node_cache: BinaryHeap::new(),
         }
@@ -605,18 +718,11 @@ impl PaxEngine {
         rcs: &mut HashMap<String, Box<dyn RenderContext>>,
     ) -> Vec<NativeMessage> {
         //
-        // 1. UPDATE NODES (properties, etc.). This part should be able to
-        // /completely remove once reactive properties dirty-dag is a thing.
+        // 1. UPDATE NODES (properties, etc.). This part we should be able to
+        // completely remove once reactive properties dirty-dag is a thing.
         //
-        let context = UpdateContext {
-            globals: &self.globals,
-            expression_table: &self.expression_table,
-        };
+        self.root_node.update(&mut self.runtime_context);
 
-        let mut native_messages = Vec::new();
-        self.main_expanded.update(&context, &mut native_messages);
-
-        pax_runtime_api::log(&format!("{:#?}", self.main_expanded));
         //
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here. Info is not stored on
@@ -635,7 +741,7 @@ impl PaxEngine {
             }
             cache.push((*i, Rc::clone(&n)));
         }
-        assign_z_indicies(&self.main_expanded, &mut 0, &mut self.z_index_node_cache);
+        assign_z_indicies(&self.root_node, &mut 0, &mut self.z_index_node_cache);
 
         //
         // 3. RENDER
@@ -647,7 +753,7 @@ impl PaxEngine {
         }
         //TODOSAMS redo rendering logic as a method call on the root expanded node as well
 
-        native_messages
+        self.runtime_context.take_native_messages()
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
@@ -671,8 +777,7 @@ impl PaxEngine {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode>> =
-                    node.parent_expanded_node.borrow().upgrade();
+                let mut parent: Option<Rc<ExpandedNode>> = node.parent_expanded_node.upgrade();
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
@@ -682,7 +787,7 @@ impl PaxEngine {
                                 (*unwrapped_parent).ray_cast_test(&ray);
                             break;
                         }
-                        parent = unwrapped_parent.parent_expanded_node.borrow().upgrade();
+                        parent = unwrapped_parent.parent_expanded_node.upgrade();
                     } else {
                         break;
                     }
@@ -698,13 +803,13 @@ impl PaxEngine {
     }
 
     pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode>> {
-        let (x, y) = self.globals.viewport.bounds;
+        let (x, y) = self.runtime_context.globals().viewport.bounds;
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
-        self.globals.viewport.bounds = new_viewport_size;
+        self.runtime_context.globals_mut().viewport.bounds = new_viewport_size;
     }
 
     pub fn load_image(

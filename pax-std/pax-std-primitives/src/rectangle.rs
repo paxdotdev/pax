@@ -1,14 +1,12 @@
 use kurbo::{RoundedRect, Shape};
 use pax_core::{
-    compute_tab, declarative_macros::handle_vtable_update, BaseInstance,
-    ComputedExpandedProperties, UpdateContext,
+    compute_tab, declarative_macros::handle_vtable_update, BaseInstance, ComputedExpandedProperties,
 };
 use pax_message::NativeMessage;
 use piet::{LinearGradient, RadialGradient};
 
 use pax_core::{
-    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
-    RenderTreeContext,
+    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext, RuntimeContext,
 };
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
@@ -37,12 +35,38 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+    fn update_children(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _ptc: &mut RuntimeContext,
+    ) {
+        //Doesn't do anything with children
+    }
 
-        this_expanded_node
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
+            handle_vtable_update(
+                context.expression_table(),
+                &expanded_node.stack,
+                &mut properties.stroke,
+            );
+            handle_vtable_update(
+                context.expression_table(),
+                &expanded_node.stack,
+                &mut properties.fill,
+            );
+            handle_vtable_update(
+                context.expression_table(),
+                &expanded_node.stack,
+                &mut properties.corner_radii,
+            );
+
+            // TODO: figure out best practice for nested properties struct (perhaps higher-level struct is not Property<> wrapped?)
+            // handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
+            // handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
+            // handle_vtable_update!(ptc, corner_radii.top_left, f64);
+            // handle_vtable_update!(ptc, corner_radii.top_right, f64);
+        });
     }
 
     fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
@@ -121,43 +145,5 @@ impl InstanceNode for RectangleInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
-    }
-
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &UpdateContext,
-        _messages: &mut Vec<NativeMessage>,
-    ) {
-        *expanded_node.computed_expanded_properties.borrow_mut() =
-            Some(ComputedExpandedProperties {
-                computed_tab: compute_tab(expanded_node, &context.globals.viewport),
-                computed_z_index: 0,
-                computed_canvas_index: 0,
-            });
-
-        expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            handle_vtable_update(
-                context.expression_table,
-                expanded_node,
-                &mut properties.stroke,
-            );
-            handle_vtable_update(
-                context.expression_table,
-                expanded_node,
-                &mut properties.fill,
-            );
-            handle_vtable_update(
-                context.expression_table,
-                expanded_node,
-                &mut properties.corner_radii,
-            );
-
-            // TODO: figure out best practice for nested properties struct (perhaps higher-level struct is not Property<> wrapped?)
-            // handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
-            // handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
-            // handle_vtable_update!(ptc, corner_radii.top_left, f64);
-            // handle_vtable_update!(ptc, corner_radii.top_right, f64);
-        });
     }
 }

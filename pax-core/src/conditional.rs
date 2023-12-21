@@ -1,10 +1,9 @@
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, PropertiesTreeContext, UpdateContext,
+    InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_message::NativeMessage;
 use pax_runtime_api::Layer;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -39,27 +38,23 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
+    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+        //TODOSAM make conditional set to embty or to all
+        let env = Rc::clone(&expanded_node.stack);
+        let children_with_envs = self
             .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-        for child in self.base().get_children() {
-            let expanded_child = Rc::clone(child).expand(ptc);
-            this_expanded_node.append_child(expanded_child)
-        }
-        this_expanded_node
+            .get_template_children()
+            .iter()
+            .cloned()
+            .zip(iter::repeat(env));
+        expanded_node.set_children(children_with_envs, ptc);
     }
 
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &UpdateContext,
-        messages: &mut Vec<NativeMessage>,
-    ) {
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
             handle_vtable_update(
-                context.expression_table,
-                expanded_node,
+                context.expression_table(),
+                &expanded_node.stack,
                 &mut properties.boolean_expression,
             );
             //return evaluated value
@@ -78,5 +73,28 @@ impl InstanceNode for ConditionalInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn get_size(
+        &self,
+        expanded_node: &ExpandedNode,
+    ) -> (pax_runtime_api::Size, pax_runtime_api::Size) {
+        let common_properties = expanded_node.get_common_properties();
+        let common_properties_borrowed = common_properties.borrow();
+        (
+            common_properties_borrowed.width.get().clone(),
+            common_properties_borrowed.height.get().clone(),
+        )
+    }
+
+    fn get_clipping_size(
+        &self,
+        _expanded_node: &ExpandedNode,
+    ) -> Option<(pax_runtime_api::Size, pax_runtime_api::Size)> {
+        None
+    }
+
+    fn handle_form_event(&self, event: crate::form_event::FormEvent) {
+        panic!("form event sent to non-compatible component: {:?}", event)
     }
 }

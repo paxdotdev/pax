@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, PropertiesTreeContext,
+    InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_runtime_api::Layer;
 
@@ -45,15 +45,15 @@ impl InstanceNode for SlotInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<ExpandedNode> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
+    fn update_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        _context: &mut RuntimeContext,
+    ) {
         //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this
         //method for attached nodes.  This enables changes / shifts in slot index + firing mount / unmount lifecycle events along the way.
         let _current_index: usize =
-            this_expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+            expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
                 properties
                     .index
                     .get()
@@ -81,8 +81,16 @@ impl InstanceNode for SlotInstance {
         //             .revert_mark_for_unmount(&child_to_forward.borrow().id_chain);
         //     }
         // }
+    }
 
-        this_expanded_node
+    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+            handle_vtable_update(
+                &context.expression_table(),
+                &expanded_node.stack,
+                &mut properties.index,
+            );
+        });
     }
 
     #[cfg(debug_assertions)]
@@ -96,20 +104,5 @@ impl InstanceNode for SlotInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
-    }
-
-    fn update(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &crate::UpdateContext,
-        _messages: &mut Vec<pax_message::NativeMessage>,
-    ) {
-        expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            handle_vtable_update(
-                &context.expression_table,
-                &expanded_node,
-                &mut properties.index,
-            );
-        });
     }
 }
