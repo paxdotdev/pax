@@ -1,7 +1,6 @@
 use pax_core::declarative_macros::handle_vtable_update;
 use pax_core::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext,
-    RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_message::{AnyCreatePatch, NativeMessage, TextPatch};
 use pax_runtime_api::{Layer, RenderContext};
@@ -31,13 +30,14 @@ impl InstanceNode for TextInstance {
                     invisible_to_slot: false,
                     invisible_to_raycasting: true, //TODO make this optional?
                     layer: Layer::Native,
+                    is_component: false,
                 },
             ),
             last_patches: Default::default(),
         })
     }
 
-    fn update_children(
+    fn recompute_children(
         self: Rc<Self>,
         _expanded_node: &Rc<ExpandedNode>,
         _ptc: &mut RuntimeContext,
@@ -55,138 +55,127 @@ impl InstanceNode for TextInstance {
         });
     }
 
-    // fn handle_native_patches(
-    //     &self,
-    //     messages: &mut Vec<NativeMessage>,
-    //     expanded_node: &ExpandedNode,
-    // ) {
-    //     let mut last_patches = self.last_patches.borrow_mut();
-    //     let mut new_message: TextPatch = Default::default();
-    //     new_message.id_chain = expanded_node.id_chain.clone();
-    //     if !last_patches.contains_key(&new_message.id_chain) {
-    //         let mut patch = TextPatch::default();
-    //         patch.id_chain = new_message.id_chain.clone();
-    //         last_patches.insert(new_message.id_chain.clone(), patch);
-    //     }
-    //     let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
-    //     let mut has_any_updates = false;
+    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+        let mut last_patches = self.last_patches.borrow_mut();
+        let mut new_message: TextPatch = Default::default();
+        new_message.id_chain = expanded_node.id_chain.clone();
+        if !last_patches.contains_key(&new_message.id_chain) {
+            let mut patch = TextPatch::default();
+            patch.id_chain = new_message.id_chain.clone();
+            last_patches.insert(new_message.id_chain.clone(), patch);
+        }
+        let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
+        let mut has_any_updates = false;
 
-    //     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-    //         let val = properties.text.get().string.clone();
-    //         let is_new_value = match &last_patch.content {
-    //             Some(cached_value) => !val.eq(cached_value),
-    //             None => true,
-    //         };
-    //         if is_new_value {
-    //             new_message.content = Some(val.clone());
-    //             last_patch.content = Some(val.clone());
-    //             has_any_updates = true;
-    //         }
+        expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+            let val = properties.text.get().string.clone();
+            let is_new_value = match &last_patch.content {
+                Some(cached_value) => !val.eq(cached_value),
+                None => true,
+            };
+            if is_new_value {
+                new_message.content = Some(val.clone());
+                last_patch.content = Some(val.clone());
+                has_any_updates = true;
+            }
 
-    //         let val = properties.style.get();
-    //         let _is_new_val = match &last_patch.style {
-    //             Some(cached_value) => !val.eq(cached_value),
-    //             None => true,
-    //         };
+            let val = properties.style.get();
+            let _is_new_val = match &last_patch.style {
+                Some(cached_value) => !val.eq(cached_value),
+                None => true,
+            };
 
-    //         if is_new_value {
-    //             new_message.style = Some(val.into());
-    //             last_patch.style = Some(val.into());
-    //             has_any_updates = true;
-    //         }
+            if is_new_value {
+                new_message.style = Some(val.into());
+                last_patch.style = Some(val.into());
+                has_any_updates = true;
+            }
 
-    //         let val = properties.style_link.get();
-    //         let _is_new_val = match &last_patch.style_link {
-    //             Some(cached_value) => !val.eq(cached_value),
-    //             None => true,
-    //         };
+            let val = properties.style_link.get();
+            let _is_new_val = match &last_patch.style_link {
+                Some(cached_value) => !val.eq(cached_value),
+                None => true,
+            };
 
-    //         if is_new_value {
-    //             new_message.style_link = Some(val.into());
-    //             last_patch.style_link = Some(val.into());
-    //             has_any_updates = true;
-    //         }
+            if is_new_value {
+                new_message.style_link = Some(val.into());
+                last_patch.style_link = Some(val.into());
+                has_any_updates = true;
+            }
 
-    //         let computed_props = expanded_node.computed_expanded_properties.borrow();
-    //         let tab = computed_props
-    //             .as_ref()
-    //             .unwrap()
-    //             .computed_tab
-    //             .as_ref()
-    //             .unwrap();
+            let computed_props = expanded_node.computed_expanded_properties.borrow();
+            let tab = &computed_props.as_ref().unwrap().computed_tab;
 
-    //         let val = tab.bounds.0;
-    //         let is_new_value = match &last_patch.size_x {
-    //             Some(cached_value) => !val.eq(cached_value),
-    //             None => true,
-    //         };
-    //         if is_new_value {
-    //             new_message.size_x = Some(val);
-    //             last_patch.size_x = Some(val);
-    //             has_any_updates = true;
-    //         }
+            let val = tab.bounds.0;
+            let is_new_value = match &last_patch.size_x {
+                Some(cached_value) => !val.eq(cached_value),
+                None => true,
+            };
+            if is_new_value {
+                new_message.size_x = Some(val);
+                last_patch.size_x = Some(val);
+                has_any_updates = true;
+            }
 
-    //         let val = tab.bounds.1;
-    //         let is_new_value = match &last_patch.size_y {
-    //             Some(cached_value) => !val.eq(cached_value),
-    //             None => true,
-    //         };
-    //         if is_new_value {
-    //             new_message.size_y = Some(val);
-    //             last_patch.size_y = Some(val);
-    //             has_any_updates = true;
-    //         }
+            let val = tab.bounds.1;
+            let is_new_value = match &last_patch.size_y {
+                Some(cached_value) => !val.eq(cached_value),
+                None => true,
+            };
+            if is_new_value {
+                new_message.size_y = Some(val);
+                last_patch.size_y = Some(val);
+                has_any_updates = true;
+            }
 
-    //         let is_new_transform = match &last_patch.transform {
-    //             Some(cached_transform) => tab
-    //                 .transform
-    //                 .as_coeffs()
-    //                 .iter()
-    //                 .enumerate()
-    //                 .any(|(i, elem)| *elem != cached_transform[i]),
-    //             None => true,
-    //         };
-    //         if is_new_transform {
-    //             new_message.transform = Some(tab.transform.as_coeffs().to_vec());
-    //             last_patch.transform = Some(tab.transform.as_coeffs().to_vec());
-    //             has_any_updates = true;
-    //         }
+            let is_new_transform = match &last_patch.transform {
+                Some(cached_transform) => tab
+                    .transform
+                    .as_coeffs()
+                    .iter()
+                    .enumerate()
+                    .any(|(i, elem)| *elem != cached_transform[i]),
+                None => true,
+            };
+            if is_new_transform {
+                new_message.transform = Some(tab.transform.as_coeffs().to_vec());
+                last_patch.transform = Some(tab.transform.as_coeffs().to_vec());
+                has_any_updates = true;
+            }
 
-    //         if has_any_updates {
-    //             messages.push(pax_message::NativeMessage::TextUpdate(new_message));
-    //         }
-    //     });
-    // }
+            if has_any_updates {
+                context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(new_message));
+            }
+        });
+    }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &RenderTreeContext,
+        _context: &mut RuntimeContext,
         _rc: &mut Box<dyn RenderContext>,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_mount(&self, ptc: &mut RuntimeContext, node: &ExpandedNode) {
-        // let id_chain = node.id_chain.clone();
-
-        //though macOS and iOS don't need this ancestry chain for clipping, Web does
+    fn handle_mount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+        // though macOS and iOS don't need this ancestry chain for clipping, Web does
         // let clipping_ids = ptc.get_current_clipping_ids();
 
         // let scroller_ids = ptc.get_current_scroller_ids();
 
-        // ptc.enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
-        //     id_chain,
-        //     clipping_ids,
-        //     scroller_ids,
-        //     z_index: canvas_index,
-        // }));
+        let id_chain = expanded_node.id_chain.clone();
+        context.enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
+            id_chain,
+            clipping_ids: vec![],
+            scroller_ids: vec![],
+            z_index: 0,
+        }));
     }
 
-    fn handle_unmount(&self, ptc: &mut RuntimeContext) {
-        // let id_chain = ptc.get_id_chain(self.base().get_instance_id());
-        // self.last_patches.borrow_mut().remove(&id_chain);
-        // ptc.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
+    fn handle_unmount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+        let id_chain = expanded_node.id_chain.clone();
+        context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
     }
 
     #[cfg(debug_assertions)]

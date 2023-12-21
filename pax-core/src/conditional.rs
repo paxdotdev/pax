@@ -33,12 +33,17 @@ impl InstanceNode for ConditionalInstance {
                     invisible_to_slot: true,
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
+                    is_component: false,
                 },
             ),
         })
     }
 
-    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+    fn recompute_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        ptc: &mut RuntimeContext,
+    ) {
         //TODOSAM make conditional set to embty or to all
         let env = Rc::clone(&expanded_node.stack);
         let children_with_envs = self

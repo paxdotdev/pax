@@ -8,8 +8,7 @@ use std::{any::Any, iter};
 use kurbo::BezPath;
 
 use pax_core::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext,
-    RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_message::AnyCreatePatch;
 use pax_runtime_api::{Layer, RenderContext, Size};
@@ -37,6 +36,7 @@ impl InstanceNode for FrameInstance {
                     invisible_to_slot: false,
                     invisible_to_raycasting: true,
                     layer: Layer::Canvas,
+                    is_component: false,
                 },
             ),
         })
@@ -109,23 +109,12 @@ impl InstanceNode for FrameInstance {
     // todo!()
     // }
 
-    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
-        let env = Rc::clone(&expanded_node.stack);
-        let children_with_envs = self
-            .base()
-            .get_template_children()
-            .iter()
-            .cloned()
-            .zip(iter::repeat(env));
-        expanded_node.set_children(children_with_envs, ptc);
-    }
-
-    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {}
+    fn update(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
 
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        rtc: &RenderTreeContext,
+        context: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
         // let tab = &expanded_node.computed_tab.as_ref().unwrap();
@@ -153,7 +142,7 @@ impl InstanceNode for FrameInstance {
 
     fn handle_post_render(
         &self,
-        _rtc: &mut RenderTreeContext,
+        _context: &mut RuntimeContext,
         _rcs: &mut HashMap<String, Box<dyn RenderContext>>,
     ) {
         // for (_key, rc) in _rcs.iter_mut() {
@@ -162,7 +151,7 @@ impl InstanceNode for FrameInstance {
         // }
     }
 
-    fn handle_mount(&self, ptc: &mut RuntimeContext, node: &ExpandedNode) {
+    fn handle_mount(&self, node: &ExpandedNode, context: &mut RuntimeContext) {
         // let id_chain = node.id_chain.clone();
 
         // //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -180,7 +169,7 @@ impl InstanceNode for FrameInstance {
         // }));
     }
 
-    fn handle_unmount(&self, _ptc: &mut RuntimeContext) {}
+    fn handle_unmount(&self, _expanded_node: &ExpandedNode, context: &mut RuntimeContext) {}
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

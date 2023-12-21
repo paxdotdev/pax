@@ -24,12 +24,17 @@ impl InstanceNode for GroupInstance {
                     invisible_to_slot: false,
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
+                    is_component: false,
                 },
             ),
         })
     }
 
-    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+    fn recompute_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        ptc: &mut RuntimeContext,
+    ) {
         let env = Rc::clone(&expanded_node.stack);
         let children_with_envs = self
             .base()
