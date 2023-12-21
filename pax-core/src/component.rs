@@ -32,6 +32,7 @@ impl InstanceNode for ComponentInstance {
                 invisible_to_slot: false,
                 invisible_to_raycasting: true,
                 layer: Layer::DontCare,
+                is_component: true,
             },
         );
         Rc::new(ComponentInstance {
@@ -43,13 +44,15 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+    fn recompute_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        ptc: &mut RuntimeContext,
+    ) {
         //change to expand children instead of self.template?
         let new_env = expanded_node.stack.push(&expanded_node.properties);
         let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
-        if self.base().do_initial_expansion() {
-            expanded_node.set_children(children_with_envs, ptc);
-        }
+        expanded_node.set_children(children_with_envs, ptc);
 
         // let expanded_and_flattened_slot_children = {
         //     let slot_children = self.base().get_children();

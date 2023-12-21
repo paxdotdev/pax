@@ -32,7 +32,7 @@ impl RuntimeContext {
         self.next_uid
     }
 
-    pub fn send_native_message(&mut self, message: NativeMessage) {
+    pub fn enqueue_native_message(&mut self, message: NativeMessage) {
         self.messages.push(message)
     }
 

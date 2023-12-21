@@ -212,7 +212,11 @@ pub trait InstanceNode {
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
     #[allow(unused_variables)]
-    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+    fn recompute_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        ptc: &mut RuntimeContext,
+    ) {
         //Forward the same environment to children
         let env = Rc::clone(&expanded_node.stack);
         let children_with_envs = self
@@ -230,12 +234,12 @@ pub trait InstanceNode {
     // ///
     // /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
     // /// (e.g. by keeping a local patch object as a cache of last known values.)
-    // #[allow(unused_variables)]
-    // fn handle_native_patches(&self, ptc: &mut PropertiesTreeContext, expanded_node: &ExpandedNode) {
-    //     //no-op default implementation
-    // }
+    #[allow(unused_variables)]
+    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+        //no-op default implementation
+    }
 
-    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
         //No op by default
     }
 
@@ -248,7 +252,7 @@ pub trait InstanceNode {
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        rtc: &RenderTreeContext,
+        context: &mut RuntimeContext,
         rcs: &mut Box<dyn RenderContext>,
     ) {
         //no-op default implementation
@@ -262,7 +266,7 @@ pub trait InstanceNode {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        rtc: &RenderTreeContext,
+        context: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
     }
@@ -275,7 +279,7 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn handle_post_render(
         &self,
-        rtc: &mut RenderTreeContext,
+        context: &mut RuntimeContext,
         rcs: &mut HashMap<String, Box<dyn RenderContext>>,
     ) {
         //no-op default implementation
@@ -286,14 +290,14 @@ pub trait InstanceNode {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&self, ptc: &mut RuntimeContext, node: &ExpandedNode) {
+    fn handle_mount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
         //no-op default implementation
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&self, ptc: &mut RuntimeContext) {
+    fn handle_unmount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node
@@ -314,8 +318,6 @@ pub struct BaseInstance {
         Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
-
-    do_initial_expansion: RefCell<bool>,
 }
 
 pub struct InstanceFlags {
@@ -331,6 +333,9 @@ pub struct InstanceFlags {
     /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
     /// content.
     pub layer: Layer,
+
+    /// Only true for ComponentInstance
+    pub is_component: bool,
 }
 
 impl BaseInstance {
@@ -342,7 +347,6 @@ impl BaseInstance {
             instance_prototypical_properties_factory: args.prototypical_properties_factory,
             instance_children: args.children.unwrap_or_default(),
             flags,
-            do_initial_expansion: RefCell::new(true),
         }
     }
 
@@ -368,17 +372,7 @@ impl BaseInstance {
     pub fn flags(&self) -> &InstanceFlags {
         &self.flags
     }
-
-    pub fn do_initial_expansion(&self) -> bool {
-        let mut do_exp = self.do_initial_expansion.borrow_mut();
-        let ret = *do_exp;
-        *do_exp = false;
-        ret
-    }
 }
-
-/// Shared context for render pass recursion
-pub struct RenderTreeContext {}
 
 /// Represents the outer stroke of a drawable element
 pub struct StrokeInstance {

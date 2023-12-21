@@ -5,9 +5,7 @@ use pax_core::{
 use pax_message::NativeMessage;
 use piet::{LinearGradient, RadialGradient};
 
-use pax_core::{
-    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext, RuntimeContext,
-};
+use pax_core::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
 
@@ -30,12 +28,13 @@ impl InstanceNode for RectangleInstance {
                     invisible_to_slot: false,
                     invisible_to_raycasting: false,
                     layer: Layer::Canvas,
+                    is_component: false,
                 },
             ),
         })
     }
 
-    fn update_children(
+    fn recompute_children(
         self: Rc<Self>,
         _expanded_node: &Rc<ExpandedNode>,
         _ptc: &mut RuntimeContext,
@@ -76,7 +75,7 @@ impl InstanceNode for RectangleInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &RenderTreeContext,
+        _rtc: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
         let computed_props = expanded_node.computed_expanded_properties.borrow();

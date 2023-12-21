@@ -44,12 +44,13 @@ impl InstanceNode for RepeatInstance {
                     invisible_to_slot: true,
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
+                    is_component: false,
                 },
             ),
         })
     }
 
-    fn update_children(
+    fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         _ptc: &mut RuntimeContext,

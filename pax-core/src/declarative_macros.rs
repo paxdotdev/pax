@@ -29,11 +29,11 @@ pub fn handle_vtable_update<V: Default + Clone + std::fmt::Debug + 'static>(
             // panic!("property has an unexpected type")
         }
     } else {
-        pax_runtime_api::log(&format!(
-            "node couldn't find v_table id for property with value {:?} on type {}",
-            property.get(),
-            std::any::type_name::<V>()
-        ));
+        // pax_runtime_api::log(&format!(
+        //     "node couldn't find v_table id for property with value {:?} on type {}",
+        //     property.get(),
+        //     std::any::type_name::<V>()
+        // ));
     }
 }
 

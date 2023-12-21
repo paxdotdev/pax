@@ -3,9 +3,7 @@ use pax_core::{declarative_macros::handle_vtable_update, BaseInstance};
 use pax_runtime_api::{Layer, RenderContext};
 use pax_std::{primitives::Ellipse, types::Fill};
 
-use pax_core::{
-    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RenderTreeContext, RuntimeContext,
-};
+use pax_core::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use std::rc::Rc;
 
@@ -27,18 +25,24 @@ impl InstanceNode for EllipseInstance {
                     invisible_to_slot: false,
                     invisible_to_raycasting: false,
                     layer: Layer::Canvas,
+                    is_component: false,
                 },
             ),
         })
     }
 
-    fn update_children(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ptc: &mut RuntimeContext) {
+    fn recompute_children(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _ptc: &mut RuntimeContext,
+    ) {
+        //No op for ellipse
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &RenderTreeContext,
+        context: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
         let computed_props = expanded_node.computed_expanded_properties.borrow();

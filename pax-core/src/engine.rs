@@ -18,7 +18,7 @@ use pax_runtime_api::{
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
     compute_tab, Affine, ComponentInstance, ExpressionContext, InstanceNode, InstanceNodePtr,
-    RenderTreeContext, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds, Uid,
+    RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 pub struct Globals {
@@ -137,7 +137,7 @@ impl std::fmt::Debug for ExpandedNode {
         f.debug_struct("ExpandedNode")
             .field(
                 "instance_node",
-                &Fmt(|f| self.template.resolve_debug(f, Some(self))),
+                &Fmt(|f| self.instance_template.resolve_debug(f, Some(self))),
             )
             .field("id_chain", &self.id_chain)
             //.field("bounds", &self.computed_tab)
@@ -224,7 +224,7 @@ pub struct ExpandedNode {
     pub id_chain: Vec<u32>,
 
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
-    pub template: InstanceNodePtr,
+    pub instance_template: InstanceNodePtr,
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
@@ -267,7 +267,7 @@ pub struct ExpandedNode {
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_field:ident) => {
         pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
-            if let Some(registry) = self.template.base().get_handler_registry() {
+            if let Some(registry) = self.instance_template.base().get_handler_registry() {
                 let handlers = &(*registry).borrow().$handler_field;
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.properties)
@@ -285,7 +285,7 @@ macro_rules! dispatch_event_handler {
                         let bounds_parent = comp_props.as_ref().unwrap().computed_tab.bounds;
                         bounds_parent
                     })
-                    .expect("called handler on node with no parent (root node?)");
+                    .unwrap_or(globals.viewport.bounds);
                 let context = NodeContext {
                     bounds_self,
                     bounds_parent,
@@ -318,7 +318,7 @@ impl ExpandedNode {
 
         let root = Rc::new(ExpandedNode {
             id_chain: vec![context.gen_uid().0],
-            template: Rc::clone(&template),
+            instance_template: Rc::clone(&template),
             properties,
             common_properties,
             stack: env,
@@ -329,17 +329,26 @@ impl ExpandedNode {
             children: RefCell::new(BTreeSet::new()),
             computed_expanded_properties: RefCell::new(None),
         });
+
         root.update(context);
-        root.update_children(context);
-        root.mount(context.globals());
+        root.initialize_children(context);
+        root.mount(context);
         root
     }
 
-    //Pre-order traversal that re-computes expanded node children
-    pub fn update_children(self: &Rc<Self>, context: &mut RuntimeContext) {
-        Rc::clone(&self.template).update_children(&self, context);
+    fn initialize_children(self: &Rc<Self>, context: &mut RuntimeContext) {
+        Rc::clone(&self.instance_template).recompute_children(&self, context);
+    }
+
+    fn native_patches(&self, context: &mut RuntimeContext) {
+        self.instance_template.handle_native_patches(self, context);
+    }
+
+    pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
+        self.update(context);
+        self.native_patches(context);
         for child in self.children.borrow().iter() {
-            child.update_children(context);
+            child.recurse_update(context);
         }
     }
 
@@ -365,31 +374,20 @@ impl ExpandedNode {
             .borrow_mut()
             .compute_properties(&self.stack, context.expression_table());
 
-        self.template.update(&self, context);
-        for child in self.children.borrow().iter() {
-            child.update(context);
-        }
+        self.instance_template.update(&self, context);
     }
 
     //TODO how to render to different layers here?
-    pub fn render(&self, context: &RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
-        if let Some(ref registry) = self.template.base().handler_registry {
+    pub fn render(&self, context: &mut RuntimeContext, rc: &mut Box<dyn RenderContext>) {
+        if let Some(ref registry) = self.instance_template.base().handler_registry {
             for handler in &registry.borrow().pre_render_handlers {
-                handler(
-                    Rc::clone(&self.properties),
-                    //TODOSAM fill in
-                    &NodeContext {
-                        frames_elapsed: 0,
-                        bounds_parent: (0.0, 0.0),
-                        bounds_self: (0.0, 0.0),
-                    },
-                )
+                handler(Rc::clone(&self.properties), &self.get_node_context(context))
             }
         }
-        for child in self.children.borrow().iter() {
+        for child in self.children.borrow().iter().rev() {
             child.render(context, rc);
         }
-        self.template.render(&self, context, rc);
+        self.instance_template.render(&self, context, rc);
     }
 
     pub fn set_children(
@@ -397,13 +395,16 @@ impl ExpandedNode {
         templates: impl Iterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &mut RuntimeContext,
     ) {
-        let containing_component = if self.template.type_id() == TypeId::of::<ComponentInstance>() {
+        let containing_component = if self.instance_template.base().flags().is_component {
             Rc::downgrade(&self)
         } else {
             Weak::clone(&self.containing_component)
         };
         let mut expanded_children = self.children.borrow_mut();
 
+        while let Some(node) = expanded_children.pop_first() {
+            node.unmount(context);
+        }
         // TODO run unmount handlers for these children here
 
         expanded_children.clear();
@@ -439,33 +440,39 @@ impl ExpandedNode {
         callback(&mut unwrapped_value)
     }
 
-    fn mount(&self, globals: &Globals) {
-        if let Some(ref registry) = self.template.base().handler_registry {
-            let computed_props = self.computed_expanded_properties.borrow();
-            let bounds_self = computed_props
-                .as_ref()
-                .expect("node has been updated")
-                .computed_tab
-                .bounds;
-            let parent = self.parent_expanded_node.upgrade();
-            let bounds_parent = parent
-                .as_ref()
-                .and_then(|p| {
-                    let props = p.computed_expanded_properties.borrow();
-                    props.as_ref().map(|v| v.computed_tab.bounds)
-                })
-                .unwrap_or(globals.viewport.bounds);
+    fn mount(&self, context: &mut RuntimeContext) {
+        self.instance_template.handle_mount(self, context);
+        if let Some(ref registry) = self.instance_template.base().handler_registry {
             for handler in &registry.borrow().mount_handlers {
-                handler(
-                    Rc::clone(&self.properties),
-                    //TODOSAM fill in
-                    &NodeContext {
-                        frames_elapsed: globals.frames_elapsed,
-                        bounds_parent,
-                        bounds_self,
-                    },
-                )
+                handler(Rc::clone(&self.properties), &self.get_node_context(context))
             }
+        }
+    }
+
+    fn unmount(&self, context: &mut RuntimeContext) {
+        self.instance_template.handle_unmount(self, context);
+    }
+
+    pub fn get_node_context(&self, context: &RuntimeContext) -> NodeContext {
+        let globals = context.globals();
+        let computed_props = self.computed_expanded_properties.borrow();
+        let bounds_self = computed_props
+            .as_ref()
+            .expect("node has been updated")
+            .computed_tab
+            .bounds;
+        let parent = self.parent_expanded_node.upgrade();
+        let bounds_parent = parent
+            .as_ref()
+            .and_then(|p| {
+                let props = p.computed_expanded_properties.borrow();
+                props.as_ref().map(|v| v.computed_tab.bounds)
+            })
+            .unwrap_or(globals.viewport.bounds);
+        NodeContext {
+            frames_elapsed: globals.frames_elapsed,
+            bounds_self,
+            bounds_parent,
         }
     }
 
@@ -477,7 +484,12 @@ impl ExpandedNode {
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if self.template.base().flags().invisible_to_raycasting {
+        if self
+            .instance_template
+            .base()
+            .flags()
+            .invisible_to_raycasting
+        {
             return false;
         }
 
@@ -501,7 +513,7 @@ impl ExpandedNode {
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     pub fn get_size(&self) -> (Size, Size) {
-        self.template.get_size(self)
+        self.instance_template.get_size(self)
     }
 
     /// Returns the size of this node in pixels, requiring this node's containing bounds
@@ -721,7 +733,7 @@ impl PaxEngine {
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
         //
-        self.root_node.update(&mut self.runtime_context);
+        self.root_node.recurse_update(&mut self.runtime_context);
 
         //
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
@@ -747,9 +759,11 @@ impl PaxEngine {
         // 3. RENDER
         // Render as a function of the now-computed ExpandedNode tree.
         //
-        let rtc = RenderTreeContext {};
         for (_, node) in &self.z_index_node_cache {
-            node.render(&rtc, &mut rcs.values_mut().next().unwrap());
+            node.render(
+                &mut self.runtime_context,
+                &mut rcs.values_mut().next().unwrap(),
+            );
         }
         //TODOSAMS redo rendering logic as a method call on the root expanded node as well
 
@@ -770,7 +784,7 @@ impl PaxEngine {
         //struct with exactly the fields we need for ray-casting
 
         let mut ret: Option<Rc<ExpandedNode>> = None;
-        for (_, node) in self.z_index_node_cache.iter().skip(1) {
+        for (_, node) in self.z_index_node_cache.iter().rev().skip(1) {
             if node.ray_cast_test(&ray) {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
