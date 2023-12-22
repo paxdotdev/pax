@@ -5,16 +5,34 @@
     <Logobar id=logobar />
     <FileAndComponentPicker id=file_and_component_picker />
     <Tree id=tree />
-    <Rectangle fill={Fill::Solid(Color::rgba(1, 1, 0, 1))} />
+    <Rectangle fill={Fill::Solid(Color::rgba(1,0,0,1))} />
 </Group>
 
 <Group id=top_panel>
     <Toolbar id=toolbar />
-    <Rectangle fill={Fill::Solid(Color::rgba(1,1,0,1))} />
+    <Rectangle fill={Fill::Solid(Color::rgba(0,1,0,1))} />
 </Group>
 
 <Group id=right_panel>
     <Settings id=settings />
-    <Rectangle fill={Fill::Solid(Color::rgba(1,1,0,1))} />
+    <Rectangle fill={Fill::Solid(Color::rgba(0,0,1,1))} />
 </Group>
 
+
+@settings {
+    #left_panel {
+        width: 250px,
+    }
+
+    #top_panel {
+        height: 65px,
+        x: 250px,
+        width: {100% - 500px}
+    }
+
+    #right_panel {
+        width: 250px,
+        anchor_x: 100%,
+        x: 100%,
+    }
+}
