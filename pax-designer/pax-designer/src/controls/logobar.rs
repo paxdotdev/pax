@@ -3,4 +3,6 @@ use pax_lang::api::*;
 
 #[derive(Pax)]
 #[file("controls/logobar.pax")]
-pub struct Logobar {}
+pub struct Logobar {
+    
+}
