@@ -239,7 +239,7 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    fn update(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
         //No op by default
     }
 

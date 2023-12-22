@@ -85,7 +85,7 @@ impl InstanceNode for ComponentInstance {
         // }
     }
 
-    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //Compute properties
         (*self.compute_properties_fn)(
             &expanded_node,

@@ -19,6 +19,7 @@ pub struct ConditionalInstance {
 #[derive(Default)]
 pub struct ConditionalProperties {
     pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
+    pub last_boolean_expression: bool,
 }
 
 impl InstanceNode for ConditionalInstance {
@@ -42,29 +43,44 @@ impl InstanceNode for ConditionalInstance {
     fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        ptc: &mut RuntimeContext,
+        context: &mut RuntimeContext,
     ) {
-        //TODOSAM make conditional set to embty or to all
-        let env = Rc::clone(&expanded_node.stack);
-        let children_with_envs = self
-            .base()
-            .get_template_children()
-            .iter()
-            .cloned()
-            .zip(iter::repeat(env));
-        expanded_node.set_children(children_with_envs, ptc);
+        let active =
+            expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
+                *properties.boolean_expression.get()
+            });
+
+        if active {
+            let env = Rc::clone(&expanded_node.stack);
+            let children_with_envs = self
+                .base()
+                .get_template_children()
+                .iter()
+                .cloned()
+                .zip(iter::repeat(env));
+            expanded_node.set_children(children_with_envs, context);
+        } else {
+            expanded_node.set_children(iter::empty(), context);
+        }
     }
 
-    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.boolean_expression,
-            );
-            //return evaluated value
-            *properties.boolean_expression.get()
-        });
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        let should_update_children =
+            expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
+                handle_vtable_update(
+                    context.expression_table(),
+                    &expanded_node.stack,
+                    &mut properties.boolean_expression,
+                );
+                let val = *properties.boolean_expression.get();
+                let update_children = properties.last_boolean_expression != val;
+                properties.last_boolean_expression = val;
+                update_children
+            });
+
+        if should_update_children {
+            self.recompute_children(expanded_node, context);
+        }
     }
 
     #[cfg(debug_assertions)]

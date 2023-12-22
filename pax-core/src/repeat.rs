@@ -116,7 +116,7 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
-    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
             handle_vtable_update_optional(
                 context.expression_table(),

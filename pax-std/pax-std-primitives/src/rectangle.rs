@@ -42,7 +42,7 @@ impl InstanceNode for RectangleInstance {
         //Doesn't do anything with children
     }
 
-    fn update(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             handle_vtable_update(
                 context.expression_table(),
