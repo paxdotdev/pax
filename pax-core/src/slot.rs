@@ -26,6 +26,7 @@ pub struct SlotInstance {
 #[derive(Default)]
 pub struct SlotProperties {
     pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
+    last_index: usize,
 }
 
 impl InstanceNode for SlotInstance {
@@ -49,11 +50,9 @@ impl InstanceNode for SlotInstance {
     fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        _context: &mut RuntimeContext,
+        context: &mut RuntimeContext,
     ) {
-        //Similarly to Repeat, mark all existing expanded nodes for unmount, which will tactically be reverted later in this
-        //method for attached nodes.  This enables changes / shifts in slot index + firing mount / unmount lifecycle events along the way.
-        let _current_index: usize =
+        let _index: usize =
             expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
                 properties
                     .index
@@ -63,35 +62,40 @@ impl InstanceNode for SlotInstance {
                     .expect("Slot index must be non-negative")
             });
 
-        // let ccc = ptc.current_containing_component.upgrade().unwrap();
-        // let containing_component_flattened_slot_children =
-        //     ccc.get_expanded_and_flattened_slot_children();
+        // The Stacker (or other slotted component) itself (that this slot is in)
+        let current_component = expanded_node.containing_component.upgrade().unwrap();
+        // The component the Stacker (or other slotted component) resides in (we need its environment)
+        let parent_component = current_component.containing_component.upgrade().unwrap();
 
-        // if let Some(slot_children) = containing_component_flattened_slot_children {
-        //     if let Some(child_to_forward) = slot_children.get(current_index) {
-        //         this_expanded_node
-        //             .borrow_mut()
-        //             .append_child_expanded_node(Rc::clone(child_to_forward));
+        // This is not the component hierarchy itself, but the children that
+        // have been placed inside the component in this specific place
+        let templates = current_component
+            .instance_template
+            .base()
+            .get_template_children();
 
-        //         child_to_forward.borrow_mut().parent_expanded_node =
-        //             Rc::downgrade(&this_expanded_node);
-
-        //         ptc.engine
-        //             .node_registry
-        //             .borrow_mut()
-        //             .revert_mark_for_unmount(&child_to_forward.borrow().id_chain);
-        //     }
-        // }
+        let env = Rc::clone(&current_component.stack);
+        // TODO
+        // expanded_node.set_children(, )
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            handle_vtable_update(
-                &context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.index,
-            );
-        });
+        let update_child =
+            expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+                handle_vtable_update(
+                    &context.expression_table(),
+                    &expanded_node.stack,
+                    &mut properties.index,
+                );
+                let curr_index: usize = properties.index.get().get_as_int().try_into().unwrap();
+                let update_child = properties.last_index != curr_index;
+                properties.last_index = curr_index;
+                update_child
+            });
+
+        if update_child {
+            self.recompute_children(expanded_node, context);
+        }
     }
 
     #[cfg(debug_assertions)]

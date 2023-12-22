@@ -19,7 +19,7 @@ pub struct ConditionalInstance {
 #[derive(Default)]
 pub struct ConditionalProperties {
     pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
-    pub last_boolean_expression: bool,
+    last_boolean_expression: bool,
 }
 
 impl InstanceNode for ConditionalInstance {
