@@ -6,6 +6,7 @@ use pax_lang::api::*;
 // This affords us the ability to select the active component to render in the design tool
 
 #[derive(Pax)]
-pub struct DesigntimeComponentView {
+#[file("designtime_component_viewer.pax")]
+pub struct DesigntimeComponentViewer {
     pub active_component_id: Property<String>
 }
