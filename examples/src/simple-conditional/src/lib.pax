@@ -1,38 +1,23 @@
-// <Stacker cells=2>
-if self.activated {
-	<Frame width=50%>
-		<Text text={self.message} class=centered class=small id=text />
-		<Rectangle class=centered class=small @click=self.increment
-		     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
-		    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-		/>
-	</Frame>
-}
+<Frame width=20%>
+	<Text text={self.message} class=centered class=small id=text />
+	<Rectangle class=centered class=small @click=self.increment
+	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Frame>
 if self.not_activated {
-	<Frame x=50% width=50%>
-		<Text text="This is some text that appears and dissapears" class=centered width=50% height=50% id=text />
-		<Rectangle class=centered width=50% height=50% @click=self.increment
-		     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
-		    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-		/>
-	</Frame>
-}
-if self.not_activated {
-	<Stacker cells=10>
-		for i in 0..10 {
-			<Frame>
-				<Stacker cells={i} direction=StackerDirection::Vertical>
-					for j in 0..i {
-						<Rectangle
-						     fill={Fill::Solid(Color::hlc((i + 4)*(j + 2)*10, 100, 40))}
-						/>
-					}
-				</Stacker>
+	for i in 0..5 {
+		for j in 0..5 {
+			<Frame x={(12 + 15*i)%} y={(12 + 15*j)%} width=15% height=15%>
+				<Text text="_R" class=centered width=80% height=80% id=text />
+				<Rectangle class=centered width=50% height=50% @click=self.increment
+				     fill={Fill::Solid(Color::hlc(ticks + 20*i, 75.0 + j*50, 150.0))}
+				    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+				/>
 			</Frame>
 		}
-	</Stacker>
+	}
 }
-</Stacker>
 
 
 // Things that are broken in this example:

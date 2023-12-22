@@ -330,14 +330,20 @@ impl ExpandedNode {
             computed_expanded_properties: RefCell::new(None),
         });
 
-        root.update(context);
         root.initialize_children(context);
         root.mount(context);
         root
     }
 
     fn initialize_children(self: &Rc<Self>, context: &mut RuntimeContext) {
-        Rc::clone(&self.instance_template).recompute_children(&self, context);
+        self.update(context);
+        // Containers such as Frame, Group, etc don't recompute children based on values
+        // and need an initial explicit call to recompute_children to populate theirs.
+        // Others such as conditionals recognized that their state had changed above when
+        // calling update and don't need to recompute again.
+        if self.children.borrow().is_empty() {
+            Rc::clone(&self.instance_template).recompute_children(&self, context);
+        }
     }
 
     fn native_patches(&self, context: &mut RuntimeContext) {
@@ -392,6 +398,23 @@ impl ExpandedNode {
             child.render(context, rc);
         }
         self.instance_template.render(&self, context, rc);
+    }
+
+    pub fn get_children_detatched(
+        self: &Rc<Self>,
+        templates: impl Iterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
+        context: &mut RuntimeContext,
+    ) {
+        // Direct parent is none, direct containing component is none
+        // Do update properties, but quiet down patches (ie don't send create/native patches events)
+        // (should native_patch updates be seen as a render operation?)
+    }
+
+    pub fn attach_children(self: &Rc<Self>, children: &[Rc<ExpandedNode>]) {
+        // Fire mount events
+        // Set containing component down in the hierarchy up to component types
+        // Set parent of direct children to this
+        // Add them to the children set of this component
     }
 
     pub fn set_children(

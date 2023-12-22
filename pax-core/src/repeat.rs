@@ -26,7 +26,8 @@ pub struct RepeatProperties {
         Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
     pub source_expression_range:
         Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
-    pub last_len: usize,
+    last_len: usize,
+    last_bounds: (f64, f64),
 }
 
 pub struct RepeatItem {
@@ -114,6 +115,10 @@ impl InstanceNode for RepeatInstance {
                     &expanded_node.stack,
                     properties.source_expression_vec.as_mut(),
                 );
+
+                // Will be removed once dirty checking is a thing. Is here to
+                // let Stacker re-render children on resize and resizing of
+                // arrays to update.
                 let current_len = properties
                     .source_expression_range
                     .as_ref()
@@ -125,9 +130,12 @@ impl InstanceNode for RepeatInstance {
                         .map(|v| v.get())
                         .map(Vec::len))
                     .unwrap();
-                //THIS IS A HACK!!! Will be removed once dirty checking is a thing.
-                //Is here to let Stacker re-render children on resize.
-                let update_children = current_len != properties.last_len;
+                let exp_props = expanded_node.computed_expanded_properties.borrow();
+                let current_bounds = exp_props.as_ref().unwrap().computed_tab.bounds;
+                let update_children =
+                    current_len != properties.last_len || current_bounds != properties.last_bounds;
+                properties.last_len = current_len;
+                properties.last_bounds = current_bounds;
                 update_children
             });
         if should_update_children {
