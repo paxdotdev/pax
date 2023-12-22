@@ -21,6 +21,8 @@ pub struct Example {
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.message.set("Click me".to_string());
+        self.activated.set(false);
+        self.not_activated.set(true);
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
@@ -30,10 +32,7 @@ impl Example {
     pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick) {
         self.activated.set(!self.activated.get());
         self.not_activated.set(!self.activated.get());
-        self.message.set(format!(
-            "{} - {}",
-            self.activated.get(),
-            self.not_activated.get()
-        ));
+        self.message
+            .set(format!("activated: {}", self.activated.get(),));
     }
 }

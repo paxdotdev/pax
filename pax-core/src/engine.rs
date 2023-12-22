@@ -344,6 +344,9 @@ impl ExpandedNode {
         self.instance_template.handle_native_patches(self, context);
     }
 
+    // This method will not need to exist when dirty-dag updates are
+    // a thing. recompute_children can instead be reactively called when
+    // certain values are changed
     pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
         self.update(context);
         self.native_patches(context);
@@ -366,6 +369,7 @@ impl ExpandedNode {
 
         *self.computed_expanded_properties.borrow_mut() = Some(ComputedExpandedProperties {
             computed_tab: compute_tab(self, &viewport),
+            //TODO fill these in
             computed_z_index: 0,
             computed_canvas_index: 0,
         });

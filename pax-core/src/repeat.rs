@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::iter;
 use std::rc::Rc;
 use std::{any::Any, ops::Range};
 
@@ -25,6 +26,7 @@ pub struct RepeatProperties {
         Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
     pub source_expression_range:
         Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
+    pub last_len: usize,
 }
 
 pub struct RepeatItem {
@@ -53,54 +55,37 @@ impl InstanceNode for RepeatInstance {
     fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        _ptc: &mut RuntimeContext,
+        context: &mut RuntimeContext,
     ) {
-        let (range_evaled, vec_evaled) =
-            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                if let Some(ref source) = properties.source_expression_range {
-                    (Some(source.get().clone()), None)
-                } else if let Some(ref source) = properties.source_expression_vec {
-                    let vec_evaled = source.get();
-                    (None, Some(vec_evaled.clone()))
-                } else {
-                    unreachable!(); //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
-                }
-            });
-
-        //THIS IS A HACK!!! Will be removed once dirty checking is a thing.
-        //Is here to let Stacker re-render children on resize.
-        let _source_len = range_evaled
-            .as_ref()
-            .map(Range::len)
-            .or(vec_evaled.as_ref().map(Vec::len))
-            .unwrap();
-
-        //Mark all of Repeat's existing children (from previous tick) for
-        //unmount.  Then, when we iterate and append_children below, ensure
-        //that the mark-for-unmount is reverted This enables changes in repeat
-        //source to be mapped to new elements (unchanged elements are marked for
-        //unmount / remount before unmount handlers are fired, resulting in no
-        //effective changes for persistent nodes.)
-
-        let _vec_range_source = vec_evaled
-            .or(range_evaled.map(|v| {
-                v.map(|i| Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>>)
+        let vec = expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
+            if let Some(ref source) = properties.source_expression_range {
+                source
+                    .get()
+                    .clone()
+                    .into_iter()
+                    .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>)
                     .collect::<Vec<_>>()
-            }))
-            .unwrap();
+            } else if let Some(ref source) = properties.source_expression_vec {
+                source.get().clone()
+            } else {
+                //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
+                unreachable!();
+            }
+        });
 
-        // for (i, elem) in vec_range_source.iter().enumerate() {
-        //     let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
-        //         i,
-        //         elem: Rc::clone(elem),
-        //     }));
-
-        //     for child in self.base().get_template_children() {
-        //         expanded_node.expand_child(child)
-        //     }
-        // }
-
-        // this_expanded_node
+        let template_children = self.base().get_template_children();
+        let children_with_envs = iter::repeat(template_children)
+            .zip(vec.into_iter())
+            .enumerate()
+            .flat_map(|(i, (children, elem))| {
+                let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
+                    i,
+                    elem: Rc::clone(&elem),
+                })) as Rc<RefCell<dyn Any>>;
+                let new_env = expanded_node.stack.push(&new_repeat_item);
+                children.clone().into_iter().zip(iter::repeat(new_env))
+            });
+        expanded_node.set_children(children_with_envs, context);
     }
 
     #[cfg(debug_assertions)]
@@ -117,17 +102,36 @@ impl InstanceNode for RepeatInstance {
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-            handle_vtable_update_optional(
-                context.expression_table(),
-                &expanded_node.stack,
-                properties.source_expression_range.as_mut(),
-            );
-            handle_vtable_update_optional(
-                context.expression_table(),
-                &expanded_node.stack,
-                properties.source_expression_vec.as_mut(),
-            );
-        });
+        let should_update_children =
+            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
+                handle_vtable_update_optional(
+                    context.expression_table(),
+                    &expanded_node.stack,
+                    properties.source_expression_range.as_mut(),
+                );
+                handle_vtable_update_optional(
+                    context.expression_table(),
+                    &expanded_node.stack,
+                    properties.source_expression_vec.as_mut(),
+                );
+                let current_len = properties
+                    .source_expression_range
+                    .as_ref()
+                    .map(|v| v.get())
+                    .map(Range::len)
+                    .or(properties
+                        .source_expression_vec
+                        .as_ref()
+                        .map(|v| v.get())
+                        .map(Vec::len))
+                    .unwrap();
+                //THIS IS A HACK!!! Will be removed once dirty checking is a thing.
+                //Is here to let Stacker re-render children on resize.
+                let update_children = current_len != properties.last_len;
+                update_children
+            });
+        if should_update_children {
+            self.recompute_children(expanded_node, context);
+        }
     }
 }
