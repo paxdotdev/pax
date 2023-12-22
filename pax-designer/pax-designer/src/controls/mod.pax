@@ -2,9 +2,11 @@
 //project being edited in the designer
 
 <Group id=left_panel>
-    <Logobar id=logobar />
-    <FileAndComponentPicker id=file_and_component_picker />
-    <Tree id=tree />
+    // <Stacker>
+        <Logobar id=logobar />
+        <FileAndComponentPicker id=file_and_component_picker />
+        <Tree id=tree />
+    // </Stacker>
     <Rectangle fill={Fill::Solid(Color::rgba(1,0,0,1))} />
 </Group>
 
@@ -17,7 +19,6 @@
     <Settings id=settings />
     <Rectangle fill={Fill::Solid(Color::rgba(0,0,1,1))} />
 </Group>
-
 
 @settings {
     #left_panel {
