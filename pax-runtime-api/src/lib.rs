@@ -344,6 +344,33 @@ impl Add for Size {
     }
 }
 
+use std::ops::{Sub};
+
+
+
+impl Sub for Size {
+    type Output = Size;
+    fn sub(self, rhs: Self) -> Self::Output {
+        let mut pixel_component: Numeric = Default::default();
+        let mut percent_component: Numeric = Default::default();
+
+        let sizes = [(self, 1), (rhs, -1)];
+        for (size, multiplier) in sizes.iter() {
+            match size {
+                Size::Pixels(s) => pixel_component = pixel_component + *s * Numeric::from(*multiplier),
+                Size::Percent(s) => percent_component = percent_component + *s * Numeric::from(*multiplier),
+                Size::Combined(s0, s1) => {
+                    pixel_component = pixel_component + *s0 * Numeric::from(*multiplier);
+                    percent_component = percent_component + *s1 * Numeric::from(*multiplier);
+                }
+            }
+        }
+
+        Size::Combined(pixel_component, percent_component)
+    }
+}
+
+
 impl Size {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
