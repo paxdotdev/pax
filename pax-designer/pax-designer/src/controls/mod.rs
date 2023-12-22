@@ -19,5 +19,13 @@ use settings::Settings;
 #[file("controls/mod.pax")]
 pub struct Controls 
 {
+    #[allow(non_snake_case)]
+    pub PANEL_WIDTH: Property<usize>,
+}
+
+impl Controls {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self.PANEL_WIDTH.set(250);
+    }
 
 }
