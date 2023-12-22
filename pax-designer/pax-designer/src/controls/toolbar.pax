@@ -1,0 +1,5 @@
+//for panel in panels {
+    <Rectangle />
+    //<ToolbarPanel panel={panel} />
+//}
+<Group />
