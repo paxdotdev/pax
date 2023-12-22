@@ -374,7 +374,7 @@ impl ExpandedNode {
             .borrow_mut()
             .compute_properties(&self.stack, context.expression_table());
 
-        self.instance_template.update(&self, context);
+        Rc::clone(&self.instance_template).update(&self, context);
     }
 
     //TODO how to render to different layers here?
@@ -450,6 +450,9 @@ impl ExpandedNode {
     }
 
     fn unmount(&self, context: &mut RuntimeContext) {
+        while let Some(child) = self.children.borrow_mut().pop_first() {
+            child.unmount(context);
+        }
         self.instance_template.handle_unmount(self, context);
     }
 

@@ -1,5 +1,5 @@
-<Stacker cells=2>
-<Frame>
+// <Stacker cells=2>
+<Frame width=50%>
 	<Text text={self.message} class=centered class=small id=text />
 	<Rectangle class=centered class=small @click=self.increment
 	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
@@ -7,7 +7,7 @@
 	/>
 </Frame>
 if self.activated {
-	<Frame>
+	<Frame x=50% width=50%>
 		<Text text="This is some text that appears and dissapears" class=centered width=50% height=50% id=text />
 		<Rectangle class=centered width=50% height=50%  @click=self.increment
 		     fill={Fill::Solid(Color::rgb(0, 255, 0))}
@@ -15,22 +15,22 @@ if self.activated {
 		/>
 	</Frame>
 }
-if self.not_activated {
-	<Stacker cells=10>
-		for i in 0..10 {
-			<Frame>
-				<Stacker cells={i} direction=StackerDirection::Vertical>
-					for j in 0..i {
-						<Rectangle
-						     fill={Fill::Solid(Color::hlc((i + 4)*(j + 2)*10, 100, 40))}
-						/>
-					}
-				</Stacker>
-			</Frame>
-		}
-	</Stacker>
-}
-</Stacker>
+// if self.not_activated {
+// 	<Stacker cells=10>
+// 		for i in 0..10 {
+// 			<Frame>
+// 				<Stacker cells={i} direction=StackerDirection::Vertical>
+// 					for j in 0..i {
+// 						<Rectangle
+// 						     fill={Fill::Solid(Color::hlc((i + 4)*(j + 2)*10, 100, 40))}
+// 						/>
+// 					}
+// 				</Stacker>
+// 			</Frame>
+// 		}
+// 	</Stacker>
+// }
+// </Stacker>
 
 
 // Things that are broken in this example:

@@ -109,7 +109,7 @@ impl InstanceNode for FrameInstance {
     // todo!()
     // }
 
-    fn update(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
 
     fn handle_pre_render(
         &self,
