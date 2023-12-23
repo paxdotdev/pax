@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::rc::Rc;
 use std::{cell::RefCell, iter};
 
@@ -15,6 +16,7 @@ use pax_runtime_api::{Layer, Timeline};
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
+    pub slot_children: BTreeSet<Rc<ExpandedNode>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>,
     base: BaseInstance,
@@ -41,48 +43,26 @@ impl InstanceNode for ComponentInstance {
             compute_properties_fn: compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
+            slot_children: BTreeSet::new(),
         })
     }
 
     fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        ptc: &mut RuntimeContext,
+        context: &mut RuntimeContext,
     ) {
+        // Expand slot children tree from the perspective of of this components
+        // container component, using the environment of this current components
+        // location. TODO make sure this is correct, and hook into this tree
+        // in slot. Also make sure the update method below correctly updates
+        // the tree.
+        // self.slot_children =
+
         //change to expand children instead of self.template?
         let new_env = expanded_node.stack.push(&expanded_node.properties);
         let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
-        expanded_node.set_children(children_with_envs, ptc);
-
-        // let expanded_and_flattened_slot_children = {
-        //     let slot_children = self.base().get_children();
-        //     //Expand children in the context of the current containing component
-        //     let mut expanded_slot_children = vec![];
-        //     for child in slot_children {
-        //         let mut new_ptc = ptc.clone();
-        //         let child_expanded_node = Rc::clone(&child).expand(&mut new_ptc);
-        //         expanded_slot_children.push(child_expanded_node);
-        //     }
-
-        //     //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
-        //     //[`ConditionalInstance`] and [`RepeatInstance`]
-        //     let mut expanded_and_flattened_slot_children = vec![];
-        //     for expanded_slot_child in expanded_slot_children {
-        //         expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(
-        //             &Rc::clone(&expanded_slot_child),
-        //         ));
-        //     }
-
-        //     expanded_and_flattened_slot_children
-        // };
-
-        // {
-        //     this_expanded_node
-        //         .borrow_mut()
-        //         .set_expanded_and_flattened_slot_children(Some(
-        //             expanded_and_flattened_slot_children,
-        //         ));
-        // }
+        expanded_node.set_children(children_with_envs, context);
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
@@ -92,6 +72,23 @@ impl InstanceNode for ComponentInstance {
             context.expression_table(),
             context.globals(),
         );
+
+        // TODO slot_children needs to be updated WITHOUT letting most nodes
+        // send events such as mount/dismount and native patch updates for
+        // changes within the tree fire. However, some nodes (the ones that
+        // are) attached to slots SHOULD fire events. We still need to update
+        // the entire tree however, so only firing updates for the slots
+        // doesn't work either. Current idea for a solution: Introduce an
+        // "attached" flag on ExpandedNodes that are set to true recursively
+        // when attach_children is called on ExpandedNode (this also fires
+        // mount events). For nodes whom attached = false, doing set_children
+        // on them does't fire mount events and doing updates doesn't send
+        // native_patches. This allows for tree updates on detatched trees,
+        // without firing mount/dissmount or other updates.
+
+        // for child in self.slot_children.iter() {
+        //     child.update(context);
+        // }
     }
 
     #[cfg(debug_assertions)]
@@ -107,26 +104,3 @@ impl InstanceNode for ComponentInstance {
         &self.base
     }
 }
-
-// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
-// and return another InstanceNodePtrList with a flattened top-level list of nodes.
-// Helper function that accepts a
-// fn flatten_expanded_node_for_slot(node: &Rc<ExpandedNode>) -> Vec<Rc<ExpandedNode>> {
-//     let mut result = vec![];
-
-//     let is_invisible_to_slot = {
-//         let instance_node_borrowed = Rc::clone(&node.instance_node);
-//         instance_node_borrowed.base().flags().invisible_to_slot
-//     };
-//     if is_invisible_to_slot {
-//         // If the node is invisible, recurse on its children
-//         for child in node.borrow().get_children_expanded_nodes().iter() {
-//             result.extend(flatten_expanded_node_for_slot(child));
-//         }
-//     } else {
-//         // If the node is visible, add it to the result
-//         result.push(Rc::clone(node));
-//     }
-
-//     result
-// }

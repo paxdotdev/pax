@@ -42,7 +42,7 @@ impl InstanceNode for EllipseInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        _context: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
         let computed_props = expanded_node.computed_expanded_properties.borrow();

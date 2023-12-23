@@ -2,7 +2,7 @@ use pax_core::declarative_macros::handle_vtable_update;
 use pax_core::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_message::{AnyCreatePatch, NativeMessage, TextPatch};
+use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{Layer, RenderContext};
 use pax_std::primitives::Text;
 use std::cell::RefCell;
@@ -151,7 +151,7 @@ impl InstanceNode for TextInstance {
 
     fn render(
         &self,
-        expanded_node: &ExpandedNode,
+        _expanded_node: &ExpandedNode,
         _context: &mut RuntimeContext,
         _rc: &mut Box<dyn RenderContext>,
     ) {

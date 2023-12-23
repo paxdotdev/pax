@@ -20,7 +20,7 @@ pub struct Example {
 
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.message_outer.set("testing".to_string());
+        self.message_outer.set("testing 12049".to_string());
         self.x.set(Size::Percent(30.into()));
     }
 }
