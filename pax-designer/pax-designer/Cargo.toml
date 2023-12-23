@@ -11,6 +11,7 @@ pax-compiler = { version = "0.10.10", optional = true , path = ".pax/pkg/pax-com
 pax-manifest = { version = "0.10.10"  , path = ".pax/pkg/pax-manifest" }
 serde_json = {version = "1.0.95", optional = true}
 
+
 [[bin]]
 name = "parser"
 path = "src/lib.rs"

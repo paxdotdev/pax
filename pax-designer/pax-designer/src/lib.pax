@@ -1,3 +1,7 @@
 <Controls />
 <Glass />
 <DesigntimeComponentViewer />
+
+@handlers {
+    mount: handle_mount
+}
