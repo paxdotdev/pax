@@ -1,5 +1,21 @@
-//for panel in panels {
-    <Rectangle />
-    //<ToolbarPanel panel={panel} />
-//}
-<Group />
+<Group class=toolbar_panel @click=handle_click_pointer >
+    <Text text="v" />
+    //<Image path="icons/toolbar/pointer.png" />
+    <Rectangle fill={Fill::Solid(Color::rgba(1,1,0,0.5))} />
+</Group>
+<Group class=toolbar_panel x=65px @click=handle_click_brush >
+    <Text text="b" />
+    //<Image path="icons/toolbar/pointer.png" />
+    <Rectangle fill={Fill::Solid(Color::rgba(1,0.8,0,0.5))} />
+</Group>
+<Group class=toolbar_panel x=130px @click=handle_click_pen >
+    <Text text="p" />
+    //<Image path="icons/toolbar/pointer.png" />
+    <Rectangle fill={Fill::Solid(Color::rgba(1,0.6,0,0.5))} />
+</Group>
+
+@settings {
+    .toolbar_panel {
+        width: 65px
+    }
+}
