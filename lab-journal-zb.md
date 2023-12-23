@@ -4770,6 +4770,15 @@ Other:
 
 ### Experience building with Pax on Dec 22 2023
 
+[ ] Haven't tried using Stacker yet (will wait for latest slot refactor to stabilize) — but there are a handful of places I would like to use it
+
+[ ] Image needs to be plugged in (using text as placeholder for now)
+
+[ ] Resizing window too small crashes, looks related to viewport culling math
+    (maybe also related to combined % + px)
+
+[ ] occlusion layers seem to be misordered —
+    for repro: see `paxcorp` repo at commit `2f41d167`, change any background rectangle in pax-designer/src/controls/mod.pax to 1.0 opacity instead of 0.25
 
 [ ] can't comment last line of a template file:
 ```
@@ -4781,7 +4790,7 @@ The above breaks, but adding an empty Group afterwards allows build to proceed:
     <Group /> <EOF>
 ```
 
-[x] Wanted to make event handlers dynamic, attached to repeated structs
+[x] Wanted to attach event handlers to repeated structs
 
 ```
     for panel_spec in panel_specs {
@@ -4790,21 +4799,16 @@ The above breaks, but adding an empty Group afterwards allows build to proceed:
         </Group>
     }
 ```
-this would require at least: handling `.` nesting in the grammar + parser, then adjusting invocation of handlers
-    to support referring to 
-Way forward: instead of making the buttons / actions declarative as data structs,
-we can unroll Pax as manual <Group>, <Image>, etc. (no for loop, a bit more repetition)
+    this would require at least: handling `.` nesting in the grammar + parser, then adjusting invocation of handlers
+    to support invoking functions-in-structs, instead of `SomeStruct::some_handler`
+    [x] Way forward for now: instead of making the buttons / actions declarative as data structs,
+        we can unroll Pax as manual <Group>, <Image>, etc. (no for loop, a bit more repetition)
 
-[ ] stack overflow with compiler when evaluating recursive structs, e.g. a ToolbarPanel with sub_panels: Property<Vec<ToolbarPanel>>
-(note that the above probably only matters if we can also store 
+[-] stack overflow with compiler when evaluating recursive structs, e.g. a ToolbarPanel with sub_panels: Property<Vec<ToolbarPanel>>
+    (note that this probably only matters if we can also store Fn pointers on structs, otherwise there's no use using
+    this "spec" pattern which requires recursive structs)
 
 
-[ ] Image needs to be plugged in (using text as placeholder for now)
-[ ] Resizing window too small crashes, looks related to viewport culling math
-    (maybe also related to combined % + px)
-[ ] occlusion layers seem to be misordered —
-    for repro: see code at this commit, change any background rectangle in pax-designer/src/controls/mod.pax to 1.0 opacity instead of 0.25
-[ ] Haven't tried using Stacker yet (will wait for latest slot refactor to stabilize) — but there are a handful of places I would like to use it
 
 
 
