@@ -15,5 +15,25 @@ use crate::designtime_component_viewer::DesigntimeComponentViewer;
 #[main]
 #[file("lib.pax")]
 pub struct PaxDesigner {
-    pub active_component_id: Property<String>,
+    // pub state: DesignerState,
 }
+
+impl PaxDesigner {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        //self.state = load_previous_state_if_relevant();
+    }
+}
+
+//TODO: derive Serialize and Deserialize
+#[derive(Default, Clone)]
+pub struct DesignerState {
+    // designtime_api: pax_designtime::api::DesigntimeApi,
+    // undo_stack
+    // redo_stack
+}
+
+// pub trait DesignerCommand {
+//     fn execute_command(&mut DesignerState, &DesigntimeApi);
+//     fn undo(&mut DesignerState, &DesigntimeApi);
+//     fn redo(&mut DesignerState, &DesigntimeApi);
+// }
