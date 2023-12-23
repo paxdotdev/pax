@@ -3,12 +3,11 @@ pub mod tree;
 pub mod toolbar;
 pub mod file_and_component_picker;
 pub mod logobar;
-pub mod toolbar_panel;
 
 use pax_lang::*;
 use pax_lang::api::*;
 
-use pax_std::primitives::{Rectangle, Group};
+use pax_std::primitives::{Rectangle, Group, Text};
 
 use logobar::Logobar;
 use file_and_component_picker::FileAndComponentPicker;

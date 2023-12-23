@@ -2,22 +2,31 @@
 //project being edited in the designer
 
 <Group id=left_panel>
-    // <Stacker>
-        <Logobar id=logobar />
-        <FileAndComponentPicker id=file_and_component_picker />
-        <Tree id=tree />
+    // <Stacker> (TODO: use Stacker instead of sized Groups below)
+        <Group height=65px >
+            <Logobar id=logobar />
+            <Rectangle fill={Fill::Solid(Color::rgba(1,0,1,0.5))} />
+        </Group>
+        <Group height=85px y=65px >
+            <FileAndComponentPicker id=file_and_component_picker />
+            <Rectangle fill={Fill::Solid(Color::rgba(1,0,0.25,0.5))} />
+        </Group>
+        <Group y=150px height={100% - 150px}>
+            <Tree id=tree />
+            <Rectangle fill={Fill::Solid(Color::rgba(1,0.5,0.0,0.5))} />
+        </Group>
     // </Stacker>
-    <Rectangle fill={Fill::Solid(Color::rgba(1,0,0,1))} />
+    <Rectangle fill={Fill::Solid(Color::rgba(1,0,0,0.25))} />
 </Group>
 
 <Group id=top_panel>
     <Toolbar id=toolbar />
-    <Rectangle fill={Fill::Solid(Color::rgba(0,1,0,1))} />
+    <Rectangle fill={Fill::Solid(Color::rgba(0,1,0,0.25))} />
 </Group>
 
 <Group id=right_panel>
     <Settings id=settings />
-    <Rectangle fill={Fill::Solid(Color::rgba(0,0,1,1))} />
+    <Rectangle fill={Fill::Solid(Color::rgba(0,0,1,0.25))} />
 </Group>
 
 @settings {
