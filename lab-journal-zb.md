@@ -4809,7 +4809,30 @@ The above breaks, but adding an empty Group afterwards allows build to proceed:
     this "spec" pattern which requires recursive structs)
 
 
+### Notes on hooking up designtime API + state transfer mechanism
 
+pax-designer needs a handle on pax-designtime.
+The two most obvious approaches are:
+(a) import pax_designtime directly, which will require some build tooling tweaks (because of how we handle pax-* imports e.g. patching Cargo.toml to `.pax/pkg` paths)
+    This would also be susceptible to fractured versions between userland project and the imported designtime
+(b) import pax_designtime as reexported by chassis via cartridge. 
+
+It seems likely we will need to statically link the userland project
+We could theoretically dynamically link (e.g. for desktop builds) but that
+won't work in the browser until WASI & Component Model.
+
+This seems to lead to static linking via injecting an entry in pax-designer's Cargo.toml for the userland project, and probably aliasing it so we can refer to it cleanly throughout
+the codebase (e.g. aliasing the crate as `userland_project`).
+Probably we will want to edit pax-designer's Cargo.toml, injecting a path to the userland project in order to "open that project"
+
+Then, we refer to e.g. `userland_project::designtime` from pax-designer, and can get a handle to the API, ORM, etc.
+
+In terms of where the ORM data actually lives, we should likely attach it to the DesignerState object and ensure it's serializable,
+so that we can trasnfer that state when we swap out a wasm slug
+
+Detail: We may want to use something other than JSON for our state transfer mechanism, e.g. protobufs or flatbuffers.  It's probably worth
+the disk footprint overhead for the designer, since it should significantly boost speed of state transfer
+when reloading the designer
 
 
 
