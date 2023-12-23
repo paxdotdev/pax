@@ -27,6 +27,7 @@ pub struct SlotInstance {
 pub struct SlotProperties {
     pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
     last_index: usize,
+    last_node_id: u32,
 }
 
 impl InstanceNode for SlotInstance {
@@ -50,7 +51,7 @@ impl InstanceNode for SlotInstance {
     fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &mut RuntimeContext,
+        _context: &mut RuntimeContext,
     ) {
         let _index: usize =
             expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
@@ -62,20 +63,7 @@ impl InstanceNode for SlotInstance {
                     .expect("Slot index must be non-negative")
             });
 
-        // The Stacker (or other slotted component) itself (that this slot is in)
-        let current_component = expanded_node.containing_component.upgrade().unwrap();
-        // The component the Stacker (or other slotted component) resides in (we need its environment)
-        let parent_component = current_component.containing_component.upgrade().unwrap();
-
-        // This is not the component hierarchy itself, but the children that
-        // have been placed inside the component in this specific place
-        let templates = current_component
-            .instance_template
-            .base()
-            .get_template_children();
-
-        let env = Rc::clone(&current_component.stack);
-        // TODO
+        // TODO get the slot child and set it as a child
         // expanded_node.set_children(, )
     }
 
@@ -88,8 +76,12 @@ impl InstanceNode for SlotInstance {
                     &mut properties.index,
                 );
                 let curr_index: usize = properties.index.get().get_as_int().try_into().unwrap();
-                let update_child = properties.last_index != curr_index;
+                // TODO get current node from the containing components list of slot children.
+                let curr_node_id = todo!();
+                let update_child =
+                    properties.last_index != curr_index || properties.last_node_id != curr_node_id;
                 properties.last_index = curr_index;
+                properties.last_node_id = curr_node_id;
                 update_child
             });
 

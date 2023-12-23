@@ -1,8 +1,5 @@
 use kurbo::{RoundedRect, Shape};
-use pax_core::{
-    compute_tab, declarative_macros::handle_vtable_update, BaseInstance, ComputedExpandedProperties,
-};
-use pax_message::NativeMessage;
+use pax_core::{declarative_macros::handle_vtable_update, BaseInstance};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_core::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};

@@ -126,7 +126,7 @@ pub fn instantiate_{{ snake_case_type_id }}(mut args: InstantiationArgs) -> Rc<C
                 if let Some(new_value) = table.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager(), globals) {
                     properties.{{ prop.0.name }}.set(new_value);
                 } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
-                    let new_value_wrapped = table.compute_vtable_value(node.stack, vtable_id);
+                    let new_value_wrapped = table.compute_vtable_value(&node.stack, vtable_id);
                     if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
                         properties.{{ prop.0.name }}.set(*new_value);
                     } else {

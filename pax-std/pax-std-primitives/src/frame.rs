@@ -1,16 +1,11 @@
 use core::option::Option;
 use core::option::Option::Some;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::{any::Any, iter};
-
-use kurbo::BezPath;
 
 use pax_core::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_message::AnyCreatePatch;
 use pax_runtime_api::{Layer, RenderContext, Size};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -113,9 +108,9 @@ impl InstanceNode for FrameInstance {
 
     fn handle_pre_render(
         &self,
-        expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        _expanded_node: &ExpandedNode,
+        _context: &mut RuntimeContext,
+        _rc: &mut Box<dyn RenderContext>,
     ) {
         // let tab = &expanded_node.computed_tab.as_ref().unwrap();
 
@@ -151,7 +146,7 @@ impl InstanceNode for FrameInstance {
         // }
     }
 
-    fn handle_mount(&self, node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_mount(&self, _node: &ExpandedNode, _context: &mut RuntimeContext) {
         // let id_chain = node.id_chain.clone();
 
         // //though macOS and iOS don't need this ancestry chain for clipping, Web does

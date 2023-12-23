@@ -1,1 +1,1 @@
-<Text x={self.x_pos} text={self.message_inner + "test"}/>
+<Text x={self.x_pos} text={self.message_inner}/>
