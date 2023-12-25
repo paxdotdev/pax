@@ -4765,3 +4765,75 @@ Other:
     patches needs to be sent after canvas_id has been defined, canvas_id will (later
     on) depend on computed tab) to improve stability. maybe introduce new lifecycle hooks such as "after/before properties compute"
 [ ] move from recursive functions to a visitor system: https://docs.rs/derive-visitor/latest/derive_visitor/ (if it simplifies things)
+
+
+
+### Experience building with Pax on Dec 22 2023
+
+[ ] Haven't tried using Stacker yet (will wait for latest slot refactor to stabilize) — but there are a handful of places I would like to use it
+
+[ ] Image needs to be plugged in (using text as placeholder for now)
+
+[ ] Resizing window too small crashes, looks related to viewport culling math
+    (maybe also related to combined % + px)
+
+[ ] occlusion layers seem to be misordered —
+    for repro: see `paxcorp` repo at commit `2f41d167`, change any background rectangle in pax-designer/src/controls/mod.pax to 1.0 opacity instead of 0.25
+
+[ ] can't comment last line of a template file:
+```
+    //Final comment <EOF>
+```
+The above breaks, but adding an empty Group afterwards allows build to proceed:
+```
+    //Final comment
+    <Group /> <EOF>
+```
+
+[x] Wanted to attach event handlers to repeated structs
+
+```
+    for panel_spec in panel_specs {
+        <Group @click=panel_spec.action> //wishlist!
+            <Image path={panel_spec.icon_path} />
+        </Group>
+    }
+```
+    this would require at least: handling `.` nesting in the grammar + parser, then adjusting invocation of handlers
+    to support invoking functions-in-structs, instead of `SomeStruct::some_handler`
+    [x] Way forward for now: instead of making the buttons / actions declarative as data structs,
+        we can unroll Pax as manual <Group>, <Image>, etc. (no for loop, a bit more repetition)
+
+[-] stack overflow with compiler when evaluating recursive structs, e.g. a ToolbarPanel with sub_panels: Property<Vec<ToolbarPanel>>
+    (note that this probably only matters if we can also store Fn pointers on structs, otherwise there's no use using
+    this "spec" pattern which requires recursive structs)
+
+
+### Notes on hooking up designtime API + state transfer mechanism
+
+pax-designer needs a handle on pax-designtime.
+The two most obvious approaches are:
+(a) import pax_designtime directly, which will require some build tooling tweaks (because of how we handle pax-* imports e.g. patching Cargo.toml to `.pax/pkg` paths)
+    This would also be susceptible to fractured versions between userland project and the imported designtime
+(b) import pax_designtime as reexported by chassis via cartridge. 
+
+It seems likely we will need to statically link the userland project
+We could theoretically dynamically link (e.g. for desktop builds) but that
+won't work in the browser until WASI & Component Model.
+
+This seems to lead to static linking via injecting an entry in pax-designer's Cargo.toml for the userland project, and probably aliasing it so we can refer to it cleanly throughout
+the codebase (e.g. aliasing the crate as `userland_project`).
+Probably we will want to edit pax-designer's Cargo.toml, injecting a path to the userland project in order to "open that project"
+
+Then, we refer to e.g. `userland_project::designtime` from pax-designer, and can get a handle to the API, ORM, etc.
+
+In terms of where the ORM data actually lives, we should likely attach it to the DesignerState object and ensure it's serializable,
+so that we can trasnfer that state when we swap out a wasm slug
+
+Detail: We may want to use something other than JSON for our state transfer mechanism, e.g. protobufs or flatbuffers.  It's probably worth
+the disk footprint overhead for the designer, since it should significantly boost speed of state transfer
+when reloading the designer
+
+
+
+

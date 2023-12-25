@@ -1,6 +1,6 @@
 [package]
 name = "grids"
-version = "0.10.7"
+version = "0.10.10"
 edition = "2021"
 default-run = "run"
 
