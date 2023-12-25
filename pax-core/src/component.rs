@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::path::Component;
 use std::rc::Rc;
 use std::{cell::RefCell, iter};
 
@@ -16,11 +17,15 @@ use pax_runtime_api::{Layer, Timeline};
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
-    pub slot_children: BTreeSet<Rc<ExpandedNode>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>,
     base: BaseInstance,
 }
+
+// #[derive(Default)]
+// pub struct ComponentProperties {
+//     pub slot_children: BTreeSet<Rc<ExpandedNode>>,
+// }
 
 impl InstanceNode for ComponentInstance {
     fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
@@ -43,7 +48,6 @@ impl InstanceNode for ComponentInstance {
             compute_properties_fn: compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
-            slot_children: BTreeSet::new(),
         })
     }
 
@@ -58,6 +62,11 @@ impl InstanceNode for ComponentInstance {
         // in slot. Also make sure the update method below correctly updates
         // the tree.
         // self.slot_children =
+
+        // TODO change slots to be a componentproperty - need to special case Component in the same way as Repeat/if?
+        // expanded_node.with_properties_unwrapped(|c: &mut ComponentProperties| {
+        //     pax_runtime_api::log(&format!("{:#?}", c.slot_children));
+        // });
 
         //change to expand children instead of self.template?
         let new_env = expanded_node.stack.push(&expanded_node.properties);
