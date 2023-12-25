@@ -61,12 +61,24 @@ impl InstanceNode for ComponentInstance {
         // location. TODO make sure this is correct, and hook into this tree
         // in slot. Also make sure the update method below correctly updates
         // the tree.
-        // self.slot_children =
 
-        // TODO change slots to be a componentproperty - need to special case Component in the same way as Repeat/if?
-        // expanded_node.with_properties_unwrapped(|c: &mut ComponentProperties| {
-        //     pax_runtime_api::log(&format!("{:#?}", c.slot_children));
-        // });
+        if let Some(containing_component) = expanded_node.containing_component.upgrade() {
+            let env = Rc::clone(&expanded_node.stack);
+            let children_with_env = self
+                .base()
+                .get_template_children()
+                .iter()
+                .cloned()
+                .zip(iter::repeat(env));
+            // TODO change slots to be a componentproperty instead of general
+            //  - field on expanded node need to special case Component in the
+            //    same way as Repeat/if?
+            // expanded_node.with_properties_unwrapped(|c: &mut ComponentProperties| {
+            //     pax_runtime_api::log(&format!("{:#?}", c.slot_children));
+            // });
+            *expanded_node.expanded_slot_children.borrow_mut() =
+                Some(containing_component.create_children_detatched(children_with_env, context));
+        }
 
         //change to expand children instead of self.template?
         let new_env = expanded_node.stack.push(&expanded_node.properties);
@@ -82,7 +94,7 @@ impl InstanceNode for ComponentInstance {
             context.globals(),
         );
 
-        // TODO slot_children needs to be updated WITHOUT letting most nodes
+        // slot_children needs to be updated WITHOUT letting most nodes
         // send events such as mount/dismount and native patch updates for
         // changes within the tree fire. However, some nodes (the ones that
         // are) attached to slots SHOULD fire events. We still need to update
@@ -95,9 +107,13 @@ impl InstanceNode for ComponentInstance {
         // native_patches. This allows for tree updates on detatched trees,
         // without firing mount/dissmount or other updates.
 
-        // for child in self.slot_children.iter() {
-        //     child.update(context);
-        // }
+        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+            for slot_child in slot_children {
+                slot_child.update(context);
+            }
+        }
+
+        expanded_node.compute_flattened_slot_children();
     }
 
     #[cfg(debug_assertions)]

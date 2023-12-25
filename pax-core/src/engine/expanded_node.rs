@@ -44,7 +44,7 @@ pub struct ExpandedNode {
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    children: RefCell<BTreeSet<Rc<ExpandedNode>>>,
+    children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     pub properties: Rc<RefCell<dyn Any>>,
@@ -60,8 +60,11 @@ pub struct ExpandedNode {
     // Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
     // A snapshot of the scroller stack above this element at the time of properties-computation
     // pub scroller_stack: Vec<Vec<u32>>,
+
+    //TODO this should be moved to ComponentProperties (need to modify codegen)
     /// For component instances only, tracks the expanded + flattened slot_children
-    // expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+    pub expanded_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+    pub expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
     attached: RefCell<bool>,
 }
 
@@ -135,8 +138,10 @@ impl ExpandedNode {
             parent_expanded_node,
             containing_component,
 
-            children: RefCell::new(BTreeSet::new()),
+            children: RefCell::new(Vec::new()),
             computed_expanded_properties: RefCell::new(None),
+            expanded_slot_children: Default::default(),
+            expanded_and_flattened_slot_children: Default::default(),
         });
 
         node.initialize_children(context);
@@ -158,17 +163,17 @@ impl ExpandedNode {
         self: &Rc<Self>,
         templates: impl Iterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &mut RuntimeContext,
-    ) -> BTreeSet<Rc<ExpandedNode>> {
+    ) -> Vec<Rc<ExpandedNode>> {
         let containing_component = if self.instance_template.base().flags().is_component {
             Rc::downgrade(&self)
         } else {
             Weak::clone(&self.containing_component)
         };
 
-        let mut children = BTreeSet::new();
+        let mut children = Vec::new();
 
         for (template, env) in templates {
-            children.insert(Self::new(
+            children.push(Self::new(
                 template,
                 env,
                 context,
@@ -182,7 +187,7 @@ impl ExpandedNode {
     // OBS this does not set the current parent or in other ways modify the stack
     pub fn attach_children(
         self: &Rc<Self>,
-        new_children: BTreeSet<Rc<ExpandedNode>>,
+        new_children: Vec<Rc<ExpandedNode>>,
         context: &mut RuntimeContext,
     ) {
         let mut curr_children = self.children.borrow_mut();
@@ -431,6 +436,13 @@ impl ExpandedNode {
     pub fn get_scroll_offset(&mut self) -> (f64, f64) {
         // (0.0, 0.0)
         todo!("patch into an ExpandedNode-friendly way to track this state");
+    }
+
+    pub fn compute_flattened_slot_children(&self) {
+        if let Some(slot_children) = self.expanded_slot_children.borrow().as_ref() {
+            *self.expanded_and_flattened_slot_children.borrow_mut() =
+                Some(flatten_expanded_nodes_for_slot(&slot_children));
+        }
     }
 
     dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);

@@ -1,1 +1,2 @@
 <Text x={self.x_pos} text={self.message_inner}/>
+slot(0)

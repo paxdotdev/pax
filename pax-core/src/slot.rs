@@ -51,20 +51,30 @@ impl InstanceNode for SlotInstance {
     fn recompute_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        _context: &mut RuntimeContext,
+        context: &mut RuntimeContext,
     ) {
-        let _index: usize =
-            expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-                properties
-                    .index
-                    .get()
-                    .get_as_int()
-                    .try_into()
-                    .expect("Slot index must be non-negative")
-            });
+        let node = expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+            let index: usize = properties
+                .index
+                .get()
+                .get_as_int()
+                .try_into()
+                .expect("Slot index must be non-negative");
+            expanded_node
+                .containing_component
+                .upgrade()
+                .as_ref()
+                .expect("slot has containing component during create")
+                .expanded_and_flattened_slot_children
+                .borrow()
+                .as_ref()
+                .and_then(|v| v.get(index))
+                .map(|v| Rc::clone(&v))
+        });
 
-        // TODO get the slot child and set it as a child
-        // expanded_node.set_children(, )
+        if let Some(node) = node {
+            expanded_node.attach_children(vec![Rc::clone(&node)], context);
+        }
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
@@ -77,11 +87,20 @@ impl InstanceNode for SlotInstance {
                 );
                 let curr_index: usize = properties.index.get().get_as_int().try_into().unwrap();
                 // TODO get current node from the containing components list of slot children.
-                let curr_node_id = todo!();
-                let update_child =
-                    properties.last_index != curr_index || properties.last_node_id != curr_node_id;
+                let curr_node_id = expanded_node
+                    .containing_component
+                    .upgrade()
+                    .expect("slot has containing component")
+                    .expanded_and_flattened_slot_children
+                    .borrow()
+                    .as_ref()
+                    .unwrap_or(&vec![])
+                    .get(curr_index)
+                    .map(|v| v.id_chain[0]);
+                let update_child = properties.last_index != curr_index
+                    || curr_node_id.is_some_and(|v| v != properties.last_node_id);
                 properties.last_index = curr_index;
-                properties.last_node_id = curr_node_id;
+                properties.last_node_id = curr_node_id.unwrap_or(100000);
                 update_child
             });
 

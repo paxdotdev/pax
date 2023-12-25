@@ -1,6 +1,9 @@
-<Inner x_pos={self.x} message_inner="hello!!!!"/>
-<Inner x_pos={self.x + 20%} message_inner="2hello!!!!"/>
-<Inner x_pos={self.x + 40%} message_inner="3hello!!!!"/>
+<Inner x_pos={self.x} message_inner="hello!!!!">
+	<Rectangle x=25% y=25% width=50% height=50%
+	     fill={Fill::Solid(Color::hlc(30, 75.0, 150.0))}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Inner>
 // <Text x=20% text={self.message_outer}/>
 
 @handlers {
