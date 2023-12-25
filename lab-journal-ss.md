@@ -73,3 +73,21 @@ Something to think about: What is the expected behaviour if two slots reference
 the same ExpandedNode? (ie slot(0) exists twice in a component). Long term it might
 be nice to allow a component to for example be rendered twice with the same underlying
 ExpandedNode. What would this require? Or maybe just dissallow this.
+
+
+### Notes Dec 25,
+
+When parent stacker is updating slot_children, the bounds are being
+calculated wrongly. need to update from the reference of the slot
+itself. how do do this but still update the layout of the tree?
+maybe layout calc should be another pass than the "should recompute
+children" pass, done directly before rendering on the tree itself.
+
+- the idea of "attached" needs to stay around, to mange expansions of sub-trees
+  that need to fire on-mount/dissmount events
+- merge update and recompute children (one is simply always calling the other if needed)
+- everything else than "update_children" is as separate passes. (compute_tab is atm what is causing a problem).
+
+For slot this results in:
+- update_children of stacker both updates the shadow tree and the main component
+  tree (but attached limits events from shadow)
