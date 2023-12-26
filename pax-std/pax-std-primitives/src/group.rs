@@ -1,8 +1,6 @@
-use pax_core::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
-};
+use pax_core::{BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs};
 use pax_std::primitives::Group;
-use std::{iter, rc::Rc};
+use std::rc::Rc;
 
 use pax_runtime_api::Layer;
 
@@ -28,21 +26,6 @@ impl InstanceNode for GroupInstance {
                 },
             ),
         })
-    }
-
-    fn recompute_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        ptc: &mut RuntimeContext,
-    ) {
-        let env = Rc::clone(&expanded_node.stack);
-        let children_with_envs = self
-            .base()
-            .get_template_children()
-            .iter()
-            .cloned()
-            .zip(iter::repeat(env));
-        expanded_node.set_children(children_with_envs, ptc);
     }
 
     #[cfg(debug_assertions)]

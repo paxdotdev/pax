@@ -104,8 +104,6 @@ impl InstanceNode for FrameInstance {
     // todo!()
     // }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
-
     fn handle_pre_render(
         &self,
         _expanded_node: &ExpandedNode,
@@ -164,7 +162,7 @@ impl InstanceNode for FrameInstance {
         // }));
     }
 
-    fn handle_unmount(&self, _expanded_node: &ExpandedNode, context: &mut RuntimeContext) {}
+    fn handle_unmount(&self, _expanded_node: &ExpandedNode, _context: &mut RuntimeContext) {}
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

@@ -31,14 +31,6 @@ impl InstanceNode for EllipseInstance {
         })
     }
 
-    fn recompute_children(
-        self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
-        _ptc: &mut RuntimeContext,
-    ) {
-        //No op for ellipse
-    }
-
     fn render(
         &self,
         expanded_node: &ExpandedNode,
@@ -97,6 +89,7 @@ impl InstanceNode for EllipseInstance {
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             handle_vtable_update(
                 context.expression_table(),
