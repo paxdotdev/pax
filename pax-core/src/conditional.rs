@@ -40,32 +40,8 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn recompute_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &mut RuntimeContext,
-    ) {
-        let active =
-            expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
-                *properties.boolean_expression.get()
-            });
-
-        if active {
-            let env = Rc::clone(&expanded_node.stack);
-            let children_with_envs = self
-                .base()
-                .get_template_children()
-                .iter()
-                .cloned()
-                .zip(iter::repeat(env));
-            expanded_node.set_children(children_with_envs, context);
-        } else {
-            expanded_node.set_children(iter::empty(), context);
-        }
-    }
-
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        let should_update_children =
+        let (should_update, active) =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
                 handle_vtable_update(
                     context.expression_table(),
@@ -75,11 +51,22 @@ impl InstanceNode for ConditionalInstance {
                 let val = *properties.boolean_expression.get();
                 let update_children = properties.last_boolean_expression != val;
                 properties.last_boolean_expression = val;
-                update_children
+                (update_children, *properties.boolean_expression.get())
             });
 
-        if should_update_children {
-            self.recompute_children(expanded_node, context);
+        if should_update {
+            if active {
+                let env = Rc::clone(&expanded_node.stack);
+                let children_with_envs = self
+                    .base()
+                    .get_template_children()
+                    .iter()
+                    .cloned()
+                    .zip(iter::repeat(env));
+                expanded_node.set_children(children_with_envs, context);
+            } else {
+                expanded_node.set_children(iter::empty(), context);
+            }
         }
     }
 

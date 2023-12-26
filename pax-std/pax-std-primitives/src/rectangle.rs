@@ -31,15 +31,8 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
-    fn recompute_children(
-        self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
-        _ptc: &mut RuntimeContext,
-    ) {
-        //Doesn't do anything with children
-    }
-
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             handle_vtable_update(
                 context.expression_table(),

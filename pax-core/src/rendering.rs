@@ -211,22 +211,22 @@ pub trait InstanceNode {
     /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
     /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
     /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
-    #[allow(unused_variables)]
-    fn recompute_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        ptc: &mut RuntimeContext,
-    ) {
-        //Forward the same environment to children
-        let env = Rc::clone(&expanded_node.stack);
-        let children_with_envs = self
-            .base()
-            .get_template_children()
-            .iter()
-            .cloned()
-            .zip(iter::repeat(env));
-        expanded_node.set_children(children_with_envs, ptc);
-    }
+    // #[allow(unused_variables)]
+    // fn recompute_children(
+    //     self: Rc<Self>,
+    //     expanded_node: &Rc<ExpandedNode>,
+    //     ptc: &mut RuntimeContext,
+    // ) {
+    //     //Forward the same environment to children
+    //     let env = Rc::clone(&expanded_node.stack);
+    //     let children_with_envs = self
+    //         .base()
+    //         .get_template_children()
+    //         .iter()
+    //         .cloned()
+    //         .zip(iter::repeat(env));
+    //     expanded_node.set_children(children_with_envs, ptc);
+    // }
 
     // /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     // /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
@@ -239,8 +239,17 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
-        //No op by default
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        if expanded_node.do_initial_expansion_of_children() {
+            let env = Rc::clone(&expanded_node.stack);
+            let children_with_envs = self
+                .base()
+                .get_template_children()
+                .iter()
+                .cloned()
+                .zip(iter::repeat(env));
+            expanded_node.set_children(children_with_envs, context);
+        }
     }
 
     /// Second lifecycle method during each render loop, occurs after

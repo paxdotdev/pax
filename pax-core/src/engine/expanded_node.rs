@@ -2,7 +2,6 @@ use crate::Globals;
 use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::BTreeSet;
 use std::rc::{Rc, Weak};
 
 use kurbo::Point;
@@ -66,6 +65,9 @@ pub struct ExpandedNode {
     pub expanded_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
     pub expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
     attached: RefCell<bool>,
+
+    //TODO this should be component prop as well? flag that signifies that a node has done the initial expansion
+    pub done_initial_expansion_of_children: RefCell<bool>,
 }
 
 macro_rules! dispatch_event_handler {
@@ -142,21 +144,12 @@ impl ExpandedNode {
             computed_expanded_properties: RefCell::new(None),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
+            done_initial_expansion_of_children: Default::default(),
         });
 
-        node.initialize_children(context);
+        //TODO make sure base containers expand
+        node.update(context);
         node
-    }
-
-    fn initialize_children(self: &Rc<Self>, context: &mut RuntimeContext) {
-        self.update(context);
-        // Containers such as Frame, Group, etc don't recompute children based on values
-        // and need an initial explicit call to recompute_children to populate theirs.
-        // Others such as conditionals recognized that their state had changed above when
-        // calling update and don't need to recompute again.
-        if self.children.borrow().is_empty() {
-            Rc::clone(&self.instance_template).recompute_children(&self, context);
-        }
     }
 
     pub fn create_children_detatched(
@@ -443,6 +436,13 @@ impl ExpandedNode {
             *self.expanded_and_flattened_slot_children.borrow_mut() =
                 Some(flatten_expanded_nodes_for_slot(&slot_children));
         }
+    }
+
+    pub fn do_initial_expansion_of_children(&self) -> bool {
+        let mut do_it = self.done_initial_expansion_of_children.borrow_mut();
+        let old = *do_it;
+        *do_it = true;
+        old
     }
 
     dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);
