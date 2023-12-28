@@ -117,6 +117,7 @@ pub struct UpdateSelectorRequest {
 
 pub struct UpdateSelectorResponse {
     command_id: Option<usize>,
+    #[allow(unused)]
     selector: SettingsBlockElement,
 }
 
@@ -368,6 +369,7 @@ pub struct GetSelectorRequest {
 
 pub struct GetSelectorResponse {
     command_id: Option<usize>,
+    #[allow(unused)]
     selector: Option<SettingsBlockElement>,
 }
 
@@ -417,6 +419,7 @@ pub struct GetAllSelectorsRequest {
 
 pub struct GetAllSelectorsResponse {
     command_id: Option<usize>,
+    #[allow(unused)]
     selectors: Option<Vec<SettingsBlockElement>>,
 }
 
