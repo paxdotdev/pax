@@ -110,7 +110,7 @@ impl<'a> NodeBuilder<'a> {
         self.template_node.id
     }
 
-    pub fn set_property(mut self, key: String, value: ValueDefinition) -> Self {
+    pub fn set_property(&mut self, key: String, value: ValueDefinition) {
         let token = Token::new_from_raw_value(key.clone(), TokenType::SettingKey);
         if let Some(index) = self.property_map.get(&key) {
             self.template_node.settings.as_mut().unwrap()[*index] =
@@ -126,10 +126,9 @@ impl<'a> NodeBuilder<'a> {
                 self.template_node.settings.as_ref().unwrap().len() - 1,
             );
         }
-        self
     }
 
-    pub fn remove_property(mut self, key: String) -> Self {
+    pub fn remove_property(&mut self, key: String) {
         if let Some(index) = self.property_map.get(&key) {
             self.template_node.settings.as_mut().unwrap().remove(*index);
 
@@ -148,10 +147,9 @@ impl<'a> NodeBuilder<'a> {
 
             self.property_map.remove(&key);
         }
-        self
     }
 
-    pub fn set_condition(mut self, condition: String) -> Self {
+    pub fn set_condition(&mut self, condition: String) {
         self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
             condition_expression_paxel: Some(Token::new_from_raw_value(
                 condition,
@@ -165,10 +163,9 @@ impl<'a> NodeBuilder<'a> {
         });
         self.template_node.type_id = TYPE_ID_IF.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_IF.to_string();
-        self
     }
 
-    pub fn set_slot_index(mut self, slot: String) -> Self {
+    pub fn set_slot_index(&mut self, slot: String) {
         self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
             condition_expression_paxel: None,
             repeat_predicate_definition: None,
@@ -182,14 +179,13 @@ impl<'a> NodeBuilder<'a> {
         });
         self.template_node.type_id = TYPE_ID_SLOT.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_SLOT.to_string();
-        self
     }
 
     pub fn set_repeat_expression(
-        mut self,
+        &mut self,
         pred: ControlFlowRepeatPredicateDefinition,
         source: ControlFlowRepeatSourceDefinition,
-    ) -> Self {
+    ) {
         self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
             condition_expression_paxel: None,
             repeat_predicate_definition: Some(pred),
@@ -200,31 +196,26 @@ impl<'a> NodeBuilder<'a> {
         });
         self.template_node.type_id = TYPE_ID_REPEAT.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_REPEAT.to_string();
-        self
     }
 
-    pub fn set_comment(mut self, comment: String) -> Self {
+    pub fn set_comment(&mut self, comment: String) {
         self.template_node.raw_comment_string = Some(comment);
         self.template_node.type_id = TYPE_ID_COMMENT.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_COMMENT.to_string();
-        self
     }
 
-    pub fn add_child(mut self, child: NodeBuilder<'a>) -> Self {
+    pub fn add_child(&mut self, child: NodeBuilder<'a>) {
         self.template_node.child_ids.push(child.template_node.id);
-        self
     }
 
-    pub fn remove_child(mut self, child_id: usize) -> Self {
+    pub fn remove_child(&mut self, child_id: usize) {
         self.template_node.child_ids.retain(|id| *id != child_id);
-        self
     }
 
-    pub fn insert_child_at(mut self, index: usize, child: NodeBuilder<'a>) -> Self {
+    pub fn insert_child_at(&mut self, index: usize, child: NodeBuilder<'a>) {
         self.template_node
             .child_ids
             .insert(index, child.template_node.id);
-        self
     }
 
     pub fn save(mut self) -> Result<(), String> {

@@ -251,12 +251,12 @@ mod tests {
     fn test_handler_builder_add() {
         let mut orm = PaxManifestORM::new(create_basic_manifest());
 
-        let builder = HandlerBuilder::new(
+        let mut builder = HandlerBuilder::new(
             &mut orm,
             "component1".to_string(),
             "new_handler".to_string(),
-        )
-        .set_handler_value(vec!["new_action".to_string()]);
+        );
+        builder.set_handler_value(vec!["new_action".to_string()]);
 
         builder.save().unwrap();
 
@@ -278,12 +278,12 @@ mod tests {
     fn test_handler_builder_update() {
         let mut orm = PaxManifestORM::new(create_basic_manifest());
 
-        let builder = HandlerBuilder::retrieve_handler(
+        let mut builder = HandlerBuilder::retrieve_handler(
             &mut orm,
             "component1".to_string(),
             "existing_handler".to_string(),
-        )
-        .set_handler_value(vec!["updated_action".to_string()]);
+        );
+        builder.set_handler_value(vec!["updated_action".to_string()]);
 
         builder.save().unwrap();
 
