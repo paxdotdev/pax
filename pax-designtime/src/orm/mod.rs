@@ -1,8 +1,41 @@
-use pax_manifest::PaxManifest;
+//! # PaxManifestORM API
+//!
+//! `PaxManifestORM` provides an interface for managing `PaxManifest` objects, allowing for easy management of template nodes, selectors, and handlers.
+//!
+//! ## Main Functions
+//!
+//! - `build_new_node`: Create a new node builder instance. This method initializes a `NodeBuilder` for creating a new template node.
+//! - `get_node`: Retrieve an existing node. This method returns a `NodeBuilder` initialized with an existing node's data.
+//! - `remove_node`: Remove a specified node from the manifest.
+//! - `build_new_selector`: Create a new selector builder instance. This method initializes a `SelectorBuilder` for creating a new selector.
+//! - `get_selector`: Retrieve an existing selector. This method returns a `SelectorBuilder` initialized with an existing selector's data.
+//! - `remove_selector`: Remove a specified selector from the manifest.
+//! - `build_new_handler`: Create a new handler builder instance. This method initializes a `HandlerBuilder` for creating a new handler.
+//! - `get_handler`: Retrieve an existing handler. This method returns a `HandlerBuilder` initialized with an existing handler's data.
+//! - `remove_handler`: Remove a specified handler from the manifest.
+//! - `execute_command`: Execute a command that implements the `Command` trait, allowing for actions like adding, updating, or removing nodes, selectors, and handlers.
+//! - `undo`: Undo the last command. This method rolls back the last change made to the manifest.
+//! - `redo`: Redo the last undone command. This method reapplies the last change that was undone.
+//! - `undo_until`: Undo commands up to a specified command ID. This allows for targeted rollback of multiple changes.
+//!
+//! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
+
+use pax_manifest::{LiteralBlockDefinition, PaxManifest};
+use serde_derive::{Deserialize, Serialize};
+#[allow(unused_imports)]
+use serde_json;
+
+use self::{
+    handlers::{builder::HandlerBuilder, RemoveHandlerRequest},
+    settings::{builder::SelectorBuilder, RemoveSelectorRequest},
+    template::{builder::NodeBuilder, RemoveTemplateNodeRequest},
+};
 
 pub mod handlers;
 pub mod settings;
 pub mod template;
+#[cfg(test)]
+mod tests;
 
 pub trait Request {
     type Response: Response;
@@ -14,69 +47,183 @@ pub trait Response {
 
 pub trait Command<R: Request> {
     fn execute(&mut self, manifest: &mut PaxManifest) -> Result<R::Response, String>;
-    fn is_mutative(&mut self) -> bool {
-        return true;
+    fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
+        return None;
     }
-    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String>;
-    fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String>;
 }
 
-pub struct PaxManifestORM<R: Request> {
+#[derive(Serialize, Deserialize)]
+pub struct PaxManifestORM {
     manifest: PaxManifest,
-    undo_stack: Vec<Box<dyn Command<R>>>,
-    redo_stack: Vec<Box<dyn Command<R>>>,
+    undo_stack: Vec<(usize, UndoRedoCommand)>,
+    redo_stack: Vec<(usize, UndoRedoCommand)>,
     next_command_id: usize,
 }
 
-impl<R: Request> PaxManifestORM<R> {
-    pub fn execute_command(
+impl PaxManifestORM {
+    pub fn new(manifest: PaxManifest) -> Self {
+        PaxManifestORM {
+            manifest,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            next_command_id: 0,
+        }
+    }
+
+    pub fn get_manifest(&self) -> &PaxManifest {
+        &self.manifest
+    }
+
+    pub fn build_new_node(
         &mut self,
-        mut command: Box<dyn Command<R>>,
-    ) -> Result<R::Response, String> {
+        component_type_id: String,
+        type_id: String,
+        pascal_identifier: String,
+        parent_node_id: Option<usize>,
+    ) -> NodeBuilder {
+        NodeBuilder::new(
+            self,
+            component_type_id,
+            type_id,
+            pascal_identifier,
+            parent_node_id,
+        )
+    }
+
+    pub fn get_node(&mut self, component_type_id: String, node_id: usize) -> NodeBuilder {
+        NodeBuilder::retrieve_node(self, component_type_id, node_id)
+    }
+
+    pub fn remove_node(&mut self, component_type_id: String, node_id: usize) -> Result<(), String> {
+        let command = RemoveTemplateNodeRequest::new(component_type_id, node_id);
+        self.execute_command(command)?;
+        Ok(())
+    }
+
+    pub fn build_new_selector(
+        &mut self,
+        component_type_id: String,
+        key: String,
+        value: LiteralBlockDefinition,
+    ) -> SelectorBuilder {
+        SelectorBuilder::new(self, component_type_id, key, value)
+    }
+
+    pub fn get_selector(&mut self, component_type_id: String, key: String) -> SelectorBuilder {
+        SelectorBuilder::retreive_selector(self, component_type_id, key)
+    }
+
+    pub fn remove_selector(
+        &mut self,
+        component_type_id: String,
+        key: String,
+    ) -> Result<(), String> {
+        let command = RemoveSelectorRequest::new(component_type_id, key);
+        self.execute_command(command)?;
+        Ok(())
+    }
+
+    pub fn build_new_handler(&mut self, component_type_id: String, key: String) -> HandlerBuilder {
+        HandlerBuilder::new(self, component_type_id, key)
+    }
+
+    pub fn get_handler(&mut self, component_type_id: String, key: String) -> HandlerBuilder {
+        HandlerBuilder::retrieve_handler(self, component_type_id, key)
+    }
+
+    pub fn remove_handler(&mut self, component_type_id: String, key: String) -> Result<(), String> {
+        let command = RemoveHandlerRequest::new(component_type_id, key);
+        self.execute_command(command)?;
+        Ok(())
+    }
+
+    pub fn execute_command<R: Request, C>(&mut self, mut command: C) -> Result<R::Response, String>
+    where
+        C: Command<R>,
+    {
         let mut response = command.execute(&mut self.manifest)?;
-        if command.is_mutative() {
-            self.undo_stack.push(command);
+        let command_id = self.next_command_id;
+        if let Some(command) = command.as_undo_redo() {
+            self.undo_stack.push((command_id, command));
             self.redo_stack.clear();
         }
-        response.set_id(self.next_command_id);
+
+        response.set_id(command_id);
         self.next_command_id += 1;
         Ok(response)
     }
 
     pub fn undo(&mut self) -> Result<(), String> {
-        if let Some(mut command) = self.undo_stack.pop() {
+        if let Some((id, mut command)) = self.undo_stack.pop() {
             command.undo(&mut self.manifest)?;
-            self.redo_stack.push(command);
+            self.redo_stack.push((id, command));
         }
         Ok(())
     }
 
     pub fn redo(&mut self) -> Result<(), String> {
-        if let Some(mut command) = self.redo_stack.pop() {
+        if let Some((id, mut command)) = self.redo_stack.pop() {
             command.redo(&mut self.manifest)?;
-            self.undo_stack.push(command);
+            self.undo_stack.push((id, command));
+        }
+        Ok(())
+    }
+
+    pub fn undo_until(&mut self, command_id: usize) -> Result<(), String> {
+        while let Some((id, _)) = self.undo_stack.last() {
+            if *id == command_id {
+                break;
+            }
+            self.undo()?;
         }
         Ok(())
     }
 }
 
-// // Template Node Operations
-// pub fn add_template_node(&mut self, node: TemplateNodeDefinition) { /* implementation */ }
-// pub fn delete_template_node(&mut self, node_id: usize) { /* implementation */ }
-// pub fn update_template_node(&mut self, node: TemplateNodeDefinition) { /* implementation */ }
-// pub fn get_template_node(&self, node_id: usize) -> Option<&TemplateNodeDefinition> { /* implementation */ }
-// pub fn get_all_template_nodes(&self) -> Vec<&TemplateNodeDefinition> { /* implementation */ }
+pub trait UndoRedo {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String>;
+    fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String>;
+}
 
-// // Settings Block Operations (Selector)
-// pub fn add_selector_block(&mut self, selector: SettingsBlockElement) { /* implementation */ }
-// pub fn delete_selector_block(&mut self, selector_id: usize) { /* implementation */ }
-// pub fn update_selector_block(&mut self, selector: SettingsBlockElement) { /* implementation */ }
-// pub fn get_selector_block(&self, selector_id: usize) -> Option<&SettingsBlockElement> { /* implementation */ }
-// pub fn get_all_selectors(&self) -> Vec<&SettingsBlockElement> { /* implementation */ }
+#[derive(Serialize, Deserialize)]
+pub enum UndoRedoCommand {
+    AddTemplateNodeRequest(template::AddTemplateNodeRequest),
+    RemoveTemplateNodeRequest(template::RemoveTemplateNodeRequest),
+    UpdateTemplateNodeRequest(template::UpdateTemplateNodeRequest),
+    AddSelectorRequest(settings::AddSelectorRequest),
+    UpdateSelectorRequest(settings::UpdateSelectorRequest),
+    RemoveSelectorRequest(settings::RemoveSelectorRequest),
+    AddHandlerRequest(handlers::AddHandlerRequest),
+    UpdateHandlerRequest(handlers::UpdateHandlerRequest),
+    RemoveHandlerRequest(handlers::RemoveHandlerRequest),
+}
 
-// // Handler Block Operations
-// pub fn add_handler_block(&mut self, handler: HandlersBlockElement) { /* implementation */ }
-// pub fn delete_handler_block(&mut self, handler_id: usize) { /* implementation */ }
-// pub fn update_handler_block(&mut self, handler: HandlersBlockElement) { /* implementation */ }
-// pub fn get_handler_block(&self, handler_id: usize) -> Option<&HandlersBlockElement> { /* implementation */ }
-// pub fn get_all_handlers(&self) -> Vec<&HandlersBlockElement> { /* implementation */ }
+impl UndoRedo for UndoRedoCommand {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        match self {
+            UndoRedoCommand::AddTemplateNodeRequest(command) => command.undo(manifest),
+            UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.undo(manifest),
+            UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
+            UndoRedoCommand::AddSelectorRequest(command) => command.undo(manifest),
+            UndoRedoCommand::UpdateSelectorRequest(command) => command.undo(manifest),
+            UndoRedoCommand::RemoveSelectorRequest(command) => command.undo(manifest),
+            UndoRedoCommand::AddHandlerRequest(command) => command.undo(manifest),
+            UndoRedoCommand::UpdateHandlerRequest(command) => command.undo(manifest),
+            UndoRedoCommand::RemoveHandlerRequest(command) => command.undo(manifest),
+        }
+    }
+
+    fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        match self {
+            UndoRedoCommand::AddTemplateNodeRequest(command) => command.redo(manifest),
+            UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.redo(manifest),
+            UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.redo(manifest),
+            UndoRedoCommand::AddSelectorRequest(command) => command.redo(manifest),
+            UndoRedoCommand::UpdateSelectorRequest(command) => command.redo(manifest),
+            UndoRedoCommand::RemoveSelectorRequest(command) => command.redo(manifest),
+            UndoRedoCommand::AddHandlerRequest(command) => command.redo(manifest),
+            UndoRedoCommand::UpdateHandlerRequest(command) => command.redo(manifest),
+            UndoRedoCommand::RemoveHandlerRequest(command) => command.redo(manifest),
+        }
+    }
+}
