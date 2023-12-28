@@ -177,6 +177,7 @@ pub struct UpdateTemplateNodeRequest {
 
 pub struct UpdateTemplateNodeResponse {
     command_id: Option<usize>,
+    #[allow(unused)]
     template_node: TemplateNodeDefinition,
 }
 
@@ -438,6 +439,7 @@ pub struct GetTemplateNodeRequest {
 
 pub struct GetTemplateNodeResponse {
     command_id: Option<usize>,
+    #[allow(unused)]
     node: Option<TemplateNodeDefinition>,
 }
 
