@@ -1,12 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use pax_manifest::{ComponentDefinition, PaxManifest, TemplateNodeDefinition};
+    use pax_manifest::{
+        ComponentDefinition, PaxManifest, SettingElement, TemplateNodeDefinition, Token, TokenType,
+        ValueDefinition,
+    };
 
     use crate::orm::{
         template::{
-            AddTemplateNodeRequest, NodeType, RemoveTemplateNodeRequest, UpdateTemplateNodeRequest, GetTemplateNodeRequest, GetAllTemplateNodeRequest,
+            builder::NodeBuilder, AddTemplateNodeRequest, GetAllTemplateNodeRequest,
+            GetTemplateNodeRequest, NodeType, RemoveTemplateNodeRequest, UpdateTemplateNodeRequest,
         },
-        Command,
+        Command, PaxManifestORM, UndoRedo,
     };
 
     use std::collections::{HashMap, HashSet};
@@ -74,7 +78,7 @@ mod tests {
 
         let request = AddTemplateNodeRequest {
             component_type_id: "component1".to_string(),
-            parent_node_id: 1,
+            parent_node_id: Some(1),
             node_id: None,
             child_ids: vec![],
             type_id: "type2".to_string(),
@@ -240,7 +244,7 @@ mod tests {
 
         let request = AddTemplateNodeRequest {
             component_type_id: "component1".to_string(),
-            parent_node_id: 1,
+            parent_node_id: Some(1),
             node_id: None,
             child_ids: vec![],
             type_id: "type2".to_string(),
@@ -262,4 +266,81 @@ mod tests {
         assert_eq!(response.nodes.unwrap().len(), 3);
     }
 
+    #[test]
+    fn test_node_builder_create_new_node() {
+        let manifest = create_basic_manifest();
+        let mut orm = PaxManifestORM::new(manifest);
+
+        let node_builder = NodeBuilder::new(
+            &mut orm,
+            "component1".to_string(),
+            "type2".to_string(),
+            "NewNode".to_string(),
+            Some(1),
+        );
+
+        node_builder.save().unwrap();
+
+        let manifest = orm.get_manifest();
+        let component = manifest.components.get("component1").unwrap();
+        let template = component.template.as_ref().unwrap();
+        let new_node = template.get(&2).unwrap();
+
+        assert_eq!(new_node.pascal_identifier, "NewNode");
+        assert_eq!(new_node.type_id, "type2");
+        assert!(new_node.child_ids.is_empty());
+    }
+
+    #[test]
+    fn test_update_existing_node() {
+        let manifest = create_basic_manifest();
+        let mut orm = PaxManifestORM::new(manifest);
+        let mut node_builder = orm.get_node("component1".to_string(), 1);
+
+        let new_value = ValueDefinition::LiteralValue(Token::new_from_raw_value(
+            "newValue".to_string(),
+            TokenType::LiteralValue,
+        ));
+
+        node_builder = node_builder.set_property("newProperty".to_string(), new_value);
+        assert!(node_builder.save().is_ok());
+
+        let updated_manifest = orm.get_manifest();
+        let component = updated_manifest.components.get("component1").unwrap();
+        let node = component.template.as_ref().unwrap().get(&1).unwrap();
+        assert!(node
+            .settings
+            .clone()
+            .unwrap()
+            .iter()
+            .any(|setting| match setting {
+                SettingElement::Setting(key, ValueDefinition::LiteralValue(val)) =>
+                    key.raw_value == "newProperty" && val.raw_value == "newValue",
+                _ => false,
+            }));
+    }
+
+    #[test]
+    fn test_remove_node() {
+        let manifest = create_basic_manifest();
+        let component = manifest.components.get("component1").unwrap();
+        assert!(component.template.as_ref().unwrap().contains_key(&1));
+
+        let mut orm = PaxManifestORM::new(manifest);
+        let removal = orm.remove_node("component1".to_string(), 1);
+
+        assert!(removal.is_ok());
+
+        let updated_manifest = orm.get_manifest();
+        let component = updated_manifest.components.get("component1").unwrap();
+        assert!(!component.template.as_ref().unwrap().contains_key(&1));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_error_handling_non_existent_node() {
+        let manifest = create_basic_manifest();
+        let mut orm = PaxManifestORM::new(manifest);
+        orm.get_node("component1".to_string(), 999);
+    }
 }
