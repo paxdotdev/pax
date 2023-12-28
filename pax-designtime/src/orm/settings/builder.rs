@@ -69,14 +69,12 @@ impl<'a> SelectorBuilder<'a> {
         panic!("Selector with key {} not found", key);
     }
 
-    pub fn set_value(mut self, value: LiteralBlockDefinition) -> Self {
+    pub fn set_value(&mut self, value: LiteralBlockDefinition) {
         self.value = value;
-        self
     }
 
-    pub fn set_index(mut self, index: usize) -> Self {
+    pub fn set_index(&mut self, index: usize) {
         self.selector_index = Some(index);
-        self
     }
 
     pub fn save(mut self) -> Result<(), String> {

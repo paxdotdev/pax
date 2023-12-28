@@ -2,8 +2,8 @@
 mod tests {
     use crate::orm::{
         settings::{
-            builder::SelectorBuilder, AddSelectorRequest, GetAllSelectorsRequest,
-            GetSelectorRequest, RemoveSelectorRequest, UpdateSelectorRequest,
+            AddSelectorRequest, GetAllSelectorsRequest, GetSelectorRequest, RemoveSelectorRequest,
+            UpdateSelectorRequest,
         },
         Command, PaxManifestORM, UndoRedo,
     };
@@ -46,7 +46,7 @@ mod tests {
     }
     #[test]
     fn test_add_selector_command() {
-        let mut manifest = create_basic_manifest();
+        let manifest = create_basic_manifest();
         let mut orm = PaxManifestORM::new(manifest);
 
         // Creating a new selector with a specific value
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_get_all_selectors_command() {
-        let mut manifest = create_basic_manifest();
+        let manifest = create_basic_manifest();
         let mut orm = PaxManifestORM::new(manifest);
 
         // Add a second selector to the manifest
@@ -333,13 +333,12 @@ mod tests {
         let mut orm = PaxManifestORM::new(create_basic_manifest());
 
         // Retrieve an existing selector and update it
-        let builder = orm.get_selector("component1".to_string(), "existing_selector".to_string());
-        builder
-            .set_value(LiteralBlockDefinition::new(vec![SettingElement::Comment(
-                "Updated Selector".to_string(),
-            )]))
-            .save()
-            .unwrap();
+        let mut builder =
+            orm.get_selector("component1".to_string(), "existing_selector".to_string());
+        builder.set_value(LiteralBlockDefinition::new(vec![SettingElement::Comment(
+            "Updated Selector".to_string(),
+        )]));
+        builder.save().unwrap();
 
         // Verify that the selector has been updated
         let updated_selector = orm

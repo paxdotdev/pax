@@ -1,9 +1,7 @@
 use crate::orm::PaxManifestORM;
 
-use super::{
-    create_handler_element, AddHandlerRequest, RemoveHandlerRequest, UpdateHandlerRequest,
-};
-use pax_manifest::{HandlersBlockElement, PaxManifest, Token, TokenType};
+use super::{AddHandlerRequest, RemoveHandlerRequest, UpdateHandlerRequest};
+use pax_manifest::HandlersBlockElement;
 
 /// Builder for creating and modifying handlers in the PaxManifest.
 pub struct HandlerBuilder<'a> {
@@ -67,14 +65,12 @@ impl<'a> HandlerBuilder<'a> {
         panic!("Handler with key {} not found", key);
     }
 
-    pub fn set_handler_value(mut self, value: Vec<String>) -> Self {
+    pub fn set_handler_value(&mut self, value: Vec<String>) {
         self.value = value;
-        self
     }
 
-    pub fn set_handler_index(mut self, index: usize) -> Self {
+    pub fn set_handler_index(&mut self, index: usize) {
         self.handler_index = Some(index);
-        self
     }
 
     pub fn save(mut self) -> Result<(), String> {
