@@ -1,9 +1,6 @@
-
-
-
 use crate::orm::PaxManifestORM;
 
-pub struct DesigntimeApi<R> {
-    orm: PaxManifestORM<R>,
+pub struct DesigntimeApi {
+    orm: PaxManifestORM,
     llm: (),
 }
