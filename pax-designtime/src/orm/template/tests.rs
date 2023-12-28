@@ -302,7 +302,7 @@ mod tests {
             TokenType::LiteralValue,
         ));
 
-        node_builder = node_builder.set_property("newProperty".to_string(), new_value);
+        node_builder.set_property("newProperty".to_string(), new_value);
         assert!(node_builder.save().is_ok());
 
         let updated_manifest = orm.get_manifest();

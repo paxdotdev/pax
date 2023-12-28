@@ -61,7 +61,7 @@ mod tests {
             "Node1".to_string(),
             None,
         );
-        node_builder = node_builder.set_property("key".to_string(), new_value);
+        node_builder.set_property("key".to_string(), new_value);
         node_builder.save().unwrap();
 
         assert_eq!(
@@ -89,14 +89,13 @@ mod tests {
         // Update an existing selector
         let mut selector_builder =
             orm.get_selector("component1".to_string(), "existing_selector".to_string());
-        selector_builder =
-            selector_builder.set_value(LiteralBlockDefinition::new(vec![SettingElement::Setting(
-                Token::new_from_raw_value("key".to_string(), TokenType::SettingKey),
-                ValueDefinition::LiteralValue(Token::new_from_raw_value(
-                    "value".to_string(),
-                    TokenType::LiteralValue,
-                )),
-            )]));
+        selector_builder.set_value(LiteralBlockDefinition::new(vec![SettingElement::Setting(
+            Token::new_from_raw_value("key".to_string(), TokenType::SettingKey),
+            ValueDefinition::LiteralValue(Token::new_from_raw_value(
+                "value".to_string(),
+                TokenType::LiteralValue,
+            )),
+        )]));
         selector_builder.save().unwrap();
 
         let value = if let SettingsBlockElement::SelectorBlock(_, v) = orm.get_manifest().components
@@ -269,15 +268,15 @@ mod tests {
             TokenType::LiteralValue,
         ));
         // Perform complex workflow with builders
-        orm.build_new_node(
+        let mut node = orm.build_new_node(
             "component1".to_string(),
             "type3".to_string(),
             "Node3".to_string(),
             None,
-        )
-        .set_property("key".to_string(), new_value)
-        .save()
-        .unwrap();
+        );
+        node.set_property("key".to_string(), new_value);
+        node.save().unwrap();
+
         orm.build_new_selector(
             "component1".to_string(),
             "another_selector".to_string(),
