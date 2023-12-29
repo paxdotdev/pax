@@ -5,18 +5,21 @@
 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 	/>
 </Frame>
-if self.not_activated {
-	for i in 0..5 {
-		for j in 0..5 {
-			<Frame x={(12 + 15*i)%} y={(12 + 15*j)%} width=15% height=15%>
-				<Text text="_R" class=centered width=80% height=80% id=text />
-				<Rectangle class=centered width=50% height=50% @click=self.increment
-				     fill={Fill::Solid(Color::hlc(ticks + 20*i, 75.0 + j*50, 150.0))}
-				    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-				/>
-			</Frame>
-		}
-	}
+if self.activated {
+	<Rectangle class=centered class=small
+	     fill={Fill::Solid(Color::hlc(ticks + 200, 75.0, 150.0))}
+	/>
+	// for i in 0..5 {
+	// 	for j in 0..5 {
+	// 		<Frame x={(12 + 15*i)%} y={(12 + 15*j)%} width=15% height=15%>
+	// 			<Text text="_R" class=centered width=80% height=80% id=text />
+	// 			<Rectangle class=centered width=50% height=50% @click=self.increment
+	// 			     fill={Fill::Solid(Color::hlc(ticks + 20*i, 75.0 + j*50, 150.0))}
+	// 			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	// 			/>
+	// 		</Frame>
+	// 	}
+	// }
 }
 
 

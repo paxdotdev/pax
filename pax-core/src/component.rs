@@ -49,7 +49,11 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &mut RuntimeContext,
+    ) {
         //Compute properties
         (*self.compute_properties_fn)(
             &expanded_node,
@@ -103,7 +107,7 @@ impl InstanceNode for ComponentInstance {
 
         if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
             for slot_child in slot_children {
-                slot_child.update(context);
+                slot_child.update_children(context);
             }
         }
 

@@ -48,7 +48,11 @@ impl InstanceNode for SlotInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &mut RuntimeContext,
+    ) {
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
             handle_vtable_update(
                 &context.expression_table(),
@@ -72,18 +76,20 @@ impl InstanceNode for SlotInstance {
                 .as_ref()
                 .and_then(|v| v.get(index))
                 .map(|v| Rc::clone(&v));
+
             let node_id = node.as_ref().map(|n| n.id_chain[0]);
             let update_child = properties.last_index != index
                 || node_id.is_some_and(|id| id != properties.last_node_id);
-            if let Some(id) = node_id {
-                properties.last_node_id = id;
-            }
-            properties.last_index = index;
 
             if update_child {
                 if let Some(node) = node {
                     expanded_node.attach_children(vec![Rc::clone(&node)], context);
+                    pax_runtime_api::log(&format!("attached child: {:#?}", node,));
                 }
+                if let Some(id) = node_id {
+                    properties.last_node_id = id;
+                }
+                properties.last_index = index;
             }
         });
     }

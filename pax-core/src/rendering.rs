@@ -239,7 +239,11 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &mut RuntimeContext,
+    ) {
         if expanded_node.do_initial_expansion_of_children() {
             let env = Rc::clone(&expanded_node.stack);
             let children_with_envs = self

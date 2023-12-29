@@ -29,7 +29,7 @@ pub struct ExpandedNode {
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
-    pub parent_expanded_node: Weak<ExpandedNode>,
+    pub parent_expanded_node: RefCell<Weak<ExpandedNode>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
@@ -85,6 +85,7 @@ macro_rules! dispatch_event_handler {
                 let bounds_self = comp_props.as_ref().unwrap().computed_tab.bounds;
                 let bounds_parent = self
                     .parent_expanded_node
+                    .borrow()
                     .upgrade()
                     .map(|parent| {
                         let comp_props = parent.computed_expanded_properties.borrow();
@@ -102,7 +103,7 @@ macro_rules! dispatch_event_handler {
                 });
             }
 
-            if let Some(parent) = &self.parent_expanded_node.upgrade() {
+            if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
                 parent.$fn_name(args, globals);
             }
         }
@@ -137,7 +138,7 @@ impl ExpandedNode {
             properties,
             common_properties,
             stack: env,
-            parent_expanded_node,
+            parent_expanded_node: RefCell::new(parent_expanded_node),
             containing_component,
 
             children: RefCell::new(Vec::new()),
@@ -148,7 +149,7 @@ impl ExpandedNode {
         });
 
         //TODO make sure base containers expand
-        node.update(context);
+        node.update_children(context);
         node
     }
 
@@ -184,6 +185,7 @@ impl ExpandedNode {
         context: &mut RuntimeContext,
     ) {
         let mut curr_children = self.children.borrow_mut();
+        //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         if *self.attached.borrow() {
             for child in curr_children.iter() {
                 child.recurse_unmount(context);
@@ -191,6 +193,9 @@ impl ExpandedNode {
             for child in new_children.iter() {
                 child.recurse_mount(context);
             }
+        }
+        for child in new_children.iter() {
+            *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
         }
         *curr_children = new_children;
     }
@@ -205,26 +210,31 @@ impl ExpandedNode {
     }
 
     fn native_patches(&self, context: &mut RuntimeContext) {
-        if *self.attached.borrow() {
-            self.instance_template.handle_native_patches(self, context);
-        }
+        self.instance_template.handle_native_patches(self, context);
+    }
+
+    pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
+        self.recurse_update_children(context);
+        self.recurse_update_native_patches(context);
     }
 
     // This method will not need to exist when dirty-dag updates are
-    // a thing. recompute_children can instead be reactively called when
-    // certain values are changed
-    pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
-        self.update(context);
-        self.native_patches(context);
+    // a thing.
+    pub fn recurse_update_children(self: &Rc<Self>, context: &mut RuntimeContext) {
+        self.update_children(context);
         for child in self.children.borrow().iter() {
-            child.recurse_update(context);
+            child.recurse_update_children(context);
         }
     }
 
-    pub fn update(self: &Rc<Self>, context: &mut RuntimeContext) {
-        // Here everything type independent is computed
+    pub fn update_children(self: &Rc<Self>, context: &mut RuntimeContext) {
+        self.get_common_properties()
+            .borrow_mut()
+            .compute_properties(&self.stack, context.expression_table());
+
         let viewport = self
             .parent_expanded_node
+            .borrow()
             .upgrade()
             .and_then(|p| {
                 let props = p.computed_expanded_properties.borrow();
@@ -239,20 +249,23 @@ impl ExpandedNode {
             computed_canvas_index: 0,
         });
 
-        self.get_common_properties()
-            .borrow_mut()
-            .compute_properties(&self.stack, context.expression_table());
-
-        Rc::clone(&self.instance_template).update(&self, context);
-    }
-
-    //TODO how to render to different layers here?
-    pub fn recurse_render(&self, context: &mut RuntimeContext, rc: &mut Box<dyn RenderContext>) {
         if let Some(ref registry) = self.instance_template.base().handler_registry {
             for handler in &registry.borrow().pre_render_handlers {
                 handler(Rc::clone(&self.properties), &self.get_node_context(context))
             }
         }
+        Rc::clone(&self.instance_template).update_children(&self, context);
+    }
+
+    pub fn recurse_update_native_patches(&self, context: &mut RuntimeContext) {
+        self.native_patches(context);
+        for child in self.children.borrow().iter() {
+            child.recurse_update_native_patches(context);
+        }
+    }
+
+    //TODO how to render to different layers here?
+    pub fn recurse_render(&self, context: &mut RuntimeContext, rc: &mut Box<dyn RenderContext>) {
         for child in self.children.borrow().iter().rev() {
             child.recurse_render(context, rc);
         }
@@ -338,10 +351,9 @@ impl ExpandedNode {
         let computed_props = self.computed_expanded_properties.borrow();
         let bounds_self = computed_props
             .as_ref()
-            .expect("node has been updated")
-            .computed_tab
-            .bounds;
-        let parent = self.parent_expanded_node.upgrade();
+            .map(|v| v.computed_tab.bounds)
+            .unwrap_or(globals.viewport.bounds);
+        let parent = self.parent_expanded_node.borrow().upgrade();
         let bounds_parent = parent
             .as_ref()
             .and_then(|p| {
@@ -442,7 +454,7 @@ impl ExpandedNode {
         let mut do_it = self.done_initial_expansion_of_children.borrow_mut();
         let old = *do_it;
         *do_it = true;
-        old
+        !old
     }
 
     dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);
@@ -571,6 +583,7 @@ impl std::fmt::Debug for ExpandedNode {
                 "parent",
                 &self
                     .parent_expanded_node
+                    .borrow()
                     .upgrade()
                     .map(|v| v.id_chain.clone()),
             )

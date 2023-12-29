@@ -86,6 +86,7 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: usize,

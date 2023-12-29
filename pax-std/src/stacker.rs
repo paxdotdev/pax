@@ -53,7 +53,7 @@ impl Default for Stacker {
 impl Stacker {
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let cells = self.cells.get().get_as_float();
-        let bounds = ctx.bounds_parent;
+        let bounds = ctx.bounds_self;
 
         let active_bound = match *self.direction.get() {
             StackerDirection::Horizontal => bounds.0,
@@ -141,6 +141,10 @@ impl Stacker {
             })
             .collect();
 
+        // pax_runtime_api::log(&format!(
+        //     "stacker pre-render fired, bounds: {:#?}, cells: {:#?}",
+        //     ctx, new_cell_specs,
+        // ));
         self._cell_specs.set(new_cell_specs);
     }
 }

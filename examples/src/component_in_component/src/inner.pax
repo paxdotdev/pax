@@ -1,2 +1,12 @@
-<Text x={self.x_pos} text={self.message_inner}/>
-slot(0)
+<Frame width=50% @click=self.inner_clicked>
+// if self.inner_active {
+	for i in 0..2 {
+		slot(i)
+	}
+// }
+
+<Rectangle
+    fill={Fill::Solid(Color::hlc(9*10, 75.0, 150.0))}
+    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+/>
+</Frame>
