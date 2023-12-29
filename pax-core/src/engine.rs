@@ -285,6 +285,8 @@ impl PaxEngine {
             &mut (&mut self.z_index_node_cache, &mut 0),
         );
 
+        // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
+
         self.root_node.recurse_render(
             &mut self.runtime_context,
             &mut rcs.values_mut().next().unwrap(),
@@ -314,7 +316,8 @@ impl PaxEngine {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode>> = node.parent_expanded_node.upgrade();
+                let mut parent: Option<Rc<ExpandedNode>> =
+                    node.parent_expanded_node.borrow().upgrade();
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
@@ -324,7 +327,7 @@ impl PaxEngine {
                                 (*unwrapped_parent).ray_cast_test(&ray);
                             break;
                         }
-                        parent = unwrapped_parent.parent_expanded_node.upgrade();
+                        parent = unwrapped_parent.parent_expanded_node.borrow().upgrade();
                     } else {
                         break;
                     }

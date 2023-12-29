@@ -1,9 +1,35 @@
-<Inner x_pos={self.x} message_inner="hello!!!!">
-	<Rectangle x=25% y=25% width=50% height=50%
-	     fill={Fill::Solid(Color::hlc(30, 75.0, 150.0))}
-	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-	/>
-</Inner>
+// <Frame height=50% @click=self.outer_clicked>
+// 	// if self.outer_active {
+// 		<Inner x_pos={self.x}>
+// 			<Rectangle x={(25*0)%} y={(25*0)%}  width=50% height=50%
+// 			     fill={Fill::Solid(Color::hlc(0*10, 75.0, 150.0))}
+// 			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+// 			/>
+// 			<Rectangle x={(25*2)%} y={(25*2)%}  width=50% height=50%
+// 			     fill={Fill::Solid(Color::hlc(5*10, 75.0, 150.0))}
+// 			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+// 			/>
+// 		</Inner>
+// 	// }
+// 	<Rectangle
+// 	    fill={Fill::Solid(Color::hlc(8*10, 75.0, 150.0))}
+// 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+// 	/>
+// </Frame>
+<Frame width=50%>
+	<Stacker cells=2>
+		<Frame height=50%>
+			<Rectangle
+			     fill={Fill::Solid(Color::hlc(120, 75.0, 150.0))}
+			    corner_radii={RectangleCornerRadii::radii(100.0,100.0,100.0,100.0)}
+			/>
+		</Frame>
+		<Rectangle
+		     fill={Fill::Solid(Color::hlc(0, 75.0, 150.0))}
+		    corner_radii={RectangleCornerRadii::radii(40.0,40.0,40.0,40.0)}
+		/>
+	</Stacker>
+</Frame>
 // <Text x=20% text={self.message_outer}/>
 
 @handlers {

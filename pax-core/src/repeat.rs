@@ -66,7 +66,11 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update_children(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &mut RuntimeContext,
+    ) {
         let (should_update, vec) =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 handle_vtable_update_optional(
@@ -94,7 +98,10 @@ impl InstanceNode for RepeatInstance {
                 };
                 let current_len = vec.len();
                 let exp_props = expanded_node.computed_expanded_properties.borrow();
-                let current_bounds = exp_props.as_ref().unwrap().computed_tab.bounds;
+                let current_bounds = exp_props
+                    .as_ref()
+                    .map(|t| t.computed_tab.bounds)
+                    .unwrap_or_default();
                 let update_children =
                     current_len != properties.last_len || current_bounds != properties.last_bounds;
                 properties.last_len = current_len;
@@ -103,6 +110,7 @@ impl InstanceNode for RepeatInstance {
             });
 
         if should_update {
+            pax_runtime_api::log(&format!("repeat updated children"));
             let template_children = self.base().get_template_children();
             let children_with_envs = iter::repeat(template_children)
                 .zip(vec.into_iter())
