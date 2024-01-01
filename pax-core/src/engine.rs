@@ -265,7 +265,7 @@ impl PaxEngine {
         //
         self.root_node.recurse_update(&mut self.runtime_context);
 
-        //
+        // TODO canvas layer ids, see notes in lab-journal-ss line 95.
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here. Info is not stored on
         // the nodes, but in a separate datastructure.
@@ -285,6 +285,7 @@ impl PaxEngine {
             &mut (&mut self.z_index_node_cache, &mut 0),
         );
 
+        // This is pretty useful during debugging - left it here since I use it often. /Sam
         // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
 
         self.root_node.recurse_render(

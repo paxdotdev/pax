@@ -52,6 +52,7 @@ pub struct ExpandedNode {
     common_properties: Rc<RefCell<CommonProperties>>,
 
     pub computed_expanded_properties: RefCell<Option<ComputedExpandedProperties>>,
+
     // Persistent clone of the state of the [`PropertiesTreeShared#clipping_stack`] at the time this node was expanded.
     // A snapshot of the clipping stack above this element at the time of properties-computation
     // pub clipping_stack: Vec<Vec<u32>>,
@@ -60,13 +61,23 @@ pub struct ExpandedNode {
     // A snapshot of the scroller stack above this element at the time of properties-computation
     // pub scroller_stack: Vec<Vec<u32>>,
 
-    //TODO this should be moved to ComponentProperties (need to modify codegen)
+    // TODO this should probably be moved to ComponentProperties (need to modify codegen)
     /// For component instances only, tracks the expanded + flattened slot_children
     pub expanded_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
     pub expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+
+    /// Flag that is true if this node is part of the root tree. If it is,
+    /// updates to this nodes children also marks them as attached, triggering
+    /// mount and dismount on addition/removal. This is needed mainly for slot,
+    /// since an entire "shadow tree" needs to be expanded and updated for
+    /// each slot child, but only the ones that have a "connected" slot should
+    /// trigger mount/dismount updates
     attached: RefCell<bool>,
 
-    //TODO this should be component prop as well? flag that signifies that a node has done the initial expansion
+    // TODO this should be component prop as well?
+    /// Flag that signifies that a node has done the initial expansion. Used for
+    /// the default implementation of update_children on InstanceNodes that only
+    /// expand once (all except for repeat/conditional)
     pub done_initial_expansion_of_children: RefCell<bool>,
 }
 
@@ -114,7 +125,7 @@ impl ExpandedNode {
     pub fn root(template: Rc<ComponentInstance>, context: &mut RuntimeContext) -> Rc<Self> {
         let root_env =
             RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
-        let root_node = ExpandedNode::new(template, root_env, context, Weak::new(), Weak::new());
+        let root_node = ExpandedNode::new(template, root_env, context, Weak::new());
         root_node.recurse_mount(context);
         root_node
     }
@@ -123,7 +134,6 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         env: Rc<RuntimePropertiesStackFrame>,
         context: &mut RuntimeContext,
-        parent_expanded_node: Weak<ExpandedNode>,
         containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
         let properties = (&template.base().instance_prototypical_properties_factory)();
@@ -138,7 +148,7 @@ impl ExpandedNode {
             properties,
             common_properties,
             stack: env,
-            parent_expanded_node: RefCell::new(parent_expanded_node),
+            parent_expanded_node: Default::default(),
             containing_component,
 
             children: RefCell::new(Vec::new()),
@@ -171,7 +181,6 @@ impl ExpandedNode {
                 template,
                 env,
                 context,
-                Rc::downgrade(self),
                 Weak::clone(&containing_component),
             ));
         }
@@ -324,23 +333,12 @@ impl ExpandedNode {
         callback(&mut unwrapped_value)
     }
 
-    pub fn recurse_visit_preorder<T>(
-        self: &Rc<Self>,
-        func: &impl Fn(&Rc<Self>, &mut T),
-        val: &mut T,
-    ) {
-        func(self, val);
-        for child in self.children.borrow().iter() {
-            child.recurse_visit_preorder(func, val);
-        }
-    }
-
     pub fn recurse_visit_postorder<T>(
         self: &Rc<Self>,
         func: &impl Fn(&Rc<Self>, &mut T),
         val: &mut T,
     ) {
-        for child in self.children.borrow().iter() {
+        for child in self.children.borrow().iter().rev() {
             child.recurse_visit_postorder(func, val);
         }
         func(self, val);

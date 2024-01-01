@@ -54,20 +54,25 @@ impl InstanceNode for ComponentInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &mut RuntimeContext,
     ) {
-        //Compute properties
+        // Compute properties
         (*self.compute_properties_fn)(
             &expanded_node,
             context.expression_table(),
             context.globals(),
         );
 
-        if expanded_node.do_initial_expansion_of_children() {
-            // Expand slot children tree from the perspective of of this components
-            // container component, using the environment of this current components
-            // location. TODO make sure this is correct, and hook into this tree
-            // in slot. Also make sure the update method below correctly updates
-            // the tree.
+        // Update slot children. Needs to be done since a change in
+        // a repeat can trigger changes in slot references.
+        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+            for slot_child in slot_children {
+                slot_child.update_children(context);
+            }
+        }
 
+        expanded_node.compute_flattened_slot_children();
+
+        //Only expand children once, component children doesn't ever change
+        if expanded_node.do_initial_expansion_of_children() {
             if let Some(containing_component) = expanded_node.containing_component.upgrade() {
                 let env = Rc::clone(&expanded_node.stack);
                 let children_with_env = self
@@ -76,42 +81,15 @@ impl InstanceNode for ComponentInstance {
                     .iter()
                     .cloned()
                     .zip(iter::repeat(env));
-                // TODO change slots to be a componentproperty instead of general
-                //  - field on expanded node need to special case Component in the
-                //    same way as Repeat/if?
-                // expanded_node.with_properties_unwrapped(|c: &mut ComponentProperties| {
-                //     pax_runtime_api::log(&format!("{:#?}", c.slot_children));
-                // });
                 *expanded_node.expanded_slot_children.borrow_mut() = Some(
                     containing_component.create_children_detatched(children_with_env, context),
                 );
             }
 
-            //change to expand children instead of self.template?
             let new_env = expanded_node.stack.push(&expanded_node.properties);
             let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
             expanded_node.set_children(children_with_envs, context);
         }
-        // slot_children needs to be updated WITHOUT letting most nodes
-        // send events such as mount/dismount and native patch updates for
-        // changes within the tree fire. However, some nodes (the ones that
-        // are) attached to slots SHOULD fire events. We still need to update
-        // the entire tree however, so only firing updates for the slots
-        // doesn't work either. Current idea for a solution: Introduce an
-        // "attached" flag on ExpandedNodes that are set to true recursively
-        // when attach_children is called on ExpandedNode (this also fires
-        // mount events). For nodes whom attached = false, doing set_children
-        // on them does't fire mount events and doing updates doesn't send
-        // native_patches. This allows for tree updates on detatched trees,
-        // without firing mount/dissmount or other updates.
-
-        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
-            for slot_child in slot_children {
-                slot_child.update_children(context);
-            }
-        }
-
-        expanded_node.compute_flattened_slot_children();
     }
 
     #[cfg(debug_assertions)]
