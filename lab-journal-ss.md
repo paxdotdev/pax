@@ -75,7 +75,7 @@ be nice to allow a component to for example be rendered twice with the same unde
 ExpandedNode. What would this require? Or maybe just dissallow this.
 
 
-### Notes Dec 25,
+### Slot children and shadow trees,
 
 When parent stacker is updating slot_children, the bounds are being
 calculated wrongly. need to update from the reference of the slot
@@ -91,3 +91,30 @@ children" pass, done directly before rendering on the tree itself.
 For slot this results in:
 - update_children of stacker both updates the shadow tree and the main component
   tree (but attached limits events from shadow)
+
+### How should canvas layer indexing work?
+
+If the entire expanded node tree has no repeat/conditionals, the canvas index of
+each node can be computed once and never changes. With repeat and conditionals
+however, indicies will need to be shifted arround to allow for arbitrary
+insertions of native/canvas layers between existing ones.
+
+Some options:
+- destroy elements and recreate them whenever it's canvas index changes. Keep
+  track of this engine side. This probably is pretty expensive if a half of all
+  rendered things need to be shifted in the same frame.
+- do some fancy stuff to allow direct "shifting" of layers by some native
+  message by the conditional/repeat element (this would require revamping how
+  native elements keep track of their target layer - possibly by some ID passed
+  from the chassi?)
+- is it possible to figure out the maximum number of layers that will be needed
+  at compile time? since the source for repeat indices can be arbitrarily
+  changed to any length at runtime, I don't think it is.
+
+Go for the first one initially?
+
+Sending of create/destroy is done in mount/dismount. This means that a node
+changing layer would need to dissmount and mount again with a different ID
+the way things are structured at the moment. Could a new layer ID instead be
+introduced as part of an update patch somehow? That might be simpler (and allow
+for movement of native elems instead of destruction and creation?).

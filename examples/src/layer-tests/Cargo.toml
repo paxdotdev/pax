@@ -1,5 +1,5 @@
 [package]
-name = "raycast-tests"
+name = "layer-tests"
 version = "0.10.10"
 edition = "2021"
 default-run = "run"
