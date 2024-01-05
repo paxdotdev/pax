@@ -287,15 +287,9 @@ impl ExpandedNode {
         for child in self.children.borrow().iter().rev() {
             child.recurse_render(context, rcs);
         }
-        pax_runtime_api::log(&format!("keys present: {:?}", rcs.keys()));
-        let Some(rc) = &mut rcs.get_mut(&self.occlusion_id.borrow().to_string()) else {
-            return;
-        };
-        pax_runtime_api::log(&format!(
-            "rendering {:?} to occ_id: {:?}",
-            self.instance_template,
-            self.occlusion_id.borrow()
-        ));
+        let rc = &mut rcs
+            .get_mut(&self.occlusion_id.borrow().to_string())
+            .expect("occlusion ind present");
         self.instance_template.render(&self, context, rc);
     }
 

@@ -316,7 +316,6 @@ var Pax = (() => {
     }
     growTo(z_index) {
       let zIndex = z_index + 1;
-      console.log("growing to layer_num: ", zIndex);
       if (this.parent == void 0 || this.canvasMap == void 0 || this.layers == void 0 || this.chassis == void 0) {
         return;
       }
@@ -623,7 +622,6 @@ var Pax = (() => {
         let scroller = scrollers.get(arrayToKey(scrollerIdChain));
         scroller.addElement(elem, zIndex);
       } else {
-        console.log("addNativeElement not in scroller");
         baseOcclusionContext.addElement(elem, zIndex);
       }
     }
@@ -662,12 +660,10 @@ var Pax = (() => {
       });
     }
     occlusionUpdate(patch) {
-      console.log(patch);
       let node = this.textNodes[patch.idChain];
       if (node) {
         let parent = node.parentElement;
         parent.removeChild(node);
-        console.log("calling NativeElem!!");
         _NativeElementPool.addNativeElement(
           node,
           this.baseOcclusionContext,

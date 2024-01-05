@@ -278,7 +278,7 @@ impl PaxEngine {
         }
 
         // This is pretty useful during debugging - left it here since I use it often. /Sam
-        pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
+        // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
 
         self.root_node
             .recurse_render(&mut self.runtime_context, rcs);
@@ -302,13 +302,6 @@ impl PaxEngine {
             }
             *curr_occlusion_ind = new_occlusion_ind;
         }
-        pax_runtime_api::log(&format!(
-            "layers: {:#?}",
-            self.z_index_node_cache
-                .iter()
-                .map(|n| n.instance_template.base().flags().layer)
-                .collect::<Vec<_>>()
-        ));
         // Next steps:
         // - Make occlusion updates actually do something chassi side.
         // - what nodes need to send occlusion updates? last canvas might still
