@@ -84,7 +84,6 @@ impl InstanceNode for SlotInstance {
             if update_child {
                 if let Some(node) = node {
                     expanded_node.attach_children(vec![Rc::clone(&node)], context);
-                    pax_runtime_api::log(&format!("attached child: {:#?}", node,));
                 }
                 if let Some(id) = node_id {
                     properties.last_node_id = id;

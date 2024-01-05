@@ -141,10 +141,6 @@ impl Stacker {
             })
             .collect();
 
-        // pax_runtime_api::log(&format!(
-        //     "stacker pre-render fired, bounds: {:#?}, cells: {:#?}",
-        //     ctx, new_cell_specs,
-        // ));
         self._cell_specs.set(new_cell_specs);
     }
 }

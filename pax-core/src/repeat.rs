@@ -111,7 +111,6 @@ impl InstanceNode for RepeatInstance {
             });
 
         if let Some(vec) = new_vec {
-            pax_runtime_api::log(&format!("repeat updated children"));
             let template_children = self.base().get_template_children();
             let children_with_envs = iter::repeat(template_children)
                 .zip(vec.into_iter())

@@ -30,7 +30,6 @@ export class OcclusionContext {
 
     growTo(z_index: number) {
         let zIndex = z_index + 1;
-        console.log("growing to layer_num: ", zIndex);
         if(this.parent == undefined || this.canvasMap == undefined ||
             this.layers == undefined || this.chassis == undefined){
             return

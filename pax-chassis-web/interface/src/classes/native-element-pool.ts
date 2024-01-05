@@ -48,7 +48,6 @@ export class NativeElementPool {
             let scroller: Scroller = scrollers.get(arrayToKey(scrollerIdChain))!;
             scroller.addElement(elem, zIndex);
         } else {
-            console.log("addNativeElement not in scroller");
             baseOcclusionContext.addElement(elem, zIndex);
         }
     }
@@ -95,7 +94,6 @@ export class NativeElementPool {
     }
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
-        console.log(patch);
         let node = this.textNodes[patch.idChain];
         if (node){
             let parent = node.parentElement;
