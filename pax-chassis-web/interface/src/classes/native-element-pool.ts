@@ -2,6 +2,7 @@
 import {Scroller} from "./scroller";
 import {NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
+import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 // @ts-ignore
 import snarkdown from 'snarkdown';
 import {TextUpdatePatch} from "./messages/text-update-patch";
@@ -47,6 +48,7 @@ export class NativeElementPool {
             let scroller: Scroller = scrollers.get(arrayToKey(scrollerIdChain))!;
             scroller.addElement(elem, zIndex);
         } else {
+            console.log("addNativeElement not in scroller");
             baseOcclusionContext.addElement(elem, zIndex);
         }
     }
@@ -90,6 +92,18 @@ export class NativeElementPool {
                 this.objectManager.returnToPool(OBJECT, scrollEvent);
             }
         });
+    }
+
+    occlusionUpdate(patch: OcclusionUpdatePatch) {
+        console.log(patch);
+        let node = this.textNodes[patch.idChain];
+        if (node){
+            let parent = node.parentElement;
+            parent.removeChild(node);
+            console.log("calling NativeElem!!");
+            NativeElementPool.addNativeElement(node, this.baseOcclusionContext,
+                this.scrollers, patch.idChain, undefined, patch.zIndex);
+        }
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
@@ -188,7 +202,7 @@ export class NativeElementPool {
             }
         }
 
-        if(patch.idChain != undefined && patch.zIndex != undefined){
+        if(patch.idChain != undefined && patch.zIndex != undefined) {
             NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }

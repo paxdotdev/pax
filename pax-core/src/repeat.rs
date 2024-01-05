@@ -71,7 +71,7 @@ impl InstanceNode for RepeatInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &mut RuntimeContext,
     ) {
-        let (should_update, vec) =
+        let new_vec =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 handle_vtable_update_optional(
                     context.expression_table(),
@@ -84,14 +84,15 @@ impl InstanceNode for RepeatInstance {
                     properties.source_expression_vec.as_mut(),
                 );
                 let vec = if let Some(ref source) = properties.source_expression_range {
-                    source
-                        .get()
-                        .clone()
-                        .into_iter()
-                        .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>)
-                        .collect::<Vec<_>>()
+                    Box::new(
+                        source
+                            .get()
+                            .clone()
+                            .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>),
+                    ) as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
                 } else if let Some(ref source) = properties.source_expression_vec {
-                    source.get().clone()
+                    Box::new(source.get().clone().into_iter())
+                        as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
                 } else {
                     //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
                     unreachable!();
@@ -106,10 +107,10 @@ impl InstanceNode for RepeatInstance {
                     current_len != properties.last_len || current_bounds != properties.last_bounds;
                 properties.last_len = current_len;
                 properties.last_bounds = current_bounds;
-                (update_children, vec)
+                update_children.then_some(vec)
             });
 
-        if should_update {
+        if let Some(vec) = new_vec {
             pax_runtime_api::log(&format!("repeat updated children"));
             let template_children = self.base().get_template_children();
             let children_with_envs = iter::repeat(template_children)

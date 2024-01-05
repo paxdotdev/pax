@@ -280,7 +280,7 @@ pub trait InstanceNode {
         &self,
         expanded_node: &ExpandedNode,
         context: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        rcs: &mut Box<dyn RenderContext>,
     ) {
     }
 
