@@ -13,23 +13,22 @@ use pax_std::types::*;
 #[file("lib.pax")]
 pub struct Example {
     pub ticks: Property<usize>,
-    pub num_clicks: Property<usize>,
+    pub activated: Property<bool>,
     pub message: Property<String>,
 }
 
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.message.set("Click me".to_string());
+        self.message.set("false".to_string());
     }
+
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick) {
-        let old_num_clicks = self.num_clicks.get();
-        self.num_clicks.set(old_num_clicks + 1);
-        self.message
-            .set(format!("{} clicks", self.num_clicks.get()));
+    pub fn toggle(&mut self, ctx: &NodeContext, args: ArgsClick) {
+        self.activated.set(!self.activated.get());
+        self.message.set(format!("{}", self.activated.get()));
     }
 }

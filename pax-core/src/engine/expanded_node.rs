@@ -2,6 +2,7 @@ use crate::Globals;
 use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use kurbo::Point;
@@ -79,6 +80,10 @@ pub struct ExpandedNode {
     /// the default implementation of update_children on InstanceNodes that only
     /// expand once (all except for repeat/conditional)
     pub done_initial_expansion_of_children: RefCell<bool>,
+
+    //Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
+    // by native elements to move to the correct native layer.
+    pub occlusion_id: RefCell<u32>,
 }
 
 macro_rules! dispatch_event_handler {
@@ -156,16 +161,16 @@ impl ExpandedNode {
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             done_initial_expansion_of_children: Default::default(),
+            occlusion_id: RefCell::new(0),
         });
 
-        //TODO make sure base containers expand
         node.update_children(context);
         node
     }
 
     pub fn create_children_detatched(
         self: &Rc<Self>,
-        templates: impl Iterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
+        templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &mut RuntimeContext,
     ) -> Vec<Rc<ExpandedNode>> {
         let containing_component = if self.instance_template.base().flags().is_component {
@@ -211,7 +216,7 @@ impl ExpandedNode {
 
     pub fn set_children(
         self: &Rc<Self>,
-        templates: impl Iterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
+        templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &mut RuntimeContext,
     ) {
         let new_children = self.create_children_detatched(templates, context);
@@ -274,10 +279,23 @@ impl ExpandedNode {
     }
 
     //TODO how to render to different layers here?
-    pub fn recurse_render(&self, context: &mut RuntimeContext, rc: &mut Box<dyn RenderContext>) {
+    pub fn recurse_render(
+        &self,
+        context: &mut RuntimeContext,
+        rcs: &mut HashMap<String, Box<dyn RenderContext>>,
+    ) {
         for child in self.children.borrow().iter().rev() {
-            child.recurse_render(context, rc);
+            child.recurse_render(context, rcs);
         }
+        pax_runtime_api::log(&format!("keys present: {:?}", rcs.keys()));
+        let Some(rc) = &mut rcs.get_mut(&self.occlusion_id.borrow().to_string()) else {
+            return;
+        };
+        pax_runtime_api::log(&format!(
+            "rendering {:?} to occ_id: {:?}",
+            self.instance_template,
+            self.occlusion_id.borrow()
+        ));
         self.instance_template.render(&self, context, rc);
     }
 
@@ -567,12 +585,11 @@ impl std::fmt::Debug for ExpandedNode {
                 &Fmt(|f| self.instance_template.resolve_debug(f, Some(self))),
             )
             .field("id_chain", &self.id_chain)
-            //.field("bounds", &self.computed_tab)
-            .field("common_properties", &self.common_properties.try_borrow())
-            .field(
-                "computed_expanded_properties",
-                &self.computed_expanded_properties.try_borrow(),
-            )
+            // .field("common_properties", &self.common_properties.try_borrow())
+            // .field(
+            //     "computed_expanded_properties",
+            //     &self.computed_expanded_properties.try_borrow(),
+            // )
             .field(
                 "children",
                 &self.children.try_borrow().iter().collect::<Vec<_>>(),
@@ -593,6 +610,7 @@ impl std::fmt::Debug for ExpandedNode {
             //             .collect::<Vec<_>>()
             //     }),
             // )
+            .field("occlusion_id", &self.occlusion_id.borrow())
             .field(
                 "containing_component",
                 &self

@@ -28,7 +28,9 @@ export class OcclusionContext {
         this.growTo(0);
     }
 
-    growTo(zIndex: number) {
+    growTo(z_index: number) {
+        let zIndex = z_index + 1;
+        console.log("growing to layer_num: ", zIndex);
         if(this.parent == undefined || this.canvasMap == undefined ||
             this.layers == undefined || this.chassis == undefined){
             return
@@ -58,10 +60,8 @@ export class OcclusionContext {
 
     addElement(element: HTMLElement, zIndex: number){
         if(this.zIndex != undefined){
-            if(zIndex > this.zIndex){
-                this.growTo(zIndex);
-            }
-            element.style.zIndex = String(1000-zIndex);
+            this.growTo(zIndex);
+            element.style.zIndex = String(zIndex);
             this.layers![zIndex]!.native!.prepend(element);
         }
     }

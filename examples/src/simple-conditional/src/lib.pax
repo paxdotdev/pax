@@ -6,9 +6,6 @@
 	/>
 </Frame>
 if self.activated {
-	<Rectangle class=centered class=small
-	     fill={Fill::Solid(Color::hlc(ticks + 200, 75.0, 150.0))}
-	/>
 	<Stacker cells=5>
 	for i in 0..5 {
 		<Stacker cells=5 direction=StackerDirection::Vertical>

@@ -1,5 +1,12 @@
-<Text text={self.message} class=centered class=small id=text />
-<Rectangle class=centered class=small @click=self.increment
+
+<Rectangle width=50%
+     fill={Fill::Solid(Color::hlc(ticks + 100, 75.0, 150.0))}
+    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+/>
+if self.activated {
+     <Text text="This is some long text" class=centered id=text />
+}
+<Rectangle x=50% width=50%  @click=self.toggle
      fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 />

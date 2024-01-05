@@ -1,15 +1,16 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::HashMap;
 use std::rc::Rc;
 
-use pax_message::NativeMessage;
+use pax_message::{NativeMessage, OcclusionPatch};
 
 use pax_runtime_api::{
     ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
     ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
     ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
-    CommonProperties, Interpolatable, NodeContext, RenderContext, TransitionManager,
+    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
+    TransitionManager,
 };
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
@@ -36,7 +37,7 @@ pub struct Globals {
 pub struct PaxEngine {
     pub runtime_context: RuntimeContext,
     pub root_node: Rc<ExpandedNode>,
-    pub z_index_node_cache: BinaryHeap<(u32, Rc<ExpandedNode>)>,
+    pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
 }
 
@@ -239,7 +240,7 @@ impl PaxEngine {
             runtime_context,
             root_node,
             image_map: HashMap::new(),
-            z_index_node_cache: BinaryHeap::new(),
+            z_index_node_cache: Vec::new(),
         }
     }
 
@@ -265,33 +266,53 @@ impl PaxEngine {
         //
         self.root_node.recurse_update(&mut self.runtime_context);
 
-        // TODO canvas layer ids, see notes in lab-journal-ss line 95.
-        // 2. LAYER-IDS, z-index list creation Will always be recomputed each
-        // frame. Nothing intensive is to be done here. Info is not stored on
-        // the nodes, but in a separate datastructure.
-        //
-        // let mut z_index_gen = 0..;
-        // let mut z_index = LayerId::new(None);
-        self.z_index_node_cache.clear();
-        fn assign_z_indicies(
-            n: &Rc<ExpandedNode>,
-            state: &mut (&mut BinaryHeap<(u32, Rc<ExpandedNode>)>, &mut u32),
-        ) {
-            state.0.push((*state.1, Rc::clone(&n)));
+        // Z-INDEX (just render order, for now. used for hit testing)
+        {
+            self.z_index_node_cache.clear();
+            fn assign_z_indicies(n: &Rc<ExpandedNode>, state: &mut Vec<Rc<ExpandedNode>>) {
+                state.push(Rc::clone(&n));
+            }
+
+            self.root_node
+                .recurse_visit_postorder(&assign_z_indicies, &mut self.z_index_node_cache);
         }
 
-        self.root_node.recurse_visit_postorder(
-            &assign_z_indicies,
-            &mut (&mut self.z_index_node_cache, &mut 0),
-        );
-
         // This is pretty useful during debugging - left it here since I use it often. /Sam
-        // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
+        pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
 
-        self.root_node.recurse_render(
-            &mut self.runtime_context,
-            &mut rcs.values_mut().next().unwrap(),
-        );
+        self.root_node
+            .recurse_render(&mut self.runtime_context, rcs);
+
+        // TODO canvas layer ids, see notes in lab-journal-ss line 95.
+        // 2. LAYER-IDS, z-index list creation Will always be recomputed each
+        // frame. Nothing intensive is to be done here.
+        let mut occlusion_ind = OcclusionLayerGen::new(None);
+        for node in self.z_index_node_cache.iter() {
+            let layer = node.instance_template.base().flags().layer;
+            occlusion_ind.update_z_index(layer);
+            let new_occlusion_ind = occlusion_ind.get_level();
+            let mut curr_occlusion_ind = node.occlusion_id.borrow_mut();
+            if layer == Layer::Native && *curr_occlusion_ind != new_occlusion_ind {
+                self.runtime_context.enqueue_native_message(
+                    pax_message::NativeMessage::OcclusionUpdate(OcclusionPatch {
+                        id_chain: node.id_chain.clone(),
+                        z_index: new_occlusion_ind,
+                    }),
+                );
+            }
+            *curr_occlusion_ind = new_occlusion_ind;
+        }
+        pax_runtime_api::log(&format!(
+            "layers: {:#?}",
+            self.z_index_node_cache
+                .iter()
+                .map(|n| n.instance_template.base().flags().layer)
+                .collect::<Vec<_>>()
+        ));
+        // Next steps:
+        // - Make occlusion updates actually do something chassi side.
+        // - what nodes need to send occlusion updates? last canvas might still
+        //   need to create next layer.
 
         self.runtime_context.take_native_messages()
     }
@@ -310,7 +331,7 @@ impl PaxEngine {
         //struct with exactly the fields we need for ray-casting
 
         let mut ret: Option<Rc<ExpandedNode>> = None;
-        for (_, node) in self.z_index_node_cache.iter().rev().skip(1) {
+        for node in self.z_index_node_cache.iter().rev().skip(1) {
             if node.ray_cast_test(&ray) {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole

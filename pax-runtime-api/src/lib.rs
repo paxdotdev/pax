@@ -1083,16 +1083,16 @@ pub enum Layer {
 /// Used for generating chassis side rendering architecture
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
-pub struct LayerId {
+pub struct OcclusionLayerGen {
     canvas_index: u32,
     layer: Layer,
     #[allow(dead_code)]
     parent_scroller: Option<Vec<u32>>,
 }
 
-impl LayerId {
+impl OcclusionLayerGen {
     pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
-        LayerId {
+        OcclusionLayerGen {
             canvas_index: 0,
             layer: Layer::Canvas,
             parent_scroller: scroller_id,

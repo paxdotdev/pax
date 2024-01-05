@@ -6,7 +6,7 @@ import {
     ANY_CREATE_PATCH,
     CHECKBOX_UPDATE_PATCH,
     FRAME_UPDATE_PATCH,
-    IMAGE_LOAD_PATCH, SCROLLER_UPDATE_PATCH,
+    IMAGE_LOAD_PATCH, OCCLUSION_UPDATE_PATCH, SCROLLER_UPDATE_PATCH,
     SUPPORTED_OBJECTS,
     TEXT_UPDATE_PATCH
 } from "./pools/supported-objects";
@@ -19,6 +19,7 @@ import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
+import { OcclusionUpdatePatch } from "./classes/messages/occlusion-update-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -113,7 +114,12 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
     messages?.forEach((unwrapped_msg) => {
-        if(unwrapped_msg["CheckboxCreate"]) {
+        if(unwrapped_msg["OcclusionUpdate"]) {
+            let msg = unwrapped_msg["OcclusionUpdate"]
+            let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.occlusionUpdate(patch);
+        } else if(unwrapped_msg["CheckboxCreate"]) {
             let msg = unwrapped_msg["CheckboxCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
