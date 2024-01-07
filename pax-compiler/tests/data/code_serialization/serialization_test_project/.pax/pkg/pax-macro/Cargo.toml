@@ -1,0 +1,26 @@
+[package]
+name = "pax-macro"
+version = "0.10.10"
+authors = ["Zack Brown <zack@pax.dev>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Macros for Pax, used both for parser codegen and for showing Pax where to attach to Rust code"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = {version = "1.0", features=["derive", "extra-traits"]}
+proc-macro2 = "1.0"
+quote = "1.0"
+pest = "2.6.0"
+pest_derive = "2.6.0"
+sailfish = "0.6.0"
+serde = { version = "1.0.159", features=["derive"] }
+serde_json = { version = "1.0.95" }
+serde_derive = "1.0.159"
+litrs = "0.4.0"

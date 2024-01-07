@@ -1,0 +1,22 @@
+[package]
+name = "pax-manifest"
+version = "0.10.10"
+authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Definition container for an entire Pax cartridge"
+
+[features]
+default = ["cbor", "json", "messagepack"]
+json = ["serde", "serde_json"]
+messagepack = ["serde"]
+cbor = ["serde"]
+
+[lib]
+
+[dependencies]
+serde_derive = "1.0.159"
+serde = { version = "1.0.159", features=["derive"], optional = true }
+serde_json = { version = "1.0.95", optional = true }
