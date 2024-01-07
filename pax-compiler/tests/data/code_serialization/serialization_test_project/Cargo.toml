@@ -1,0 +1,26 @@
+[package]
+name = "serialization_test_project"
+version = "0.10.10"
+edition = "2021"
+default-run = "run"
+
+[dependencies]
+pax-lang = { path = ".pax/pkg/pax-lang" }
+pax-std = { path = ".pax/pkg/pax-std" }
+pax-compiler = {optional = true, path = ".pax/pkg/pax-compiler" }
+pax-manifest = { optional = true , path = ".pax/pkg/pax-manifest" }
+serde_json = {version = "1.0.95", optional = true}
+
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
+
+[features]
+parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+
+[workspace]

@@ -1,0 +1,148 @@
+{% if is_main_component %}
+pub fn instantiate_main_component(node_registry: Rc<RefCell<NodeRegistry>>) -> Rc<ComponentInstance> {
+    ComponentInstance::instantiate( InstantiationArgs{
+        prototypical_properties_factory: Box::new(||{Rc::new(RefCell::new( {{ component_properties_struct }}::default() )) as Rc<RefCell<dyn Any>>}),
+        prototypical_common_properties_factory: Box::new(||{Rc::new(RefCell::new(CommonProperties::default()))}),
+        handler_registry:  Some(Rc::new(RefCell::new({
+            #[allow(unused_mut)]
+            let mut handler_registry = HandlerRegistry::default();
+                {% for entry in handlers %}
+                {% if entry.0.source_map_start_marker %}
+                    {{entry.0.source_map_start_marker}}
+                {% endif %}
+                handler_registry.{{entry.0.content}}_handlers =  vec![
+                    {% for handler in entry.1 %}
+                        {% if handler.source_map_start_marker %}
+                            {{handler.source_map_start_marker}}
+                        {% endif %}
+                        {%- if entry.0.content in ['pre_render','mount'] -%}
+                            |properties, ctx|{
+                                let properties = &mut *properties.as_ref().borrow_mut();
+                                if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                                    {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx);
+                                } else {panic!()};
+                            },
+                        {% else %}
+                        |properties, ctx, args|{
+                            let properties = &mut *properties.as_ref().borrow_mut();
+                            if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                                {{ component_properties_struct }}::{{handler.content}}(&mut synthesized_self,ctx, args);
+                            } else {panic!()};
+                        }
+                        {% endif %}
+                        {% if handler.source_map_end_marker %}
+                            {{handler.source_map_end_marker}}
+                        {% endif %}
+                    {% endfor %}
+                ];
+                {% if entry.0.source_map_end_marker %}
+                    {{entry.0.source_map_end_marker}}
+                {% endif %}
+                {% endfor %}
+            handler_registry
+        }))),
+        node_registry: Rc::clone(&node_registry),
+        children: None,
+        component_template: Some(vec![{{render_nodes_literal}}]),
+        scroller_args: None,
+        compute_properties_fn: Some(Box::new(|node, ptc|{
+            let props = node.borrow().get_properties();
+            let properties = &mut props.as_ref().borrow_mut();
+
+            if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                {% for prop in properties %}
+                    if let Some(new_value) = ptc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                        properties.{{ prop.0.name }}.set(new_value);
+                    } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
+                        let new_value_wrapped = ptc.compute_vtable_value(node, vtable_id);
+                        if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
+                            properties.{{ prop.0.name }}.set(*new_value);
+                        } else {
+                            panic!(
+                                "generated code tried to downcast to incompatible type \"{{prop.1}}\" for property \"{{prop.0.name}}\" on {{fully_qualified_properties_type}}"
+                            );
+                        }
+                    }
+                {% endfor %}
+            } else {
+                panic!("generated code couldn't downcast properties to \"{{fully_qualified_properties_type}}\"");
+            }
+
+        })),
+    })
+}
+
+{% else %}
+#[allow(non_snake_case)]
+pub fn instantiate_{{ snake_case_type_id }}(node_registry: Rc<RefCell<NodeRegistry>>, mut args: InstantiationArgs) -> Rc<ComponentInstance>  {
+    args.component_template = Some(vec![{{render_nodes_literal}}]);
+
+    args.handler_registry = Some(Rc::new(RefCell::new({
+     #[allow(unused_mut)]
+     let mut handler_registry = HandlerRegistry::default();
+     {% for entry in handlers %}
+     {% if entry.0.source_map_start_marker %}
+        {{entry.0.source_map_start_marker}}
+     {% endif %}
+     handler_registry.{{entry.0.content}}_handlers =  vec![
+     {% for handler in entry.1 %}
+        {% if handler.source_map_start_marker %}
+            {{handler.source_map_start_marker}}
+        {% endif %}
+         {%- if entry.0.content in ['pre_render','mount'] -%}
+             |properties, ctx|{
+                 let properties = &mut *properties.as_ref().borrow_mut();
+
+                 if let Some(mut properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                     {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
+                 } else {panic!()};
+             },
+     {% else %}
+         |properties, ctx, args|{
+             let properties = &mut *properties.as_ref().borrow_mut();
+             if let Some(mut properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+                {{ component_properties_struct }}::{{handler.content}}(properties,ctx, args);
+             } else {panic!()};
+         },
+     {% endif %}
+     {% if handler.source_map_end_marker %}
+        {{handler.source_map_end_marker}}
+     {% endif %}
+     {% endfor %}
+     ];
+     {% if entry.0.source_map_end_marker %}
+        {{entry.0.source_map_end_marker}}
+     {% endif %}
+     {% endfor %}
+     handler_registry})));
+
+    args.compute_properties_fn = Some(Box::new(|node, ptc|{
+
+        let props = node.borrow().get_properties();
+        let properties = &mut props.as_ref().borrow_mut();
+
+        if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
+
+            {% for prop in properties %}
+                if let Some(new_value) = ptc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                    properties.{{ prop.0.name }}.set(new_value);
+                } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
+                    let new_value_wrapped = ptc.compute_vtable_value(node, vtable_id);
+                    if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
+                        properties.{{ prop.0.name }}.set(*new_value);
+                    } else {
+                        panic!(
+                            "generated code tried to downcast to incompatible type \"{{prop.1}}\" for property \"{{prop.0.name}}\" on {{fully_qualified_properties_type}}"
+                        );
+                    }
+                }
+            {% endfor %}
+        } else {
+            panic!("generated code couldn't downcast properties to \"{{fully_qualified_properties_type}}\"");
+        }
+    }));
+
+    ComponentInstance::instantiate(args)
+}
+{% endif %}
+

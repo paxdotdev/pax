@@ -268,8 +268,7 @@ fn recurse_compile_literal_block<'a>(
             }
 
             Ok::<(), eyre::Report>(())
-        } else {Ok::<(), eyre::Report>(())};
-        Ok::<(), eyre::Report>(())
+        } else {Ok::<(), eyre::Report>(())}
     })
 }
 
