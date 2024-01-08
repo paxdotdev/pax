@@ -60,6 +60,7 @@ mod tests {
                 settings: None,
                 handlers: None,
                 next_template_id: Some(2),
+                template_source_file_path: None,
             },
         );
 
