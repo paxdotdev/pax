@@ -1,7 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{self, Read};
-use std::process::Output;
+
 use std::sync::{Arc, Mutex};
 
 use pax_compiler::code_serialization::serialize_component_to_file;
