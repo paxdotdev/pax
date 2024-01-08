@@ -33,6 +33,7 @@ mod tests {
                 )]),
                 handlers: None,
                 next_template_id: None,
+                template_source_file_path: None,
             },
         );
 
