@@ -118,3 +118,55 @@ changing layer would need to dissmount and mount again with a different ID
 the way things are structured at the moment. Could a new layer ID instead be
 introduced as part of an update patch somehow? That might be simpler (and allow
 for movement of native elems instead of destruction and creation?).
+
+### Ordering problems when rendering native and canvas elements causes flickering
+
+Currently, native and canvas elements are rendered using two APIs:
+
+In the canvas case, individual chassis provide an implementation of the RenderContext
+trait from the piet library, exposing methods such as draw_path(path, color,
+fill, ..). This is expected to be re-run every frame with no state.
+
+Native elements on the other hand are created, destroyed or updated
+by individual native messages only when they change.
+
+Now to the problem: In the engine tick method I would like to do something like
+this:
+
+1. calculate updates to ExpandedNode graph
+2. re-calculate occlusion indicies for all nodes, and append OcclusionUpdate
+   messages to the message queue for native elements.
+3. draw non-native elements to canvas.
+4. send messages back to chassi for processing of native elements
+
+But this doesn't really work. The problem is that the updated occlusion index
+for some of the nodes that are rendered to a canvas might exceed the currently
+available number of canvas layers (since the number of layers are first updated
+when while the native messages are processed chassi side). I think this requires
+doing something like this (reordering of last list):
+
+
+1. calculate updates to ExpandedNode graph
+3. draw non-native elements to canvas (before occlusion indicies are updated).
+2. re-calculate occlusion indicies for all nodes, and append OcclusionUpdate
+   messages to the message queue for native elements.
+4. send messages back to chassi for processing of native elements
+
+Which makes the text below canvas elements flicker for a frame, before the
+canvas layer is "fixed" next frame.
+
+Some ideas for a solution:
+
+- Buffer native messages one frame, to "wait" for  updates on the canvas (this
+  doesn't feel good as it introduces a one-frame delay).
+- Let the introduction of new occlusion layers happen at canvas draw time by
+  replacing the HashMap<RenderContext> in draws with a struct that creates new occlusion
+  layers (and render-contexts) on the fly whenever a too-large of an index is
+  used.
+- Create a NativeMessage trait, that is implemented by a chassi and exposes
+  direct calls for adding, updating and deleting native elements (even if run
+  as javascript this should be possible, since the RenderContext piet trait is
+  doing something similar for canvas drawing)
+
+I think I like the third one more if it's not too hard to do. Mostly because
+it makes native rendering more similar to the way canvas rendering is handled.

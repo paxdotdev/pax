@@ -98,7 +98,6 @@ export class NativeElementPool {
         if (node){
             let parent = node.parentElement;
             parent.removeChild(node);
-            console.log("calling NativeElem!!");
             NativeElementPool.addNativeElement(node, this.baseOcclusionContext,
                 this.scrollers, patch.idChain, undefined, patch.zIndex);
         }
