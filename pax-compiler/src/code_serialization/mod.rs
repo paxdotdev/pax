@@ -1,5 +1,9 @@
 use core::panic;
-use std::{fs::{File, self}, io::Write, path::Path};
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::Path,
+};
 
 use syn::{parse_file, visit::Visit};
 use tera::{Context, Tera};
@@ -7,7 +11,10 @@ use tera::{Context, Tera};
 use include_dir::{include_dir, Dir};
 use pax_manifest::ComponentDefinition;
 
-use crate::{helpers::{InlinedTemplateFinder, replace_by_line_column}, formatting::format_pax_template};
+use crate::{
+    formatting::format_pax_template,
+    helpers::{replace_by_line_column, InlinedTemplateFinder},
+};
 
 #[allow(unused)]
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/code_serialization");
@@ -43,29 +50,30 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
     let context = Context::from_serialize(args).unwrap();
 
     // Serialize component
-    let template = tera.render(MANIFEST_CODE_SERIALIZATION_TEMPLATE, &context)
+    let template = tera
+        .render(MANIFEST_CODE_SERIALIZATION_TEMPLATE, &context)
         .expect("Failed to render template");
 
     // Format component
     format_pax_template(template).expect("Failed to format template")
 }
 
-
 /// Serialize a component to a file
 /// Replaces entire .pax file and replaces inlined attribute directly for .rs files
 pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: String) {
-let path = Path::new(&file_path);
-let pascal_identifier = component.pascal_identifier.clone();
-let serialized_component = press_code_serialization_template(component.clone());
+    let path = Path::new(&file_path);
+    let pascal_identifier = component.pascal_identifier.clone();
+    let serialized_component = press_code_serialization_template(component.clone());
 
-match path.extension().and_then(|s| s.to_str()) {
-    Some("pax") => {
-        let mut file = File::create(file_path).expect("Failed to create file");
-        file.write_all(serialized_component.as_bytes()).expect("Failed to write to file");
-    },
-    Some("rs") => write_inlined_pax(serialized_component, path, pascal_identifier),
-    _ => panic!("Unsupported file extension."),
-}
+    match path.extension().and_then(|s| s.to_str()) {
+        Some("pax") => {
+            let mut file = File::create(file_path).expect("Failed to create file");
+            file.write_all(serialized_component.as_bytes())
+                .expect("Failed to write to file");
+        }
+        Some("rs") => write_inlined_pax(serialized_component, path, pascal_identifier),
+        _ => panic!("Unsupported file extension."),
+    }
 }
 
 fn write_inlined_pax(serialized_component: String, path: &Path, pascal_identifier: String) {
@@ -74,14 +82,15 @@ fn write_inlined_pax(serialized_component: String, path: &Path, pascal_identifie
     let mut finder = InlinedTemplateFinder::new(content.clone());
     finder.visit_file(&ast);
 
-    let template = finder.templates.iter().find(|t| {
-        t.struct_name == pascal_identifier
-    });
+    let template = finder
+        .templates
+        .iter()
+        .find(|t| t.struct_name == pascal_identifier);
 
     if let Some(data) = template {
         let new_template = format!("(\n{}\n)", serialized_component);
-        let modified_content = replace_by_line_column(&content, data.start, data.end, new_template).unwrap();
+        let modified_content =
+            replace_by_line_column(&content, data.start, data.end, new_template).unwrap();
         fs::write(path, modified_content).expect("Failed to write to file");
     }
 }
-

@@ -6,8 +6,8 @@ use color_eyre::eyre::{self, Report};
 use pest::Parser;
 use std::fs;
 use std::path::Path;
-use syn::visit::Visit;
 use syn::parse_file;
+use syn::visit::Visit;
 
 pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, code.as_str())?
@@ -49,7 +49,8 @@ fn format_pax_in_rust_file(path: &Path) -> Result<(), Report> {
         let formatted_template = format_pax_template(template.template)?;
         let new_content = format!("(\n{}\n)", formatted_template);
         modified_content =
-            replace_by_line_column(&modified_content, template.start, template.end, new_content).unwrap();
+            replace_by_line_column(&modified_content, template.start, template.end, new_content)
+                .unwrap();
     }
     fs::write(path, modified_content)?;
     Ok(())
