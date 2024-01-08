@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{self, Read};
+use std::process::Output;
 use std::sync::{Arc, Mutex};
 
 use pax_compiler::code_serialization::serialize_component_to_file;
@@ -9,8 +10,30 @@ use pax_compiler::helpers::clear_inlined_template;
 use pax_compiler::run_parser_binary;
 use pax_manifest::PaxManifest;
 
+fn setup_test_project() {
+    let current_dir = env::current_dir().expect("Failed to get current directory");
+    let pkg_dir = current_dir.join("tests/data/code_serialization/serialization_test_project");
+    let _ = std::process::Command::new("./pax")
+        .current_dir(pkg_dir)
+        .arg("build")
+        .output()
+        .expect("Failed to execute command");
+}
+
+fn clean_test_project(){
+    let current_dir = env::current_dir().expect("Failed to get current directory");
+    let pkg_dir = current_dir.join("tests/data/code_serialization/serialization_test_project");
+    let _ = std::process::Command::new("./pax")
+        .current_dir(pkg_dir)
+        .arg("clean")
+        .output()
+        .expect("Failed to execute command");
+}
+
 #[test]
 fn test_code_serializaton() {
+    setup_test_project();
+
     // Get path to test project
     let current_dir = env::current_dir().expect("Failed to get current directory");
     // Join the current directory with the relative path
@@ -48,8 +71,10 @@ fn test_code_serializaton() {
     let generated_lib = read_file_to_string(generated_file_path).unwrap();
     assert_eq!(original_lib, generated_lib);
 
-    // Clean up for next time (removes template from generated file)
+    // Clean up for next time
     clear_inlined_template(generated_file_path, "Example");
+    clean_test_project();
+
 }
 
 fn read_file_to_string(file_path: &str) -> io::Result<String> {
