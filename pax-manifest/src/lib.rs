@@ -143,7 +143,7 @@ pub struct ComponentDefinition {
     pub settings: Option<Vec<SettingsBlockElement>>,
     pub handlers: Option<Vec<HandlersBlockElement>>,
     pub next_template_id: Option<usize>,
-    pub template_source_file_path: Option<String>
+    pub template_source_file_path: Option<String>,
 }
 
 impl ComponentDefinition {

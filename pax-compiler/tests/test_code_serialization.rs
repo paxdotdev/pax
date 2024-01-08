@@ -20,7 +20,7 @@ fn setup_test_project() {
         .expect("Failed to execute command");
 }
 
-fn clean_test_project(){
+fn clean_test_project() {
     let current_dir = env::current_dir().expect("Failed to get current directory");
     let pkg_dir = current_dir.join("tests/data/code_serialization/serialization_test_project");
     let _ = std::process::Command::new("./pax")
@@ -42,16 +42,19 @@ fn test_code_serializaton() {
 
     // Format test project
     let original_file = path.join("src/lib.rs");
-    let original_file_path = original_file.to_str().expect("Path is not a valid UTF-8 string");
+    let original_file_path = original_file
+        .to_str()
+        .expect("Path is not a valid UTF-8 string");
     format_file(original_file_path).expect("Failed to format file");
 
     // Clean designated output file (clear template)
     let generated_file = path.join("src/generated_lib.rs");
-    let generated_file_path = generated_file.to_str().expect("Path is not a valid UTF-8 string");
+    let generated_file_path = generated_file
+        .to_str()
+        .expect("Path is not a valid UTF-8 string");
     clear_inlined_template(generated_file_path, "Example");
 
-
-    // Serialize component to output file 
+    // Serialize component to output file
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
     let output = run_parser_binary(path_str, Arc::clone(&process_child_ids));
 
@@ -64,7 +67,7 @@ fn test_code_serializaton() {
         .get(&manifest.main_component_type_id)
         .unwrap();
 
-    serialize_component_to_file(main_component,generated_file_path.to_string());
+    serialize_component_to_file(main_component, generated_file_path.to_string());
 
     // Check difference between original and generated file
     let original_lib = read_file_to_string(original_file_path).unwrap();
@@ -74,7 +77,6 @@ fn test_code_serializaton() {
     // Clean up for next time
     clear_inlined_template(generated_file_path, "Example");
     clean_test_project();
-
 }
 
 fn read_file_to_string(file_path: &str) -> io::Result<String> {
