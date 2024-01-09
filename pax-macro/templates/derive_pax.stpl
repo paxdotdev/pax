@@ -115,7 +115,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                     let dep_type_id = <%= dep %>::get_type_id();
                     ctx.template_map.insert("<%= dep %>".into(), dep_type_id);
                     <% } %>
-
                     //FUTURE: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
                     const raw_pax: &str = r#####"
                         <%= args_full_component.as_ref().unwrap().raw_pax %>
@@ -136,6 +135,12 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                 );
 
                 <% if args_full_component.as_ref().is_some() { %>
+                    // Get source file path for write-back
+                    let mut component_source_file_path = file!().to_string();
+                    <% if args_full_component.as_ref().unwrap().associated_pax_file_path.is_some() { %>
+                        component_source_file_path = "<%= args_full_component.as_ref().unwrap().associated_pax_file_path.as_ref().unwrap() %>".to_string();
+                    <% } %>   
+
                     let template_map = ctx.template_map.clone();
                     let (mut ctx, comp_def) =
                         pax_compiler::parsing::assemble_component_definition(
@@ -146,6 +151,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                             template_map,
                             &pax_compiler::parsing::clean_module_path(module_path!()),
                             &self_type_id,
+                            &component_source_file_path,
                         );
                 <% } %>
                 <% if args_struct_only_component.as_ref().is_some() { %>
