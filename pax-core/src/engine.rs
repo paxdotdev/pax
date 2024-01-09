@@ -256,10 +256,7 @@ impl PaxEngine {
     /// 3. Render:
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
-    pub fn tick(
-        &mut self,
-        rcs: &mut HashMap<String, Box<dyn RenderContext>>,
-    ) -> Vec<NativeMessage> {
+    pub fn tick(&mut self) -> Vec<NativeMessage> {
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
@@ -276,12 +273,6 @@ impl PaxEngine {
             self.root_node
                 .recurse_visit_postorder(&assign_z_indicies, &mut self.z_index_node_cache);
         }
-
-        // This is pretty useful during debugging - left it here since I use it often. /Sam
-        // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
-
-        self.root_node
-            .recurse_render(&mut self.runtime_context, rcs);
 
         // TODO canvas layer ids, see notes in lab-journal-ss line 95.
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
@@ -308,6 +299,14 @@ impl PaxEngine {
         //   need to create next layer.
 
         self.runtime_context.take_native_messages()
+    }
+
+    pub fn draw(&mut self, rcs: &mut HashMap<String, Box<dyn RenderContext>>) {
+        // This is pretty useful during debugging - left it here since I use it often. /Sam
+        // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
+
+        self.root_node
+            .recurse_render(&mut self.runtime_context, rcs);
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
