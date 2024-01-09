@@ -161,7 +161,7 @@ impl ComponentDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
     Comment(String),
@@ -339,7 +339,7 @@ impl TypeDefinition {
 }
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
@@ -392,13 +392,22 @@ pub struct ControlFlowRepeatSourceDefinition {
 }
 
 /// Container for a parsed Literal object
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
     pub elements: Vec<SettingElement>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+impl LiteralBlockDefinition {
+    pub fn new(elements: Vec<SettingElement>) -> Self {
+        Self {
+            explicit_type_pascal_identifier: None,
+            elements,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum SettingElement {
     Setting(Token, ValueDefinition),
     Comment(String),
@@ -499,6 +508,16 @@ impl Token {
             token_type,
             source_line,
             token_location: Some(token_location),
+        }
+    }
+
+    pub fn new_from_raw_value(raw_value: String, token_type: TokenType) -> Self {
+        Self {
+            token_value: raw_value.clone(),
+            raw_value,
+            token_type,
+            source_line: None,
+            token_location: None,
         }
     }
 }
