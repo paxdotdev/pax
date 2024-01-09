@@ -1,20 +1,7 @@
-
-
-
-for i in 0..1 {
-	<Rectangle y=20% anchor_x=50% anchor_y=50%  x={(10 + 30*i)%} class=small
-	     fill={Fill::Solid(Color::hlc(10, 75.0, 150.0))}
-	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-	/>
-}
-
-<Frame>
-	<Rectangle class=centered class=small
-	     fill={Fill::Solid(Color::hlc(10, 75.0, 150.0))}
-	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-	/>
-</Frame>
-
+<Image class=small class=centered path="assets/images/pax-logo-light.png"/>
+<Rectangle
+     fill={Fill::Solid(Color::hlc(10, 0.0, 0.0))}
+/>
 @handlers{
      mount: handle_mount
      pre_render: handle_pre_render
@@ -28,7 +15,7 @@ for i in 0..1 {
         anchor_y: 50%
     }
     .small {
-        width: 120px
+        width: 220px
         height: 120px
     }
     #text {
