@@ -17,7 +17,7 @@ pub mod code_serialization;
 pub mod errors;
 pub mod expressions;
 pub mod formatting;
-mod helpers;
+pub mod helpers;
 pub mod parsing;
 mod reexports;
 
@@ -26,7 +26,6 @@ use color_eyre::eyre::Report;
 use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
-use include_dir::{include_dir, Dir};
 use pax_manifest::PaxManifest;
 use std::fs;
 use std::io::Write;
@@ -39,9 +38,7 @@ use crate::building::{
     build_chassis_with_cartridge, clone_all_to_pkg_dir, update_property_prefixes_in_place,
 };
 
-use crate::cartridge_generation::{
-    generate_and_overwrite_cartridge,
-};
+use crate::cartridge_generation::generate_and_overwrite_cartridge;
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
 

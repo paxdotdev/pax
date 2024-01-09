@@ -1134,6 +1134,7 @@ pub fn assemble_component_definition(
     template_map: HashMap<String, String>,
     module_path: &str,
     self_type_id: &str,
+    component_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
@@ -1198,6 +1199,7 @@ pub fn assemble_component_definition(
         handlers: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
         next_template_id: Some(*tpc.uid_gen.peek().unwrap()),
+        template_source_file_path: Some(component_source_file_path.to_string()),
     };
 
     (ctx, new_def)
@@ -1232,6 +1234,7 @@ pub fn assemble_struct_only_component_definition(
         settings: None,
         handlers: None,
         next_template_id: None,
+        template_source_file_path: None,
     };
 
     (ctx, new_def)
@@ -1258,6 +1261,7 @@ pub fn assemble_primitive_definition(
         module_path: modified_module_path,
         handlers: None,
         next_template_id: None,
+        template_source_file_path: None,
     }
 }
 

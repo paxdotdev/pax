@@ -1,14 +1,14 @@
 [package]
-name = "CRATE_NAME"
-version = "VERSION_PLACEHOLDER"
+name = "serialization_test_project"
+version = "0.10.10"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-lang = { version="VERSION_PLACEHOLDER"}
-pax-std = { version="VERSION_PLACEHOLDER"}
-pax-compiler = {version = "VERSION_PLACEHOLDER", optional = true}
-pax-manifest = {version = "VERSION_PLACEHOLDER", optional = true}
+pax-lang = {}
+pax-std = {}
+pax-compiler = {optional = true}
+pax-manifest = { optional = true }
 serde_json = {version = "1.0.95", optional = true}
 
 [[bin]]
@@ -22,3 +22,6 @@ path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+
+[workspace]
+members = [".pax/pkg/*"]
