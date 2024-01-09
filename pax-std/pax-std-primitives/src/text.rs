@@ -155,7 +155,7 @@ impl InstanceNode for TextInstance {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_mount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         // though macOS and iOS don't need this ancestry chain for clipping, Web does
         // let clipping_ids = ptc.get_current_clipping_ids();
 
@@ -170,7 +170,7 @@ impl InstanceNode for TextInstance {
         }));
     }
 
-    fn handle_unmount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         let id_chain = expanded_node.id_chain.clone();
         context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
     }

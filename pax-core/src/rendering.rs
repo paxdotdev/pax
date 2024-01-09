@@ -303,14 +303,14 @@ pub trait InstanceNode {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //no-op default implementation
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node
