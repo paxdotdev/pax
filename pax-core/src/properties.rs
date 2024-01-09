@@ -51,64 +51,6 @@ impl RuntimeContext {
     pub fn expression_table(&self) -> &ExpressionTable {
         &self.expression_table
     }
-
-    // pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
-    //     let mut indices: Vec<u32> = vec![];
-
-    //     self.runtime_properties_stack
-    //         .iter()
-    //         .for_each(|frame_wrapped| {
-    //             let frame_rc_cloned = frame_wrapped.clone();
-    //             let frame_refcell_borrowed = frame_rc_cloned.borrow();
-    //             let properties_rc_cloned = Rc::clone(&frame_refcell_borrowed.properties);
-    //             let mut properties_refcell_borrowed = properties_rc_cloned.borrow_mut();
-
-    //             if let Some(ri) = properties_refcell_borrowed.downcast_mut::<crate::RepeatItem>() {
-    //                 indices.push(ri.i as u32)
-    //             }
-    //         });
-    //     indices
-    // }
-
-    // Get an `id_chain` for this element, a `Vec<u64>` used collectively as a single unique ID across native bridges.
-    //
-    // The need for this emerges from the fact that `Repeat`ed elements share a single underlying
-    // `instance`, where that instantiation happens once at init-time — specifically, it does not happen
-    // when `Repeat`ed elements are added and removed to the render tree.  10 apparent rendered elements may share the same `instance_id` -- which doesn't work as a unique key for native renderers
-    // that are expected to render and update 10 distinct elements.
-    //
-    // Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
-    // then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
-    // gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
-    // pub fn get_id_chain(&self, instance_id: u32) -> Vec<u32> {
-    //     let mut indices = (&self.get_list_of_repeat_indicies_from_stack()).clone();
-    //     indices.insert(0, instance_id);
-    //     indices
-    // }
-
-    // pub fn compute_vtable_value(
-    //     &self,
-    //     node: &Rc<ExpandedNode>,
-    //     vtable_id: usize,
-    // ) -> Box<dyn Any> {
-    //     if let Some(evaluator) = self.engine.expression_table.get(&vtable_id) {
-    //         let expanded_node = node.borrow();
-    //         let stack_frame = Rc::clone(
-    //             expanded_node
-    //                 .runtime_properties_stack
-    //                 .get(expanded_node.runtime_properties_stack.len() - 1)
-    //                 .unwrap(),
-    //         );
-
-    //         let ec = ExpressionContext {
-    //             engine: self.engine,
-    //             stack_frame,
-    //         };
-    //         (**evaluator)(ec)
-    //     } else {
-    //         panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly initialized
-    //     }
-    // }
 }
 
 /// Data structure for a single frame of our runtime stack, including

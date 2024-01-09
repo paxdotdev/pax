@@ -15,10 +15,6 @@ for i in 0..1 {
 	/>
 </Frame>
 
-// <Frame x=50% width=50%>
-// 		// <Text text="This is some text" class=centered class=small id=text/>
-// </Frame>
-
 @handlers{
      mount: handle_mount
      pre_render: handle_pre_render

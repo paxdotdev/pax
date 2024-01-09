@@ -307,8 +307,6 @@ pub const IMPORTS_BUILTINS: [&str; 28] = [
     "pax_core::InstanceNodePtr",
     "pax_core::PropertyExpression",
     "pax_core::InstanceNodePtrList",
-    // "pax_core::RenderTreeContext",
-    // "pax_core::PropertiesTreeContext",
     "pax_core::ExpressionContext",
     "pax_core::PaxEngine",
     "pax_core::InstanceNode",

@@ -1,12 +1,4 @@
 
-// for (v, i) in self.vec {
-//     <Rectangle x={Size::Pixels(v)} width=100px fill={Fill::Solid(Color::rgb(0.5, 0.5, 1.0 / (10.0 - 0.01*v)))} />
-// }
-
-// for i in 0..2 {
-//     <Rectangle x={Size::Percent(i*50 + 10)} width=10px fill={Fill::Solid(Color::rgb(0.9, 0.5, i/2))} />
-// }
-
 <Rectangle fill={Fill::Solid(Color::hlc(50, 75.0, 150.0))} width=100px height=100px x=5% anchor_y=50% y=20% @click=self.click0/>
 <Rectangle fill={Fill::Solid(Color::hlc(100, 75.0, 150.0))} width=100px height=100px x=5% anchor_y=50% y=50% @click=self.click1/>
 <Rectangle fill={Fill::Solid(Color::hlc(150, 75.0, 150.0))} width=100px height=100px x=5% anchor_y=50% y=80% @click=self.click2/>

@@ -263,7 +263,8 @@ impl PaxEngine {
         //
         self.root_node.recurse_update(&mut self.runtime_context);
 
-        // Z-INDEX (just render order, for now. used for hit testing)
+        // 2. LAYER-IDS, z-index list creation Will always be recomputed each
+        // frame. Nothing intensive is to be done here.
         {
             self.z_index_node_cache.clear();
             fn assign_z_indicies(n: &Rc<ExpandedNode>, state: &mut Vec<Rc<ExpandedNode>>) {
@@ -274,9 +275,7 @@ impl PaxEngine {
                 .recurse_visit_postorder(&assign_z_indicies, &mut self.z_index_node_cache);
         }
 
-        // TODO canvas layer ids, see notes in lab-journal-ss line 95.
-        // 2. LAYER-IDS, z-index list creation Will always be recomputed each
-        // frame. Nothing intensive is to be done here.
+        // Oclussion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
         for node in self.z_index_node_cache.iter() {
             let layer = node.instance_template.base().flags().layer;
@@ -293,10 +292,6 @@ impl PaxEngine {
             }
             *curr_occlusion_ind = new_occlusion_ind;
         }
-        // Next steps:
-        // - Make occlusion updates actually do something chassi side.
-        // - what nodes need to send occlusion updates? last canvas might still
-        //   need to create next layer.
 
         self.runtime_context.take_native_messages()
     }
