@@ -458,7 +458,7 @@ impl PaxChassisWeb {
     }
 
     pub fn tick(&mut self) -> MemorySlice {
-        let message_queue = self.engine.borrow_mut().tick(&mut self.drawing_contexts);
+        let message_queue = self.engine.borrow_mut().tick();
 
         // Serialize data to a JSON string
         let json_string = serde_json::to_string(&message_queue).unwrap();
@@ -479,6 +479,10 @@ impl PaxChassisWeb {
             ptr: ptr as *const u8,
             len: bytes.len(),
         }
+    }
+
+    pub fn draw(&mut self) {
+        self.engine.borrow_mut().draw(&mut self.drawing_contexts);
     }
 }
 

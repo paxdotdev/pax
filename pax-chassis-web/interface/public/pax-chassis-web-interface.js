@@ -1629,6 +1629,7 @@ var Pax = (() => {
       initializedChassis = true;
     }
     processMessages(messages, chassis, objectManager);
+    chassis.draw();
     chassis.deallocate(memorySliceSpec);
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount2, get_latest_memory));
   }
