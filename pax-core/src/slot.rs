@@ -27,7 +27,7 @@ pub struct SlotInstance {
 pub struct SlotProperties {
     pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
     last_index: usize,
-    last_node_id: u32,
+    last_node_id: Option<u32>,
 }
 
 impl InstanceNode for SlotInstance {
@@ -78,20 +78,22 @@ impl InstanceNode for SlotInstance {
                 .map(|v| Rc::clone(&v));
 
             let node_id = node.as_ref().map(|n| n.id_chain[0]);
-            let update_child = properties.last_index != index
-                || node_id.is_some_and(|id| id != properties.last_node_id);
-
+            let update_child = properties.last_index != index || node_id != properties.last_node_id;
+            properties.last_node_id = node_id;
             if update_child {
                 if let Some(node) = node {
                     expanded_node.attach_children(vec![Rc::clone(&node)], context);
-                }
-                if let Some(id) = node_id {
-                    properties.last_node_id = id;
+                } else {
+                    expanded_node.set_children(vec![], context);
                 }
                 properties.last_index = index;
             }
         });
     }
+
+    // fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    //     expanded_node.set_children(vec![], context);
+    // }
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

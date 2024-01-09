@@ -73,7 +73,7 @@ pub struct ExpandedNode {
     /// since an entire "shadow tree" needs to be expanded and updated for
     /// each slot child, but only the ones that have a "connected" slot should
     /// trigger mount/dismount updates
-    attached: RefCell<bool>,
+    pub attached: RefCell<u32>,
 
     // TODO this should be component prop as well?
     /// Flag that signifies that a node has done the initial expansion. Used for
@@ -131,7 +131,7 @@ impl ExpandedNode {
         let root_env =
             RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
         let root_node = ExpandedNode::new(template, root_env, context, Weak::new());
-        root_node.recurse_mount(context);
+        Rc::clone(&root_node).recurse_mount(context);
         root_node
     }
 
@@ -149,7 +149,7 @@ impl ExpandedNode {
         let node = Rc::new(ExpandedNode {
             id_chain: vec![context.gen_uid().0],
             instance_template: Rc::clone(&template),
-            attached: RefCell::new(false),
+            attached: RefCell::new(0),
             properties,
             common_properties,
             stack: env,
@@ -200,12 +200,12 @@ impl ExpandedNode {
     ) {
         let mut curr_children = self.children.borrow_mut();
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
-        if *self.attached.borrow() {
+        if *self.attached.borrow() > 0 {
             for child in curr_children.iter() {
-                child.recurse_unmount(context);
+                Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
-                child.recurse_mount(context);
+                Rc::clone(child).recurse_mount(context);
             }
         }
         for child in new_children.iter() {
@@ -293,35 +293,37 @@ impl ExpandedNode {
         self.instance_template.render(&self, context, rc);
     }
 
-    fn recurse_mount(&self, context: &mut RuntimeContext) {
-        self.mount(context);
+    fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
+        Rc::clone(&self).mount(context);
         for child in self.children.borrow().iter() {
-            child.recurse_mount(context);
+            Rc::clone(child).recurse_mount(context);
         }
     }
 
-    fn mount(&self, context: &mut RuntimeContext) {
-        assert_eq!(*self.attached.borrow(), false);
-        *self.attached.borrow_mut() = true;
-        self.instance_template.handle_mount(self, context);
-        if let Some(ref registry) = self.instance_template.base().handler_registry {
-            for handler in &registry.borrow().mount_handlers {
-                handler(Rc::clone(&self.properties), &self.get_node_context(context))
+    fn mount(self: Rc<Self>, context: &mut RuntimeContext) {
+        if *self.attached.borrow() == 0 {
+            *self.attached.borrow_mut() += 1;
+            self.instance_template.handle_mount(&self, context);
+            if let Some(ref registry) = self.instance_template.base().handler_registry {
+                for handler in &registry.borrow().mount_handlers {
+                    handler(Rc::clone(&self.properties), &self.get_node_context(context))
+                }
             }
         }
     }
 
-    fn recurse_unmount(&self, context: &mut RuntimeContext) {
+    fn recurse_unmount(self: Rc<Self>, context: &mut RuntimeContext) {
         for child in self.children.borrow().iter() {
-            child.recurse_unmount(context);
+            Rc::clone(child).recurse_unmount(context);
         }
         self.unmount(context);
     }
 
-    fn unmount(&self, context: &mut RuntimeContext) {
-        assert_eq!(*self.attached.borrow(), true);
-        *self.attached.borrow_mut() = false;
-        self.instance_template.handle_unmount(self, context);
+    fn unmount(self: Rc<Self>, context: &mut RuntimeContext) {
+        if *self.attached.borrow() == 1 {
+            *self.attached.borrow_mut() -= 1;
+            self.instance_template.handle_unmount(&self, context);
+        }
     }
 
     /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into

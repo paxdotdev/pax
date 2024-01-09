@@ -144,7 +144,7 @@ impl InstanceNode for FrameInstance {
         // }
     }
 
-    fn handle_mount(&self, _node: &ExpandedNode, _context: &mut RuntimeContext) {
+    fn handle_mount(&self, _node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
         // let id_chain = node.id_chain.clone();
 
         // //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -162,7 +162,7 @@ impl InstanceNode for FrameInstance {
         // }));
     }
 
-    fn handle_unmount(&self, _expanded_node: &ExpandedNode, _context: &mut RuntimeContext) {}
+    fn handle_unmount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
 
     #[cfg(debug_assertions)]
     fn resolve_debug(
