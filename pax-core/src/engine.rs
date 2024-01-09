@@ -12,6 +12,7 @@ use pax_runtime_api::{
     CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
     TransitionManager,
 };
+use piet::{ImageBuf, InterpolationMode};
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
@@ -38,7 +39,6 @@ pub struct PaxEngine {
     pub runtime_context: RuntimeContext,
     pub root_node: Rc<ExpandedNode>,
     pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
-    pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -149,6 +149,14 @@ impl<R: piet::RenderContext> pax_runtime_api::RenderContext for Renderer<R> {
             .restore()
             .expect("failed to restore piet state");
     }
+
+    fn draw_image(&mut self, image: &piet::ImageBuf, rect: kurbo::Rect) {
+        // Is this expensive to do each draw? if so maybe move the image
+        // resource lookup into this rendercontext
+        let img = &image.to_image(&mut self.backend);
+        self.backend
+            .draw_image(img, rect, InterpolationMode::Bilinear)
+    }
 }
 
 pub struct ExpressionTable {
@@ -239,7 +247,6 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_node,
-            image_map: HashMap::new(),
             z_index_node_cache: Vec::new(),
         }
     }
@@ -368,7 +375,9 @@ impl PaxEngine {
         width: usize,
         height: usize,
     ) {
-        self.image_map
-            .insert(id_chain, (Box::new(image_data), width, height));
+        self.runtime_context.image_map.insert(
+            id_chain,
+            ImageBuf::from_raw(image_data, piet::ImageFormat::RgbaSeparate, width, height),
+        );
     }
 }

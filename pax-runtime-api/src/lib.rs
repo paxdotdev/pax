@@ -11,10 +11,10 @@ extern crate lazy_static;
 extern crate mut_static;
 
 pub use crate::numeric::Numeric;
-use kurbo::BezPath;
+use kurbo::{BezPath, Rect};
 use mut_static::MutStatic;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
-use piet::PaintBrush;
+use piet::{ImageBuf, PaintBrush};
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -1180,4 +1180,5 @@ pub trait RenderContext {
     fn save(&mut self);
     fn restore(&mut self);
     fn clip(&mut self, path: BezPath);
+    fn draw_image(&mut self, image: &ImageBuf, rect: Rect);
 }
