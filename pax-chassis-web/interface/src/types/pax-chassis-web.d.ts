@@ -53,7 +53,7 @@ export class PaxChassisWeb {
   tick(): MemorySlice;
 /**
 */
-  draw(): void;
+  render(): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;

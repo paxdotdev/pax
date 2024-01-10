@@ -453,8 +453,8 @@ impl PaxChassisWeb {
         }
     }
 
-    pub fn draw(&mut self) {
-        self.engine.borrow_mut().draw(&mut self.drawing_contexts);
+    pub fn render(&mut self) {
+        self.engine.borrow_mut().render(&mut self.drawing_contexts);
     }
 }
 

@@ -61,14 +61,20 @@ pub struct ExpandedNode {
     // Persistent clone of the state of the [`PropertiesTreeShared#scroller_stack`] at the time this node was expanded.
     // A snapshot of the scroller stack above this element at the time of properties-computation
     // pub scroller_stack: Vec<Vec<u32>>,
-
-    // TODO this should probably be moved to ComponentProperties (need to modify codegen)
-    /// For component instances only, tracks the expanded + flattened slot_children
+    //
+    /// For component instances only, tracks the expanded slot_children in it's
+    /// non-collapsed form (repeat and conditionals still present). This allows
+    /// repeat/conditionals to update their children (handled in component.rs
+    /// update_children method)
     pub expanded_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+    /// Flattened version of the above, where repeat/conditionals are removed
+    /// recursively and replaced by their children. This is re-computed each
+    /// frame from the non-collapsed expanded_slot_children after they have
+    /// been updated.
     pub expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
 
-    /// Flag that is true if this node is part of the root tree. If it is,
-    /// updates to this nodes children also marks them as attached, triggering
+    /// Flag that is > 0 if this node is part of the root tree. If it is,
+    /// updates to this nodes children also marks them as attached (+1), triggering
     /// mount and dismount on addition/removal. This is needed mainly for slot,
     /// since an entire "shadow tree" needs to be expanded and updated for
     /// each slot child, but only the ones that have a "connected" slot should

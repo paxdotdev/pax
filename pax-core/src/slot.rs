@@ -80,20 +80,17 @@ impl InstanceNode for SlotInstance {
             let node_id = node.as_ref().map(|n| n.id_chain[0]);
             let update_child = properties.last_index != index || node_id != properties.last_node_id;
             properties.last_node_id = node_id;
+            properties.last_index = index;
+
             if update_child {
                 if let Some(node) = node {
                     expanded_node.attach_children(vec![Rc::clone(&node)], context);
                 } else {
                     expanded_node.set_children(vec![], context);
                 }
-                properties.last_index = index;
             }
         });
     }
-
-    // fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-    //     expanded_node.set_children(vec![], context);
-    // }
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

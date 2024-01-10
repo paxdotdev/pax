@@ -107,7 +107,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
     processMessages(messages, chassis, objectManager);
 
     //draw native canvas elements
-    chassis.draw();
+    chassis.render();
 
     //necessary manual cleanup
     chassis.deallocate(memorySliceSpec);
