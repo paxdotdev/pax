@@ -101,8 +101,4 @@ impl InstanceNode for ConditionalInstance {
     ) -> Option<(pax_runtime_api::Size, pax_runtime_api::Size)> {
         None
     }
-
-    fn handle_form_event(&self, event: crate::form_event::FormEvent) {
-        panic!("form event sent to non-compatible component: {:?}", event)
-    }
 }

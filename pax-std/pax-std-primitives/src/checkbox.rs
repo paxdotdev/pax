@@ -1,133 +1,128 @@
 use std::cell::RefCell;
 
+use pax_core::declarative_macros::handle_vtable_update;
 use pax_core::form_event::FormEvent;
 use pax_core::{
-    HandlerRegistry, InstanceNode, InstanceNodePtr, InstanceNodePtrList, InstantiationArgs,
-    PropertiesComputable, RenderTreeContext,
+    layout, BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs,
+    RuntimeContext,
 };
 use pax_message::{AnyCreatePatch, CheckboxPatch};
-use pax_runtime_api::{CommonProperties, Layer};
+use pax_runtime_api::{Layer, RenderContext};
 use pax_std::primitives::Checkbox;
-use piet::RenderContext;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct CheckboxInstance<R: 'static + RenderContext> {
+pub struct CheckboxInstance {
     base: BaseInstance,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Checkbox` instance
     //      shares this last_patches cache
-    last_patches: HashMap<Vec<u32>, pax_message::CheckboxPatch>,
+    last_patches: RefCell<HashMap<Vec<u32>, pax_message::CheckboxPatch>>,
 }
 
-impl<R: 'static + RenderContext> InstanceNode<R> for CheckboxInstance<R> {
-    fn new(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+impl InstanceNode for CheckboxInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
     {
-        Rc::new(RefCell::new(Self {
-            base: BaseInstance::new(args),
+        Rc::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    layer: Layer::Native,
+                    is_component: false,
+                },
+            ),
             last_patches: Default::default(),
-        }))
+        })
     }
 
-    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
-        Rc::new(RefCell::new(vec![]))
-    }
-    fn expand_node_and_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        // let properties = &mut *self.properties.as_ref().borrow_mut();
-        //
-        // if let Some(checked) = rtc.compute_vtable_value(properties.checked._get_vtable_id()) {
-        //     let new_value = unsafe_unwrap!(checked, TypesCoproduct, bool);
-        //     properties.checked.set(new_value);
-        // }
-        //
-        // self.common_properties.compute_properties(rtc);
-        todo!()
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
+            handle_vtable_update(
+                context.expression_table(),
+                &expanded_node.stack,
+                &mut properties.checked,
+            );
+        });
     }
 
-    fn handle_native_patches(
-        &mut self,
-        rtc: &mut RenderTreeContext<R>,
-        computed_size: (f64, f64),
-        transform_coeffs: Vec<f64>,
-        _z_index: u32,
-        _subtree_depth: u32,
-    ) {
-        let id_chain = rtc.get_id_chain(self.instance_id);
+    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+        let id_chain = expanded_node.id_chain.clone();
         let mut patch = CheckboxPatch {
             id_chain: id_chain.clone(),
             ..Default::default()
         };
-        let old_state = self
-            .last_patches
+        let mut last_patches = self.last_patches.borrow_mut();
+        let old_state = last_patches
             .entry(id_chain.clone())
             .or_insert(CheckboxPatch {
                 id_chain,
                 ..Default::default()
             });
-        let properties = &mut *self.properties.as_ref().borrow_mut();
-        let update_needed =
-            crate::patch_if_needed(
+
+        expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
+            let layout_properties = expanded_node.layout_properties.borrow();
+            let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
+            let update_needed = crate::patch_if_needed(
                 &mut old_state.checked,
                 &mut patch.checked,
                 *properties.checked.get(),
-            ) || crate::patch_if_needed(&mut old_state.size_x, &mut patch.size_x, computed_size.0)
-                || crate::patch_if_needed(
-                    &mut old_state.size_y,
-                    &mut patch.size_y,
-                    computed_size.1,
-                )
-                || crate::patch_if_needed(
-                    &mut old_state.transform,
-                    &mut patch.transform,
-                    transform_coeffs,
-                );
-        if update_needed {
-            (*rtc.engine.runtime)
-                .borrow_mut()
-                .enqueue_native_message(pax_message::NativeMessage::CheckboxUpdate(patch));
-        }
+            ) || crate::patch_if_needed(
+                &mut old_state.size_x,
+                &mut patch.size_x,
+                computed_tab.bounds.0,
+            ) || crate::patch_if_needed(
+                &mut old_state.size_y,
+                &mut patch.size_y,
+                computed_tab.bounds.1,
+            ) || crate::patch_if_needed(
+                &mut old_state.transform,
+                &mut patch.transform,
+                computed_tab.transform.as_coeffs().to_vec(),
+            );
+            if update_needed {
+                context.enqueue_native_message(pax_message::NativeMessage::CheckboxUpdate(patch));
+            }
+        });
     }
 
-    fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
-        //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
+    fn render(
+        &self,
+        _expanded_node: &ExpandedNode,
+        _context: &mut RuntimeContext,
+        _rc: &mut Box<dyn RenderContext>,
+    ) {
+        //no-op -- only native rendering
     }
 
-    fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
-        let id_chain = rtc.get_id_chain(self.instance_id);
-
-        //though macOS and iOS don't need this ancestry chain for clipping, Web does
-        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
-
-        let scroller_ids = (*rtc.runtime).borrow().get_current_scroller_ids();
-
-        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::CheckboxCreate(AnyCreatePatch {
-                id_chain: id_chain.clone(),
-                clipping_ids,
-                scroller_ids,
-                z_index,
-            }),
-        );
+    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
+            AnyCreatePatch {
+                id_chain: expanded_node.id_chain.clone(),
+                clipping_ids: vec![],
+                scroller_ids: vec![],
+                z_index: 0,
+            },
+        ));
     }
 
-    fn handle_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        let id_chain = _rtc.get_id_chain(self.instance_id);
-        self.last_patches.remove(&id_chain);
-        (*_rtc.engine.runtime)
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        let id_chain = expanded_node.id_chain.clone();
+        context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
     }
 
-    fn get_layer_type(&mut self) -> Layer {
-        Layer::Native
-    }
-
-    fn handle_form_event(&mut self, event: FormEvent) {
+    fn handle_form_event(&self, expanded_node: &ExpandedNode, event: FormEvent) {
+        pax_runtime_api::log("form event triggered!");
         match event {
-            FormEvent::Toggle { state } => self.properties.borrow_mut().checked.set(state),
+            FormEvent::Toggle { state } => {
+                expanded_node.with_properties_unwrapped(|props: &mut Checkbox| {
+                    props.checked.set(state);
+                })
+            }
             #[allow(unreachable_patterns)]
             _ => panic!("checkbox received non-compatible form event: {:?}", event),
         }
@@ -135,5 +130,13 @@ impl<R: 'static + RenderContext> InstanceNode<R> for CheckboxInstance<R> {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn resolve_debug(
+        &self,
+        _f: &mut std::fmt::Formatter,
+        _expanded_node: Option<&ExpandedNode>,
+    ) -> std::fmt::Result {
+        todo!()
     }
 }
