@@ -100,7 +100,7 @@ impl InstanceNode for TextInstance {
                 has_any_updates = true;
             }
 
-            let computed_props = expanded_node.computed_expanded_properties.borrow();
+            let computed_props = expanded_node.layout_properties.borrow();
             let tab = &computed_props.as_ref().unwrap().computed_tab;
 
             let val = tab.bounds.0;

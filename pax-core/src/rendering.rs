@@ -208,12 +208,12 @@ pub trait InstanceNode {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result;
 
-    // /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
-    // /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
-    // /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
-    // ///
-    // /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
-    // /// (e.g. by keeping a local patch object as a cache of last known values.)
+    /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
+    /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
+    /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
+    ///
+    /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
+    /// (e.g. by keeping a local patch object as a cache of last known values.)
     #[allow(unused_variables)]
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
         //no-op default implementation
@@ -228,7 +228,7 @@ pub trait InstanceNode {
             let env = Rc::clone(&expanded_node.stack);
             let children_with_envs = self
                 .base()
-                .get_template_children()
+                .get_instance_children()
                 .iter()
                 .cloned()
                 .zip(iter::repeat(env));
@@ -358,7 +358,7 @@ impl BaseInstance {
     /// instance nodes mapping exactly to the template node definitions.
     /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
     /// (see [`get_slot_children`] for the way to retrieve the latter.)
-    pub fn get_template_children(&self) -> &InstanceNodePtrList {
+    pub fn get_instance_children(&self) -> &InstanceNodePtrList {
         &self.instance_children
     }
 

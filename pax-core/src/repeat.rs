@@ -98,7 +98,7 @@ impl InstanceNode for RepeatInstance {
                     unreachable!();
                 };
                 let current_len = vec.len();
-                let exp_props = expanded_node.computed_expanded_properties.borrow();
+                let exp_props = expanded_node.layout_properties.borrow();
                 let current_bounds = exp_props
                     .as_ref()
                     .map(|t| t.computed_tab.bounds)
@@ -111,7 +111,7 @@ impl InstanceNode for RepeatInstance {
             });
 
         if let Some(vec) = new_vec {
-            let template_children = self.base().get_template_children();
+            let template_children = self.base().get_instance_children();
             let children_with_envs = iter::repeat(template_children)
                 .zip(vec.into_iter())
                 .enumerate()

@@ -37,7 +37,7 @@ impl InstanceNode for EllipseInstance {
         _context: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
-        let computed_props = expanded_node.computed_expanded_properties.borrow();
+        let computed_props = expanded_node.layout_properties.borrow();
         let tab = &computed_props.as_ref().unwrap().computed_tab;
 
         let width: f64 = tab.bounds.0;
