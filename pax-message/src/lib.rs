@@ -26,6 +26,7 @@ pub enum NativeMessage {
     ScrollerDelete(Vec<u32>),
     ImageLoad(ImagePatch),
     LayerAdd(LayerAddPatch), //FUTURE: native form controls
+    OcclusionUpdate(OcclusionPatch),
 }
 
 #[derive(Deserialize)]
@@ -299,6 +300,14 @@ pub struct CheckboxPatch {
 #[repr(C)]
 pub struct CheckboxStyleMessage {
     //pub fill: Option<ColorVariantMessage>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct OcclusionPatch {
+    pub id_chain: Vec<u32>,
+    pub z_index: u32,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

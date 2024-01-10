@@ -16,6 +16,7 @@ pub struct Example {
     pub num_clicks: Property<usize>,
     pub message: Property<String>,
     pub conditional: Property<bool>,
+    pub checked: Property<bool>,
 }
 
 impl Example {
@@ -33,5 +34,9 @@ impl Example {
         self.message
             .set(format!("{} clicks", self.num_clicks.get()));
         self.conditional.set(!self.conditional.get());
+    }
+
+    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsClick) {
+        self.checked.set(!self.checked.get());
     }
 }

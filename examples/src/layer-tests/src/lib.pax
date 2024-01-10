@@ -1,23 +1,22 @@
-<Group>
-    <Text text="testing"/>
-	<Text text="Hejhej" class=centered class=small id=text />
-    <Rectangle class=one_rect
-         fill={Fill::Solid(Color::hlc(ticks + 100, 75.0, 150.0))}
-    />
-    <Rectangle width=50% height=50%
-         fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
-    />
-</Group>
+
+<Rectangle width=50%
+     fill={Fill::Solid(Color::hlc(ticks + 100, 75.0, 150.0))}
+    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+/>
+if self.activated {
+     <Text text="This is some long text" class=centered id=text />
+}
+<Rectangle x=50% width=50%  @click=self.toggle
+     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+/>
+
+@handlers{
+     mount: handle_mount
+     pre_render: handle_pre_render
+}
 
 @settings {
-    .one_rect {
-        x: 50%
-        y: 50%
-        anchor_x: 50%
-        anchor_y: 50%
-        width: 50%
-        height: 50%
-    }
      .centered {
         x: 50%
         y: 50%
@@ -38,8 +37,4 @@
                 align_multiline: TextAlignHorizontal::Center
         }
     }
-}
-
-@handlers {
-    pre_render: handle_pre_render
 }

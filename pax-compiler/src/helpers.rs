@@ -291,7 +291,7 @@ pub struct HostCrateInfo {
     pub import_prefix: String,
 }
 
-pub const IMPORTS_BUILTINS: [&str; 31] = [
+pub const IMPORTS_BUILTINS: [&str; 28] = [
     "std::any::Any",
     "std::cell::RefCell",
     "std::collections::HashMap",
@@ -310,12 +310,9 @@ pub const IMPORTS_BUILTINS: [&str; 31] = [
     "pax_core::InstanceNodePtr",
     "pax_core::PropertyExpression",
     "pax_core::InstanceNodePtrList",
-    "pax_core::RenderTreeContext",
-    "pax_core::PropertiesTreeContext",
     "pax_core::ExpressionContext",
     "pax_core::PaxEngine",
     "pax_core::InstanceNode",
-    "pax_core::NodeRegistry",
     "pax_core::HandlerRegistry",
     "pax_core::InstantiationArgs",
     "pax_core::ConditionalInstance",

@@ -31,14 +31,14 @@ export class Layer {
         this.native = this.objectManager.getFromPool(DIV);
 
         this.canvas.id = generateLocationId(scroller_id, zIndex);
-        this.canvas.style.zIndex = String(1000 - zIndex);
+        this.canvas.style.zIndex = String(zIndex);
         parent.appendChild(this.canvas);
         // @ts-ignore
         canvasMap.set(this.canvas.id, this.canvas);
         chassis.add_context(this.canvas.id);
 
         this.native.className = NATIVE_OVERLAY_CLASS;
-        this.native.style.zIndex = String(1000 - zIndex);
+        this.native.style.zIndex = String(zIndex);
         parent.appendChild(this.native);
         if (scroller_id != undefined) {
             this.canvas.style.position = "sticky";

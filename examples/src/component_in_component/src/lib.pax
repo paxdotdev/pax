@@ -1,5 +1,22 @@
-<Inner x_pos={self.x} message_inner={self.message_outer + "testingouter"}/>
-// <Text x=20% text={self.message}/>
+<Frame height=50% @click=self.outer_clicked>
+	if self.outer_active {
+		<Inner x_pos={self.x}>
+			<Rectangle x={(25*0)%} y={(25*0)%}  width=50% height=50%
+			     fill={Fill::Solid(Color::hlc(0*10, 75.0, 150.0))}
+			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+			/>
+			<Rectangle x={(25*2)%} y={(25*2)%}  width=50% height=50%
+			     fill={Fill::Solid(Color::hlc(5*10, 75.0, 150.0))}
+			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+			/>
+		</Inner>
+	}
+	<Rectangle
+	    fill={Fill::Solid(Color::hlc(8*10, 75.0, 150.0))}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Frame>
+<Text x=20% text={self.message_outer}/>
 
 @handlers {
     mount: handle_mount

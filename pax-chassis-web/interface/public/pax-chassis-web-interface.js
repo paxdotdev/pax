@@ -246,12 +246,12 @@ var Pax = (() => {
       this.canvas = this.objectManager.getFromPool(CANVAS);
       this.native = this.objectManager.getFromPool(DIV);
       this.canvas.id = generateLocationId(scroller_id, zIndex);
-      this.canvas.style.zIndex = String(1e3 - zIndex);
+      this.canvas.style.zIndex = String(zIndex);
       parent.appendChild(this.canvas);
       canvasMap.set(this.canvas.id, this.canvas);
       chassis.add_context(this.canvas.id);
       this.native.className = NATIVE_OVERLAY_CLASS;
-      this.native.style.zIndex = String(1e3 - zIndex);
+      this.native.style.zIndex = String(zIndex);
       parent.appendChild(this.native);
       if (scroller_id != void 0) {
         this.canvas.style.position = "sticky";
@@ -314,7 +314,8 @@ var Pax = (() => {
       this.canvasMap = canvasMap;
       this.growTo(0);
     }
-    growTo(zIndex) {
+    growTo(z_index) {
+      let zIndex = z_index + 1;
       if (this.parent == void 0 || this.canvasMap == void 0 || this.layers == void 0 || this.chassis == void 0) {
         return;
       }
@@ -341,10 +342,8 @@ var Pax = (() => {
     }
     addElement(element, zIndex) {
       if (this.zIndex != void 0) {
-        if (zIndex > this.zIndex) {
-          this.growTo(zIndex);
-        }
-        element.style.zIndex = String(1e3 - zIndex);
+        this.growTo(zIndex);
+        element.style.zIndex = String(zIndex);
         this.layers[zIndex].native.prepend(element);
       }
     }
@@ -659,6 +658,21 @@ var Pax = (() => {
           this.objectManager.returnToPool(OBJECT, scrollEvent);
         }
       });
+    }
+    occlusionUpdate(patch) {
+      let node = this.textNodes[patch.idChain];
+      if (node) {
+        let parent = node.parentElement;
+        parent.removeChild(node);
+        _NativeElementPool.addNativeElement(
+          node,
+          this.baseOcclusionContext,
+          this.scrollers,
+          patch.idChain,
+          void 0,
+          patch.zIndex
+        );
+      }
     }
     checkboxCreate(patch) {
       console.assert(patch.idChain != null);
@@ -1153,6 +1167,18 @@ var Pax = (() => {
     }
   };
 
+  // src/classes/messages/occlusion-update-patch.ts
+  var OcclusionUpdatePatch = class {
+    fromPatch(jsonMessage) {
+      this.idChain = jsonMessage["id_chain"];
+      this.zIndex = jsonMessage["z_index"];
+    }
+    cleanUp() {
+      this.idChain = [];
+      this.zIndex = -1;
+    }
+  };
+
   // src/pools/supported-objects.ts
   var OBJECT = "Object";
   var ARRAY2 = "Array";
@@ -1160,6 +1186,7 @@ var Pax = (() => {
   var INPUT = "Input";
   var CANVAS = "Canvas";
   var ANY_CREATE_PATCH = "Any Create Patch";
+  var OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
   var FRAME_UPDATE_PATCH = "Frame Update Patch";
   var IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
   var SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
@@ -1225,6 +1252,13 @@ var Pax = (() => {
     {
       name: ANY_CREATE_PATCH,
       factory: () => new AnyCreatePatch(),
+      cleanUp: (patch) => {
+        patch.cleanUp();
+      }
+    },
+    {
+      name: OCCLUSION_UPDATE_PATCH,
+      factory: () => new OcclusionUpdatePatch(),
       cleanUp: (patch) => {
         patch.cleanUp();
       }
@@ -1595,12 +1629,18 @@ var Pax = (() => {
       initializedChassis = true;
     }
     processMessages(messages, chassis, objectManager);
+    chassis.render();
     chassis.deallocate(memorySliceSpec);
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount2, get_latest_memory));
   }
   function processMessages(messages2, chassis, objectManager2) {
     messages2?.forEach((unwrapped_msg) => {
-      if (unwrapped_msg["CheckboxCreate"]) {
+      if (unwrapped_msg["OcclusionUpdate"]) {
+        let msg = unwrapped_msg["OcclusionUpdate"];
+        let patch = objectManager2.getFromPool(OCCLUSION_UPDATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.occlusionUpdate(patch);
+      } else if (unwrapped_msg["CheckboxCreate"]) {
         let msg = unwrapped_msg["CheckboxCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
         patch.fromPatch(msg);

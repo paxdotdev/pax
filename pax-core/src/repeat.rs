@@ -1,10 +1,11 @@
+use std::any::Any;
 use std::cell::RefCell;
+use std::iter;
 use std::rc::Rc;
-use std::{any::Any, ops::Range};
 
+use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
-    handle_vtable_update_optional, with_properties_unwrapped, BaseInstance, ExpandedNode,
-    InstanceFlags, InstanceNode, InstantiationArgs, PropertiesTreeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_runtime_api::Layer;
 
@@ -25,6 +26,8 @@ pub struct RepeatProperties {
         Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
     pub source_expression_range:
         Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
+    last_len: usize,
+    last_bounds: (f64, f64),
 }
 
 pub struct RepeatItem {
@@ -44,105 +47,10 @@ impl InstanceNode for RepeatInstance {
                     invisible_to_slot: true,
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
+                    is_component: false,
                 },
             ),
         })
-    }
-
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        let properties_wrapped = this_expanded_node.borrow().get_properties();
-
-        let (range_evaled, vec_evaled) = with_properties_unwrapped!(
-            &properties_wrapped,
-            RepeatProperties,
-            |properties: &mut RepeatProperties| {
-                handle_vtable_update_optional!(
-                    ptc,
-                    this_expanded_node,
-                    properties.source_expression_range,
-                    std::ops::Range<isize>
-                );
-                handle_vtable_update_optional!(
-                    ptc,
-                    this_expanded_node,
-                    properties.source_expression_vec,
-                    std::vec::Vec<std::rc::Rc<core::cell::RefCell<dyn Any>>>
-                );
-
-                if let Some(ref source) = properties.source_expression_range {
-                    (Some(source.get().clone()), None)
-                } else if let Some(ref source) = properties.source_expression_vec {
-                    let vec_evaled = source.get();
-                    (None, Some(vec_evaled.clone()))
-                } else {
-                    unreachable!(); //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
-                }
-            }
-        );
-
-        let mut node = this_expanded_node.borrow_mut();
-
-        //THIS IS A HACK!!! Will be removed once dirty checking is a thing.
-        //Is here to let Stacker re-render children on resize.
-        let source_len = range_evaled
-            .as_ref()
-            .map(Range::len)
-            .or(vec_evaled.as_ref().map(Vec::len))
-            .unwrap();
-        node.last_repeat_source_len = source_len;
-
-        drop(node);
-
-        //Mark all of Repeat's existing children (from previous tick) for
-        //unmount.  Then, when we iterate and append_children below, ensure
-        //that the mark-for-unmount is reverted This enables changes in repeat
-        //source to be mapped to new elements (unchanged elements are marked for
-        //unmount / remount before unmount handlers are fired, resulting in no
-        //effective changes for persistent nodes.)
-        for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
-            ptc.engine
-                .node_registry
-                .borrow_mut()
-                .mark_for_unmount(cen.borrow().id_chain.clone());
-        }
-
-        let vec_range_source = vec_evaled
-            .or(range_evaled.map(|v| {
-                v.map(|i| Rc::new(RefCell::new(i)) as Rc<RefCell<dyn Any>>)
-                    .collect::<Vec<_>>()
-            }))
-            .unwrap();
-
-        for (i, elem) in vec_range_source.iter().enumerate() {
-            let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
-                i,
-                elem: Rc::clone(elem),
-            }));
-            ptc.push_stack_frame(new_repeat_item);
-
-            for child in self.base().get_children().iter() {
-                let expanded_child = Rc::clone(&child).expand(ptc);
-                expanded_child.borrow_mut().parent_expanded_node =
-                    Rc::downgrade(&this_expanded_node);
-
-                ptc.engine
-                    .node_registry
-                    .borrow_mut()
-                    .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
-
-                this_expanded_node
-                    .borrow_mut()
-                    .append_child_expanded_node(expanded_child);
-            }
-
-            ptc.pop_stack_frame()
-        }
-
-        this_expanded_node
     }
 
     #[cfg(debug_assertions)]
@@ -156,5 +64,62 @@ impl InstanceNode for RepeatInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        let new_vec =
+            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
+                handle_vtable_update_optional(
+                    context.expression_table(),
+                    &expanded_node.stack,
+                    properties.source_expression_range.as_mut(),
+                );
+                handle_vtable_update_optional(
+                    context.expression_table(),
+                    &expanded_node.stack,
+                    properties.source_expression_vec.as_mut(),
+                );
+                let vec = if let Some(ref source) = properties.source_expression_range {
+                    Box::new(
+                        source
+                            .get()
+                            .clone()
+                            .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>),
+                    ) as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
+                } else if let Some(ref source) = properties.source_expression_vec {
+                    Box::new(source.get().clone().into_iter())
+                        as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
+                } else {
+                    //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
+                    unreachable!();
+                };
+                let current_len = vec.len();
+                let exp_props = expanded_node.layout_properties.borrow();
+                let current_bounds = exp_props
+                    .as_ref()
+                    .map(|t| t.computed_tab.bounds)
+                    .unwrap_or_default();
+                let update_children =
+                    current_len != properties.last_len || current_bounds != properties.last_bounds;
+                properties.last_len = current_len;
+                properties.last_bounds = current_bounds;
+                update_children.then_some(vec)
+            });
+
+        if let Some(vec) = new_vec {
+            let template_children = self.base().get_instance_children();
+            let children_with_envs = iter::repeat(template_children)
+                .zip(vec.into_iter())
+                .enumerate()
+                .flat_map(|(i, (children, elem))| {
+                    let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
+                        i,
+                        elem: Rc::clone(&elem),
+                    })) as Rc<RefCell<dyn Any>>;
+                    let new_env = expanded_node.stack.push(&new_repeat_item);
+                    children.clone().into_iter().zip(iter::repeat(new_env))
+                });
+            expanded_node.set_children(children_with_envs, context);
+        }
     }
 }

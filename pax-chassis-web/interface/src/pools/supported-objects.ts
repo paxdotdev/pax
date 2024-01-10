@@ -10,6 +10,7 @@ import {OcclusionContext} from "../classes/occlusion-context";
 import {Scroller} from "../classes/scroller";
 import {Font, TextStyle} from "../classes/text";
 import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
+import { OcclusionUpdatePatch } from "../classes/messages/occlusion-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -17,6 +18,7 @@ export const DIV = "DIV";
 export const INPUT = "Input";
 export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
+export const OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
 export const FRAME_UPDATE_PATCH = "Frame Update Patch";
 export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
@@ -87,6 +89,13 @@ export let SUPPORTED_OBJECTS = [{
         name: ANY_CREATE_PATCH,
         factory: () => new AnyCreatePatch(),
         cleanUp: (patch: AnyCreatePatch) => {
+            patch.cleanUp()
+        }
+    },
+    {
+        name: OCCLUSION_UPDATE_PATCH,
+        factory: () => new OcclusionUpdatePatch(),
+        cleanUp: (patch: OcclusionUpdatePatch) => {
             patch.cleanUp()
         }
     },

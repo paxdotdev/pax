@@ -1,17 +1,18 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::iter;
 use std::ops::Mul;
 use std::rc::Rc;
 
 use kurbo::Affine;
-use pax_runtime_api::{CommonProperties, LayerId, RenderContext};
+use pax_runtime_api::{CommonProperties, RenderContext};
 use piet::{Color, StrokeStyle};
 
 use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size};
 
 use crate::form_event::FormEvent;
-use crate::{ExpandedNode, HandlerRegistry, NodeRegistry, PaxEngine, PropertiesTreeContext};
+use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -27,15 +28,13 @@ pub struct InstantiationArgs {
     pub prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     pub prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub node_registry: Rc<RefCell<NodeRegistry>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
     pub scroller_args: Option<ScrollerArgs>,
 
     ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation
-    pub compute_properties_fn:
-        Option<Box<dyn Fn(&Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>>,
+    pub compute_properties_fn: Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>,
 }
 
 #[derive(Copy, Clone)]
@@ -209,11 +208,6 @@ pub trait InstanceNode {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result;
 
-    /// Expands the current `InstanceNode` into a stateful `ExpandedNode`, with its own instances of properties & common properties, in the context of the
-    /// provided `PropertiesTreeContext`.  Node expansion takes into account the "parallel selves" that an `InstanceNode` may have through the
-    /// lens of declarative control flow, [`ConditionalInstance`] and [`RepeatInstance`].
-    #[allow(unused_variables)]
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>>;
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
     /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
@@ -221,9 +215,12 @@ pub trait InstanceNode {
     /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
     #[allow(unused_variables)]
-    fn handle_native_patches(&self, ptc: &mut PropertiesTreeContext, expanded_node: &ExpandedNode) {
+    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
         //no-op default implementation
     }
+
+    /// Updates the expanded node, recomputing it's properties and possibly updating it's children
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
 
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
@@ -233,8 +230,9 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn handle_pre_render(
         &self,
-        rtc: &mut RenderTreeContext,
-        rcs: &mut HashMap<String, Box<dyn RenderContext>>,
+        expanded_node: &ExpandedNode,
+        context: &mut RuntimeContext,
+        rcs: &mut Box<dyn RenderContext>,
     ) {
         //no-op default implementation
     }
@@ -244,8 +242,12 @@ pub trait InstanceNode {
     /// Occurs in a post-order traversal of the render tree. Most primitives
     /// are expected to draw their contents to the rendering context during this event.
     #[allow(unused_variables)]
-    fn handle_render(&self, rtc: &mut RenderTreeContext, rc: &mut Box<dyn RenderContext>) {
-        //no-op default implementation
+    fn render(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &mut RuntimeContext,
+        rcs: &mut Box<dyn RenderContext>,
+    ) {
     }
 
     /// Fourth and final lifecycle method during each render loop, occurs
@@ -256,7 +258,7 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn handle_post_render(
         &self,
-        rtc: &mut RenderTreeContext,
+        context: &mut RuntimeContext,
         rcs: &mut HashMap<String, Box<dyn RenderContext>>,
     ) {
         //no-op default implementation
@@ -267,14 +269,21 @@ pub trait InstanceNode {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&self, ptc: &mut PropertiesTreeContext, node: &ExpandedNode) {
-        //no-op default implementation
+    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        let env = Rc::clone(&expanded_node.stack);
+        let children_with_envs = self
+            .base()
+            .get_instance_children()
+            .iter()
+            .cloned()
+            .zip(iter::repeat(env));
+        expanded_node.set_children(children_with_envs, context);
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&self, ptc: &mut PropertiesTreeContext) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node
@@ -283,16 +292,16 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    fn handle_form_event(&self, event: FormEvent) {
+    fn handle_form_event(&self, expanded_node: &ExpandedNode, event: FormEvent) {
         panic!("form event sent to non-compatible component: {:?}", event)
     }
 }
 
 pub struct BaseInstance {
-    handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    instance_id: u32,
-    instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    instance_prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    pub instance_prototypical_common_properties_factory:
+        Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -310,14 +319,14 @@ pub struct InstanceFlags {
     /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
     /// content.
     pub layer: Layer,
+
+    /// Only true for ComponentInstance
+    pub is_component: bool,
 }
 
 impl BaseInstance {
     pub fn new(args: InstantiationArgs, flags: InstanceFlags) -> Self {
-        let mut node_registry = (*args.node_registry).borrow_mut();
-        let instance_id = node_registry.mint_instance_id();
         BaseInstance {
-            instance_id,
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties_factory: args
                 .prototypical_common_properties_factory,
@@ -325,14 +334,6 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
         }
-    }
-
-    /// Returns unique integer ID of this RenderNode instance.  Note that
-    /// individual rendered elements may share an instance_id, for example
-    /// inside of `Repeat`.  See also `ExpandedNode` and `RenderTreeContext::get_id_chain`, which enables globally
-    /// unique node addressing in the context of an in-progress render tree traversal.
-    pub fn get_instance_id(&self) -> u32 {
-        self.instance_id
     }
 
     /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
@@ -346,25 +347,11 @@ impl BaseInstance {
         }
     }
 
-    pub fn expand_from_instance(
-        &self,
-        template: Rc<dyn InstanceNode>,
-        ptc: &mut PropertiesTreeContext,
-    ) -> Rc<RefCell<ExpandedNode>> {
-        ExpandedNode::get_or_create_with_prototypical_properties(
-            self.instance_id,
-            template,
-            ptc,
-            &(self.instance_prototypical_properties_factory)(),
-            &(self.instance_prototypical_common_properties_factory)(),
-        )
-    }
-
     /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
     /// instance nodes mapping exactly to the template node definitions.
     /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
     /// (see [`get_slot_children`] for the way to retrieve the latter.)
-    pub fn get_children(&self) -> &InstanceNodePtrList {
+    pub fn get_instance_children(&self) -> &InstanceNodePtrList {
         &self.instance_children
     }
 
@@ -373,184 +360,9 @@ impl BaseInstance {
     }
 }
 
-/// Shared context for render pass recursion
-pub struct RenderTreeContext<'a> {
-    /// Reference to the engine singleton
-    pub engine: &'a PaxEngine,
-    /// A pointer to the current expanded node, the stateful atomic unit of traversal when rendering.
-    pub current_expanded_node: Rc<RefCell<ExpandedNode>>,
-    /// A pointer to the current instance node, the stateless, instantiated representation of a template node.
-    pub current_instance_node: InstanceNodePtr,
-}
-
-//Note that `#[derive(Clone)]` doesn't work because of trait bounds surrounding R, even though
-//the only places R is used are trivially cloned.
-impl<'a> Clone for RenderTreeContext<'a> {
-    fn clone(&self) -> Self {
-        RenderTreeContext {
-            engine: self.engine, // Borrowed references are Copy, so they can be "cloned" trivially.
-            // transform_global: self.transform_global.clone(),
-            // transform_scroller_reset: self.transform_scroller_reset.clone(),
-            // bounds: self.bounds.clone(),
-            // clipping_stack: self.clipping_stack.clone(),
-            // scroller_stack: self.scroller_stack.clone(),
-            current_expanded_node: Rc::clone(&self.current_expanded_node),
-            current_instance_node: Rc::clone(&self.current_instance_node),
-        }
-    }
-}
-
 /// Represents the outer stroke of a drawable element
 pub struct StrokeInstance {
     pub color: Color,
     pub width: f64,
     pub style: StrokeStyle,
-}
-
-/// Recursive workhorse method for rendering, conceptually "as a function of the ExpandedNode tree passed in"
-pub fn recurse_render(
-    rtc: &mut RenderTreeContext,
-    rcs: &mut HashMap<String, Box<dyn pax_runtime_api::RenderContext>>,
-    z_index_info: &mut LayerId,
-    marked_for_unmount: bool,
-) {
-    //Recurse:
-    //  - fire lifecycle events for this node
-    //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  Read computed properties from ExpandedNodes, e.g. for transform and bounds.
-    //  - we now have the back-most leaf node.  Render it.  Return.
-    //  - we're now at the second back-most leaf node.  Render it.  Return ...
-
-    let expanded_node = Rc::clone(&rtc.current_expanded_node);
-
-    // Rendering is a no-op is a node is marked for unmount.  Note that means this entire subtree will be skipped for rendering.
-    let id_chain = { expanded_node.borrow().id_chain.clone() };
-    if rtc
-        .engine
-        .node_registry
-        .borrow()
-        .is_marked_for_unmount(&id_chain)
-    {
-        return;
-    }
-
-    rtc.current_instance_node = Rc::clone(&expanded_node.borrow().instance_node);
-    //depth work
-
-    //scroller IDs are used by chassis, for identifying native scrolling containers
-    let scroller_ids = rtc.current_expanded_node.borrow().scroller_stack.clone();
-    let scroller_id = match scroller_ids.last() {
-        None => None,
-        Some(v) => Some(v.clone()),
-    };
-    let canvas_id = LayerId::assemble_canvas_id(
-        scroller_id.clone(),
-        expanded_node.borrow().computed_canvas_index.unwrap(),
-    );
-
-    manage_handlers_pre_render(rtc);
-
-    let mut subtree_depth = 0;
-
-    //keep recursing through children
-    let mut child_z_index_info = z_index_info.clone();
-    if z_index_info.get_current_layer() == Layer::Scroller {
-        let id_chain = expanded_node.borrow().id_chain.clone();
-        child_z_index_info = LayerId::new(Some(id_chain));
-        // let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
-        // let mut reset_transform = Affine::default();
-        // reset_transform =
-        //     reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
-        // rtc.transform_scroller_reset = reset_transform.clone();
-    }
-
-    let children_cloned = expanded_node
-        .borrow_mut()
-        .get_children_expanded_nodes()
-        .clone();
-
-    children_cloned.iter().rev().for_each(|expanded_node| {
-        //note that we're iterating starting from the last child, for z-index (.rev())
-        let mut new_rtc = rtc.clone();
-        new_rtc.current_expanded_node = Rc::clone(expanded_node);
-        // if it's a scroller reset the z-index context for its children
-        recurse_render(
-            &mut new_rtc,
-            rcs,
-            &mut child_z_index_info.clone(),
-            marked_for_unmount,
-        );
-        //FUTURE: for dependency management, return computed values from subtree above
-
-        subtree_depth = subtree_depth.max(child_z_index_info.get_level());
-    });
-
-    let is_viewport_culled = !&expanded_node
-        .borrow()
-        .computed_tab
-        .as_ref()
-        .unwrap()
-        .intersects(&rtc.engine.viewport_tab);
-
-    // let accumulated_bounds = rtc
-    //     .current_expanded_node
-    //     .borrow()
-    //     .computed_tab
-    //     .as_ref()
-    //     .unwrap()
-    //     .bounds;
-    // let clipping = expanded_node
-    //     .borrow_mut()
-    //     .get_clipping_size_computed(accumulated_bounds);
-
-    // let clipping_bounds = match expanded_node.borrow_mut().get_clipping_size() {
-    //     None => None,
-    //     Some(_) => Some(clipping),
-    // };
-
-    // let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
-    //     cb
-    // } else {
-    //     new_accumulated_bounds
-    // };
-
-    if let Some(rc) = rcs.get_mut(&canvas_id) {
-        //lifecycle: render
-        //this is this node's time to do its own rendering, aside
-        //from the rendering of its children. Its children have already been rendered.
-        if !is_viewport_culled {
-            expanded_node.borrow().instance_node.handle_render(rtc, rc);
-        }
-    } else {
-        if let Some(rc) = rcs.get_mut("0") {
-            if !is_viewport_culled {
-                expanded_node.borrow().instance_node.handle_render(rtc, rc);
-            }
-        }
-    }
-
-    //lifecycle: post_render
-    expanded_node
-        .borrow()
-        .instance_node
-        .handle_post_render(rtc, rcs);
-}
-
-/// Helper method to fire `pre_render` handlers for the node attached to the `rtc`
-fn manage_handlers_pre_render(rtc: &mut RenderTreeContext) {
-    //fire `pre_render` handlers
-    let node = Rc::clone(&rtc.current_expanded_node);
-    let node_borrowed = (*node).borrow();
-    let registry = node_borrowed
-        .instance_node
-        .base()
-        .get_handler_registry()
-        .clone();
-    if let Some(registry) = registry {
-        for handler in (*registry).borrow().pre_render_handlers.iter() {
-            handler(
-                Rc::clone(&node_borrowed.get_properties()),
-                &node_borrowed.computed_node_context.clone().unwrap(),
-            );
-        }
-    }
 }

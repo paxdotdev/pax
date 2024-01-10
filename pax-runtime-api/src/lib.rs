@@ -11,10 +11,10 @@ extern crate lazy_static;
 extern crate mut_static;
 
 pub use crate::numeric::Numeric;
-use kurbo::BezPath;
+use kurbo::{BezPath, Rect};
 use mut_static::MutStatic;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
-use piet::PaintBrush;
+use piet::{ImageBuf, PaintBrush};
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -86,6 +86,7 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: usize,
@@ -344,9 +345,7 @@ impl Add for Size {
     }
 }
 
-use std::ops::{Sub};
-
-
+use std::ops::Sub;
 
 impl Sub for Size {
     type Output = Size;
@@ -357,8 +356,12 @@ impl Sub for Size {
         let sizes = [(self, 1), (rhs, -1)];
         for (size, multiplier) in sizes.iter() {
             match size {
-                Size::Pixels(s) => pixel_component = pixel_component + *s * Numeric::from(*multiplier),
-                Size::Percent(s) => percent_component = percent_component + *s * Numeric::from(*multiplier),
+                Size::Pixels(s) => {
+                    pixel_component = pixel_component + *s * Numeric::from(*multiplier)
+                }
+                Size::Percent(s) => {
+                    percent_component = percent_component + *s * Numeric::from(*multiplier)
+                }
                 Size::Combined(s0, s1) => {
                     pixel_component = pixel_component + *s0 * Numeric::from(*multiplier);
                     percent_component = percent_component + *s1 * Numeric::from(*multiplier);
@@ -369,7 +372,6 @@ impl Sub for Size {
         Size::Combined(pixel_component, percent_component)
     }
 }
-
 
 impl Size {
     #[allow(non_snake_case)]
@@ -608,6 +610,7 @@ impl From<Size> for SizePixels {
 }
 
 #[derive(Copy, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SizePixels(pub Numeric);
 
 impl Default for SizePixels {
@@ -1080,16 +1083,16 @@ pub enum Layer {
 /// Used for generating chassis side rendering architecture
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
-pub struct LayerId {
+pub struct OcclusionLayerGen {
     canvas_index: u32,
     layer: Layer,
     #[allow(dead_code)]
     parent_scroller: Option<Vec<u32>>,
 }
 
-impl LayerId {
+impl OcclusionLayerGen {
     pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
-        LayerId {
+        OcclusionLayerGen {
             canvas_index: 0,
             layer: Layer::Canvas,
             parent_scroller: scroller_id,
@@ -1177,4 +1180,5 @@ pub trait RenderContext {
     fn save(&mut self);
     fn restore(&mut self);
     fn clip(&mut self, path: BezPath);
+    fn draw_image(&mut self, image: &ImageBuf, rect: Rect);
 }
