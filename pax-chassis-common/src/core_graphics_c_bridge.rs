@@ -2,10 +2,8 @@
 
 extern crate core;
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::rc::Rc;
 
 use std::mem::{transmute, ManuallyDrop};
 use std::os::raw::c_char;
@@ -18,7 +16,7 @@ use flexbuffers::DeserializationError;
 use serde::Serialize;
 
 use pax_cartridge;
-use pax_core::{NodeRegistry, PaxEngine, Renderer};
+use pax_core::{ExpressionTable, PaxEngine, Renderer};
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
@@ -41,17 +39,16 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
-    let node_registry: Rc<RefCell<NodeRegistry>> = Rc::new(RefCell::new(NodeRegistry::new()));
-    let main_component_instance =
-        pax_cartridge::instantiate_main_component(Rc::clone(&node_registry));
-    let expression_table = pax_cartridge::instantiate_expression_table();
+    let main_component_instance = pax_cartridge::instantiate_main_component();
+    let expression_table = ExpressionTable {
+        table: pax_cartridge::instantiate_expression_table(),
+    };
 
     let engine: ManuallyDrop<Box<PaxEngine>> = ManuallyDrop::new(Box::new(PaxEngine::new(
         main_component_instance,
         expression_table,
         pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
         (1.0, 1.0),
-        node_registry,
     )));
 
     let container = ManuallyDrop::new(Box::new(PaxEngineContainer {
@@ -113,8 +110,7 @@ pub extern "C" fn pax_interrupt(
                             modifiers,
                         },
                     };
-                    let tnb = topmost_node.borrow_mut();
-                    tnb.dispatch_click(args_click);
+                    topmost_node.dispatch_click(args_click, engine.runtime_context.globals());
                 }
                 _ => {}
             };
@@ -127,8 +123,7 @@ pub extern "C" fn pax_interrupt(
                         delta_x: args.delta_x,
                         delta_y: args.delta_y,
                     };
-                    let tnb = topmost_node.borrow_mut();
-                    tnb.dispatch_scroll(args_scroll);
+                    topmost_node.dispatch_scroll(args_scroll, engine.runtime_context.globals());
                 }
                 _ => {}
             };
@@ -176,7 +171,8 @@ pub extern "C" fn pax_tick(
     let mut render_contexts = HashMap::new();
     render_contexts.insert(format!("{}", 0), render_context);
 
-    let messages = (*engine).tick(&mut render_contexts);
+    let messages = (*engine).tick();
+    engine.render(&mut render_contexts);
 
     let wrapped_queue = MessageQueue { messages };
     let mut serializer = flexbuffers::FlexbufferSerializer::new();

@@ -1,11 +1,10 @@
-use std::cell::RefCell;
 use std::rc::Rc;
+use std::{cell::RefCell, iter};
 
 use crate::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstanceNodePtrList,
-    InstantiationArgs, PropertiesTreeContext,
+    BaseInstance, ExpandedNode, ExpressionTable, Globals, InstanceFlags, InstanceNode,
+    InstanceNodePtrList, InstantiationArgs, RuntimeContext,
 };
-
 use pax_runtime_api::{Layer, Timeline};
 
 /// A render node with its own runtime context.  Will push a frame
@@ -17,9 +16,14 @@ use pax_runtime_api::{Layer, Timeline};
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn Fn(&Rc<RefCell<ExpandedNode>>, &mut PropertiesTreeContext)>,
+    pub compute_properties_fn: Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>,
     base: BaseInstance,
 }
+
+// #[derive(Default)]
+// pub struct ComponentProperties {
+//     pub slot_children: BTreeSet<Rc<ExpandedNode>>,
+// }
 
 impl InstanceNode for ComponentInstance {
     fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
@@ -33,6 +37,7 @@ impl InstanceNode for ComponentInstance {
                 invisible_to_slot: false,
                 invisible_to_raycasting: true,
                 layer: Layer::DontCare,
+                is_component: true,
             },
         );
         Rc::new(ComponentInstance {
@@ -44,67 +49,41 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
-
-        //Compute properties
-        (*self.compute_properties_fn)(&this_expanded_node, ptc);
-
-        let expanded_and_flattened_slot_children = {
-            let slot_children = self.base().get_children();
-            //Expand children in the context of the current containing component
-            let mut expanded_slot_children = vec![];
-            for child in slot_children {
-                let mut new_ptc = ptc.clone();
-                let child_expanded_node = Rc::clone(&child).expand(&mut new_ptc);
-                expanded_slot_children.push(child_expanded_node);
-            }
-
-            //Now flatten those expanded children, ignoring (replacing with children) and node that`is_invisible_to_slot`, namely
-            //[`ConditionalInstance`] and [`RepeatInstance`]
-            let mut expanded_and_flattened_slot_children = vec![];
-            for expanded_slot_child in expanded_slot_children {
-                expanded_and_flattened_slot_children.extend(flatten_expanded_node_for_slot(
-                    &Rc::clone(&expanded_slot_child),
-                ));
-            }
-
-            expanded_and_flattened_slot_children
-        };
-
-        {
-            this_expanded_node
-                .borrow_mut()
-                .set_expanded_and_flattened_slot_children(Some(
-                    expanded_and_flattened_slot_children,
-                ));
-        }
-
-        let last_containing_component = std::mem::replace(
-            &mut ptc.current_containing_component,
-            Rc::downgrade(&this_expanded_node),
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        // Compute properties
+        (*self.compute_properties_fn)(
+            &expanded_node,
+            context.expression_table(),
+            context.globals(),
         );
 
-        // TODO could this be replaced by looking at the current_containing_components properties as a default?
-        // (still need some way of keeping track of for loop values through)
-        ptc.push_stack_frame(Rc::clone(&this_expanded_node.borrow().get_properties()));
-
-        for child in &self.template {
-            let mut new_ptc = ptc.clone();
-            let child_expanded_node = Rc::clone(child).expand(&mut new_ptc);
-            child_expanded_node.borrow_mut().parent_expanded_node =
-                Rc::downgrade(&this_expanded_node);
-
-            this_expanded_node
-                .borrow_mut()
-                .append_child_expanded_node(child_expanded_node);
+        // Update slot children. Needs to be done since a change in
+        // a repeat can trigger changes in slot references.
+        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+            for slot_child in slot_children {
+                slot_child.recurse_update(context);
+            }
         }
 
-        ptc.pop_stack_frame();
-        ptc.current_containing_component = last_containing_component;
-        this_expanded_node
+        expanded_node.compute_flattened_slot_children();
+    }
+
+    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        if let Some(containing_component) = expanded_node.containing_component.upgrade() {
+            let env = Rc::clone(&expanded_node.stack);
+            let children_with_env = self
+                .base()
+                .get_instance_children()
+                .iter()
+                .cloned()
+                .zip(iter::repeat(env));
+            *expanded_node.expanded_slot_children.borrow_mut() =
+                Some(containing_component.create_children_detatched(children_with_env, context));
+        }
+
+        let new_env = expanded_node.stack.push(&expanded_node.properties);
+        let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
+        expanded_node.set_children(children_with_envs, context);
     }
 
     #[cfg(debug_assertions)]
@@ -119,30 +98,4 @@ impl InstanceNode for ComponentInstance {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
-}
-
-/// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
-/// and return another InstanceNodePtrList with a flattened top-level list of nodes.
-/// Helper function that accepts a
-fn flatten_expanded_node_for_slot(
-    node: &Rc<RefCell<ExpandedNode>>,
-) -> Vec<Rc<RefCell<ExpandedNode>>> {
-    let mut result = vec![];
-
-    let is_invisible_to_slot = {
-        let node_borrowed = node.borrow();
-        let instance_node_borrowed = Rc::clone(&node_borrowed.instance_node);
-        instance_node_borrowed.base().flags().invisible_to_slot
-    };
-    if is_invisible_to_slot {
-        // If the node is invisible, recurse on its children
-        for child in node.borrow().get_children_expanded_nodes().iter() {
-            result.extend(flatten_expanded_node_for_slot(child));
-        }
-    } else {
-        // If the node is visible, add it to the result
-        result.push(Rc::clone(node));
-    }
-
-    result
 }

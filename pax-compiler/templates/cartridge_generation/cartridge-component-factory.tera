@@ -1,5 +1,5 @@
 {% if is_main_component %}
-pub fn instantiate_main_component(node_registry: Rc<RefCell<NodeRegistry>>) -> Rc<ComponentInstance> {
+pub fn instantiate_main_component() -> Rc<ComponentInstance> {
     ComponentInstance::instantiate( InstantiationArgs{
         prototypical_properties_factory: Box::new(||{Rc::new(RefCell::new( {{ component_properties_struct }}::default() )) as Rc<RefCell<dyn Any>>}),
         prototypical_common_properties_factory: Box::new(||{Rc::new(RefCell::new(CommonProperties::default()))}),
@@ -41,20 +41,19 @@ pub fn instantiate_main_component(node_registry: Rc<RefCell<NodeRegistry>>) -> R
                 {% endfor %}
             handler_registry
         }))),
-        node_registry: Rc::clone(&node_registry),
         children: None,
         component_template: Some(vec![{{render_nodes_literal}}]),
         scroller_args: None,
-        compute_properties_fn: Some(Box::new(|node, ptc|{
-            let props = node.borrow().get_properties();
+        compute_properties_fn: Some(Box::new(|node, table, globals|{
+            let props = &node.properties;
             let properties = &mut props.as_ref().borrow_mut();
 
             if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
                 {% for prop in properties %}
-                    if let Some(new_value) = ptc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                    if let Some(new_value) = table.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager(), globals) {
                         properties.{{ prop.0.name }}.set(new_value);
                     } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
-                        let new_value_wrapped = ptc.compute_vtable_value(node, vtable_id);
+                        let new_value_wrapped = table.compute_vtable_value(&node.stack, vtable_id);
                         if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
                             properties.{{ prop.0.name }}.set(*new_value);
                         } else {
@@ -74,7 +73,7 @@ pub fn instantiate_main_component(node_registry: Rc<RefCell<NodeRegistry>>) -> R
 
 {% else %}
 #[allow(non_snake_case)]
-pub fn instantiate_{{ snake_case_type_id }}(node_registry: Rc<RefCell<NodeRegistry>>, mut args: InstantiationArgs) -> Rc<ComponentInstance>  {
+pub fn instantiate_{{ snake_case_type_id }}(mut args: InstantiationArgs) -> Rc<ComponentInstance>  {
     args.component_template = Some(vec![{{render_nodes_literal}}]);
 
     args.handler_registry = Some(Rc::new(RefCell::new({
@@ -116,18 +115,18 @@ pub fn instantiate_{{ snake_case_type_id }}(node_registry: Rc<RefCell<NodeRegist
      {% endfor %}
      handler_registry})));
 
-    args.compute_properties_fn = Some(Box::new(|node, ptc|{
+    args.compute_properties_fn = Some(Box::new(|node, table, globals|{
 
-        let props = node.borrow().get_properties();
+        let props = &node.properties;
         let properties = &mut props.as_ref().borrow_mut();
 
         if let Some(properties) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
 
             {% for prop in properties %}
-                if let Some(new_value) = ptc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+                if let Some(new_value) = table.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager(), globals) {
                     properties.{{ prop.0.name }}.set(new_value);
                 } else if let Some(vtable_id) = properties.{{ prop.0.name }}._get_vtable_id() {
-                    let new_value_wrapped = ptc.compute_vtable_value(node, vtable_id);
+                    let new_value_wrapped = table.compute_vtable_value(&node.stack, vtable_id);
                     if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.1}}>() {
                         properties.{{ prop.0.name }}.set(*new_value);
                     } else {

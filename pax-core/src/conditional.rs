@@ -1,10 +1,8 @@
-use std::any::Any;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 use crate::{
-    handle_vtable_update, with_properties_unwrapped, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, PropertiesTreeContext,
+    declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
+    InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_runtime_api::Layer;
 
@@ -21,6 +19,7 @@ pub struct ConditionalInstance {
 #[derive(Default)]
 pub struct ConditionalProperties {
     pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
+    last_boolean_expression: Option<bool>,
 }
 
 impl InstanceNode for ConditionalInstance {
@@ -35,59 +34,40 @@ impl InstanceNode for ConditionalInstance {
                     invisible_to_slot: true,
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
+                    is_component: false,
                 },
             ),
         })
     }
 
-    fn expand(self: Rc<Self>, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode>> {
-        let this_expanded_node = self
-            .base()
-            .expand_from_instance(Rc::clone(&self) as Rc<dyn InstanceNode>, ptc);
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        let (should_update, active) =
+            expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
+                handle_vtable_update(
+                    context.expression_table(),
+                    &expanded_node.stack,
+                    &mut properties.boolean_expression,
+                );
+                let val = Some(*properties.boolean_expression.get());
+                let update_children = properties.last_boolean_expression != val;
+                properties.last_boolean_expression = val;
+                (update_children, *properties.boolean_expression.get())
+            });
 
-        let properties_wrapped = this_expanded_node.borrow().get_properties();
-        // evaluate boolean expression
-        let evaluated_condition = with_properties_unwrapped!(
-            &properties_wrapped,
-            ConditionalProperties,
-            |properties: &mut ConditionalProperties| {
-                handle_vtable_update!(ptc, this_expanded_node, properties.boolean_expression, bool);
-                //return evaluated value
-                *properties.boolean_expression.get()
-            }
-        );
-
-        let id_chain = ptc.get_id_chain(self.base().get_instance_id());
-
-        //TODO use this to do not do re-computations each frame
-        let _present_last_frame = ptc.engine.node_registry.borrow().is_mounted(&id_chain);
-
-        if !evaluated_condition {
-            for cen in this_expanded_node.borrow().get_children_expanded_nodes() {
-                ptc.engine
-                    .node_registry
-                    .borrow_mut()
-                    .mark_for_unmount(cen.borrow().id_chain.clone());
+        if should_update {
+            if active {
+                let env = Rc::clone(&expanded_node.stack);
+                let children_with_envs = self
+                    .base()
+                    .get_instance_children()
+                    .iter()
+                    .cloned()
+                    .zip(iter::repeat(env));
+                expanded_node.set_children(children_with_envs, context);
+            } else {
+                expanded_node.set_children(iter::empty(), context);
             }
         }
-
-        for child in self.base().get_children() {
-            let mut new_ptc = ptc.clone();
-            let expanded_child = Rc::clone(child).expand(&mut new_ptc);
-            expanded_child.borrow_mut().parent_expanded_node = Rc::downgrade(&this_expanded_node);
-
-            if evaluated_condition {
-                new_ptc
-                    .engine
-                    .node_registry
-                    .borrow_mut()
-                    .revert_mark_for_unmount(&expanded_child.borrow().id_chain);
-                this_expanded_node
-                    .borrow_mut()
-                    .append_child_expanded_node(expanded_child);
-            }
-        }
-        this_expanded_node
     }
 
     #[cfg(debug_assertions)]
@@ -101,5 +81,24 @@ impl InstanceNode for ConditionalInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn get_size(
+        &self,
+        expanded_node: &ExpandedNode,
+    ) -> (pax_runtime_api::Size, pax_runtime_api::Size) {
+        let common_properties = expanded_node.get_common_properties();
+        let common_properties_borrowed = common_properties.borrow();
+        (
+            common_properties_borrowed.width.get().clone(),
+            common_properties_borrowed.height.get().clone(),
+        )
+    }
+
+    fn get_clipping_size(
+        &self,
+        _expanded_node: &ExpandedNode,
+    ) -> Option<(pax_runtime_api::Size, pax_runtime_api::Size)> {
+        None
     }
 }

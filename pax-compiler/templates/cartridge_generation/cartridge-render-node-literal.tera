@@ -2,7 +2,7 @@
 {% if is_primitive %}
 {{ primitive_instance_import_path }}::instantiate(
 {% else %}
-instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
+instantiate_{{ snake_case_type_id }}(
 {% endif %}
  InstantiationArgs {
     prototypical_common_properties_factory: Box::new(||{Rc::new(RefCell::new(CommonProperties {
@@ -71,7 +71,6 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
         {% endfor %}
         handler_registry
     }))),
-    node_registry: Rc::clone(&node_registry),
     children: Some(vec![
         {% for child_literal in children_literal %}
             {{ child_literal }},

@@ -37,6 +37,7 @@ pub mod primitives {
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
+    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Rectangle {
         pub stroke: pax_lang::Property<crate::types::Stroke>,
         pub fill: pax_lang::Property<crate::types::Fill>,
@@ -46,6 +47,7 @@ pub mod primitives {
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
+    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Ellipse {
         pub stroke: pax_lang::Property<crate::types::Stroke>,
         pub fill: pax_lang::Property<crate::types::Fill>,

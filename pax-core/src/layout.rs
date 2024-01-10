@@ -1,129 +1,18 @@
-use crate::{
-    ExpandedNode, PaxEngine, PropertiesComputable, PropertiesTreeContext, TransformAndBounds,
-};
+use crate::{ExpandedNode, TransformAndBounds};
 use kurbo::Affine;
-use pax_runtime_api::{Axis, LayerId, NodeContext, Size, Transform2D};
-use std::cell::RefCell;
-use std::ops::RangeFrom;
-use std::rc::Rc;
-
-/// Handle node unmounting, including check for whether unmount handlers should be fired
-/// (thus this function can be called on all nodes at end of properties computation
-fn manage_handlers_unmount(node: &Rc<RefCell<ExpandedNode>>, ptc: &mut PropertiesTreeContext) {
-    let id_chain: Vec<u32> = node.borrow().id_chain.clone();
-
-    if ptc
-        .engine
-        .node_registry
-        .borrow()
-        .is_marked_for_unmount(&id_chain)
-    {
-        node.borrow().instance_node.handle_unmount(ptc);
-
-        ptc.engine
-            .node_registry
-            .borrow_mut()
-            .revert_mark_for_mount(&id_chain);
-        ptc.engine
-            .node_registry
-            .borrow_mut()
-            .remove_expanded_node(&id_chain);
-    }
-}
-
-/// Visits ExpandedNode tree attached to `subtree_root_expanded_node` in rendering order and
-/// computes + writes (mutates in-place) `z_index`, `node_context`, and `computed_tab` on each visited ExpandedNode.
-pub fn recurse_compute_layout<'a>(
-    engine: &'a PaxEngine,
-    ptc: &mut PropertiesTreeContext,
-    current_expanded_node: &Rc<RefCell<ExpandedNode>>,
-    container_tab: &TransformAndBounds,
-    z_index_gen: &mut RangeFrom<u32>,
-    canvas_index_gen: &mut LayerId,
-) {
-    let computed_tab = compute_tab(&current_expanded_node, &container_tab);
-
-    {
-        canvas_index_gen.update_z_index(
-            current_expanded_node
-                .borrow()
-                .instance_node
-                .base()
-                .flags()
-                .layer,
-        );
-    }
-    {
-        current_expanded_node.borrow_mut().computed_canvas_index =
-            Some(canvas_index_gen.get_level());
-    }
-    {
-        for child in current_expanded_node
-            .borrow()
-            .get_children_expanded_nodes()
-            .iter()
-            .rev()
-        {
-            recurse_compute_layout(
-                engine,
-                ptc,
-                &child,
-                &computed_tab,
-                z_index_gen,
-                canvas_index_gen,
-            );
-        }
-    }
-
-    {
-        let common_properties =
-            Rc::clone(&current_expanded_node.borrow_mut().get_common_properties());
-        common_properties
-            .borrow_mut()
-            .compute_properties(current_expanded_node, ptc);
-    }
-
-    {
-        let mut node_borrowed = current_expanded_node.borrow_mut();
-
-        let current_z_index = z_index_gen.next().unwrap();
-        node_borrowed.computed_z_index = Some(current_z_index);
-
-        node_borrowed.tab_changed = node_borrowed.computed_tab.as_ref() != Some(&computed_tab);
-        node_borrowed.computed_tab = Some(computed_tab.clone());
-        node_borrowed.computed_node_context = Some(NodeContext {
-            frames_elapsed: engine.frames_elapsed,
-            bounds_parent: container_tab.bounds,
-            bounds_self: computed_tab.bounds,
-        });
-    }
-
-    manage_handlers_mount(engine, ptc, &current_expanded_node);
-    manage_handlers_unmount(current_expanded_node, ptc);
-
-    {
-        let node_borrowed = current_expanded_node.borrow_mut();
-        node_borrowed
-            .instance_node
-            .handle_native_patches(ptc, &node_borrowed);
-    }
-}
+use pax_runtime_api::{Axis, Size, Transform2D};
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
 /// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.
-pub fn compute_tab(
-    node: &Rc<RefCell<ExpandedNode>>,
-    container_tab: &TransformAndBounds,
-) -> TransformAndBounds {
+pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> TransformAndBounds {
     //get the size of this node (calc'd or otherwise) and use
     //it as the new accumulated bounds: both for this node's children (their parent container bounds)
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
     let new_accumulated_bounds_and_current_node_size =
-        { node.borrow_mut().get_size_computed(container_tab.bounds) };
+        { node.get_size_computed(container_tab.bounds) };
 
     let node_transform_property_computed = {
-        node.borrow()
-            .get_common_properties()
+        node.get_common_properties()
             .borrow()
             .transform
             .get()
@@ -136,8 +25,7 @@ pub fn compute_tab(
     // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
     let desugared_transform = {
         //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-        let node_borrowed = node.borrow();
-        let comm = node_borrowed.get_common_properties();
+        let comm = node.get_common_properties();
         let comm = comm.borrow();
         let mut desugared_transform2d = Transform2D::default();
 
@@ -320,43 +208,5 @@ impl ComputableTransform for Transform2D {
         };
 
         transform * anchor_transform * previous_transform
-    }
-}
-
-/// Helper method to fire `mount` event if this is this expandednode's first frame
-/// (or first frame remounting, if previously mounted then unmounted.)
-/// Note that this must happen after initial `compute_properties`, which performs the
-/// necessary side-effect of creating the `self` that must be passed to handlers.
-fn manage_handlers_mount<'a>(
-    engine: &'a PaxEngine,
-    ptc: &mut PropertiesTreeContext,
-    current_expanded_node: &Rc<RefCell<ExpandedNode>>,
-) {
-    {
-        let mut node_registry = (*engine.node_registry).borrow_mut();
-
-        let id_chain =
-            <Vec<u32> as AsRef<Vec<u32>>>::as_ref(&current_expanded_node.clone().borrow().id_chain)
-                .clone();
-        if !node_registry.is_mounted(&id_chain) {
-            //Fire primitive-level mount lifecycle method
-            let instance_node = Rc::clone(&current_expanded_node.borrow().instance_node);
-            instance_node.handle_mount(ptc, &current_expanded_node.borrow());
-
-            //Fire registered mount events
-            let registry = instance_node.base().get_handler_registry();
-            if let Some(registry) = registry {
-                //grab Rc of properties from stack frame; pass to type-specific handler
-                //on instance in order to dispatch cartridge method
-                for handler in (*registry).borrow().mount_handlers.iter() {
-                    let node_borrowed = current_expanded_node.borrow_mut();
-                    handler(
-                        node_borrowed.get_properties(),
-                        &node_borrowed.computed_node_context.clone().unwrap(),
-                    );
-                }
-            }
-            node_registry.mark_mounted(id_chain);
-        }
     }
 }

@@ -22,11 +22,11 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} =
             {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth({{ invocation.stack_offset }}) {
+                let properties = if let Some(sf) = ec.stack_frame.peek_nth({{ invocation.stack_offset }}) {
                     Rc::clone(&sf)
                 } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
+                    panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
+                };
                 let mut borrowed = &mut *(*properties).borrow_mut();
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem

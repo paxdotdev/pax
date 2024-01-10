@@ -266,11 +266,8 @@ fn recurse_compile_literal_block<'a>(
                     unreachable!()
                 }
             }
-
-            Ok::<(), eyre::Report>(())
-        } else {
-            Ok::<(), eyre::Report>(())
-        }
+        };
+        Ok::<(), eyre::Report>(())
     })
 }
 

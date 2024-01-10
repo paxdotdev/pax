@@ -51,6 +51,9 @@ export class PaxChassisWeb {
 * @returns {MemorySlice}
 */
   tick(): MemorySlice;
+/**
+*/
+  render(): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
