@@ -292,7 +292,7 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    fn handle_form_event(&self, event: FormEvent) {
+    fn handle_form_event(&self, expanded_node: &ExpandedNode, event: FormEvent) {
         panic!("form event sent to non-compatible component: {:?}", event)
     }
 }
