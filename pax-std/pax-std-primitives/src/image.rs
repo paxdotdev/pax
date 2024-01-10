@@ -34,11 +34,7 @@ impl InstanceNode for ImageInstance {
         })
     }
 
-    fn update_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &mut RuntimeContext,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Image| {
             handle_vtable_update(

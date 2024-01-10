@@ -144,23 +144,23 @@ impl InstanceNode for FrameInstance {
         // }
     }
 
-    fn handle_mount(&self, _node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
-        // let id_chain = node.id_chain.clone();
+    // fn handle_mount(&self, _node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+    //     let id_chain = node.id_chain.clone();
 
-        // //though macOS and iOS don't need this ancestry chain for clipping, Web does
-        // let clipping_ids = ptc.get_current_clipping_ids();
+    //     //though macOS and iOS don't need this ancestry chain for clipping, Web does
+    //     let clipping_ids = ptc.get_current_clipping_ids();
 
-        // let scroller_ids = ptc.get_current_scroller_ids();
+    //     let scroller_ids = ptc.get_current_scroller_ids();
 
-        // let z_index = node.computed_z_index.unwrap();
+    //     let z_index = node.computed_z_index.unwrap();
 
-        // ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-        //     id_chain,
-        //     clipping_ids,
-        //     scroller_ids,
-        //     z_index,
-        // }));
-    }
+    //     ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
+    //         id_chain,
+    //         clipping_ids,
+    //         scroller_ids,
+    //         z_index,
+    //     }));
+    // }
 
     fn handle_unmount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
 

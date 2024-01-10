@@ -49,11 +49,7 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn update_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &mut RuntimeContext,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         // Compute properties
         (*self.compute_properties_fn)(
             &expanded_node,
@@ -65,31 +61,29 @@ impl InstanceNode for ComponentInstance {
         // a repeat can trigger changes in slot references.
         if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
             for slot_child in slot_children {
-                slot_child.recurse_update_children(context);
+                slot_child.recurse_update(context);
             }
         }
 
         expanded_node.compute_flattened_slot_children();
+    }
 
-        //Only expand children once, component children doesn't ever change
-        if expanded_node.do_initial_expansion_of_children() {
-            if let Some(containing_component) = expanded_node.containing_component.upgrade() {
-                let env = Rc::clone(&expanded_node.stack);
-                let children_with_env = self
-                    .base()
-                    .get_instance_children()
-                    .iter()
-                    .cloned()
-                    .zip(iter::repeat(env));
-                *expanded_node.expanded_slot_children.borrow_mut() = Some(
-                    containing_component.create_children_detatched(children_with_env, context),
-                );
-            }
-
-            let new_env = expanded_node.stack.push(&expanded_node.properties);
-            let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
-            expanded_node.set_children(children_with_envs, context);
+    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+        if let Some(containing_component) = expanded_node.containing_component.upgrade() {
+            let env = Rc::clone(&expanded_node.stack);
+            let children_with_env = self
+                .base()
+                .get_instance_children()
+                .iter()
+                .cloned()
+                .zip(iter::repeat(env));
+            *expanded_node.expanded_slot_children.borrow_mut() =
+                Some(containing_component.create_children_detatched(children_with_env, context));
         }
+
+        let new_env = expanded_node.stack.push(&expanded_node.properties);
+        let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
+        expanded_node.set_children(children_with_envs, context);
     }
 
     #[cfg(debug_assertions)]

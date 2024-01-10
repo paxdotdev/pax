@@ -76,11 +76,6 @@ pub struct ExpandedNode {
     /// trigger mount/dismount updates
     pub attached: RefCell<u32>,
 
-    /// Flag that signifies that a node has done the initial expansion. Used for
-    /// the default implementation of update_children on InstanceNodes that only
-    /// expand once (all except for repeat/conditional)
-    pub done_initial_expansion_of_children: RefCell<bool>,
-
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
     pub occlusion_id: RefCell<u32>,
@@ -160,7 +155,6 @@ impl ExpandedNode {
             layout_properties: RefCell::new(None),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
-            done_initial_expansion_of_children: Default::default(),
             occlusion_id: RefCell::new(0),
         })
     }
@@ -226,7 +220,9 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_update_children(self: &Rc<Self>, context: &mut RuntimeContext) {
+    /// This method recursively updates all node properties. When dirty-dag exists, this won't
+    /// need to be here since all property dependencies can be set up and removed during mount/unmount
+    pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
         self.get_common_properties()
             .borrow_mut()
             .compute_properties(&self.stack, context.expression_table());
@@ -245,14 +241,18 @@ impl ExpandedNode {
             computed_tab: compute_tab(self, &viewport),
         });
 
+        // This isn't really the right location for handle_render, but needs to be here
+        // for the current version of stacker to work correctly. When dirty-dag is a thing
+        // this can be called at any location since whatever properties it changes
+        // will immediately trigger the nessessary side effects
         if let Some(ref registry) = self.instance_node.base().handler_registry {
             for handler in &registry.borrow().pre_render_handlers {
                 handler(Rc::clone(&self.properties), &self.get_node_context(context))
             }
         }
-        Rc::clone(&self.instance_node).update_children(&self, context);
+        Rc::clone(&self.instance_node).update(&self, context);
         for child in self.children.borrow().iter() {
-            child.recurse_update_children(context);
+            child.recurse_update(context);
         }
     }
 
@@ -424,13 +424,6 @@ impl ExpandedNode {
             *self.expanded_and_flattened_slot_children.borrow_mut() =
                 Some(flatten_expanded_nodes_for_slot(&slot_children));
         }
-    }
-
-    pub fn do_initial_expansion_of_children(&self) -> bool {
-        let mut do_it = self.done_initial_expansion_of_children.borrow_mut();
-        let old = *do_it;
-        *do_it = true;
-        !old
     }
 
     dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers);
