@@ -17,7 +17,7 @@ pub mod code_serialization;
 pub mod errors;
 pub mod expressions;
 pub mod formatting;
-mod helpers;
+pub mod helpers;
 pub mod parsing;
 mod reexports;
 

@@ -275,6 +275,7 @@ fn pax_full_component(
     include_fix: Option<TokenStream>,
     include_imports: bool,
     is_custom_interpolatable: bool,
+    associated_pax_file_path: Option<String>,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
 
@@ -299,6 +300,7 @@ fn pax_full_component(
             raw_pax,
             template_dependencies,
             reexports_snippet,
+            associated_pax_file_path,
         }),
         pascal_identifier,
         include_imports,
@@ -642,7 +644,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
         let include_fix = generate_include(&name, path.clone().to_str().unwrap());
-
+        let associated_pax_file = Some(path.clone().to_str().unwrap().to_string());
         let file = File::open(path);
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
@@ -653,6 +655,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             Some(include_fix),
             include_imports,
             is_custom_interpolatable,
+            associated_pax_file,
         )
     } else if is_pax_inlined {
         let contents = config.inlined_contents.unwrap();
@@ -664,6 +667,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             None,
             include_imports,
             is_custom_interpolatable,
+            None,
         )
     } else if config.is_primitive {
         pax_primitive(

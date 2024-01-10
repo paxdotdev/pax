@@ -303,7 +303,7 @@ impl PaxEngine {
         self.runtime_context.take_native_messages()
     }
 
-    pub fn draw(&mut self, rcs: &mut HashMap<String, Box<dyn RenderContext>>) {
+    pub fn render(&mut self, rcs: &mut HashMap<String, Box<dyn RenderContext>>) {
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
 
