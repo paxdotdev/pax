@@ -219,22 +219,8 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    fn update_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &mut RuntimeContext,
-    ) {
-        if expanded_node.do_initial_expansion_of_children() {
-            let env = Rc::clone(&expanded_node.stack);
-            let children_with_envs = self
-                .base()
-                .get_instance_children()
-                .iter()
-                .cloned()
-                .zip(iter::repeat(env));
-            expanded_node.set_children(children_with_envs, context);
-        }
-    }
+    /// Updates the expanded node, recomputing it's properties and possibly updating it's children
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
 
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
@@ -284,7 +270,14 @@ pub trait InstanceNode {
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        //no-op default implementation
+        let env = Rc::clone(&expanded_node.stack);
+        let children_with_envs = self
+            .base()
+            .get_instance_children()
+            .iter()
+            .cloned()
+            .zip(iter::repeat(env));
+        expanded_node.set_children(children_with_envs, context);
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)

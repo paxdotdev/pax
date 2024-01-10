@@ -268,8 +268,7 @@ impl PaxEngine {
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
         //
-        self.root_node
-            .recurse_update_children(&mut self.runtime_context);
+        self.root_node.recurse_update(&mut self.runtime_context);
         self.root_node
             .recurse_update_native_patches(&mut self.runtime_context);
 

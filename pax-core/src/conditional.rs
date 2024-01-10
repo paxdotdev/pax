@@ -19,7 +19,7 @@ pub struct ConditionalInstance {
 #[derive(Default)]
 pub struct ConditionalProperties {
     pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
-    last_boolean_expression: bool,
+    last_boolean_expression: Option<bool>,
 }
 
 impl InstanceNode for ConditionalInstance {
@@ -40,11 +40,7 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn update_children(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &mut RuntimeContext,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         let (should_update, active) =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
                 handle_vtable_update(
@@ -52,7 +48,7 @@ impl InstanceNode for ConditionalInstance {
                     &expanded_node.stack,
                     &mut properties.boolean_expression,
                 );
-                let val = *properties.boolean_expression.get();
+                let val = Some(*properties.boolean_expression.get());
                 let update_children = properties.last_boolean_expression != val;
                 properties.last_boolean_expression = val;
                 (update_children, *properties.boolean_expression.get())
