@@ -268,7 +268,10 @@ impl PaxEngine {
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
         //
-        self.root_node.recurse_update(&mut self.runtime_context);
+        self.root_node
+            .recurse_update_children(&mut self.runtime_context);
+        self.root_node
+            .recurse_update_native_patches(&mut self.runtime_context);
 
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here.
@@ -285,7 +288,7 @@ impl PaxEngine {
         // Oclussion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
         for node in self.z_index_node_cache.iter() {
-            let layer = node.instance_template.base().flags().layer;
+            let layer = node.instance_node.base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();
             let mut curr_occlusion_ind = node.occlusion_id.borrow_mut();

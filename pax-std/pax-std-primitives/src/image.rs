@@ -84,7 +84,7 @@ impl InstanceNode for ImageInstance {
         rtc: &mut RuntimeContext,
         rc: &mut Box<dyn RenderContext>,
     ) {
-        let comp_props = &expanded_node.computed_expanded_properties.borrow();
+        let comp_props = &expanded_node.layout_properties.borrow();
         let comp_props = comp_props.as_ref().unwrap();
         let transform = comp_props.computed_tab.transform;
         let bounding_dimens = comp_props.computed_tab.bounds;

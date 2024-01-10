@@ -63,7 +63,7 @@ impl InstanceNode for ConditionalInstance {
                 let env = Rc::clone(&expanded_node.stack);
                 let children_with_envs = self
                     .base()
-                    .get_template_children()
+                    .get_instance_children()
                     .iter()
                     .cloned()
                     .zip(iter::repeat(env));

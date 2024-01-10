@@ -65,7 +65,7 @@ impl InstanceNode for ComponentInstance {
         // a repeat can trigger changes in slot references.
         if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
             for slot_child in slot_children {
-                slot_child.update_children(context);
+                slot_child.recurse_update_children(context);
             }
         }
 
@@ -77,7 +77,7 @@ impl InstanceNode for ComponentInstance {
                 let env = Rc::clone(&expanded_node.stack);
                 let children_with_env = self
                     .base()
-                    .get_template_children()
+                    .get_instance_children()
                     .iter()
                     .cloned()
                     .zip(iter::repeat(env));

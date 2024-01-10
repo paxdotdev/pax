@@ -171,7 +171,8 @@ pub extern "C" fn pax_tick(
     let mut render_contexts = HashMap::new();
     render_contexts.insert(format!("{}", 0), render_context);
 
-    let messages = (*engine).tick(&mut render_contexts);
+    let messages = (*engine).tick();
+    engine.render(&mut render_contexts);
 
     let wrapped_queue = MessageQueue { messages };
     let mut serializer = flexbuffers::FlexbufferSerializer::new();
