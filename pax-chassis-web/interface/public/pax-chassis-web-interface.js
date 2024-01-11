@@ -667,6 +667,7 @@ var Pax = (() => {
         _NativeElementPool.addNativeElement(
           node,
           this.baseOcclusionContext,
+          // @ts-ignore
           this.scrollers,
           patch.idChain,
           void 0,
@@ -735,6 +736,59 @@ var Pax = (() => {
       }
     }
     checkboxDelete(id_chain) {
+      let oldNode = this.textNodes[id_chain];
+      if (oldNode) {
+        let parent = oldNode.parentElement;
+        parent.removeChild(oldNode);
+      }
+    }
+    buttonCreate(patch) {
+      console.assert(patch.idChain != null);
+      console.assert(patch.clippingIds != null);
+      console.assert(patch.scrollerIds != null);
+      console.assert(patch.zIndex != null);
+      const button = this.objectManager.getFromPool(INPUT);
+      button.type = "button";
+      button.style.margin = "0";
+      let runningChain = this.objectManager.getFromPool(DIV);
+      runningChain.appendChild(button);
+      runningChain.setAttribute("class", NATIVE_LEAF_CLASS);
+      runningChain.setAttribute("id_chain", String(patch.idChain));
+      let scroller_id;
+      if (patch.scrollerIds != null) {
+        let length = patch.scrollerIds.length;
+        if (length != 0) {
+          scroller_id = patch.scrollerIds[length - 1];
+        }
+      }
+      if (patch.idChain != void 0 && patch.zIndex != void 0) {
+        _NativeElementPool.addNativeElement(
+          runningChain,
+          this.baseOcclusionContext,
+          this.scrollers,
+          patch.idChain,
+          scroller_id,
+          patch.zIndex
+        );
+      }
+      this.textNodes[patch.idChain] = runningChain;
+    }
+    buttonUpdate(patch) {
+      window.textNodes = this.textNodes;
+      let leaf = this.textNodes[patch.id_chain];
+      console.assert(leaf !== void 0);
+      let button = leaf.firstChild;
+      if (patch.size_x != null) {
+        button.style.width = patch.size_x - 1 + "px";
+      }
+      if (patch.size_y != null) {
+        button.style.height = patch.size_y + "px";
+      }
+      if (patch.transform != null) {
+        leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+      }
+    }
+    buttonDelete(id_chain) {
       let oldNode = this.textNodes[id_chain];
       if (oldNode) {
         let parent = oldNode.parentElement;
@@ -872,13 +926,13 @@ var Pax = (() => {
         parent.removeChild(oldNode);
       }
     }
-    frameCreate(patch) {
+    frameCreate(_patch) {
     }
-    frameUpdate(patch) {
+    frameUpdate(_patch) {
     }
-    frameDelete(id_chain) {
+    frameDelete(_id_chain) {
     }
-    scrollerCreate(patch, chassis) {
+    scrollerCreate(patch, _chassis) {
       let scroller_id;
       if (patch.scrollerIds != null) {
         let length = patch.scrollerIds.length;
@@ -1179,6 +1233,25 @@ var Pax = (() => {
     }
   };
 
+  // src/classes/messages/button-update-patch.ts
+  var ButtonUpdatePatch = class {
+    constructor(objectManager2) {
+      this.objectManager = objectManager2;
+    }
+    fromPatch(jsonMessage) {
+      this.id_chain = jsonMessage["id_chain"];
+      this.size_x = jsonMessage["size_x"];
+      this.size_y = jsonMessage["size_y"];
+      this.transform = jsonMessage["transform"];
+    }
+    cleanUp() {
+      this.id_chain = [];
+      this.size_x = 0;
+      this.size_y = 0;
+      this.transform = [];
+    }
+  };
+
   // src/pools/supported-objects.ts
   var OBJECT = "Object";
   var ARRAY2 = "Array";
@@ -1192,6 +1265,7 @@ var Pax = (() => {
   var SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
   var TEXT_UPDATE_PATCH = "Text Update Patch";
   var CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
+  var BUTTON_UPDATE_PATCH = "Button Update Patch";
   var LAYER = "LAYER";
   var OCCLUSION_CONTEXT = "Occlusion Context";
   var SCROLLER = "Scroller";
@@ -1280,6 +1354,13 @@ var Pax = (() => {
     {
       name: CHECKBOX_UPDATE_PATCH,
       factory: (objectManager2) => new CheckboxUpdatePatch(objectManager2),
+      cleanUp: (patch) => {
+        patch.cleanUp();
+      }
+    },
+    {
+      name: BUTTON_UPDATE_PATCH,
+      factory: (objectManager2) => new ButtonUpdatePatch(objectManager2),
       cleanUp: (patch) => {
         patch.cleanUp();
       }
@@ -1640,6 +1721,19 @@ var Pax = (() => {
         let patch = objectManager2.getFromPool(OCCLUSION_UPDATE_PATCH);
         patch.fromPatch(msg);
         nativePool.occlusionUpdate(patch);
+      } else if (unwrapped_msg["ButtonCreate"]) {
+        let msg = unwrapped_msg["ButtonCreate"];
+        let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.buttonCreate(patch);
+      } else if (unwrapped_msg["ButtonUpdate"]) {
+        let msg = unwrapped_msg["ButtonUpdate"];
+        let patch = objectManager2.getFromPool(BUTTON_UPDATE_PATCH, objectManager2);
+        patch.fromPatch(msg);
+        nativePool.buttonUpdate(patch);
+      } else if (unwrapped_msg["ButtonDelete"]) {
+        let msg = unwrapped_msg["ButtonDelete"];
+        nativePool.buttonDelete(msg);
       } else if (unwrapped_msg["CheckboxCreate"]) {
         let msg = unwrapped_msg["CheckboxCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);

@@ -122,4 +122,9 @@ impl InstanceNode for RepeatInstance {
             expanded_node.set_children(children_with_envs, context);
         }
     }
+
+    fn handle_mount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+        // No-op: wait with creating child-nodes until update tick, since the
+        // condition has then been evaluated
+    }
 }

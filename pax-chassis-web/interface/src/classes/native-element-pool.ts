@@ -94,11 +94,13 @@ export class NativeElementPool {
     }
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
+        // @ts-ignore
         let node = this.textNodes[patch.idChain];
         if (node){
             let parent = node.parentElement;
             parent.removeChild(node);
             NativeElementPool.addNativeElement(node, this.baseOcclusionContext,
+                // @ts-ignore
                 this.scrollers, patch.idChain, undefined, patch.zIndex);
         }
     }
@@ -171,6 +173,79 @@ export class NativeElementPool {
     }
 
     checkboxDelete(id_chain: number[]) {
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
+        }
+    }
+
+    buttonCreate(patch: AnyCreatePatch) {
+        console.assert(patch.idChain != null);
+        console.assert(patch.clippingIds != null);
+        console.assert(patch.scrollerIds != null);
+        console.assert(patch.zIndex != null);
+        
+        const button = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
+        button.type = "button";
+        button.style.margin = "0";
+        // button.addEventListener("change", (event) => {
+        //     //Reset the checkbox state (state changes only allowed through engine)
+        //     const is_checked = (event.target as HTMLInputElement).checked;
+        //     checkbox.checked = !is_checked;
+            
+        //     let message = {
+        //         "FormCheckboxToggle": {
+        //             "id_chain": patch.idChain!,
+        //             "state": checkbox.checked,
+        //         }
+        //     }
+        //     this.chassis!.interrupt(JSON.stringify(message), undefined);
+        // });
+
+        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        runningChain.appendChild(button);
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.setAttribute("id_chain", String(patch.idChain));
+        let scroller_id;
+        if(patch.scrollerIds != null){
+            let length = patch.scrollerIds.length;
+            if(length != 0) {
+                scroller_id = patch.scrollerIds[length-1];
+            }
+        }
+        if(patch.idChain != undefined && patch.zIndex != undefined){
+            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
+                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+        }
+        // @ts-ignore
+        this.textNodes[patch.idChain] = runningChain;
+
+    }
+
+    
+    buttonUpdate(patch: CheckboxUpdatePatch) {
+        //@ts-ignore
+        window.textNodes = this.textNodes;
+        // @ts-ignore
+        let leaf = this.textNodes[patch.id_chain];
+        console.assert(leaf !== undefined);
+        let button = leaf.firstChild;
+        // Handle size_x and size_y
+        if (patch.size_x != null) {
+            button.style.width = patch.size_x - 1 + "px";
+        }
+        if (patch.size_y != null) {
+            button.style.height = patch.size_y + "px";
+        }
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+    }
+
+    buttonDelete(id_chain: number[]) {
         // @ts-ignore
         let oldNode = this.textNodes[id_chain];
         if (oldNode){
@@ -328,7 +403,7 @@ export class NativeElementPool {
         }
     }
 
-    frameCreate(patch: AnyCreatePatch) {
+    frameCreate(_patch: AnyCreatePatch) {
         // console.assert(patch.idChain != null);
         // console.assert(this.clippingNodes["id_chain"] === undefined);
         //
@@ -341,7 +416,7 @@ export class NativeElementPool {
         //attachPoint!.appendChild(newClip);
     }
 
-    frameUpdate(patch: FrameUpdatePatch) {
+    frameUpdate(_patch: FrameUpdatePatch) {
         //@ts-ignore
         // let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
         //
@@ -378,7 +453,7 @@ export class NativeElementPool {
         // this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
-    frameDelete(id_chain: number[]) {
+    frameDelete(_id_chain: number[]) {
         // NOTE: this should be supported, and may cause a memory leak if left unaddressed;
         //       was likely unplugged during v0 implementation due to some deeper bug that was interfering with 'hello world'
 
@@ -390,7 +465,7 @@ export class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
-    scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
+    scrollerCreate(patch: AnyCreatePatch, _chassis: PaxChassisWeb){
         let scroller_id;
         if(patch.scrollerIds != null){
             let length = patch.scrollerIds.length;

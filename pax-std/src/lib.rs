@@ -80,6 +80,11 @@ pub mod primitives {
 
     #[derive(Pax)]
     #[custom(Imports)]
+    #[primitive("pax_std_primitives::button::ButtonInstance")]
+    pub struct Button {}
+
+    #[derive(Pax)]
+    #[custom(Imports)]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
         pub path: pax_lang::Property<StringBox>,

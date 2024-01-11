@@ -21,6 +21,9 @@ pub enum NativeMessage {
     CheckboxCreate(AnyCreatePatch),
     CheckboxUpdate(CheckboxPatch),
     CheckboxDelete(Vec<u32>),
+    ButtonCreate(AnyCreatePatch),
+    ButtonUpdate(ButtonPatch),
+    ButtonDelete(Vec<u32>),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u32>),
@@ -294,6 +297,16 @@ pub struct CheckboxPatch {
     pub size_y: Option<f64>,
     //pub style: Option<TextStyleMessage>,
     pub checked: Option<bool>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct ButtonPatch {
+    pub id_chain: Vec<u32>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
 }
 
 #[derive(Default, Serialize)]
