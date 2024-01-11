@@ -1,26 +1,21 @@
-use std::cell::RefCell;
-
-use pax_core::declarative_macros::handle_vtable_update;
-use pax_core::form_event::FormEvent;
 use pax_core::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_message::{AnyCreatePatch, CheckboxPatch};
+use pax_message::{AnyCreatePatch, ButtonPatch};
 use pax_runtime_api::{Layer, RenderContext};
-use pax_std::primitives::Checkbox;
+use pax_std::primitives::Button;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct CheckboxInstance {
+pub struct ButtonInstance {
     base: BaseInstance,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
-    //Note: must build in awareness of id_chain, since each virtual instance if this single `Checkbox` instance
-    //      shares this last_patches cache
-    last_patches: RefCell<HashMap<Vec<u32>, pax_message::CheckboxPatch>>,
+    last_patches: RefCell<HashMap<Vec<u32>, pax_message::ButtonPatch>>,
 }
 
-impl InstanceNode for CheckboxInstance {
+impl InstanceNode for ButtonInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -39,38 +34,40 @@ impl InstanceNode for CheckboxInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.checked,
-            );
-        });
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+        //TODO update button props
+        // expanded_node.with_properties_unwrapped(|properties: &mut Button| {
+        //     handle_vtable_update(
+        //         context.expression_table(),
+        //         &expanded_node.stack,
+        //         &mut properties.checked,
+        //     );
+        // });
     }
 
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
         let id_chain = expanded_node.id_chain.clone();
-        let mut patch = CheckboxPatch {
+        let mut patch = ButtonPatch {
             id_chain: id_chain.clone(),
             ..Default::default()
         };
         let mut last_patches = self.last_patches.borrow_mut();
-        let old_state = last_patches
-            .entry(id_chain.clone())
-            .or_insert(CheckboxPatch {
-                id_chain,
-                ..Default::default()
-            });
+        let old_state = last_patches.entry(id_chain.clone()).or_insert(ButtonPatch {
+            id_chain,
+            ..Default::default()
+        });
 
-        expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
+        expanded_node.with_properties_unwrapped(|_properties: &mut Button| {
             let layout_properties = expanded_node.layout_properties.borrow();
             let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
-            let update_needed = crate::patch_if_needed(
-                &mut old_state.checked,
-                &mut patch.checked,
-                *properties.checked.get(),
-            ) || crate::patch_if_needed(
+            let update_needed = 
+            // TODO send prop updates in native messages
+            //     crate::patch_if_needed(
+            //     &mut old_state.checked,
+            //     &mut patch.checked,
+            //     *properties.checked.get(),
+            // ) || 
+                crate::patch_if_needed(
                 &mut old_state.size_x,
                 &mut patch.size_x,
                 computed_tab.bounds.0,
@@ -84,7 +81,7 @@ impl InstanceNode for CheckboxInstance {
                 computed_tab.transform.as_coeffs().to_vec(),
             );
             if update_needed {
-                context.enqueue_native_message(pax_message::NativeMessage::CheckboxUpdate(patch));
+                context.enqueue_native_message(pax_message::NativeMessage::ButtonUpdate(patch));
             }
         });
     }
@@ -99,7 +96,7 @@ impl InstanceNode for CheckboxInstance {
     }
 
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
+        context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(
             AnyCreatePatch {
                 id_chain: expanded_node.id_chain.clone(),
                 clipping_ids: vec![],
@@ -111,20 +108,7 @@ impl InstanceNode for CheckboxInstance {
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         let id_chain = expanded_node.id_chain.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
-    }
-
-    fn handle_form_event(&self, expanded_node: &ExpandedNode, event: FormEvent) {
-        pax_runtime_api::log("form event triggered!");
-        match event {
-            FormEvent::Toggle { state } => {
-                expanded_node.with_properties_unwrapped(|props: &mut Checkbox| {
-                    props.checked.set(state);
-                })
-            }
-            #[allow(unreachable_patterns)]
-            _ => panic!("checkbox received non-compatible form event: {:?}", event),
-        }
+        context.enqueue_native_message(pax_message::NativeMessage::ButtonDelete(id_chain));
     }
 
     fn base(&self) -> &BaseInstance {

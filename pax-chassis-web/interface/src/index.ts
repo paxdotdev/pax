@@ -4,6 +4,7 @@ import type {PaxChassisWeb, InitOutput, initSync} from "./types/pax-chassis-web"
 import {ObjectManager} from "./pools/object-manager";
 import {
     ANY_CREATE_PATCH,
+    BUTTON_UPDATE_PATCH,
     CHECKBOX_UPDATE_PATCH,
     FRAME_UPDATE_PATCH,
     IMAGE_LOAD_PATCH, OCCLUSION_UPDATE_PATCH, SCROLLER_UPDATE_PATCH,
@@ -20,6 +21,7 @@ import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 import { OcclusionUpdatePatch } from "./classes/messages/occlusion-update-patch";
+import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -122,6 +124,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);
             nativePool.occlusionUpdate(patch);
+        } else if(unwrapped_msg["ButtonCreate"]) {
+            let msg = unwrapped_msg["ButtonCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.buttonCreate(patch);
+        } else if (unwrapped_msg["ButtonUpdate"]){
+            let msg = unwrapped_msg["ButtonUpdate"]
+            let patch: ButtonUpdatePatch = objectManager.getFromPool(BUTTON_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg);
+            nativePool.buttonUpdate(patch);
+        }else if (unwrapped_msg["ButtonDelete"]) {
+            let msg = unwrapped_msg["ButtonDelete"];
+            nativePool.buttonDelete(msg)
         } else if(unwrapped_msg["CheckboxCreate"]) {
             let msg = unwrapped_msg["CheckboxCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
