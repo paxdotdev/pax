@@ -360,6 +360,10 @@ impl PaxEngine {
         ret
     }
 
+    pub fn get_expanded_node(&self, id: u32) -> Option<&Rc<ExpandedNode>> {
+        self.runtime_context.lookup.get(&id)
+    }
+
     pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode>> {
         let (x, y) = self.runtime_context.globals().viewport.bounds;
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))

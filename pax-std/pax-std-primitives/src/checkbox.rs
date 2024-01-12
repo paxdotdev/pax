@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use pax_core::declarative_macros::handle_vtable_update;
-use pax_core::form_event::FormEvent;
 use pax_core::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -112,19 +111,6 @@ impl InstanceNode for CheckboxInstance {
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         let id_chain = expanded_node.id_chain.clone();
         context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
-    }
-
-    fn handle_form_event(&self, expanded_node: &ExpandedNode, event: FormEvent) {
-        pax_runtime_api::log("form event triggered!");
-        match event {
-            FormEvent::Toggle { state } => {
-                expanded_node.with_properties_unwrapped(|props: &mut Checkbox| {
-                    props.checked.set(state);
-                })
-            }
-            #[allow(unreachable_patterns)]
-            _ => panic!("checkbox received non-compatible form event: {:?}", event),
-        }
     }
 
     fn base(&self) -> &BaseInstance {
