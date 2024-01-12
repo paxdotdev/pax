@@ -1,14 +1,12 @@
+use pax_lang::api::{ArgsClick, NodeContext};
+use pax_lang::*;
+use pax_std::primitives::{Group, Image, Rectangle};
 use std::collections::HashMap;
 use std::rc::Rc;
-use pax_lang::*;
-use pax_lang::api::{ArgsClick, NodeContext};
-use pax_std::primitives::{Rectangle, Group, Image};
-
 
 #[derive(Pax)]
 #[file("controls/toolbar.pax")]
-pub struct Toolbar {
-}
+pub struct Toolbar {}
 
 impl Toolbar {
     pub fn handle_click_pointer(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
@@ -43,7 +41,3 @@ impl Toolbar {
         unimplemented!("handle click for speech")
     }
 }
-
-
-
-
