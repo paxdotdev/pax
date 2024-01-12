@@ -1,3 +1,13 @@
+<Text width=50% height=50% text="Text Properties Test 1 LONG long LONG long long long"
+        style = {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                fill: {self.color},
+                font_size: 50px,
+                align_vertical: {self.align_vertical},
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+/> 
 
 <Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>

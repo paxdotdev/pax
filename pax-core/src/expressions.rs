@@ -29,13 +29,9 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         &self.cached_value
     }
 
-    // fn is_fresh(&self) -> bool {
-    //     self.is_fresh
-    // }
-    //
-    // fn _mark_not_fresh(&mut self) {
-    //     self.is_fresh = false;
-    // }
+    fn get_mut(&mut self) -> &mut T {
+        &mut self.cached_value
+    }
 
     fn _get_vtable_id(&self) -> Option<usize> {
         Some(self.id)
