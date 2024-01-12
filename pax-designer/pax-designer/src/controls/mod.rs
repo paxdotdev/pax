@@ -7,7 +7,7 @@ pub mod logobar;
 use pax_lang::*;
 use pax_lang::api::*;
 
-use pax_std::primitives::{Rectangle, Group, Text};
+use pax_std::primitives::{Rectangle, Group, Text, Frame};
 
 use logobar::Logobar;
 use file_and_component_picker::FileAndComponentPicker;
