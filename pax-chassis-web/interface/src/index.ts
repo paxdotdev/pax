@@ -132,7 +132,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         } else if (unwrapped_msg["ButtonUpdate"]){
             let msg = unwrapped_msg["ButtonUpdate"]
             let patch: ButtonUpdatePatch = objectManager.getFromPool(BUTTON_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
+            patch.fromPatch(msg, nativePool.registeredFontFaces);
             nativePool.buttonUpdate(patch);
         }else if (unwrapped_msg["ButtonDelete"]) {
             let msg = unwrapped_msg["ButtonDelete"];

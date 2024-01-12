@@ -1,3 +1,4 @@
+use pax_core::declarative_macros::handle_vtable_update;
 use pax_core::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -7,6 +8,8 @@ use pax_std::primitives::Button;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use crate::patch_if_needed;
 
 pub struct ButtonInstance {
     base: BaseInstance,
@@ -34,15 +37,24 @@ impl InstanceNode for ButtonInstance {
         })
     }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         //TODO update button props
-        // expanded_node.with_properties_unwrapped(|properties: &mut Button| {
-        //     handle_vtable_update(
-        //         context.expression_table(),
-        //         &expanded_node.stack,
-        //         &mut properties.checked,
-        //     );
-        // });
+        expanded_node.with_properties_unwrapped(|properties: &mut Button| {
+            let tbl = context.expression_table();
+            let stk = &expanded_node.stack;
+            handle_vtable_update(tbl, stk, &mut properties.label);
+
+            // Style
+            handle_vtable_update(tbl, stk, &mut properties.style);
+            let stl = properties.style.get_mut();
+            handle_vtable_update(tbl, stk, &mut stl.fill);
+            handle_vtable_update(tbl, stk, &mut stl.font);
+            handle_vtable_update(tbl, stk, &mut stl.font_size);
+            handle_vtable_update(tbl, stk, &mut stl.underline);
+            handle_vtable_update(tbl, stk, &mut stl.align_vertical);
+            handle_vtable_update(tbl, stk, &mut stl.align_horizontal);
+            handle_vtable_update(tbl, stk, &mut stl.align_multiline);
+        });
     }
 
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
@@ -57,25 +69,26 @@ impl InstanceNode for ButtonInstance {
             ..Default::default()
         });
 
-        expanded_node.with_properties_unwrapped(|_properties: &mut Button| {
+        expanded_node.with_properties_unwrapped(|properties: &mut Button| {
             let layout_properties = expanded_node.layout_properties.borrow();
             let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
-            let update_needed = 
-            // TODO send prop updates in native messages
-            //     crate::patch_if_needed(
-            //     &mut old_state.checked,
-            //     &mut patch.checked,
-            //     *properties.checked.get(),
-            // ) || 
-                crate::patch_if_needed(
+            let update_needed = patch_if_needed(
+                &mut old_state.content,
+                &mut patch.content,
+                properties.label.get().string.clone(),
+            ) || patch_if_needed(
+                &mut old_state.style,
+                &mut patch.style,
+                properties.style.get().into(),
+            ) || patch_if_needed(
                 &mut old_state.size_x,
                 &mut patch.size_x,
                 computed_tab.bounds.0,
-            ) || crate::patch_if_needed(
+            ) || patch_if_needed(
                 &mut old_state.size_y,
                 &mut patch.size_y,
                 computed_tab.bounds.1,
-            ) || crate::patch_if_needed(
+            ) || patch_if_needed(
                 &mut old_state.transform,
                 &mut patch.transform,
                 computed_tab.transform.as_coeffs().to_vec(),
@@ -96,14 +109,12 @@ impl InstanceNode for ButtonInstance {
     }
 
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(
-            AnyCreatePatch {
-                id_chain: expanded_node.id_chain.clone(),
-                clipping_ids: vec![],
-                scroller_ids: vec![],
-                z_index: 0,
-            },
-        ));
+        context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
+            id_chain: expanded_node.id_chain.clone(),
+            clipping_ids: vec![],
+            scroller_ids: vec![],
+            z_index: 0,
+        }));
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {

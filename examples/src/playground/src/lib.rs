@@ -54,4 +54,9 @@ impl Example {
                 .set(Color::rgba(0.0.into(), 0.0.into(), 1.0.into(), 1.0.into()));
         }
     }
+
+    pub fn button_click(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+        self.color
+            .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
+    }
 }

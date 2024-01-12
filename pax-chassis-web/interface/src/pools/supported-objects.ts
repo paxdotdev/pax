@@ -17,6 +17,7 @@ export const OBJECT = "Object";
 export const ARRAY = "Array";
 export const DIV = "DIV";
 export const INPUT = "Input";
+export const BUTTON = "Button";
 export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
 export const OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
@@ -52,6 +53,14 @@ export let SUPPORTED_OBJECTS = [{
         name: INPUT,
         factory: () => document.createElement("input"),
         cleanUp: (input: HTMLInputElement) => {
+            input.removeAttribute("style");
+            input.innerHTML= "";
+        }
+    },
+    {
+        name: BUTTON,
+        factory: () => document.createElement("button"),
+        cleanUp: (input: HTMLButtonElement) => {
             input.removeAttribute("style");
             input.innerHTML= "";
         }

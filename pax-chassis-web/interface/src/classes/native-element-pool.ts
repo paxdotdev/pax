@@ -8,10 +8,11 @@ import snarkdown from 'snarkdown';
 import {TextUpdatePatch} from "./messages/text-update-patch";
 import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
+import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
 import {OcclusionContext} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {INPUT, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
+import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
@@ -187,24 +188,28 @@ export class NativeElementPool {
         console.assert(patch.scrollerIds != null);
         console.assert(patch.zIndex != null);
         
-        const button = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
-        button.type = "button";
+        const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
+        const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
+        const textChild = this.objectManager.getFromPool(DIV) as HTMLDivElement;
         button.style.margin = "0";
-        // button.addEventListener("change", (event) => {
-        //     //Reset the checkbox state (state changes only allowed through engine)
-        //     const is_checked = (event.target as HTMLInputElement).checked;
-        //     checkbox.checked = !is_checked;
-            
-        //     let message = {
-        //         "FormCheckboxToggle": {
-        //             "id_chain": patch.idChain!,
-        //             "state": checkbox.checked,
-        //         }
-        //     }
-        //     this.chassis!.interrupt(JSON.stringify(message), undefined);
-        // });
+        button.style.padding = "0";
+        textContainer.style.margin = "0";
+        textContainer.style.display = "flex";
+        textContainer.style.width = "100%";
+        textContainer.style.height = "100%";
+        textChild.style.margin = "0";
+        button.addEventListener("click", (event) => {
+            let message = {
+                "FormButtonClick": {
+                    "id_chain": patch.idChain!,
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+        });
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textContainer.appendChild(textChild);
+        button.appendChild(textContainer);
         runningChain.appendChild(button);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
@@ -225,13 +230,67 @@ export class NativeElementPool {
     }
 
     
-    buttonUpdate(patch: CheckboxUpdatePatch) {
+    buttonUpdate(patch: ButtonUpdatePatch) {
         //@ts-ignore
         window.textNodes = this.textNodes;
         // @ts-ignore
         let leaf = this.textNodes[patch.id_chain];
         console.assert(leaf !== undefined);
         let button = leaf.firstChild;
+        let textContainer = button.firstChild;
+        let textChild = textContainer.firstChild;
+
+
+        // Apply the content
+        if (patch.content != null) {
+            // @ts-ignore
+            textChild.innerHTML = snarkdown(patch.content);
+        }
+
+        // Apply TextStyle from patch.style
+        if (patch.style) {
+            const style = patch.style;
+            if (style.font) {
+                style.font.applyFontToDiv(textContainer);
+            }
+            if (style.fill) {
+                let newValue = "";
+                if (style.fill.Rgba != null) {
+                    let p = style.fill.Rgba;
+                    newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+                } else if (style.fill.Hsla != null) {
+                    let p = style.fill.Hsla;
+                    newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+                } else if (style.fill.Rgb != null) {
+                    let p = style.fill.Rgb;
+                    newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+                } else if (style.fill.Hsl != null) {
+                    let p = style.fill.Hsl;
+                    newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+                } else {
+                    throw new TypeError("Unsupported Color Format");
+                }        
+                textChild.style.color = newValue;
+            }
+            if (style.font_size) {
+                textChild.style.fontSize = style.font_size + "px";
+            }
+            if (style.underline != null) {
+                textChild.style.textDecoration = style.underline ? 'underline' : 'none';
+            }
+            if (style.align_horizontal) {
+                leaf.style.display = "flex";
+                textContainer.style.justifyContent = getJustifyContent(style.align_horizontal);
+            }
+            if (style.align_vertical) {
+                textContainer.style.alignItems = getAlignItems(style.align_vertical);
+            }
+            if (style.align_multiline) {
+                textChild.style.textAlign = getTextAlign(style.align_multiline);
+            }
+        }
+
+
         // Handle size_x and size_y
         if (patch.size_x != null) {
             button.style.width = patch.size_x - 1 + "px";
