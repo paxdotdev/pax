@@ -1,5 +1,5 @@
-use pax_lang::*;
 use pax_lang::api::*;
+use pax_lang::*;
 
 // Given a string component ID, this component is intended
 // to coordinate with the designtime to render a specific component, selected by string ID
@@ -8,5 +8,5 @@ use pax_lang::api::*;
 #[derive(Pax)]
 #[file("designtime_component_viewer.pax")]
 pub struct DesigntimeComponentViewer {
-    pub active_component_id: Property<String>
+    pub active_component_id: Property<String>,
 }

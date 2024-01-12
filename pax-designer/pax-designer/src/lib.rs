@@ -1,15 +1,15 @@
 #![allow(unused_imports)]
 
-use pax_lang::*;
 use pax_lang::api::*;
+use pax_lang::*;
 
-pub mod glass;
 pub mod controls;
 pub mod designtime_component_viewer;
+pub mod glass;
 
-use crate::glass::Glass;
 use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
+use crate::glass::Glass;
 
 #[derive(Pax)]
 #[main]
