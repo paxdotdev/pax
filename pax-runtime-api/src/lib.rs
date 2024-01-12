@@ -274,6 +274,9 @@ pub struct ArgsCheckboxChange {
     pub checked: bool,
 }
 
+#[derive(Clone)]
+pub struct ArgsButtonClick {}
+
 /// User presses a mouse button over an element.
 #[derive(Clone)]
 pub struct ArgsMouseDown {

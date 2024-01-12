@@ -55,12 +55,19 @@ pub enum NativeInterrupt {
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
     FormCheckboxToggle(FormCheckboxToggleArgs),
+    FormButtonClick(FormButtonClickArgs),
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormCheckboxToggleArgs {
     pub state: bool,
+    pub id_chain: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormButtonClickArgs {
     pub id_chain: Vec<u32>,
 }
 
@@ -307,6 +314,8 @@ pub struct ButtonPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub content: Option<String>,
+    pub style: Option<TextStyleMessage>,
 }
 
 #[derive(Default, Serialize)]

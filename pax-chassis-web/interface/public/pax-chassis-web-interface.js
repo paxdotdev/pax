@@ -747,10 +747,28 @@ var Pax = (() => {
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
       console.assert(patch.zIndex != null);
-      const button = this.objectManager.getFromPool(INPUT);
-      button.type = "button";
+      const button = this.objectManager.getFromPool(BUTTON);
+      const textContainer = this.objectManager.getFromPool(DIV);
+      const textChild = this.objectManager.getFromPool(DIV);
       button.style.margin = "0";
+      button.style.padding = "0";
+      textContainer.style.margin = "0";
+      textContainer.style.display = "flex";
+      textContainer.style.width = "100%";
+      textContainer.style.height = "100%";
+      textChild.style.margin = "0";
+      button.addEventListener("click", (event) => {
+        console.log("button click!");
+        let message = {
+          "FormButtonClick": {
+            "id_chain": patch.idChain
+          }
+        };
+        this.chassis.interrupt(JSON.stringify(message), void 0);
+      });
       let runningChain = this.objectManager.getFromPool(DIV);
+      textContainer.appendChild(textChild);
+      button.appendChild(textContainer);
       runningChain.appendChild(button);
       runningChain.setAttribute("class", NATIVE_LEAF_CLASS);
       runningChain.setAttribute("id_chain", String(patch.idChain));
@@ -778,6 +796,52 @@ var Pax = (() => {
       let leaf = this.textNodes[patch.id_chain];
       console.assert(leaf !== void 0);
       let button = leaf.firstChild;
+      let textContainer = button.firstChild;
+      let textChild = textContainer.firstChild;
+      if (patch.content != null) {
+        textChild.innerHTML = t(patch.content);
+      }
+      if (patch.style) {
+        const style = patch.style;
+        if (style.font) {
+          style.font.applyFontToDiv(textContainer);
+        }
+        if (style.fill) {
+          let newValue = "";
+          if (style.fill.Rgba != null) {
+            let p = style.fill.Rgba;
+            newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+          } else if (style.fill.Hsla != null) {
+            let p = style.fill.Hsla;
+            newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+          } else if (style.fill.Rgb != null) {
+            let p = style.fill.Rgb;
+            newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+          } else if (style.fill.Hsl != null) {
+            let p = style.fill.Hsl;
+            newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+          } else {
+            throw new TypeError("Unsupported Color Format");
+          }
+          textChild.style.color = newValue;
+        }
+        if (style.font_size) {
+          textChild.style.fontSize = style.font_size + "px";
+        }
+        if (style.underline != null) {
+          textChild.style.textDecoration = style.underline ? "underline" : "none";
+        }
+        if (style.align_horizontal) {
+          leaf.style.display = "flex";
+          textContainer.style.justifyContent = getJustifyContent(style.align_horizontal);
+        }
+        if (style.align_vertical) {
+          textContainer.style.alignItems = getAlignItems(style.align_vertical);
+        }
+        if (style.align_multiline) {
+          textChild.style.textAlign = getTextAlign(style.align_multiline);
+        }
+      }
       if (patch.size_x != null) {
         button.style.width = patch.size_x - 1 + "px";
       }
@@ -1238,17 +1302,25 @@ var Pax = (() => {
     constructor(objectManager2) {
       this.objectManager = objectManager2;
     }
-    fromPatch(jsonMessage) {
+    fromPatch(jsonMessage, registeredFontFaces) {
       this.id_chain = jsonMessage["id_chain"];
+      this.content = jsonMessage["content"];
       this.size_x = jsonMessage["size_x"];
       this.size_y = jsonMessage["size_y"];
       this.transform = jsonMessage["transform"];
+      const styleMessage = jsonMessage["style"];
+      if (styleMessage) {
+        this.style = this.objectManager.getFromPool(TEXT_STYLE, this.objectManager);
+        this.style.build(styleMessage, registeredFontFaces);
+      }
     }
     cleanUp() {
       this.id_chain = [];
       this.size_x = 0;
       this.size_y = 0;
       this.transform = [];
+      this.objectManager.returnToPool(TEXT_STYLE, this.style);
+      this.style = void 0;
     }
   };
 
@@ -1257,6 +1329,7 @@ var Pax = (() => {
   var ARRAY2 = "Array";
   var DIV = "DIV";
   var INPUT = "Input";
+  var BUTTON = "Button";
   var CANVAS = "Canvas";
   var ANY_CREATE_PATCH = "Any Create Patch";
   var OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
@@ -1287,6 +1360,14 @@ var Pax = (() => {
     {
       name: INPUT,
       factory: () => document.createElement("input"),
+      cleanUp: (input) => {
+        input.removeAttribute("style");
+        input.innerHTML = "";
+      }
+    },
+    {
+      name: BUTTON,
+      factory: () => document.createElement("button"),
       cleanUp: (input) => {
         input.removeAttribute("style");
         input.innerHTML = "";
@@ -1729,7 +1810,7 @@ var Pax = (() => {
       } else if (unwrapped_msg["ButtonUpdate"]) {
         let msg = unwrapped_msg["ButtonUpdate"];
         let patch = objectManager2.getFromPool(BUTTON_UPDATE_PATCH, objectManager2);
-        patch.fromPatch(msg);
+        patch.fromPatch(msg, nativePool.registeredFontFaces);
         nativePool.buttonUpdate(patch);
       } else if (unwrapped_msg["ButtonDelete"]) {
         let msg = unwrapped_msg["ButtonDelete"];

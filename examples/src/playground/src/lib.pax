@@ -7,11 +7,17 @@
                 align_horizontal: TextAlignHorizontal::Center,
                 align_multiline: TextAlignHorizontal::Center
         }
-/> 
-
+/>
 <Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>
-<Button class=small y=50% anchor_y=50% x={50% + 150px}/>
+<Button class=small y=50% anchor_y=50% x={50% + 150px} label="Test!!!" style = {
+    font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+    font_size: 30px,
+    fill: {Color::rgba(0.5, 0.2, 0.0, 1.0)},
+    align_vertical: TextAlignVertical::Center,
+    align_horizontal: TextAlignHorizontal::Center,
+    align_multiline: TextAlignHorizontal::Center
+} @button_click=self.button_click/>
 <Rectangle
      fill={Fill::Solid(Color::hlc(10, 0.0, 0.0))}
 />

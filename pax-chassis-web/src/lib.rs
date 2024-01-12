@@ -2,6 +2,7 @@
 
 use js_sys::Uint8Array;
 use pax_core::ExpressionTable;
+use pax_runtime_api::ArgsButtonClick;
 use pax_runtime_api::ArgsCheckboxChange;
 use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
@@ -142,7 +143,12 @@ impl PaxChassisWeb {
                     engine.load_image(data_args.id_chain, data, data_args.width, data_args.height);
                 }
             },
-
+            NativeInterrupt::FormButtonClick(args) => {
+                let node = engine
+                    .get_expanded_node(args.id_chain[0])
+                    .expect("button node exists in engine"); //need a method to find a node from args.id_chain
+                node.dispatch_button_click(ArgsButtonClick {}, globals);
+            }
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])

@@ -8,10 +8,10 @@ use std::rc::{Rc, Weak};
 use kurbo::Point;
 
 use pax_runtime_api::{
-    ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
-    ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
-    ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, NodeContext, RenderContext, Size,
+    ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
+    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
+    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
+    Axis, CommonProperties, NodeContext, RenderContext, Size,
 };
 
 use crate::{
@@ -441,6 +441,11 @@ impl ExpandedNode {
         dispatch_checkbox_change,
         ArgsCheckboxChange,
         checkbox_change_handlers
+    );
+    dispatch_event_handler!(
+        dispatch_button_click,
+        ArgsButtonClick,
+        button_click_handlers
     );
     dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, mouse_down_handlers);
     dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, mouse_up_handlers);
