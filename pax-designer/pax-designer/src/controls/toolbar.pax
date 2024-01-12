@@ -1,17 +1,26 @@
 <Group class=toolbar_panel @click=handle_click_pointer >
-    <Text text="v" />
-    //<Image path="icons/toolbar/pointer.png" />
-    <Rectangle fill={Fill::Solid(Color::rgba(1,1,0,0.5))} />
+    <Image path="assets/icons/toolbar/icon-09-pointer.png" />
 </Group>
 <Group class=toolbar_panel x=65px @click=handle_click_brush >
-    <Text text="b" />
-    //<Image path="icons/toolbar/pointer.png" />
-    <Rectangle fill={Fill::Solid(Color::rgba(1,0.8,0,0.5))} />
+    <Image path="assets/icons/toolbar/icon-10-brush.png" />
 </Group>
 <Group class=toolbar_panel x=130px @click=handle_click_pen >
-    <Text text="p" />
-    //<Image path="icons/toolbar/pointer.png" />
-    <Rectangle fill={Fill::Solid(Color::rgba(1,0.6,0,0.5))} />
+    <Image path="assets/icons/toolbar/icon-11-pen.png" />
+</Group>
+<Group class=toolbar_panel x=195px @click=handle_click_rect >
+    <Image path="assets/icons/toolbar/icon-12-rect.png" />
+</Group>
+<Group class=toolbar_panel x=260px @click=handle_click_stacker >
+    <Image path="assets/icons/toolbar/icon-13-stacker.png" />
+</Group>
+<Group class=toolbar_panel x=325px @click=handle_click_text >
+    <Image path="assets/icons/toolbar/icon-14-text.png" />
+</Group>
+<Group class=toolbar_panel x=390px @click=handle_click_checkbox >
+    <Image path="assets/icons/toolbar/icon-15-checkbox.png" />
+</Group>
+<Group class=toolbar_panel x=455px @click=handle_click_speech >
+    <Image path="assets/icons/toolbar/icon-16-speech.png" />
 </Group>
 
 @settings {
