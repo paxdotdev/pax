@@ -9,6 +9,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::patch_if_needed;
+
 pub struct TextInstance {
     base: BaseInstance,
     //Used as a cache of last-sent values, for crude dirty-checking.
@@ -38,106 +40,75 @@ impl InstanceNode for TextInstance {
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.text,
-            );
+            let tbl = context.expression_table();
+            let stk = &expanded_node.stack;
+            handle_vtable_update(tbl, stk, &mut properties.text);
+
+            // Style
+            handle_vtable_update(tbl, stk, &mut properties.style);
+            let stl = properties.style.get_mut();
+            handle_vtable_update(tbl, stk, &mut stl.fill);
+            handle_vtable_update(tbl, stk, &mut stl.font);
+            handle_vtable_update(tbl, stk, &mut stl.font_size);
+            handle_vtable_update(tbl, stk, &mut stl.underline);
+            handle_vtable_update(tbl, stk, &mut stl.align_vertical);
+            handle_vtable_update(tbl, stk, &mut stl.align_horizontal);
+            handle_vtable_update(tbl, stk, &mut stl.align_multiline);
         });
     }
 
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+        let id_chain = expanded_node.id_chain.clone();
+        let mut patch = TextPatch {
+            id_chain: id_chain.clone(),
+            ..Default::default()
+        };
         let mut last_patches = self.last_patches.borrow_mut();
-        let mut new_message: TextPatch = Default::default();
-        new_message.id_chain = expanded_node.id_chain.clone();
-        if !last_patches.contains_key(&new_message.id_chain) {
-            let mut patch = TextPatch::default();
-            patch.id_chain = new_message.id_chain.clone();
-            last_patches.insert(new_message.id_chain.clone(), patch);
-        }
-        let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
-        let mut has_any_updates = false;
+        let old_state = last_patches
+            .entry(id_chain.clone())
+            .or_insert(patch.clone());
 
         expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-            let val = properties.text.get().string.clone();
-            let is_new_value = match &last_patch.content {
-                Some(cached_value) => !val.eq(cached_value),
-                None => true,
-            };
-            if is_new_value {
-                new_message.content = Some(val.clone());
-                last_patch.content = Some(val.clone());
-                has_any_updates = true;
-            }
+            let layout_properties = expanded_node.layout_properties.borrow();
+            let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
+            let update_needed = 
+                
+            // Content
+                patch_if_needed(
+                &mut old_state.content,
+                &mut patch.content,
+                properties.text.get().string.clone(),
+            ) 
+                    
+            // Styles
+              || patch_if_needed(
+                &mut old_state.style,
+                &mut patch.style,
+                properties.style.get().into(),
+            ) || patch_if_needed(
+                &mut old_state.style_link,
+                &mut patch.style_link,
+                properties.style_link.get().into(),
+            )               
 
-            let val = properties.style.get();
-            let _is_new_val = match &last_patch.style {
-                Some(cached_value) => !val.eq(cached_value),
-                None => true,
-            };
+            // Transform and bounds 
+              || patch_if_needed(
+                &mut old_state.size_x,
+                &mut patch.size_x,
+                computed_tab.bounds.0,
+            ) || patch_if_needed(
+                &mut old_state.size_y,
+                &mut patch.size_y,
+                computed_tab.bounds.1,
+            ) || patch_if_needed(
+                &mut old_state.transform,
+                &mut patch.transform,
+                computed_tab.transform.as_coeffs().to_vec(),
+            );
 
-            if is_new_value {
-                new_message.style = Some(val.into());
-                last_patch.style = Some(val.into());
-                has_any_updates = true;
-            }
-
-            let val = properties.style_link.get();
-            let _is_new_val = match &last_patch.style_link {
-                Some(cached_value) => !val.eq(cached_value),
-                None => true,
-            };
-
-            if is_new_value {
-                new_message.style_link = Some(val.into());
-                last_patch.style_link = Some(val.into());
-                has_any_updates = true;
-            }
-
-            let computed_props = expanded_node.layout_properties.borrow();
-            let tab = &computed_props.as_ref().unwrap().computed_tab;
-
-            let val = tab.bounds.0;
-            let is_new_value = match &last_patch.size_x {
-                Some(cached_value) => !val.eq(cached_value),
-                None => true,
-            };
-            if is_new_value {
-                new_message.size_x = Some(val);
-                last_patch.size_x = Some(val);
-                has_any_updates = true;
-            }
-
-            let val = tab.bounds.1;
-            let is_new_value = match &last_patch.size_y {
-                Some(cached_value) => !val.eq(cached_value),
-                None => true,
-            };
-            if is_new_value {
-                new_message.size_y = Some(val);
-                last_patch.size_y = Some(val);
-                has_any_updates = true;
-            }
-
-            let is_new_transform = match &last_patch.transform {
-                Some(cached_transform) => tab
-                    .transform
-                    .as_coeffs()
-                    .iter()
-                    .enumerate()
-                    .any(|(i, elem)| *elem != cached_transform[i]),
-                None => true,
-            };
-            if is_new_transform {
-                new_message.transform = Some(tab.transform.as_coeffs().to_vec());
-                last_patch.transform = Some(tab.transform.as_coeffs().to_vec());
-                has_any_updates = true;
-            }
-
-            if has_any_updates {
-                context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(new_message));
+            if update_needed {
+                context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
             }
         });
     }

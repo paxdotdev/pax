@@ -10,6 +10,7 @@ use pax_message::{
 
 #[derive(Pax)]
 #[custom(Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextStyle {
     pub font: Property<Font>,
     pub font_size: Property<SizePixels>,
@@ -112,6 +113,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 
 #[derive(Pax)]
 #[custom(Default, Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Font {
     System(SystemFont),
     Web(WebFont),
@@ -126,6 +128,7 @@ impl Default for Font {
 
 #[derive(Pax)]
 #[custom(Imports, Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SystemFont {
     pub family: StringBox,
     pub style: FontStyle,
@@ -144,6 +147,7 @@ impl Default for SystemFont {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct WebFont {
     pub family: StringBox,
     pub url: StringBox,
@@ -153,6 +157,7 @@ pub struct WebFont {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LocalFont {
     pub family: StringBox,
     pub path: StringBox,
@@ -162,6 +167,7 @@ pub struct LocalFont {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontStyle {
     #[default]
     Normal,
@@ -171,6 +177,7 @@ pub enum FontStyle {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontWeight {
     Thin,
     ExtraLight,
@@ -186,6 +193,7 @@ pub enum FontWeight {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignHorizontal {
     #[default]
     Left,
@@ -195,6 +203,7 @@ pub enum TextAlignHorizontal {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignVertical {
     #[default]
     Top,

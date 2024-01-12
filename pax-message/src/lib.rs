@@ -288,7 +288,7 @@ pub struct FramePatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct CheckboxPatch {
     pub id_chain: Vec<u32>,
@@ -324,7 +324,7 @@ pub struct OcclusionPatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct TextPatch {
     pub id_chain: Vec<u32>,
@@ -337,7 +337,7 @@ pub struct TextPatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
@@ -358,7 +358,7 @@ pub struct ImagePatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum ColorVariantMessage {
     Hlca([f64; 4]),
@@ -374,7 +374,7 @@ impl Default for ColorVariantMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum TextAlignHorizontalMessage {
     #[default]
@@ -384,7 +384,7 @@ pub enum TextAlignHorizontalMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum TextAlignVerticalMessage {
     #[default]
@@ -438,7 +438,7 @@ pub struct AnyCreatePatch {
 // }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum FontPatch {
     System(SystemFontMessage),
@@ -453,7 +453,7 @@ impl Default for FontPatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct SystemFontMessage {
     pub family: Option<String>,
@@ -472,7 +472,7 @@ impl Default for SystemFontMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct WebFontMessage {
     pub family: Option<String>,
@@ -482,7 +482,7 @@ pub struct WebFontMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct LocalFontMessage {
     pub family: Option<String>,
@@ -492,7 +492,7 @@ pub struct LocalFontMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, PartialEq)]
 #[repr(C)]
 pub enum FontStyleMessage {
     Normal,
@@ -501,7 +501,7 @@ pub enum FontStyleMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, PartialEq)]
 #[repr(C)]
 pub enum FontWeightMessage {
     Thin,

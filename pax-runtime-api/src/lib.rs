@@ -40,6 +40,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyInstance<T: Default + Clone> {
     fn get(&self) -> &T;
+    fn get_mut(&mut self) -> &mut T;
     fn _get_vtable_id(&self) -> Option<usize>;
 
     fn set(&mut self, value: T);
@@ -819,6 +820,10 @@ impl<T: Clone> PropertyLiteral<T> {
 impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
         &self.value
+    }
+
+    fn get_mut(&mut self) -> &mut T {
+        &mut self.value
     }
 
     fn _get_vtable_id(&self) -> Option<usize> {

@@ -57,10 +57,7 @@ impl InstanceNode for CheckboxInstance {
         let mut last_patches = self.last_patches.borrow_mut();
         let old_state = last_patches
             .entry(id_chain.clone())
-            .or_insert(CheckboxPatch {
-                id_chain,
-                ..Default::default()
-            });
+            .or_insert(patch.clone());
 
         expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
             let layout_properties = expanded_node.layout_properties.borrow();
