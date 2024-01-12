@@ -5,10 +5,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::{any::Any, collections::HashMap};
 
-use crate::{ExpressionTable, Globals};
+use crate::{ExpandedNode, ExpressionTable, Globals};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Uid(pub u32);
+
+#[derive(Default)]
+pub struct NodeCache {
+    pub lookup: HashMap<u32, ExpandedNode>,
+}
 
 /// Shared context for properties pass recursion
 pub struct RuntimeContext {
@@ -17,6 +22,7 @@ pub struct RuntimeContext {
     globals: Globals,
     expression_table: ExpressionTable,
     pub image_map: HashMap<Vec<u32>, ImageBuf>,
+    pub lookup: HashMap<u32, Rc<ExpandedNode>>,
 }
 
 impl RuntimeContext {
@@ -27,6 +33,7 @@ impl RuntimeContext {
             globals,
             expression_table,
             image_map: HashMap::default(),
+            lookup: HashMap::default(),
         }
     }
 

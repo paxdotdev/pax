@@ -36,7 +36,7 @@ impl Example {
         self.conditional.set(!self.conditional.get());
     }
 
-    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsClick) {
-        self.checked.set(!self.checked.get());
+    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsCheckboxChange) {
+        self.checked.set(!args.checked);
     }
 }

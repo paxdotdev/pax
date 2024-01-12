@@ -2,6 +2,7 @@
 
 use js_sys::Uint8Array;
 use pax_core::ExpressionTable;
+use pax_runtime_api::ArgsCheckboxChange;
 use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -141,17 +142,19 @@ impl PaxChassisWeb {
                     engine.load_image(data_args.id_chain, data, data_args.width, data_args.height);
                 }
             },
-            NativeInterrupt::FormCheckboxToggle(_args) => {
-                // let engine_borrowed = (*self.engine).borrow();
-                //TODO need to hook this up again. how to find node by ID chain?
-                // let node: ExpandedNode = todo!(); //need a method to find a node from args.id_chain
-                // node.dispatch_checkbox_change(
-                //     ArgsCheckboxChange {
-                //         checked: args.state,
-                //     },
-                //     globals,
-                // );
+
+            NativeInterrupt::FormCheckboxToggle(args) => {
+                let node = engine
+                    .get_expanded_node(args.id_chain[0])
+                    .expect("checkbox node exists in engine"); //need a method to find a node from args.id_chain
+                node.dispatch_checkbox_change(
+                    ArgsCheckboxChange {
+                        checked: args.state,
+                    },
+                    globals,
+                );
             }
+
             NativeInterrupt::AddedLayer(_args) => {}
             NativeInterrupt::Click(args) => {
                 let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
