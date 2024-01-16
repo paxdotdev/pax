@@ -14,8 +14,8 @@
     font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
     font_size: 30px,
     fill: {Color::rgba(0.5, 0.2, 0.0, 1.0)},
-    align_vertical: TextAlignVertical::Center,
-    align_horizontal: TextAlignHorizontal::Center,
+    align_vertical: TextAlignVertical::Bottom,
+    align_horizontal: TextAlignHorizontal::Left,
     align_multiline: TextAlignHorizontal::Center
 } @button_click=self.button_click/>
 <Rectangle
