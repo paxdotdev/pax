@@ -85,15 +85,6 @@ impl InstanceNode for CheckboxInstance {
         });
     }
 
-    fn render(
-        &self,
-        _expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
-        _rc: &mut Box<dyn RenderContext>,
-    ) {
-        //no-op -- only native rendering
-    }
-
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
             AnyCreatePatch {
@@ -116,9 +107,9 @@ impl InstanceNode for CheckboxInstance {
 
     fn resolve_debug(
         &self,
-        _f: &mut std::fmt::Formatter,
+        f: &mut std::fmt::Formatter,
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
-        todo!()
+        f.debug_struct("Checkbox").finish_non_exhaustive()
     }
 }

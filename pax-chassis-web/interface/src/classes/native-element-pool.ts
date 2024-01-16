@@ -1,6 +1,6 @@
 // @ts-ignore
 import {Scroller} from "./scroller";
-import {NATIVE_LEAF_CLASS} from "../utils/constants";
+import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 // @ts-ignore
@@ -191,12 +191,8 @@ export class NativeElementPool {
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
         const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
         const textChild = this.objectManager.getFromPool(DIV) as HTMLDivElement;
-        button.style.margin = "0";
-        button.style.padding = "0";
-        textContainer.style.margin = "0";
-        textContainer.style.display = "flex";
-        textContainer.style.width = "100%";
-        textContainer.style.height = "100%";
+        button.setAttribute("class", BUTTON_CLASS);
+        textContainer.setAttribute("class", BUTTON_TEXT_CONTAINER_CLASS);
         textChild.style.margin = "0";
         button.addEventListener("click", (_event) => {
             let message = {
@@ -442,7 +438,7 @@ export class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
-    scrollerCreate(patch: AnyCreatePatch, _chassis: PaxChassisWeb){
+    scrollerCreate(patch: AnyCreatePatch){
         let scroller_id;
         if(patch.scrollerIds != null){
             let length = patch.scrollerIds.length;

@@ -3,7 +3,7 @@ use pax_core::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_message::{AnyCreatePatch, ButtonPatch};
-use pax_runtime_api::{Layer, RenderContext};
+use pax_runtime_api::Layer;
 use pax_std::primitives::Button;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -38,7 +38,6 @@ impl InstanceNode for ButtonInstance {
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        //TODO update button props
         expanded_node.with_properties_unwrapped(|properties: &mut Button| {
             let tbl = context.expression_table();
             let stk = &expanded_node.stack;
@@ -99,15 +98,6 @@ impl InstanceNode for ButtonInstance {
         });
     }
 
-    fn render(
-        &self,
-        _expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
-        _rc: &mut Box<dyn RenderContext>,
-    ) {
-        //no-op -- only native rendering
-    }
-
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
             id_chain: expanded_node.id_chain.clone(),
@@ -128,9 +118,9 @@ impl InstanceNode for ButtonInstance {
 
     fn resolve_debug(
         &self,
-        _f: &mut std::fmt::Formatter,
+        f: &mut std::fmt::Formatter,
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
-        todo!()
+        f.debug_struct("Button").finish_non_exhaustive()
     }
 }

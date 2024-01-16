@@ -146,13 +146,13 @@ impl PaxChassisWeb {
             NativeInterrupt::FormButtonClick(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
-                    .expect("button node exists in engine"); //need a method to find a node from args.id_chain
+                    .expect("button node exists in engine");
                 node.dispatch_button_click(ArgsButtonClick {}, globals);
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
-                    .expect("checkbox node exists in engine"); //need a method to find a node from args.id_chain
+                    .expect("checkbox node exists in engine");
                 node.dispatch_checkbox_change(
                     ArgsCheckboxChange {
                         checked: args.state,

@@ -72,15 +72,15 @@ impl InstanceNode for TextInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Text| {
             let layout_properties = expanded_node.layout_properties.borrow();
             let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
-            let update_needed = 
-                
+            let update_needed =
+
             // Content
                 patch_if_needed(
                 &mut old_state.content,
                 &mut patch.content,
                 properties.text.get().string.clone(),
-            ) 
-                    
+            )
+
             // Styles
               || patch_if_needed(
                 &mut old_state.style,
@@ -90,7 +90,7 @@ impl InstanceNode for TextInstance {
                 &mut old_state.style_link,
                 &mut patch.style_link,
                 properties.style_link.get().into(),
-            )               
+            )
 
             // Transform and bounds 
               || patch_if_needed(
