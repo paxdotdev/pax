@@ -185,6 +185,8 @@ var Pax = (() => {
   var SCROLLER_CONTAINER = "scroller-container";
   var INNER_PANE = "inner-pane";
   var NATIVE_LEAF_CLASS = "native-leaf";
+  var BUTTON_CLASS = "button";
+  var BUTTON_TEXT_CONTAINER_CLASS = "button-text-container";
 
   // src/utils/helpers.ts
   async function readImageToByteBuffer(imagePath) {
@@ -750,12 +752,8 @@ var Pax = (() => {
       const button = this.objectManager.getFromPool(BUTTON);
       const textContainer = this.objectManager.getFromPool(DIV);
       const textChild = this.objectManager.getFromPool(DIV);
-      button.style.margin = "0";
-      button.style.padding = "0";
-      textContainer.style.margin = "0";
-      textContainer.style.display = "flex";
-      textContainer.style.width = "100%";
-      textContainer.style.height = "100%";
+      button.setAttribute("class", BUTTON_CLASS);
+      textContainer.setAttribute("class", BUTTON_TEXT_CONTAINER_CLASS);
       textChild.style.margin = "0";
       button.addEventListener("click", (_event) => {
         let message = {
@@ -915,7 +913,7 @@ var Pax = (() => {
     }
     frameDelete(_id_chain) {
     }
-    scrollerCreate(patch, _chassis) {
+    scrollerCreate(patch) {
       let scroller_id;
       if (patch.scrollerIds != null) {
         let length = patch.scrollerIds.length;
@@ -1824,7 +1822,7 @@ var Pax = (() => {
         let msg = unwrapped_msg["ScrollerCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
         patch.fromPatch(msg);
-        nativePool.scrollerCreate(patch, chassis);
+        nativePool.scrollerCreate(patch);
       } else if (unwrapped_msg["ScrollerUpdate"]) {
         let msg = unwrapped_msg["ScrollerUpdate"];
         let patch = objectManager2.getFromPool(SCROLLER_UPDATE_PATCH);

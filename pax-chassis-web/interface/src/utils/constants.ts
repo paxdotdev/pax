@@ -5,3 +5,5 @@ export const INNER_PANE = "inner-pane"
 export const NATIVE_LEAF_CLASS = "native-leaf";
 export const NATIVE_CLIPPING_CLASS = "native-clipping";
 export const CLIP_PREFIX = "clip"
+export const BUTTON_CLASS = "button";
+export const BUTTON_TEXT_CONTAINER_CLASS = "button-text-container";

@@ -185,7 +185,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let msg = unwrapped_msg["ScrollerCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
-            nativePool.scrollerCreate(patch, chassis);
+            nativePool.scrollerCreate(patch);
         }else if (unwrapped_msg["ScrollerUpdate"]){
             let msg = unwrapped_msg["ScrollerUpdate"]
             let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
