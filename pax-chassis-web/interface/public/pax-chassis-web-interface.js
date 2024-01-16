@@ -757,8 +757,7 @@ var Pax = (() => {
       textContainer.style.width = "100%";
       textContainer.style.height = "100%";
       textChild.style.margin = "0";
-      button.addEventListener("click", (event) => {
-        console.log("button click!");
+      button.addEventListener("click", (_event) => {
         let message = {
           "FormButtonClick": {
             "id_chain": patch.idChain
@@ -801,47 +800,7 @@ var Pax = (() => {
       if (patch.content != null) {
         textChild.innerHTML = t(patch.content);
       }
-      if (patch.style) {
-        const style = patch.style;
-        if (style.font) {
-          style.font.applyFontToDiv(textContainer);
-        }
-        if (style.fill) {
-          let newValue = "";
-          if (style.fill.Rgba != null) {
-            let p = style.fill.Rgba;
-            newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-          } else if (style.fill.Hsla != null) {
-            let p = style.fill.Hsla;
-            newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-          } else if (style.fill.Rgb != null) {
-            let p = style.fill.Rgb;
-            newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-          } else if (style.fill.Hsl != null) {
-            let p = style.fill.Hsl;
-            newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-          } else {
-            throw new TypeError("Unsupported Color Format");
-          }
-          textChild.style.color = newValue;
-        }
-        if (style.font_size) {
-          textChild.style.fontSize = style.font_size + "px";
-        }
-        if (style.underline != null) {
-          textChild.style.textDecoration = style.underline ? "underline" : "none";
-        }
-        if (style.align_horizontal) {
-          leaf.style.display = "flex";
-          textContainer.style.justifyContent = getJustifyContent(style.align_horizontal);
-        }
-        if (style.align_vertical) {
-          textContainer.style.alignItems = getAlignItems(style.align_vertical);
-        }
-        if (style.align_multiline) {
-          textChild.style.textAlign = getTextAlign(style.align_multiline);
-        }
-      }
+      applyTextTyle(textContainer, textChild, patch.style);
       if (patch.size_x != null) {
         button.style.width = patch.size_x - 1 + "px";
       }
@@ -893,47 +852,7 @@ var Pax = (() => {
       let leaf = this.textNodes[patch.id_chain];
       console.assert(leaf !== void 0);
       let textChild = leaf.firstChild;
-      if (patch.style) {
-        const style = patch.style;
-        if (style.font) {
-          style.font.applyFontToDiv(leaf);
-        }
-        if (style.fill) {
-          let newValue = "";
-          if (style.fill.Rgba != null) {
-            let p = style.fill.Rgba;
-            newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-          } else if (style.fill.Hsla != null) {
-            let p = style.fill.Hsla;
-            newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-          } else if (style.fill.Rgb != null) {
-            let p = style.fill.Rgb;
-            newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-          } else if (style.fill.Hsl != null) {
-            let p = style.fill.Hsl;
-            newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-          } else {
-            throw new TypeError("Unsupported Color Format");
-          }
-          textChild.style.color = newValue;
-        }
-        if (style.font_size) {
-          textChild.style.fontSize = style.font_size + "px";
-        }
-        if (style.underline != null) {
-          textChild.style.textDecoration = style.underline ? "underline" : "none";
-        }
-        if (style.align_horizontal) {
-          leaf.style.display = "flex";
-          leaf.style.justifyContent = getJustifyContent(style.align_horizontal);
-        }
-        if (style.align_vertical) {
-          leaf.style.alignItems = getAlignItems(style.align_vertical);
-        }
-        if (style.align_multiline) {
-          textChild.style.textAlign = getTextAlign(style.align_multiline);
-        }
-      }
+      applyTextTyle(leaf, textChild, patch.style);
       if (patch.content != null) {
         textChild.innerHTML = t(patch.content);
         if (patch.style_link) {
@@ -1052,6 +971,48 @@ var Pax = (() => {
       chassis.interrupt(JSON.stringify(message), image_data.pixels);
     }
   };
+  function applyTextTyle(textContainer, textElem, style) {
+    if (style) {
+      if (style.font) {
+        style.font.applyFontToDiv(textContainer);
+      }
+      if (style.fill) {
+        let newValue = "";
+        if (style.fill.Rgba != null) {
+          let p = style.fill.Rgba;
+          newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+        } else if (style.fill.Hsla != null) {
+          let p = style.fill.Hsla;
+          newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+        } else if (style.fill.Rgb != null) {
+          let p = style.fill.Rgb;
+          newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+        } else if (style.fill.Hsl != null) {
+          let p = style.fill.Hsl;
+          newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+        } else {
+          throw new TypeError("Unsupported Color Format");
+        }
+        textElem.style.color = newValue;
+      }
+      if (style.font_size) {
+        textElem.style.fontSize = style.font_size + "px";
+      }
+      if (style.underline != null) {
+        textElem.style.textDecoration = style.underline ? "underline" : "none";
+      }
+      if (style.align_horizontal) {
+        textContainer.style.display = "flex";
+        textContainer.style.justifyContent = getJustifyContent(style.align_horizontal);
+      }
+      if (style.align_vertical) {
+        textContainer.style.alignItems = getAlignItems(style.align_vertical);
+      }
+      if (style.align_multiline) {
+        textElem.style.textAlign = getTextAlign(style.align_multiline);
+      }
+    }
+  }
 
   // src/classes/scroll-manager.ts
   var ScrollManager = class {
