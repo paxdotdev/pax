@@ -1,5 +1,23 @@
-<Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @click=self.checkbox_change/>
+<Text width=50% height=50% text="Text Properties Test 1 LONG long LONG long long long"
+        style = {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                fill: {self.color},
+                font_size: 50px,
+                align_vertical: {self.align_vertical},
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+/>
+<Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>
+<Button class=small y=50% anchor_y=50% x={50% + 150px} label="Test!!!" style = {
+    font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+    font_size: 30px,
+    fill: {Color::rgba(0.5, 0.2, 0.0, 1.0)},
+    align_vertical: TextAlignVertical::Bottom,
+    align_horizontal: TextAlignHorizontal::Left,
+    align_multiline: TextAlignHorizontal::Center
+} @button_click=self.button_click/>
 <Rectangle
      fill={Fill::Solid(Color::hlc(10, 0.0, 0.0))}
 />

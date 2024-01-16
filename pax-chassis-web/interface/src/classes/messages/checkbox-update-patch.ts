@@ -1,6 +1,4 @@
 import {ObjectManager} from "../../pools/object-manager";
-import {TEXT_STYLE} from "../../pools/supported-objects";
-import {TextStyle} from "../text";
 
 export class CheckboxUpdatePatch {
     public id_chain?: number[];

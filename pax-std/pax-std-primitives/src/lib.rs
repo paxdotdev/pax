@@ -6,6 +6,7 @@ pub mod image;
 // pub mod path;
 pub mod rectangle;
 // pub mod scroller;
+pub mod button;
 pub mod checkbox;
 pub mod text;
 

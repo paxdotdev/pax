@@ -70,6 +70,11 @@ impl InstanceNode for ConditionalInstance {
         }
     }
 
+    fn handle_mount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+        // No-op: wait with creating child-nodes until update tick, since the
+        // condition has then been evaluated
+    }
+
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
@@ -81,18 +86,6 @@ impl InstanceNode for ConditionalInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
-    }
-
-    fn get_size(
-        &self,
-        expanded_node: &ExpandedNode,
-    ) -> (pax_runtime_api::Size, pax_runtime_api::Size) {
-        let common_properties = expanded_node.get_common_properties();
-        let common_properties_borrowed = common_properties.borrow();
-        (
-            common_properties_borrowed.width.get().clone(),
-            common_properties_borrowed.height.get().clone(),
-        )
     }
 
     fn get_clipping_size(
