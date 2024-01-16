@@ -1,6 +1,6 @@
 // @ts-ignore
 import {Scroller} from "./scroller";
-import {NATIVE_LEAF_CLASS} from "../utils/constants";
+import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 // @ts-ignore
@@ -8,12 +8,13 @@ import snarkdown from 'snarkdown';
 import {TextUpdatePatch} from "./messages/text-update-patch";
 import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
+import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
 import {OcclusionContext} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {INPUT, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
+import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
-import {getAlignItems, getJustifyContent, getTextAlign} from "./text";
+import {TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 
@@ -94,11 +95,13 @@ export class NativeElementPool {
     }
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
+        // @ts-ignore
         let node = this.textNodes[patch.idChain];
         if (node){
             let parent = node.parentElement;
             parent.removeChild(node);
             NativeElementPool.addNativeElement(node, this.baseOcclusionContext,
+                // @ts-ignore
                 this.scrollers, patch.idChain, undefined, patch.zIndex);
         }
     }
@@ -179,6 +182,92 @@ export class NativeElementPool {
         }
     }
 
+    buttonCreate(patch: AnyCreatePatch) {
+        console.assert(patch.idChain != null);
+        console.assert(patch.clippingIds != null);
+        console.assert(patch.scrollerIds != null);
+        console.assert(patch.zIndex != null);
+        
+        const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
+        const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
+        const textChild = this.objectManager.getFromPool(DIV) as HTMLDivElement;
+        button.setAttribute("class", BUTTON_CLASS);
+        textContainer.setAttribute("class", BUTTON_TEXT_CONTAINER_CLASS);
+        textChild.style.margin = "0";
+        button.addEventListener("click", (_event) => {
+            let message = {
+                "FormButtonClick": {
+                    "id_chain": patch.idChain!,
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+        });
+
+        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textContainer.appendChild(textChild);
+        button.appendChild(textContainer);
+        runningChain.appendChild(button);
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.setAttribute("id_chain", String(patch.idChain));
+        let scroller_id;
+        if(patch.scrollerIds != null){
+            let length = patch.scrollerIds.length;
+            if(length != 0) {
+                scroller_id = patch.scrollerIds[length-1];
+            }
+        }
+        if(patch.idChain != undefined && patch.zIndex != undefined){
+            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
+                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+        }
+        // @ts-ignore
+        this.textNodes[patch.idChain] = runningChain;
+
+    }
+
+    
+    buttonUpdate(patch: ButtonUpdatePatch) {
+        //@ts-ignore
+        window.textNodes = this.textNodes;
+        // @ts-ignore
+        let leaf = this.textNodes[patch.id_chain];
+        console.assert(leaf !== undefined);
+        let button = leaf.firstChild;
+        let textContainer = button.firstChild;
+        let textChild = textContainer.firstChild;
+
+
+        // Apply the content
+        if (patch.content != null) {
+            // @ts-ignore
+            textChild.innerHTML = snarkdown(patch.content);
+        }
+
+        
+        applyTextTyle(textContainer, textChild, patch.style);
+
+        // Handle size_x and size_y
+        if (patch.size_x != null) {
+            button.style.width = patch.size_x - 1 + "px";
+        }
+        if (patch.size_y != null) {
+            button.style.height = patch.size_y + "px";
+        }
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+    }
+
+    buttonDelete(id_chain: number[]) {
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
+        }
+    }
+
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
         console.assert(patch.clippingIds != null);
@@ -217,48 +306,7 @@ export class NativeElementPool {
 
         let textChild = leaf.firstChild;
 
-        // Apply TextStyle from patch.style
-        if (patch.style) {
-            const style = patch.style;
-            if (style.font) {
-                style.font.applyFontToDiv(leaf);
-            }
-            if (style.fill) {
-                let newValue = "";
-                if (style.fill.Rgba != null) {
-                    let p = style.fill.Rgba;
-                    newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-                } else if (style.fill.Hsla != null) {
-                    let p = style.fill.Hsla;
-                    newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-                } else if (style.fill.Rgb != null) {
-                    let p = style.fill.Rgb;
-                    newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-                } else if (style.fill.Hsl != null) {
-                    let p = style.fill.Hsl;
-                    newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-                } else {
-                    throw new TypeError("Unsupported Color Format");
-                }        
-                textChild.style.color = newValue;
-            }
-            if (style.font_size) {
-                textChild.style.fontSize = style.font_size + "px";
-            }
-            if (style.underline != null) {
-                textChild.style.textDecoration = style.underline ? 'underline' : 'none';
-            }
-            if (style.align_horizontal) {
-                leaf.style.display = "flex";
-                leaf.style.justifyContent = getJustifyContent(style.align_horizontal);
-            }
-            if (style.align_vertical) {
-                leaf.style.alignItems = getAlignItems(style.align_vertical);
-            }
-            if (style.align_multiline) {
-                textChild.style.textAlign = getTextAlign(style.align_multiline);
-            }
-        }
+        applyTextTyle(leaf, textChild, patch.style);
 
         // Apply the content
         if (patch.content != null) {
@@ -328,7 +376,7 @@ export class NativeElementPool {
         }
     }
 
-    frameCreate(patch: AnyCreatePatch) {
+    frameCreate(_patch: AnyCreatePatch) {
         // console.assert(patch.idChain != null);
         // console.assert(this.clippingNodes["id_chain"] === undefined);
         //
@@ -341,7 +389,7 @@ export class NativeElementPool {
         //attachPoint!.appendChild(newClip);
     }
 
-    frameUpdate(patch: FrameUpdatePatch) {
+    frameUpdate(_patch: FrameUpdatePatch) {
         //@ts-ignore
         // let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
         //
@@ -378,7 +426,7 @@ export class NativeElementPool {
         // this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
-    frameDelete(id_chain: number[]) {
+    frameDelete(_id_chain: number[]) {
         // NOTE: this should be supported, and may cause a memory leak if left unaddressed;
         //       was likely unplugged during v0 implementation due to some deeper bug that was interfering with 'hello world'
 
@@ -390,7 +438,7 @@ export class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
-    scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
+    scrollerCreate(patch: AnyCreatePatch){
         let scroller_id;
         if(patch.scrollerIds != null){
             let length = patch.scrollerIds.length;
@@ -449,4 +497,51 @@ export class NativeElementPool {
         chassis.interrupt(JSON.stringify(message), image_data.pixels);
     }
 
+}
+
+
+
+function applyTextTyle(textContainer: HTMLDivElement, textElem: HTMLDivElement, style: TextStyle | undefined) {
+    
+// Apply TextStyle from patch.style
+    if (style) {
+        if (style.font) {
+            style.font.applyFontToDiv(textContainer);
+        }
+        if (style.fill) {
+            let newValue = "";
+            if (style.fill.Rgba != null) {
+                let p = style.fill.Rgba;
+                newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+            } else if (style.fill.Hsla != null) {
+                let p = style.fill.Hsla;
+                newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+            } else if (style.fill.Rgb != null) {
+                let p = style.fill.Rgb;
+                newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+            } else if (style.fill.Hsl != null) {
+                let p = style.fill.Hsl;
+                newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+            } else {
+                throw new TypeError("Unsupported Color Format");
+            }        
+            textElem.style.color = newValue;
+        }
+        if (style.font_size) {
+            textElem.style.fontSize = style.font_size + "px";
+        }
+        if (style.underline != null) {
+            textElem.style.textDecoration = style.underline ? 'underline' : 'none';
+        }
+        if (style.align_horizontal) {
+            textContainer.style.display = "flex";
+            textContainer.style.justifyContent = getJustifyContent(style.align_horizontal);
+        }
+        if (style.align_vertical) {
+            textContainer.style.alignItems = getAlignItems(style.align_vertical);
+        }
+        if (style.align_multiline) {
+            textElem.style.textAlign = getTextAlign(style.align_multiline);
+        }
+    }
 }

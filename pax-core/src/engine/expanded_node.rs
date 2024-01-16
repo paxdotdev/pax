@@ -8,10 +8,10 @@ use std::rc::{Rc, Weak};
 use kurbo::Point;
 
 use pax_runtime_api::{
-    ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown,
-    ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
-    ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis,
-    CommonProperties, NodeContext, RenderContext, Size,
+    ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
+    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
+    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
+    Axis, CommonProperties, NodeContext, RenderContext, Size,
 };
 
 use crate::{
@@ -259,6 +259,7 @@ impl ExpandedNode {
     fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
         if *self.attached.borrow() == 0 {
             *self.attached.borrow_mut() += 1;
+            context.lookup.insert(self.id_chain[0], Rc::clone(&self));
             self.instance_node.handle_mount(&self, context);
             if let Some(ref registry) = self.instance_node.base().handler_registry {
                 for handler in &registry.borrow().mount_handlers {
@@ -277,6 +278,7 @@ impl ExpandedNode {
         }
         if *self.attached.borrow() == 1 {
             *self.attached.borrow_mut() -= 1;
+            context.lookup.remove(&self.id_chain[0]);
             self.instance_node.handle_unmount(&self, context);
         }
     }
@@ -439,6 +441,11 @@ impl ExpandedNode {
         dispatch_checkbox_change,
         ArgsCheckboxChange,
         checkbox_change_handlers
+    );
+    dispatch_event_handler!(
+        dispatch_button_click,
+        ArgsButtonClick,
+        button_click_handlers
     );
     dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, mouse_down_handlers);
     dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, mouse_up_handlers);

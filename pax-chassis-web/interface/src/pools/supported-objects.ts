@@ -11,11 +11,13 @@ import {Scroller} from "../classes/scroller";
 import {Font, TextStyle} from "../classes/text";
 import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
 import { OcclusionUpdatePatch } from "../classes/messages/occlusion-update-patch";
+import { ButtonUpdatePatch } from "../classes/messages/button-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
 export const DIV = "DIV";
 export const INPUT = "Input";
+export const BUTTON = "Button";
 export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
 export const OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
@@ -24,6 +26,7 @@ export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
 export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
+export const BUTTON_UPDATE_PATCH = "Button Update Patch";
 
 export const LAYER = "LAYER";
 export const OCCLUSION_CONTEXT = "Occlusion Context";
@@ -50,6 +53,14 @@ export let SUPPORTED_OBJECTS = [{
         name: INPUT,
         factory: () => document.createElement("input"),
         cleanUp: (input: HTMLInputElement) => {
+            input.removeAttribute("style");
+            input.innerHTML= "";
+        }
+    },
+    {
+        name: BUTTON,
+        factory: () => document.createElement("button"),
+        cleanUp: (input: HTMLButtonElement) => {
             input.removeAttribute("style");
             input.innerHTML= "";
         }
@@ -112,6 +123,11 @@ export let SUPPORTED_OBJECTS = [{
     {
         name: CHECKBOX_UPDATE_PATCH,
         factory: (objectManager: ObjectManager) => new CheckboxUpdatePatch(objectManager),
+        cleanUp: (patch: CheckboxUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: BUTTON_UPDATE_PATCH,
+        factory: (objectManager: ObjectManager) => new ButtonUpdatePatch(objectManager),
         cleanUp: (patch: CheckboxUpdatePatch) => {patch.cleanUp()},
     },
     {

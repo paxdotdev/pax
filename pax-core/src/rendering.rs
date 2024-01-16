@@ -11,7 +11,6 @@ use piet::{Color, StrokeStyle};
 
 use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size};
 
-use crate::form_event::FormEvent;
 use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
 
 /// Type aliases to make it easier to work with nested Rcs and
@@ -290,10 +289,6 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn handle_scroll(&self, args_scroll: ArgsScroll) {
         //no-op default implementation
-    }
-
-    fn handle_form_event(&self, expanded_node: &ExpandedNode, event: FormEvent) {
-        panic!("form event sent to non-compatible component: {:?}", event)
     }
 }
 

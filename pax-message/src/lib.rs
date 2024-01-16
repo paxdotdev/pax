@@ -21,6 +21,9 @@ pub enum NativeMessage {
     CheckboxCreate(AnyCreatePatch),
     CheckboxUpdate(CheckboxPatch),
     CheckboxDelete(Vec<u32>),
+    ButtonCreate(AnyCreatePatch),
+    ButtonUpdate(ButtonPatch),
+    ButtonDelete(Vec<u32>),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u32>),
@@ -52,12 +55,19 @@ pub enum NativeInterrupt {
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
     FormCheckboxToggle(FormCheckboxToggleArgs),
+    FormButtonClick(FormButtonClickArgs),
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormCheckboxToggleArgs {
     pub state: bool,
+    pub id_chain: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormButtonClickArgs {
     pub id_chain: Vec<u32>,
 }
 
@@ -285,7 +295,7 @@ pub struct FramePatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct CheckboxPatch {
     pub id_chain: Vec<u32>,
@@ -294,6 +304,18 @@ pub struct CheckboxPatch {
     pub size_y: Option<f64>,
     //pub style: Option<TextStyleMessage>,
     pub checked: Option<bool>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct ButtonPatch {
+    pub id_chain: Vec<u32>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub content: Option<String>,
+    pub style: Option<TextStyleMessage>,
 }
 
 #[derive(Default, Serialize)]
@@ -311,7 +333,7 @@ pub struct OcclusionPatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct TextPatch {
     pub id_chain: Vec<u32>,
@@ -324,7 +346,7 @@ pub struct TextPatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
@@ -345,7 +367,7 @@ pub struct ImagePatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum ColorVariantMessage {
     Hlca([f64; 4]),
@@ -361,7 +383,7 @@ impl Default for ColorVariantMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum TextAlignHorizontalMessage {
     #[default]
@@ -371,7 +393,7 @@ pub enum TextAlignHorizontalMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum TextAlignVerticalMessage {
     #[default]
@@ -425,7 +447,7 @@ pub struct AnyCreatePatch {
 // }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub enum FontPatch {
     System(SystemFontMessage),
@@ -440,7 +462,7 @@ impl Default for FontPatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct SystemFontMessage {
     pub family: Option<String>,
@@ -459,7 +481,7 @@ impl Default for SystemFontMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct WebFontMessage {
     pub family: Option<String>,
@@ -469,7 +491,7 @@ pub struct WebFontMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
 pub struct LocalFontMessage {
     pub family: Option<String>,
@@ -479,7 +501,7 @@ pub struct LocalFontMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, PartialEq)]
 #[repr(C)]
 pub enum FontStyleMessage {
     Normal,
@@ -488,7 +510,7 @@ pub enum FontStyleMessage {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, PartialEq)]
 #[repr(C)]
 pub enum FontWeightMessage {
     Thin,

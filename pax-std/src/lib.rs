@@ -9,6 +9,7 @@ pub mod components {
 
 pub mod primitives {
     use pax_lang::Pax;
+    use pax_runtime_api::Property;
     use pax_runtime_api::Size;
     use pax_runtime_api::StringBox;
 
@@ -28,10 +29,10 @@ pub mod primitives {
     #[custom(Imports)]
     #[primitive("pax_std_primitives::scroller::ScrollerInstance")]
     pub struct Scroller {
-        pub size_inner_pane_x: pax_lang::Property<Size>,
-        pub size_inner_pane_y: pax_lang::Property<Size>,
-        pub scroll_enabled_x: pax_lang::Property<bool>,
-        pub scroll_enabled_y: pax_lang::Property<bool>,
+        pub size_inner_pane_x: Property<Size>,
+        pub size_inner_pane_y: Property<Size>,
+        pub scroll_enabled_x: Property<bool>,
+        pub scroll_enabled_y: Property<bool>,
     }
 
     #[derive(Pax)]
@@ -39,9 +40,9 @@ pub mod primitives {
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Rectangle {
-        pub stroke: pax_lang::Property<crate::types::Stroke>,
-        pub fill: pax_lang::Property<crate::types::Fill>,
-        pub corner_radii: pax_lang::Property<crate::types::RectangleCornerRadii>,
+        pub stroke: Property<crate::types::Stroke>,
+        pub fill: Property<crate::types::Fill>,
+        pub corner_radii: Property<crate::types::RectangleCornerRadii>,
     }
 
     #[derive(Pax)]
@@ -49,39 +50,47 @@ pub mod primitives {
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Ellipse {
-        pub stroke: pax_lang::Property<crate::types::Stroke>,
-        pub fill: pax_lang::Property<crate::types::Fill>,
+        pub stroke: Property<crate::types::Stroke>,
+        pub fill: Property<crate::types::Fill>,
     }
 
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::path::PathInstance")]
     pub struct Path {
-        pub segments: pax_lang::Property<Vec<PathSegment>>,
-        pub stroke: pax_lang::Property<crate::types::Stroke>,
-        pub fill: pax_lang::Property<crate::types::Color>,
+        pub segments: Property<Vec<PathSegment>>,
+        pub stroke: Property<crate::types::Stroke>,
+        pub fill: Property<crate::types::Color>,
     }
 
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::text::TextInstance")]
     pub struct Text {
-        pub text: pax_lang::Property<StringBox>,
-        pub style: pax_lang::Property<TextStyle>,
-        pub style_link: pax_lang::Property<TextStyle>,
+        pub text: Property<StringBox>,
+        pub style: Property<TextStyle>,
+        pub style_link: Property<TextStyle>,
     }
 
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::checkbox::CheckboxInstance")]
     pub struct Checkbox {
-        pub checked: pax_lang::Property<bool>,
+        pub checked: Property<bool>,
+    }
+
+    #[derive(Pax)]
+    #[custom(Imports)]
+    #[primitive("pax_std_primitives::button::ButtonInstance")]
+    pub struct Button {
+        pub label: Property<StringBox>,
+        pub style: Property<TextStyle>,
     }
 
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
-        pub path: pax_lang::Property<StringBox>,
+        pub path: Property<StringBox>,
     }
 }

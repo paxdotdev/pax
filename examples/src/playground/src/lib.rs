@@ -17,11 +17,15 @@ pub struct Example {
     pub message: Property<String>,
     pub conditional: Property<bool>,
     pub checked: Property<bool>,
+    pub align_vertical: Property<TextAlignVertical>,
+    pub color: Property<Color>,
 }
 
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.message.set("Click me".to_string());
+        self.color
+            .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
@@ -36,7 +40,23 @@ impl Example {
         self.conditional.set(!self.conditional.get());
     }
 
-    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsClick) {
-        self.checked.set(!self.checked.get());
+    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsCheckboxChange) {
+        self.checked.set(!args.checked);
+        self.align_vertical.set(match self.checked.get() {
+            true => TextAlignVertical::Top,
+            false => TextAlignVertical::Bottom,
+        });
+        if *self.checked.get() {
+            self.color
+                .set(Color::rgba(0.0.into(), 1.0.into(), 0.0.into(), 1.0.into()));
+        } else {
+            self.color
+                .set(Color::rgba(0.0.into(), 0.0.into(), 1.0.into(), 1.0.into()));
+        }
+    }
+
+    pub fn button_click(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+        self.color
+            .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
     }
 }
