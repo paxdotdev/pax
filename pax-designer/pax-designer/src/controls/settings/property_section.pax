@@ -1,0 +1,27 @@
+<Text text={self.name + ":"} id=text/>
+<Rectangle x=30% width=70% 
+     fill={Fill::Solid(Color::hlc(20, 100, 10))}
+    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+/>
+
+@settings {
+     .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    }
+    .small {
+        width: 120px
+        height: 120px
+    }
+    #text {
+        style: {
+                font_size: 12px,
+                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Left,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

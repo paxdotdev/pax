@@ -1,0 +1,91 @@
+<Text x=10px y=10px text={self.selected_component_name} id=megaheader/>
+
+<Frame y=50px height={100% - 50px}>
+	<Frame x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
+		<Frame height=150px>
+			<Text text="Basic" id=header/>
+			<Frame y=30px height={100% - 30px}>
+				<Frame y=0px height=30px>
+					<Text text="Position" x=10px  id=subheader/>
+					<PropertyEditor name="x" x=33% width=32%/>
+					<PropertyEditor name="y" x=66% width=32%/>
+				</Frame>
+				<Frame y=40px height=30px>
+					<Text text="Size" x=10px  id=subheader/>
+					<PropertyEditor name="width" x=33% width=32%/>
+					<PropertyEditor name="height" x=66% width=32%/>
+				</Frame>
+			</Frame>
+		</Frame>
+
+		<Frame y=150px height=300px>
+			<Text text="Transform" id=header/>
+			<Frame y=30px height={100% - 30px}>
+				<Frame y=0px height=30px>
+					<Text text="Rotation" x=10px  id=subheader/>
+					<PropertyEditor name="z" x=33% width=32%/>
+				</Frame>
+				<Frame y=40px height=30px>
+					<Text text="Scale" x=10px  id=subheader/>
+					<PropertyEditor name="x" x=33% width=32%/>
+					<PropertyEditor name="y" x=66% width=32%/>
+				</Frame>
+				<Frame y=80px height=30px>
+					<Text text="Anchor" x=10px  id=subheader/>
+					<PropertyEditor name="x" x=33% width=32%/>
+					<PropertyEditor name="y" x=66% width=32%/>
+				</Frame>
+				<Frame y=120px height=30px>
+					<Text text="Skew" x=10px  id=subheader/>
+					<PropertyEditor name="x" x=33% width=32%/>
+					<PropertyEditor name="y" x=66% width=32%/>
+				</Frame>
+			</Frame>
+		</Frame>
+
+		
+		<Frame y=450px height=300px>
+			for (property, i) in self.custom_props {
+				<Text text={property.name} id=header y={(i*100)px}/>
+				<Frame y={(i*100 + 50)px} height=40px>
+					<PropertyEditor name=""/>
+				</Frame>
+			}
+		</Frame>
+	</Frame>
+</Frame>
+
+
+@handlers {
+	mount: on_mount
+}
+
+@settings {
+    #megaheader {
+        style: {
+                font_size: 30px,
+                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+                align_vertical: TextAlignVertical::Top,
+                align_horizontal: TextAlignHorizontal::Left,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    #header {
+        style: {
+                font_size: 20px,
+                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+                align_vertical: TextAlignVertical::Top,
+                align_horizontal: TextAlignHorizontal::Left,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    #subheader {
+        style: {
+                font_size: 15px,
+                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Left,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}
