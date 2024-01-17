@@ -81,6 +81,13 @@ pub mod primitives {
 
     #[derive(Pax)]
     #[custom(Imports)]
+    #[primitive("pax_std_primitives::textbox::TextboxInstance")]
+    pub struct Textbox {
+        pub text: Property<StringBox>,
+    }
+
+    #[derive(Pax)]
+    #[custom(Imports)]
     #[primitive("pax_std_primitives::button::ButtonInstance")]
     pub struct Button {
         pub label: Property<StringBox>,
