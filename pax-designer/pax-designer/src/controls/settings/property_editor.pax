@@ -1,6 +1,7 @@
-<Text text={self.name + ":"} id=text width={30% - 3px}/>
+<Text text={self.name} id=text width={30% - 3px}/>
+<Text text={self.def} x=30% id=textbox/>
 <Rectangle x=30% width=70% 
-     fill={Fill::Solid(Color::hlc(20, 100, 10))}
+    fill={Fill::Solid(Color::hlc(20, 100, 10))}
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 />
 
@@ -21,6 +22,15 @@
                 fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Right,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    #textbox {
+        style: {
+                font_size: 15px,
+                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Left,
                 align_multiline: TextAlignHorizontal::Left
         }
     }
