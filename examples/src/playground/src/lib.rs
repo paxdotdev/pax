@@ -19,6 +19,7 @@ pub struct Example {
     pub checked: Property<bool>,
     pub align_vertical: Property<TextAlignVertical>,
     pub color: Property<Color>,
+    pub textbox_text: Property<String>,
 }
 
 impl Example {
@@ -53,6 +54,10 @@ impl Example {
             self.color
                 .set(Color::rgba(0.0.into(), 0.0.into(), 1.0.into(), 1.0.into()));
         }
+    }
+
+    pub fn textbox_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
+        self.textbox_text.set(args.text);
     }
 
     pub fn button_click(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {

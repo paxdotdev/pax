@@ -21,6 +21,9 @@ pub enum NativeMessage {
     CheckboxCreate(AnyCreatePatch),
     CheckboxUpdate(CheckboxPatch),
     CheckboxDelete(Vec<u32>),
+    TextboxCreate(AnyCreatePatch),
+    TextboxUpdate(TextboxPatch),
+    TextboxDelete(Vec<u32>),
     ButtonCreate(AnyCreatePatch),
     ButtonUpdate(ButtonPatch),
     ButtonDelete(Vec<u32>),
@@ -55,6 +58,7 @@ pub enum NativeInterrupt {
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
     FormCheckboxToggle(FormCheckboxToggleArgs),
+    FormTextboxChange(FormTextboxChangeArgs),
     FormButtonClick(FormButtonClickArgs),
 }
 
@@ -62,6 +66,13 @@ pub enum NativeInterrupt {
 #[repr(C)]
 pub struct FormCheckboxToggleArgs {
     pub state: bool,
+    pub id_chain: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormTextboxChangeArgs {
+    pub text: String,
     pub id_chain: Vec<u32>,
 }
 
@@ -302,8 +313,18 @@ pub struct CheckboxPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
-    //pub style: Option<TextStyleMessage>,
     pub checked: Option<bool>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone)]
+#[repr(C)]
+pub struct TextboxPatch {
+    pub id_chain: Vec<u32>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub text: Option<String>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

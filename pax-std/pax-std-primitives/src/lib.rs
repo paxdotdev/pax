@@ -9,6 +9,7 @@ pub mod rectangle;
 pub mod button;
 pub mod checkbox;
 pub mod text;
+pub mod textbox;
 
 fn patch_if_needed<T: PartialEq + Clone>(
     old_state: &mut Option<T>,
