@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use pax_lang::api::*;
 use pax_lang::*;
 use pax_std::components::Stacker;
@@ -20,6 +22,7 @@ pub struct Settings {
 #[custom(Imports)]
 pub struct PropertyDef {
     pub name: StringBox,
+    pub definition: String,
 }
 
 impl Settings {
@@ -28,10 +31,21 @@ impl Settings {
         self.custom_props.set(vec![
             PropertyDef {
                 name: StringBox::from("Stroke".to_owned()),
+                definition: "Color::rgba(0.0, 1.0, 0.0, 1.0)".to_owned(),
             },
             PropertyDef {
                 name: StringBox::from("Fill".to_owned()),
+                definition: "Color::rgba(1.0, 0.0, 0.0, 1.0)".to_owned(),
             },
         ]);
     }
+}
+
+struct ORMspec {}
+
+impl ORMspec {
+    fn get_properties_of_selected() -> HashMap<String, String> {
+        HashMap::new()
+    }
+    fn set_property_of_selected(prop: PropertyDef) {}
 }
