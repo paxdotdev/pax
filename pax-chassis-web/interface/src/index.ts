@@ -9,6 +9,7 @@ import {
     FRAME_UPDATE_PATCH,
     IMAGE_LOAD_PATCH, OCCLUSION_UPDATE_PATCH, SCROLLER_UPDATE_PATCH,
     SUPPORTED_OBJECTS,
+    TEXTBOX_UPDATE_PATCH,
     TEXT_UPDATE_PATCH
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
@@ -22,6 +23,7 @@ import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 import { OcclusionUpdatePatch } from "./classes/messages/occlusion-update-patch";
 import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
+import { TextboxUpdatePatch } from "./classes/messages/textbox-update-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -150,6 +152,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["CheckboxDelete"]) {
             let msg = unwrapped_msg["CheckboxDelete"];
             nativePool.checkboxDelete(msg)
+        } else if(unwrapped_msg["TextboxCreate"]) {
+            let msg = unwrapped_msg["TextboxCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.textboxCreate(patch);
+        } else if (unwrapped_msg["TextboxUpdate"]){
+            let msg = unwrapped_msg["TextboxUpdate"]
+            let patch: TextboxUpdatePatch = objectManager.getFromPool(TEXTBOX_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg);
+            nativePool.textboxUpdate(patch);
+        }else if (unwrapped_msg["TextboxDelete"]) {
+            let msg = unwrapped_msg["TextboxDelete"];
+            nativePool.textboxDelete(msg)
         } else if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

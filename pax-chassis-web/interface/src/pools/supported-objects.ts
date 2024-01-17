@@ -12,6 +12,7 @@ import {Font, TextStyle} from "../classes/text";
 import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
 import { OcclusionUpdatePatch } from "../classes/messages/occlusion-update-patch";
 import { ButtonUpdatePatch } from "../classes/messages/button-update-patch";
+import { TextboxUpdatePatch } from "../classes/messages/textbox-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -26,6 +27,7 @@ export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
 export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
+export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
 export const BUTTON_UPDATE_PATCH = "Button Update Patch";
 
 export const LAYER = "LAYER";
@@ -123,6 +125,11 @@ export let SUPPORTED_OBJECTS = [{
     {
         name: CHECKBOX_UPDATE_PATCH,
         factory: (objectManager: ObjectManager) => new CheckboxUpdatePatch(objectManager),
+        cleanUp: (patch: CheckboxUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: TEXTBOX_UPDATE_PATCH,
+        factory: (objectManager: ObjectManager) => new TextboxUpdatePatch(objectManager),
         cleanUp: (patch: CheckboxUpdatePatch) => {patch.cleanUp()},
     },
     {
