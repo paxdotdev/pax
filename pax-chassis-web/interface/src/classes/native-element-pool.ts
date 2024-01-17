@@ -17,6 +17,7 @@ import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} f
 import {TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
+import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -174,6 +175,81 @@ export class NativeElementPool {
     }
 
     checkboxDelete(id_chain: number[]) {
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
+        }
+    }
+
+    textboxCreate(patch: AnyCreatePatch) {
+        const textbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
+        textbox.type = "text";
+        textbox.addEventListener("input", (_event) => {
+            let message = {
+                "FormTextboxChange": {
+                    "id_chain": patch.idChain!,
+                    "text": textbox.value,
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            // @ts-ignore
+            textbox.value = textbox.fixed_text_value;
+        });
+
+        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        runningChain.appendChild(textbox);
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.setAttribute("id_chain", String(patch.idChain));
+        let scroller_id;
+        if(patch.scrollerIds != null){
+            let length = patch.scrollerIds.length;
+            if(length != 0) {
+                scroller_id = patch.scrollerIds[length-1];
+            }
+        }
+        if(patch.idChain != undefined && patch.zIndex != undefined){
+            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
+                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+        }
+        // @ts-ignore
+        this.textNodes[patch.idChain] = runningChain;
+
+    }
+
+    
+    textboxUpdate(patch: TextboxUpdatePatch) {
+        //@ts-ignore
+        window.textNodes = this.textNodes;
+        // @ts-ignore
+        let leaf = this.textNodes[patch.id_chain];
+        console.assert(leaf !== undefined);
+        let textbox = leaf.firstChild;
+
+
+        // Apply the content
+        if (patch.text != null) {
+            textbox.value = patch.text;
+            // @ts-ignore
+            textbox.fixed_text_value = textbox.value;
+        }
+       
+        // Handle size_x and size_y
+        if (patch.size_x != null) {
+            textbox.style.width = patch.size_x - 1 + "px";
+        }
+        if (patch.size_y != null) {
+            textbox.style.height = patch.size_y + "px";
+        }
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+    }
+
+    textboxDelete(id_chain: number[]) {
+        console.log("textbox deleted");
         // @ts-ignore
         let oldNode = this.textNodes[id_chain];
         if (oldNode){

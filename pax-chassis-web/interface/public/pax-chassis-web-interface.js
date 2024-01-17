@@ -744,6 +744,69 @@ var Pax = (() => {
         parent.removeChild(oldNode);
       }
     }
+    textboxCreate(patch) {
+      const textbox = this.objectManager.getFromPool(INPUT);
+      textbox.type = "text";
+      textbox.addEventListener("input", (_event) => {
+        let message = {
+          "FormTextboxChange": {
+            "id_chain": patch.idChain,
+            "text": textbox.value
+          }
+        };
+        this.chassis.interrupt(JSON.stringify(message), void 0);
+        textbox.value = textbox.fixed_text_value;
+      });
+      let runningChain = this.objectManager.getFromPool(DIV);
+      runningChain.appendChild(textbox);
+      runningChain.setAttribute("class", NATIVE_LEAF_CLASS);
+      runningChain.setAttribute("id_chain", String(patch.idChain));
+      let scroller_id;
+      if (patch.scrollerIds != null) {
+        let length = patch.scrollerIds.length;
+        if (length != 0) {
+          scroller_id = patch.scrollerIds[length - 1];
+        }
+      }
+      if (patch.idChain != void 0 && patch.zIndex != void 0) {
+        _NativeElementPool.addNativeElement(
+          runningChain,
+          this.baseOcclusionContext,
+          this.scrollers,
+          patch.idChain,
+          scroller_id,
+          patch.zIndex
+        );
+      }
+      this.textNodes[patch.idChain] = runningChain;
+    }
+    textboxUpdate(patch) {
+      window.textNodes = this.textNodes;
+      let leaf = this.textNodes[patch.id_chain];
+      console.assert(leaf !== void 0);
+      let textbox = leaf.firstChild;
+      if (patch.text != null) {
+        textbox.value = patch.text;
+        textbox.fixed_text_value = textbox.value;
+      }
+      if (patch.size_x != null) {
+        textbox.style.width = patch.size_x - 1 + "px";
+      }
+      if (patch.size_y != null) {
+        textbox.style.height = patch.size_y + "px";
+      }
+      if (patch.transform != null) {
+        leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+      }
+    }
+    textboxDelete(id_chain) {
+      console.log("textbox deleted");
+      let oldNode = this.textNodes[id_chain];
+      if (oldNode) {
+        let parent = oldNode.parentElement;
+        parent.removeChild(oldNode);
+      }
+    }
     buttonCreate(patch) {
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
@@ -1283,6 +1346,27 @@ var Pax = (() => {
     }
   };
 
+  // src/classes/messages/textbox-update-patch.ts
+  var TextboxUpdatePatch = class {
+    constructor(objectManager2) {
+      this.objectManager = objectManager2;
+    }
+    fromPatch(jsonMessage) {
+      this.id_chain = jsonMessage["id_chain"];
+      this.size_x = jsonMessage["size_x"];
+      this.size_y = jsonMessage["size_y"];
+      this.transform = jsonMessage["transform"];
+      this.text = jsonMessage["text"];
+    }
+    cleanUp() {
+      this.id_chain = [];
+      this.size_x = 0;
+      this.size_y = 0;
+      this.transform = [];
+      this.text = "";
+    }
+  };
+
   // src/pools/supported-objects.ts
   var OBJECT = "Object";
   var ARRAY2 = "Array";
@@ -1297,6 +1381,7 @@ var Pax = (() => {
   var SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
   var TEXT_UPDATE_PATCH = "Text Update Patch";
   var CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
+  var TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
   var BUTTON_UPDATE_PATCH = "Button Update Patch";
   var LAYER = "LAYER";
   var OCCLUSION_CONTEXT = "Occlusion Context";
@@ -1394,6 +1479,13 @@ var Pax = (() => {
     {
       name: CHECKBOX_UPDATE_PATCH,
       factory: (objectManager2) => new CheckboxUpdatePatch(objectManager2),
+      cleanUp: (patch) => {
+        patch.cleanUp();
+      }
+    },
+    {
+      name: TEXTBOX_UPDATE_PATCH,
+      factory: (objectManager2) => new TextboxUpdatePatch(objectManager2),
       cleanUp: (patch) => {
         patch.cleanUp();
       }
@@ -1787,6 +1879,19 @@ var Pax = (() => {
       } else if (unwrapped_msg["CheckboxDelete"]) {
         let msg = unwrapped_msg["CheckboxDelete"];
         nativePool.checkboxDelete(msg);
+      } else if (unwrapped_msg["TextboxCreate"]) {
+        let msg = unwrapped_msg["TextboxCreate"];
+        let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.textboxCreate(patch);
+      } else if (unwrapped_msg["TextboxUpdate"]) {
+        let msg = unwrapped_msg["TextboxUpdate"];
+        let patch = objectManager2.getFromPool(TEXTBOX_UPDATE_PATCH, objectManager2);
+        patch.fromPatch(msg);
+        nativePool.textboxUpdate(patch);
+      } else if (unwrapped_msg["TextboxDelete"]) {
+        let msg = unwrapped_msg["TextboxDelete"];
+        nativePool.textboxDelete(msg);
       } else if (unwrapped_msg["TextCreate"]) {
         let msg = unwrapped_msg["TextCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);

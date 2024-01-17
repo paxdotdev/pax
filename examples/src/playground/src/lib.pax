@@ -1,4 +1,4 @@
-<Text width=50% height=50% text="Text Properties Test 1 LONG long LONG long long long"
+<Text width=50% height=50% text={self.textbox_text}
         style = {
                 font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 fill: {self.color},
@@ -8,7 +8,9 @@
                 align_multiline: TextAlignHorizontal::Center
         }
 />
+<Textbox y=70% anchor_y=50% x=100px width=50% height=30px text={self.textbox_text} @textbox_change=self.textbox_change/>
 <Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
+
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>
 <Button class=small y=50% anchor_y=50% x={50% + 150px} label="Test!!!" style = {
     font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},

@@ -4,6 +4,7 @@ use js_sys::Uint8Array;
 use pax_core::ExpressionTable;
 use pax_runtime_api::ArgsButtonClick;
 use pax_runtime_api::ArgsCheckboxChange;
+use pax_runtime_api::ArgsTextboxChange;
 use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -148,6 +149,12 @@ impl PaxChassisWeb {
                     .get_expanded_node(args.id_chain[0])
                     .expect("button node exists in engine");
                 node.dispatch_button_click(ArgsButtonClick {}, globals);
+            }
+            NativeInterrupt::FormTextboxChange(args) => {
+                let node = engine
+                    .get_expanded_node(args.id_chain[0])
+                    .expect("textbox node exists in engine");
+                node.dispatch_textbox_change(ArgsTextboxChange { text: args.text }, globals);
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let node = engine

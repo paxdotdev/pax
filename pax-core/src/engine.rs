@@ -8,9 +8,9 @@ use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
     ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
-    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
-    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
-    TransitionManager,
+    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
+    ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, NodeContext,
+    OcclusionLayerGen, RenderContext, TransitionManager,
 };
 use piet::{ImageBuf, InterpolationMode};
 
@@ -84,6 +84,7 @@ pub struct HandlerRegistry {
     pub key_press_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyPress)>,
     pub checkbox_change_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsCheckboxChange)>,
     pub button_click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsButtonClick)>,
+    pub textbox_change_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTextboxChange)>,
     pub click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsClick)>,
     pub mouse_down_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseDown)>,
     pub mouse_up_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseUp)>,
@@ -121,6 +122,7 @@ impl Default for HandlerRegistry {
             mount_handlers: Vec::new(),
             checkbox_change_handlers: Vec::new(),
             button_click_handlers: Vec::new(),
+            textbox_change_handlers: Vec::new(),
         }
     }
 }
