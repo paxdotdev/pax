@@ -1,3 +1,19 @@
+
 for i in self.control_points {
-    <Rectangle fill={Fill::Solid(Color::rgba(0,0,0,0))} stroke={color: Color::rgb(100%, 0%, 0%), width: 1px} />
+    <Rectangle class=control_point x={(i.x)px} y={(i.y)px} />
+}
+
+
+@settings {
+    .control_point {
+        stroke: {
+            color: {Color::rgb(1, 0, 0)}
+            width: 1px
+        }
+        fill: {
+            Fill::Solid(Color::rgba(0,0,0,0))
+        }
+        width: 7px
+        height: 7px
+    }
 }

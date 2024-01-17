@@ -1,5 +1,6 @@
 use pax_lang::api::*;
 use pax_lang::*;
+use pax_std::primitives::Rectangle;
 
 #[derive(Pax)]
 #[custom(Default)]
@@ -15,36 +16,36 @@ impl Default for Glass {
             show_selection_controls: Box::new(PropertyLiteral::new(true)),
             control_points: Box::new((PropertyLiteral::new(vec![
                 ControlPoint {
-                    x: 100.0,
+                    x: 300.0,
                     y: 100.0,
                 },
                 ControlPoint {
-                    x: 150.0,
+                    x: 350.0,
                     y: 100.0,
                 },
                 ControlPoint {
-                    x: 200.0,
+                    x: 400.0,
                     y: 100.0,
                 },
                 ControlPoint {
-                    x: 100.0,
+                    x: 300.0,
                     y: 150.0,
                 },
                 // anchor point
                 ControlPoint {
-                    x: 200.0,
+                    x: 400.0,
                     y: 150.0,
                 },
                 ControlPoint {
-                    x: 100.0,
+                    x: 300.0,
                     y: 200.0,
                 },
                 ControlPoint {
-                    x: 150.0,
+                    x: 350.0,
                     y: 200.0,
                 },
                 ControlPoint {
-                    x: 200.0,
+                    x: 400.0,
                     y: 200.0,
                 },
             ]))),
