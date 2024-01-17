@@ -37,11 +37,11 @@
     #top_panel {
         height: 65px,
         x: 250px,
-        width: {100% - 500px}
+        width: {100% - 700px}
     }
 
     #right_panel {
-        width: 250px,
+        width: 450px,
         anchor_x: 100%,
         x: 100%,
     }
