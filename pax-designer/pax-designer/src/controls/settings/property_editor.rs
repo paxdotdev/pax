@@ -10,7 +10,7 @@ use pax_std::types::*;
 #[file("controls/settings/property_editor.pax")]
 pub struct PropertyEditor {
     pub name: Property<StringBox>,
-    pub prop_type: Property<Numeric>,
+    pub def: Property<String>,
 }
 
 impl PropertyEditor {

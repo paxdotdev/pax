@@ -7,13 +7,13 @@
 			<Frame y=30px height={100% - 30px}>
 				<Frame y=0px height=30px>
 					<Text text="Position" x=10px  id=subheader/>
-					<PropertyEditor name="x" x=33% width=32%/>
-					<PropertyEditor name="y" x=66% width=32%/>
+					<PropertyEditor name="x:" x=33% width=32%/>
+					<PropertyEditor name="y:" x=66% width=32%/>
 				</Frame>
 				<Frame y=40px height=30px>
 					<Text text="Size" x=10px  id=subheader/>
-					<PropertyEditor name="width" x=33% width=32%/>
-					<PropertyEditor name="height" x=66% width=32%/>
+					<PropertyEditor name="width:" x=33% width=32%/>
+					<PropertyEditor name="height:" x=66% width=32%/>
 				</Frame>
 			</Frame>
 		</Frame>
@@ -23,22 +23,22 @@
 			<Frame y=30px height={100% - 30px}>
 				<Frame y=0px height=30px>
 					<Text text="Rotation" x=10px  id=subheader/>
-					<PropertyEditor name="z" x=33% width=32%/>
+					<PropertyEditor name="z:" x=33% width=32%/>
 				</Frame>
 				<Frame y=40px height=30px>
 					<Text text="Scale" x=10px  id=subheader/>
-					<PropertyEditor name="x" x=33% width=32%/>
-					<PropertyEditor name="y" x=66% width=32%/>
+					<PropertyEditor name="x:" x=33% width=32%/>
+					<PropertyEditor name="y:" x=66% width=32%/>
 				</Frame>
 				<Frame y=80px height=30px>
 					<Text text="Anchor" x=10px  id=subheader/>
-					<PropertyEditor name="x" x=33% width=32%/>
-					<PropertyEditor name="y" x=66% width=32%/>
+					<PropertyEditor name="x:" x=33% width=32%/>
+					<PropertyEditor name="y:" x=66% width=32%/>
 				</Frame>
 				<Frame y=120px height=30px>
 					<Text text="Skew" x=10px  id=subheader/>
-					<PropertyEditor name="x" x=33% width=32%/>
-					<PropertyEditor name="y" x=66% width=32%/>
+					<PropertyEditor name="x:" x=33% width=32%/>
+					<PropertyEditor name="y:" x=66% width=32%/>
 				</Frame>
 			</Frame>
 		</Frame>
@@ -48,7 +48,7 @@
 			for (property, i) in self.custom_props {
 				<Text text={property.name} id=header y={(i*100)px}/>
 				<Frame y={(i*100 + 50)px} height=40px>
-					<PropertyEditor name=""/>
+					<PropertyEditor def={property.definition}/>
 				</Frame>
 			}
 		</Frame>
