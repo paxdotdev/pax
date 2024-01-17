@@ -365,6 +365,34 @@ fn recurse_compile_expressions<'a>(
             //type of property `self.foo`
             let (output_statement, invocations) = compile_paxel_to_ril(paxel.clone(), &ctx)?;
 
+            //Figure out the return type for our datum — either `T` for `Property<Vec<T>>`, or `isize` for some range `j..k`
+            //if repeat_source is a range, this is simply isize
+            //if repeat_source is a symbolic binding, then we resolve that symbolic binding and use that resolved type here
+            let iterable_type = if let Some(_) = &repeat_source_definition.range_expression_paxel {
+                TypeDefinition::primitive("isize")
+            } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+                let pd = ctx
+                    .resolve_symbol_as_prop_def(
+                        &symbolic_binding.token_value,
+                        symbolic_binding.clone(),
+                    )?
+                    .ok_or::<eyre::Report>(PaxTemplateError::new(
+                        Some(format!(
+                            "Property not found: {}",
+                            symbolic_binding.token_value
+                        )),
+                        symbolic_binding.clone(),
+                    ))?
+                    .last()
+                    .unwrap()
+                    .clone();
+                pd.get_inner_iterable_type_definition(ctx.type_table)
+                    .unwrap()
+                    .clone()
+            } else {
+                unreachable!()
+            };
+
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
             match cfa.repeat_predicate_definition.as_ref().unwrap() {
@@ -386,7 +414,7 @@ fn recurse_compile_expressions<'a>(
                             is_repeat_source_iterable,
                             is_property_wrapped: true,
                         },
-                        type_id: "isize".to_string(),
+                        type_id: iterable_type.type_id.clone(),
                     };
 
                     let scope: HashMap<String, PropertyDefinition> = HashMap::from([
@@ -398,44 +426,14 @@ fn recurse_compile_expressions<'a>(
                     ctx.scope_stack.push(scope);
                 }
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
-                    //if repeat_source is a range, this is simply isize
-                    //if repeat_source is a symbolic binding, then we resolve that symbolic binding and use that resolved type here
-                    let iterable_type =
-                        if let Some(_) = &repeat_source_definition.range_expression_paxel {
-                            TypeDefinition::primitive("isize")
-                        } else if let Some(symbolic_binding) =
-                            &repeat_source_definition.symbolic_binding
-                        {
-                            let pd = ctx
-                                .resolve_symbol_as_prop_def(
-                                    &symbolic_binding.token_value,
-                                    symbolic_binding.clone(),
-                                )?
-                                .ok_or::<eyre::Report>(PaxTemplateError::new(
-                                    Some(format!(
-                                        "Property not found: {}",
-                                        symbolic_binding.token_value
-                                    )),
-                                    symbolic_binding.clone(),
-                                ))?
-                                .last()
-                                .unwrap()
-                                .clone();
-                            pd.get_inner_iterable_type_definition(ctx.type_table)
-                                .unwrap()
-                                .clone()
-                        } else {
-                            unreachable!()
-                        };
-
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id.token_value),
                         type_id: iterable_type.type_id,
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_elem: true,
                             is_binding_repeat_i: false,
-                            is_repeat_source_range,
-                            is_repeat_source_iterable,
+                            is_repeat_source_range: is_repeat_source_range.clone(),
+                            is_repeat_source_iterable: is_repeat_source_iterable.clone(),
                             is_property_wrapped: true,
                         },
                     };
