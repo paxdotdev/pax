@@ -1,0 +1,11 @@
+for i in 0..5 {
+    <Rectangle width=100px height=100px x={(i * 150)px} y=50px />
+}
+
+for datum in self.some_data {
+    <Rectangle width=100px height=100px x={(datum.x)px} y=150px />
+}
+
+for (datum, i) in self.some_data {
+    <Rectangle width=100px height=100px x={(datum.x)px} y={(250 + i * 20)px} />
+}
