@@ -58,12 +58,13 @@ if self.component_selected {
 	</Frame>
 }
 
-<Button width=100px height=30px anchor_y=100% y=100% label="Object 1" @button_click=self.set_object1/>
-<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Object 2" @button_click=self.set_object2/>
+<Button width=100px height=30px anchor_y=100% y=100% label="Object 1" @button_click=self.set_object1_defered/>
+<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Object 2" @button_click=self.set_object2_defered/>
 <Button x=220px width=100px height=30px anchor_y=100% y=100% label="Deselect" @button_click=self.set_none/>
 
 @handlers {
 	mount: on_mount
+	pre_render: pre_render
 }
 
 @settings {
