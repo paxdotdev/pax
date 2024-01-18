@@ -728,7 +728,7 @@ var Pax = (() => {
         checkbox.checked = patch.checked;
       }
       if (patch.size_x != null) {
-        checkbox.style.width = patch.size_x - 1 + "px";
+        checkbox.style.width = patch.size_x + "px";
       }
       if (patch.size_y != null) {
         checkbox.style.height = patch.size_y + "px";
@@ -800,7 +800,6 @@ var Pax = (() => {
       }
     }
     textboxDelete(id_chain) {
-      console.log("textbox deleted");
       let oldNode = this.textNodes[id_chain];
       if (oldNode) {
         let parent = oldNode.parentElement;
