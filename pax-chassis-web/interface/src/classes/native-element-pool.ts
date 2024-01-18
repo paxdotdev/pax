@@ -163,7 +163,7 @@ export class NativeElementPool {
         }
         // Handle size_x and size_y
         if (patch.size_x != null) {
-            checkbox.style.width = patch.size_x - 1 + "px";
+            checkbox.style.width = patch.size_x + "px";
         }
         if (patch.size_y != null) {
             checkbox.style.height = patch.size_y + "px";
@@ -249,7 +249,6 @@ export class NativeElementPool {
     }
 
     textboxDelete(id_chain: number[]) {
-        console.log("textbox deleted");
         // @ts-ignore
         let oldNode = this.textNodes[id_chain];
         if (oldNode){
