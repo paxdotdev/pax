@@ -1,9 +1,8 @@
 <Text text={self.name} id=text width={30% - 3px}/>
-<Textbox x=30% width=70% text={self.def} @textbox_change=self.text_change/>
+<Textbox x=30% width=70% text={self.textbox} @textbox_change=self.text_change/>
 
 
 @handlers {
-	mount: on_mount
     pre_render: on_render
 }
 @settings {
