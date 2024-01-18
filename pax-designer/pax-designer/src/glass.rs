@@ -1,6 +1,8 @@
 use pax_lang::api::*;
 use pax_lang::*;
 use pax_std::primitives::Rectangle;
+use pax_std::primitives::Path;
+
 
 #[derive(Pax)]
 #[custom(Default)]
@@ -8,6 +10,8 @@ use pax_std::primitives::Rectangle;
 pub struct Glass {
     pub show_selection_controls: Property<bool>,
     pub control_points: Property<Vec<ControlPoint>>,
+    pub anchor_point: Property<ControlPoint>,
+    pub selection_bounding_segments: Property<Vec<BoundingSegment>>,
 }
 
 impl Default for Glass {
@@ -31,7 +35,9 @@ impl Default for Glass {
                     x: 300.0,
                     y: 150.0,
                 },
+                //
                 // anchor point
+                //
                 ControlPoint {
                     x: 400.0,
                     y: 150.0,
@@ -49,6 +55,38 @@ impl Default for Glass {
                     y: 200.0,
                 },
             ]))),
+            selection_bounding_segments: Box::new(PropertyLiteral::new(vec![
+                BoundingSegment {
+                    x0: 300.0,
+                    y0: 100.0,
+                    x1: 400.0,
+                    y1: 100.0,
+                },
+                BoundingSegment {
+                    x0: 400.0,
+                    y0: 100.0,
+                    x1: 400.0,
+                    y1: 200.0,
+                },
+                BoundingSegment {
+                    x0: 400.0,
+                    y0: 200.0,
+                    x1: 300.0,
+                    y1: 200.0,
+                },
+                BoundingSegment {
+                    x0: 300.0,
+                    y0: 200.0,
+                    x1: 300.0,
+                    y1: 100.0,
+                }
+            ])),
+            anchor_point: Box::new(PropertyLiteral::new(
+                ControlPoint {
+                    x: 350.0,
+                    y: 150.0,
+                }
+            )),
         }
     }
 }
@@ -58,4 +96,13 @@ impl Default for Glass {
 pub struct ControlPoint {
     pub x: f64,
     pub y: f64,
+}
+
+#[derive(Pax)]
+#[custom(Imports)]
+pub struct BoundingSegment {
+    pub x0: f64,
+    pub y0: f64,
+    pub x1: f64,
+    pub y1: f64,
 }
