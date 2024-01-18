@@ -1,60 +1,66 @@
 <Text x=10px y=10px text={self.selected_component_name} id=megaheader height=30px/>
 
-<Frame y=50px height={100% - 50px}>
-	<Frame x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
-		<Frame height=150px>
-			<Text text="Basic" id=header height=20px/>
-			<Frame y=30px height={100% - 30px}>
-				<Frame y=0px height=30px>
-					<Text text="Position" x=10px  id=subheader/>
-					<PropertyEditor name="x:" x=33% width=32%/>
-					<PropertyEditor name="y:" x=66% width=32%/>
-				</Frame>
-				<Frame y=40px height=30px>
-					<Text text="Size" x=10px  id=subheader/>
-					<PropertyEditor name="width:" x=33% width=32%/>
-					<PropertyEditor name="height:" x=66% width=32%/>
+if self.component_selected {
+	
+	<Frame y=50px height={100% - 50px}>
+		<Frame x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
+			<Frame height=150px>
+				<Text text="Basic" id=header height=20px/>
+				<Frame y=30px height={100% - 30px}>
+					<Frame y=0px height=30px>
+						<Text text="Position" x=10px  id=subheader/>
+						<PropertyEditor name="x:" definition={self.pos_x} x=33% width=32%/>
+						<PropertyEditor name="y:" definition={self.pos_y} x=66% width=32%/>
+					</Frame>
+					<Frame y=40px height=30px>
+						<Text text="Size" x=10px  id=subheader/>
+						<PropertyEditor name="width:" definition={self.size_width} x=33% width=32%/>
+						<PropertyEditor name="height:" definition={self.size_height} x=66% width=32%/>
+					</Frame>
 				</Frame>
 			</Frame>
-		</Frame>
 
-		<Frame y=150px height=300px>
-			<Text text="Transform" id=header height=20px/>
-			<Frame y=30px height={100% - 30px}>
-				<Frame y=0px height=30px>
-					<Text text="Rotation" x=10px  id=subheader/>
-					<PropertyEditor name="z:" x=33% width=32%/>
-				</Frame>
-				<Frame y=40px height=30px>
-					<Text text="Scale" x=10px  id=subheader/>
-					<PropertyEditor name="x:" x=33% width=32%/>
-					<PropertyEditor name="y:" x=66% width=32%/>
-				</Frame>
-				<Frame y=80px height=30px>
-					<Text text="Anchor" x=10px  id=subheader/>
-					<PropertyEditor name="x:" x=33% width=32%/>
-					<PropertyEditor name="y:" x=66% width=32%/>
-				</Frame>
-				<Frame y=120px height=30px>
-					<Text text="Skew" x=10px  id=subheader/>
-					<PropertyEditor name="x:" x=33% width=32%/>
-					<PropertyEditor name="y:" x=66% width=32%/>
+			<Frame y=150px height=300px>
+				<Text text="Transform" id=header height=20px/>
+				<Frame y=30px height={100% - 30px}>
+					<Frame y=0px height=30px>
+						<Text text="Rotation" x=10px  id=subheader/>
+						<PropertyEditor name="z:" definition={self.rotation_z} x=33% width=32%/>
+					</Frame>
+					<Frame y=40px height=30px>
+						<Text text="Scale" x=10px  id=subheader/>
+						<PropertyEditor name="x:" definition={self.scale_x} x=33% width=32%/>
+						<PropertyEditor name="y:" definition={self.scale_y} x=66% width=32%/>
+					</Frame>
+					<Frame y=80px height=30px>
+						<Text text="Anchor" x=10px  id=subheader/>
+						<PropertyEditor name="x:" definition={self.anchor_x} x=33% width=32%/>
+						<PropertyEditor name="y:" definition={self.anchor_y} x=66% width=32%/>
+					</Frame>
+					<Frame y=120px height=30px>
+						<Text text="Skew" x=10px  id=subheader/>
+						<PropertyEditor name="x:" definition={self.skew_x} x=33% width=32%/>
+						<PropertyEditor name="y:" definition={self.skew_y} x=66% width=32%/>
+					</Frame>
 				</Frame>
 			</Frame>
-		</Frame>
 
 		
-		<Frame y=450px height=300px>
-			for (property, i) in self.custom_props {
-				<Text text={property.name} id=header y={(i*100)px} height=20px/>
-				<Frame y={(i*100 + 50)px} height=40px>
-					<PropertyEditor definition={property.definition}/>
-				</Frame>
-			}
+			<Frame y=450px height=300px>
+				for (property, i) in self.custom_props {
+					<Text text={property.name} id=header y={(i*100)px} height=20px/>
+					<Frame y={(i*100 + 50)px} height=40px>
+						<PropertyEditor definition={property.definition}/>
+					</Frame>
+				}
+			</Frame>
 		</Frame>
 	</Frame>
-</Frame>
+}
 
+<Button width=100px height=30px anchor_y=100% y=100% label="Object 1" @button_click=self.set_object1/>
+<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Object 2" @button_click=self.set_object2/>
+<Button x=220px width=100px height=30px anchor_y=100% y=100% label="Deselect" @button_click=self.set_none/>
 
 @handlers {
 	mount: on_mount

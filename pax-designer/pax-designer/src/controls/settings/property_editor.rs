@@ -10,27 +10,21 @@ use pax_std::types::*;
 #[file("controls/settings/property_editor.pax")]
 pub struct PropertyEditor {
     pub name: Property<StringBox>,
-    pub definition: Property<String>,
-    pub def: Property<String>,
-    pub init: Property<i32>,
+    pub definition: Property<StringBox>,
+    pub last_definition: Property<String>,
+    pub textbox: Property<String>,
 }
 
 impl PropertyEditor {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        self.def.set(self.definition.get().clone());
-    }
-
     pub fn on_render(&mut self, ctx: &NodeContext) {
-        self.init.set(self.init.get() + 1);
-        // Need to wait a bit before we initialize def, so that self.definition has been
-        // populated with it's default value.
-        if *self.init.get() == 2 {
-            log("INIT!!");
-            self.def.set(self.definition.get().clone());
+        if &self.definition.get().string != self.last_definition.get() {
+            self.last_definition
+                .set(self.definition.get().string.clone());
+            self.textbox.set(self.definition.get().string.clone());
         }
     }
 
     pub fn text_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
-        self.def.set(args.text);
+        self.textbox.set(args.text);
     }
 }
