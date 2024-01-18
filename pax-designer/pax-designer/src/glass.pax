@@ -1,13 +1,17 @@
-
-for i in self.control_points {
-    <Rectangle class=control_point x={(i.x)px} y={(i.y)px} />
+for pt in self.control_points {
+    <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px} />
 }
 
+for segment in self.selection_bounding_segments {
+    //<Path class=bounding_segment />
+}
 
 @settings {
     .control_point {
         stroke: {
-            color: {Color::rgb(1, 0, 0)}
+            color: {
+                Color::rgb(1, 0, 0)
+            }
             width: 1px
         }
         fill: {
@@ -15,5 +19,20 @@ for i in self.control_points {
         }
         width: 7px
         height: 7px
+    }
+
+    .bounding_segment {
+        //segments: {[
+        //    PathSegment::LineSegment({
+        //        start: Point {x: segment.x0, y: segment.y0},
+        //        end: Point {x: segment.x1, y: segment.y1},
+        //    })
+        //]},
+        stroke: {
+            color: {
+                Color::rgb(1, 0, 0)
+            }
+            width: 1px
+        },
     }
 }
