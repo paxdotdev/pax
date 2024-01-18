@@ -32,6 +32,9 @@ pub struct Settings {
 
     // custom props
     pub custom_props: Property<Vec<PropertyDef>>,
+
+    pub run_id: Property<u32>,
+    pub timer: Property<u32>,
 }
 
 #[derive(Pax)]
@@ -56,7 +59,32 @@ impl Settings {
         self.component_selected.set(false);
     }
 
-    pub fn set_object1(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        if *self.timer.get() > 0 {
+            if *self.timer.get() == 1 {
+                match *self.run_id.get() {
+                    1 => self.set_object1(),
+                    2 => self.set_object2(),
+                    _ => (),
+                }
+            }
+            self.timer.set(self.timer.get() - 1);
+        }
+    }
+
+    pub fn set_object2_defered(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
+        self.run_id.set(2);
+        self.timer.set(2);
+        self.custom_props.set(vec![]);
+    }
+
+    pub fn set_object1_defered(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
+        self.run_id.set(1);
+        self.timer.set(2);
+        self.custom_props.set(vec![]);
+    }
+
+    pub fn set_object1(&mut self) {
         self.component_selected.set(true);
         self.selected_component_name.set("ELLIPSE 1".to_owned());
         self.pos_x.set(StringBox::from("20".to_owned()));
@@ -72,10 +100,10 @@ impl Settings {
         self.skew_y.set(StringBox::from("1.0".to_owned()));
         // OBS: if two objects happen to have the same number of props when selection updates, it doesn't change
         self.custom_props.set(vec![
-            // PropertyDef {
-            //     name: StringBox::from("Stroke".to_owned()),
-            //     definition: StringBox::from("Color::rgba(0.0, 1.0, 0.0, 1.0)".to_owned()),
-            // },
+            PropertyDef {
+                name: StringBox::from("Stroke".to_owned()),
+                definition: StringBox::from("Color::rgba(0.0, 1.0, 0.0, 1.0)".to_owned()),
+            },
             PropertyDef {
                 name: StringBox::from("Fill".to_owned()),
                 definition: StringBox::from("Color::rgba(1.0, 0.0, 0.0, 1.0)".to_owned()),
@@ -83,7 +111,7 @@ impl Settings {
         ]);
     }
 
-    pub fn set_object2(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn set_object2(&mut self) {
         self.component_selected.set(true);
         self.selected_component_name.set("TEXT 2".to_owned());
         self.pos_x.set(StringBox::from("0.7".to_owned()));
