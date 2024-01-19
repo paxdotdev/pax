@@ -1,7 +1,7 @@
 pub mod text;
 
 use crate::primitives::Path;
-use kurbo::{Point, RoundedRectRadii};
+pub use kurbo::RoundedRectRadii;
 use pax_lang::api::numeric::Numeric;
 pub use pax_lang::api::Size;
 use pax_lang::api::{PropertyLiteral, SizePixels};
@@ -269,6 +269,7 @@ impl Default for ColorVariant {
 
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum PathSegment {
     #[default]
     Empty,
@@ -276,19 +277,53 @@ pub enum PathSegment {
     CurveSegment(CurveSegmentData),
 }
 
+impl PathSegment {
+    pub fn line(line: LineSegmentData) -> Self {
+        Self::LineSegment(line)
+    }
+}
+
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LineSegmentData {
     pub start: Point,
     pub end: Point,
 }
 
+impl LineSegmentData {
+    pub fn new(p1: Point, p2: Point) -> Self {
+        Self { start: p1, end: p2 }
+    }
+}
+
 #[derive(Pax)]
 #[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CurveSegmentData {
     pub start: Point,
     pub handle: Point,
     pub end: Point,
+}
+
+#[derive(Pax, Copy)]
+#[custom(Imports)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Point {
+    pub x: Size,
+    pub y: Size,
+}
+
+impl Point {
+    pub fn new(x: Size, y: Size) -> Self {
+        Self { x, y }
+    }
+
+    pub fn to_kurbo_point(self, bounds: (f64, f64)) -> kurbo::Point {
+        let x = self.x.evaluate(bounds, api::Axis::X);
+        let y = self.y.evaluate(bounds, api::Axis::Y);
+        kurbo::Point { x, y }
+    }
 }
 
 impl Path {
@@ -296,15 +331,8 @@ impl Path {
         let start: Vec<PathSegment> = Vec::new();
         start
     }
-    pub fn line_to(
-        mut path: Vec<PathSegment>,
-        start: (f64, f64),
-        end: (f64, f64),
-    ) -> Vec<PathSegment> {
-        let line_seg_data: LineSegmentData = LineSegmentData {
-            start: Point::from(start),
-            end: Point::from(end),
-        };
+    pub fn line_to(mut path: Vec<PathSegment>, start: Point, end: Point) -> Vec<PathSegment> {
+        let line_seg_data: LineSegmentData = LineSegmentData { start, end };
 
         path.push(PathSegment::LineSegment(line_seg_data));
         path
@@ -312,15 +340,11 @@ impl Path {
 
     pub fn curve_to(
         mut path: Vec<PathSegment>,
-        start: (f64, f64),
-        handle: (f64, f64),
-        end: (f64, f64),
+        start: Point,
+        handle: Point,
+        end: Point,
     ) -> Vec<PathSegment> {
-        let curve_seg_data: CurveSegmentData = CurveSegmentData {
-            start: Point::from(start),
-            handle: Point::from(handle),
-            end: Point::from(end),
-        };
+        let curve_seg_data: CurveSegmentData = CurveSegmentData { start, handle, end };
 
         path.push(PathSegment::CurveSegment(curve_seg_data));
         path

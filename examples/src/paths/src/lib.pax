@@ -1,0 +1,29 @@
+<Path class=bounding_segment/>
+
+@settings {
+    .bounding_segment {
+	    segments: {[
+	        PathSegment::line(
+				LineSegmentData::new(
+		            Point::new(0px, 0px),
+		            Point::new(40%, 40%)
+				)
+	        )
+	    ]},
+		stroke: {
+            color: {
+                Color::rgba(0, 1, 0, 1)
+            }
+            width: 10px
+        },
+    }
+}
+<Rectangle width=50% height=50%
+	     fill={Fill::Solid(Color::rgba(10, 0.0, 0.0, 0.0))}
+		stroke={
+            color: {
+                Color::rgba(0, 1, 0, 1)
+            }
+            width: 10px
+        }
+ />
