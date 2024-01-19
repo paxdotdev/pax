@@ -17,179 +17,186 @@ use treeobj::TreeObj;
 #[derive(Pax)]
 #[file("controls/tree/tree.pax")]
 pub struct Tree {
-    pub tree_objects: Property<Vec<TreeObjEntry>>,
-    pub visible_tree_objects: Property<Vec<TreeObjEntry>>,
-    pub active: Property<bool>,
+    pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
+    pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
+    pub header_text: Property<String>,
+    pub project_loaded: Property<bool>,
 }
 
-pub enum TreeMessage {
-    Clicked,
+pub static TREE_CLICK_SENDER: OnceLock<Arc<Mutex<Option<usize>>>> = OnceLock::new();
+
+struct TreeEntry(Desc, Vec<TreeEntry>);
+
+enum Desc {
+    Frame,
+    Group,
+    Ellipse,
+    Text,
+    Stacker,
+    Rectangle,
+    Path,
+    Component,
+    Textbox,
+    Checkbox,
+    Scroller,
+    Button,
+    Image,
+    Slider,
+    Dropdown,
 }
 
-pub static TREE_SENDER: OnceLock<Arc<Mutex<Option<(usize, TreeMessage)>>>> = OnceLock::new();
+impl Desc {
+    fn info(&self) -> (String, String) {
+        let (name, img_path_suffix) = match self {
+            Desc::Frame => ("Frame", "01-frame"),
+            Desc::Group => ("Group", "02-group"),
+            Desc::Ellipse => ("Ellipse", "03-ellipse"),
+            Desc::Text => ("Text", "04-text"),
+            Desc::Stacker => ("Stacker", "05-stacker"),
+            Desc::Rectangle => ("Rectangle", "06-rectangle"),
+            Desc::Path => ("Path", "07-path"),
+            Desc::Component => ("Component", "08-component"),
+            Desc::Textbox => ("Textbox", "09-textbox"),
+            Desc::Checkbox => ("Ceckbox", "10-checkbox"),
+            Desc::Scroller => ("Scroller", "11-scroller"),
+            Desc::Button => ("Button", "12-button"),
+            Desc::Image => ("Image", "13-image"),
+            Desc::Slider => ("Slider", "14-slider"),
+            Desc::Dropdown => ("Dropdown", "15-dropdown"),
+        };
+        (
+            name.to_owned(),
+            format!("assets/icons/tree/tree-icon-{}.png", img_path_suffix),
+        )
+    }
+}
+
+impl TreeEntry {
+    fn container(desc: Desc, children: Vec<TreeEntry>) -> Self {
+        TreeEntry(desc, children)
+    }
+
+    fn item(desc: Desc) -> Self {
+        TreeEntry(desc, vec![])
+    }
+
+    fn flatten(self, ind: &mut usize, indent_level: usize) -> Vec<FlattenedTreeEntry> {
+        let mut all = vec![];
+        let (name, img_path) = self.0.info();
+        all.push(FlattenedTreeEntry {
+            name: StringBox::from(name),
+            image_path: StringBox::from(img_path),
+            ind: *ind,
+            indent_level,
+            visible: true,
+            collapsed: false,
+            leaf: self.1.is_empty(),
+        });
+        *ind += 1;
+        all.extend(
+            self.1
+                .into_iter()
+                .flat_map(|c| c.flatten(ind, indent_level + 1)),
+        );
+        all
+    }
+}
+
+impl From<TreeEntry> for Vec<FlattenedTreeEntry> {
+    fn from(value: TreeEntry) -> Self {
+        value.flatten(&mut 0, 0)
+    }
+}
+
+#[derive(Pax)]
+#[custom(Imports)]
+pub struct FlattenedTreeEntry {
+    pub name: StringBox,
+    pub image_path: StringBox,
+    pub ind: usize,
+    pub indent_level: usize,
+    pub visible: bool,
+    pub collapsed: bool,
+    pub leaf: bool,
+}
 
 impl Tree {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let _ = TREE_SENDER.set(Arc::new(Mutex::new(None)));
+        let _ = TREE_CLICK_SENDER.set(Arc::new(Mutex::new(None)));
+        self.header_text
+            .set("Tree View: No loaded project".to_owned());
     }
 
     pub fn set_tree1(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
-        self.tree_objects.set(vec![
-            TreeObjEntry {
-                name: StringBox::from("Frame".to_owned()),
-                ind: 0,
-                indent_level: 0,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Group".to_owned()),
-                ind: 1,
-                indent_level: 1,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Ellipse".to_owned()),
-                ind: 2,
-                indent_level: 2,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Path".to_owned()),
-                ind: 3,
-                indent_level: 2,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Group".to_owned()),
-                ind: 4,
-                indent_level: 2,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Group".to_owned()),
-                ind: 5,
-                indent_level: 3,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Path".to_owned()),
-                ind: 6,
-                indent_level: 4,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Frame".to_owned()),
-                ind: 7,
-                indent_level: 0,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Rectangle".to_owned()),
-                ind: 8,
-                indent_level: 1,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Rectangle".to_owned()),
-                ind: 9,
-                indent_level: 1,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-        ]);
+        self.project_loaded.set(true);
+        self.header_text.set("".to_owned());
+        self.tree_objects.set(
+            TreeEntry::container(
+                Desc::Stacker,
+                vec![
+                    TreeEntry::container(
+                        Desc::Component,
+                        vec![
+                            TreeEntry::item(Desc::Ellipse),
+                            TreeEntry::item(Desc::Rectangle),
+                            TreeEntry::container(
+                                Desc::Scroller,
+                                vec![TreeEntry::item(Desc::Text), TreeEntry::item(Desc::Path)],
+                            ),
+                        ],
+                    ),
+                    TreeEntry::item(Desc::Rectangle),
+                    TreeEntry::item(Desc::Checkbox),
+                    TreeEntry::container(
+                        Desc::Scroller,
+                        vec![
+                            TreeEntry::container(
+                                Desc::Dropdown,
+                                vec![TreeEntry::item(Desc::Image), TreeEntry::item(Desc::Slider)],
+                            ),
+                            TreeEntry::item(Desc::Button),
+                        ],
+                    ),
+                ],
+            )
+            .into(),
+        );
+        self.visible_tree_objects
+            .set(self.tree_objects.get().clone());
     }
 
     pub fn set_tree2(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
-        self.tree_objects.set(vec![
-            TreeObjEntry {
-                name: StringBox::from("Group".to_owned()),
-                ind: 0,
-                indent_level: 0,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Ellipse".to_owned()),
-                ind: 1,
-                indent_level: 2,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Path".to_owned()),
-                ind: 2,
-                indent_level: 2,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Rect".to_owned()),
-                ind: 3,
-                indent_level: 2,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Frame".to_owned()),
-                ind: 4,
-                indent_level: 0,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Rectangle".to_owned()),
-                ind: 5,
-                indent_level: 1,
-                collapsed: false,
-                visible: true,
-                leaf: true,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Frame".to_owned()),
-                ind: 6,
-                indent_level: 0,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-            TreeObjEntry {
-                name: StringBox::from("Rectangle".to_owned()),
-                ind: 7,
-                indent_level: 1,
-                collapsed: false,
-                visible: true,
-                leaf: false,
-            },
-        ]);
+        self.project_loaded.set(true);
+        self.header_text.set("".to_owned());
+        self.tree_objects.set(
+            TreeEntry::container(
+                Desc::Frame,
+                vec![TreeEntry::container(
+                    Desc::Group,
+                    vec![
+                        TreeEntry::item(Desc::Ellipse),
+                        TreeEntry::item(Desc::Textbox),
+                        TreeEntry::container(
+                            Desc::Scroller,
+                            vec![
+                                TreeEntry::item(Desc::Text),
+                                TreeEntry::item(Desc::Rectangle),
+                            ],
+                        ),
+                        TreeEntry::item(Desc::Text),
+                        TreeEntry::item(Desc::Rectangle),
+                    ],
+                )],
+            )
+            .into(),
+        );
+        self.visible_tree_objects
+            .set(self.tree_objects.get().clone());
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        let mut channel = TREE_SENDER.get().unwrap().lock().unwrap();
-        if let Some((sender, _message)) = channel.take() {
+        let mut channel = TREE_CLICK_SENDER.get().unwrap().lock().unwrap();
+        if let Some(sender) = channel.take() {
             let tree = &mut self.tree_objects.get_mut();
             tree[sender].collapsed = !tree[sender].collapsed;
             let collapsed = tree[sender].collapsed;
@@ -201,25 +208,14 @@ impl Tree {
                     break;
                 }
             }
+            self.visible_tree_objects.set(
+                self.tree_objects
+                    .get()
+                    .iter()
+                    .filter(|o| o.visible)
+                    .cloned()
+                    .collect(),
+            );
         }
-        self.visible_tree_objects.set(
-            self.tree_objects
-                .get()
-                .iter()
-                .filter(|o| o.visible)
-                .cloned()
-                .collect(),
-        );
     }
-}
-
-#[derive(Pax)]
-#[custom(Imports)]
-pub struct TreeObjEntry {
-    pub name: StringBox,
-    pub ind: usize,
-    pub indent_level: usize,
-    pub visible: bool,
-    pub collapsed: bool,
-    pub leaf: bool,
 }
