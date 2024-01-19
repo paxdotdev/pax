@@ -16,9 +16,10 @@ use std::rc::Rc;
 pub struct TreeObj {
     pub ind: Property<Numeric>,
     pub name: Property<StringBox>,
+    pub image_path: Property<StringBox>,
     pub selected: Property<bool>,
     pub collapsed: Property<bool>,
-    pub img_path: Property<String>,
+    pub arrow_path: Property<String>,
     pub leaf: Property<bool>,
     pub not_leaf: Property<bool>,
 }
@@ -29,10 +30,10 @@ impl TreeObj {
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        self.img_path.set(
+        self.arrow_path.set(
             match *self.collapsed.get() {
-                true => "assets/icons/tree_view/collapse_arrow_collapsed.png",
-                false => "assets/icons/tree_view/collapse_arrow.png",
+                true => "assets/icons/tree/collapse_arrow_collapsed.png",
+                false => "assets/icons/tree/collapse_arrow.png",
             }
             .into(),
         );
@@ -40,7 +41,7 @@ impl TreeObj {
     }
 
     pub fn clicked(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
-        *super::TREE_SENDER.get().unwrap().lock().unwrap() =
-            Some((self.ind.get().clone().into(), super::TreeMessage::Clicked));
+        *super::TREE_CLICK_SENDER.get().unwrap().lock().unwrap() =
+            Some(self.ind.get().clone().into());
     }
 }
