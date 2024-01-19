@@ -21,4 +21,4 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler"]
