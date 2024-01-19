@@ -1,0 +1,33 @@
+
+if self.not_leaf {
+	<Image
+		x=10px anchor_y=50% y=50% height=30px width=30px
+		path={self.img_path}
+		@click=self.clicked
+	/>
+}
+<Image
+	x=40px anchor_y=50% y=50% height=30px width=30px
+	path="assets/icons/toolbar/icon-12-rect.png"
+/>
+<Text x=80px width={100% - 10px} text={self.name} id=text/>
+<Rectangle
+     fill={Fill::Solid(Color::rgb(0.9, 0.6, 0.6))}
+/>
+
+@handlers {
+	mount: on_mount
+	pre_render: pre_render
+}
+@settings {
+    #text {
+        style: {
+                // font: Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold),
+                font_size: 20px,
+                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Left,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

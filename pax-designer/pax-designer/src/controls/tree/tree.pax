@@ -1,0 +1,21 @@
+
+for (obj, i) in self.visible_tree_objects {
+	<TreeObj
+		 ind={obj.ind}
+		 y={(40 + i*42)px}
+		 x={(obj.indent_level*6)%}
+		 height=40px
+		 name={obj.name}
+		 leaf={obj.leaf}
+		 collapsed={obj.collapsed}
+		 width={100% - (obj.indent_level*6)%}
+	/>
+}
+
+<Button width=100px height=30px anchor_y=100% y=100% label="Tree 1" @button_click=self.set_tree1/>
+<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Tree 2" @button_click=self.set_tree2/>
+
+@handlers {
+	mount: on_mount
+	pre_render: pre_render
+}
