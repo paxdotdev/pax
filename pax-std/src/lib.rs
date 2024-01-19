@@ -57,6 +57,7 @@ pub mod primitives {
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::path::PathInstance")]
+    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Path {
         pub segments: Property<Vec<PathSegment>>,
         pub stroke: Property<crate::types::Stroke>,

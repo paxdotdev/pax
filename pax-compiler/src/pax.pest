@@ -117,7 +117,7 @@ literal_boolean = {("true" | "false")}
 
 //Enums like Orientation::Vertical or Color::Rgba(100%, 100%, 0, 0)
 //Note that this is parsed separately from expression enums, `xo_enum*`
-literal_enum_value = {pascal_identifier ~ ("::" ~ pascal_identifier)+ ~ ("("~literal_enum_args_list~")")?}
+literal_enum_value = {identifier ~ ("::" ~ identifier)+ ~ ("("~literal_enum_args_list~")")?}
 literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
 literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
@@ -168,7 +168,7 @@ num_clicks % 2 == 0
 //`xo` is short for both "expression operator" and "expression operand", collectively all symbols
 //that can be expressed inside expressions
 
-xo_primary = _{ expression_grouped | xo_function_call | xo_object | xo_range | xo_tuple | xo_list | xo_literal  | xo_symbol }
+xo_primary = _{ expression_grouped | xo_enum_or_function_call | xo_object | xo_range | xo_tuple | xo_list | xo_literal | xo_symbol }
 
 xo_prefix = _{xo_neg | xo_bool_not}
     xo_neg = {"-"}
@@ -224,8 +224,8 @@ xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ "]" }
 
-xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
-xo_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
+xo_enum_or_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_enum_or_function_args_list~")")}
+xo_enum_or_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
 
 ////// ////// //////
 /// BEGIN CONTROL FLOW

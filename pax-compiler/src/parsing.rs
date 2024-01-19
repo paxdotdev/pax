@@ -82,7 +82,7 @@ fn recurse_pratt_parse_to_string<'a>(
 ) -> String {
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
-            /* expression_grouped | xo_function_call | xo_range     */
+            /* expression_grouped | xo_enum_or_function_call | xo_range     */
             Rule::expression_grouped => {
                 /* expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? } */
                 let mut inner = primary.into_inner();
@@ -106,9 +106,9 @@ fn recurse_pratt_parse_to_string<'a>(
                     exp_bod
                 }
             },
-            Rule::xo_function_call => {
-                /* xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
-                   xo_function_args_list = {expression_body ~ ("," ~ expression_body)*} */
+            Rule::xo_enum_or_function_call => {
+                /* xo_enum_or_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_enum_or_function_args_list~")")}
+                   xo_enum_or_function_args_list = {expression_body ~ ("," ~ expression_body)*} */
 
                 //prepend identifiers; recurse-pratt-parse `xo_function_args`' `expression_body`s
                 let mut pairs = primary.into_inner();
