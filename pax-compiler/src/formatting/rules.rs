@@ -30,7 +30,7 @@ pub const INFIX_OPERATORS: [Rule; 16] = [
 
 pub const PRIMARY_OPERANDS: [Rule; 8] = [
     Rule::expression_grouped,
-    Rule::xo_function_call,
+    Rule::xo_enum_or_function_call,
     Rule::xo_object,
     Rule::xo_range,
     Rule::xo_tuple,
@@ -98,11 +98,11 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::literal_tuple | Rule::xo_tuple => {
             vec![Box::new(TupleMultiLineRule), Box::new(TupleDefaultRule)]
         }
-        Rule::literal_enum_value | Rule::xo_function_call => vec![
+        Rule::literal_enum_value | Rule::xo_enum_or_function_call => vec![
             Box::new(IdentifierCallMultiLineRule),
             Box::new(IdentifierCallDefaultRule),
         ],
-        Rule::literal_enum_args_list | Rule::xo_function_args_list => vec![
+        Rule::literal_enum_args_list | Rule::xo_enum_or_function_args_list => vec![
             Box::new(ArgsListMultiLineRule),
             Box::new(ArgsListDefaultRule),
         ],
@@ -551,7 +551,7 @@ impl FormattingRule for IdentifierCallMultiLineRule {
                 }
                 formatted_node.push_str(&child.formatted_node);
             } else if child.node_type == Rule::literal_enum_args_list
-                || child.node_type == Rule::xo_function_args_list
+                || child.node_type == Rule::xo_enum_or_function_args_list
             {
                 formatted_node.push_str("(\n");
                 let indented_child = indent_every_line_of_string(child.formatted_node.clone());
@@ -576,7 +576,7 @@ impl FormattingRule for IdentifierCallDefaultRule {
                 }
                 formatted_node.push_str(&child.formatted_node);
             } else if child.node_type == Rule::literal_enum_args_list
-                || child.node_type == Rule::xo_function_args_list
+                || child.node_type == Rule::xo_enum_or_function_args_list
             {
                 formatted_node.push_str("(");
                 formatted_node.push_str(&child.formatted_node);
