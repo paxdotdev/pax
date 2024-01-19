@@ -252,7 +252,7 @@ pub fn extract_positional_nodes(
                 node_type: NodeType::AttributeKeyValuePairError(),
             });
         }
-        Rule::xo_function_call => {
+        Rule::xo_enum_or_function_call => {
             let inner_pairs = &inner;
             let mut struct_name = "Self".to_string();
             let secondary_name;
@@ -315,7 +315,7 @@ fn is_position_within_node(pos: &Position, node: &PositionalNode) -> bool {
 
 pub fn find_priority_node(nodes: &Vec<PositionalNode>) -> Option<&PositionalNode> {
     let mut found_literal_function: Option<&PositionalNode> = None;
-    let mut found_xo_function_call: Option<&PositionalNode> = None;
+    let mut found_xo_enum_or_function_call: Option<&PositionalNode> = None;
     let mut found_literal_enum_value: Option<&PositionalNode> = None;
     let mut found_attribute_key_value_pair: Option<&PositionalNode> = None;
     let mut found_identifier: Option<&PositionalNode> = None;
@@ -329,7 +329,7 @@ pub fn find_priority_node(nodes: &Vec<PositionalNode>) -> Option<&PositionalNode
                 found_literal_enum_value = Some(node);
             }
             NodeType::XoFunctionCall(_) => {
-                found_xo_function_call = Some(node);
+                found_xo_enum_or_function_call = Some(node);
             }
             NodeType::AttributeKeyValuePair(_) => {
                 found_attribute_key_value_pair = Some(node);
@@ -342,7 +342,7 @@ pub fn find_priority_node(nodes: &Vec<PositionalNode>) -> Option<&PositionalNode
     }
 
     found_literal_function
-        .or(found_xo_function_call)
+        .or(found_xo_enum_or_function_call)
         .or(found_literal_enum_value)
         .or(found_attribute_key_value_pair)
         .or(found_identifier)
