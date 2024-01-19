@@ -1,4 +1,4 @@
-
+<Text x=10px y=10px  width=90% height=30px text={self.header_text} id=text/>
 for (obj, i) in self.visible_tree_objects {
 	<TreeObj
 		 ind={obj.ind}
@@ -9,13 +9,28 @@ for (obj, i) in self.visible_tree_objects {
 		 leaf={obj.leaf}
 		 collapsed={obj.collapsed}
 		 width={100% - (obj.indent_level*6)%}
+		 image_path={obj.image_path}
 	/>
 }
 
 <Button width=100px height=30px anchor_y=100% y=100% label="Tree 1" @button_click=self.set_tree1/>
 <Button x=110px width=100px height=30px anchor_y=100% y=100% label="Tree 2" @button_click=self.set_tree2/>
-
+<Rectangle
+     fill={Fill::Solid(Color::rgb(0.1, 0.1, 0.1))}
+/>
 @handlers {
 	mount: on_mount
 	pre_render: pre_render
+}
+@settings {
+    #text {
+        style: {
+                // font: Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold),
+                font_size: 13px,
+                fill: {Color::rgba(0.6, 0.6, 0.6, 1.0)},
+                align_vertical: TextAlignVertical::Top,
+                align_horizontal: TextAlignHorizontal::Left,
+                align_multiline: TextAlignHorizontal::Left
+        }
+    }
 }
