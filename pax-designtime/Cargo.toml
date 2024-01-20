@@ -1,6 +1,6 @@
 [package]
 name = "pax-designtime"
-version = "0.10.10"
+version = "0.10.9"
 edition = "2021"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 homepage = "https://pax.dev/"
