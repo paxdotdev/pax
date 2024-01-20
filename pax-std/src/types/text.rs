@@ -139,8 +139,8 @@ impl Default for SystemFont {
     fn default() -> Self {
         Self {
             family: "Arial".to_string().into(),
-            style: FontStyle::Italic,
-            weight: FontWeight::Bold,
+            style: FontStyle::Normal,
+            weight: FontWeight::Normal,
         }
     }
 }
