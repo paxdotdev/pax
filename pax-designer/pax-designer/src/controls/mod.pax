@@ -21,7 +21,7 @@
 
 <Group id=right_panel>
     <Settings id=settings />
-    <Rectangle fill={Fill::Solid(Color::rgba(0,0,1,0.25))} />
+    <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
 </Group>
 
 <Frame id=top_panel>
