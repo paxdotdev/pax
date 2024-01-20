@@ -1,19 +1,19 @@
-<Text x=10px y=10px text={self.selected_component_name} id=megaheader height=30px/>
+<Text x=10px y=10px text={self.selected_component_name} class=h1 height=30px/>
 
 if self.component_selected {
 	
 	<Frame y=50px height={100% - 50px}>
 		<Frame x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
 			<Frame height=150px>
-				<Text text="Basic" id=header height=20px/>
+				<Text text="Basic" class=h2 height=20px/>
 				<Frame y=30px height={100% - 30px}>
 					<Frame y=0px height=30px>
-						<Text text="Position" x=10px  id=subheader/>
+						<Text text="Position" x=10px  class=h3/>
 						<PropertyEditor name="x:" definition={self.pos_x} x=33% width=32%/>
 						<PropertyEditor name="y:" definition={self.pos_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=40px height=30px>
-						<Text text="Size" x=10px  id=subheader/>
+						<Text text="Size" x=10px  class=h3/>
 						<PropertyEditor name="width:" definition={self.size_width} x=33% width=32%/>
 						<PropertyEditor name="height:" definition={self.size_height} x=66% width=32%/>
 					</Frame>
@@ -21,24 +21,24 @@ if self.component_selected {
 			</Frame>
 
 			<Frame y=150px height=300px>
-				<Text text="Transform" id=header height=20px/>
+				<Text text="Transform" class=h2 height=20px/>
 				<Frame y=30px height={100% - 30px}>
 					<Frame y=0px height=30px>
-						<Text text="Rotation" x=10px  id=subheader/>
+						<Text text="Rotation" x=10px  class=h3/>
 						<PropertyEditor name="z:" definition={self.rotation_z} x=33% width=32%/>
 					</Frame>
 					<Frame y=40px height=30px>
-						<Text text="Scale" x=10px  id=subheader/>
+						<Text text="Scale" x=10px  class=h3/>
 						<PropertyEditor name="x:" definition={self.scale_x} x=33% width=32%/>
 						<PropertyEditor name="y:" definition={self.scale_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=80px height=30px>
-						<Text text="Anchor" x=10px  id=subheader/>
+						<Text text="Anchor" x=10px  class=h3/>
 						<PropertyEditor name="x:" definition={self.anchor_x} x=33% width=32%/>
 						<PropertyEditor name="y:" definition={self.anchor_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=120px height=30px>
-						<Text text="Skew" x=10px  id=subheader/>
+						<Text text="Skew" x=10px  class=h3/>
 						<PropertyEditor name="x:" definition={self.skew_x} x=33% width=32%/>
 						<PropertyEditor name="y:" definition={self.skew_y} x=66% width=32%/>
 					</Frame>
@@ -48,7 +48,7 @@ if self.component_selected {
 		
 			<Frame y=450px height=300px>
 				for (property, i) in self.custom_props {
-					<Text text={property.name} id=header y={(i*100)px} height=20px/>
+					<Text text={property.name} class=h2 y={(i*100)px} height=20px/>
 					<Frame y={(i*100 + 50)px} height=40px>
 						<PropertyEditor definition={property.definition}/>
 					</Frame>
@@ -68,31 +68,26 @@ if self.component_selected {
 }
 
 @settings {
-    #megaheader {
+    .h1 {
         style: {
-                font_size: 30px,
-                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
-                align_vertical: TextAlignVertical::Top,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
+            font_size: 30px,
+            fill: {Color::rgb(1, 1, 1)},
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
         }
     }
-    #header {
+    .h2 {
         style: {
-                font_size: 20px,
-                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
-                align_vertical: TextAlignVertical::Top,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
+            font_size: 20px,
+            fill: {Color::rgb(1, 1, 1)},
         }
     }
-    #subheader {
+    .h3 {
+        width: 30%
         style: {
-                font_size: 15px,
-                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
+            font_size: 15px,
+            fill: {Color::rgb(1, 1, 1)},
+            align_vertical: TextAlignVertical::Bottom,
+            align_horizontal: TextAlignHorizontal::Right,
         }
     }
 }
