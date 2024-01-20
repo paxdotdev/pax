@@ -1,5 +1,3 @@
-
-
 pub struct PaxSelectionManager {
     //keep action stack
     //elsewhere in logic, something may register itself as an undoable action (e.g. selection, or manifest ORM)
