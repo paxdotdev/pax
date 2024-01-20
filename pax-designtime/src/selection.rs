@@ -6,3 +6,9 @@ pub struct PaxSelectionManager {
     //for certain actions, trigger upstream ORM actions (undo an action by ID, or keep track of stack state/status and undo tactically)
     //for other actions (like selection), manage undo/redo separately
 }
+
+impl PaxSelectionManager {
+    pub fn new() -> Self {
+        PaxSelectionManager {}
+    }
+}
