@@ -1,4 +1,3 @@
-
 use include_dir::{include_dir, Dir};
 use pax_manifest::PaxManifest;
 const INITAL_MANIFEST: &str = include_str!("../initial_manifest.json");
@@ -8,8 +7,6 @@ pub fn initialize_designtime() -> pax_designtime::DesigntimeManager {
     // Add factories here
     _designtime
 }
-
-
 
 #[test]
 fn test_code_deserialization_code_gen() {

@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use crate::orm::PaxManifestORM;
 use crate::selection::PaxSelectionManager;
-use pax_core::ComponentInstance;
 use crate::undo::PaxUndoManager;
+use pax_core::ComponentInstance;
 
-pub mod orm;
+pub mod cartridge_generation;
 pub mod messages;
+pub mod orm;
 pub mod selection;
 pub mod undo;
-pub mod cartridge_generation;
 
 mod serde_pax;
 
@@ -25,7 +25,7 @@ pub struct DesigntimeManager {
     factories: HashMap<String, Box<fn(ComponentDefinition) -> ComponentInstance>>,
 }
 
-impl DesigntimeManager{
+impl DesigntimeManager {
     pub fn new(manifest: PaxManifest) -> Self {
         let orm = PaxManifestORM::new(manifest);
         let selection = PaxSelectionManager::new();
@@ -39,7 +39,11 @@ impl DesigntimeManager{
         }
     }
 
-    pub fn add_factory(&mut self, type_id: String, factory: Box<fn(ComponentDefinition) -> ComponentInstance>) {
+    pub fn add_factory(
+        &mut self,
+        type_id: String,
+        factory: Box<fn(ComponentDefinition) -> ComponentInstance>,
+    ) {
         self.factories.insert(type_id, factory);
     }
 
