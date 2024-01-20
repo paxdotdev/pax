@@ -7,7 +7,6 @@ use tera::{Context, Tera};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");
 
-
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenDesigntimeCartridge {}
 
