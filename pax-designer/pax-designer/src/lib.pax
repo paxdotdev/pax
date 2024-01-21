@@ -1,5 +1,5 @@
 <Controls />
-//<Glass />
+<Glass />
 <DesigntimeComponentViewer />
 
 @handlers {
