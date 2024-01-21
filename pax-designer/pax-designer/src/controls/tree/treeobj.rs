@@ -41,7 +41,6 @@ impl TreeObj {
     }
 
     pub fn clicked(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
-        *super::TREE_CLICK_SENDER.get().unwrap().lock().unwrap() =
-            Some(self.ind.get().clone().into());
+        *super::TREE_CLICK_SENDER.lock().unwrap() = Some(self.ind.get().clone().into());
     }
 }
