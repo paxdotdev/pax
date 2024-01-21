@@ -1,8 +1,7 @@
 use pax_lang::api::*;
 use pax_lang::*;
-use pax_std::primitives::Rectangle;
 use pax_std::primitives::Path;
-
+use pax_std::primitives::Rectangle;
 
 #[derive(Pax)]
 #[custom(Default)]
@@ -18,43 +17,21 @@ impl Default for Glass {
     fn default() -> Self {
         Self {
             show_selection_controls: Box::new(PropertyLiteral::new(true)),
-            control_points: Box::new((PropertyLiteral::new(vec![
-                ControlPoint {
-                    x: 300.0,
-                    y: 100.0,
-                },
-                ControlPoint {
-                    x: 350.0,
-                    y: 100.0,
-                },
-                ControlPoint {
-                    x: 400.0,
-                    y: 100.0,
-                },
-                ControlPoint {
-                    x: 300.0,
-                    y: 150.0,
-                },
-                //
-                // anchor point
-                //
-                ControlPoint {
-                    x: 400.0,
-                    y: 150.0,
-                },
-                ControlPoint {
-                    x: 300.0,
-                    y: 200.0,
-                },
-                ControlPoint {
-                    x: 350.0,
-                    y: 200.0,
-                },
-                ControlPoint {
-                    x: 400.0,
-                    y: 200.0,
-                },
-            ]))),
+            control_points: Box::new(
+                (PropertyLiteral::new(vec![
+                    ControlPoint { x: 300.0, y: 100.0 },
+                    ControlPoint { x: 350.0, y: 100.0 },
+                    ControlPoint { x: 400.0, y: 100.0 },
+                    ControlPoint { x: 300.0, y: 150.0 },
+                    //
+                    // anchor point
+                    //
+                    ControlPoint { x: 400.0, y: 150.0 },
+                    ControlPoint { x: 300.0, y: 200.0 },
+                    ControlPoint { x: 350.0, y: 200.0 },
+                    ControlPoint { x: 400.0, y: 200.0 },
+                ])),
+            ),
             selection_bounding_segments: Box::new(PropertyLiteral::new(vec![
                 BoundingSegment {
                     x0: 300.0,
@@ -79,14 +56,9 @@ impl Default for Glass {
                     y0: 200.0,
                     x1: 300.0,
                     y1: 100.0,
-                }
+                },
             ])),
-            anchor_point: Box::new(PropertyLiteral::new(
-                ControlPoint {
-                    x: 350.0,
-                    y: 150.0,
-                }
-            )),
+            anchor_point: Box::new(PropertyLiteral::new(ControlPoint { x: 350.0, y: 150.0 })),
         }
     }
 }
