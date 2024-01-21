@@ -23,7 +23,7 @@ pub struct Tree {
     pub project_loaded: Property<bool>,
 }
 
-pub static TREE_CLICK_SENDER: OnceLock<Arc<Mutex<Option<usize>>>> = OnceLock::new();
+pub static TREE_CLICK_SENDER: Mutex<Option<usize>> = Mutex::new(None);
 
 struct TreeEntry(Desc, Vec<TreeEntry>);
 
@@ -122,7 +122,6 @@ pub struct FlattenedTreeEntry {
 
 impl Tree {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let _ = TREE_CLICK_SENDER.set(Arc::new(Mutex::new(None)));
         self.header_text
             .set("Tree View: No loaded project".to_owned());
     }
@@ -195,7 +194,7 @@ impl Tree {
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        let mut channel = TREE_CLICK_SENDER.get().unwrap().lock().unwrap();
+        let mut channel = TREE_CLICK_SENDER.lock().unwrap();
         if let Some(sender) = channel.take() {
             let tree = &mut self.tree_objects.get_mut();
             tree[sender].collapsed = !tree[sender].collapsed;
