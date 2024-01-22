@@ -13,6 +13,7 @@ pub mod undo;
 mod serde_pax;
 
 use pax_manifest::{ComponentDefinition, PaxManifest};
+pub use pax_manifest;
 pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
