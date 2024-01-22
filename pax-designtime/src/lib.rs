@@ -6,7 +6,6 @@ use crate::undo::PaxUndoManager;
 use pax_core::ComponentInstance;
 
 pub mod cartridge_generation;
-pub mod messages;
 pub mod orm;
 pub mod selection;
 pub mod undo;
