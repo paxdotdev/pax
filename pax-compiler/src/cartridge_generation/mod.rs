@@ -20,7 +20,7 @@ use pax_manifest::{
 
 use crate::errors::source_map::SourceMap;
 use std::path::PathBuf;
-use toml_edit::{value, Item};
+use toml_edit::Item;
 
 use self::templating::{
     press_template_codegen_cartridge_component_factory,
