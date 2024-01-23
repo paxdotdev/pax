@@ -133,12 +133,7 @@ pub extern "C" fn pax_interrupt(
                 let ptr = ref_args.image_data as *const u8;
                 let slice = unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length) };
                 let owned_data: Vec<u8> = slice.to_vec();
-                engine.load_image(
-                    ref_args.id_chain,
-                    owned_data,
-                    ref_args.width,
-                    ref_args.height,
-                );
+                engine.load_image(&ref_args.path, owned_data, ref_args.width, ref_args.height);
             }
             ImageLoadInterruptArgs::Data(_) => {}
         },

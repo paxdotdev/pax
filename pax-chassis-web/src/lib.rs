@@ -166,7 +166,7 @@ impl PaxChassisWeb {
                 ImageLoadInterruptArgs::Reference(_ref_args) => {}
                 ImageLoadInterruptArgs::Data(data_args) => {
                     let data = Uint8Array::new(additional_payload).to_vec();
-                    engine.load_image(data_args.id_chain, data, data_args.width, data_args.height);
+                    engine.load_image(&data_args.path, data, data_args.width, data_args.height);
                 }
             },
             NativeInterrupt::FormButtonClick(args) => {
