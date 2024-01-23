@@ -21,7 +21,7 @@ pub struct RuntimeContext {
     messages: Vec<NativeMessage>,
     globals: Globals,
     expression_table: ExpressionTable,
-    pub image_map: HashMap<Vec<u32>, ImageBuf>,
+    pub image_map: HashMap<String, ImageBuf>,
     pub lookup: HashMap<u32, Rc<ExpandedNode>>,
 }
 

@@ -564,6 +564,7 @@ export class NativeElementPool {
             "Image": {
                 "Data": {
                     "id_chain": patch.id_chain!,
+                    "path": patch.path!,
                     "width": image_data.width,
                     "height": image_data.height,
                 }

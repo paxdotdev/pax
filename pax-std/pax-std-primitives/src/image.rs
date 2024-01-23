@@ -93,8 +93,9 @@ impl InstanceNode for ImageInstance {
         let transformed_bounds =
             kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
 
-        let _properties = (*expanded_node.properties).borrow();
-        if let Some(image) = rtc.image_map.get(&expanded_node.id_chain) {
+        let val =
+            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
+        if let Some(image) = rtc.image_map.get(&val.string) {
             rc.draw_image(&image, transformed_bounds);
         }
     }

@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use pax_message::{NativeMessage, OcclusionPatch};
@@ -414,15 +415,9 @@ impl PaxEngine {
         self.runtime_context.globals_mut().viewport.bounds = new_viewport_size;
     }
 
-    pub fn load_image(
-        &mut self,
-        id_chain: Vec<u32>,
-        image_data: Vec<u8>,
-        width: usize,
-        height: usize,
-    ) {
+    pub fn load_image(&mut self, path: &str, image_data: Vec<u8>, width: usize, height: usize) {
         self.runtime_context.image_map.insert(
-            id_chain,
+            path.to_owned(),
             ImageBuf::from_raw(image_data, piet::ImageFormat::RgbaSeparate, width, height),
         );
     }
