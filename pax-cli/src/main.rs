@@ -18,7 +18,6 @@ use signal_hook::iterator::Signals;
 
 /// `pax-cli` entrypoint
 fn main() -> Result<(), Report> {
-
     HookBuilder::default()
         .display_location_section(false)
         .install()?;

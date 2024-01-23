@@ -233,7 +233,6 @@ impl ExpressionTable {
 /// Contains all rendering and runtime logic.
 ///
 impl PaxEngine {
-
     #[cfg(not(feature = "designtime"))]
     pub fn new(
         main_component_instance: Rc<ComponentInstance>,
@@ -291,7 +290,6 @@ impl PaxEngine {
             z_index_node_cache: Vec::new(),
         }
     }
-
 
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
     // - expanded_node instantiated from instance_node.

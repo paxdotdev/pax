@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
 
-
 use pax_manifest::{
     escape_identifier, ComponentDefinition, ExpressionSpec, HandlersBlockElement,
     LiteralBlockDefinition, MappedString, PaxManifest, SettingElement, TemplateNodeDefinition,
@@ -21,7 +20,7 @@ use pax_manifest::{
 
 use crate::errors::source_map::SourceMap;
 use std::path::PathBuf;
-use toml_edit::{Item, value};
+use toml_edit::{value, Item};
 
 use self::templating::{
     press_template_codegen_cartridge_component_factory,
@@ -33,14 +32,11 @@ pub mod templating;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::cartridge_generation::{
-    press_template_codegen_designtime_cartridge,
-    TemplateArgsCodegenDesigntimeCartridge
+    press_template_codegen_designtime_cartridge, TemplateArgsCodegenDesigntimeCartridge,
 };
 #[cfg(feature = "designtime")]
 fn press_designtime_template() -> String {
-    press_template_codegen_designtime_cartridge(
-        TemplateArgsCodegenDesigntimeCartridge {},
-    )
+    press_template_codegen_designtime_cartridge(TemplateArgsCodegenDesigntimeCartridge {})
 }
 
 pub fn generate_and_overwrite_cartridge(
@@ -50,7 +46,7 @@ pub fn generate_and_overwrite_cartridge(
     source_map: &mut SourceMap,
 ) -> PathBuf {
     let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-cartridge");
-    
+
     let mut generated_lib_rs;
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
@@ -58,8 +54,12 @@ pub fn generate_and_overwrite_cartridge(
         toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
             .unwrap();
 
-    #[cfg(feature = "designtime")] {
-        if let Some(features) = target_cargo_toml_contents.as_table_mut().get_mut("features") {
+    #[cfg(feature = "designtime")]
+    {
+        if let Some(features) = target_cargo_toml_contents
+            .as_table_mut()
+            .get_mut("features")
+        {
             if let Some(designtime) = features["designtime"].as_array_mut() {
                 let new_dependency = "pax-designer/designtime";
                 designtime.push(new_dependency);
@@ -125,7 +125,8 @@ pub fn generate_and_overwrite_cartridge(
         },
     );
 
-    #[cfg(feature = "designtime")] {
+    #[cfg(feature = "designtime")]
+    {
         let path = target_dir.join("initial_manifest.json");
         fs::write(path.clone(), serde_json::to_string(manifest).unwrap()).unwrap();
         generated_lib_rs += &press_designtime_template();

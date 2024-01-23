@@ -251,7 +251,6 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-
     if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");
     }

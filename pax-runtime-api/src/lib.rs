@@ -104,7 +104,7 @@ pub struct NodeContext {
     pub bounds_parent: (f64, f64),
     /// The bounds of this element in px
     pub bounds_self: (f64, f64),
-    
+
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
