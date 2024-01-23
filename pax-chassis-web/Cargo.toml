@@ -22,7 +22,7 @@ pax-core = { path = "../pax-core", version="0.10.10" }
 pax-cartridge = {path="../pax-cartridge", version="0.10.10"}
 pax-runtime-api = {path = "../pax-runtime-api", version="0.10.10"}
 pax-message = {path = "../pax-message", version="0.10.10"}
-pax-designtime = { git = "ssh://git@github.com/paxcorp/paxcorp.git", branch = "wj/debug-dep", optional=true}
+pax-designtime = { git = "ssh://git@github.com/paxcorp/paxcorp.git", branch = "master", optional=true}
 
 wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 serde = "1.0.159"
