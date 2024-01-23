@@ -11,6 +11,7 @@ default = ["serde", "serde_json"]
 
 [dependencies]
 pax-manifest = {version = "0.10.10", path="../pax/pax-manifest"}
+# pax-core = {version = "0.10.10", path="../pax/pax-core"}
 serde_derive = "1.0.159"
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_json = { version = "1.0.95", optional = true } 
@@ -21,3 +22,7 @@ pest_derive = "2.7.6"
 include_dir = {version = "0.7.3", features = ["glob"]}
 tera = "1"
 toml_edit = "0.21.0"
+ewebsock = "0.4.0"
+anyhow = "1.0.79"
+log = "0.4.20"
+env_logger = "0.11.0"
