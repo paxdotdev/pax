@@ -26,6 +26,9 @@ use pax_runtime_api::{
 };
 use serde_json;
 
+#[cfg(feature = "designtime")]
+use pax_designtime::DesigntimeManager;
+
 // Console.log support, piped from `pax_lang::log`
 #[wasm_bindgen]
 extern "C" {
@@ -62,6 +65,8 @@ pub fn wasm_memory() -> JsValue {
 pub struct PaxChassisWeb {
     engine: Rc<RefCell<PaxEngine>>,
     drawing_contexts: HashMap<String, Box<dyn RenderContext>>,
+    #[cfg(feature = "designtime")]
+    designtime: Rc<RefCell<DesigntimeManager>>,
 }
 
 #[wasm_bindgen]
@@ -79,18 +84,36 @@ impl PaxChassisWeb {
             table: pax_cartridge::instantiate_expression_table(),
         };
 
-        let engine = pax_core::PaxEngine::new(
-            main_component_instance,
-            expression_table,
-            pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
-            (width, height),
-        );
+        #[cfg(feature = "designtime")] {
+            let designtime = Rc::new(RefCell::new(pax_cartridge::instantiate_designtime_manager()));
+            let engine = pax_core::PaxEngine::new_with_designtime(
+                main_component_instance,
+                expression_table,
+                pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
+                (width, height),
+                designtime.clone()
+            );
+            let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
+            Self {
+                engine: engine_container,
+                drawing_contexts: HashMap::new(),
+                designtime,
+            }
+        } 
+        #[cfg(not(feature = "designtime"))] {
+            let engine = pax_core::PaxEngine::new(
+                main_component_instance,
+                expression_table,
+                pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
+                (width, height),
+            );
 
-        let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
+            let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
-        Self {
-            engine: engine_container,
-            drawing_contexts: HashMap::new(),
+            Self {
+                engine: engine_container,
+                drawing_contexts: HashMap::new(),
+            }
         }
     }
 

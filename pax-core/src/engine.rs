@@ -29,9 +29,14 @@ use crate::{
 mod expanded_node;
 pub use expanded_node::ExpandedNode;
 
+#[cfg(feature = "designtime")]
+use pax_designtime::DesigntimeManager;
+
 pub struct Globals {
     pub frames_elapsed: usize,
     pub viewport: TransformAndBounds,
+    #[cfg(feature = "designtime")]
+    pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
 
 /// Singleton struct storing everything related to properties computation & rendering
@@ -228,6 +233,8 @@ impl ExpressionTable {
 /// Contains all rendering and runtime logic.
 ///
 impl PaxEngine {
+
+    #[cfg(not(feature = "designtime"))]
     pub fn new(
         main_component_instance: Rc<ComponentInstance>,
         expression_table: ExpressionTable,
@@ -254,6 +261,37 @@ impl PaxEngine {
             z_index_node_cache: Vec::new(),
         }
     }
+
+    #[cfg(feature = "designtime")]
+    pub fn new_with_designtime(
+        main_component_instance: Rc<ComponentInstance>,
+        expression_table: ExpressionTable,
+        logger: pax_runtime_api::PlatformSpecificLogger,
+        viewport_size: (f64, f64),
+        designtime: Rc<RefCell<DesigntimeManager>>,
+    ) -> Self {
+        pax_runtime_api::register_logger(logger);
+
+        let globals = Globals {
+            frames_elapsed: 0,
+            viewport: TransformAndBounds {
+                transform: Affine::default(),
+                bounds: viewport_size,
+            },
+            designtime: designtime.clone(),
+        };
+
+        let mut runtime_context = RuntimeContext::new(expression_table, globals);
+
+        let root_node = ExpandedNode::root(main_component_instance, &mut runtime_context);
+
+        PaxEngine {
+            runtime_context,
+            root_node,
+            z_index_node_cache: Vec::new(),
+        }
+    }
+
 
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
     // - expanded_node instantiated from instance_node.

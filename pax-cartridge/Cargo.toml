@@ -8,9 +8,14 @@ homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Static program definition container for Pax programs, intended to be patched during compilation"
 
+[features]
+designtime = ["serde_json", "include_dir", "pax-designtime"]
+
 [dependencies]
 piet-common = "0.6.0"
 pax-core = {path = "../pax-core", version = "0.10.10"}
 pax-runtime-api = {path = "../pax-runtime-api", version = "0.10.10"}
 pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.10.10"}
-
+pax-designtime = { git = "ssh://git@github.com/paxcorp/paxcorp.git", branch = "wj/debug-dep", optional=true}
+serde_json = { version = "1.0.95", optional=true}
+include_dir = {version = "0.7.3", features = ["glob"], optional=true}
