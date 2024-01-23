@@ -12,14 +12,12 @@ pub mod undo;
 
 mod serde_pax;
 
-use pax_manifest::{ComponentDefinition, PaxManifest};
+use core::fmt::Debug;
 pub use pax_manifest;
+use pax_manifest::{ComponentDefinition, PaxManifest};
 pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
-use core::fmt::Debug;
-
-
 
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
@@ -29,7 +27,7 @@ pub struct DesigntimeManager {
 }
 
 #[cfg(debug_assertions)]
-impl Debug for DesigntimeManager{
+impl Debug for DesigntimeManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DesigntimeManager").finish()
     }
