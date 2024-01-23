@@ -46,6 +46,12 @@ impl InstanceNode for ImageInstance {
     }
 
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, rtc: &mut RuntimeContext) {
+        let val =
+            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
+        if rtc.image_map.contains_key(&val.string) {
+            return;
+        }
+
         let mut new_message: ImagePatch = Default::default();
         new_message.id_chain = expanded_node.id_chain.clone();
         let mut last_patches = self.last_patches.borrow_mut();
@@ -57,8 +63,6 @@ impl InstanceNode for ImageInstance {
         let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let val =
-            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
         let is_new_value = match &last_patch.path {
             Some(cached_value) => !val.string.eq(cached_value),
             None => true,
