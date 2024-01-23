@@ -5,7 +5,7 @@ use serde_json;
 
 
 const INITAL_MANIFEST: &str = include_str!("../initial_manifest.json");
-pub fn initialize_designtime() -> pax_designtime::DesigntimeManager {
+pub fn instantiate_designtime_manager() -> pax_designtime::DesigntimeManager {
     let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).unwrap();
     let mut _designtime = pax_designtime::DesigntimeManager::new(manifest);
     // Add factories here
