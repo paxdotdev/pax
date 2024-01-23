@@ -65,4 +65,4 @@ cargo_metadata = "0.18.1"
 color-eyre = "0.6.2"
 syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
-pax-designtime = { path="../../pax-designtime", optional=true }
+pax-designtime = { git = "ssh://git@github.com/paxcorp/paxcorp.git", branch = "master", optional=true}
