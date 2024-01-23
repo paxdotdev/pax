@@ -10,6 +10,9 @@ description = "Command line interface tool for developing, packaging, and managi
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+designtime = ["pax-compiler/designtime"]
+
 [dependencies]
 clap = "2.33.3"
 pax-compiler = {path = "../pax-compiler", version = "0.10.10"}

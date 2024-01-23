@@ -20,6 +20,7 @@ default = ["console_error_panic_hook", "cbor", "json", "messagepack"]
 json = ["serde", "serde_json"]
 messagepack = ["serde"]
 cbor = ["serde"]
+designtime = ["pax-designtime"]
 
 [lib]
 
@@ -64,3 +65,4 @@ cargo_metadata = "0.18.1"
 color-eyre = "0.6.2"
 syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
+pax-designtime = { path="../../pax-designtime", optional=true }
