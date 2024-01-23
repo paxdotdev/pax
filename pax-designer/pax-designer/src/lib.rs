@@ -20,6 +20,7 @@ pub struct PaxDesigner {
 
 impl PaxDesigner {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
+        let orm = _ctx.designtime.borrow().get_orm();
         //self.state = load_previous_state_if_relevant();
     }
 }
