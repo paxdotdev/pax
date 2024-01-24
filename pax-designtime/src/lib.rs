@@ -23,6 +23,9 @@ use priveleged_agent::PrivilegedAgentConnection;
 pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
+
+pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
+
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     _selection: PaxSelectionManager,
