@@ -26,10 +26,13 @@ pub struct TreeObj {
 
 impl TreeObj {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        self.pre_render(ctx);
+        self.arrow_path
+            .set("assets/icons/tree/collapse_arrow.png".to_owned());
+        self.leaf.set(true);
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        self.not_leaf.set(!self.leaf.get());
         self.arrow_path.set(
             match *self.collapsed.get() {
                 true => "assets/icons/tree/collapse_arrow_collapsed.png",
@@ -37,7 +40,6 @@ impl TreeObj {
             }
             .into(),
         );
-        self.not_leaf.set(!self.leaf.get());
     }
 
     pub fn clicked(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
