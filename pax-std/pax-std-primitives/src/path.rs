@@ -48,8 +48,10 @@ impl InstanceNode for PathInstance {
         &self,
         expanded_node: &ExpandedNode,
         _rtc: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        rc: &mut dyn RenderContext,
     ) {
+        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let mut bez_path = BezPath::new();
 
@@ -77,8 +79,9 @@ impl InstanceNode for PathInstance {
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = properties.fill.get().to_piet_color();
-            rc.fill(transformed_bez_path, &color.into());
+            rc.fill(&layer_id, transformed_bez_path, &color.into());
             rc.stroke(
+                &layer_id,
                 duplicate_transformed_bez_path,
                 &properties.stroke.get().color.get().to_piet_color().into(),
                 properties.stroke.get().width.get().into(),

@@ -35,7 +35,7 @@ impl InstanceNode for EllipseInstance {
         &self,
         expanded_node: &ExpandedNode,
         _context: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        rc: &mut dyn RenderContext,
     ) {
         let computed_props = expanded_node.layout_properties.borrow();
         let tab = &computed_props.as_ref().unwrap().computed_tab;
@@ -57,12 +57,14 @@ impl InstanceNode for EllipseInstance {
                 unimplemented!("gradients not supported on ellipse")
             };
 
-            rc.fill(transformed_bez_path, &color.into());
+            let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+            rc.fill(&layer_id, transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = *&properties.stroke.get().width.get().into();
             if width > f64::EPSILON {
                 rc.stroke(
+                    &layer_id,
                     duplicate_transformed_bez_path,
                     &properties.stroke.get().color.get().to_piet_color().into(),
                     width,

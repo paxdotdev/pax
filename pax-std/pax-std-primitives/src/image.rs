@@ -48,10 +48,6 @@ impl InstanceNode for ImageInstance {
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, rtc: &mut RuntimeContext) {
         let val =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
-        if rtc.image_map.contains_key(&val.string) {
-            return;
-        }
-
         let mut new_message: ImagePatch = Default::default();
         new_message.id_chain = expanded_node.id_chain.clone();
         let mut last_patches = self.last_patches.borrow_mut();
@@ -82,7 +78,7 @@ impl InstanceNode for ImageInstance {
         &self,
         expanded_node: &ExpandedNode,
         rtc: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        rc: &mut dyn RenderContext,
     ) {
         let comp_props = &expanded_node.layout_properties.borrow();
         let comp_props = comp_props.as_ref().unwrap();
@@ -99,9 +95,8 @@ impl InstanceNode for ImageInstance {
 
         let val =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
-        if let Some(image) = rtc.image_map.get(&val.string) {
-            rc.draw_image(&image, transformed_bounds);
-        }
+        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+        rc.draw_image(&layer_id, &val.string, transformed_bounds);
     }
 
     fn base(&self) -> &BaseInstance {

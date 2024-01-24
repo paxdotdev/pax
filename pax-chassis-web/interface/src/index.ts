@@ -107,8 +107,11 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
         setupEventListeners(chassis, mount);
         initializedChassis = true;
     }
+
+    nativePool.baseOcclusionContext.hideNativeLayers();
     //@ts-ignore
     processMessages(messages, chassis, objectManager);
+    nativePool.baseOcclusionContext.showNativeLayers();
 
     //draw canvas elements
     chassis.render();
