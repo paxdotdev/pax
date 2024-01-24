@@ -30,6 +30,15 @@ use self::templating::{
 
 pub mod templating;
 
+#[cfg(feature = "designtime")]
+use pax_designtime::cartridge_generation::{
+    press_template_codegen_designtime_cartridge, TemplateArgsCodegenDesigntimeCartridge,
+};
+#[cfg(feature = "designtime")]
+fn press_designtime_template() -> String {
+    press_template_codegen_designtime_cartridge(TemplateArgsCodegenDesigntimeCartridge {})
+}
+
 pub fn generate_and_overwrite_cartridge(
     pax_dir: &PathBuf,
     manifest: &PaxManifest,
@@ -38,10 +47,25 @@ pub fn generate_and_overwrite_cartridge(
 ) -> PathBuf {
     let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-cartridge");
 
+    let mut generated_lib_rs;
+
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents =
         toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
             .unwrap();
+
+    #[cfg(feature = "designtime")]
+    {
+        if let Some(features) = target_cargo_toml_contents
+            .as_table_mut()
+            .get_mut("features")
+        {
+            if let Some(designtime) = features["designtime"].as_array_mut() {
+                let new_dependency = "pax-designer/designtime";
+                designtime.push(new_dependency);
+            }
+        }
+    }
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
@@ -72,7 +96,6 @@ pub fn generate_and_overwrite_cartridge(
     );
 
     let consts = vec![]; //TODO!
-
     let mut expression_specs: Vec<ExpressionSpec> = manifest
         .expression_specs
         .as_ref()
@@ -93,7 +116,7 @@ pub fn generate_and_overwrite_cartridge(
         .collect();
 
     //press template into String
-    let generated_lib_rs = templating::press_template_codegen_cartridge_lib(
+    generated_lib_rs = templating::press_template_codegen_cartridge_lib(
         templating::TemplateArgsCodegenCartridgeLib {
             imports,
             consts,
@@ -101,6 +124,13 @@ pub fn generate_and_overwrite_cartridge(
             component_factories_literal,
         },
     );
+
+    #[cfg(feature = "designtime")]
+    {
+        let path = target_dir.join("initial_manifest.json");
+        fs::write(path.clone(), serde_json::to_string(manifest).unwrap()).unwrap();
+        generated_lib_rs += &press_designtime_template();
+    }
 
     // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
     let path = target_dir.join("src/lib.rs");
