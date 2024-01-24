@@ -376,7 +376,7 @@ var Pax = (() => {
     }
   };
 
-  // ../node_modules/snarkdown/dist/snarkdown.es.js
+  // node_modules/snarkdown/dist/snarkdown.es.js
   var e = { "": ["<em>", "</em>"], _: ["<strong>", "</strong>"], "*": ["<strong>", "</strong>"], "~": ["<s>", "</s>"], "\n": ["<br />"], " ": ["<br />"], "-": ["<hr />"] };
   function n(e2) {
     return e2.replace(RegExp("^" + (e2.match(/^(\t| )+/) || "")[0], "gm"), "");
@@ -1006,6 +1006,9 @@ var Pax = (() => {
       }
     }
     async imageLoad(patch, chassis) {
+      if (chassis.image_loaded(patch.path)) {
+        return;
+      }
       function getScriptBasePath(scriptName) {
         const scripts = document.getElementsByTagName("script");
         for (let i = 0; i < scripts.length; i++) {
@@ -1023,6 +1026,7 @@ var Pax = (() => {
         "Image": {
           "Data": {
             "id_chain": patch.id_chain,
+            "path": patch.path,
             "width": image_data.width,
             "height": image_data.height
           }
