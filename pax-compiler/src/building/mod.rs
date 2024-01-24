@@ -27,6 +27,9 @@ use self::{apple::build_apple_chassis_with_cartridge, web::build_web_chassis_wit
 pub mod apple;
 pub mod web;
 
+#[cfg(feature = "designtime")]
+use pax_designtime;
+
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
@@ -113,6 +116,25 @@ pub fn update_property_prefixes_in_place(
 /// This assumes that you are in the examples/src directory in the monorepo
 pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
     let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
+
+    #[cfg(feature = "designtime")]
+    {
+        if ctx.is_libdev_mode {
+            let pax_corp_root = if let Ok(specified_override) = std::env::var("PAX_CORP_ROOT") {
+                PathBuf::from(&specified_override)
+            } else {
+                unreachable!("PAX_CORP_ROOT must be set in libdev design mode")
+            };
+            let src = pax_corp_root.join("pax-designtime");
+            let dest = dest_pkg_root.join("pax-designtime");
+
+            copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
+                .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
+
+            pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
+        }
+    }
+
     for pkg in ALL_PKGS {
         if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
@@ -138,6 +160,11 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
 
             copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
                 .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
+
+            #[cfg(feature = "designtime")]
+            {
+                pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, pkg);
+            }
         } else {
             let dest = dest_pkg_root.join(pkg);
             if !dest.exists() {

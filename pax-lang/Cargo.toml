@@ -18,5 +18,4 @@ pax-compiler = {path="../pax-compiler", optional=true, version="0.10.10"}
 
 [features]
 parser = ["dep:pax-compiler"]
-designtime = ["pax-runtime-api/designtime"]
 
