@@ -1,6 +1,5 @@
 use pax_message::NativeMessage;
 use pax_runtime_api::Numeric;
-use piet::ImageBuf;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::{any::Any, collections::HashMap};
@@ -21,7 +20,6 @@ pub struct RuntimeContext {
     messages: Vec<NativeMessage>,
     globals: Globals,
     expression_table: ExpressionTable,
-    pub image_map: HashMap<String, ImageBuf>,
     pub lookup: HashMap<u32, Rc<ExpandedNode>>,
 }
 
@@ -32,7 +30,6 @@ impl RuntimeContext {
             messages: Vec::new(),
             globals,
             expression_table,
-            image_map: HashMap::default(),
             lookup: HashMap::default(),
         }
     }

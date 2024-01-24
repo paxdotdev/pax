@@ -71,6 +71,7 @@ export class NativeElementPool {
         });
     }
 
+
     sendScrollerValues(){
         this.scrollers.forEach((scroller, id) => {
             // @ts-ignore
@@ -543,6 +544,9 @@ export class NativeElementPool {
 
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
+        if (chassis.image_loaded(patch.path)) {
+            return
+        }
         //Check the full path of our index.js; use the prefix of this path also for our image assets
         function getScriptBasePath(scriptName: string) {
             const scripts = document.getElementsByTagName('script');

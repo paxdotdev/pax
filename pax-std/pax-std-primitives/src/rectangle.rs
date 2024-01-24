@@ -66,10 +66,12 @@ impl InstanceNode for RectangleInstance {
         &self,
         expanded_node: &ExpandedNode,
         _rtc: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        rc: &mut dyn RenderContext,
     ) {
         let computed_props = expanded_node.layout_properties.borrow();
         let tab = &computed_props.as_ref().unwrap().computed_tab;
+
+        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
 
         let width: f64 = tab.bounds.0;
         let height: f64 = tab.bounds.1;
@@ -83,7 +85,11 @@ impl InstanceNode for RectangleInstance {
 
             match properties.fill.get() {
                 Fill::Solid(color) => {
-                    rc.fill(transformed_bez_path, &color.to_piet_color().into());
+                    rc.fill(
+                        &layer_id,
+                        transformed_bez_path,
+                        &color.to_piet_color().into(),
+                    );
                 }
                 Fill::LinearGradient(linear) => {
                     let linear_gradient = LinearGradient::new(
@@ -91,7 +97,7 @@ impl InstanceNode for RectangleInstance {
                         Fill::to_unit_point(linear.end, (width, height)),
                         Fill::to_piet_gradient_stops(linear.stops.clone()),
                     );
-                    rc.fill(transformed_bez_path, &linear_gradient.into())
+                    rc.fill(&layer_id, transformed_bez_path, &linear_gradient.into())
                 }
                 Fill::RadialGradient(radial) => {
                     let origin = Fill::to_unit_point(radial.start, (width, height));
@@ -100,7 +106,7 @@ impl InstanceNode for RectangleInstance {
                     let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
                         .with_center(center)
                         .with_origin(origin);
-                    rc.fill(transformed_bez_path, &radial_gradient.into());
+                    rc.fill(&layer_id, transformed_bez_path, &radial_gradient.into());
                 }
             }
 
@@ -108,6 +114,7 @@ impl InstanceNode for RectangleInstance {
             let width: f64 = *&properties.stroke.get().width.get().into();
             if width > f64::EPSILON {
                 rc.stroke(
+                    &layer_id,
                     duplicate_transformed_bez_path,
                     &properties.stroke.get().color.get().to_piet_color().into(),
                     width,
