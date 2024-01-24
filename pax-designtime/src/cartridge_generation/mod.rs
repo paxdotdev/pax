@@ -1,5 +1,3 @@
-
-
 use include_dir::{include_dir, Dir};
 #[allow(unused_imports)]
 use serde_derive::{Deserialize, Serialize};
