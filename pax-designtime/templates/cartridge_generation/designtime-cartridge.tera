@@ -13,7 +13,19 @@ pub fn instantiate_designtime_manager() -> pax_designtime::DesigntimeManager {
 }
 
 
+pub fn build_component(manifest: PaxManifest, type_id: String) -> Rc<RefCell<ComponentInstance>> {
+    
+
+}
 
 
+pub fn build_{{snake_case_type_id}}_handler_registry() -> HandlerRegistry {
 
+
+}
+
+pub fn build_{{snake_case_type_id}}_compute_properties_fn() ->  Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>> {
+
+
+}
 
