@@ -21,7 +21,7 @@ pub struct FileChangedNotification {}
 /// This is sent from `pax-designtime` to `pax-privileged-agent`.
 #[derive(Serialize, Deserialize)]
 pub struct ManifestSerializationRequest {
-    pub manifest: PaxManifest,
+    pub manifest: Vec<u8>,
 }
 
 /// A response acknowledging the receipt of a manifest serialization request.
