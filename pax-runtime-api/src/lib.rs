@@ -16,6 +16,15 @@ use mut_static::MutStatic;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use piet::{ImageBuf, PaintBrush};
 
+#[cfg(feature = "designtime")]
+use pax_designtime::DesigntimeManager;
+
+#[cfg(feature = "designtime")]
+use std::rc::Rc;
+
+#[cfg(feature = "designtime")]
+use std::cell::RefCell;
+
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
     pub duration_frames: u64,
@@ -95,6 +104,9 @@ pub struct NodeContext {
     pub bounds_parent: (f64, f64),
     /// The bounds of this element in px
     pub bounds_self: (f64, f64),
+
+    #[cfg(feature = "designtime")]
+    pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
 
 // Unified events

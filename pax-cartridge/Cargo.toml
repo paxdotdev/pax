@@ -13,4 +13,3 @@ piet-common = "0.6.0"
 pax-core = {path = "../pax-core", version = "0.10.10"}
 pax-runtime-api = {path = "../pax-runtime-api", version = "0.10.10"}
 pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.10.10"}
-

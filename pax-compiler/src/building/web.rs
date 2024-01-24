@@ -21,6 +21,8 @@ use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
+const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
+
 pub fn build_web_chassis_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -67,6 +69,10 @@ pub fn build_web_chassis_with_cartridge(
         cmd.arg("--release");
     }
 
+    if IS_DESIGN_TIME_BUILD {
+        cmd.arg("--features").arg("designtime");
+    }
+
     #[cfg(unix)]
     unsafe {
         cmd.pre_exec(pre_exec_hook);
@@ -86,6 +92,7 @@ pub fn build_web_chassis_with_cartridge(
         }
     }
 
+    // wasm-pack build
     let mut cmd = Command::new("wasm-pack");
     cmd.current_dir(&chassis_path)
         .arg("build")
@@ -110,6 +117,10 @@ pub fn build_web_chassis_with_cartridge(
     } else {
         cmd.arg("--dev");
     }
+    if IS_DESIGN_TIME_BUILD {
+        cmd.arg("--features").arg("designtime");
+    }
+
     #[cfg(unix)]
     unsafe {
         cmd.pre_exec(pre_exec_hook);

@@ -108,6 +108,8 @@ macro_rules! dispatch_event_handler {
                     bounds_self,
                     bounds_parent,
                     frames_elapsed: globals.frames_elapsed,
+                    #[cfg(feature = "designtime")]
+                    designtime: globals.designtime.clone(),
                 };
                 handlers.iter().for_each(|handler| {
                     handler(Rc::clone(&component_properties), &context, args.clone());
@@ -348,6 +350,8 @@ impl ExpandedNode {
             frames_elapsed: globals.frames_elapsed,
             bounds_self,
             bounds_parent,
+            #[cfg(feature = "designtime")]
+            designtime: globals.designtime.clone(),
         }
     }
 
