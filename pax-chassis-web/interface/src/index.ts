@@ -107,6 +107,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
         setupEventListeners(chassis, mount);
         initializedChassis = true;
     }
+
     //@ts-ignore
     processMessages(messages, chassis, objectManager);
 

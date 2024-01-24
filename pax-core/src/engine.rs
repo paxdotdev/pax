@@ -12,7 +12,7 @@ use pax_runtime_api::{
     ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, NodeContext,
     OcclusionLayerGen, RenderContext, TransitionManager,
 };
-use piet::{ImageBuf, InterpolationMode};
+use piet::InterpolationMode;
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
@@ -132,39 +132,87 @@ impl Default for HandlerRegistry {
     }
 }
 
-pub struct Renderer<R> {
-    pub backend: R,
+pub struct Renderer<R: piet::RenderContext> {
+    pub backends: HashMap<String, R>,
+    pub image_map: HashMap<String, R::Image>,
+}
+
+impl<R: piet::RenderContext> Renderer<R> {
+    pub fn new() -> Self {
+        Self {
+            backends: HashMap::new(),
+            image_map: HashMap::new(),
+        }
+    }
+
+    pub fn add_context(&mut self, id: &str, context: R) {
+        self.backends.insert(id.to_owned(), context);
+    }
+
+    pub fn remove_context(&mut self, id: &str) {
+        self.backends.remove(id);
+    }
+
+    pub fn image_loaded(&self, path: &str) -> bool {
+        self.image_map.contains_key(path)
+    }
 }
 
 impl<R: piet::RenderContext> pax_runtime_api::RenderContext for Renderer<R> {
-    fn fill(&mut self, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
-        self.backend.fill(path, brush);
+    fn fill(&mut self, layer: &str, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
+        self.backends.get_mut(layer).unwrap().fill(path, brush);
     }
 
-    fn stroke(&mut self, path: kurbo::BezPath, brush: &piet_common::PaintBrush, width: f64) {
-        self.backend.stroke(path, brush, width);
+    fn stroke(
+        &mut self,
+        layer: &str,
+        path: kurbo::BezPath,
+        brush: &piet_common::PaintBrush,
+        width: f64,
+    ) {
+        self.backends
+            .get_mut(layer)
+            .unwrap()
+            .stroke(path, brush, width);
     }
 
-    fn save(&mut self) {
-        self.backend.save().expect("failed to save piet state");
+    fn save(&mut self, layer: &str) {
+        self.backends
+            .get_mut(layer)
+            .unwrap()
+            .save()
+            .expect("failed to save piet state");
     }
 
-    fn clip(&mut self, path: kurbo::BezPath) {
-        self.backend.clip(path);
+    fn clip(&mut self, layer: &str, path: kurbo::BezPath) {
+        self.backends.get_mut(layer).unwrap().clip(path);
     }
 
-    fn restore(&mut self) {
-        self.backend
+    fn restore(&mut self, layer: &str) {
+        self.backends
+            .get_mut(layer)
+            .unwrap()
             .restore()
             .expect("failed to restore piet state");
     }
 
-    fn draw_image(&mut self, image: &piet::ImageBuf, rect: kurbo::Rect) {
-        // Is this expensive to do each draw? if so maybe move the image
-        // resource lookup into this rendercontext
-        let img = &image.to_image(&mut self.backend);
-        self.backend
-            .draw_image(img, rect, InterpolationMode::Bilinear)
+    fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
+        //is this okay!? we know it's the same kind of backend no matter what layer, but it might be storing data?
+        let render_context = self.backends.values_mut().next().unwrap();
+        let img = render_context
+            .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
+            .expect("image creation successful");
+        self.image_map.insert(path.to_owned(), img);
+    }
+
+    fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect) {
+        let Some(img) = self.image_map.get(image_path) else {
+            return;
+        };
+        self.backends
+            .get_mut(layer)
+            .unwrap()
+            .draw_image(img, rect, InterpolationMode::Bilinear);
     }
 }
 
@@ -345,7 +393,7 @@ impl PaxEngine {
         self.runtime_context.take_native_messages()
     }
 
-    pub fn render(&mut self, rcs: &mut HashMap<String, Box<dyn RenderContext>>) {
+    pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
 
@@ -412,18 +460,5 @@ impl PaxEngine {
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.runtime_context.globals_mut().viewport.bounds = new_viewport_size;
-    }
-
-    pub fn load_image(
-        &mut self,
-        id_chain: Vec<u32>,
-        image_data: Vec<u8>,
-        width: usize,
-        height: usize,
-    ) {
-        self.runtime_context.image_map.insert(
-            id_chain,
-            ImageBuf::from_raw(image_data, piet::ImageFormat::RgbaSeparate, width, height),
-        );
     }
 }

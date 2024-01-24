@@ -258,6 +258,7 @@ pub enum ImageLoadInterruptArgs {
 #[repr(C)]
 pub struct ImagePointerArgs {
     pub id_chain: Vec<u32>,
+    pub path: String,
     pub image_data: u64,
     pub image_data_length: usize,
     pub width: usize,
@@ -268,6 +269,7 @@ pub struct ImagePointerArgs {
 #[repr(C)]
 pub struct ImageDataArgs {
     pub id_chain: Vec<u32>,
+    pub path: String,
     pub width: usize,
     pub height: usize,
 }

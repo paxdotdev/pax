@@ -46,6 +46,8 @@ impl InstanceNode for ImageInstance {
     }
 
     fn handle_native_patches(&self, expanded_node: &ExpandedNode, rtc: &mut RuntimeContext) {
+        let val =
+            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
         let mut new_message: ImagePatch = Default::default();
         new_message.id_chain = expanded_node.id_chain.clone();
         let mut last_patches = self.last_patches.borrow_mut();
@@ -57,8 +59,6 @@ impl InstanceNode for ImageInstance {
         let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let val =
-            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
         let is_new_value = match &last_patch.path {
             Some(cached_value) => !val.string.eq(cached_value),
             None => true,
@@ -78,7 +78,7 @@ impl InstanceNode for ImageInstance {
         &self,
         expanded_node: &ExpandedNode,
         rtc: &mut RuntimeContext,
-        rc: &mut Box<dyn RenderContext>,
+        rc: &mut dyn RenderContext,
     ) {
         let comp_props = &expanded_node.layout_properties.borrow();
         let comp_props = comp_props.as_ref().unwrap();
@@ -93,10 +93,10 @@ impl InstanceNode for ImageInstance {
         let transformed_bounds =
             kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
 
-        let _properties = (*expanded_node.properties).borrow();
-        if let Some(image) = rtc.image_map.get(&expanded_node.id_chain) {
-            rc.draw_image(&image, transformed_bounds);
-        }
+        let val =
+            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
+        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+        rc.draw_image(&layer_id, &val.string, transformed_bounds);
     }
 
     fn base(&self) -> &BaseInstance {

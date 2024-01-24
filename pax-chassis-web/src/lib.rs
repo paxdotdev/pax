@@ -63,8 +63,8 @@ pub fn wasm_memory() -> JsValue {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
+    drawing_contexts: Renderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
-    drawing_contexts: HashMap<String, Box<dyn RenderContext>>,
     #[cfg(feature = "designtime")]
     designtime: Rc<RefCell<DesigntimeManager>>,
 }
@@ -97,7 +97,7 @@ impl PaxChassisWeb {
             let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
             Self {
                 engine: engine_container,
-                drawing_contexts: HashMap::new(),
+                drawing_contexts: Renderer::new(),
                 designtime,
             }
         }
@@ -114,7 +114,7 @@ impl PaxChassisWeb {
 
             Self {
                 engine: engine_container,
-                drawing_contexts: HashMap::new(),
+                drawing_contexts: Renderer::new(),
             }
         }
     }
@@ -142,18 +142,15 @@ impl PaxChassisWeb {
         canvas.set_height(height as u32);
         let _ = context.scale(dpr, dpr);
 
-        let render_context = Box::new(Renderer {
-            backend: WebRenderContext::new(context, window.clone()),
-        }) as Box<dyn RenderContext>;
-
-        self.drawing_contexts.insert(id, render_context);
+        let render_context = WebRenderContext::new(context, window.clone());
+        self.drawing_contexts.add_context(&id, render_context);
     }
 
     pub fn send_viewport_update(&mut self, width: f64, height: f64) {
         self.engine.borrow_mut().set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: String) {
-        self.drawing_contexts.remove(&id);
+        self.drawing_contexts.remove_context(&id);
     }
 
     pub fn interrupt(&mut self, native_interrupt: String, additional_payload: &JsValue) {
@@ -166,7 +163,12 @@ impl PaxChassisWeb {
                 ImageLoadInterruptArgs::Reference(_ref_args) => {}
                 ImageLoadInterruptArgs::Data(data_args) => {
                     let data = Uint8Array::new(additional_payload).to_vec();
-                    engine.load_image(data_args.id_chain, data, data_args.width, data_args.height);
+                    self.drawing_contexts.load_image(
+                        &data_args.path,
+                        &data,
+                        data_args.width,
+                        data_args.height,
+                    );
                 }
             },
             NativeInterrupt::FormButtonClick(args) => {
@@ -495,7 +497,13 @@ impl PaxChassisWeb {
     }
 
     pub fn render(&mut self) {
-        self.engine.borrow_mut().render(&mut self.drawing_contexts);
+        self.engine
+            .borrow_mut()
+            .render((&mut self.drawing_contexts) as &mut dyn RenderContext);
+    }
+
+    pub fn image_loaded(&mut self, path: &str) -> bool {
+        self.drawing_contexts.image_loaded(path)
     }
 }
 

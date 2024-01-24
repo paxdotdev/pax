@@ -285,18 +285,11 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_render(
-        &self,
-        context: &mut RuntimeContext,
-        rcs: &mut HashMap<String, Box<dyn RenderContext>>,
-    ) {
+    pub fn recurse_render(&self, context: &mut RuntimeContext, rcs: &mut dyn RenderContext) {
         for child in self.children.borrow().iter().rev() {
             child.recurse_render(context, rcs);
         }
-        let rc = &mut rcs
-            .get_mut(&self.occlusion_id.borrow().to_string())
-            .expect("occlusion ind present");
-        self.instance_node.render(&self, context, rc);
+        self.instance_node.render(&self, context, rcs);
     }
 
     /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
