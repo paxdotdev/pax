@@ -13,7 +13,6 @@ export class OcclusionContext {
     private scrollerId?: number[];
     private objectManager: ObjectManager;
     private chassis?: PaxChassisWeb;
-    private hidden_native_layers = false;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -27,33 +26,6 @@ export class OcclusionContext {
         this.chassis = chassis;
         this.canvasMap = canvasMap;
         this.growTo(0);
-    }
-
-    // Done to not trigger reflows on each native element update
-    hideNativeLayers() {
-        this.hidden_native_layers = true;
-        if (this.layers) {
-            for(let i = 0; i <= this.layers!.length; i++) {
-                if (this.layers[i]) {
-                    if (this.layers![i].native) {
-                        this.layers![i].native!.hidden = true;
-                    }
-                }
-            }
-        }
-    }
-
-    showNativeLayers() {
-        this.hidden_native_layers = false;
-        if (this.layers) {
-            for(let i = 0; i <= this.layers!.length; i++) {
-                if (this.layers[i]) {
-                    if (this.layers![i].native) {
-                        this.layers![i].native!.hidden = false;
-                    }
-                }
-            }
-        }
     }
 
     growTo(z_index: number) {
