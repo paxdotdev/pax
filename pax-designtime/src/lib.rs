@@ -1,9 +1,9 @@
+use std::any::Any;
 use std::collections::HashMap;
 
 use crate::orm::PaxManifestORM;
 use crate::selection::PaxSelectionManager;
 use crate::undo::PaxUndoManager;
-use pax_core::ComponentInstance;
 
 pub mod cartridge_generation;
 pub mod orm;
@@ -11,6 +11,9 @@ pub mod selection;
 pub mod undo;
 
 mod serde_pax;
+
+mod setup;
+pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
 pub use pax_manifest;
@@ -23,7 +26,7 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     selection: PaxSelectionManager,
     undo_stack: PaxUndoManager,
-    factories: HashMap<String, Box<fn(ComponentDefinition) -> ComponentInstance>>,
+    factories: HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>,
 }
 
 #[cfg(debug_assertions)]
@@ -50,7 +53,7 @@ impl DesigntimeManager {
     pub fn add_factory(
         &mut self,
         type_id: String,
-        factory: Box<fn(ComponentDefinition) -> ComponentInstance>,
+        factory: Box<fn(ComponentDefinition) -> Box<dyn Any>>,
     ) {
         self.factories.insert(type_id, factory);
     }
