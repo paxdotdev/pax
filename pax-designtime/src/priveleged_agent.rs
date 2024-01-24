@@ -49,9 +49,10 @@ impl PrivilegedAgentConnection {
     }
 
     pub fn send_manifest_update(&mut self, manifest: &PaxManifest) -> Result<()> {
+        let manifest_bytes = rmp_serde::to_vec(&manifest)?;
         let msg_bytes = rmp_serde::to_vec(&AgentMessage::ManifestSerializationRequest(
             ManifestSerializationRequest {
-                manifest: manifest.clone(),
+                manifest: manifest_bytes,
             },
         ))?;
 
