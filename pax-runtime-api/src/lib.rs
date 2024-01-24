@@ -1200,10 +1200,11 @@ impl From<StringBox> for String {
 }
 
 pub trait RenderContext {
-    fn fill(&mut self, path: BezPath, brush: &PaintBrush);
-    fn stroke(&mut self, path: BezPath, brush: &PaintBrush, width: f64);
-    fn save(&mut self);
-    fn restore(&mut self);
-    fn clip(&mut self, path: BezPath);
-    fn draw_image(&mut self, image: &ImageBuf, rect: Rect);
+    fn fill(&mut self, layer: &str, path: BezPath, brush: &PaintBrush);
+    fn stroke(&mut self, layer: &str, path: BezPath, brush: &PaintBrush, width: f64);
+    fn save(&mut self, layer: &str);
+    fn restore(&mut self, layer: &str);
+    fn clip(&mut self, layer: &str, path: BezPath);
+    fn load_image(&mut self, path: &str, image: &[u8], width: usize, height: usize);
+    fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect);
 }

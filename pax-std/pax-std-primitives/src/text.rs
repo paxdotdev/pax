@@ -117,7 +117,7 @@ impl InstanceNode for TextInstance {
         &self,
         _expanded_node: &ExpandedNode,
         _context: &mut RuntimeContext,
-        _rc: &mut Box<dyn RenderContext>,
+        _rc: &mut dyn RenderContext,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }

@@ -108,7 +108,7 @@ impl InstanceNode for FrameInstance {
         &self,
         _expanded_node: &ExpandedNode,
         _context: &mut RuntimeContext,
-        _rc: &mut Box<dyn RenderContext>,
+        _rc: &mut dyn RenderContext,
     ) {
         // let tab = &expanded_node.computed_tab.as_ref().unwrap();
 
@@ -133,11 +133,7 @@ impl InstanceNode for FrameInstance {
         // }
     }
 
-    fn handle_post_render(
-        &self,
-        _context: &mut RuntimeContext,
-        _rcs: &mut HashMap<String, Box<dyn RenderContext>>,
-    ) {
+    fn handle_post_render(&self, _context: &mut RuntimeContext, _rcs: &mut dyn RenderContext) {
         // for (_key, rc) in _rcs.iter_mut() {
         //     //pop the clipping context from the stack
         //     rc.restore();
