@@ -130,10 +130,13 @@ pub extern "C" fn pax_interrupt(
         }
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(ref_args) => {
-                let ptr = ref_args.image_data as *const u8;
-                let slice = unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length) };
-                let owned_data: Vec<u8> = slice.to_vec();
-                engine.load_image(&ref_args.path, owned_data, ref_args.width, ref_args.height);
+                // TODO this needs to be redone since image_map now lives in the
+                // Renderer. Move renderer into the engine???
+                // let ptr = ref_args.image_data as *const u8;
+                // let slice = unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length) };
+                // let owned_data: Vec<u8> = slice.to_vec();
+                // (&ref_args.path, owned_data, ref_args.width, ref_args.height);
+                todo!();
             }
             ImageLoadInterruptArgs::Data(_) => {}
         },
@@ -158,16 +161,13 @@ pub extern "C" fn pax_tick(
 
     let will_cast_cgContext = cgContext as *mut CGContext;
     let ctx = unsafe { &mut *will_cast_cgContext };
-    let render_context = Box::new(Renderer {
-        backend: CoreGraphicsContext::new_y_up(ctx, height as f64, None),
-    }) as Box<dyn RenderContext>;
-    (*engine).set_viewport_size((width as f64, height as f64));
+    let mut render_context = Renderer::new();
 
-    let mut render_contexts = HashMap::new();
-    render_contexts.insert(format!("{}", 0), render_context);
+    (*engine).set_viewport_size((width as f64, height as f64));
+    render_context.add_context("0", CoreGraphicsContext::new_y_up(ctx, height as f64, None));
 
     let messages = (*engine).tick();
-    engine.render(&mut render_contexts);
+    engine.render(&mut render_context as &mut dyn RenderContext);
 
     let wrapped_queue = MessageQueue { messages };
     let mut serializer = flexbuffers::FlexbufferSerializer::new();
