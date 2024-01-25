@@ -376,7 +376,7 @@ var Pax = (() => {
     }
   };
 
-  // node_modules/snarkdown/dist/snarkdown.es.js
+  // ../node_modules/snarkdown/dist/snarkdown.es.js
   var e = { "": ["<em>", "</em>"], _: ["<strong>", "</strong>"], "*": ["<strong>", "</strong>"], "~": ["<s>", "</s>"], "\n": ["<br />"], " ": ["<br />"], "-": ["<hr />"] };
   function n(e2) {
     return e2.replace(RegExp("^" + (e2.match(/^(\t| )+/) || "")[0], "gm"), "");
@@ -912,6 +912,15 @@ var Pax = (() => {
       let leaf = this.textNodes[patch.id_chain];
       console.assert(leaf !== void 0);
       let textChild = leaf.firstChild;
+      if (patch.size_x != null) {
+        leaf.style.width = patch.size_x + "px";
+      }
+      if (patch.size_y != null) {
+        leaf.style.height = patch.size_y + "px";
+      }
+      if (patch.transform != null) {
+        leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+      }
       applyTextTyle(leaf, textChild, patch.style);
       if (patch.content != null) {
         textChild.innerHTML = t(patch.content);
@@ -951,15 +960,6 @@ var Pax = (() => {
             }
           });
         }
-      }
-      if (patch.size_x != null) {
-        leaf.style.width = patch.size_x + "px";
-      }
-      if (patch.size_y != null) {
-        leaf.style.height = patch.size_y + "px";
-      }
-      if (patch.transform != null) {
-        leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
       }
     }
     textDelete(id_chain) {
