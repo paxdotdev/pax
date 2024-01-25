@@ -20,7 +20,6 @@ pub struct TreeObj {
     pub selected: Property<bool>,
     pub collapsed: Property<bool>,
     pub arrow_path: Property<String>,
-    pub leaf: Property<bool>,
     pub not_leaf: Property<bool>,
 }
 
@@ -28,11 +27,9 @@ impl TreeObj {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.arrow_path
             .set("assets/icons/tree/collapse_arrow.png".to_owned());
-        self.leaf.set(true);
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        self.not_leaf.set(!self.leaf.get());
         self.arrow_path.set(
             match *self.collapsed.get() {
                 true => "assets/icons/tree/collapse_arrow_collapsed.png",
