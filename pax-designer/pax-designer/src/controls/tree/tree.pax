@@ -6,7 +6,7 @@ for (obj, i) in self.visible_tree_objects {
 		 x={(obj.indent_level*6)%}
 		 height=40px
 		 name={obj.name}
-		 leaf={obj.leaf}
+		 not_leaf={obj.not_leaf}
 		 collapsed={obj.collapsed}
 		 width={100% - (obj.indent_level*6)%}
 		 image_path={obj.image_path}

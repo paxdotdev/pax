@@ -90,7 +90,7 @@ impl TreeEntry {
             indent_level,
             visible: true,
             collapsed: false,
-            leaf: self.1.is_empty(),
+            not_leaf: !self.1.is_empty(),
         });
         *ind += 1;
         all.extend(
@@ -117,7 +117,7 @@ pub struct FlattenedTreeEntry {
     pub indent_level: usize,
     pub visible: bool,
     pub collapsed: bool,
-    pub leaf: bool,
+    pub not_leaf: bool,
 }
 
 impl Tree {
