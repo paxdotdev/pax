@@ -71,28 +71,34 @@ impl InstanceNode for ButtonInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Button| {
             let layout_properties = expanded_node.layout_properties.borrow();
             let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
-            let update_needed = patch_if_needed(
-                &mut old_state.content,
-                &mut patch.content,
-                properties.label.get().string.clone(),
-            ) || patch_if_needed(
-                &mut old_state.style,
-                &mut patch.style,
-                properties.style.get().into(),
-            ) || patch_if_needed(
-                &mut old_state.size_x,
-                &mut patch.size_x,
-                computed_tab.bounds.0,
-            ) || patch_if_needed(
-                &mut old_state.size_y,
-                &mut patch.size_y,
-                computed_tab.bounds.1,
-            ) || patch_if_needed(
-                &mut old_state.transform,
-                &mut patch.transform,
-                computed_tab.transform.as_coeffs().to_vec(),
-            );
-            if update_needed {
+            let updates = [
+                patch_if_needed(
+                    &mut old_state.content,
+                    &mut patch.content,
+                    properties.label.get().string.clone(),
+                ),
+                patch_if_needed(
+                    &mut old_state.style,
+                    &mut patch.style,
+                    properties.style.get().into(),
+                ),
+                patch_if_needed(
+                    &mut old_state.size_x,
+                    &mut patch.size_x,
+                    computed_tab.bounds.0,
+                ),
+                patch_if_needed(
+                    &mut old_state.size_y,
+                    &mut patch.size_y,
+                    computed_tab.bounds.1,
+                ),
+                patch_if_needed(
+                    &mut old_state.transform,
+                    &mut patch.transform,
+                    computed_tab.transform.as_coeffs().to_vec(),
+                ),
+            ];
+            if updates.into_iter().any(|v| v == true) {
                 context.enqueue_native_message(pax_message::NativeMessage::ButtonUpdate(patch));
             }
         });

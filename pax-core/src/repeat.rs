@@ -79,6 +79,7 @@ impl InstanceNode for RepeatInstance {
                     &expanded_node.stack,
                     properties.source_expression_vec.as_mut(),
                 );
+
                 let vec = if let Some(ref source) = properties.source_expression_range {
                     Box::new(
                         source
@@ -93,6 +94,7 @@ impl InstanceNode for RepeatInstance {
                     //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
                     unreachable!();
                 };
+
                 let current_len = vec.len();
                 let exp_props = expanded_node.layout_properties.borrow();
                 let current_bounds = exp_props

@@ -382,6 +382,19 @@ export class NativeElementPool {
 
         let textChild = leaf.firstChild;
 
+        // Handle size_x and size_y
+        if (patch.size_x != null) {
+            leaf.style.width = patch.size_x + "px";
+        }
+        if (patch.size_y != null) {
+            leaf.style.height = patch.size_y + "px";
+        }
+
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+
         applyTextTyle(leaf, textChild, patch.style);
 
         // Apply the content
@@ -427,19 +440,6 @@ export class NativeElementPool {
                     }
                 });
             }
-        }
-
-        // Handle size_x and size_y
-        if (patch.size_x != null) {
-            leaf.style.width = patch.size_x + "px";
-        }
-        if (patch.size_y != null) {
-            leaf.style.height = patch.size_y + "px";
-        }
-
-        // Handle transform
-        if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
