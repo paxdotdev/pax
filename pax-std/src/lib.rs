@@ -67,6 +67,7 @@ pub mod primitives {
     #[derive(Pax)]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::text::TextInstance")]
+    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Text {
         pub text: Property<StringBox>,
         pub style: Property<TextStyle>,
