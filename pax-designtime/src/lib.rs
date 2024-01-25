@@ -29,7 +29,6 @@ pub struct DesigntimeManager {
     selection: PaxSelectionManager,
     undo_stack: PaxUndoManager,
     factories: HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>,
-    // factories: HashMap<String, Box<fn(ComponentDefinition) -> ComponentInstance>>,
     priv_agent_connection: PrivilegedAgentConnection,
 }
 
