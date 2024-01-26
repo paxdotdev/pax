@@ -12,6 +12,7 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 pub mod treeobj;
+use std::collections::HashMap;
 use treeobj::TreeObj;
 
 #[derive(Pax)]
@@ -35,7 +36,7 @@ enum Desc {
     Stacker,
     Rectangle,
     Path,
-    Component,
+    Component(String),
     Textbox,
     Checkbox,
     Scroller,
@@ -55,7 +56,7 @@ impl Desc {
             Desc::Stacker => ("Stacker", "05-stacker"),
             Desc::Rectangle => ("Rectangle", "06-rectangle"),
             Desc::Path => ("Path", "07-path"),
-            Desc::Component => ("Component", "08-component"),
+            Desc::Component(name) => (name.as_str(), "08-component"),
             Desc::Textbox => ("Textbox", "09-textbox"),
             Desc::Checkbox => ("Ceckbox", "10-checkbox"),
             Desc::Scroller => ("Scroller", "11-scroller"),
@@ -80,7 +81,7 @@ impl TreeEntry {
         TreeEntry(desc, vec![])
     }
 
-    fn flatten(self, ind: &mut usize, indent_level: usize) -> Vec<FlattenedTreeEntry> {
+    fn flatten(self, ind: &mut usize, indent_level: isize) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
         let (name, img_path) = self.0.info();
         all.push(FlattenedTreeEntry {
@@ -102,95 +103,86 @@ impl TreeEntry {
     }
 }
 
-impl From<TreeEntry> for Vec<FlattenedTreeEntry> {
-    fn from(value: TreeEntry) -> Self {
-        value.flatten(&mut 0, 0)
-    }
-}
-
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct FlattenedTreeEntry {
     pub name: StringBox,
     pub image_path: StringBox,
     pub ind: usize,
-    pub indent_level: usize,
+    pub indent_level: isize,
     pub visible: bool,
     pub collapsed: bool,
     pub not_leaf: bool,
 }
 
 impl Tree {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.header_text
             .set("Tree View: No loaded project".to_owned());
     }
 
-    pub fn set_tree1(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
-        self.project_loaded.set(true);
-        self.header_text.set("".to_owned());
-        self.tree_objects.set(
-            TreeEntry::container(
-                Desc::Stacker,
-                vec![
-                    TreeEntry::container(
-                        Desc::Component,
-                        vec![
-                            TreeEntry::item(Desc::Ellipse),
-                            TreeEntry::item(Desc::Rectangle),
-                            TreeEntry::container(
-                                Desc::Scroller,
-                                vec![TreeEntry::item(Desc::Text), TreeEntry::item(Desc::Path)],
-                            ),
-                        ],
-                    ),
-                    TreeEntry::item(Desc::Rectangle),
-                    TreeEntry::item(Desc::Checkbox),
-                    TreeEntry::container(
-                        Desc::Scroller,
-                        vec![
-                            TreeEntry::container(
-                                Desc::Dropdown,
-                                vec![TreeEntry::item(Desc::Image), TreeEntry::item(Desc::Slider)],
-                            ),
-                            TreeEntry::item(Desc::Button),
-                        ],
-                    ),
-                ],
-            )
-            .into(),
-        );
-        self.visible_tree_objects
-            .set(self.tree_objects.get().clone());
+    fn to_tree(root: usize, graph: &HashMap<usize, (String, Vec<usize>)>) -> TreeEntry {
+        let (name, children) = &graph[&root];
+        TreeEntry(
+            match name.as_str() {
+                "pax_std::primitives::Group" => Desc::Group,
+                "pax_std::primitives::Frame" => Desc::Frame,
+                "pax_std::primitives::Group" => Desc::Group,
+                "pax_std::primitives::Ellipse" => Desc::Ellipse,
+                "pax_std::primitives::Text" => Desc::Text,
+                "pax_std::primitives::Stacker" => Desc::Stacker,
+                "pax_std::primitives::Rectangle" => Desc::Rectangle,
+                "pax_std::primitives::Path" => Desc::Path,
+                "pax_std::primitives::Textbox" => Desc::Textbox,
+                "pax_std::primitives::Checkbox" => Desc::Checkbox,
+                "pax_std::primitives::Scroller" => Desc::Scroller,
+                "pax_std::primitives::Button" => Desc::Button,
+                "pax_std::primitives::Image" => Desc::Image,
+                "pax_std::primitives::Slider" => Desc::Slider,
+                "pax_std::primitives::Dropdown" => Desc::Dropdown,
+                other => Desc::Component(
+                    other
+                        .rsplit_once("::")
+                        .unwrap_or(("", &other))
+                        .1
+                        .to_string(),
+                ),
+            },
+            children
+                .iter()
+                .filter(|id| graph[id].0 != "COMMENT")
+                .map(|&id| Self::to_tree(id, graph))
+                .collect(),
+        )
     }
 
-    pub fn set_tree2(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
+    pub fn set_tree1(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
+        let type_id = "crate::controls::Controls";
+        self.set_tree(type_id, ctx);
+    }
+
+    pub fn set_tree2(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
+        let type_id = {
+            let dt = ctx.designtime.borrow();
+            dt.main_component().to_owned()
+        };
+        self.set_tree(&type_id, ctx);
+    }
+
+    pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
         self.project_loaded.set(true);
         self.header_text.set("".to_owned());
-        self.tree_objects.set(
-            TreeEntry::container(
-                Desc::Frame,
-                vec![TreeEntry::container(
-                    Desc::Group,
-                    vec![
-                        TreeEntry::item(Desc::Ellipse),
-                        TreeEntry::item(Desc::Textbox),
-                        TreeEntry::container(
-                            Desc::Scroller,
-                            vec![
-                                TreeEntry::item(Desc::Text),
-                                TreeEntry::item(Desc::Rectangle),
-                            ],
-                        ),
-                        TreeEntry::item(Desc::Text),
-                        TreeEntry::item(Desc::Rectangle),
-                    ],
-                )],
-            )
-            .into(),
-        );
-        self.visible_tree_objects
-            .set(self.tree_objects.get().clone());
+        let dt = ctx.designtime.borrow_mut();
+        let graph = dt.get_component_tree(type_id).unwrap();
+
+        let mut ind = 0;
+        let mut flattened: Vec<FlattenedTreeEntry> = Self::to_tree(0, &graph)
+            .1
+            .into_iter()
+            .flat_map(|v| v.flatten(&mut ind, 0))
+            .collect();
+        self.tree_objects.set(flattened.clone());
+        self.visible_tree_objects.set(flattened);
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
