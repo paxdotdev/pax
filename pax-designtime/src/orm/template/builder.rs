@@ -60,11 +60,11 @@ impl<'a> NodeBuilder<'a> {
 
     pub fn retrieve_node(
         orm: &'a mut PaxManifestORM,
-        component_type_id: String,
+        component_type_id: &str,
         node_id: usize,
     ) -> Self {
         let request = GetAllTemplateNodeRequest {
-            component_type_id: component_type_id.clone(),
+            component_type_id: component_type_id.to_owned(),
         };
 
         let command = request;
@@ -92,7 +92,7 @@ impl<'a> NodeBuilder<'a> {
                 }
                 NodeBuilder {
                     orm,
-                    component_type_id,
+                    component_type_id: component_type_id.to_owned(),
                     template_node: node.clone(),
                     parent_node_id,
                     property_map,
@@ -108,6 +108,14 @@ impl<'a> NodeBuilder<'a> {
 
     pub fn get_id(&self) -> usize {
         self.template_node.id
+    }
+
+    pub fn get_type_id(&self) -> &str {
+        &self.template_node.type_id
+    }
+
+    pub fn get_properties(&self) -> Option<&Vec<SettingElement>> {
+        self.template_node.settings.as_ref()
     }
 
     pub fn set_property(&mut self, key: String, value: ValueDefinition) {

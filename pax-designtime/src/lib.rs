@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::sync::Arc;
 
 use crate::orm::PaxManifestORM;
 use crate::selection::PaxSelectionManager;
@@ -16,14 +17,17 @@ mod serde_pax;
 mod setup;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
+use anyhow::{anyhow, Context};
 use core::fmt::Debug;
 pub use pax_manifest;
-use pax_manifest::{ComponentDefinition, PaxManifest};
+use pax_manifest::{
+    ComponentDefinition, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
+    Token, ValueDefinition,
+};
 use priveleged_agent::PrivilegedAgentConnection;
 pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
-
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     selection: PaxSelectionManager,
@@ -74,6 +78,84 @@ impl DesigntimeManager {
         self.factories.insert(type_id, factory);
     }
 
+    pub fn set_template_node_setting(
+        &mut self,
+        type_id: &str,
+        template_node_id: usize,
+        name: &str,
+        value: ValueDefinition,
+    ) -> anyhow::Result<()> {
+        let mut node_definition = self.get_orm_mut().get_node(type_id, template_node_id);
+        node_definition.set_property(name.to_owned(), value);
+        node_definition
+            .save()
+            .map_err(|e| anyhow!("faied to save: {}", e))
+    }
+
+    pub fn get_template_node_settings(
+        &mut self,
+        type_id: &str,
+        template_node_id: usize,
+    ) -> Option<(Vec<(Option<ValueDefinition>, String, String)>, String)> {
+        //This should come from currently selected component
+
+        let node_definition = self.get_orm_mut().get_node(type_id, template_node_id);
+        let template_props = node_definition.get_properties().cloned().unwrap_or(vec![]);
+
+        let template_node_type_id = node_definition.get_type_id().to_owned();
+        let mut available_props = self
+            .get_manifest()
+            .type_table
+            .get(&template_node_type_id)?
+            .property_definitions
+            .to_owned();
+
+        //Manually add common_props for now
+        available_props.extend(
+            [
+                ("x", "Size"),
+                ("y", "Size"),
+                ("scale_x", "Size"),
+                ("scale_y", "Size"),
+                ("skew_x", "Numeric"),
+                ("skew_y", "Numeric"),
+                ("rotate", "Rotation"),
+                ("anchor_x", "Size"),
+                ("anchor_y", "Size"),
+                ("transform", "Transform2D"),
+                ("width", "Size"),
+                ("height", "Size"),
+            ]
+            .into_iter()
+            .map(|(name, type_id)| PropertyDefinition {
+                name: name.to_owned(),
+                type_id: type_id.to_owned(),
+                flags: Default::default(),
+            }),
+        );
+        let props: Vec<_> = available_props
+            .into_iter()
+            .map(|p| {
+                (
+                    template_props
+                        .iter()
+                        .find_map(|settings_elem| match settings_elem {
+                            SettingElement::Setting(Token { token_value, .. }, value)
+                                if token_value == &p.name =>
+                            {
+                                Some(value)
+                            }
+                            _ => None,
+                        })
+                        .cloned(),
+                    p.name,
+                    p.type_id,
+                )
+            })
+            .collect();
+        Some((props, template_node_type_id))
+    }
+
     pub fn get_manifest(&self) -> &PaxManifest {
         self.orm.get_manifest()
     }
@@ -81,4 +163,10 @@ impl DesigntimeManager {
     pub fn get_orm(&self) -> &PaxManifestORM {
         &self.orm
     }
+
+    pub fn get_orm_mut(&mut self) -> &mut PaxManifestORM {
+        &mut self.orm
+    }
 }
+
+pub enum Args {}
