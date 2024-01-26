@@ -100,6 +100,7 @@ pub struct HandlerRegistry {
     pub context_menu_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsContextMenu)>,
     pub wheel_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsWheel)>,
     pub pre_render_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
+    pub pre_compute_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
     pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
 }
 
@@ -128,6 +129,7 @@ impl Default for HandlerRegistry {
             checkbox_change_handlers: Vec::new(),
             button_click_handlers: Vec::new(),
             textbox_change_handlers: Vec::new(),
+            pre_compute_handlers: Vec::new(),
         }
     }
 }
@@ -357,8 +359,6 @@ impl PaxEngine {
         // completely remove once reactive properties dirty-dag is a thing.
         //
         self.root_node.recurse_update(&mut self.runtime_context);
-        self.root_node
-            .recurse_update_native_patches(&mut self.runtime_context);
 
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here.
