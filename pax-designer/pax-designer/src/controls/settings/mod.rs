@@ -85,8 +85,10 @@ impl Settings {
         let (properties, type_name) = ctx
             .designtime
             .borrow_mut()
-            .get_template_node_settings(type_id, temp_node_id)
-            .unwrap();
+            .get_orm_mut()
+            .get_node(type_id, temp_node_id)
+            .get_property_definitions()
+            .expect("selected node has properties");
 
         // log(&format!("{:#?}", properties));
         let mut custom_props = vec![];
