@@ -22,7 +22,7 @@ use core::fmt::Debug;
 pub use pax_manifest;
 use pax_manifest::{
     ComponentDefinition, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
-    Token, ValueDefinition,
+    TemplateNodeDefinition, Token, ValueDefinition,
 };
 use priveleged_agent::PrivilegedAgentConnection;
 pub use serde_pax::de::{from_pax, Deserializer};
@@ -43,6 +43,11 @@ impl Debug for DesigntimeManager {
     }
 }
 pub mod priveleged_agent;
+
+pub struct TemplateNode {
+    pub name: String,
+    pub children: Vec<TemplateNode>,
+}
 
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
@@ -78,6 +83,27 @@ impl DesigntimeManager {
         self.factories.insert(type_id, factory);
     }
 
+    pub fn main_component(&self) -> &str {
+        &self.orm.get_manifest().main_component_type_id
+    }
+
+    pub fn get_component_tree(
+        &self,
+        type_id: &str,
+    ) -> anyhow::Result<HashMap<usize, (String, Vec<usize>)>> {
+        let manifest = self.orm.get_manifest();
+        let component = manifest
+            .components
+            .get(type_id)
+            .ok_or(anyhow!("couldn't find component"))?;
+        Ok(component
+            .template
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
+            .collect())
+    }
     pub fn get_manifest(&self) -> &PaxManifest {
         self.orm.get_manifest()
     }
