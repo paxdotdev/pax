@@ -28,26 +28,23 @@ impl PropertyEditor {
     }
 
     pub fn text_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
-        //this can be removed once we send changes to orm property? (might need both)
-        //hope it updates in time.
         self.textbox.set(args.text.to_owned());
         let name = &self.name.get().string;
-        let variable = name.strip_suffix(':').unwrap_or(&name);
-        // log(&format!(
-        //     "will set {}:{} prop <{}> to {} through orm",
-        //     self.stid.get().string,
-        //     self.snid.get().get_as_int(),
-        //     variable,
-        //     args.text
-        // ));
-        ctx.designtime.borrow_mut().set_template_node_setting(
+
+        let mut dt = ctx.designtime.borrow_mut();
+        let mut node_definition = dt.get_orm_mut().get_node(
             &self.stid.get().string,
             self.snid.get().get_as_int() as usize,
-            variable,
+        );
+
+        let variable = name.strip_suffix(':').unwrap_or(&name);
+        node_definition.set_property(
+            variable.to_owned(),
             ValueDefinition::LiteralValue(Token::new_from_raw_value(
                 args.text.clone(),
                 TokenType::LiteralValue,
             )),
         );
+        node_definition.save().expect("failed to save");
     }
 }
