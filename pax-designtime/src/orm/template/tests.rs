@@ -296,7 +296,7 @@ mod tests {
     fn test_update_existing_node() {
         let manifest = create_basic_manifest();
         let mut orm = PaxManifestORM::new(manifest);
-        let mut node_builder = orm.get_node("component1".to_string(), 1);
+        let mut node_builder = orm.get_node("component1", 1);
 
         let new_value = ValueDefinition::LiteralValue(Token::new_from_raw_value(
             "newValue".to_string(),
@@ -342,6 +342,6 @@ mod tests {
     fn test_error_handling_non_existent_node() {
         let manifest = create_basic_manifest();
         let mut orm = PaxManifestORM::new(manifest);
-        orm.get_node("component1".to_string(), 999);
+        orm.get_node("component1", 999);
     }
 }

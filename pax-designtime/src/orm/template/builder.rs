@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use pax_manifest::{
     ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
-    ControlFlowSettingsDefinition, SettingElement, TemplateNodeDefinition, Token, TokenType,
-    ValueDefinition,
+    ControlFlowSettingsDefinition, PropertyDefinition, SettingElement, TemplateNodeDefinition,
+    Token, TokenType, ValueDefinition,
 };
 
 use crate::orm::PaxManifestORM;
@@ -114,8 +114,64 @@ impl<'a> NodeBuilder<'a> {
         &self.template_node.type_id
     }
 
-    pub fn get_properties(&self) -> Option<&Vec<SettingElement>> {
-        self.template_node.settings.as_ref()
+    pub fn get_property_definitions(
+        &self,
+    ) -> Option<(Vec<(Option<ValueDefinition>, String, String)>, String)> {
+        let template_props = self.template_node.settings.clone().unwrap_or(vec![]);
+
+        let template_node_type_id = self.get_type_id().to_owned();
+        let mut available_props = self
+            .orm
+            .manifest
+            .type_table
+            .get(&template_node_type_id)?
+            .property_definitions
+            .to_owned();
+
+        //Manually add common_props for now
+        available_props.extend(
+            [
+                ("x", "Size"),
+                ("y", "Size"),
+                ("scale_x", "Size"),
+                ("scale_y", "Size"),
+                ("skew_x", "Numeric"),
+                ("skew_y", "Numeric"),
+                ("rotate", "Rotation"),
+                ("anchor_x", "Size"),
+                ("anchor_y", "Size"),
+                ("transform", "Transform2D"),
+                ("width", "Size"),
+                ("height", "Size"),
+            ]
+            .into_iter()
+            .map(|(name, type_id)| PropertyDefinition {
+                name: name.to_owned(),
+                type_id: type_id.to_owned(),
+                flags: Default::default(),
+            }),
+        );
+        let props: Vec<_> = available_props
+            .into_iter()
+            .map(|p| {
+                (
+                    template_props
+                        .iter()
+                        .find_map(|settings_elem| match settings_elem {
+                            SettingElement::Setting(Token { token_value, .. }, value)
+                                if token_value == &p.name =>
+                            {
+                                Some(value)
+                            }
+                            _ => None,
+                        })
+                        .cloned(),
+                    p.name,
+                    p.type_id,
+                )
+            })
+            .collect();
+        Some((props, template_node_type_id))
     }
 
     pub fn set_property(&mut self, key: String, value: ValueDefinition) {
