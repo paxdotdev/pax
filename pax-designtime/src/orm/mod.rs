@@ -90,7 +90,7 @@ impl PaxManifestORM {
         )
     }
 
-    pub fn get_node(&mut self, component_type_id: String, node_id: usize) -> NodeBuilder {
+    pub fn get_node(&mut self, component_type_id: &str, node_id: usize) -> NodeBuilder {
         NodeBuilder::retrieve_node(self, component_type_id, node_id)
     }
 
