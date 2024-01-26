@@ -1,4 +1,4 @@
-<Text x=10px y=10px text={self.selected_component_name} class=h1 height=30px/>
+<Text x=10px y=10px text={self.selected_component_name} class=h1 height=40px/>
 
 if self.component_selected {
 	
@@ -9,13 +9,13 @@ if self.component_selected {
 				<Frame y=30px height={100% - 30px}>
 					<Frame y=0px height=30px>
 						<Text text="Position" x=10px  class=h3/>
-						<PropertyEditor name="x:" definition={self.pos_x} x=33% width=32%/>
-						<PropertyEditor name="y:" definition={self.pos_y} x=66% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="x" definition={self.pos_x} x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="y" definition={self.pos_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=40px height=30px>
 						<Text text="Size" x=10px  class=h3/>
-						<PropertyEditor name="width:" definition={self.size_width} x=33% width=32%/>
-						<PropertyEditor name="height:" definition={self.size_height} x=66% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="width" definition={self.size_width} x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="height" definition={self.size_height} x=66% width=32%/>
 					</Frame>
 				</Frame>
 			</Frame>
@@ -25,32 +25,32 @@ if self.component_selected {
 				<Frame y=30px height={100% - 30px}>
 					<Frame y=0px height=30px>
 						<Text text="Rotation" x=10px  class=h3/>
-						<PropertyEditor name="z:" definition={self.rotation_z} x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="rotate" definition={self.rotation_z} x=33% width=32%/>
 					</Frame>
 					<Frame y=40px height=30px>
 						<Text text="Scale" x=10px  class=h3/>
-						<PropertyEditor name="x:" definition={self.scale_x} x=33% width=32%/>
-						<PropertyEditor name="y:" definition={self.scale_y} x=66% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" definition={self.scale_x} x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_y:" definition={self.scale_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=80px height=30px>
 						<Text text="Anchor" x=10px  class=h3/>
-						<PropertyEditor name="x:" definition={self.anchor_x} x=33% width=32%/>
-						<PropertyEditor name="y:" definition={self.anchor_y} x=66% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" definition={self.anchor_x} x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" definition={self.anchor_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=120px height=30px>
 						<Text text="Skew" x=10px  class=h3/>
-						<PropertyEditor name="x:" definition={self.skew_x} x=33% width=32%/>
-						<PropertyEditor name="y:" definition={self.skew_y} x=66% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" definition={self.skew_x} x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" definition={self.skew_y} x=66% width=32%/>
 					</Frame>
 				</Frame>
 			</Frame>
 
 		
-			<Frame y=450px height=300px>
+			<Frame y=380px height=300px>
 				for (property, i) in self.custom_props {
-					<Text text={property.name} class=h2 y={(i*100)px} height=20px/>
-					<Frame y={(i*100 + 50)px} height=40px>
-						<PropertyEditor definition={property.definition}/>
+					<Text text={property.name} class=h2 y={(i*70)px} width=120px height=20px/>
+					<Frame y={(i*70)px} height=30px>
+						<PropertyEditor name={property.name} stid={self.stid} snid={self.snid} definition={property.definition}/>
 					</Frame>
 				}
 			</Frame>
@@ -58,9 +58,9 @@ if self.component_selected {
 	</Frame>
 }
 
-<Button width=100px height=30px anchor_y=100% y=100% label="Object 1" @button_click=self.set_object1_defered/>
-<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Object 2" @button_click=self.set_object2_defered/>
-<Button x=220px width=100px height=30px anchor_y=100% y=100% label="Deselect" @button_click=self.set_none/>
+<Button width=100px height=30px anchor_y=100% y=100% label="Object 1" @button_click=self.set_object1/>
+<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Object 2" @button_click=self.set_object2/>
+<Button x=220px width=100px height=30px anchor_y=100% y=100% label="Object 3" @button_click=self.set_object3/>
 
 @handlers {
 	mount: on_mount

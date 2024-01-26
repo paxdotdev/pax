@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use pax_lang::api::*;
 use pax_lang::*;
+use pax_manifest::*;
 use pax_std::components::Stacker;
 use pax_std::components::*;
 use pax_std::primitives::*;
@@ -33,8 +34,10 @@ pub struct Settings {
     // custom props
     pub custom_props: Property<Vec<PropertyDef>>,
 
-    pub run_id: Property<u32>,
-    pub timer: Property<u32>,
+    // selected template type id
+    pub stid: Property<StringBox>,
+    // selected template node id
+    pub snid: Property<Numeric>,
 }
 
 #[derive(Pax)]
@@ -45,95 +48,79 @@ pub struct PropertyDef {
 }
 
 impl Settings {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        self.deselect();
+    pub fn on_mount(&mut self, ctx: &NodeContext) {}
+
+    pub fn set_object1(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+        self.component_selected.set(true);
+        self.stid.set(StringBox::from(
+            "crate::controls::settings::Settings".to_owned(),
+        ));
+        self.snid.set(5.into());
     }
 
-    pub fn set_none(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
-        self.deselect();
+    pub fn set_object2(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+        self.component_selected.set(true);
+        self.stid.set(StringBox::from(
+            "crate::controls::settings::property_editor::PropertyEditor".to_owned(),
+        ));
+        self.snid.set(1.into());
     }
 
-    pub fn deselect(&mut self) {
-        self.selected_component_name
-            .set("Select Component".to_owned());
-        self.component_selected.set(false);
+    pub fn set_object3(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+        self.component_selected.set(true);
+        self.stid
+            .set(StringBox::from("crate::controls::tree::Tree".to_owned()));
+        self.snid.set(1.into());
     }
 
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        if *self.timer.get() > 0 {
-            if *self.timer.get() == 1 {
-                match *self.run_id.get() {
-                    1 => self.set_object1(),
-                    2 => self.set_object2(),
-                    _ => (),
-                }
-            }
-            self.timer.set(self.timer.get() - 1);
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
+        if *self.component_selected.get() {
+            self.set_to_selected(ctx);
         }
     }
 
-    pub fn set_object2_defered(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
-        self.run_id.set(2);
-        self.timer.set(2);
-        self.custom_props.set(vec![]);
-    }
+    pub fn set_to_selected(&mut self, ctx: &NodeContext) {
+        let type_id = &self.stid.get().string;
+        let temp_node_id = self.snid.get().get_as_int() as usize;
+        let (properties, type_name) = ctx
+            .designtime
+            .borrow_mut()
+            .get_template_node_settings(type_id, temp_node_id)
+            .unwrap();
 
-    pub fn set_object1_defered(&mut self, _ctx: &NodeContext, args: ArgsButtonClick) {
-        self.run_id.set(1);
-        self.timer.set(2);
-        self.custom_props.set(vec![]);
-    }
-
-    pub fn set_object1(&mut self) {
-        self.component_selected.set(true);
-        self.selected_component_name.set("ELLIPSE 1".to_owned());
-        self.pos_x.set(StringBox::from("20".to_owned()));
-        self.pos_y.set(StringBox::from("40".to_owned()));
-        self.size_width.set(StringBox::from("1000".to_owned()));
-        self.size_height.set(StringBox::from("1000000".to_owned()));
-        self.rotation_z.set(StringBox::from("0.0".to_owned()));
-        self.scale_x.set(StringBox::from("1.0".to_owned()));
-        self.scale_y.set(StringBox::from("2.0".to_owned()));
-        self.anchor_x.set(StringBox::from("0%".to_owned()));
-        self.anchor_y.set(StringBox::from("0%".to_owned()));
-        self.skew_x.set(StringBox::from("0.0".to_owned()));
-        self.skew_y.set(StringBox::from("1.0".to_owned()));
-        // OBS: if two objects happen to have the same number of props when selection updates, it doesn't change
-        self.custom_props.set(vec![
-            PropertyDef {
-                name: StringBox::from("Stroke".to_owned()),
-                definition: StringBox::from("Color::rgba(0.0, 1.0, 0.0, 1.0)".to_owned()),
-            },
-            PropertyDef {
-                name: StringBox::from("Fill".to_owned()),
-                definition: StringBox::from("Color::rgba(1.0, 0.0, 0.0, 1.0)".to_owned()),
-            },
-        ]);
-    }
-
-    pub fn set_object2(&mut self) {
-        self.component_selected.set(true);
-        self.selected_component_name.set("TEXT 2".to_owned());
-        self.pos_x.set(StringBox::from("0.7".to_owned()));
-        self.pos_y.set(StringBox::from("100.0".to_owned()));
-        self.size_width.set(StringBox::from("500".to_owned()));
-        self.size_height.set(StringBox::from("300".to_owned()));
-        self.rotation_z.set(StringBox::from("30".to_owned()));
-        self.scale_x.set(StringBox::from("1.0".to_owned()));
-        self.scale_y.set(StringBox::from("1.0".to_owned()));
-        self.anchor_x.set(StringBox::from("50%".to_owned()));
-        self.anchor_y.set(StringBox::from("30%".to_owned()));
-        self.skew_x.set(StringBox::from("0.0".to_owned()));
-        self.skew_y.set(StringBox::from("0.0".to_owned()));
-        self.custom_props.set(vec![
-            PropertyDef {
-                name: StringBox::from("Text".to_owned()),
-                definition: StringBox::from("This is some example text".to_owned()),
-            },
-            PropertyDef {
-                name: StringBox::from("Style".to_owned()),
-                definition: StringBox::from("{ fill: ...}".to_owned()),
-            },
-        ]);
+        // log(&format!("{:#?}", properties));
+        let mut custom_props = vec![];
+        for (value, name, type_id) in properties {
+            let str_value: String = value
+                .map(|v| match v {
+                    ValueDefinition::LiteralValue(Token { token_value, .. }) => token_value,
+                    ValueDefinition::Expression(Token { token_value, .. }, _)
+                    | ValueDefinition::Identifier(Token { token_value, .. }, _) => {
+                        format!("readonly: \"{}\" (SET TO LITERAL ON EDIT)", token_value)
+                    }
+                    _ => "ERROR: UNSUPPORTED BINDING TYPE".to_owned(),
+                })
+                .unwrap_or("".to_string());
+            match name.as_str() {
+                "x" => self.pos_x.set(StringBox::from(str_value)),
+                "y" => self.pos_y.set(StringBox::from(str_value)),
+                "width" => self.size_width.set(StringBox::from(str_value)),
+                "height" => self.size_height.set(StringBox::from(str_value)),
+                "rotate" => self.rotation_z.set(StringBox::from(str_value)),
+                "scale_x" => self.scale_x.set(StringBox::from(str_value)),
+                "scale_y" => self.scale_y.set(StringBox::from(str_value)),
+                "anchor_x" => self.anchor_x.set(StringBox::from(str_value)),
+                "anchor_y" => self.anchor_y.set(StringBox::from(str_value)),
+                "skew_x" => self.skew_x.set(StringBox::from(str_value)),
+                "skew_y" => self.skew_y.set(StringBox::from(str_value)),
+                custom => custom_props.push(PropertyDef {
+                    name: StringBox::from(custom),
+                    definition: StringBox::from(str_value),
+                }),
+            }
+        }
+        self.custom_props.set(custom_props);
+        let (_, name) = type_name.rsplit_once("::").unwrap_or(("", &type_name));
+        self.selected_component_name.set(name.to_owned());
     }
 }
