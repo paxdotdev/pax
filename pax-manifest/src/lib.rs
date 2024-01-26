@@ -8,6 +8,7 @@ use serde_json;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
     pub main_component_type_id: String,
@@ -36,8 +37,8 @@ impl Ord for ExpressionSpec {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
@@ -120,7 +121,8 @@ impl ExpressionSpecInvocation {
 
 /// Container for an entire component definition — includes template, settings,
 /// event bindings, property definitions, and compiler + reflection metadata
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ComponentDefinition {
     pub type_id: String,
     pub type_id_escaped: String,
@@ -285,7 +287,8 @@ impl PropertyDefinition {
 }
 
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TypeDefinition {
     /// Program-unique ID for this type
     pub type_id: String,

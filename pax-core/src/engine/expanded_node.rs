@@ -2,7 +2,6 @@ use crate::Globals;
 use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use kurbo::Point;
@@ -215,13 +214,6 @@ impl ExpandedNode {
         self.attach_children(new_children, context);
     }
 
-    pub fn recurse_update_native_patches(&self, context: &mut RuntimeContext) {
-        self.instance_node.handle_native_patches(self, context);
-        for child in self.children.borrow().iter() {
-            child.recurse_update_native_patches(context);
-        }
-    }
-
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
@@ -243,16 +235,20 @@ impl ExpandedNode {
             computed_tab: compute_tab(self, &viewport),
         });
 
-        // This isn't really the right location for handle_render, but needs to be here
-        // for the current version of stacker to work correctly. When dirty-dag is a thing
-        // this can be called at any location since whatever properties it changes
-        // will immediately trigger the nessessary side effects
+        if let Some(ref registry) = self.instance_node.base().handler_registry {
+            for handler in &registry.borrow().pre_compute_handlers {
+                handler(Rc::clone(&self.properties), &self.get_node_context(context))
+            }
+        }
+        Rc::clone(&self.instance_node).update(&self, context);
+        if *self.attached.borrow() > 0 {
+            self.instance_node.handle_native_patches(self, context);
+        }
         if let Some(ref registry) = self.instance_node.base().handler_registry {
             for handler in &registry.borrow().pre_render_handlers {
                 handler(Rc::clone(&self.properties), &self.get_node_context(context))
             }
         }
-        Rc::clone(&self.instance_node).update(&self, context);
         for child in self.children.borrow().iter() {
             child.recurse_update(context);
         }
