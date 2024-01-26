@@ -10,7 +10,7 @@ description = "Enterprise logic for coordination between visual editor and pax c
 default = ["serde", "serde_json"]
 
 [dependencies]
-pax-manifest = {version = "0.10.10", path="../pax/pax-manifest"}
+pax-manifest = {version = "0.11.3", path="../pax/pax-manifest"}
 serde_derive = "1.0.159"
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_json = { version = "1.0.95", optional = true } 
