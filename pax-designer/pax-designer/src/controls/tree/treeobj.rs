@@ -24,10 +24,7 @@ pub struct TreeObj {
 }
 
 impl TreeObj {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        self.arrow_path
-            .set("assets/icons/tree/collapse_arrow.png".to_owned());
-    }
+    pub fn on_mount(&mut self, ctx: &NodeContext) {}
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.arrow_path.set(

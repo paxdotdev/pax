@@ -30,7 +30,6 @@ impl PropertyEditor {
     pub fn text_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
         self.textbox.set(args.text.to_owned());
         let name = &self.name.get().string;
-
         let mut dt = ctx.designtime.borrow_mut();
         let mut node_definition = dt.get_orm_mut().get_node(
             &self.stid.get().string,
