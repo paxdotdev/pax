@@ -44,7 +44,7 @@ instantiate_{{ snake_case_type_id }}(
                 {% if entry.1.source_map_start_marker %}
                     {{entry.1.source_map_start_marker}}
                 {% endif %}
-                {%- if entry.0.content in ['pre_render','mount'] -%}
+                {%- if entry.0.content in ['pre_compute', 'pre_render','mount'] -%}
                     |properties, ctx|{
 
                        let properties = &mut *properties.as_ref().borrow_mut();
