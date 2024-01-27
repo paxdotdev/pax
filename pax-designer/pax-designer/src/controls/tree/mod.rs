@@ -164,7 +164,7 @@ impl Tree {
     pub fn set_tree2(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
         let type_id = {
             let dt = ctx.designtime.borrow();
-            dt.main_component().to_owned()
+            dt.get_orm().get_main_component().to_owned()
         };
         self.set_tree(&type_id, ctx);
     }
@@ -173,7 +173,7 @@ impl Tree {
         self.project_loaded.set(true);
         self.header_text.set("".to_owned());
         let dt = ctx.designtime.borrow_mut();
-        let graph = dt.get_component_tree(type_id).unwrap();
+        let graph = dt.get_orm().get_component_tree(type_id).unwrap();
 
         let mut ind = 0;
         let mut flattened: Vec<FlattenedTreeEntry> = Self::to_tree(0, &graph)
