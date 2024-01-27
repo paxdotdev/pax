@@ -17,7 +17,6 @@ mod serde_pax;
 mod setup;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
-use anyhow::{anyhow, Context};
 use core::fmt::Debug;
 pub use pax_manifest;
 use pax_manifest::{
@@ -83,27 +82,6 @@ impl DesigntimeManager {
         self.factories.insert(type_id, factory);
     }
 
-    pub fn main_component(&self) -> &str {
-        &self.orm.get_manifest().main_component_type_id
-    }
-
-    pub fn get_component_tree(
-        &self,
-        type_id: &str,
-    ) -> anyhow::Result<HashMap<usize, (String, Vec<usize>)>> {
-        let manifest = self.orm.get_manifest();
-        let component = manifest
-            .components
-            .get(type_id)
-            .ok_or(anyhow!("couldn't find component"))?;
-        Ok(component
-            .template
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
-            .collect())
-    }
     pub fn get_manifest(&self) -> &PaxManifest {
         self.orm.get_manifest()
     }

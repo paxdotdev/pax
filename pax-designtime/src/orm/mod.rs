@@ -24,6 +24,7 @@ use pax_manifest::{LiteralBlockDefinition, PaxManifest};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
+use std::collections::HashMap;
 
 use self::{
     handlers::{builder::HandlerBuilder, RemoveHandlerRequest},
@@ -31,6 +32,7 @@ use self::{
     template::{builder::NodeBuilder, RemoveTemplateNodeRequest},
 };
 
+use anyhow::{anyhow, Context};
 pub mod handlers;
 pub mod settings;
 pub mod template;
@@ -91,6 +93,28 @@ impl PaxManifestORM {
     }
     pub fn get_node(&mut self, component_type_id: &str, node_id: usize) -> NodeBuilder {
         NodeBuilder::retrieve_node(self, component_type_id, node_id)
+    }
+
+    pub fn get_main_component(&self) -> &str {
+        &self.manifest.main_component_type_id
+    }
+
+    pub fn get_component_tree(
+        &self,
+        type_id: &str,
+    ) -> anyhow::Result<HashMap<usize, (String, Vec<usize>)>> {
+        let component = self
+            .manifest
+            .components
+            .get(type_id)
+            .ok_or(anyhow!("couldn't find component"))?;
+        Ok(component
+            .template
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
+            .collect())
     }
 
     pub fn remove_node(&mut self, component_type_id: String, node_id: usize) -> Result<(), String> {
