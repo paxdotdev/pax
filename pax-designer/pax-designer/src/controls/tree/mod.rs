@@ -173,8 +173,13 @@ impl Tree {
         self.project_loaded.set(true);
         self.header_text.set("".to_owned());
         let dt = ctx.designtime.borrow_mut();
-        let graph = dt.get_orm().get_component_tree(type_id).unwrap();
-
+        let graph = dt
+            .get_orm()
+            .get_component(type_id)
+            .expect("has template")
+            .iter()
+            .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
+            .collect();
         let mut ind = 0;
         let mut flattened: Vec<FlattenedTreeEntry> = Self::to_tree(0, &graph)
             .1
