@@ -43,11 +43,6 @@ impl Debug for DesigntimeManager {
 }
 pub mod priveleged_agent;
 
-pub struct TemplateNode {
-    pub name: String,
-    pub children: Vec<TemplateNode>,
-}
-
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
