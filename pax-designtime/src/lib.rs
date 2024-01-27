@@ -78,20 +78,6 @@ impl DesigntimeManager {
         self.factories.insert(type_id, factory);
     }
 
-    pub fn set_template_node_setting(
-        &mut self,
-        type_id: &str,
-        template_node_id: usize,
-        name: &str,
-        value: ValueDefinition,
-    ) -> anyhow::Result<()> {
-        let mut node_definition = self.get_orm_mut().get_node(type_id, template_node_id);
-        node_definition.set_property(name.to_owned(), value);
-        node_definition
-            .save()
-            .map_err(|e| anyhow!("faied to save: {}", e))
-    }
-
     pub fn get_manifest(&self) -> &PaxManifest {
         self.orm.get_manifest()
     }
