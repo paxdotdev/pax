@@ -3,7 +3,7 @@
 //! The `code_generation` module provides structures and functions for generating Pax Cartridges
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
-use crate::helpers::{HostCrateInfo, PKG_DIR_NAME};
+use crate::helpers::PKG_DIR_NAME;
 use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
@@ -13,9 +13,7 @@ use std::fs;
 use std::str::FromStr;
 
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ExpressionSpec, HandlersBlockElement,
-    LiteralBlockDefinition, MappedString, PaxManifest, SettingElement, TemplateNodeDefinition,
-    Token, TypeDefinition, TypeTable, ValueDefinition,
+    escape_identifier, ComponentDefinition, ExpressionSpec, HandlersBlockElement, HostCrateInfo, LiteralBlockDefinition, MappedString, PaxManifest, SettingElement, TemplateNodeDefinition, Token, TypeDefinition, TypeTable, ValueDefinition
 };
 
 use crate::errors::source_map::SourceMap;
@@ -29,15 +27,6 @@ use self::templating::{
 };
 
 pub mod templating;
-
-#[cfg(feature = "designtime")]
-use pax_designtime::cartridge_generation::{
-    press_template_codegen_designtime_cartridge, TemplateArgsCodegenDesigntimeCartridge,
-};
-#[cfg(feature = "designtime")]
-fn press_designtime_template() -> String {
-    press_template_codegen_designtime_cartridge(TemplateArgsCodegenDesigntimeCartridge {})
-}
 
 pub fn generate_and_overwrite_cartridge(
     pax_dir: &PathBuf,
@@ -90,7 +79,7 @@ pub fn generate_and_overwrite_cartridge(
         .collect();
 
     imports.append(
-        &mut crate::helpers::IMPORTS_BUILTINS
+        &mut pax_manifest::IMPORTS_BUILTINS
             .into_iter()
             .map(|ib| ib.to_string())
             .collect::<Vec<String>>(),
@@ -128,9 +117,13 @@ pub fn generate_and_overwrite_cartridge(
 
     #[cfg(feature = "designtime")]
     {
-        let path = target_dir.join("initial_manifest.json");
+
+        // things I need to pass to press_design_template
+        // host crate info
+        // manifest
+        let path = target_dir.join(pax_designtime::INITIAL_MANIFEST_FILE_NAME);
         fs::write(path.clone(), serde_json::to_string(manifest).unwrap()).unwrap();
-        generated_lib_rs += &press_designtime_template();
+        generated_lib_rs += &pax_designtime::cartridge_generation::generate_designtime_cartridge(manifest, host_crate_info);
     }
 
     // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
