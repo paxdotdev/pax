@@ -10,7 +10,6 @@
 //!
 
 extern crate core;
-
 mod building;
 mod cartridge_generation;
 pub mod errors;

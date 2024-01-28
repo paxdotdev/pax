@@ -5,7 +5,7 @@
 
 use flate2::read::GzDecoder;
 use libc::EXIT_FAILURE;
-use pax_manifest::PaxManifest;
+use pax_manifest::{HostCrateInfo, PaxManifest};
 use std::{
     collections::HashMap,
     fs,
@@ -19,7 +19,7 @@ use tar::Archive;
 
 use crate::{
     errors::source_map::SourceMap,
-    helpers::{copy_dir_recursively, HostCrateInfo, ALL_PKGS, DIR_IGNORE_LIST_MACOS, PKG_DIR_NAME},
+    helpers::{copy_dir_recursively, ALL_PKGS, DIR_IGNORE_LIST_MACOS, PKG_DIR_NAME},
     RunContext, RunTarget,
 };
 
