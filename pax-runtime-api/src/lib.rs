@@ -487,6 +487,7 @@ pub struct CommonProperties {
 }
 
 impl CommonProperties {
+
     pub fn get_default_properties_literal() -> Vec<(String, String)> {
         Self::get_property_identifiers()
             .iter()

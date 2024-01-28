@@ -12,6 +12,7 @@ pub mod properties;
 pub mod rendering;
 pub mod repeat;
 pub mod slot;
+pub mod constants;
 
 pub use crate::component::*;
 pub use crate::conditional::*;

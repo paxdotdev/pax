@@ -1,8 +1,5 @@
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec,
-    ExpressionSpecInvocation, PaxManifest, PropertyDefinition, PropertyDefinitionFlags,
-    SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeDefinition, TypeTable,
-    ValueDefinition,
+    escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeDefinition, TypeTable, ValueDefinition
 };
 use std::collections::HashMap;
 use std::ops::RangeFrom;
@@ -10,7 +7,6 @@ use std::slice::IterMut;
 
 use crate::errors::source_map::SourceMap;
 use crate::errors::PaxTemplateError;
-use crate::helpers::HostCrateInfo;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
