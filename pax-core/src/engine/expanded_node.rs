@@ -86,8 +86,8 @@ macro_rules! dispatch_event_handler {
         pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let handlers = &(*registry).borrow().$handler_field;
-                #[cfg(feature = "designtime")]
-                let handler = &(*registry).borrow().handlers[$handler_key];
+                // #[cfg(feature = "designtime")]
+                // let handlers = &(*registry).borrow().handlers[$handler_key];
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.properties)
                 } else {
@@ -114,12 +114,10 @@ macro_rules! dispatch_event_handler {
                     designtime: globals.designtime.clone(),
                 };
                 handlers.iter().for_each(|handler| {
-                    #[cfg(feature = "designtime")]{
-                        handler(Rc::clone(&component_properties), &context, Some(Box::new(args.clone()) as Box<dyn Any>));
-                    }
-                    #[cfg(not(feature = "designtime"))]{
-                        handler(Rc::clone(&component_properties), &context, args.clone());
-                    }
+                    // #[cfg(feature = "designtime")]{
+                    //     handler(Rc::clone(&component_properties), &context, Some(Box::new(args.clone()) as Box<dyn Any>));
+                    // }
+                    handler(Rc::clone(&component_properties), &context, args.clone());
                 });
             }
 

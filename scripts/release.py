@@ -61,6 +61,29 @@ for elem in PACKAGES:
         doc = tomlkit.parse(file.read())
         PACKAGE_NAMES[doc['package']['name']] = elem
 
+
+def update_pax_designtime_cargo_toml(pax_designtime_dir, new_version):
+    """
+    Update the pax-designtime Cargo.toml file to set new version numbers for dependencies.
+    :param pax_designtime_dir: Directory of the pax-designtime crate.
+    :param new_version: The new version to set for the dependencies.
+    """
+    cargo_toml_path = os.path.join(pax_designtime_dir, 'Cargo.toml')
+    with open(cargo_toml_path, 'r') as file:
+        doc = tomlkit.parse(file.read())
+
+    # Check and update dependencies
+    if 'dependencies' in doc:
+        for dep in doc['dependencies']:
+            if dep in PACKAGE_NAMES:
+                dep_table = doc['dependencies'][dep]
+                if isinstance(dep_table, tomlkit.items.InlineTable):
+                    dep_table['version'] = new_version
+
+    with open(cargo_toml_path, 'w') as file:
+        file.write(tomlkit.dumps(doc))
+
+
 def update_crate_versions_in_examples(new_version, package_names, examples_dir):
     """
     Update the crate versions in all Cargo.toml files within the examples directory.
@@ -143,6 +166,9 @@ for root in root_packages:
 # Also update the versions in the examples directory
 EXAMPLES_DIR = "examples/src"
 update_crate_versions_in_examples(NEW_VERSION, PACKAGE_NAMES, EXAMPLES_DIR)
+
+# Update the pax-designtime crate version
+update_pax_designtime_cargo_toml('../pax-designtime', NEW_VERSION)
 
 # Set to keep track of already published packages
 published = set()
