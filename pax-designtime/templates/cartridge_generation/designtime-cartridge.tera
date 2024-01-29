@@ -1,10 +1,124 @@
+{% import "macros.tera" as macros %}
+
 use include_dir::{include_dir, Dir};
-use pax_designtime::pax_manifest::PaxManifest;
+use pax_designtime::pax_manifest::*;
 use pax_designtime;
 use serde_json;
+use pax_designtime::serde_pax::de::from_pax;
+use pax_runtime_api::*;
+use pax_core::*;
+
+{# struct CommonPropertiesHelper {}
+
+impl CommonPropertiesHelper {
+    {{ for common_property in common_properties }}
+    fn build_{{common_property.name}}(value: ValueDefinition) -> {{common_property.full_return_type}}{
+        let box = match value {
+            ValueDefinition::LiteralValue(lv) => {
+                Box::new(PropertyLiteral::new(Into::<{{common_propety.type}}>::into(from_pax(lv.raw_value))))
+            },
+            ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+            {
+                Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+            }
+        };
+        {%if common_property.is_optional %}
+            Some(box)
+        {% else %}
+            box
+        {% endif %}
+    }
+    {{ endfor }}
 
 
-const INITAL_MANIFEST: &str = include_str!("../initial_manifest.json");
+    pub fn build_common_properties(settings: Option<Vec<SettingsElement>>) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
+        let mut cp = CommonProperties::default();
+        if let Some(settings) = settings {
+            for element in settings {
+                if let Settings(token, vd) = element {
+                    match token.content.as_str() {
+                        {{ for common_property in common_properties }}
+                        "{{common_property.name}}" => {
+                            cp.{{common_property.name}} = Self::build_{{common_property.name}}(vd);
+                        },
+                        {{ endfor }}
+                        _ => {}
+                    }
+                }
+            }
+        }
+        Box::new(move || Rc::new(RefCell::new(cp)))
+    }
+} #}
+
+trait InstantiationHelper {
+    /// Returns the default CommonProperties factory
+    fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
+        let mut cp = CommonProperties::default();
+        Box::new(move || Rc::new(RefCell::new(cp)))    
+    }
+
+    /// Returns the default properties factory for this component
+    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    
+    /// Returns the CommonProperties factory based on the defined properties 
+    fn build_inline_common_properties(&self, defined_properties: HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
+        let mut cp = CommonProperties::default();
+        for (key, value) in defined_properties {
+            match key.as_str() {
+                {% for common_property in common_properties %}
+                "{{common_property.name}}" => {
+                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value {
+                        ValueDefinition::LiteralValue(lv) => {
+                            Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
+                        },
+                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                        {
+                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                        }
+                        ValueDefinition::Block(block) => {
+                            Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(block.raw_block_string.unwrap()).unwrap()))
+                        }
+                        _ => unreachable!("Invalid value definition for {{common_property.name}}")
+                    };
+                    {%if common_property.is_optional %}
+                        cp.{{common_property.name}} = Some(resolved_property)
+                    {% else %}
+                        cp.{{common_property.name}} = resolved_property
+                    {% endif %}
+                },
+                {% endfor %}
+                _ => {}
+            }
+        }
+        Box::new(move || Rc::new(RefCell::new(cp)))
+    }
+
+    /// Returns the properties factory based on the defined properties
+    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    
+    /// Returns the requested closure for the handler registry based on the defined handlers for this component
+    /// The argument type is extrapolated based on how the handler was used in the initial compiled template
+    fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>);
+    
+    /// Returns the handler registry based on the defined handlers for this component
+    fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>>;
+
+    // Takes a hander registry and adds the given inline handlers to it
+    fn add_inline_handlers(&self, handlers: Vec<(String, String)>, registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>>;
+    
+    /// Returns the compute properties function for the component
+    fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>;
+    
+    // Calls the instantion function for the component
+    fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
+}
+
+{% for c in components -%}
+        {{ macros::render_component_helper(component=c) }}
+{%- endfor %}
+
+const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 pub fn instantiate_designtime_manager() -> pax_designtime::DesigntimeManager {
     let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).unwrap();
     let mut _designtime = pax_designtime::DesigntimeManager::new(manifest);
@@ -12,20 +126,109 @@ pub fn instantiate_designtime_manager() -> pax_designtime::DesigntimeManager {
     _designtime
 }
 
-
-pub fn build_component(manifest: PaxManifest, type_id: String) -> Rc<RefCell<ComponentInstance>> {
-    
-
+pub struct DefinitionToInstanceTraverser {
+    manifest: PaxManifest,
+    cached_main_component: Option<Rc<ComponentInstance>>,
 }
 
+impl DefinitionToInstanceTraverser {
+    pub fn new(manifest: PaxManifest) -> Self {
+        Self {
+            manifest,
+            cached_main_component: None,
+        }
+    }
 
-pub fn build_{{snake_case_type_id}}_handler_registry() -> HandlerRegistry {
+    pub fn update_manifest(&mut self, manifest: PaxManifest) {
+        self.manifest = manifest;
+        self.cached_main_component = None;
+    }
 
+    pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {
+        if let Some(cached) = &self.cached_main_component {
+            return cached.clone();
+        }
+        let main_component = ComponentInstance::instantiate(self.build_component_args(&self.manifest.main_component_type_id));
+        self.cached_main_component = Some(main_component.clone());
+        main_component
+    }
 
+    pub fn get_instantiation_helper(type_id: &str) -> Option<Box<dyn InstantiationHelper>> {
+        match type_id {
+            {% for component in components %}
+            "{{component.type_id}}" => Some(Box::new({{component.type_id_pascal_case}}Helper{})),
+            {% endfor %}
+            _ => None
+        }
+    }
+
+    pub fn build_component_args(&mut self, type_id: &str) -> InstantiationArgs {
+        let component = self.manifest.components.get(type_id).unwrap();
+        let helper = Self::get_instantiation_helper(type_id).unwrap();
+        let prototypical_common_properties_factory = if let Some(settings) = &component.settings {
+            helper.build_inline_common_properties(settings.clone())
+        } else {
+            helper.build_default_common_properties()
+        };
+        let prototypical_properties_factory = helper.build_default_properties();
+        let handler_registry = HandlerRegistry::default();
+        let compute_properties_fn = helper.build_compute_properties_fn();
+
+        let mut component_template = None;
+        if let Some(template_nodes) = &component.template {
+            let root = template_nodes.get(0).unwrap();
+            let children = root.child_ids;
+            let mut children_instances = Vec::new();
+            for child_id in children {
+                let child = template_nodes.get(child_id).unwrap();
+                let child_instance = self.build_template_node(type_id, child);
+                children_instances.push(child_instance);
+            }
+            component_template = Some(children_instances);
+        }
+
+        InstantiationArgs {
+            prototypical_common_properties_factory,
+            prototypical_properties_factory,
+            handler_registry,
+            component_template,
+            compute_properties_fn,
+            children: None,
+        }
+    }
+
+    pub fn build_template_node_args(&mut self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+        let mut args = self.build_component_args(&node.type_id);
+        let node_component_helper = Self::get_instantiation_helper(&node.type_id).unwrap();
+
+        let component = self.manifest.components.get(containing_component_type_id).unwrap();
+        let containing_component_helper = Self::get_instantiation_helper(containing_component_type_id).unwrap();
+
+        // need to get handlers from tnd 
+        let handlers_from_tnd = node.handlers.clone();
+        let updated_registry = if let Some(registry) = args.handler_registry {
+            containing_component_helper.add_inline_handlers(handlers_from_tnd, registry)    
+        } else {
+            containing_component_helper.add_inline_handlers(handlers_from_tnd, Rc::new(RefCell::new(HandlerRegistry::default())))       
+        }
+
+        args.handler_registry = Some(updated_registry);
+
+        let inline_properties = node.properties.clone();
+        let updated_properties = node_component_helper.build_inline_properties(inline_properties);
+        args.prototypical_properties_factory = updated_properties;
+
+        let updated_common_properties = node_component_helper.build_inline_common_properties(inline_properties);
+        args.prototypical_common_properties_factory = updated_common_properties;
+
+        let mut children_instances = Vec::new();
+        for child_id in node.child_ids {
+            let child = node.children.get(child_id).unwrap();
+            let child_instance = self.build_template_node(containing_component_type_id, child);
+            children_instances.push(child_instance);
+        }
+
+        args.children = Some(children_instances);
+        node_component_helper.build_component(args)
+    }
 }
-
-pub fn build_{{snake_case_type_id}}_compute_properties_fn() ->  Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>> {
-
-
-}
-
