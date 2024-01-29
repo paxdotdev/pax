@@ -32,6 +32,7 @@ type Factories = HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>;
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     _selection: PaxSelectionManager,
+    active_component_id: String,
     _undo_stack: PaxUndoManager,
     factories: Factories,
     priv_agent_connection: PrivilegedAgentConnection,
