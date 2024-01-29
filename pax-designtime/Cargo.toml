@@ -10,18 +10,19 @@ description = "Enterprise logic for coordination between visual editor and pax c
 default = ["serde", "serde_json", "pax-manifest/parsing"]
 
 [dependencies]
-pax-manifest = {version = "0.11.3", path="../pax/pax-manifest"}
-serde_derive = "1.0.159"
-serde = { version = "1.0.159", features=["derive"], optional = true }
-serde_json = { version = "1.0.95", optional = true } 
-rmp-serde = "1.1.2"
+anyhow = "1.0.79"
+env_logger = "0.11.0"
+ewebsock = "0.4.0"
+include_dir = {version = "0.7.3", features = ["glob"]}
 itoa = "1.0.10"
+log = "0.4.20"
+pax-manifest = {version = "0.11.3", path="../pax/pax-manifest"}
 pest = "2.7.6"
 pest_derive = "2.7.6"
-include_dir = {version = "0.7.3", features = ["glob"]}
+rmp-serde = "1.1.2"
+serde = { version = "1.0.159", features=["derive"], optional = true }
+serde_derive = "1.0.159"
+serde_json = { version = "1.0.95", optional = true }
 tera = "1"
 toml_edit = "0.21.0"
-ewebsock = "0.4.0"
-anyhow = "1.0.79"
-log = "0.4.20"
-env_logger = "0.11.0"
+uuid = "1.7.0"
