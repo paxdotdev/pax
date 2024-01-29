@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use toml_edit::{Array, Document, Item};
+use toml_edit::{Array, Document, Item, Table};
 
 pub fn add_additional_dependencies_to_cargo_toml(
     dest: &PathBuf,
@@ -16,6 +16,11 @@ pub fn add_additional_dependencies_to_cargo_toml(
 
     let pax_designtime_dependency =
         Item::from_str(r#"{ path = "../pax-designtime", optional = true }"#)?;
+
+    if !doc.contains_key("features") {
+        doc["features"] = toml_edit::Item::Table(Table::new());
+    }
+
 
     match pkg {
         "pax-chassis-web" => {
@@ -43,7 +48,13 @@ pub fn add_additional_dependencies_to_cargo_toml(
             array.push("serde_json");
             array.push("include_dir");
             array.push("pax-designtime");
+            array.push("pax-core/designtime");
+            array.push("pax-runtime-api/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
+
+            let mut array = Array::default();
+            array.push("designtime");
+            doc["features"]["default"] = toml_edit::value(array);
 
             doc["dependencies"]["serde_json"] =
                 Item::from_str(r#"{ version = "1.0.95", optional = true }"#)?;
