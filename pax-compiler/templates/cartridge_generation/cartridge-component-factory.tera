@@ -43,7 +43,6 @@ pub fn instantiate_main_component() -> Rc<ComponentInstance> {
         }))),
         children: None,
         component_template: Some(vec![{{render_nodes_literal}}]),
-        scroller_args: None,
         compute_properties_fn: Some(Box::new(|node, table, globals|{
             let props = &node.properties;
             let properties = &mut props.as_ref().borrow_mut();
