@@ -18,3 +18,5 @@ lazy_static = "1.4.0"
 mut_static = "5.0.0"
 uuid = {version = "0.8", features = ["v4", "wasm-bindgen"]}
 pax-message = {version="0.11.3", path="../pax-message"}
+serde = {version="1.0.196", features=["derive"]}
+

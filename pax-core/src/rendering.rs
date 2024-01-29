@@ -18,18 +18,12 @@ use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeCont
 pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = Vec<InstanceNodePtr>;
 
-pub struct ScrollerArgs {
-    pub size_inner_pane: [Box<dyn PropertyInstance<f64>>; 2],
-    pub axes_enabled: [Box<dyn PropertyInstance<bool>>; 2],
-}
-
 pub struct InstantiationArgs {
     pub prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     pub prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
-    pub scroller_args: Option<ScrollerArgs>,
 
     ///used by Component instances, specifically to unwrap dyn Any properties
     ///and recurse into descendant property computation

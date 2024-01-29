@@ -77,6 +77,5 @@ instantiate_{{ snake_case_type_id }}(
         {% endfor %}
     ]),
     component_template: None,
-    scroller_args: None,
     compute_properties_fn: None,
 })
