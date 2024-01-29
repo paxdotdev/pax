@@ -1,7 +1,7 @@
-{%- macro render_component_helper(component) -%}
-struct {{component.type_id_pascal_case}}Helper{}
+{%- macro render_component_factory(component) -%}
+struct {{component.type_id_pascal_case}}Factory{}
 
-impl InstantiationHelper for {{component.type_id_pascal_case}}Helper {
+impl ComponentFactory for {{component.type_id_pascal_case}}Factory {
 
     fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
         Box::new(|| Rc::new(RefCell::new({{component.properties_struct}}::default())))
