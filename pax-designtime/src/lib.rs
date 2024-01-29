@@ -12,7 +12,8 @@ pub mod selection;
 pub mod undo;
 
 pub mod messages;
-mod serde_pax;
+pub mod serde_pax;
+
 mod setup;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 

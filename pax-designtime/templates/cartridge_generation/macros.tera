@@ -1,0 +1,114 @@
+{%- macro render_component_helper(component) -%}
+struct {{component.type_id_pascal_case}}Helper{}
+
+impl InstantiationHelper for {{component.type_id_pascal_case}}Helper {
+
+    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
+        Box::new(|| Rc::new(RefCell::new({{component.properties_struct}}::default())))
+    }
+
+    fn build_inline_properties(&self,defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
+        let mut properties = {{component.properties_struct}}::default();
+        {% for property in component.properties %}
+            if let Some(vd) = defined_properties.get("{{property.name}}") {
+                properties.{{property.name}} =
+                    match vd {
+                        ValueDefinition::LiteralValue(lv) => {
+                            Box::new(PropertyLiteral::new(from_pax::<{{property.property_type}}>(lv.raw_value).unwrap()))
+                        },
+                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                        {
+                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                        },
+                        ValueDefinition::Block(block) => {
+                            Box::new(PropertyLiteral::new(from_pax::<{{property.property_type}}>(block.raw_block_string.unwrap()).unwrap()))
+                        }
+                        _ => unreachable!("Invalid value definition for {{property.name}}")
+                    };
+            }
+        {% endfor %}
+        Box::new(move || Rc::new(RefCell::new(properties)))
+    }
+
+    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>) {
+        match fn_name {
+            {% for handler in component.handlers %}
+            "{{handler.name}}" => {
+                |properties, ctx, args|{
+                    let properties = &mut *properties.as_ref().borrow_mut();
+                    if let Some(mut properties) = properties.downcast_mut::<{{component.properties_struct}}>() {
+                        // downcast args to handler.type
+                        if let Some(args) = args {
+                            if let Some(args) = args.downcast_ref::<{{handler.args_type}}>() {
+                                {{component.type_id_pascal_case}}::{{handler.name}}(properties,ctx, args);
+                            } else {panic!("Failed to downcast args to {{handler.args_type}}")};
+                        } else {
+                            {{component.type_id_pascal_case}}::{{handler.name}}(properties,ctx);
+                        }
+                    } else {panic!("Failed to downcast properties to {{component.properties_struct}}")};
+                }
+            },
+            {% endfor %}
+            _ => panic!("Unknown handler name {}", fn_name)
+        }
+    }
+
+    fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>> {
+        let mut handler_registry = HandlerRegistry::default();
+        for (event, functions) in handlers {
+            handler_registry.handlers[&event] = functions.iter().map(|fn_name| self.build_handler(&fn_name)).collect();
+        } 
+        Rc::new(RefCell::new(handler_registry))
+    }
+
+    fn add_inline_handlers(&self, handlers: Vec<(String, String)>, mut handler_registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>> {
+        for (event, fn_name) in handlers {
+            let handler_vec = handler_registry
+                .borrow_mut()
+                .handlers
+                .entry(event)
+                .or_insert(Vec::new());
+
+            handler_vec.push(self.build_handler(&fn_name));
+            
+        } 
+        handler_registry
+    }
+
+    fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>> {
+        Some(Box::new(|node, table, globals|{
+            let props = &node.properties;
+            let properties = &mut props.as_ref().borrow_mut();
+
+            if let Some(properties) = properties.downcast_mut::<{{component.properties_struct}}>() {
+
+                {% for prop in component.properties %}
+                    if let Some(new_value) = table.compute_eased_value(properties.{{prop.name}}._get_transition_manager(), globals) {
+                        properties.{{ prop.name }}.set(new_value);
+                    } else if let Some(vtable_id) = properties.{{ prop.name }}._get_vtable_id() {
+                        let new_value_wrapped = table.compute_vtable_value(&node.stack, vtable_id);
+                        if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.property_type}}>() {
+                            properties.{{ prop.name }}.set(*new_value);
+                        } else {
+                            panic!(
+                                "generated code tried to downcast to incompatible type \"{{prop.property_type}}\" for property \"{{prop.name}}\" on {{component.properties_struct}}"
+                            );
+                        }
+                    }
+                {% endfor %}
+
+            } else {
+                panic!("Failed to downcast properties to {{component.properties_struct}}");
+            }
+        }))
+    }
+
+    fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode> {
+        {% if component.primitive_instance_import_path%}
+        {{component.primitive_instance_import_path}}::instantiate(args)
+        {% else %}
+        ComponentInstance::instantiate(args)
+        {% endif %}    
+    }
+}
+{%- endmacro -%}
