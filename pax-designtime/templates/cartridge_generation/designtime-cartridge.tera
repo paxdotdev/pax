@@ -8,50 +8,7 @@ use pax_designtime::serde_pax::de::from_pax;
 use pax_runtime_api::*;
 use pax_core::*;
 
-{# struct CommonPropertiesHelper {}
-
-impl CommonPropertiesHelper {
-    {{ for common_property in common_properties }}
-    fn build_{{common_property.name}}(value: ValueDefinition) -> {{common_property.full_return_type}}{
-        let box = match value {
-            ValueDefinition::LiteralValue(lv) => {
-                Box::new(PropertyLiteral::new(Into::<{{common_propety.type}}>::into(from_pax(lv.raw_value))))
-            },
-            ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
-            {
-                Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-            }
-        };
-        {%if common_property.is_optional %}
-            Some(box)
-        {% else %}
-            box
-        {% endif %}
-    }
-    {{ endfor }}
-
-
-    pub fn build_common_properties(settings: Option<Vec<SettingsElement>>) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
-        let mut cp = CommonProperties::default();
-        if let Some(settings) = settings {
-            for element in settings {
-                if let Settings(token, vd) = element {
-                    match token.content.as_str() {
-                        {{ for common_property in common_properties }}
-                        "{{common_property.name}}" => {
-                            cp.{{common_property.name}} = Self::build_{{common_property.name}}(vd);
-                        },
-                        {{ endfor }}
-                        _ => {}
-                    }
-                }
-            }
-        }
-        Box::new(move || Rc::new(RefCell::new(cp)))
-    }
-} #}
-
-trait InstantiationHelper {
+trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
         let mut cp = CommonProperties::default();
@@ -115,7 +72,7 @@ trait InstantiationHelper {
 }
 
 {% for c in components -%}
-        {{ macros::render_component_helper(component=c) }}
+        {{ macros::render_component_factory(component=c) }}
 {%- endfor %}
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
@@ -153,10 +110,16 @@ impl DefinitionToInstanceTraverser {
         main_component
     }
 
-    pub fn get_instantiation_helper(type_id: &str) -> Option<Box<dyn InstantiationHelper>> {
+    pub fn get_component(&mut self, type_id: &str) -> Rc<dyn InstanceNode> {
+        let factory = Self::get_component_factory(type_id).expect("Failed to get component factory");
+        let args = self.build_component_args(type_id);
+        factory.build_component(args)
+    }
+
+    pub fn get_component_factory(type_id: &str) -> Option<Box<dyn ComponentFactory>> {
         match type_id {
             {% for component in components %}
-            "{{component.type_id}}" => Some(Box::new({{component.type_id_pascal_case}}Helper{})),
+            "{{component.type_id}}" => Some(Box::new({{component.type_id_pascal_case}}Factory{})),
             {% endfor %}
             _ => None
         }
@@ -164,24 +127,26 @@ impl DefinitionToInstanceTraverser {
 
     pub fn build_component_args(&mut self, type_id: &str) -> InstantiationArgs {
         let component = self.manifest.components.get(type_id).unwrap();
-        let helper = Self::get_instantiation_helper(type_id).unwrap();
+        let factory = Self::get_component_factory(type_id).unwrap();
         let prototypical_common_properties_factory = if let Some(settings) = &component.settings {
-            helper.build_inline_common_properties(settings.clone())
+            //factory.build_inline_common_properties(settings.clone())
+            factory.build_default_common_properties()
         } else {
-            helper.build_default_common_properties()
+            factory.build_default_common_properties()
         };
-        let prototypical_properties_factory = helper.build_default_properties();
-        let handler_registry = HandlerRegistry::default();
-        let compute_properties_fn = helper.build_compute_properties_fn();
+        let prototypical_properties_factory = factory.build_default_properties();
+        // pull handlers for this component
+        let handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry::default())));
+        let compute_properties_fn = factory.build_compute_properties_fn();
 
         let mut component_template = None;
         if let Some(template_nodes) = &component.template {
-            let root = template_nodes.get(0).unwrap();
+            let root = template_nodes.get(&0).unwrap();
             let children = root.child_ids;
             let mut children_instances = Vec::new();
             for child_id in children {
-                let child = template_nodes.get(child_id).unwrap();
-                let child_instance = self.build_template_node(type_id, child);
+                let child = template_nodes.get(&child_id).unwrap();
+                let child_instance = self.build_template_node_args(type_id, &child);
                 children_instances.push(child_instance);
             }
             component_template = Some(children_instances);
@@ -199,36 +164,37 @@ impl DefinitionToInstanceTraverser {
 
     pub fn build_template_node_args(&mut self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
         let mut args = self.build_component_args(&node.type_id);
-        let node_component_helper = Self::get_instantiation_helper(&node.type_id).unwrap();
+        let node_component_factory = Self::get_component_factory(&node.type_id).unwrap();
 
-        let component = self.manifest.components.get(containing_component_type_id).unwrap();
-        let containing_component_helper = Self::get_instantiation_helper(containing_component_type_id).unwrap();
+        let containing_component = self.manifest.components.get(containing_component_type_id).unwrap();
+        let containing_template = containing_component.template.as_ref().unwrap();
+        let containing_component_factory = Self::get_component_factory(containing_component_type_id).unwrap();
 
         // need to get handlers from tnd 
         let handlers_from_tnd = node.handlers.clone();
         let updated_registry = if let Some(registry) = args.handler_registry {
-            containing_component_helper.add_inline_handlers(handlers_from_tnd, registry)    
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)    
         } else {
-            containing_component_helper.add_inline_handlers(handlers_from_tnd, Rc::new(RefCell::new(HandlerRegistry::default())))       
-        }
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, Rc::new(RefCell::new(HandlerRegistry::default())))       
+        };
 
         args.handler_registry = Some(updated_registry);
 
         let inline_properties = node.properties.clone();
-        let updated_properties = node_component_helper.build_inline_properties(inline_properties);
+        let updated_properties = node_component_factory.build_inline_properties(inline_properties);
         args.prototypical_properties_factory = updated_properties;
 
-        let updated_common_properties = node_component_helper.build_inline_common_properties(inline_properties);
+        let updated_common_properties = node_component_factory.build_inline_common_properties(inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
 
         let mut children_instances = Vec::new();
         for child_id in node.child_ids {
-            let child = node.children.get(child_id).unwrap();
-            let child_instance = self.build_template_node(containing_component_type_id, child);
+            let child = containing_template.get(&child_id).unwrap();
+            let child_instance = self.build_template_node_args(containing_component_type_id, child);
             children_instances.push(child_instance);
         }
 
         args.children = Some(children_instances);
-        node_component_helper.build_component(args)
+        node_component_factory.build_component(args)
     }
 }
