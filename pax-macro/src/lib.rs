@@ -24,7 +24,7 @@ use syn::{
 };
 
 fn pax_primitive(
-    input_parsed: DeriveInput,
+    input_parsed: &DeriveInput,
     primitive_instance_import_path: String,
     include_imports: bool,
     is_custom_interpolatable: bool,
@@ -33,7 +33,7 @@ fn pax_primitive(
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions =
-        get_static_property_definitions_from_tokens(input_parsed.data);
+        get_static_property_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
         args_primitive: Some(ArgsPrimitive {
@@ -54,14 +54,14 @@ fn pax_primitive(
 }
 
 fn pax_struct_only_component(
-    input_parsed: DeriveInput,
+    input_parsed: &DeriveInput,
     include_imports: bool,
     is_custom_interpolatable: bool,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions =
-        get_static_property_definitions_from_tokens(input_parsed.data);
+        get_static_property_definitions_from_tokens(&input_parsed.data);
 
     let output = templating::TemplateArgsDerivePax {
         args_full_component: None,
@@ -196,7 +196,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
     }
 }
 
-fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticPropertyDefinition> {
+fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropertyDefinition> {
     let ret = match data {
         Data::Struct(ref data) => {
             match data.fields {
@@ -269,7 +269,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
 
 fn pax_full_component(
     raw_pax: String,
-    input_parsed: DeriveInput,
+    input_parsed: &DeriveInput,
     is_main_component: bool,
     include_fix: Option<TokenStream>,
     include_imports: bool,
@@ -279,7 +279,7 @@ fn pax_full_component(
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions =
-        get_static_property_definitions_from_tokens(input_parsed.data);
+        get_static_property_definitions_from_tokens(&input_parsed.data);
     let template_dependencies =
         parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
@@ -473,7 +473,6 @@ pub fn pax(
     let is_pax_file = config.file_path.is_some();
     let is_pax_inlined = config.inlined_contents.is_some();
 
-    let input_cl = input.clone();
     let appended_tokens = if is_pax_file {
         let filename = config.file_path.unwrap();
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
@@ -487,7 +486,7 @@ pub fn pax(
         let _ = file.unwrap().read_to_string(&mut content);
         pax_full_component(
             content,
-            input,
+            &input,
             config.is_main_component,
             Some(include_fix),
             include_imports,
@@ -499,7 +498,7 @@ pub fn pax(
 
         pax_full_component(
             contents.to_owned(),
-            input,
+            &input,
             config.is_main_component,
             None,
             include_imports,
@@ -508,13 +507,13 @@ pub fn pax(
         )
     } else if config.is_primitive {
         pax_primitive(
-            input,
+            &input,
             config.primitive_instance_import_path.unwrap(),
             include_imports,
             is_custom_interpolatable,
         )
     } else {
-        pax_struct_only_component(input, include_imports, is_custom_interpolatable)
+        pax_struct_only_component(&input, include_imports, is_custom_interpolatable)
     };
 
     let derives: proc_macro2::TokenStream = trait_impls
@@ -533,7 +532,7 @@ pub fn pax(
     let output = quote! {
         #[derive(#derives)]
         #[serde(crate = "pax_lang::serde")]
-        #input_cl
+        #input
         #appended_tokens
     };
     output.into()
