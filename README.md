@@ -15,8 +15,6 @@ Pax compiles into native desktop/mobile apps and WebAssembly-driven web apps. It
 
 ## Status
 
-Developed in the open since 2022
-
 **Currently Alpha** and unstable, under active full-time development.  Today, Pax compiles and runs for iOS, macOS, and Web.  The Web target is our leading edge of development.  Pax’s standard library includes components for drawing, layouts, and form controls.
 
 [Take Pax for a spin!](https://docs.pax.dev/start-creating-a-project.html)
@@ -28,7 +26,7 @@ We do not yet recommend building any production workloads with Pax. Targeting Be
 
 ## Examples
 
-See a **simple example** in the [introduction page](https://docs.pax.dev/) of our docs, or see a **more complex & running example** with the [pax.dev](https://www.pax.dev/) website, built in Pax.  Refer also to our [website's Pax source code](https://www.github.com/paxproject/www.pax.dev).
+See a **simple example** in the [introduction page](https://docs.pax.dev/) of our docs.
 
 You can also run the [examples](https://github.com/paxproject/pax/tree/master/examples/src) in this monorepo:
 
