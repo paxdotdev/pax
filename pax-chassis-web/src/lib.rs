@@ -20,7 +20,7 @@ use pax_core::{PaxEngine, Renderer};
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
     ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMousedown, ArgsMousemove, ArgsMouseOut, ArgsMouseOver, ArgsMouseup, ArgsScroll,
+    ArgsMouseOut, ArgsMouseOver, ArgsMousedown, ArgsMousemove, ArgsMouseup, ArgsScroll,
     ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey,
     MouseButton, MouseEventArgs, Touch,
 };

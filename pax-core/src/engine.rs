@@ -7,8 +7,8 @@ use pax_message::{NativeMessage, OcclusionPatch};
 
 use pax_runtime_api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
-    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMousedown, ArgsMousemove, ArgsMouseOut,
-    ArgsMouseOver, ArgsMouseup, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
+    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseOut, ArgsMouseOver, ArgsMousedown,
+    ArgsMousemove, ArgsMouseup, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
     ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, NodeContext,
     OcclusionLayerGen, RenderContext, TransitionManager,
 };
