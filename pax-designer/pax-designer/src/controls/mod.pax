@@ -19,16 +19,16 @@
     <Rectangle fill={Fill::Solid(Color::rgba(1,0,0,0.25))} />
 </Group>
 
-<Group id=right_panel>
-    <Settings id=settings />
-    <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
+    <Group id=right_panel>
+        <Settings id=settings />
+        <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
+    </Group>
+
+    <Frame id=top_panel>
+        <Toolbar id=toolbar />
+        <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
+    </Frame>
 </Group>
-
-<Frame id=top_panel>
-    <Toolbar id=toolbar />
-    <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
-</Frame>
-
 
 
 @settings {
