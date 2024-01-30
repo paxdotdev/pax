@@ -2,7 +2,7 @@
 
 extern crate core;
 
-use std::collections::HashMap;
+
 use std::ffi::c_void;
 
 use std::mem::{transmute, ManuallyDrop};
@@ -74,7 +74,7 @@ pub extern "C" fn pax_interrupt(
     engine_container: *mut PaxEngineContainer,
     buffer: *const InterruptBuffer,
 ) {
-    let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
+    let engine = unsafe { Box::from_raw((*engine_container)._engine) };
     // let slice = unsafe { buffer.as_ref().unwrap() };
 
     let length: u64 = unsafe {
@@ -129,7 +129,7 @@ pub extern "C" fn pax_interrupt(
             };
         }
         NativeInterrupt::Image(args) => match args {
-            ImageLoadInterruptArgs::Reference(ref_args) => {
+            ImageLoadInterruptArgs::Reference(_ref_args) => {
                 // TODO this needs to be redone since image_map now lives in the
                 // Renderer. Move renderer into the engine???
                 // let ptr = ref_args.image_data as *const u8;
