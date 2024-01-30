@@ -11,10 +11,10 @@ extern crate lazy_static;
 extern crate mut_static;
 
 pub use crate::numeric::Numeric;
-use kurbo::{BezPath, Rect};
+use kurbo::{BezPath};
 use mut_static::MutStatic;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
-use piet::{ImageBuf, PaintBrush};
+use piet::{PaintBrush};
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
