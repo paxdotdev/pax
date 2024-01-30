@@ -13,12 +13,13 @@ extern crate mut_static;
 pub use crate::numeric::Numeric;
 use kurbo::BezPath;
 use mut_static::MutStatic;
+pub use pax_message::serde;
+use pax_message::serde::{Deserialize, Serialize};
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use piet::PaintBrush;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
-use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "designtime")]
 use std::rc::Rc;
@@ -71,6 +72,31 @@ pub trait PropertyInstance<T: Default + Clone> {
     // to_default: set back to default value
     // ease_to_default: set back to default value via interpolation
     // ^ for the above, consider the transient changes to dirty-DAG when we switch between a Literal and Expression.
+}
+
+impl<'de, T> Deserialize<'de> for Box<dyn PropertyInstance<T>>
+where
+    T: Deserialize<'de> + Default + Clone + 'static,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Box<dyn PropertyInstance<T>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = T::deserialize(deserializer)?;
+        Ok(Box::new(PropertyLiteral::new(value)))
+    }
+}
+
+impl<T> Serialize for Box<dyn PropertyInstance<T>>
+where
+    T: Serialize + Default + Clone + 'static,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.get().serialize(serializer)
+    }
 }
 
 #[cfg(debug_assertions)]
@@ -329,7 +355,8 @@ pub struct ArgsContextMenu {
 /// or a percent of parent bounds.
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
 pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
@@ -631,7 +658,8 @@ impl From<Size> for SizePixels {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SizePixels(pub Numeric);
 
@@ -1159,6 +1187,7 @@ impl Interpolatable for StringBox {}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
 pub struct StringBox {
     pub string: String,
 }

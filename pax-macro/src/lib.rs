@@ -3,11 +3,10 @@ extern crate proc_macro2;
 
 mod parsing;
 mod templating;
+use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
 use std::{collections::HashMap, fs};
-
-use std::fs::File;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -523,8 +522,8 @@ pub fn pax(
         .flat_map(|ident| {
             let syn_ident = syn::Ident::new(ident, Span::call_site());
             if ["Serialize", "Deserialize"].contains(&ident) {
-                // these are serde dependencies
-                quote! {serde::#syn_ident,}
+                // fully qualify serde dependencies
+                quote! {pax_lang::serde::#syn_ident,}
             } else {
                 quote! {#syn_ident,}
             }
@@ -533,6 +532,7 @@ pub fn pax(
 
     let output = quote! {
         #[derive(#derives)]
+        #[serde(crate = "pax_lang::serde")]
         #input_cl
         #appended_tokens
     };

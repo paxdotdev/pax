@@ -26,5 +26,4 @@ mut_static = "5.0.0"
 #ideally this would be locked with `piet` (the specified version should exactly match the version used
 #internally by piet-coregraphics, e.g. 0.6.0 => 0.22.3)
 core-graphics = "0.22.3"
-serde = "1.0.159"
 flexbuffers = "2.0.0"

@@ -1,7 +1,7 @@
 use colored::{ColoredString, Colorize};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use serde::Deserialize;
+use pax_runtime_api::serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -51,11 +51,13 @@ pub const ALL_PKGS: [&'static str; 14] = [
 ];
 
 #[derive(Debug, Deserialize)]
+#[serde(crate = "pax_runtime_api::serde")]
 struct Metadata {
     packages: Vec<Package>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(crate = "pax_runtime_api::serde")]
 struct Package {
     name: String,
     version: String,
