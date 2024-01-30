@@ -1,13 +1,11 @@
-#[macro_use]
-extern crate serde;
-
 pub mod reflection;
 
 //FUTURE: feature-flag, only for Web builds
 #[allow(unused_imports)]
 use wasm_bindgen::prelude::*;
 
-use serde::Serialize;
+pub use serde;
+use serde::{Deserialize, Serialize};
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]

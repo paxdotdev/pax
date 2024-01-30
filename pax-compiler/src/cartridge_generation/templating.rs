@@ -1,6 +1,6 @@
 use include_dir::{include_dir, Dir};
 #[allow(unused_imports)]
-use serde_derive::{Deserialize, Serialize};
+use pax_runtime_api::serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 use tera::{Context, Tera};
@@ -10,6 +10,7 @@ use pax_manifest::{ExpressionSpec, MappedString, PropertyDefinition};
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");
 
 #[derive(Serialize)]
+#[serde(crate = "pax_runtime_api::serde")]
 pub struct TemplateArgsCodegenCartridgeLib {
     /// List of fully qualified import strings, e.g. pax_example::pax_reexports::...
     pub imports: Vec<String>,
@@ -25,6 +26,7 @@ pub struct TemplateArgsCodegenCartridgeLib {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(crate = "pax_runtime_api::serde")]
 pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub is_main_component: bool,
     pub snake_case_type_id: String,
@@ -36,6 +38,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
 }
 
 #[derive(Serialize)]
+#[serde(crate = "pax_runtime_api::serde")]
 pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub is_primitive: bool,
     pub snake_case_type_id: String,
