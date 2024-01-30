@@ -7,7 +7,7 @@ use pax_runtime_api::ArgsCheckboxChange;
 use pax_runtime_api::ArgsTextboxChange;
 use pax_runtime_api::RenderContext;
 use std::cell::RefCell;
-use std::collections::HashMap;
+
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -156,7 +156,7 @@ impl PaxChassisWeb {
     pub fn interrupt(&mut self, native_interrupt: String, additional_payload: &JsValue) {
         let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
 
-        let mut engine = self.engine.borrow_mut();
+        let engine = self.engine.borrow_mut();
         let globals = engine.runtime_context.globals();
         match x {
             NativeInterrupt::Image(args) => match args {

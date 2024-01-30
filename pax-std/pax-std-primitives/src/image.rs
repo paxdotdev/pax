@@ -77,7 +77,7 @@ impl InstanceNode for ImageInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        rtc: &mut RuntimeContext,
+        _rtc: &mut RuntimeContext,
         rc: &mut dyn RenderContext,
     ) {
         let comp_props = &expanded_node.layout_properties.borrow();
