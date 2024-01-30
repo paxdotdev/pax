@@ -15,7 +15,7 @@ pub fn instantiate_main_component() -> Rc<ComponentInstance> {
                         {% if handler.source_map_start_marker %}
                             {{handler.source_map_start_marker}}
                         {% endif %}
-                        {%- if entry.0.content in ['pre_compute', 'pre_render','mount'] -%}
+                        {%- if entry.0.content in ['tick', 'pre_render','mount'] -%}
                             |properties, ctx|{
                                 let properties = &mut *properties.as_ref().borrow_mut();
                                 if let Some(mut synthesized_self) = properties.downcast_mut::<{{fully_qualified_properties_type}}>() {
@@ -88,7 +88,7 @@ pub fn instantiate_{{ snake_case_type_id }}(mut args: InstantiationArgs) -> Rc<C
         {% if handler.source_map_start_marker %}
             {{handler.source_map_start_marker}}
         {% endif %}
-         {%- if entry.0.content in ['pre_compute', 'pre_render','mount'] -%}
+         {%- if entry.0.content in ['tick', 'pre_render','mount'] -%}
              |properties, ctx|{
                  let properties = &mut *properties.as_ref().borrow_mut();
 
