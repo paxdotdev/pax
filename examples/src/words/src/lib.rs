@@ -1,7 +1,7 @@
 use pax_lang::api::{
     ArgsClick, ArgsClap, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd,
-    ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsDoubleClick, ArgsMouseMove, ArgsWheel,
-    ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsContextMenu,
+    ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsDoubleClick, ArgsMousemove, ArgsWheel,
+    ArgsMousedown, ArgsMouseup, ArgsMouseOver, ArgsMouseOut, ArgsContextMenu,
     NodeContext,  Property, PropertyLiteral
 };
 use pax_lang::Pax;
@@ -59,7 +59,7 @@ impl Words {
         self.content.set("Double Click".to_string());
     }
 
-    pub fn handle_mouse_move(&mut self, _ctx: &NodeContext, _args: ArgsMouseMove) {
+    pub fn handle_mousemove(&mut self, _ctx: &NodeContext, _args: ArgsMousemove) {
         self.content.set("Mouse Move".to_string());
     }
 
@@ -67,11 +67,11 @@ impl Words {
         self.content.set("Wheel".to_string());
     }
 
-    pub fn handle_mouse_down(&mut self, _ctx: &NodeContext, _args: ArgsMouseDown) {
+    pub fn handle_mousedown(&mut self, _ctx: &NodeContext, _args: ArgsMousedown) {
         self.content.set("Mouse Down".to_string());
     }
 
-    pub fn handle_mouse_up(&mut self, _ctx: &NodeContext, _args: ArgsMouseUp) {
+    pub fn handle_mouseup(&mut self, _ctx: &NodeContext, _args: ArgsMouseup) {
         self.content.set("Mouse Up".to_string());
     }
 

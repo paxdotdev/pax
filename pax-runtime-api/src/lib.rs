@@ -267,7 +267,7 @@ pub struct ArgsDoubleClick {
 
 /// User moves the mouse while it is over an element.
 #[derive(Clone)]
-pub struct ArgsMouseMove {
+pub struct ArgsMousemove {
     pub mouse: MouseEventArgs,
 }
 
@@ -296,13 +296,13 @@ pub struct ArgsButtonClick {}
 
 /// User presses a mouse button over an element.
 #[derive(Clone)]
-pub struct ArgsMouseDown {
+pub struct ArgsMousedown {
     pub mouse: MouseEventArgs,
 }
 
 /// User releases a mouse button over an element.
 #[derive(Clone)]
-pub struct ArgsMouseUp {
+pub struct ArgsMouseup {
     pub mouse: MouseEventArgs,
 }
 
