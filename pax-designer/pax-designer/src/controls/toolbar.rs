@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use std::rc::Rc;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/toolbar.pax")]
 pub struct Toolbar {}
 

@@ -12,7 +12,7 @@ use pax_std::types::*;
 pub mod property_editor;
 use property_editor::PropertyEditor;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/settings/settings.pax")]
 pub struct Settings {
     pub component_selected: Property<bool>,
@@ -40,7 +40,7 @@ pub struct Settings {
     pub snid: Property<Numeric>,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct PropertyDef {
     pub name: StringBox,

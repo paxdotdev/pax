@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::io::BufRead;
 use std::rc::Rc;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/tree/treeobj.pax")]
 pub struct TreeObj {
     pub ind: Property<Numeric>,

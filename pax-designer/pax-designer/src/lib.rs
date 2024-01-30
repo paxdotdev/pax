@@ -11,7 +11,7 @@ use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("lib.pax")]
 pub struct PaxDesigner {
