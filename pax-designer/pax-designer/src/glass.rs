@@ -3,7 +3,7 @@ use pax_lang::*;
 use pax_std::primitives::Path;
 use pax_std::primitives::Rectangle;
 
-#[derive(Pax)]
+#[pax]
 #[custom(Default)]
 #[file("glass.pax")]
 pub struct Glass {
@@ -63,14 +63,14 @@ impl Default for Glass {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct ControlPoint {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct BoundingSegment {
     pub x0: f64,

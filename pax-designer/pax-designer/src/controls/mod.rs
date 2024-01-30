@@ -15,6 +15,6 @@ use settings::Settings;
 use toolbar::Toolbar;
 use tree::Tree;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/mod.pax")]
 pub struct Controls {}

@@ -1903,7 +1903,6 @@ dependencies = [
  "regex",
  "reqwest",
  "rust-format",
- "serde",
  "serde_derive",
  "serde_json",
  "syn 1.0.109",
@@ -1929,7 +1928,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.10.10"
+version = "0.11.3"
 dependencies = [
  "anyhow",
  "env_logger 0.11.0",
@@ -1978,8 +1977,7 @@ dependencies = [
 name = "pax-manifest"
 version = "0.11.3"
 dependencies = [
- "serde",
- "serde_derive",
+ "pax-message",
  "serde_json",
 ]
 

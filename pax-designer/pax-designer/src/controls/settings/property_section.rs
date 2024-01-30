@@ -6,7 +6,7 @@ use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/settings/property_section.pax")]
 pub struct PropertyEditor {
     pub name: Property<StringBox>,
