@@ -93,10 +93,10 @@ impl InstanceNode for ImageInstance {
         let transformed_bounds =
             kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
 
-        let val =
+        let path =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
-        rc.draw_image(&layer_id, &val.string, transformed_bounds);
+        rc.draw_image(&layer_id, &path.string, transformed_bounds);
     }
 
     fn base(&self) -> &BaseInstance {
