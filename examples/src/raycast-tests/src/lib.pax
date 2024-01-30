@@ -1,8 +1,8 @@
 <Text text={self.hit_outer}/>
 <Text y=50px text={self.hit_inner}/>
-<Frame width=50% @mouse_move=self.frame1>
+<Frame width=50% @mousemove=self.frame1>
 	<Rectangle
-		@mouse_move=self.frame1rect1
+		@mousemove=self.frame1rect1
 		x=30%
 		y=40%
 		anchor_x=50%
@@ -12,7 +12,7 @@
 	    fill={Fill::Solid(Color::hlc(50, 75.0, 150.0))}
 	/>
 	<Rectangle
-		@mouse_move=self.frame1rect2
+		@mousemove=self.frame1rect2
 		x=50%
 		y=50%
 		anchor_x=50%
@@ -22,9 +22,9 @@
 	    fill={Fill::Solid(Color::hlc(20, 75.0, 150.0))}
 	/>
 </Frame>
-<Frame x=50% width=50% @mouse_move=self.frame2>
+<Frame x=50% width=50% @mousemove=self.frame2>
 	<Rectangle
-		@mouse_move=self.frame2rect1
+		@mousemove=self.frame2rect1
 		x=60%
 		y=40%
 		anchor_x=50%

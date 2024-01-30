@@ -20,7 +20,7 @@ use pax_core::{PaxEngine, Renderer};
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
     ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
+    ArgsMousedown, ArgsMousemove, ArgsMouseOut, ArgsMouseOver, ArgsMouseup, ArgsScroll,
     ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey,
     MouseButton, MouseEventArgs, Touch,
 };
@@ -336,10 +336,10 @@ impl PaxChassisWeb {
                     topmost_node.dispatch_double_click(args_double_click, globals);
                 }
             }
-            NativeInterrupt::MouseMove(args) => {
+            NativeInterrupt::Mousemove(args) => {
                 let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_move = ArgsMouseMove {
+                    let args_mousemove = ArgsMousemove {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -351,7 +351,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_move(args_mouse_move, globals);
+                    topmost_node.dispatch_mousemove(args_mousemove, globals);
                 }
             }
             NativeInterrupt::Wheel(args) => {
@@ -372,10 +372,10 @@ impl PaxChassisWeb {
                     topmost_node.dispatch_wheel(args_wheel, globals);
                 }
             }
-            NativeInterrupt::MouseDown(args) => {
+            NativeInterrupt::Mousedown(args) => {
                 let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_down = ArgsMouseDown {
+                    let args_mousedown = ArgsMousedown {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -387,13 +387,13 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_down(args_mouse_down, globals);
+                    topmost_node.dispatch_mousedown(args_mousedown, globals);
                 }
             }
-            NativeInterrupt::MouseUp(args) => {
+            NativeInterrupt::Mouseup(args) => {
                 let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_up = ArgsMouseUp {
+                    let args_mouseup = ArgsMouseup {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -405,7 +405,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_up(args_mouse_up, globals);
+                    topmost_node.dispatch_mouseup(args_mouseup, globals);
                 }
             }
             NativeInterrupt::MouseOver(args) => {
