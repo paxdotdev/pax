@@ -1,7 +1,7 @@
 use pax_lang::api::*;
 use pax_lang::*;
-use pax_std::primitives::Path;
-use pax_std::primitives::Rectangle;
+use pax_std::primitives::{Path, Rectangle, Group};
+use pax_std::types::{Color, Fill};
 use serde::Deserialize;
 
 use designer_project::Example;
@@ -15,6 +15,21 @@ pub struct Glass {
     pub anchor_point: Property<ControlPoint>,
     pub selection_bounding_segments: Property<Vec<BoundingSegment>>,
 }
+
+impl Glass {
+    pub fn handle_mousedown(&mut self, ctx: &NodeContext, args: ArgsMousedown) {
+        pax_lang::log("mousedown");
+    }
+
+    pub fn handle_mousemove(&mut self, ctx: &NodeContext, args: ArgsMousemove) {
+        pax_lang::log("mousemove");
+    }
+
+    pub fn handle_mouseup(&mut self, ctx: &NodeContext, args: ArgsMouseup) {
+        pax_lang::log("mouseup");
+    }
+}
+
 
 impl Default for Glass {
     fn default() -> Self {
