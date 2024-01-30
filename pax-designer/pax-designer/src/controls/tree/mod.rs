@@ -15,7 +15,7 @@ pub mod treeobj;
 use std::collections::HashMap;
 use treeobj::TreeObj;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/tree/tree.pax")]
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
@@ -103,7 +103,7 @@ impl TreeEntry {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct FlattenedTreeEntry {
     pub name: StringBox,

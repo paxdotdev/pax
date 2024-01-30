@@ -3,6 +3,6 @@ use pax_lang::*;
 
 use pax_std::primitives::Text;
 
-#[derive(Pax)]
+#[pax]
 #[file("controls/logobar.pax")]
 pub struct Logobar {}
