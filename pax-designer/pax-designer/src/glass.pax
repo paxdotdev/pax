@@ -1,14 +1,24 @@
-for pt in self.control_points {
-    <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px} />
-}
+<Group @mousedown=handle_mousedown @mousemove=handle_mousemove @mouseup=handle_mouseup>
+    for pt in self.control_points {
+        <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px} />
+    }
 
-for segment in self.selection_bounding_segments {
-    <Path class=bounding_segment />
-}
+    for segment in self.selection_bounding_segments {
+        <Path class=bounding_segment />
+    }
+    <Rectangle id=glass_itself />
+</Group>
 
 <Example id=project/>
 
 @settings {
+    #glass_itself {
+        //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
+        //exist in order to intercept events from the rendering layer underneath
+        //(Note an alternative could be a flag passed to Group which toggles its `is_invisible_to_raycasting`)
+        fill: {Fill::Solid(Color::rgba(0,0,0,0))}
+    }
+
     #project {
         x: 250px,
         y: 65px,
