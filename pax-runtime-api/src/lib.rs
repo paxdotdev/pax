@@ -18,6 +18,7 @@ use piet::PaintBrush;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "designtime")]
 use std::rc::Rc;
@@ -1157,7 +1158,7 @@ impl OcclusionLayerGen {
 impl Interpolatable for StringBox {}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StringBox {
     pub string: String,
 }

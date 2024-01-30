@@ -21,6 +21,7 @@ pax-message = {path = "../pax-message", version="0.11.3"}
 lazy_static = "1.4.0"
 pax-compiler = {path="../pax-compiler", optional = true, version="0.11.3"}
 serde_json = {version="1.0.95", optional = true}
+serde = { version = "1.0.159", features=["derive"] }
 pax-runtime-api = {version="0.11.3", path="../pax-runtime-api"}
 pax-manifest = {path = "../pax-manifest", version="0.11.3"}
 

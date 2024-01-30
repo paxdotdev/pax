@@ -3,13 +3,12 @@ extern crate proc_macro2;
 
 mod parsing;
 mod templating;
-use std::fs;
 use std::io::Read;
 use std::str::FromStr;
+use std::{collections::HashMap, fs};
 
 use std::fs::File;
 
-use proc_macro::TokenTree;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
@@ -21,8 +20,8 @@ use templating::{
 use sailfish::TemplateOnce;
 
 use syn::{
-    parse_macro_input, Attribute, AttributeArgs, Data, DeriveInput, Field, Fields, GenericArgument,
-    Lit, Meta, NestedMeta, PathArguments, Type, TypeParamBound,
+    parse_macro_input, Data, DeriveInput, Field, Fields, GenericArgument, Lit, Meta, PathArguments,
+    Type,
 };
 
 fn pax_primitive(
@@ -445,167 +444,6 @@ fn validate_config(
     Ok(())
 }
 
-fn generate_clone_impl(input: &DeriveInput) -> TokenStream {
-    let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    match &input.data {
-        Data::Struct(data_struct) => match &data_struct.fields {
-            Fields::Named(fields) => {
-                let field_names = fields.named.iter().map(|f| &f.ident);
-                quote! {
-                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            #name {
-                                #( #field_names : ::core::clone::Clone::clone(&self.#field_names), )*
-                            }
-                        }
-                    }
-                }
-            }
-            Fields::Unnamed(fields) => {
-                let indices = (0..fields.unnamed.len()).map(syn::Index::from);
-                quote! {
-                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            #name (
-                                #( ::core::clone::Clone::clone(&self.#indices), )*
-                            )
-                        }
-                    }
-                }
-            }
-            Fields::Unit => {
-                quote! {
-                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            #name
-                        }
-                    }
-                }
-            }
-        },
-        Data::Enum(data_enum) => {
-            let variants = data_enum.variants.iter().map(|v| {
-                let variant_ident = &v.ident;
-                match &v.fields {
-                    Fields::Named(fields) => {
-                        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-                        quote! {
-                            #name::#variant_ident { #(ref #field_names, )* } => {
-                                #name::#variant_ident {
-                                    #( #field_names : #field_names.clone(), )*
-                                }
-                            }
-                        }
-                    }
-                    Fields::Unnamed(fields) => {
-                        let indices: Vec<_> = (0..fields.unnamed.len())
-                            .map(|i| {
-                                let name = format!("_{}", i);
-                                Ident::new(&name, proc_macro2::Span::call_site())
-                            })
-                            .collect();
-                        quote! {
-                            #name::#variant_ident ( #(ref #indices, )* ) => {
-                                #name::#variant_ident (
-                                    #( #indices.clone(), )*
-                                )
-                            }
-                        }
-                    }
-                    Fields::Unit => {
-                        quote! {
-                            #name::#variant_ident => #name::#variant_ident,
-                        }
-                    }
-                }
-            });
-
-            quote! {
-                impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                    fn clone(&self) -> Self {
-                        match self {
-                            #( #variants )*
-                        }
-                    }
-                }
-            }
-        }
-        Data::Union(_) => {
-            quote! {
-                compile_error!("`Pax` derive macro does not support unions.");
-            }
-        }
-    }
-}
-
-fn generate_default_impl(input: &DeriveInput) -> TokenStream {
-    let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    match &input.data {
-        Data::Struct(data_struct) => match &data_struct.fields {
-            Fields::Named(fields_named) => {
-                let field_defaults = fields_named.named.iter().map(|f| {
-                    let name = &f.ident;
-                    quote! { #name: Default::default() }
-                });
-
-                quote! {
-                    impl #impl_generics Default for #name #ty_generics #where_clause {
-                        fn default() -> Self {
-                            Self {
-                                #(#field_defaults,)*
-                            }
-                        }
-                    }
-                }
-            }
-            Fields::Unnamed(_) | Fields::Unit => {
-                quote! {
-                    impl #impl_generics Default for #name #ty_generics #where_clause {
-                        fn default() -> Self {
-                            Self::default()
-                        }
-                    }
-                }
-            }
-        },
-        Data::Enum(data_enum) => {
-            let default_variant = data_enum.variants.iter().find(|variant| {
-                variant
-                    .attrs
-                    .iter()
-                    .any(|attr| attr.path.is_ident("default"))
-            });
-
-            match default_variant {
-                Some(variant) => {
-                    let variant_ident = &variant.ident;
-                    quote! {
-                        impl #impl_generics Default for #name #ty_generics #where_clause {
-                            fn default() -> Self {
-                                Self::#variant_ident
-                            }
-                        }
-                    }
-                }
-                None => {
-                    quote! {
-                        compile_error!("#[default] attribute required on one of the enum variants");
-                    }
-                }
-            }
-        }
-        Data::Union(_) => {
-            quote! {
-                compile_error!("Pax derive does not currently support Unions");
-            }
-        }
-    }
-}
-
 #[proc_macro_attribute]
 pub fn pax(
     _args: proc_macro::TokenStream,
@@ -615,25 +453,16 @@ pub fn pax(
     let config = parse_config(&mut input.attrs);
     validate_config(&input, &config).unwrap();
 
-    // Implement Clone
-    let mut clone_impl = Some("Clone");
-
-    // Implement Default
-    let mut default_impl = Some("Default");
+    let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize"];
 
     let mut include_imports = true;
     let mut is_custom_interpolatable = false;
 
     //wipe out the above derives if `#[custom(...)]` attrs are set
     if let Some(custom) = config.custom_values {
-        if custom.contains(&"Default".to_string()) {
-            //wipe out the above derive
-            default_impl = None;
-        }
-        if custom.contains(&"Clone".to_string()) {
-            //wipe out the above derive
-            clone_impl = None;
-        }
+        let custom_str: Vec<&str> = custom.iter().map(String::as_str).collect();
+        trait_impls.retain(|v| !custom_str.contains(v));
+
         if custom.contains(&"Imports".to_string()) {
             include_imports = false;
         }
@@ -689,14 +518,18 @@ pub fn pax(
         pax_struct_only_component(input, include_imports, is_custom_interpolatable)
     };
 
-    let derives: TokenStream = syn::parse_str(
-        &[clone_impl, default_impl]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-            .join(", "),
-    )
-    .unwrap();
+    let derives: proc_macro2::TokenStream = trait_impls
+        .into_iter()
+        .flat_map(|ident| {
+            let syn_ident = syn::Ident::new(ident, Span::call_site());
+            if ["Serialize", "Deserialize"].contains(&ident) {
+                // these are serde dependencies
+                quote! {serde::#syn_ident,}
+            } else {
+                quote! {#syn_ident,}
+            }
+        })
+        .collect();
 
     let output = quote! {
         #[derive(#derives)]
