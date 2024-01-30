@@ -47,6 +47,7 @@ pub fn generate_and_overwrite_cartridge(
 ) -> PathBuf {
     let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-cartridge");
 
+    #[allow(unused_mut)]
     let mut generated_lib_rs;
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
