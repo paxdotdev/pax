@@ -2,7 +2,6 @@
 
 extern crate core;
 
-
 use std::ffi::c_void;
 
 use std::mem::{transmute, ManuallyDrop};

@@ -6,7 +6,7 @@ use pax_core::{
 };
 use pax_runtime_api::{Layer, RenderContext};
 use pax_std::primitives::Path;
-use pax_std::types::{PathSegment};
+use pax_std::types::PathSegment;
 
 use std::rc::Rc;
 
