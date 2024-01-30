@@ -2,7 +2,7 @@ use pax_lang::api::*;
 use pax_lang::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("hello-rgb.pax")]
 pub struct HelloRGB {

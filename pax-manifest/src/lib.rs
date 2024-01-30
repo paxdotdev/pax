@@ -130,7 +130,7 @@ pub struct ComponentDefinition {
     pub is_primitive: bool,
 
     /// Flag describing whether this component definition is a "struct-only component", a
-    /// struct decorated with `#[derive(Pax)]` for use as the `T` in `Property<T>`.
+    /// struct decorated with `#[pax]` for use as the `T` in `Property<T>`.
     pub is_struct_only_component: bool,
 
     pub pascal_identifier: String,

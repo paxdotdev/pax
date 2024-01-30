@@ -9,7 +9,7 @@ use pax_lang::*;
 use pax_message::ColorVariantMessage;
 use piet::UnitPoint;
 
-#[derive(Pax)]
+#[pax]
 #[custom(Default)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Stroke {
@@ -27,7 +27,7 @@ impl Default for Stroke {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct StackerCell {
     pub x_px: f64,
@@ -36,7 +36,7 @@ pub struct StackerCell {
     pub height_px: f64,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub enum StackerDirection {
     Vertical,
@@ -44,7 +44,7 @@ pub enum StackerDirection {
     Horizontal,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub enum SidebarDirection {
     Left,
@@ -53,7 +53,7 @@ pub enum SidebarDirection {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Default, Imports)]
 pub enum Fill {
     Solid(Color),
@@ -62,7 +62,7 @@ pub enum Fill {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Default, Imports)]
 pub struct LinearGradient {
     pub start: (Size, Size),
@@ -71,7 +71,7 @@ pub struct LinearGradient {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Default, Imports)]
 pub struct RadialGradient {
     pub end: (Size, Size),
@@ -81,7 +81,7 @@ pub struct RadialGradient {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct GradientStop {
     position: Size,
@@ -148,7 +148,7 @@ impl Fill {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Default, Imports)]
 pub struct Color {
     pub color_variant: ColorVariant,
@@ -252,7 +252,7 @@ impl PartialEq<ColorVariantMessage> for Color {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Pax)]
+#[pax]
 #[custom(Default, Imports)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
@@ -267,7 +267,7 @@ impl Default for ColorVariant {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum PathSegment {
@@ -283,7 +283,7 @@ impl PathSegment {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LineSegmentData {
@@ -297,7 +297,7 @@ impl LineSegmentData {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CurveSegmentData {
@@ -306,8 +306,9 @@ pub struct CurveSegmentData {
     pub end: Point,
 }
 
-#[derive(Pax, Copy)]
+#[pax]
 #[custom(Imports)]
+#[derive(Copy)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Point {
     pub x: Size,
@@ -351,7 +352,7 @@ impl Path {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RectangleCornerRadii {

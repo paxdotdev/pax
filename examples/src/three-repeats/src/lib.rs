@@ -8,7 +8,7 @@ use pax_std::types::text::*;
 use pax_std::components::*;
 use pax_std::components::Stacker;
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[custom(Default)]
 #[file("lib.pax")]
@@ -40,7 +40,7 @@ impl Default for ThreeRepeats {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct CustomStruct {
     pub x: isize,

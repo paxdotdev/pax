@@ -9,7 +9,7 @@ use pax_runtime_api::{NodeContext, PropertyLiteral};
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
 /// each node.  `Stacker`s can be stacked inside of each other, horizontally
 /// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
-#[derive(Pax)]
+#[pax]
 #[custom(Default)]
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
