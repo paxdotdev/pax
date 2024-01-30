@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::orm::PaxManifestORM;
-use crate::selection::PaxSelectionManager;
+use crate::selection::SelectionManager;
 use crate::undo::PaxUndoManager;
 
 pub mod cartridge_generation;
@@ -31,8 +31,8 @@ type Factories = HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>;
 
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
-    _selection: PaxSelectionManager,
-    active_component_id: String,
+    _selection: SelectionManager,
+    // active_component_id: String,
     _undo_stack: PaxUndoManager,
     factories: Factories,
     priv_agent_connection: PrivilegedAgentConnection,
@@ -49,7 +49,7 @@ pub mod priveleged_agent;
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
-        let selection = PaxSelectionManager::new();
+        let selection = SelectionManager::new();
         let undo_stack = PaxUndoManager::new();
         let factories = HashMap::new();
         DesigntimeManager {
