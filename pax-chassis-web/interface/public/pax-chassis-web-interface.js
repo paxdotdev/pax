@@ -376,7 +376,7 @@ var Pax = (() => {
     }
   };
 
-  // ../node_modules/snarkdown/dist/snarkdown.es.js
+  // node_modules/snarkdown/dist/snarkdown.es.js
   var e = { "": ["<em>", "</em>"], _: ["<strong>", "</strong>"], "*": ["<strong>", "</strong>"], "~": ["<s>", "</s>"], "\n": ["<br />"], " ": ["<br />"], "-": ["<hr />"] };
   function n(e2) {
     return e2.replace(RegExp("^" + (e2.match(/^(\t| )+/) || "")[0], "gm"), "");
