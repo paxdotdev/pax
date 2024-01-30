@@ -23,7 +23,7 @@ use pax_runtime_api::{NodeContext, PropertyLiteral};
     }
 
     @handlers {
-        pre_compute: handle_pre_compute
+        tick: handle_tick
     }
 
 )]
@@ -51,7 +51,7 @@ impl Default for Stacker {
 }
 
 impl Stacker {
-    pub fn handle_pre_compute(&mut self, ctx: &NodeContext) {
+    pub fn handle_tick(&mut self, ctx: &NodeContext) {
         let cells = self.cells.get().get_as_float();
         let bounds = ctx.bounds_self;
 

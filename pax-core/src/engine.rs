@@ -100,7 +100,7 @@ pub struct HandlerRegistry {
     pub context_menu_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsContextMenu)>,
     pub wheel_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsWheel)>,
     pub pre_render_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
-    pub pre_compute_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
+    pub tick_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
     pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
 }
 
@@ -129,7 +129,7 @@ impl Default for HandlerRegistry {
             checkbox_change_handlers: Vec::new(),
             button_click_handlers: Vec::new(),
             textbox_change_handlers: Vec::new(),
-            pre_compute_handlers: Vec::new(),
+            tick_handlers: Vec::new(),
         }
     }
 }

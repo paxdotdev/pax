@@ -236,7 +236,7 @@ impl ExpandedNode {
         });
 
         if let Some(ref registry) = self.instance_node.base().handler_registry {
-            for handler in &registry.borrow().pre_compute_handlers {
+            for handler in &registry.borrow().tick_handlers {
                 handler(Rc::clone(&self.properties), &self.get_node_context(context))
             }
         }
