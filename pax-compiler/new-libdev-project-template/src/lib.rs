@@ -8,7 +8,7 @@ use pax_std::types::text::*;
 use pax_std::components::*;
 use pax_std::components::Stacker;
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("lib.pax")]
 pub struct Example {

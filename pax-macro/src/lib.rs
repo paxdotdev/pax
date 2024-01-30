@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 use std::fs::File;
 
+use proc_macro::TokenTree;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
@@ -20,8 +21,8 @@ use templating::{
 use sailfish::TemplateOnce;
 
 use syn::{
-    parse_macro_input, Data, DeriveInput, Field, Fields, GenericArgument, Lit, Meta, PathArguments,
-    Type,
+    parse_macro_input, Attribute, AttributeArgs, Data, DeriveInput, Field, Fields, GenericArgument,
+    Lit, Meta, NestedMeta, PathArguments, Type, TypeParamBound,
 };
 
 fn pax_primitive(
@@ -332,7 +333,7 @@ struct Config {
     is_primitive: bool,
 }
 
-fn parse_config(attrs: &[syn::Attribute]) -> Config {
+fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     let mut config = Config {
         is_main_component: false,
         file_path: None,
@@ -343,13 +344,15 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
     };
 
     // iterate through `derive macro helper attributes` to gather config & args
-    for attr in attrs {
+    // remove the ones we use, don't remove the ones we don't
+    attrs.retain(|attr| {
         match attr.path.get_ident() {
             Some(s) if s == "file" => {
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(nested_meta) = meta_list.nested.first() {
                         if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                             config.file_path = Some(file_str.value());
+                            return false;
                         }
                     }
                 }
@@ -360,6 +363,7 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
                         if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                             config.primitive_instance_import_path = Some(file_str.value());
                             config.is_primitive = true;
+                            return false;
                         }
                     }
                 }
@@ -378,12 +382,14 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
 
                 if !content.is_empty() {
                     config.inlined_contents = Some(content.to_string());
+                    return false;
                 }
             }
             _ => {
                 if let Ok(Meta::Path(path)) = attr.parse_meta() {
                     if path.is_ident("main") {
                         config.is_main_component = true;
+                        return false;
                     }
                 } else if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if meta_list.path.is_ident("custom") {
@@ -399,11 +405,13 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
                             })
                             .collect();
                         config.custom_values = Some(values);
+                        return false;
                     }
                 }
             }
         }
-    }
+        true
+    });
 
     config
 }
@@ -598,19 +606,20 @@ fn generate_default_impl(input: &DeriveInput) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(Pax, attributes(main, file, inlined, primitive, custom, default))]
-pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let attrs = &input.attrs;
-
-    let config = parse_config(attrs);
+#[proc_macro_attribute]
+pub fn pax(
+    _args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let mut input = parse_macro_input!(input as DeriveInput);
+    let config = parse_config(&mut input.attrs);
     validate_config(&input, &config).unwrap();
 
     // Implement Clone
-    let mut clone_impl = generate_clone_impl(&input);
+    let mut clone_impl = Some("Clone");
 
     // Implement Default
-    let mut default_impl = generate_default_impl(&input);
+    let mut default_impl = Some("Default");
 
     let mut include_imports = true;
     let mut is_custom_interpolatable = false;
@@ -619,11 +628,11 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     if let Some(custom) = config.custom_values {
         if custom.contains(&"Default".to_string()) {
             //wipe out the above derive
-            default_impl = quote! {};
+            default_impl = None;
         }
         if custom.contains(&"Clone".to_string()) {
             //wipe out the above derive
-            clone_impl = quote! {};
+            clone_impl = None;
         }
         if custom.contains(&"Imports".to_string()) {
             include_imports = false;
@@ -635,8 +644,8 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let is_pax_file = config.file_path.is_some();
     let is_pax_inlined = config.inlined_contents.is_some();
-    // let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n//inlined_contents: /*{:?}*/", &is_pax_file, &is_pax_inlined, &inlined_contents);
 
+    let input_cl = input.clone();
     let appended_tokens = if is_pax_file {
         let filename = config.file_path.unwrap();
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
@@ -680,10 +689,19 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         pax_struct_only_component(input, include_imports, is_custom_interpolatable)
     };
 
+    let derives: TokenStream = syn::parse_str(
+        &[clone_impl, default_impl]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
+    .unwrap();
+
     let output = quote! {
+        #[derive(#derives)]
+        #input_cl
         #appended_tokens
-        #clone_impl
-        #default_impl
     };
     output.into()
 }

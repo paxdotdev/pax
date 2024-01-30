@@ -8,7 +8,7 @@ use pax_lang::Pax;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text, Image};
 use pax_std::types::text::*;
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("words.pax")]
 pub struct Words {

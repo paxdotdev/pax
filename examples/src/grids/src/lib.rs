@@ -5,7 +5,7 @@ use pax_std::components::{Stacker};
 use pax_std::types::{Color, StackerDirection};
 
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("grids.pax")]
 pub struct Grids {
