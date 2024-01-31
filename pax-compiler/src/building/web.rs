@@ -104,11 +104,11 @@ pub fn build_web_chassis_with_cartridge(
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
-    if is_release {
-        cmd.arg("--release");
-    } else {
+    //if is_release {
+      //  cmd.arg("--release");
+    //} else {
         cmd.arg("--dev");
-    }
+    //}
     if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");
     }

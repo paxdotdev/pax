@@ -4,7 +4,7 @@ use crate::primitives::Path;
 pub use kurbo::RoundedRectRadii;
 use pax_lang::api::numeric::Numeric;
 pub use pax_lang::api::Size;
-use pax_lang::api::{PropertyLiteral, SizePixels};
+use pax_lang::api::PropertyLiteral;
 use pax_lang::*;
 use pax_message::ColorVariantMessage;
 use piet::UnitPoint;

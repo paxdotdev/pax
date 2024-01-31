@@ -122,6 +122,7 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
 
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
+
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeContext {
@@ -465,6 +466,14 @@ impl Size {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Deserialize)]
+pub struct CommonProperty {
+    name: String,
+    property_type: String,
+    optional: bool,
+}
+
 // Struct containing fields shared by all RenderNodes.
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
 // Retrieved via <dyn InstanceNode>#get_common_properties
@@ -520,10 +529,21 @@ impl CommonProperties {
             ("height".to_string(), "Size".to_string()),
         ]
     }
+
+    pub fn get_as_common_property() -> Vec<CommonProperty> {
+        Self::get_property_identifiers()
+            .iter()
+            .map(|id| CommonProperty {
+                name: id.0.to_string(),
+                property_type: id.1.to_string(),
+                optional: (id.0 == "transform" || id.0 == "width" || id.0 == "height"),
+            })
+            .collect()
+    }
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
@@ -648,44 +668,6 @@ impl Default for Size {
     }
 }
 
-impl From<Size> for SizePixels {
-    fn from(value: Size) -> Self {
-        match value {
-            Size::Pixels(x) => SizePixels(x),
-            _ => {
-                panic!("Non-pixel Size cannot be coerced into SizePixels");
-            }
-        }
-    }
-}
-
-#[derive(Copy, Clone, Serialize, Deserialize)]
-#[serde(crate = "crate::serde")]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct SizePixels(pub Numeric);
-
-impl Default for SizePixels {
-    fn default() -> Self {
-        Self(Numeric::Float(150.0))
-    }
-}
-impl From<&SizePixels> for f64 {
-    fn from(value: &SizePixels) -> Self {
-        value.0.get_as_float()
-    }
-}
-
-impl PartialEq<Numeric> for SizePixels {
-    fn eq(&self, other: &Numeric) -> bool {
-        self.0 == *other
-    }
-}
-impl PartialEq<SizePixels> for Numeric {
-    fn eq(&self, other: &SizePixels) -> bool {
-        other.0 == *self
-    }
-}
-
 /// Coproduct for storing various kinds of function pointer,
 /// needed to achieve compatibility with various native bridge mechanisms
 pub enum PlatformSpecificLogger {
@@ -757,7 +739,7 @@ impl Mul for Size {
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct Transform2D {
     /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
