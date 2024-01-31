@@ -6,13 +6,13 @@
     for segment in self.selection_bounding_segments {
         <Path class=bounding_segment />
     }
-    <Rectangle id=glass_itself />
+    <Rectangle id=backing_plate />
 </Group>
 
 <Example id=project/>
 
 @settings {
-    #glass_itself {
+    #backing_plate {
         //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
         //exist in order to intercept events from the rendering layer underneath
         //(Note an alternative could be a flag passed to Group which toggles its `is_invisible_to_raycasting`)
