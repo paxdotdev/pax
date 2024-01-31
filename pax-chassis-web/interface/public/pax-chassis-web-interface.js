@@ -1631,7 +1631,7 @@ var Pax = (() => {
     }, true);
     layer.addEventListener("mousemove", (evt) => {
       let event = {
-        "Mousemove": {
+        "MouseMove": {
           "x": evt.clientX,
           "y": evt.clientY,
           "button": getMouseButton(evt),
@@ -1654,7 +1654,7 @@ var Pax = (() => {
     }, { "passive": true, "capture": true });
     layer.addEventListener("mousedown", (evt) => {
       let event = {
-        "Mousedown": {
+        "MouseDown": {
           "x": evt.clientX,
           "y": evt.clientY,
           "button": getMouseButton(evt),
@@ -1665,7 +1665,7 @@ var Pax = (() => {
     }, true);
     layer.addEventListener("mouseup", (evt) => {
       let event = {
-        "Mouseup": {
+        "MouseUp": {
           "x": evt.clientX,
           "y": evt.clientY,
           "button": getMouseButton(evt),
