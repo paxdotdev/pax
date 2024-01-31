@@ -6,7 +6,16 @@ for segment in self.selection_bounding_segments {
     <Path class=bounding_segment />
 }
 
+<Example id=project/>
+
 @settings {
+    #project {
+        x: 250px,
+        y: 65px,
+        width: {100% - 700px},
+        height: {100% - 65px},
+    }
+
     .control_point {
         stroke: {
             color: {

@@ -3,6 +3,8 @@ use pax_lang::*;
 use pax_std::primitives::Path;
 use pax_std::primitives::Rectangle;
 
+use designer_project::Example;
+
 #[pax]
 #[custom(Default)]
 #[file("glass.pax")]

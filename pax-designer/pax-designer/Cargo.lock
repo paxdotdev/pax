@@ -786,6 +786,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "designer_project"
+version = "0.11.3"
+dependencies = [
+ "pax-compiler",
+ "pax-lang",
+ "pax-manifest",
+ "pax-std",
+ "serde_json",
+]
+
+[[package]]
 name = "deunicode"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1917,8 +1928,9 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.10.10"
+version = "0.11.3"
 dependencies = [
+ "designer_project",
  "pax-compiler",
  "pax-lang",
  "pax-manifest",
