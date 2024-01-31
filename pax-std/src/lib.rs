@@ -8,7 +8,7 @@ pub mod components {
 }
 
 pub mod primitives {
-    use pax_lang::Pax;
+    use pax_lang::pax;
     use pax_runtime_api::Property;
     use pax_runtime_api::Size;
     use pax_runtime_api::StringBox;
@@ -16,16 +16,16 @@ pub mod primitives {
     use crate::types::text::TextStyle;
     use crate::types::PathSegment;
 
-    #[derive(Pax)]
+    #[pax]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
     pub struct Frame {}
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::group::GroupInstance")]
     pub struct Group {}
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::scroller::ScrollerInstance")]
     pub struct Scroller {
@@ -35,7 +35,7 @@ pub mod primitives {
         pub scroll_enabled_y: Property<bool>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
@@ -45,7 +45,7 @@ pub mod primitives {
         pub corner_radii: Property<crate::types::RectangleCornerRadii>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
@@ -54,7 +54,7 @@ pub mod primitives {
         pub fill: Property<crate::types::Fill>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::path::PathInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
@@ -64,7 +64,7 @@ pub mod primitives {
         pub fill: Property<crate::types::Color>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::text::TextInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
@@ -74,21 +74,21 @@ pub mod primitives {
         pub style_link: Property<TextStyle>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::checkbox::CheckboxInstance")]
     pub struct Checkbox {
         pub checked: Property<bool>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::textbox::TextboxInstance")]
     pub struct Textbox {
         pub text: Property<StringBox>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::button::ButtonInstance")]
     pub struct Button {
@@ -96,7 +96,7 @@ pub mod primitives {
         pub style: Property<TextStyle>,
     }
 
-    #[derive(Pax)]
+    #[pax]
     #[custom(Imports)]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {

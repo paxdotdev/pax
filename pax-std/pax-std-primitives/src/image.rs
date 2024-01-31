@@ -103,11 +103,12 @@ impl InstanceNode for ImageInstance {
         &self.base
     }
 
+    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
-        _f: &mut std::fmt::Formatter,
+        f: &mut std::fmt::Formatter,
         _expanded_node: Option<&pax_core::ExpandedNode>,
     ) -> std::fmt::Result {
-        todo!()
+        f.debug_struct("Image").finish_non_exhaustive()
     }
 }

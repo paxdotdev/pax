@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
-use serde_derive::{Deserialize, Serialize};
+use pax_message::serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
+#[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
@@ -38,6 +39,7 @@ impl Ord for ExpressionSpec {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
@@ -64,6 +66,7 @@ pub struct ExpressionSpec {
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub struct ExpressionSpecInvocation {
     /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
     /// identifier itself for non-nested symbols (`foo` for `foo`)
@@ -122,6 +125,7 @@ impl ExpressionSpecInvocation {
 /// Container for an entire component definition — includes template, settings,
 /// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ComponentDefinition {
     pub type_id: String,
@@ -130,7 +134,7 @@ pub struct ComponentDefinition {
     pub is_primitive: bool,
 
     /// Flag describing whether this component definition is a "struct-only component", a
-    /// struct decorated with `#[derive(Pax)]` for use as the `T` in `Property<T>`.
+    /// struct decorated with `#[pax]` for use as the `T` in `Property<T>`.
     pub is_struct_only_component: bool,
 
     pub pascal_identifier: String,
@@ -165,12 +169,14 @@ impl ComponentDefinition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
     Comment(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub enum HandlersBlockElement {
     Handler(Token, Vec<Token>),
     Comment(String),
@@ -181,6 +187,7 @@ pub enum HandlersBlockElement {
 /// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
 /// A compile-time `TemplateNodeDefinition` corresponds to a single runtime `RenderNode` instance.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub struct TemplateNodeDefinition {
     /// Component-unique int ID.  Conventionally, id 0 will be the root node for a component's template
     pub id: usize,
@@ -215,6 +222,7 @@ pub fn get_primitive_type_table() -> TypeTable {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct PropertyDefinition {
     /// String representation of the symbolic identifier of a declared Property
     pub name: String,
@@ -249,6 +257,7 @@ impl PropertyDefinition {
 /// Properties are divided into modal axes (exactly one value should be true per axis per struct instance)
 /// Codegen considers each element of the cartesian product of these axes
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct PropertyDefinitionFlags {
     // // //
     // Binding axis
@@ -288,6 +297,7 @@ impl PropertyDefinition {
 
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TypeDefinition {
     /// Program-unique ID for this type
@@ -344,6 +354,7 @@ impl TypeDefinition {
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
 pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
@@ -359,6 +370,7 @@ pub enum ValueDefinition {
 /// Container for holding metadata about original Location in Pax Template
 /// Used for source-mapping
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub struct LocationInfo {
     pub start_line_col: (usize, usize),
     pub end_line_col: (usize, usize),
@@ -368,6 +380,7 @@ pub struct LocationInfo {
 /// predicate, for example the `(elem, i)` in `for (elem, i) in foo` or
 /// the `elem` in `for elem in foo`
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub enum ControlFlowRepeatPredicateDefinition {
     ElemId(Token),
     ElemIdIndexId(Token, Token),
@@ -377,6 +390,7 @@ pub enum ControlFlowRepeatPredicateDefinition {
 /// example the string (PAXEL) representations of condition / slot / repeat
 /// expressions and the related vtable ids (for "punching" during expression compilation)
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression_paxel: Option<Token>,
     pub condition_expression_vtable_id: Option<usize>,
@@ -389,6 +403,7 @@ pub struct ControlFlowSettingsDefinition {
 /// Container describing the possible variants of a Repeat source
 /// — namely a range expression in PAXEL or a symbolic binding
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<Token>,
     pub vtable_id: Option<usize>,
@@ -397,6 +412,7 @@ pub struct ControlFlowRepeatSourceDefinition {
 
 /// Container for a parsed Literal object
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
     pub elements: Vec<SettingElement>,
@@ -412,6 +428,7 @@ impl LiteralBlockDefinition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
 pub enum SettingElement {
     Setting(Token, ValueDefinition),
     Comment(String),
@@ -435,6 +452,7 @@ impl LiteralBlockDefinition {
 /// Container for parsed values with optional location information
 /// Location is optional in case this token was generated dynamically
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct Token {
     pub token_value: String,
     // Non-pratt parsed string
@@ -445,6 +463,7 @@ pub struct Token {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub enum TokenType {
     Expression,
     Identifier,
@@ -527,18 +546,21 @@ impl Token {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub enum Number {
     Float(f64),
     Int(isize),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
 pub enum Unit {
     Pixels,
     Percent,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[serde(crate = "pax_message::serde")]
 pub struct MappedString {
     pub content: String,
     /// Markers used to identify generated code range for source map.

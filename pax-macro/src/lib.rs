@@ -3,11 +3,10 @@ extern crate proc_macro2;
 
 mod parsing;
 mod templating;
-use std::fs;
+use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
-
-use std::fs::File;
+use std::{collections::HashMap, fs};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -25,7 +24,7 @@ use syn::{
 };
 
 fn pax_primitive(
-    input_parsed: DeriveInput,
+    input_parsed: &DeriveInput,
     primitive_instance_import_path: String,
     include_imports: bool,
     is_custom_interpolatable: bool,
@@ -34,7 +33,7 @@ fn pax_primitive(
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions =
-        get_static_property_definitions_from_tokens(input_parsed.data);
+        get_static_property_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
         args_primitive: Some(ArgsPrimitive {
@@ -55,14 +54,14 @@ fn pax_primitive(
 }
 
 fn pax_struct_only_component(
-    input_parsed: DeriveInput,
+    input_parsed: &DeriveInput,
     include_imports: bool,
     is_custom_interpolatable: bool,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions =
-        get_static_property_definitions_from_tokens(input_parsed.data);
+        get_static_property_definitions_from_tokens(&input_parsed.data);
 
     let output = templating::TemplateArgsDerivePax {
         args_full_component: None,
@@ -197,7 +196,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
     }
 }
 
-fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticPropertyDefinition> {
+fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropertyDefinition> {
     let ret = match data {
         Data::Struct(ref data) => {
             match data.fields {
@@ -270,7 +269,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
 
 fn pax_full_component(
     raw_pax: String,
-    input_parsed: DeriveInput,
+    input_parsed: &DeriveInput,
     is_main_component: bool,
     include_fix: Option<TokenStream>,
     include_imports: bool,
@@ -280,7 +279,7 @@ fn pax_full_component(
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions =
-        get_static_property_definitions_from_tokens(input_parsed.data);
+        get_static_property_definitions_from_tokens(&input_parsed.data);
     let template_dependencies =
         parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
@@ -332,7 +331,7 @@ struct Config {
     is_primitive: bool,
 }
 
-fn parse_config(attrs: &[syn::Attribute]) -> Config {
+fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     let mut config = Config {
         is_main_component: false,
         file_path: None,
@@ -343,13 +342,15 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
     };
 
     // iterate through `derive macro helper attributes` to gather config & args
-    for attr in attrs {
+    // remove the ones we use, don't remove the ones we don't
+    attrs.retain(|attr| {
         match attr.path.get_ident() {
             Some(s) if s == "file" => {
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(nested_meta) = meta_list.nested.first() {
                         if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                             config.file_path = Some(file_str.value());
+                            return false;
                         }
                     }
                 }
@@ -360,6 +361,7 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
                         if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                             config.primitive_instance_import_path = Some(file_str.value());
                             config.is_primitive = true;
+                            return false;
                         }
                     }
                 }
@@ -378,12 +380,14 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
 
                 if !content.is_empty() {
                     config.inlined_contents = Some(content.to_string());
+                    return false;
                 }
             }
             _ => {
                 if let Ok(Meta::Path(path)) = attr.parse_meta() {
                     if path.is_ident("main") {
                         config.is_main_component = true;
+                        return false;
                     }
                 } else if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if meta_list.path.is_ident("custom") {
@@ -399,11 +403,13 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
                             })
                             .collect();
                         config.custom_values = Some(values);
+                        return false;
                     }
                 }
             }
         }
-    }
+        true
+    });
 
     config
 }
@@ -437,194 +443,25 @@ fn validate_config(
     Ok(())
 }
 
-fn generate_clone_impl(input: &DeriveInput) -> TokenStream {
-    let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    match &input.data {
-        Data::Struct(data_struct) => match &data_struct.fields {
-            Fields::Named(fields) => {
-                let field_names = fields.named.iter().map(|f| &f.ident);
-                quote! {
-                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            #name {
-                                #( #field_names : ::core::clone::Clone::clone(&self.#field_names), )*
-                            }
-                        }
-                    }
-                }
-            }
-            Fields::Unnamed(fields) => {
-                let indices = (0..fields.unnamed.len()).map(syn::Index::from);
-                quote! {
-                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            #name (
-                                #( ::core::clone::Clone::clone(&self.#indices), )*
-                            )
-                        }
-                    }
-                }
-            }
-            Fields::Unit => {
-                quote! {
-                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            #name
-                        }
-                    }
-                }
-            }
-        },
-        Data::Enum(data_enum) => {
-            let variants = data_enum.variants.iter().map(|v| {
-                let variant_ident = &v.ident;
-                match &v.fields {
-                    Fields::Named(fields) => {
-                        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-                        quote! {
-                            #name::#variant_ident { #(ref #field_names, )* } => {
-                                #name::#variant_ident {
-                                    #( #field_names : #field_names.clone(), )*
-                                }
-                            }
-                        }
-                    }
-                    Fields::Unnamed(fields) => {
-                        let indices: Vec<_> = (0..fields.unnamed.len())
-                            .map(|i| {
-                                let name = format!("_{}", i);
-                                Ident::new(&name, proc_macro2::Span::call_site())
-                            })
-                            .collect();
-                        quote! {
-                            #name::#variant_ident ( #(ref #indices, )* ) => {
-                                #name::#variant_ident (
-                                    #( #indices.clone(), )*
-                                )
-                            }
-                        }
-                    }
-                    Fields::Unit => {
-                        quote! {
-                            #name::#variant_ident => #name::#variant_ident,
-                        }
-                    }
-                }
-            });
-
-            quote! {
-                impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                    fn clone(&self) -> Self {
-                        match self {
-                            #( #variants )*
-                        }
-                    }
-                }
-            }
-        }
-        Data::Union(_) => {
-            quote! {
-                compile_error!("`Pax` derive macro does not support unions.");
-            }
-        }
-    }
-}
-
-fn generate_default_impl(input: &DeriveInput) -> TokenStream {
-    let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    match &input.data {
-        Data::Struct(data_struct) => match &data_struct.fields {
-            Fields::Named(fields_named) => {
-                let field_defaults = fields_named.named.iter().map(|f| {
-                    let name = &f.ident;
-                    quote! { #name: Default::default() }
-                });
-
-                quote! {
-                    impl #impl_generics Default for #name #ty_generics #where_clause {
-                        fn default() -> Self {
-                            Self {
-                                #(#field_defaults,)*
-                            }
-                        }
-                    }
-                }
-            }
-            Fields::Unnamed(_) | Fields::Unit => {
-                quote! {
-                    impl #impl_generics Default for #name #ty_generics #where_clause {
-                        fn default() -> Self {
-                            Self::default()
-                        }
-                    }
-                }
-            }
-        },
-        Data::Enum(data_enum) => {
-            let default_variant = data_enum.variants.iter().find(|variant| {
-                variant
-                    .attrs
-                    .iter()
-                    .any(|attr| attr.path.is_ident("default"))
-            });
-
-            match default_variant {
-                Some(variant) => {
-                    let variant_ident = &variant.ident;
-                    quote! {
-                        impl #impl_generics Default for #name #ty_generics #where_clause {
-                            fn default() -> Self {
-                                Self::#variant_ident
-                            }
-                        }
-                    }
-                }
-                None => {
-                    quote! {
-                        compile_error!("#[default] attribute required on one of the enum variants");
-                    }
-                }
-            }
-        }
-        Data::Union(_) => {
-            quote! {
-                compile_error!("Pax derive does not currently support Unions");
-            }
-        }
-    }
-}
-
-#[proc_macro_derive(Pax, attributes(main, file, inlined, primitive, custom, default))]
-pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let attrs = &input.attrs;
-
-    let config = parse_config(attrs);
+#[proc_macro_attribute]
+pub fn pax(
+    _args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let mut input = parse_macro_input!(input as DeriveInput);
+    let config = parse_config(&mut input.attrs);
     validate_config(&input, &config).unwrap();
 
-    // Implement Clone
-    let mut clone_impl = generate_clone_impl(&input);
-
-    // Implement Default
-    let mut default_impl = generate_default_impl(&input);
+    let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize"];
 
     let mut include_imports = true;
     let mut is_custom_interpolatable = false;
 
     //wipe out the above derives if `#[custom(...)]` attrs are set
     if let Some(custom) = config.custom_values {
-        if custom.contains(&"Default".to_string()) {
-            //wipe out the above derive
-            default_impl = quote! {};
-        }
-        if custom.contains(&"Clone".to_string()) {
-            //wipe out the above derive
-            clone_impl = quote! {};
-        }
+        let custom_str: Vec<&str> = custom.iter().map(String::as_str).collect();
+        trait_impls.retain(|v| !custom_str.contains(v));
+
         if custom.contains(&"Imports".to_string()) {
             include_imports = false;
         }
@@ -635,7 +472,6 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let is_pax_file = config.file_path.is_some();
     let is_pax_inlined = config.inlined_contents.is_some();
-    // let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n//inlined_contents: /*{:?}*/", &is_pax_file, &is_pax_inlined, &inlined_contents);
 
     let appended_tokens = if is_pax_file {
         let filename = config.file_path.unwrap();
@@ -650,7 +486,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let _ = file.unwrap().read_to_string(&mut content);
         pax_full_component(
             content,
-            input,
+            &input,
             config.is_main_component,
             Some(include_fix),
             include_imports,
@@ -662,7 +498,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         pax_full_component(
             contents.to_owned(),
-            input,
+            &input,
             config.is_main_component,
             None,
             include_imports,
@@ -671,19 +507,33 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         )
     } else if config.is_primitive {
         pax_primitive(
-            input,
+            &input,
             config.primitive_instance_import_path.unwrap(),
             include_imports,
             is_custom_interpolatable,
         )
     } else {
-        pax_struct_only_component(input, include_imports, is_custom_interpolatable)
+        pax_struct_only_component(&input, include_imports, is_custom_interpolatable)
     };
 
+    let derives: proc_macro2::TokenStream = trait_impls
+        .into_iter()
+        .flat_map(|ident| {
+            let syn_ident = syn::Ident::new(ident, Span::call_site());
+            if ["Serialize", "Deserialize"].contains(&ident) {
+                // fully qualify serde dependencies
+                quote! {pax_lang::serde::#syn_ident,}
+            } else {
+                quote! {#syn_ident,}
+            }
+        })
+        .collect();
+
     let output = quote! {
+        #[derive(#derives)]
+        #[serde(crate = "pax_lang::serde")]
+        #input
         #appended_tokens
-        #clone_impl
-        #default_impl
     };
     output.into()
 }

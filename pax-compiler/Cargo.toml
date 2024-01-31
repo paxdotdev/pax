@@ -16,10 +16,8 @@ include = [
 
 
 [features]
-default = ["console_error_panic_hook", "cbor", "json", "messagepack"]
-json = ["serde", "serde_json"]
-messagepack = ["serde"]
-cbor = ["serde"]
+default = ["console_error_panic_hook","json"]
+json = ["serde_json"]
 
 [lib]
 

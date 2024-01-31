@@ -8,7 +8,7 @@ use pax_message::{
     WebFontMessage,
 };
 
-#[derive(Pax)]
+#[pax]
 #[custom(Default)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextStyle {
@@ -111,9 +111,9 @@ impl PartialEq<TextStyleMessage> for TextStyle {
     }
 }
 
-#[derive(Pax)]
-#[custom(Default, Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[pax]
+#[custom(Default, Imports)]
 pub enum Font {
     System(SystemFont),
     Web(WebFont),
@@ -126,7 +126,7 @@ impl Default for Font {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports, Default)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SystemFont {
@@ -145,7 +145,7 @@ impl Default for SystemFont {
     }
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct WebFont {
@@ -155,7 +155,7 @@ pub struct WebFont {
     pub weight: FontWeight,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LocalFont {
@@ -165,7 +165,7 @@ pub struct LocalFont {
     pub weight: FontWeight,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontStyle {
@@ -175,7 +175,7 @@ pub enum FontStyle {
     Oblique,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontWeight {
@@ -191,7 +191,7 @@ pub enum FontWeight {
     Black,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignHorizontal {
@@ -201,7 +201,7 @@ pub enum TextAlignHorizontal {
     Right,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignVertical {

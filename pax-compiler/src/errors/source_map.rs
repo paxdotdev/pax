@@ -1,6 +1,6 @@
 use pax_manifest::{MappedString, Token};
+use pax_runtime_api::serde::{Deserialize, Serialize};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -9,6 +9,7 @@ use std::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "pax_runtime_api::serde")]
 pub struct RangeData {
     pub end: usize,
     pub id: usize,
@@ -16,6 +17,7 @@ pub struct RangeData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "pax_runtime_api::serde")]
 pub struct SourceMap {
     pub sources: HashMap<usize, Token>,
     pub ranges: BTreeMap<usize, RangeData>,
