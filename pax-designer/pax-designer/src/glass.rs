@@ -17,15 +17,15 @@ pub struct Glass {
 }
 
 impl Glass {
-    pub fn handle_mousedown(&mut self, ctx: &NodeContext, args: ArgsMousedown) {
+    pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
         pax_lang::log("mousedown");
     }
 
-    pub fn handle_mousemove(&mut self, ctx: &NodeContext, args: ArgsMousemove) {
+    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
         pax_lang::log("mousemove");
     }
 
-    pub fn handle_mouseup(&mut self, ctx: &NodeContext, args: ArgsMouseup) {
+    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
         pax_lang::log("mouseup");
     }
 }

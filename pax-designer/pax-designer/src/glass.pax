@@ -1,4 +1,4 @@
-<Group @mousedown=handle_mousedown @mousemove=handle_mousemove @mouseup=handle_mouseup>
+<Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up>
     for pt in self.control_points {
         <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px} />
     }
