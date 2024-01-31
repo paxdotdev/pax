@@ -81,6 +81,10 @@ impl DesigntimeManager {
         self.orm.get_manifest()
     }
 
+    pub fn get_manifest_version(&self) -> usize {
+        self.orm.get_manifest_version()
+    }
+
     pub fn get_orm(&self) -> &PaxManifestORM {
         &self.orm
     }

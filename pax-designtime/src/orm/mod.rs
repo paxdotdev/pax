@@ -60,6 +60,8 @@ pub struct PaxManifestORM {
     undo_stack: Vec<(usize, UndoRedoCommand)>,
     redo_stack: Vec<(usize, UndoRedoCommand)>,
     next_command_id: usize,
+    // This counter increase with each command execution/undo/redo (essentially tracks each unique change to the manifest)
+    manifest_version: usize,
 }
 
 impl PaxManifestORM {
@@ -69,11 +71,16 @@ impl PaxManifestORM {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             next_command_id: 0,
+            manifest_version: 0,
         }
     }
 
     pub fn get_manifest(&self) -> &PaxManifest {
         &self.manifest
+    }
+
+    pub fn get_manifest_version(&self) -> usize {
+        self.manifest_version
     }
 
     pub fn build_new_node(
@@ -170,6 +177,7 @@ impl PaxManifestORM {
 
         response.set_id(command_id);
         self.next_command_id += 1;
+        self.manifest_version += 1;
         Ok(response)
     }
 
@@ -177,6 +185,7 @@ impl PaxManifestORM {
         if let Some((id, mut command)) = self.undo_stack.pop() {
             command.undo(&mut self.manifest)?;
             self.redo_stack.push((id, command));
+            self.manifest_version += 1;
         }
         Ok(())
     }
@@ -185,6 +194,7 @@ impl PaxManifestORM {
         if let Some((id, mut command)) = self.redo_stack.pop() {
             command.redo(&mut self.manifest)?;
             self.undo_stack.push((id, command));
+            self.manifest_version += 1;
         }
         Ok(())
     }
