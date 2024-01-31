@@ -7,52 +7,56 @@ use serde_json;
 use pax_designtime::serde_pax::de::from_pax;
 use pax_runtime_api::*;
 use pax_core::*;
+use pax_designer::pax_reexports::pax_lang;
+use std::cell::Ref;
 
 trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
-        let mut cp = CommonProperties::default();
-        Box::new(move || Rc::new(RefCell::new(cp)))    
+        Box::new(|| Rc::new(RefCell::new(CommonProperties::default())))    
     }
 
     /// Returns the default properties factory for this component
     fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
     
     /// Returns the CommonProperties factory based on the defined properties 
-    fn build_inline_common_properties(&self, defined_properties: HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
-        let mut cp = CommonProperties::default();
-        for (key, value) in defined_properties {
-            match key.as_str() {
-                {% for common_property in common_properties %}
-                "{{common_property.name}}" => {
-                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value {
-                        ValueDefinition::LiteralValue(lv) => {
-                            Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
-                        },
-                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
-                        {
-                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-                        }
-                        ValueDefinition::Block(block) => {
-                            Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(block.raw_block_string.unwrap()).unwrap()))
-                        }
-                        _ => unreachable!("Invalid value definition for {{common_property.name}}")
-                    };
-                    {%if common_property.is_optional %}
-                        cp.{{common_property.name}} = Some(resolved_property)
-                    {% else %}
-                        cp.{{common_property.name}} = resolved_property
-                    {% endif %}
-                },
-                {% endfor %}
-                _ => {}
+    fn build_inline_common_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
+        let cloned_properties = defined_properties.clone();
+        Box::new(move || Rc::new(RefCell::new({
+            let mut cp = CommonProperties::default();
+            for (key, value) in &cloned_properties {
+                match key.as_str() {
+                    {% for common_property in common_properties %}
+                    "{{common_property.name}}" => {
+                        let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value.clone() {
+                            ValueDefinition::LiteralValue(lv) => {
+                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
+                            },
+                            ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                            {
+                                Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                            }
+                            ValueDefinition::Block(block) => {
+                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(block.raw_block_string.unwrap()).unwrap()))
+                            }
+                            _ => unreachable!("Invalid value definition for {{common_property.name}}")
+                        };
+                        {%if common_property.is_optional %}
+                            cp.{{common_property.name}} = Some(resolved_property)
+                        {% else %}
+                            cp.{{common_property.name}} = resolved_property
+                        {% endif %}
+                    },
+                    {% endfor %}
+                    _ => {}
+                }
             }
-        }
-        Box::new(move || Rc::new(RefCell::new(cp)))
+            cp
+        })))
     }
 
     /// Returns the properties factory based on the defined properties
-    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
     
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template
@@ -76,37 +80,49 @@ trait ComponentFactory {
 {%- endfor %}
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
-pub fn instantiate_designtime_manager() -> pax_designtime::DesigntimeManager {
-    let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).unwrap();
-    let mut _designtime = pax_designtime::DesigntimeManager::new(manifest);
-    // Add factories here
-    _designtime
-}
 
 pub struct DefinitionToInstanceTraverser {
-    manifest: PaxManifest,
+    designtime_manager: Rc<RefCell<pax_designtime::DesigntimeManager>>,
+    last_updated_manifest: usize,
     cached_main_component: Option<Rc<ComponentInstance>>,
 }
 
 impl DefinitionToInstanceTraverser {
-    pub fn new(manifest: PaxManifest) -> Self {
+    pub fn new() -> Self {
+        let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).unwrap();
+        let designtime_manager = Rc::new(RefCell::new(pax_designtime::DesigntimeManager::new(manifest)));
         Self {
-            manifest,
+            designtime_manager,
+            last_updated_manifest: 0,
             cached_main_component: None,
         }
     }
 
-    pub fn update_manifest(&mut self, manifest: PaxManifest) {
-        self.manifest = manifest;
-        self.cached_main_component = None;
+    pub fn get_designtime_manager(&self) -> Rc<RefCell<pax_designtime::DesigntimeManager>> {
+        self.designtime_manager.clone()
+    }
+
+    pub fn get_manifest(&self) -> Ref<PaxManifest> {
+        Ref::map(self.designtime_manager.borrow(), |manager| {
+            manager.get_manifest()
+        })
     }
 
     pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {
-        if let Some(cached) = &self.cached_main_component {
-            return cached.clone();
+        let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
+        if self.last_updated_manifest == current_manifest_version {
+            if let Some(cached_main_component) = &self.cached_main_component {
+                return cached_main_component.clone();
+            }
         }
-        let main_component = ComponentInstance::instantiate(self.build_component_args(&self.manifest.main_component_type_id));
+        let main_component_type_id = {
+            let manifest = self.get_manifest();
+            manifest.main_component_type_id.clone()
+        };
+        let args = self.build_component_args(&main_component_type_id);
+        let main_component = ComponentInstance::instantiate(args);
         self.cached_main_component = Some(main_component.clone());
+        self.last_updated_manifest = current_manifest_version;
         main_component
     }
 
@@ -119,32 +135,43 @@ impl DefinitionToInstanceTraverser {
     pub fn get_component_factory(type_id: &str) -> Option<Box<dyn ComponentFactory>> {
         match type_id {
             {% for component in components %}
-            "{{component.type_id}}" => Some(Box::new({{component.type_id_pascal_case}}Factory{})),
+            "{{component.type_id}}" => {
+                        let factory = Box::new({{component.pascal_identifier}}Factory::new()) as Box<dyn ComponentFactory>;
+                        panic!("test2");
+                        let f = Some(factory);
+                        panic!("returning factory");
+                        f
+                },
             {% endfor %}
             _ => None
         }
     }
 
-    pub fn build_component_args(&mut self, type_id: &str) -> InstantiationArgs {
-        let component = self.manifest.components.get(type_id).unwrap();
+    pub fn build_component_args(&self, type_id: &str) -> InstantiationArgs {
+
+        let manifest = self.get_manifest();
+        let component = manifest.components.get(type_id).unwrap();
         let factory = Self::get_component_factory(type_id).unwrap();
-        let prototypical_common_properties_factory = if let Some(settings) = &component.settings {
-            //factory.build_inline_common_properties(settings.clone())
-            factory.build_default_common_properties()
-        } else {
-            factory.build_default_common_properties()
-        };
+        panic!("test5");
+        let prototypical_common_properties_factory = factory.build_default_common_properties();
         let prototypical_properties_factory = factory.build_default_properties();
+
         // pull handlers for this component
-        let handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry::default())));
+        let handlers = manifest.get_component_handlers(type_id);
+        let handler_registry = Some(factory.build_component_handlers(handlers));
+
+
         let compute_properties_fn = factory.build_compute_properties_fn();
 
         let mut component_template = None;
+        panic!("Building template");
         if let Some(template_nodes) = &component.template {
+            panic!("Building args for template");
             let root = template_nodes.get(&0).unwrap();
-            let children = root.child_ids;
+            let children = &root.child_ids;
             let mut children_instances = Vec::new();
             for child_id in children {
+                panic!("Building args for child {}", child_id);
                 let child = template_nodes.get(&child_id).unwrap();
                 let child_instance = self.build_template_node_args(type_id, &child);
                 children_instances.push(child_instance);
@@ -162,16 +189,18 @@ impl DefinitionToInstanceTraverser {
         }
     }
 
-    pub fn build_template_node_args(&mut self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+    pub fn build_template_node_args(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
         let mut args = self.build_component_args(&node.type_id);
         let node_component_factory = Self::get_component_factory(&node.type_id).unwrap();
 
-        let containing_component = self.manifest.components.get(containing_component_type_id).unwrap();
+        let manifest = self.get_manifest();
+
+        let containing_component = manifest.components.get(containing_component_type_id).unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
         let containing_component_factory = Self::get_component_factory(containing_component_type_id).unwrap();
 
-        // need to get handlers from tnd 
-        let handlers_from_tnd = node.handlers.clone();
+        // update handlers from tnd
+        let handlers_from_tnd = manifest.get_inline_event_handlers(node);
         let updated_registry = if let Some(registry) = args.handler_registry {
             containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)    
         } else {
@@ -180,15 +209,17 @@ impl DefinitionToInstanceTraverser {
 
         args.handler_registry = Some(updated_registry);
 
-        let inline_properties = node.properties.clone();
-        let updated_properties = node_component_factory.build_inline_properties(inline_properties);
+        // update properties from tnd 
+        let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
+        let updated_properties = node_component_factory.build_inline_properties(&inline_properties);
         args.prototypical_properties_factory = updated_properties;
 
-        let updated_common_properties = node_component_factory.build_inline_common_properties(inline_properties);
+        // update common properties from tnd
+        let updated_common_properties = node_component_factory.build_inline_common_properties(&inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
 
         let mut children_instances = Vec::new();
-        for child_id in node.child_ids {
+        for child_id in &node.child_ids {
             let child = containing_template.get(&child_id).unwrap();
             let child_instance = self.build_template_node_args(containing_component_type_id, child);
             children_instances.push(child_instance);

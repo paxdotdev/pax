@@ -1,33 +1,49 @@
-{%- macro render_component_factory(component) -%}
-struct {{component.type_id_pascal_case}}Factory{}
+{%- macro render_component_factory(component) %}
+struct {{component.pascal_identifier}}Factory{
+    number: usize,
+}
 
-impl ComponentFactory for {{component.type_id_pascal_case}}Factory {
+impl {{component.pascal_identifier}}Factory{
 
-    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
-        Box::new(|| Rc::new(RefCell::new({{component.properties_struct}}::default())))
+    pub fn new() -> Self {
+        Self {
+            number: 0
+        }
     }
 
-    fn build_inline_properties(&self,defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
-        let mut properties = {{component.properties_struct}}::default();
-        {% for property in component.properties %}
-            if let Some(vd) = defined_properties.get("{{property.name}}") {
-                properties.{{property.name}} =
-                    match vd {
-                        ValueDefinition::LiteralValue(lv) => {
-                            Box::new(PropertyLiteral::new(from_pax::<{{property.property_type}}>(lv.raw_value).unwrap()))
-                        },
-                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
-                        {
-                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-                        },
-                        ValueDefinition::Block(block) => {
-                            Box::new(PropertyLiteral::new(from_pax::<{{property.property_type}}>(block.raw_block_string.unwrap()).unwrap()))
-                        }
-                        _ => unreachable!("Invalid value definition for {{property.name}}")
-                    };
-            }
-        {% endfor %}
-        Box::new(move || Rc::new(RefCell::new(properties)))
+}
+
+impl ComponentFactory for {{component.pascal_identifier}}Factory {
+
+    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
+        Box::new(|| Rc::new(RefCell::new({{component.pascal_identifier}}::default())))
+    }
+
+    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
+        let cloned_properties = defined_properties.clone(); 
+        Box::new(move || Rc::new(RefCell::new(
+            {
+                let mut properties = {{component.pascal_identifier}}::default();
+                {% for property in component.properties %}
+                    if let Some(vd) = cloned_properties.get("{{property.name}}") {
+                        properties.{{property.name}} =
+                            match vd.clone() {
+                                ValueDefinition::LiteralValue(lv) => {
+                                    Box::new(PropertyLiteral::new(from_pax(lv.raw_value).unwrap()))
+                                },
+                                ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                                {
+                                    Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                                },
+                                ValueDefinition::Block(block) => {
+                                    Box::new(PropertyLiteral::new(from_pax(block.raw_block_string.unwrap()).unwrap()))
+                                }
+                                _ => unreachable!("Invalid value definition for {{property.name}}")
+                            };
+                    }
+                {% endfor %}
+                properties
+            })))
     }
 
     fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>) {
@@ -36,16 +52,25 @@ impl ComponentFactory for {{component.type_id_pascal_case}}Factory {
             "{{handler.name}}" => {
                 |properties, ctx, args|{
                     let properties = &mut *properties.as_ref().borrow_mut();
-                    if let Some(mut properties) = properties.downcast_mut::<{{component.properties_struct}}>() {
+                    if let Some(mut properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
                         // downcast args to handler.type
-                        if let Some(args) = args {
-                            if let Some(args) = args.downcast_ref::<{{handler.args_type}}>() {
-                                {{component.type_id_pascal_case}}::{{handler.name}}(properties,ctx, args);
-                            } else {panic!("Failed to downcast args to {{handler.args_type}}")};
-                        } else {
-                            {{component.type_id_pascal_case}}::{{handler.name}}(properties,ctx);
-                        }
-                    } else {panic!("Failed to downcast properties to {{component.properties_struct}}")};
+                        {% if handler.args_type %}
+                            if let Some(args) = args {
+                                if let Some(args) = args.downcast_ref::<{{handler.args_type}}>() {
+                                    {{component.pascal_identifier}}::{{handler.name}}(properties,ctx, args.clone());
+                                } else {panic!("Failed to downcast args to {{handler.args_type}}")};
+                            } else {
+                                panic!("No {{handler.args_type}} present");
+                            }
+                        {% else %}
+                            if let None = args {
+                                {{component.pascal_identifier}}::{{handler.name}}(properties,ctx);
+                            } else {
+                                panic!("Unexpected args present");
+                            }
+                        {% endif %}
+                        
+                    } else {panic!("Failed to downcast properties to {{component.pascal_identifier}}")};
                 }
             },
             {% endfor %}
@@ -55,23 +80,20 @@ impl ComponentFactory for {{component.type_id_pascal_case}}Factory {
 
     fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>> {
         let mut handler_registry = HandlerRegistry::default();
-        for (event, functions) in handlers {
-            handler_registry.handlers[&event] = functions.iter().map(|fn_name| self.build_handler(&fn_name)).collect();
+        for (event, functions) in &handlers {
+            handler_registry.handlers.insert(event.clone(), functions.iter().map(|fn_name| self.build_handler(&fn_name)).collect());
         } 
         Rc::new(RefCell::new(handler_registry))
     }
 
-    fn add_inline_handlers(&self, handlers: Vec<(String, String)>, mut handler_registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>> {
-        for (event, fn_name) in handlers {
-            let handler_vec = handler_registry
-                .borrow_mut()
-                .handlers
-                .entry(event)
-                .or_insert(Vec::new());
-
-            handler_vec.push(self.build_handler(&fn_name));
-            
-        } 
+    fn add_inline_handlers(&self, handlers: Vec<(String, String)>, handler_registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>> {
+        {
+            let mut handler_registry_mut = handler_registry.borrow_mut();
+            for (event, fn_name) in &handlers {
+                let handler_vec = handler_registry_mut.handlers.entry(event.clone()).or_insert(Vec::new());
+                handler_vec.push(self.build_handler(&fn_name));
+            } 
+        }   
         handler_registry
     }
 
@@ -80,7 +102,7 @@ impl ComponentFactory for {{component.type_id_pascal_case}}Factory {
             let props = &node.properties;
             let properties = &mut props.as_ref().borrow_mut();
 
-            if let Some(properties) = properties.downcast_mut::<{{component.properties_struct}}>() {
+            if let Some(properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
 
                 {% for prop in component.properties %}
                     if let Some(new_value) = table.compute_eased_value(properties.{{prop.name}}._get_transition_manager(), globals) {
@@ -91,14 +113,14 @@ impl ComponentFactory for {{component.type_id_pascal_case}}Factory {
                             properties.{{ prop.name }}.set(*new_value);
                         } else {
                             panic!(
-                                "generated code tried to downcast to incompatible type \"{{prop.property_type}}\" for property \"{{prop.name}}\" on {{component.properties_struct}}"
+                                "generated code tried to downcast to incompatible type \"{{prop.property_type}}\" for property \"{{prop.name}}\" on {{component.pascal_identifier}}"
                             );
                         }
                     }
                 {% endfor %}
 
             } else {
-                panic!("Failed to downcast properties to {{component.properties_struct}}");
+                panic!("Failed to downcast properties to {{component.pascal_identifier}}");
             }
         }))
     }
