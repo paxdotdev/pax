@@ -372,7 +372,7 @@ impl PaxEngine {
                 .recurse_visit_postorder(&assign_z_indicies, &mut self.z_index_node_cache);
         }
 
-        // Oclussion
+        // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
         for node in self.z_index_node_cache.iter() {
             let layer = node.instance_node.base().flags().layer;
