@@ -66,7 +66,7 @@ pub struct PaxChassisWeb {
     drawing_contexts: Renderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
     #[cfg(feature = "designtime")]
-    _designtime: Rc<RefCell<DesigntimeManager>>,
+    definition_to_instance_traverser: pax_cartridge::DefinitionToInstanceTraverser,
 }
 
 #[wasm_bindgen]
@@ -86,19 +86,21 @@ impl PaxChassisWeb {
 
         #[cfg(feature = "designtime")]
         {
-            let designtime = Rc::new(RefCell::new(pax_cartridge::instantiate_designtime_manager()));
+            let mut definition_to_instance_traverser = pax_cartridge::DefinitionToInstanceTraverser::new();
+            let main_component_instance = definition_to_instance_traverser.get_main_component();
+            panic!("main_component_instance loading");
             let engine = pax_core::PaxEngine::new_with_designtime(
                 main_component_instance,
                 expression_table,
                 pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
                 (width, height),
-                designtime.clone(),
+                definition_to_instance_traverser.get_designtime_manager(),
             );
             let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
             Self {
                 engine: engine_container,
                 drawing_contexts: Renderer::new(),
-                _designtime: designtime,
+                definition_to_instance_traverser,
             }
         }
         #[cfg(not(feature = "designtime"))]

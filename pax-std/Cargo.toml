@@ -23,6 +23,7 @@ pax-compiler = {path="../pax-compiler", optional = true, version="0.11.3"}
 serde_json = {version="1.0.95", optional = true}
 pax-runtime-api = {version="0.11.3", path="../pax-runtime-api"}
 pax-manifest = {path = "../pax-manifest", version="0.11.3"}
+serde = { version = "1.0.159", features=["derive"]}
 
 [features]
 parser = ["pax-lang/parser", "dep:pax-compiler", "dep:serde_json"]

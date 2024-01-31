@@ -60,108 +60,7 @@ pub fn compile_all_expressions<'a>(
     Ok(())
 }
 
-fn pull_matched_identifiers_from_inline(
-    inline_settings: &Option<Vec<SettingElement>>,
-    s: String,
-) -> Vec<Token> {
-    let mut ret = Vec::new();
-    if let Some(val) = inline_settings {
-        let matched_settings = val.iter().filter(|e| match e {
-            SettingElement::Setting(token, _) => token.token_value == s.as_str(),
-            _ => false,
-        });
-        for e in matched_settings {
-            if let SettingElement::Setting(_, value) = e {
-                match value {
-                    ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
-                    _ => {}
-                };
-            }
-        }
-    }
-    ret
-}
 
-fn pull_settings_with_selector(
-    settings: &Option<Vec<SettingsBlockElement>>,
-    selector: String,
-) -> Option<Vec<SettingElement>> {
-    settings.as_ref().and_then(|val| {
-        let mut merged_setting = Vec::new();
-        for settings_value in val.iter() {
-            match settings_value {
-                SettingsBlockElement::SelectorBlock(token, value) => {
-                    if token.token_value == selector {
-                        merged_setting.extend(value.elements.clone());
-                    }
-                }
-                _ => {}
-            }
-        }
-        (!merged_setting.is_empty()).then(|| merged_setting)
-    })
-}
-
-fn merge_inline_settings_with_settings_block(
-    inline_settings: &Option<Vec<SettingElement>>,
-    settings_block: &Option<Vec<SettingsBlockElement>>,
-) -> Option<Vec<SettingElement>> {
-    // collect id settings
-    let ids = pull_matched_identifiers_from_inline(&inline_settings, "id".to_string());
-
-    let mut id_settings = Vec::new();
-    if ids.len() == 1 {
-        if let Some(settings) =
-            pull_settings_with_selector(&settings_block, format!("#{}", ids[0].token_value))
-        {
-            id_settings.extend(settings.clone());
-        }
-    } else if ids.len() > 1 {
-        panic!("Specified more than one id inline!");
-    }
-
-    // collect all class settings
-    let classes = pull_matched_identifiers_from_inline(&inline_settings, "class".to_string());
-
-    let mut class_settings = Vec::new();
-    for class in classes {
-        if let Some(settings) =
-            pull_settings_with_selector(&settings_block, format!(".{}", class.token_value))
-        {
-            class_settings.extend(settings.clone());
-        }
-    }
-
-    let mut map = HashMap::new();
-
-    // Iterate in reverse order of priority (class, then id, then inline)
-    for e in class_settings.into_iter() {
-        if let SettingElement::Setting(key, _) = e.clone() {
-            map.insert(key, e);
-        }
-    }
-
-    for e in id_settings.into_iter() {
-        if let SettingElement::Setting(key, _) = e.clone() {
-            map.insert(key, e);
-        }
-    }
-
-    if let Some(inline) = inline_settings.clone() {
-        for e in inline.into_iter() {
-            if let SettingElement::Setting(key, _) = e.clone() {
-                map.insert(key, e);
-            }
-        }
-    }
-    let merged: Vec<SettingElement> = map.values().cloned().collect();
-
-    if merged.len() > 0 {
-        Some(merged)
-    } else {
-        None
-    }
-}
 
 fn recurse_compile_literal_block<'a>(
     settings_pairs: &mut IterMut<SettingElement>,
@@ -276,7 +175,7 @@ fn recurse_compile_expressions<'a>(
     let cloned_settings_block = ctx.component_def.settings.clone();
     let cloned_inline_settings = ctx.active_node_def.settings.clone();
     let mut merged_settings =
-        merge_inline_settings_with_settings_block(&cloned_inline_settings, &cloned_settings_block);
+        PaxManifest::merge_inline_settings_with_settings_block(&cloned_inline_settings, &cloned_settings_block);
     let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
 
     if let Some(ref mut inline_settings) = merged_settings {
