@@ -1,6 +1,6 @@
 use crate::types::Color;
 use api::StringBox;
-use pax_lang::api::{Numeric, Property, PropertyLiteral, SizePixels};
+use pax_lang::api::{Numeric, Property, PropertyLiteral};
 use pax_lang::*;
 use pax_message::{
     ColorVariantMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,

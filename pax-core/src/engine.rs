@@ -345,6 +345,11 @@ impl PaxEngine {
         }
     }
 
+    #[cfg(feature = "designtime")]
+    pub fn update_root_node(&mut self, main_component_instance: Rc<ComponentInstance>) {
+        self.root_node = ExpandedNode::root(main_component_instance, &mut self.runtime_context);
+    }
+
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
     // - expanded_node instantiated from instance_node.
 
