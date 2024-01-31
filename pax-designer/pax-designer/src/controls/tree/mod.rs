@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 pub mod treeobj;
 use std::collections::HashMap;
 use treeobj::TreeObj;
+use serde::Deserialize;
 
 #[pax]
 #[file("controls/tree/tree.pax")]
