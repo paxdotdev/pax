@@ -88,7 +88,6 @@ impl PaxChassisWeb {
         {
             let mut definition_to_instance_traverser = pax_cartridge::DefinitionToInstanceTraverser::new();
             let main_component_instance = definition_to_instance_traverser.get_main_component();
-            panic!("main_component_instance loading");
             let engine = pax_core::PaxEngine::new_with_designtime(
                 main_component_instance,
                 expression_table,
