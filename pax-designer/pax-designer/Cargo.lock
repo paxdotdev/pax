@@ -1935,6 +1935,7 @@ dependencies = [
  "pax-lang",
  "pax-manifest",
  "pax-std",
+ "serde",
  "serde_json",
 ]
 
@@ -2032,6 +2033,7 @@ dependencies = [
  "pax-message",
  "pax-runtime-api",
  "piet",
+ "serde",
  "serde_json",
 ]
 

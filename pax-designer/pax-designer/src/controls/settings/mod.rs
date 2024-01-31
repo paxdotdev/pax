@@ -8,6 +8,7 @@ use pax_std::components::*;
 use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
+use serde::Deserialize;
 
 pub mod property_editor;
 use property_editor::PropertyEditor;

@@ -2,6 +2,7 @@ use pax_lang::api::*;
 use pax_lang::*;
 use pax_std::primitives::Path;
 use pax_std::primitives::Rectangle;
+use serde::Deserialize;
 
 use designer_project::Example;
 
