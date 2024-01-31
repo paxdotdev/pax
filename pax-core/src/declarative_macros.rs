@@ -10,7 +10,7 @@ use crate::{ExpressionTable, RuntimePropertiesStackFrame};
 /// ```text
 /// handle_vtable_update!(ptc, self.height, Size);
 /// ```
-pub fn handle_vtable_update<V: Default + Clone + std::fmt::Debug + 'static>(
+pub fn handle_vtable_update<V: Default + Clone + 'static>(
     table: &ExpressionTable,
     stack: &Rc<RuntimePropertiesStackFrame>,
     property: &mut Box<dyn PropertyInstance<V>>,
@@ -33,7 +33,7 @@ pub fn handle_vtable_update<V: Default + Clone + std::fmt::Debug + 'static>(
 /// // In this example `scale_x` is `Option`al (`Option<Rc<RefCell<dyn PropertyInstance<Size>>>>`)
 /// handle_vtable_update_optional!(ptc, self.scale_x, Size);
 /// ```
-pub fn handle_vtable_update_optional<V: Default + Clone + std::fmt::Debug + 'static>(
+pub fn handle_vtable_update_optional<V: Default + Clone + 'static>(
     table: &ExpressionTable,
     stack: &Rc<RuntimePropertiesStackFrame>,
     optional_property: Option<&mut Box<dyn PropertyInstance<V>>>,

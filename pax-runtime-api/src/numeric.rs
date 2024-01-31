@@ -1,3 +1,5 @@
+use crate::serde::{Deserialize, Serialize};
+
 use crate::Interpolatable;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
@@ -6,7 +8,8 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 /// Numeric is a module that wraps numeric literals in Pax
 /// It encapsulates the built-in Rust numeric scalar types and defines behavior across them
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
 pub enum Numeric {
     Integer(isize),
     Float(f64),

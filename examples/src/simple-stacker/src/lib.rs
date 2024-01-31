@@ -11,7 +11,7 @@ use pax_std::types::text::*;
 use pax_std::types::*;
 use slotted::Slotted;
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("lib.pax")]
 pub struct Example {

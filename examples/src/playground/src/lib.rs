@@ -8,7 +8,7 @@ use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("lib.pax")]
 pub struct Example {

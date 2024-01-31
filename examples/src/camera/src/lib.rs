@@ -3,7 +3,7 @@ use pax_lang::api::{ArgsClick, EasingCurve, NodeContext, Property};
 use pax_lang::Pax;
 use pax_std::primitives::{Rectangle, Group, Frame, Text, Ellipse};
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("camera.pax")]
 pub struct Camera {
@@ -14,7 +14,7 @@ pub struct Camera {
     pub type_example: Property<TypeExample>,
 }
 
-#[derive(Pax)]
+#[pax]
 #[custom(Imports)]
 pub struct TypeExample {
     pub foo: Property<usize>,

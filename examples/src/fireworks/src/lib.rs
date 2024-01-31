@@ -2,7 +2,7 @@ use pax_lang::api::{ArgsClick, ArgsWheel, EasingCurve, NodeContext};
 use pax_lang::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
-#[derive(Pax)]
+#[pax]
 #[main]
 #[file("fireworks.pax")]
 pub struct Fireworks {
