@@ -8,8 +8,8 @@ use kurbo::Point;
 
 use pax_runtime_api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
-    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseOut, ArgsMouseOver, ArgsMousedown,
-    ArgsMousemove, ArgsMouseup, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
+    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
+    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
     ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext, Size,
 };
 
@@ -445,9 +445,9 @@ impl ExpandedNode {
         ArgsButtonClick,
         button_click_handlers
     );
-    dispatch_event_handler!(dispatch_mousedown, ArgsMousedown, mousedown_handlers);
-    dispatch_event_handler!(dispatch_mouseup, ArgsMouseup, mouseup_handlers);
-    dispatch_event_handler!(dispatch_mousemove, ArgsMousemove, mousemove_handlers);
+    dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, mouse_down_handlers);
+    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, mouse_up_handlers);
+    dispatch_event_handler!(dispatch_mouse_move, ArgsMouseMove, mouse_move_handlers);
     dispatch_event_handler!(dispatch_mouse_over, ArgsMouseOver, mouse_over_handlers);
     dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, mouse_out_handlers);
     dispatch_event_handler!(

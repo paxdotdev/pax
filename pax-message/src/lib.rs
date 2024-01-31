@@ -48,10 +48,10 @@ pub enum NativeInterrupt {
     KeyPress(KeyPressInterruptArgs),
     Click(ClickInterruptArgs),
     DoubleClick(DoubleClickInterruptArgs),
-    Mousemove(MousemoveInterruptArgs),
+    MouseMove(MouseMoveInterruptArgs),
     Wheel(WheelInterruptArgs),
-    Mousedown(MousedownInterruptArgs),
-    Mouseup(MouseupInterruptArgs),
+    MouseDown(MouseDownInterruptArgs),
+    MouseUp(MouseUpInterruptArgs),
     MouseOver(MouseOverInterruptArgs),
     MouseOut(MouseOutInterruptArgs),
     ContextMenu(ContextMenuInterruptArgs),
@@ -186,7 +186,7 @@ pub struct DoubleClickInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct MousemoveInterruptArgs {
+pub struct MouseMoveInterruptArgs {
     pub x: f64,
     pub y: f64,
     pub button: MouseButtonMessage,
@@ -205,7 +205,7 @@ pub struct WheelInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct MousedownInterruptArgs {
+pub struct MouseDownInterruptArgs {
     pub x: f64,
     pub y: f64,
     pub button: MouseButtonMessage,
@@ -214,7 +214,7 @@ pub struct MousedownInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct MouseupInterruptArgs {
+pub struct MouseUpInterruptArgs {
     pub x: f64,
     pub y: f64,
     pub button: MouseButtonMessage,
