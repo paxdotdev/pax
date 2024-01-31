@@ -78,7 +78,7 @@ impl InstanceNode for ComponentInstance {
                 .cloned()
                 .zip(iter::repeat(env));
             *expanded_node.expanded_slot_children.borrow_mut() =
-                Some(containing_component.create_children_detatched(children_with_env, context));
+                Some(containing_component.create_children_detached(children_with_env, context));
         }
 
         let new_env = expanded_node.stack.push(&expanded_node.properties);

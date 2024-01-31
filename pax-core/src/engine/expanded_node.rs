@@ -160,7 +160,7 @@ impl ExpandedNode {
         })
     }
 
-    pub fn create_children_detatched(
+    pub fn create_children_detached(
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &mut RuntimeContext,
@@ -210,7 +210,7 @@ impl ExpandedNode {
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &mut RuntimeContext,
     ) {
-        let new_children = self.create_children_detatched(templates, context);
+        let new_children = self.create_children_detached(templates, context);
         self.attach_children(new_children, context);
     }
 
