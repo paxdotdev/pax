@@ -136,11 +136,7 @@ impl DefinitionToInstanceTraverser {
         match type_id {
             {% for component in components %}
             "{{component.type_id}}" => {
-                        let factory = Box::new({{component.pascal_identifier}}Factory::new()) as Box<dyn ComponentFactory>;
-                        panic!("test2");
-                        let f = Some(factory);
-                        panic!("returning factory");
-                        f
+                        Some(Box::new({{component.pascal_identifier}}Factory{}) as Box<dyn ComponentFactory>)
                 },
             {% endfor %}
             _ => None
@@ -150,9 +146,11 @@ impl DefinitionToInstanceTraverser {
     pub fn build_component_args(&self, type_id: &str) -> InstantiationArgs {
 
         let manifest = self.get_manifest();
+        if let None = manifest.components.get(type_id) {
+            panic!("Components with type_id {} not found in manifest", type_id);
+        }
         let component = manifest.components.get(type_id).unwrap();
         let factory = Self::get_component_factory(type_id).unwrap();
-        panic!("test5");
         let prototypical_common_properties_factory = factory.build_default_common_properties();
         let prototypical_properties_factory = factory.build_default_properties();
 
@@ -164,17 +162,28 @@ impl DefinitionToInstanceTraverser {
         let compute_properties_fn = factory.build_compute_properties_fn();
 
         let mut component_template = None;
-        panic!("Building template");
         if let Some(template_nodes) = &component.template {
-            panic!("Building args for template");
             let root = template_nodes.get(&0).unwrap();
             let children = &root.child_ids;
             let mut children_instances = Vec::new();
             for child_id in children {
-                panic!("Building args for child {}", child_id);
                 let child = template_nodes.get(&child_id).unwrap();
-                let child_instance = self.build_template_node_args(type_id, &child);
-                children_instances.push(child_instance);
+                match child.type_id.as_str() {
+                    "IF" => {
+                        continue;
+                    },
+                    "SLOT" => {
+                        continue;
+                    },
+                    "REPEAT" => {
+                        continue;
+                    },
+                    "COMMENT" => continue,
+                    _ => {  
+                        let child_instance = self.build_template_node_args(type_id, &child);
+                        children_instances.push(child_instance);
+                    }
+                }
             }
             component_template = Some(children_instances);
         }
@@ -221,8 +230,22 @@ impl DefinitionToInstanceTraverser {
         let mut children_instances = Vec::new();
         for child_id in &node.child_ids {
             let child = containing_template.get(&child_id).unwrap();
-            let child_instance = self.build_template_node_args(containing_component_type_id, child);
-            children_instances.push(child_instance);
+            match child.type_id.as_str() {
+                "IF" => {
+                    continue;
+                },
+                "SLOT" => {
+                    continue;
+                },
+                "REPEAT" => {
+                    continue;
+                },
+                "COMMENT" => continue,
+                _ => {  
+                    let child_instance = self.build_template_node_args(containing_component_type_id, child);
+                    children_instances.push(child_instance);
+                }
+            }
         }
 
         args.children = Some(children_instances);

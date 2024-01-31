@@ -1,17 +1,5 @@
 {%- macro render_component_factory(component) %}
-struct {{component.pascal_identifier}}Factory{
-    number: usize,
-}
-
-impl {{component.pascal_identifier}}Factory{
-
-    pub fn new() -> Self {
-        Self {
-            number: 0
-        }
-    }
-
-}
+struct {{component.pascal_identifier}}Factory{}
 
 impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
