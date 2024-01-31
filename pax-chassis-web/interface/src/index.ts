@@ -61,7 +61,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 
         const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
-        let _io = glueCodeModule.initSync(wasmArrayBuffer);
+        let _io = await glueCodeModule.default(wasmArrayBuffer);
 
         let chassis = glueCodeModule.PaxChassisWeb.new();
         let get_latest_memory = glueCodeModule.wasm_memory;
