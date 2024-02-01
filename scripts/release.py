@@ -48,8 +48,11 @@ try:
     target_dir = os.path.join(original_dir, 'pax-chassis-web')
     os.chdir(target_dir)
     subprocess.run(['./build-interface.sh'], check=True)
-finally:
-    os.chdir(original_dir)
+except: 
+    print("ERROR: failed to build ts files")
+    exit(1)
+
+os.chdir(original_dir)
 
 Create a mapping from package name to path
 PACKAGE_NAMES = {}
