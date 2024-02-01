@@ -63,6 +63,7 @@ pub struct RunContext {
     pub is_release: bool,
 }
 
+#[derive(PartialEq)]
 pub enum RunTarget {
     #[allow(non_camel_case_types)]
     macOS,
@@ -75,6 +76,30 @@ pub enum RunTarget {
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
+    //Compile ts files if applicable (this needs to happen before copying to .pax)
+    if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
+        let mut cmd = Command::new("./build-interface.sh");
+        if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
+            let chassis_web_path = Path::new(&root).join("pax-chassis-web");
+            cmd.current_dir(&chassis_web_path)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+            if !cmd
+                .output()
+                .expect("failed to start process")
+                .status
+                .success()
+            {
+                eprintln!(
+                    "failed to build js files running ./build-interface.sh at {:?}",
+                    chassis_web_path
+                );
+            };
+        } else {
+            eprintln!("Warning: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files");
+        }
+    }
+
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
     //dependency paths are `.pax/pkg/*`.
