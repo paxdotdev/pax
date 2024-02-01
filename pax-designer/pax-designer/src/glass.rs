@@ -30,7 +30,6 @@ impl Glass {
     }
 }
 
-
 impl Default for Glass {
     fn default() -> Self {
         Self {

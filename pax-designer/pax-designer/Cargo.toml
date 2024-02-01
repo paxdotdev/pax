@@ -10,7 +10,6 @@ pax-lang = { version = "0.11.3" , path = ".pax/pkg/pax-lang" }
 pax-manifest = { version = "0.11.3"  , path = ".pax/pkg/pax-manifest" }
 pax-std = { version = "0.11.3" , path = ".pax/pkg/pax-std" }
 serde_json = {version = "1.0.95", optional = true}
-uuid = "1.7.0"
 designer_project = { version = "0.11.3", path = "../designer-project" }
 
 
