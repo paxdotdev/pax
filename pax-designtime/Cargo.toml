@@ -7,7 +7,7 @@ homepage = "https://pax.dev/"
 description = "Enterprise logic for coordination between visual editor and pax code"
 
 [features]
-default = ["serde", "serde_json"]
+default = ["serde", "serde_json", "pax-manifest/parsing"]
 
 [dependencies]
 pax-manifest = {version = "0.11.3", path="../pax/pax-manifest"}

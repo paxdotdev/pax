@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::Arc;
+use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::orm::PaxManifestORM;
 use crate::selection::PaxSelectionManager;
@@ -19,18 +18,15 @@ pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
 pub use pax_manifest;
-use pax_manifest::{
-    ComponentDefinition, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, Token, ValueDefinition,
-};
+use pax_manifest::{ComponentDefinition, PaxManifest};
 use priveleged_agent::PrivilegedAgentConnection;
 pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
-    selection: PaxSelectionManager,
-    undo_stack: PaxUndoManager,
+    _selection: PaxSelectionManager,
+    _undo_stack: PaxUndoManager,
     factories: HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>,
     priv_agent_connection: PrivilegedAgentConnection,
 }
@@ -51,8 +47,8 @@ impl DesigntimeManager {
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
-            selection,
-            undo_stack,
+            _selection: selection,
+            _undo_stack: undo_stack,
             factories,
             priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
                 .expect("couldn't connect to privaleged agent"),
