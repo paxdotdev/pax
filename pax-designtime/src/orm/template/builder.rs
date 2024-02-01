@@ -176,8 +176,7 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
-        let value = pax_manifest::utils::to_value_definition(value)
-            .ok_or(anyhow!("failed to parse value string"))?;
+        let value = pax_manifest::utils::parse_value(value)?;
         let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
         if let Some(index) = self.property_map.get(key) {
             self.template_node.settings.as_mut().unwrap()[*index] =
