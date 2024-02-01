@@ -24,7 +24,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                     Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
                                 },
                                 ValueDefinition::Block(block) => {
-                                    Box::new(PropertyLiteral::new(from_pax(block.raw_block_string.unwrap()).unwrap()))
+                                    Box::new(PropertyLiteral::new({{property.property_type.type_id_escaped}}TypeFactory{}.build_type(&block)))
                                 }
                                 _ => unreachable!("Invalid value definition for {{property.name}}")
                             };
@@ -97,11 +97,11 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                         properties.{{ prop.name }}.set(new_value);
                     } else if let Some(vtable_id) = properties.{{ prop.name }}._get_vtable_id() {
                         let new_value_wrapped = table.compute_vtable_value(&node.stack, vtable_id);
-                        if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.property_type}}>() {
+                        if let Ok(new_value) = new_value_wrapped.downcast::<{{prop.property_type.type_id}}>() {
                             properties.{{ prop.name }}.set(*new_value);
                         } else {
                             panic!(
-                                "generated code tried to downcast to incompatible type \"{{prop.property_type}}\" for property \"{{prop.name}}\" on {{component.pascal_identifier}}"
+                                "generated code tried to downcast to incompatible type \"{{prop.property_type.type_id}}\" for property \"{{prop.name}}\" on {{component.pascal_identifier}}"
                             );
                         }
                     }
@@ -121,4 +121,64 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         {% endif %}    
     }
 }
+{%- endmacro -%}
+
+{%- macro render_type_factory(type_table, active_type) %}
+#[allow(non_camel_case_types)]
+struct {{active_type.type_id_escaped}}TypeFactory{}
+
+impl TypeFactory for {{active_type.type_id_escaped}}TypeFactory {
+
+    type Output={{active_type.type_id}};
+
+    fn build_type(&self, args: &LiteralBlockDefinition) -> Self::Output {
+        let mut properties: {{active_type.type_id}} = Default::default();
+        for setting in &args.elements {
+            if let Setting(k, vd) = setting {
+                match k.raw_value.as_str() {
+                    {% for prop in active_type.property_definitions %}
+                    "{{prop.name}}" => {
+                        {% if prop.flags.is_enum %}
+                        {% else %}
+                            properties.{{prop.name}} = 
+                            {% if prop.flags.is_property_wrapped %}
+                                match vd {
+                                    ValueDefinition::LiteralValue(lv) => {
+                                        if let Err(e) = from_pax::<{{prop.type_id}}>(lv.raw_value.clone()) {
+                                            panic!("Failed to parse value for {} with error {}",lv.raw_value.clone(),e);
+                                        }
+                                        Box::new(PropertyLiteral::new(from_pax(lv.raw_value.clone()).unwrap()))
+                                    },
+                                    ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                                    {
+                                        Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                                    },
+                                    ValueDefinition::Block(block) => {
+                                        Box::new(PropertyLiteral::new({{prop.type_id_escaped}}TypeFactory{}.build_type(&block)))
+                                    }
+                                    _ => unreachable!("Invalid value definition for {{prop.name}}")
+                                };
+                            {% else %}
+                                match vd {
+                                    ValueDefinition::LiteralValue(lv) => {
+                                        from_pax(lv.raw_value.clone()).unwrap()
+                                    },
+                                    ValueDefinition::Block(block) => {
+                                        {{prop.type_id_escaped}}TypeFactory{}.build_type(args)
+                                    }
+                                    _ => unreachable!("Invalid value definition for {{prop.name}}")
+                                };
+                            {% endif %}
+                        {% endif %}
+                    },
+                    {% endfor %}
+                    _ => panic!("Unknown property name {}", k.raw_value)
+                }
+            
+            }
+        }
+        properties
+    }
+}
+
 {%- endmacro -%}
