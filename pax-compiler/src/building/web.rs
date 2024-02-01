@@ -8,7 +8,7 @@ use crate::{copy_dir_recursively, errors, pre_exec_hook, RunContext, RunTarget};
 use color_eyre::eyre;
 use colored::Colorize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
@@ -39,10 +39,23 @@ pub fn build_web_chassis_with_cartridge(
 
     if ctx.is_libdev_mode {
         let mut cmd = Command::new("./build-interface.sh");
-        cmd.current_dir(&chassis_path)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        cmd.output().expect("failed to build web interface");
+        if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
+            let chassis_web_path = Path::new(&root).join("pax-chassis-web");
+            cmd.current_dir(&chassis_web_path)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+            if !cmd
+                .output()
+                .expect("failed to start process")
+                .status
+                .success()
+            {
+                eprintln!(
+                    "failed to build js files running ./build-interface.sh at {:?}",
+                    chassis_web_path
+                );
+            };
+        }
     }
 
     let is_release: bool = ctx.is_release;
