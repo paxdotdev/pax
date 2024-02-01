@@ -298,12 +298,7 @@ mod tests {
         let mut orm = PaxManifestORM::new(manifest);
         let mut node_builder = orm.get_node("component1", 1);
 
-        let new_value = ValueDefinition::LiteralValue(Token::new_from_raw_value(
-            "newValue".to_string(),
-            TokenType::LiteralValue,
-        ));
-
-        node_builder.set_property("newProperty".to_string(), new_value);
+        node_builder.set_property("newProperty", "new_Value");
         assert!(node_builder.save().is_ok());
 
         let updated_manifest = orm.get_manifest();
