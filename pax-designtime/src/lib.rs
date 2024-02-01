@@ -63,9 +63,10 @@ impl DesigntimeManager {
         Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8252)))
     }
 
-    pub fn send_manifest_update(&mut self) -> anyhow::Result<()> {
+    pub fn send_component_update(&mut self, type_id: &str) -> anyhow::Result<()> {
+        let component = self.orm.get_component(type_id)?;
         self.priv_agent_connection
-            .send_manifest_update(self.orm.get_manifest())?;
+            .send_component_update(component)?;
         Ok(())
     }
 
