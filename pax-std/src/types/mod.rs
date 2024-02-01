@@ -14,14 +14,14 @@ use piet::UnitPoint;
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Stroke {
     pub color: Property<Color>,
-    pub width: Property<SizePixels>,
+    pub width: Property<Size>,
 }
 
 impl Default for Stroke {
     fn default() -> Self {
         Self {
             color: Default::default(),
-            width: Box::new(PropertyLiteral::new(SizePixels(0.0.into()))),
+            width: Box::new(PropertyLiteral::new(Size::Pixels(0.0.into()))),
         }
     }
 }
