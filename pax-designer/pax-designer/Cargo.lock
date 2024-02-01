@@ -1990,6 +1990,8 @@ name = "pax-manifest"
 version = "0.11.3"
 dependencies = [
  "pax-message",
+ "pest",
+ "pest_derive",
  "serde_json",
 ]
 
