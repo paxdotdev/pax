@@ -9,6 +9,7 @@ use pax_runtime_api::*;
 use pax_core::*;
 use pax_designer::pax_reexports::pax_lang;
 use std::cell::Ref;
+use crate::SettingElement::Setting;
 
 trait ComponentFactory {
     /// Returns the default CommonProperties factory
@@ -75,9 +76,22 @@ trait ComponentFactory {
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 }
 
+
 {% for c in components -%}
         {{ macros::render_component_factory(component=c) }}
 {%- endfor %}
+
+
+trait TypeFactory {
+    type Output: Default + Clone;
+    
+    fn build_type(&self, args: &LiteralBlockDefinition) -> Self::Output;
+}
+
+{% for key, value in type_table -%}
+        {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
+{%- endfor %}
+
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 

@@ -44,12 +44,12 @@ impl PaxEnum {
                 variant = second;
                 identifier = pairs.next().unwrap().as_str().to_string();
             }
-            Rule::pascal_identifier => {
+            Rule::identifier => {
                 variant = end.as_str().to_owned();
                 identifier = second;
             }
             _ => {
-                unreachable!("Unexpected rule: {:?}", end.as_rule())
+                unreachable!("Unexpected rule: {:?}, original value: {:?}", end.as_rule(), end.as_str())
             }
         }
         PaxEnum {

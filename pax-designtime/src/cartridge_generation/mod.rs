@@ -1,5 +1,5 @@
 use include_dir::{include_dir, Dir};
-use pax_manifest::{helpers::{CommonProperty, ComponentInfo}, HostCrateInfo, PaxManifest};
+use pax_manifest::{helpers::{CommonProperty, ComponentInfo}, HostCrateInfo, PaxManifest, TypeTable};
 #[allow(unused_imports)]
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -15,12 +15,13 @@ static MACROS_TEMPLATE: &str = "macros.tera";
 pub struct TemplateArgsCodegenDesigntimeCartridge {
     components: Vec<ComponentInfo>,
     common_properties: Vec<CommonProperty>,
+    type_table: TypeTable,
 }
 
 
-pub fn generate_designtime_cartridge(manifest: &PaxManifest, host_crate_info: &HostCrateInfo) -> String {
-    let component_info = manifest.generate_codegen_component_info(host_crate_info);
-    let args = TemplateArgsCodegenDesigntimeCartridge { components: component_info, common_properties: CommonProperty::get_as_common_property() };
+pub fn generate_designtime_cartridge(manifest: &PaxManifest, _host_crate_info: &HostCrateInfo) -> String {
+    let component_info = manifest.generate_codegen_component_info();
+    let args = TemplateArgsCodegenDesigntimeCartridge { components: component_info, common_properties: CommonProperty::get_as_common_property(), type_table: manifest.type_table.clone() };
     press_template_codegen_designtime_cartridge(args)
 }
 
