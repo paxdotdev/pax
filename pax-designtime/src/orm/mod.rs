@@ -32,7 +32,7 @@ use self::{
     template::{builder::NodeBuilder, RemoveTemplateNodeRequest},
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 pub mod handlers;
 pub mod settings;
 pub mod template;

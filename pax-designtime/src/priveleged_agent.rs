@@ -5,14 +5,17 @@ use anyhow::{anyhow, Result};
 use pax_manifest::PaxManifest;
 pub struct PrivilegedAgentConnection {
     sender: ewebsock::WsSender,
-    recver: ewebsock::WsReceiver,
+    _recver: ewebsock::WsReceiver,
 }
 
 impl PrivilegedAgentConnection {
     pub fn new(addr: SocketAddr) -> Result<Self> {
         let (sender, recver) = ewebsock::connect(format!("ws://{}/ws", addr))
             .map_err(|_| anyhow!("couldn't create socket connection"))?;
-        Ok(Self { sender, recver })
+        Ok(Self {
+            sender,
+            _recver: recver,
+        })
     }
 
     pub fn send_manifest_update(&mut self, manifest: &PaxManifest) -> Result<()> {
