@@ -50,11 +50,6 @@ mod tests {
     fn test_add_and_undo_node() {
         let mut orm = PaxManifestORM::new(create_basic_manifest());
 
-        let new_value = ValueDefinition::LiteralValue(Token::new_from_raw_value(
-            "newValue".to_string(),
-            TokenType::LiteralValue,
-        ));
-
         // Build and configure a new node
         let mut node_builder = orm.build_new_node(
             "component1".to_string(),
@@ -62,7 +57,7 @@ mod tests {
             "Node1".to_string(),
             None,
         );
-        node_builder.set_property("key".to_string(), new_value);
+        node_builder.set_property("key", "new_Value");
         node_builder.save().unwrap();
 
         assert_eq!(
@@ -264,10 +259,6 @@ mod tests {
     fn test_complex_workflow_with_builders_and_undo_redo() {
         let mut orm = PaxManifestORM::new(create_basic_manifest());
 
-        let new_value = ValueDefinition::LiteralValue(Token::new_from_raw_value(
-            "newValue".to_string(),
-            TokenType::LiteralValue,
-        ));
         // Perform complex workflow with builders
         let mut node = orm.build_new_node(
             "component1".to_string(),
@@ -275,7 +266,7 @@ mod tests {
             "Node3".to_string(),
             None,
         );
-        node.set_property("key".to_string(), new_value);
+        node.set_property("key", "newValue");
         node.save().unwrap();
 
         orm.build_new_selector(

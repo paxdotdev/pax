@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use pax_manifest::{
     ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
     ControlFlowSettingsDefinition, PropertyDefinition, SettingElement, TemplateNodeDefinition,
     Token, TokenType, ValueDefinition,
 };
 
-use crate::orm::PaxManifestORM;
-
 use super::{
     AddTemplateNodeRequest, GetAllTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest,
 };
+use crate::orm::PaxManifestORM;
+use anyhow::anyhow;
 
 pub static TYPE_ID_IF: &str = "IF";
 pub static TYPE_ID_REPEAT: &str = "REPEAT";
@@ -174,9 +175,11 @@ impl<'a> NodeBuilder<'a> {
         Some((props, template_node_type_id))
     }
 
-    pub fn set_property(&mut self, key: String, value: ValueDefinition) {
-        let token = Token::new_from_raw_value(key.clone(), TokenType::SettingKey);
-        if let Some(index) = self.property_map.get(&key) {
+    pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
+        let value = pax_manifest::utils::to_value_definition(value)
+            .ok_or(anyhow!("failed to parse value string"))?;
+        let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
+        if let Some(index) = self.property_map.get(key) {
             self.template_node.settings.as_mut().unwrap()[*index] =
                 SettingElement::Setting(token, value);
         } else {
@@ -189,7 +192,8 @@ impl<'a> NodeBuilder<'a> {
                 key.to_string(),
                 self.template_node.settings.as_ref().unwrap().len() - 1,
             );
-        }
+        };
+        Ok(())
     }
 
     pub fn remove_property(&mut self, key: String) {
