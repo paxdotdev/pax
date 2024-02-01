@@ -36,10 +36,7 @@ trait ComponentFactory {
                             ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                             {
                                 Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-                            }
-                            ValueDefinition::Block(block) => {
-                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(block.raw_block_string.unwrap()).unwrap()))
-                            }
+                            },
                             _ => unreachable!("Invalid value definition for {{common_property.name}}")
                         };
                         {%if common_property.is_optional %}
@@ -183,19 +180,12 @@ impl DefinitionToInstanceTraverser {
             for child_id in children {
                 let child = template_nodes.get(&child_id).unwrap();
                 match child.type_id.as_str() {
-                    "IF" => {
-                        continue;
-                    },
-                    "SLOT" => {
-                        continue;
-                    },
-                    "REPEAT" => {
-                        continue;
+                    "IF" | "SLOT" | "REPEAT" => {
+                        children_instances.push(self.build_control_flow(type_id, &child));
                     },
                     "COMMENT" => continue,
                     _ => {  
-                        let child_instance = self.build_template_node_args(type_id, &child);
-                        children_instances.push(child_instance);
+                        children_instances.push(self.build_template_node(type_id, &child));
                     }
                 }
             }
@@ -212,7 +202,124 @@ impl DefinitionToInstanceTraverser {
         }
     }
 
-    pub fn build_template_node_args(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+    pub fn build_control_flow(&self, containing_component_type_id: &str, tnd: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+
+        let manifest = self.get_manifest();
+        let prototypical_common_properties_factory = Box::new(|| Rc::new(RefCell::new(CommonProperties::default())));
+        let children = self.build_children(containing_component_type_id, tnd);
+        match tnd.type_id.as_str(){
+            "IF" => {
+                let vtable_id = tnd.control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .condition_expression_vtable_id
+                    .unwrap();
+                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                        let mut properties = ConditionalProperties::default();
+                        properties.boolean_expression = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        properties
+                    })));
+                ConditionalInstance::instantiate(InstantiationArgs {
+                    prototypical_common_properties_factory,
+                    prototypical_properties_factory,
+                    handler_registry: None,
+                    component_template: None,
+                    compute_properties_fn: None,
+                    children: Some(children),
+                })
+            },
+            "SLOT" => {
+                let vtable_id = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .slot_index_expression_vtable_id
+                    .unwrap();
+                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                        let mut properties = SlotProperties::default();
+                        properties.index = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        properties
+                    })));
+                SlotInstance::instantiate(InstantiationArgs {
+                    prototypical_common_properties_factory,
+                    prototypical_properties_factory,
+                    handler_registry: None,
+                    component_template: None,
+                    compute_properties_fn: None,
+                    children: Some(children),
+                })
+            },
+            "REPEAT" => {
+                let rsd = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .repeat_source_definition
+                    .clone()
+                    .unwrap();
+                let vtable_id = rsd.vtable_id.unwrap();
+                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                        let mut properties = RepeatProperties::default();
+                        properties.source_expression_vec = 
+                            if let Some(t) = &rsd.symbolic_binding {
+                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                            } else {
+                                None
+                            };
+                        properties.source_expression_range =
+                            if let Some(t) = &rsd.range_expression_paxel {
+                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                            } else {
+                                None
+                            };
+                        properties
+                    })));
+                RepeatInstance::instantiate(InstantiationArgs {
+                    prototypical_common_properties_factory,
+                    prototypical_properties_factory,
+                    handler_registry: None,
+                    component_template: None,
+                    compute_properties_fn: None,
+                    children: Some(children),
+                })
+            },
+            _ => {  
+                unreachable!("Unexpected control flow type {}", tnd.type_id)
+            }
+        
+        }
+
+    }
+
+    fn build_children(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Vec<Rc<dyn InstanceNode>> {
+        let manifest = self.get_manifest();
+        let containing_component = manifest.components.get(containing_component_type_id).unwrap();
+        let containing_template = containing_component.template.as_ref().unwrap();
+
+        let mut children_instances = Vec::new();
+        for child_id in &node.child_ids {
+            let child = containing_template.get(&child_id).unwrap();
+            match child.type_id.as_str() {
+                "IF" => {
+                    continue;
+                },
+                "SLOT" => {
+                    continue;
+                },
+                "REPEAT" => {
+                    continue;
+                },
+                "COMMENT" => continue,
+                _ => {  
+                    let child_instance = self.build_template_node(containing_component_type_id, child);
+                    children_instances.push(child_instance);
+                }
+            }
+        }
+        children_instances
+    }
+
+    pub fn build_template_node(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
         let mut args = self.build_component_args(&node.type_id);
         let node_component_factory = Self::get_component_factory(&node.type_id).unwrap();
 
@@ -241,28 +348,8 @@ impl DefinitionToInstanceTraverser {
         let updated_common_properties = node_component_factory.build_inline_common_properties(&inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
 
-        let mut children_instances = Vec::new();
-        for child_id in &node.child_ids {
-            let child = containing_template.get(&child_id).unwrap();
-            match child.type_id.as_str() {
-                "IF" => {
-                    continue;
-                },
-                "SLOT" => {
-                    continue;
-                },
-                "REPEAT" => {
-                    continue;
-                },
-                "COMMENT" => continue,
-                _ => {  
-                    let child_instance = self.build_template_node_args(containing_component_type_id, child);
-                    children_instances.push(child_instance);
-                }
-            }
-        }
-
-        args.children = Some(children_instances);
+       
+        args.children = Some(self.build_children(containing_component_type_id, node));
         node_component_factory.build_component(args)
     }
 }
