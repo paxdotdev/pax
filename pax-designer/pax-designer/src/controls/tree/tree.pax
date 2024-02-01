@@ -21,6 +21,7 @@ for (obj, i) in self.visible_tree_objects {
 @handlers {
 	mount: on_mount
 	pre_render: pre_render
+	click: on_click
 }
 @settings {
     #text {

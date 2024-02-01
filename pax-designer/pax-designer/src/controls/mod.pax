@@ -12,7 +12,7 @@
             <Rectangle fill={Fill::Solid(Color::rgba(1,0,0.25,0.5))} />
         </Group>
         <Group y=150px height={100% - 150px}>
-            <Tree id=tree />
+            <Tree id=tree @click=self.handle_click />
             <Rectangle fill={Fill::Solid(Color::rgba(1,0.5,0.0,0.5))} />
         </Group>
     // </Stacker>
