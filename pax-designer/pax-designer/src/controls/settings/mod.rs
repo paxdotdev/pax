@@ -95,11 +95,9 @@ impl Settings {
         for (value, name, type_id) in properties {
             let str_value: String = value
                 .map(|v| match v {
-                    ValueDefinition::LiteralValue(Token { token_value, .. }) => token_value,
-                    ValueDefinition::Expression(Token { token_value, .. }, _)
-                    | ValueDefinition::Identifier(Token { token_value, .. }, _) => {
-                        format!("readonly: \"{}\" (SET TO LITERAL ON EDIT)", token_value)
-                    }
+                    ValueDefinition::LiteralValue(Token { raw_value, .. })
+                    | ValueDefinition::Expression(Token { raw_value, .. }, _)
+                    | ValueDefinition::Identifier(Token { raw_value, .. }, _) => raw_value,
                     _ => "ERROR: UNSUPPORTED BINDING TYPE".to_owned(),
                 })
                 .unwrap_or("".to_string());
