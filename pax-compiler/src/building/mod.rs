@@ -131,7 +131,8 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
             copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
                 .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
 
-            pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
+            let _ =
+                pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
         }
     }
 
@@ -163,7 +164,7 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
 
             #[cfg(feature = "designtime")]
             {
-                pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, pkg);
+                let _ = pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, pkg);
             }
         } else {
             let dest = dest_pkg_root.join(pkg);
