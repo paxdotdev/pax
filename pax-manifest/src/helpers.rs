@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{HandlersBlockElement, HostCrateInfo, PaxManifest, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition};
+use crate::{HandlersBlockElement, HostCrateInfo, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition};
 
 
 #[derive(Serialize, Debug)]
@@ -18,7 +18,7 @@ pub struct ComponentInfo {
 #[derive(Serialize, Debug)]
 pub struct PropertyInfo {
     pub name: String,
-    pub property_type: String,
+    pub property_type: PropertyDefinition,
 }
 
 
@@ -75,7 +75,7 @@ impl PaxManifest {
         handler.replace("self.", "")
     }
 
-    pub fn generate_codegen_component_info(&self, host_crate_info: &HostCrateInfo) -> Vec<ComponentInfo> {
+    pub fn generate_codegen_component_info(&self) -> Vec<ComponentInfo> {
         let mut component_infos = Vec::new();
         let event_map = self.event_to_args_map();
 
@@ -90,7 +90,7 @@ impl PaxManifest {
             for property in &self.type_table[type_id].property_definitions {
                 properties.push(PropertyInfo {
                     name: property.name.clone(),
-                    property_type: host_crate_info.fully_qualify_path(property.type_id.as_str()),
+                    property_type: property.clone(),
                 });
             }
 
