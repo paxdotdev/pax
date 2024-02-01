@@ -37,13 +37,7 @@ impl PropertyEditor {
         );
 
         let variable = name.strip_suffix(':').unwrap_or(&name);
-        node_definition.set_property(
-            variable.to_owned(),
-            ValueDefinition::LiteralValue(Token::new_from_raw_value(
-                args.text.clone(),
-                TokenType::LiteralValue,
-            )),
-        );
+        let vd = node_definition.set_property(variable, &args.text);
         node_definition.save().expect("failed to save");
     }
 }
