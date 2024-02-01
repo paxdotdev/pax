@@ -50,7 +50,7 @@ impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
         let selection = SelectionManager::new();
-        let action = ActionManager::new(),
+        let action = ActionManager::new();
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
@@ -58,7 +58,7 @@ impl DesigntimeManager {
             action,
             factories,
             priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
-                .expect("couldn't connect to privaleged agent"),
+                .expect("couldn't connect to privileged agent"),
         }
     }
 
