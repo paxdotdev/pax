@@ -24,7 +24,7 @@ pub struct TreeObj {
 }
 
 impl TreeObj {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {}
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.arrow_path.set(

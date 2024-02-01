@@ -19,7 +19,7 @@ pub struct PropertyEditor {
 }
 
 impl PropertyEditor {
-    pub fn on_render(&mut self, ctx: &NodeContext) {
+    pub fn on_render(&mut self, _ctx: &NodeContext) {
         if &self.definition.get().string != self.last_definition.get() {
             self.last_definition
                 .set(self.definition.get().string.clone());
@@ -37,7 +37,7 @@ impl PropertyEditor {
         );
 
         let variable = name.strip_suffix(':').unwrap_or(&name);
-        let vd = node_definition.set_property(variable, &args.text);
+        let _ = node_definition.set_property(variable, &args.text);
         node_definition.save().expect("failed to save");
     }
 }

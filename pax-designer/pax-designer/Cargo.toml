@@ -24,4 +24,4 @@ path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser", "pax-lang/parser", "designer_project/parser", "dep:serde_json", "dep:pax-compiler"]
-designtime = ["pax-lang/designtime", "pax-manifest/designtime"]
+designtime = ["pax-lang/designtime", "pax-manifest/parsing"]

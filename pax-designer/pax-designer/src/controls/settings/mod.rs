@@ -48,9 +48,9 @@ pub struct PropertyDef {
 }
 
 impl Settings {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {}
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
 
-    pub fn set_object1(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn set_object1(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
         self.component_selected.set(true);
         self.stid.set(StringBox::from(
             "crate::controls::settings::Settings".to_owned(),
@@ -58,7 +58,7 @@ impl Settings {
         self.snid.set(5.into());
     }
 
-    pub fn set_object2(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn set_object2(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
         self.component_selected.set(true);
         self.stid.set(StringBox::from(
             "crate::controls::settings::property_editor::PropertyEditor".to_owned(),
@@ -66,7 +66,7 @@ impl Settings {
         self.snid.set(1.into());
     }
 
-    pub fn set_object3(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn set_object3(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
         self.component_selected.set(true);
         self.stid
             .set(StringBox::from("crate::controls::tree::Tree".to_owned()));
@@ -92,7 +92,7 @@ impl Settings {
 
         // log(&format!("{:#?}", properties));
         let mut custom_props = vec![];
-        for (value, name, type_id) in properties {
+        for (value, name, _type_id) in properties {
             let str_value: String = value
                 .map(|v| match v {
                     ValueDefinition::LiteralValue(Token { raw_value, .. })

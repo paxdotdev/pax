@@ -73,14 +73,6 @@ impl Desc {
 }
 
 impl TreeEntry {
-    fn container(desc: Desc, children: Vec<TreeEntry>) -> Self {
-        TreeEntry(desc, children)
-    }
-
-    fn item(desc: Desc) -> Self {
-        TreeEntry(desc, vec![])
-    }
-
     fn flatten(self, ind: &mut usize, indent_level: isize) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
         let (name, img_path) = self.0.info();
@@ -116,7 +108,7 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
         self.header_text
             .set("Tree View: No loaded project".to_owned());
     }
@@ -127,7 +119,6 @@ impl Tree {
             match name.as_str() {
                 "pax_std::primitives::Group" => Desc::Group,
                 "pax_std::primitives::Frame" => Desc::Frame,
-                "pax_std::primitives::Group" => Desc::Group,
                 "pax_std::primitives::Ellipse" => Desc::Ellipse,
                 "pax_std::primitives::Text" => Desc::Text,
                 "pax_std::primitives::Stacker" => Desc::Stacker,
@@ -181,7 +172,7 @@ impl Tree {
             .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
             .collect();
         let mut ind = 0;
-        let mut flattened: Vec<FlattenedTreeEntry> = Self::to_tree(0, &graph)
+        let flattened: Vec<FlattenedTreeEntry> = Self::to_tree(0, &graph)
             .1
             .into_iter()
             .flat_map(|v| v.flatten(&mut ind, 0))
