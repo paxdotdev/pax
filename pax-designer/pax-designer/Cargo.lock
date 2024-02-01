@@ -1989,6 +1989,7 @@ dependencies = [
 name = "pax-manifest"
 version = "0.11.3"
 dependencies = [
+ "anyhow",
  "pax-message",
  "pest",
  "pest_derive",
