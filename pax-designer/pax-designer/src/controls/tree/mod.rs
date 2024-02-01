@@ -154,10 +154,7 @@ impl Tree {
     }
 
     pub fn set_tree2(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        let type_id = {
-            let dt = ctx.designtime.borrow();
-            dt.get_orm().get_main_component().to_owned()
-        };
+        let type_id = "designer_project::Example";
         self.set_tree(&type_id, ctx);
     }
 
@@ -168,6 +165,10 @@ impl Tree {
         let graph = dt
             .get_orm()
             .get_component(type_id)
+            .as_ref()
+            .expect("has component")
+            .template
+            .as_ref()
             .expect("has template")
             .iter()
             .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
