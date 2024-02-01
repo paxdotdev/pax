@@ -4,12 +4,11 @@ use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::orm::PaxManifestORM;
 use crate::selection::SelectionManager;
-use crate::undo::PaxUndoManager;
 
 pub mod cartridge_generation;
 pub mod orm;
 pub mod selection;
-pub mod undo;
+pub mod action;
 
 pub mod messages;
 pub mod serde_pax;
@@ -28,13 +27,14 @@ pub use serde_pax::se::{to_pax, Serializer};
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
 type Factories = HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>;
+use crate::action::ActionManager;
 
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
-    _selection: SelectionManager,
+    selection: SelectionManager,
     // active_component_id: String,
-    _undo_stack: PaxUndoManager,
     factories: Factories,
+    action: ActionManager,
     priv_agent_connection: PrivilegedAgentConnection,
 }
 
@@ -50,12 +50,12 @@ impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
         let selection = SelectionManager::new();
-        let undo_stack = PaxUndoManager::new();
+        let action = ActionManager::new(),
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
-            _selection: selection,
-            _undo_stack: undo_stack,
+            selection,
+            action,
             factories,
             priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
                 .expect("couldn't connect to privaleged agent"),
