@@ -211,7 +211,6 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
 
                                 let (scoped_resolvable_types, root_scoped_resolvable_type) =
                                     get_scoped_resolvable_types(&ty.0);
-
                                 let pascal_identifier =
                                     type_name.split("::").last().unwrap().to_string();
                                 ret.push(StaticPropertyDefinition {
@@ -221,6 +220,7 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
                                     root_scoped_resolvable_type,
                                     pascal_identifier,
                                     is_property_wrapped: ty.1,
+                                    is_enum: false,
                                 })
                             }
                         };
@@ -251,6 +251,7 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
                             root_scoped_resolvable_type,
                             pascal_identifier,
                             is_property_wrapped: ty.1,
+                            is_enum: true,
                         })
                     }
                 })

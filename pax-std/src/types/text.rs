@@ -1,5 +1,5 @@
 use crate::types::Color;
-use api::StringBox;
+use api::{Size, StringBox};
 use pax_lang::api::{Numeric, Property, PropertyLiteral};
 use pax_lang::*;
 use pax_message::{
@@ -13,7 +13,7 @@ use pax_message::{
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextStyle {
     pub font: Property<Font>,
-    pub font_size: Property<SizePixels>,
+    pub font_size: Property<Size>,
     pub fill: Property<Color>,
     pub underline: Property<bool>,
     pub align_multiline: Property<TextAlignHorizontal>,
@@ -25,7 +25,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         Self {
             font: Box::new(PropertyLiteral::new(Font::default())),
-            font_size: Box::new(PropertyLiteral::new(SizePixels(Numeric::Float(20.0)))),
+            font_size: Box::new(PropertyLiteral::new(Size::Pixels(Numeric::Float(20.0)))),
             fill: Box::new(PropertyLiteral::new(Color::rgba(
                 Numeric::Float(0.0),
                 Numeric::Float(0.0),
@@ -44,7 +44,7 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
     fn into(self) -> TextStyleMessage {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
-            font_size: Some(f64::from(&self.font_size.get().clone())),
+            font_size: Some(f64::from(self.font_size.get().expect_pixels())),
             fill: Some(Into::<ColorVariantMessage>::into(self.fill.get())),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
@@ -68,7 +68,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
             .map_or(false, |font| self.font.get().eq(font));
 
         let font_size_equal = other.font_size.map_or(false, |size| {
-            Numeric::Float(size) == self.font_size.get().clone()
+            Numeric::Float(size) == self.font_size.get().expect_pixels().clone()
         });
 
         let fill_equal = other

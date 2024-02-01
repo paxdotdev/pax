@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use itertools::{Itertools, MultiPeek};
-use pax_manifest::escape_identifier;
+use pax_manifest::{escape_identifier, TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use std::ops::RangeFrom;
 
 use pax_manifest::{
@@ -356,10 +356,6 @@ struct TemplateNodeParseContext {
     pub uid_gen: MultiPeek<RangeFrom<usize>>,
 }
 
-pub static TYPE_ID_IF: &str = "IF";
-pub static TYPE_ID_REPEAT: &str = "REPEAT";
-pub static TYPE_ID_SLOT: &str = "SLOT";
-pub static TYPE_ID_COMMENT: &str = "COMMENT";
 
 fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
@@ -1466,6 +1462,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     fn get_type_id() -> String {
         format!("std::option::Option<{}{}>", "{PREFIX}", &T::get_type_id())
     }
+
 }
 
 impl Reflectable for pax_runtime_api::Size {

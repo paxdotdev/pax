@@ -10,6 +10,7 @@ pub struct StaticPropertyDefinition {
     pub original_type: String,
     pub pascal_identifier: String,
     pub is_property_wrapped: bool,
+    pub is_enum: bool,
 }
 
 #[derive(Serialize)]

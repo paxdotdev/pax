@@ -8,6 +8,10 @@ use serde_json;
 
 #[cfg(feature = "parsing")]
 pub mod utils;
+pub static TYPE_ID_IF: &str = "IF";
+pub static TYPE_ID_REPEAT: &str = "REPEAT";
+pub static TYPE_ID_SLOT: &str = "SLOT";
+pub static TYPE_ID_COMMENT: &str = "COMMENT";
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -237,10 +241,16 @@ pub struct PropertyDefinition {
 
     /// Statically known type_id for this Property's associated TypeDefinition
     pub type_id: String,
+
+    /// Pascalized type_id, used for enum identifiers
+    pub type_id_escaped: String,
 }
 
 impl PropertyDefinition {
     pub fn get_type_definition<'a>(&'a self, tt: &'a TypeTable) -> &TypeDefinition {
+        if let None = tt.get(&self.type_id) {
+            panic!("TypeTable does not contain type_id: {}", &self.type_id);
+        }
         tt.get(&self.type_id).unwrap()
     }
 
@@ -248,6 +258,7 @@ impl PropertyDefinition {
         &'a self,
         tt: &'a TypeTable,
     ) -> Option<&TypeDefinition> {
+
         if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
             Some(tt.get(iiti).unwrap())
         } else {
@@ -282,6 +293,9 @@ pub struct PropertyDefinitionFlags {
     /// This distinction affects our ability to dirty-watch a particular property, and
     /// has implications on codegen
     pub is_property_wrapped: bool,
+
+    /// Describes whether this property is an enum variant property
+    pub is_enum: bool,
 }
 
 /// Describes static metadata surrounding a property, for example
@@ -294,6 +308,7 @@ impl PropertyDefinition {
             name: symbol_name.to_string(),
             flags: PropertyDefinitionFlags::default(),
             type_id: type_name.to_string(),
+            type_id_escaped: escape_identifier(type_name.to_string()),
         }
     }
 }
@@ -319,6 +334,7 @@ pub struct TypeDefinition {
     /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
     pub property_definitions: Vec<PropertyDefinition>,
 }
+
 
 impl TypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
@@ -675,13 +691,26 @@ pub const IMPORTS_BUILTINS: [&str; 28] = [
 
 impl<'a> HostCrateInfo {
     pub fn fully_qualify_path(&self, path: &str) -> String {
+        if path.contains("pax_reexports"){
+            return path.replace("crate::", "").to_string();
+        }
         #[allow(non_snake_case)]
         let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);
         let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
-        if !imports_builtins_set.contains(path) {
+        let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
+            .into_iter()
+            .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
+            .collect();
+        primitives_set.insert(TYPE_ID_IF);
+        primitives_set.insert(TYPE_ID_REPEAT);
+        primitives_set.insert(TYPE_ID_SLOT);
+        primitives_set.insert(TYPE_ID_COMMENT);
+        if primitives_set.contains(path){
+            path.to_string()
+        } else if !imports_builtins_set.contains(path) {
             IMPORT_PREFIX.clone() + &path.replace("crate::", "")
         } else {
-            "".to_string()
+           "".to_string()
         }
     }
 }

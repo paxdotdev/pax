@@ -308,8 +308,10 @@ fn recurse_compile_expressions<'a>(
                             is_repeat_source_range,
                             is_repeat_source_iterable,
                             is_property_wrapped: true,
+                            is_enum: false,
                         },
                         type_id: iterable_type.type_id.clone(),
+                        type_id_escaped: iterable_type.type_id_escaped.clone(),
                     };
 
                     let scope: HashMap<String, PropertyDefinition> = HashMap::from([
@@ -324,12 +326,14 @@ fn recurse_compile_expressions<'a>(
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id.token_value),
                         type_id: iterable_type.type_id,
+                        type_id_escaped: iterable_type.type_id_escaped,
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_elem: true,
                             is_binding_repeat_i: false,
                             is_repeat_source_range: is_repeat_source_range.clone(),
                             is_repeat_source_iterable: is_repeat_source_iterable.clone(),
                             is_property_wrapped: true,
+                            is_enum: false,
                         },
                     };
 
@@ -341,6 +345,7 @@ fn recurse_compile_expressions<'a>(
                         is_repeat_source_range,
                         is_repeat_source_iterable,
                         is_property_wrapped: true,
+                        is_enum: false,
                     };
 
                     incremented = true;

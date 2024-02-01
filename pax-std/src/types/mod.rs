@@ -63,7 +63,7 @@ pub enum Fill {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
-#[custom(Default, Imports)]
+#[custom(Imports)]
 pub struct LinearGradient {
     pub start: (Size, Size),
     pub end: (Size, Size),
@@ -72,7 +72,7 @@ pub struct LinearGradient {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
-#[custom(Default, Imports)]
+#[custom(Imports)]
 pub struct RadialGradient {
     pub end: (Size, Size),
     pub start: (Size, Size),
@@ -84,8 +84,8 @@ pub struct RadialGradient {
 #[pax]
 #[custom(Imports)]
 pub struct GradientStop {
-    position: Size,
-    color: Color,
+    pub position: Size,
+    pub color: Color,
 }
 
 impl GradientStop {

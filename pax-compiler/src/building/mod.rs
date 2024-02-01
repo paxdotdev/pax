@@ -85,27 +85,61 @@ pub fn build_chassis_with_cartridge(
     Ok(())
 }
 
-pub fn update_property_prefixes_in_place(
+pub fn update_type_id_prefixes_in_place(
     manifest: &mut PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
+    manifest.main_component_type_id = host_crate_info.fully_qualify_path(&manifest.main_component_type_id);
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t| {
         t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
         t.1.type_id =
-            t.1.type_id
-                .replace("{PREFIX}", &host_crate_info.import_prefix);
+        host_crate_info.fully_qualify_path(&t.1.type_id
+                .replace("{PREFIX}", &host_crate_info.import_prefix));
+        if let Some(inner) = &t.1.inner_iterable_type_id{
+            t.1.inner_iterable_type_id = Some(host_crate_info.fully_qualify_path(&inner
+                .replace("{PREFIX}", &host_crate_info.import_prefix)));
+        }
         t.1.property_definitions.iter_mut().for_each(|pd| {
-            pd.type_id = pd
+            pd.type_id = host_crate_info.fully_qualify_path(&pd
                 .type_id
-                .replace("{PREFIX}", &host_crate_info.import_prefix);
+                .replace("{PREFIX}", &host_crate_info.import_prefix));
+            pd.type_id_escaped = pd
+                .type_id_escaped
+                .replace("{PREFIX}", "");
         });
         updated_type_table.insert(
-            t.0.replace("{PREFIX}", &host_crate_info.import_prefix),
+            host_crate_info.fully_qualify_path(&t.0.replace("{PREFIX}", &host_crate_info.import_prefix)),
             t.1.clone(),
         );
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
+
+    let mut updated_component_table = HashMap::new();
+    manifest.components.iter_mut().for_each(|c| {
+        c.1.type_id = host_crate_info.fully_qualify_path(&c.1.type_id
+            .replace("{PREFIX}", &host_crate_info.import_prefix));
+        c.1.type_id_escaped = c.1.type_id_escaped.replace("{PREFIX}", "");
+
+        let mut updated_template_table = HashMap::new();
+        if let Some(template) = c.1.template.as_mut() {
+            template.iter_mut().for_each(|t| {
+                t.1.type_id = host_crate_info.fully_qualify_path(&t.1.type_id
+                    .replace("{PREFIX}", &host_crate_info.import_prefix));
+                updated_template_table.insert(
+                    t.0.clone(),
+                    t.1.clone(),
+                );
+            });
+            c.1.template = Some(updated_template_table);
+        }
+
+        updated_component_table.insert(
+            host_crate_info.fully_qualify_path(&c.0.replace("{PREFIX}", &host_crate_info.import_prefix)),
+            c.1.clone(),
+        );
+    });
+    std::mem::swap(&mut manifest.components, &mut updated_component_table);
 }
 
 /// Clone all dependencies to `.pax/pkg`.  Similar in spirit to the Cargo package cache,
