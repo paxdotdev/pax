@@ -6,6 +6,9 @@ use pax_message::serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
+#[cfg(feature = "designtime")]
+pub mod utils;
+
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
