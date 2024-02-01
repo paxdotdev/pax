@@ -94,14 +94,17 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
             <% } %>
 
             let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
+            let escaped_property_type_id = pax_manifest::escape_identifier(property_type_id.clone());
 
 
             let mut flags = pax_manifest::PropertyDefinitionFlags::default();
             flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
+            flags.is_enum = <%= spd.is_enum %>;
             property_definitions.push(pax_manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
                 type_id: property_type_id,
-                flags: pax_manifest::PropertyDefinitionFlags::default(),
+                type_id_escaped: escaped_property_type_id,
+                flags,
             });
         <% } %>
 

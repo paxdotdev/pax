@@ -439,6 +439,19 @@ impl Size {
             }
         }
     }
+
+    /// Returns the pixel value
+    /// Panics if wrapped type is not pixels.
+    pub fn expect_pixels(&self) -> Numeric {
+        match &self {
+            Size::Pixels(val) => val.clone(),
+            _ => {
+                panic!("Percentage value expected but stored value was not a percentage.")
+            }
+        }
+    }
+
+
 }
 
 pub enum Axis {

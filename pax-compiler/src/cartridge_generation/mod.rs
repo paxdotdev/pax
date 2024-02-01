@@ -149,7 +149,7 @@ fn generate_cartridge_render_nodes_literal(
         .filter(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
             let active_tnd = &tnd_map[*child_id];
-            active_tnd.type_id != parsing::TYPE_ID_COMMENT
+            active_tnd.type_id != pax_manifest::TYPE_ID_COMMENT
         })
         .map(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
@@ -290,7 +290,7 @@ fn recurse_generate_render_nodes_literal(
         .filter(|child_id| {
             let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
             let active_tnd = &tnd_map[*child_id];
-            active_tnd.type_id != parsing::TYPE_ID_COMMENT
+            active_tnd.type_id != pax_manifest::TYPE_ID_COMMENT
         })
         .map(|child_id| {
             let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[child_id];
@@ -305,7 +305,7 @@ fn recurse_generate_render_nodes_literal(
     //in the context of cartridge-render-node-literal so `"()"` is suitable
     const CONTROL_FLOW_STUBBED_PROPERTIES_TYPE: &str = "()";
 
-    let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
+    let args = if tnd.type_id == pax_manifest::TYPE_ID_REPEAT {
         // Repeat
         let rsd = tnd
             .control_flow_settings
@@ -375,7 +375,7 @@ fn recurse_generate_render_nodes_literal(
             fully_qualified_properties_type: CONTROL_FLOW_STUBBED_PROPERTIES_TYPE.to_string(),
             containing_component_struct,
         }
-    } else if tnd.type_id == parsing::TYPE_ID_IF {
+    } else if tnd.type_id == pax_manifest::TYPE_ID_IF {
         // If
         let id = tnd
             .control_flow_settings
@@ -430,7 +430,7 @@ fn recurse_generate_render_nodes_literal(
             fully_qualified_properties_type: CONTROL_FLOW_STUBBED_PROPERTIES_TYPE.to_string(),
             containing_component_struct,
         }
-    } else if tnd.type_id == parsing::TYPE_ID_SLOT {
+    } else if tnd.type_id == pax_manifest::TYPE_ID_SLOT {
         // Slot
         let id = tnd
             .control_flow_settings
@@ -495,6 +495,12 @@ fn recurse_generate_render_nodes_literal(
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
+        if let None = rngc.components.get(&tnd.type_id) {
+            panic!(
+                "Component {} not found in components map",
+                tnd.type_id
+            );
+        }
         let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
         let fully_qualified_properties_type =
             host_crate_info.fully_qualify_path(&component_for_current_node.type_id);

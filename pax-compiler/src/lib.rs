@@ -33,7 +33,7 @@ use std::sync::{Arc, Mutex};
 use std::os::unix::process::CommandExt;
 
 use crate::building::{
-    build_chassis_with_cartridge, clone_all_to_pkg_dir, update_property_prefixes_in_place,
+    build_chassis_with_cartridge, clone_all_to_pkg_dir, update_type_id_prefixes_in_place,
 };
 
 use crate::cartridge_generation::generate_and_overwrite_cartridge;
@@ -138,10 +138,9 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
     let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest: PaxManifest =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
-
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
-    update_property_prefixes_in_place(&mut manifest, &host_crate_info);
+    update_type_id_prefixes_in_place(&mut manifest, &host_crate_info);
 
     let mut source_map = SourceMap::new();
 
