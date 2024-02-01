@@ -1,10 +1,11 @@
-use pax_manifest::PaxManifest;
+use pax_manifest::{ComponentDefinition, PaxManifest};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub enum AgentMessage {
     ProjectFileChangedNotification(FileChangedNotification),
     ManifestSerializationRequest(ManifestSerializationRequest),
+    ComponentSerializationRequest(ComponentSerializationRequest),
     ManifestSerializationAcknowledgement(ManifestSerializationAcknowledgement),
     ManifestSerializationCompletedNotification(ManifestSerializationCompletedNotification),
     RecompilationRequest(RecompilationRequest),
@@ -24,6 +25,10 @@ pub struct ManifestSerializationRequest {
     pub manifest: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct ComponentSerializationRequest {
+    pub component_bytes: Vec<u8>,
+}
 /// A response acknowledging the receipt of a manifest serialization request.
 /// This message is sent from `pax-privileged-agent` back to `pax-designtime`.
 /// It includes a unique identifier for the request.

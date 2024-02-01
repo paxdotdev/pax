@@ -20,7 +20,9 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::{LiteralBlockDefinition, PaxManifest, TemplateNodeDefinition};
+use pax_manifest::{
+    ComponentDefinition, LiteralBlockDefinition, PaxManifest, TemplateNodeDefinition,
+};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
@@ -106,19 +108,11 @@ impl PaxManifestORM {
         &self.manifest.main_component_type_id
     }
 
-    pub fn get_component(
-        &self,
-        type_id: &str,
-    ) -> anyhow::Result<&HashMap<usize, TemplateNodeDefinition>> {
-        let component = self
-            .manifest
+    pub fn get_component(&self, type_id: &str) -> anyhow::Result<&ComponentDefinition> {
+        self.manifest
             .components
             .get(type_id)
-            .ok_or(anyhow!("couldn't find component"))?;
-        component
-            .template
-            .as_ref()
-            .ok_or(anyhow!("component has no template"))
+            .ok_or(anyhow!("couldn't find component"))
     }
 
     pub fn remove_node(&mut self, component_type_id: String, node_id: usize) -> Result<(), String> {
