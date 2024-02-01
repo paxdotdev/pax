@@ -111,7 +111,7 @@ impl InstanceNode for RectangleInstance {
             }
 
             //hack to address "phantom stroke" bug on Web
-            let width: f64 = *&properties.stroke.get().width.get().into();
+            let width: f64 = *&properties.stroke.get().width.get().expect_pixels().into();
             if width > f64::EPSILON {
                 rc.stroke(
                     &layer_id,

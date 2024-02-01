@@ -85,9 +85,6 @@ macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_field:ident, $handler_key:ident) => {
         pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
-                let handlers = &(*registry).borrow().$handler_field;
-                // #[cfg(feature = "designtime")]
-                // let handlers = &(*registry).borrow().handlers[$handler_key];
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.properties)
                 } else {
@@ -113,12 +110,27 @@ macro_rules! dispatch_event_handler {
                     #[cfg(feature = "designtime")]
                     designtime: globals.designtime.clone(),
                 };
-                handlers.iter().for_each(|handler| {
-                    // #[cfg(feature = "designtime")]{
-                    //     handler(Rc::clone(&component_properties), &context, Some(Box::new(args.clone()) as Box<dyn Any>));
-                    // }
-                    handler(Rc::clone(&component_properties), &context, args.clone());
-                });
+
+                let borrowed_registry = &(*registry).borrow();
+
+                #[cfg(not(feature = "designtime"))]
+                {
+                    let handlers = &borrowed_registry.$handler_field;
+                    handlers.iter().for_each(|handler| {
+                        handler(Rc::clone(&component_properties), &context, args.clone());
+                    });
+                }
+                #[cfg(feature = "designtime")]
+                {
+                    let handlers = if let Some(hs) = borrowed_registry.handlers.get($handler_key) {
+                        hs
+                    } else {
+                        return;
+                    };
+                    handlers.iter().for_each(|handler| {
+                        handler(Rc::clone(&component_properties), &context, Some(Box::new(args.clone()) as Box<dyn Any>));
+                    });
+                }
             }
 
             if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
@@ -251,8 +263,17 @@ impl ExpandedNode {
             self.instance_node.handle_native_patches(self, context);
         }
         if let Some(ref registry) = self.instance_node.base().handler_registry {
-            for handler in &registry.borrow().pre_render_handlers {
-                handler(Rc::clone(&self.properties), &self.get_node_context(context))
+            #[cfg(feature = "designtime")]
+            {
+                for handler in registry.borrow().handlers.get("pre_render").unwrap_or(&Vec::new()) {
+                    handler(Rc::clone(&self.properties), &self.get_node_context(context), None)
+                }
+            }
+            #[cfg(not(feature = "designtime"))]
+            {
+                for handler in &registry.borrow().pre_render_handlers {
+                    handler(Rc::clone(&self.properties), &self.get_node_context(context))
+                }
             }
         }
         for child in self.children.borrow().iter() {
@@ -266,8 +287,17 @@ impl ExpandedNode {
             context.lookup.insert(self.id_chain[0], Rc::clone(&self));
             self.instance_node.handle_mount(&self, context);
             if let Some(ref registry) = self.instance_node.base().handler_registry {
-                for handler in &registry.borrow().mount_handlers {
-                    handler(Rc::clone(&self.properties), &self.get_node_context(context))
+                #[cfg(feature = "designtime")]
+                {
+                    for handler in registry.borrow().handlers.get("mount").unwrap_or(&Vec::new()) {
+                        handler(Rc::clone(&self.properties), &self.get_node_context(context), None)
+                    }
+                }
+                #[cfg(not(feature = "designtime"))]
+                {
+                    for handler in &registry.borrow().mount_handlers {
+                        handler(Rc::clone(&self.properties), &self.get_node_context(context))
+                    }
                 }
             }
         }
