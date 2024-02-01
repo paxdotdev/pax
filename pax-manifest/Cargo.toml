@@ -11,7 +11,7 @@ description = "Definition container for an entire Pax cartridge"
 [features]
 default = ["json"]
 json = ["serde_json"]
-designtime = ["dep:pest", "dep:pest_derive"]
+parsing = ["dep:pest", "dep:pest_derive"]
 
 [lib]
 

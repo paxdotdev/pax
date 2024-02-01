@@ -66,7 +66,7 @@ pub struct PaxChassisWeb {
     drawing_contexts: Renderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
     #[cfg(feature = "designtime")]
-    designtime: Rc<RefCell<DesigntimeManager>>,
+    _designtime: Rc<RefCell<DesigntimeManager>>,
 }
 
 #[wasm_bindgen]
@@ -98,7 +98,7 @@ impl PaxChassisWeb {
             Self {
                 engine: engine_container,
                 drawing_contexts: Renderer::new(),
-                designtime,
+                _designtime: designtime,
             }
         }
         #[cfg(not(feature = "designtime"))]
