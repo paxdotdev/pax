@@ -6,9 +6,6 @@ use pax_lang::*;
 pub mod controls;
 pub mod designtime_component_viewer;
 pub mod glass;
-
-mod fsm;
-
 use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
