@@ -138,8 +138,7 @@ impl TypeFactory for {{active_type.type_id_escaped}}TypeFactory {
                 match k.raw_value.as_str() {
                     {% for prop in active_type.property_definitions %}
                     "{{prop.name}}" => {
-                        {% if prop.flags.is_enum %}
-                        {% else %}
+                        {% if not prop.flags.is_enum %}
                             properties.{{prop.name}} = 
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
