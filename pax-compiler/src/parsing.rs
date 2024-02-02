@@ -356,7 +356,6 @@ struct TemplateNodeParseContext {
     pub uid_gen: MultiPeek<RangeFrom<usize>>,
 }
 
-
 fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
     any_tag_pair: Pair<Rule>,
@@ -1459,7 +1458,6 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     fn get_type_id() -> String {
         format!("std::option::Option<{}{}>", "{PREFIX}", &T::get_type_id())
     }
-
 }
 
 impl Reflectable for pax_runtime_api::Size {

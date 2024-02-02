@@ -1,5 +1,8 @@
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeDefinition, TypeTable, ValueDefinition
+    escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec,
+    ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition,
+    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token,
+    TypeDefinition, TypeTable, ValueDefinition,
 };
 use std::collections::HashMap;
 use std::ops::RangeFrom;
@@ -59,8 +62,6 @@ pub fn compile_all_expressions<'a>(
     manifest.expression_specs = Some(swap_expression_specs);
     Ok(())
 }
-
-
 
 fn recurse_compile_literal_block<'a>(
     settings_pairs: &mut IterMut<SettingElement>,
@@ -174,8 +175,10 @@ fn recurse_compile_expressions<'a>(
 
     let cloned_settings_block = ctx.component_def.settings.clone();
     let cloned_inline_settings = ctx.active_node_def.settings.clone();
-    let mut merged_settings =
-        PaxManifest::merge_inline_settings_with_settings_block(&cloned_inline_settings, &cloned_settings_block);
+    let mut merged_settings = PaxManifest::merge_inline_settings_with_settings_block(
+        &cloned_inline_settings,
+        &cloned_settings_block,
+    );
     let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
 
     if let Some(ref mut inline_settings) = merged_settings {

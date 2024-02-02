@@ -13,7 +13,9 @@ use std::fs;
 use std::str::FromStr;
 
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ExpressionSpec, HandlersBlockElement, HostCrateInfo, LiteralBlockDefinition, MappedString, PaxManifest, SettingElement, TemplateNodeDefinition, Token, TypeDefinition, TypeTable, ValueDefinition
+    escape_identifier, ComponentDefinition, ExpressionSpec, HandlersBlockElement, HostCrateInfo,
+    LiteralBlockDefinition, MappedString, PaxManifest, SettingElement, TemplateNodeDefinition,
+    Token, TypeDefinition, TypeTable, ValueDefinition,
 };
 
 use crate::errors::source_map::SourceMap;
@@ -117,13 +119,15 @@ pub fn generate_and_overwrite_cartridge(
 
     #[cfg(feature = "designtime")]
     {
-
         // things I need to pass to press_design_template
         // host crate info
         // manifest
         let path = target_dir.join(pax_designtime::INITIAL_MANIFEST_FILE_NAME);
         fs::write(path.clone(), serde_json::to_string(manifest).unwrap()).unwrap();
-        generated_lib_rs += &pax_designtime::cartridge_generation::generate_designtime_cartridge(manifest, host_crate_info);
+        generated_lib_rs += &pax_designtime::cartridge_generation::generate_designtime_cartridge(
+            manifest,
+            host_crate_info,
+        );
     }
 
     // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
@@ -496,10 +500,7 @@ fn recurse_generate_render_nodes_literal(
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         if let None = rngc.components.get(&tnd.type_id) {
-            panic!(
-                "Component {} not found in components map",
-                tnd.type_id
-            );
+            panic!("Component {} not found in components map", tnd.type_id);
         }
         let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
         let fully_qualified_properties_type =
