@@ -9,7 +9,7 @@ use kurbo::Affine;
 use pax_runtime_api::{CommonProperties, RenderContext};
 use piet::{Color, StrokeStyle};
 
-use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size};
+use pax_runtime_api::{ArgsScroll, Layer, Size};
 
 use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
 

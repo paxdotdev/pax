@@ -771,7 +771,6 @@ fn derive_value_definition_from_literal_object_pair(
     literal_object: Pair<Rule>,
     pax: &str,
 ) -> LiteralBlockDefinition {
-    let raw_block_string = literal_object.as_str().to_string();
     let mut literal_object_pairs = literal_object.into_inner();
 
     if let None = literal_object_pairs.peek() {
