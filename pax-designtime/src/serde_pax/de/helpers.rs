@@ -27,7 +27,7 @@ impl PaxEnum {
     }
 
     pub fn from_string(input: String) -> Self {
-        let mut pairs = PaxParser::parse(Rule::literal_enum_value, &input)
+        let mut pairs = pax_manifest::utils::PaxParser::parse(Rule::literal_enum_value, &input)
             .unwrap()
             .next()
             .unwrap()

@@ -12,11 +12,7 @@ use super::error::{Error, Result};
 use super::{
     DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
 };
-use pest_derive::Parser;
-
-#[derive(Parser)]
-#[grammar = "pax.pest"]
-pub struct PaxParser;
+use pax_manifest::utils::{PaxParser, Rule};
 
 pub struct Deserializer {
     input: String,
