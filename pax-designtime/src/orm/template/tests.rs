@@ -298,22 +298,33 @@ mod tests {
         let mut orm = PaxManifestORM::new(manifest);
         let mut node_builder = orm.get_node("component1", 1);
 
-        node_builder.set_property("newProperty", "new_Value");
+        let _ = node_builder.set_property("newProperty", "new_Value");
         assert!(node_builder.save().is_ok());
 
         let updated_manifest = orm.get_manifest();
         let component = updated_manifest.components.get("component1").unwrap();
         let node = component.template.as_ref().unwrap().get(&1).unwrap();
-        assert!(node
+        let value_def = node
             .settings
-            .clone()
+            .as_ref()
             .unwrap()
             .iter()
-            .any(|setting| match setting {
-                SettingElement::Setting(key, ValueDefinition::LiteralValue(val)) =>
-                    key.raw_value == "newProperty" && val.raw_value == "newValue",
-                _ => false,
-            }));
+            .find_map(|p| match p {
+                SettingElement::Setting(Token { raw_value, .. }, value_def)
+                    if raw_value.as_str() == "newProperty" =>
+                {
+                    Some(value_def)
+                }
+                _ => None,
+            })
+            .expect("variable set");
+        assert_eq!(
+            value_def,
+            &ValueDefinition::Identifier(
+                Token::new_only_raw("new_Value".to_owned(), TokenType::Identifier),
+                None
+            )
+        );
     }
 
     #[test]
