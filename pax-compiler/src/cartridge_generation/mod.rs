@@ -4,7 +4,6 @@
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
 use crate::helpers::PKG_DIR_NAME;
-use crate::parsing;
 use itertools::Itertools;
 use pax_runtime_api::CommonProperties;
 use std::borrow::Borrow;
