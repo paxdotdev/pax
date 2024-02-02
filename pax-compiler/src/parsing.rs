@@ -779,8 +779,6 @@ fn derive_value_definition_from_literal_object_pair(
         return LiteralBlockDefinition {
             explicit_type_pascal_identifier: None,
             elements: vec![],
-            raw_block_string: None,
-            
         };
     }
 
@@ -868,7 +866,6 @@ fn derive_value_definition_from_literal_object_pair(
                 }
             })
             .collect(),
-        raw_block_string: Some(raw_block_string),
     }
 }
 
@@ -1492,16 +1489,6 @@ impl Reflectable for pax_runtime_api::Numeric {
 
     fn get_self_pascal_identifier() -> String {
         "Numeric".to_string()
-    }
-}
-
-impl Reflectable for pax_runtime_api::SizePixels {
-    fn get_import_path() -> String {
-        "pax_lang::api::SizePixels".to_string()
-    }
-
-    fn get_self_pascal_identifier() -> String {
-        "SizePixels".to_string()
     }
 }
 
