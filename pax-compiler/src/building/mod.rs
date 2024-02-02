@@ -4,6 +4,7 @@
 //! The `build_chassis_with_cartridge` function is the main entrypoint
 
 use flate2::read::GzDecoder;
+use libc::EXIT_FAILURE;
 use pax_manifest::PaxManifest;
 use std::{
     collections::HashMap,
@@ -144,16 +145,8 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
                 if let Ok(specified_override) = std::env::var("PAX_WORKSPACE_ROOT") {
                     PathBuf::from(&specified_override)
                 } else {
-                    pax_dir
-                        .parent()
-                        .unwrap()
-                        .parent()
-                        .unwrap()
-                        .parent()
-                        .unwrap()
-                        .parent()
-                        .unwrap()
-                        .into()
+                    eprintln!("ERROR: environment PAX_WORKSPACE_ROOT needs to be set");
+                    std::process::exit(EXIT_FAILURE);
                 };
 
             let src = pax_workspace_root.join(pkg);
