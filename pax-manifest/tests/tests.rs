@@ -5,8 +5,8 @@ mod tests {
     use pax_manifest::{utils, ValueDefinition};
 
     #[test]
-    fn test_parse_embty() {
-        assert!(matches!(utils::parse_value(""), Ok(_)));
+    fn test_parse_empty() {
+        assert!(matches!(utils::parse_value(""), Err(_)));
     }
 
     #[test]
