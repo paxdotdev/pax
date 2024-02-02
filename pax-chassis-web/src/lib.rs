@@ -86,7 +86,8 @@ impl PaxChassisWeb {
 
         #[cfg(feature = "designtime")]
         {
-            let mut definition_to_instance_traverser = pax_cartridge::DefinitionToInstanceTraverser::new();
+            let mut definition_to_instance_traverser =
+                pax_cartridge::DefinitionToInstanceTraverser::new();
             let main_component_instance = definition_to_instance_traverser.get_main_component();
             let engine = pax_core::PaxEngine::new_with_designtime(
                 main_component_instance,

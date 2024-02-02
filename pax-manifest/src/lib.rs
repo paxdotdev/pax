@@ -262,7 +262,6 @@ impl PropertyDefinition {
         &'a self,
         tt: &'a TypeTable,
     ) -> Option<&TypeDefinition> {
-
         if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
             Some(tt.get(iiti).unwrap())
         } else {
@@ -338,7 +337,6 @@ pub struct TypeDefinition {
     /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
     pub property_definitions: Vec<PropertyDefinition>,
 }
-
 
 impl TypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
@@ -693,7 +691,7 @@ pub const IMPORTS_BUILTINS: [&str; 28] = [
 
 impl<'a> HostCrateInfo {
     pub fn fully_qualify_path(&self, path: &str) -> String {
-        if path.contains("pax_reexports"){
+        if path.contains("pax_reexports") {
             return path.replace("crate::", "").to_string();
         }
         #[allow(non_snake_case)]
@@ -707,12 +705,12 @@ impl<'a> HostCrateInfo {
         primitives_set.insert(TYPE_ID_REPEAT);
         primitives_set.insert(TYPE_ID_SLOT);
         primitives_set.insert(TYPE_ID_COMMENT);
-        if primitives_set.contains(path){
+        if primitives_set.contains(path) {
             path.to_string()
         } else if !imports_builtins_set.contains(path) {
             IMPORT_PREFIX.clone() + &path.replace("crate::", "")
         } else {
-           "".to_string()
+            "".to_string()
         }
     }
 }

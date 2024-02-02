@@ -103,7 +103,8 @@ pub struct HandlerRegistry {
     pub tick_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
     pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
     #[cfg(feature = "designtime")]
-    pub handlers: HashMap<String, Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>)>>,
+    pub handlers:
+        HashMap<String, Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>)>>,
 }
 
 impl Default for HandlerRegistry {

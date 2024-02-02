@@ -3,6 +3,7 @@ pub use piet::{Color, Error, StrokeStyle};
 
 pub mod component;
 pub mod conditional;
+pub mod constants;
 pub mod declarative_macros;
 pub mod engine;
 pub mod expressions;
@@ -12,7 +13,6 @@ pub mod properties;
 pub mod rendering;
 pub mod repeat;
 pub mod slot;
-pub mod constants;
 
 pub use crate::component::*;
 pub use crate::conditional::*;

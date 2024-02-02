@@ -1,4 +1,10 @@
-use crate::constants::{BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS, CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS};
+use crate::constants::{
+    BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS,
+    CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS,
+    KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS,
+    MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
+    TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+};
 use crate::Globals;
 use core::fmt;
 use std::any::Any;
@@ -128,7 +134,11 @@ macro_rules! dispatch_event_handler {
                         return;
                     };
                     handlers.iter().for_each(|handler| {
-                        handler(Rc::clone(&component_properties), &context, Some(Box::new(args.clone()) as Box<dyn Any>));
+                        handler(
+                            Rc::clone(&component_properties),
+                            &context,
+                            Some(Box::new(args.clone()) as Box<dyn Any>),
+                        );
                     });
                 }
             }
@@ -265,8 +275,17 @@ impl ExpandedNode {
         if let Some(ref registry) = self.instance_node.base().handler_registry {
             #[cfg(feature = "designtime")]
             {
-                for handler in registry.borrow().handlers.get("pre_render").unwrap_or(&Vec::new()) {
-                    handler(Rc::clone(&self.properties), &self.get_node_context(context), None)
+                for handler in registry
+                    .borrow()
+                    .handlers
+                    .get("pre_render")
+                    .unwrap_or(&Vec::new())
+                {
+                    handler(
+                        Rc::clone(&self.properties),
+                        &self.get_node_context(context),
+                        None,
+                    )
                 }
             }
             #[cfg(not(feature = "designtime"))]
@@ -289,8 +308,17 @@ impl ExpandedNode {
             if let Some(ref registry) = self.instance_node.base().handler_registry {
                 #[cfg(feature = "designtime")]
                 {
-                    for handler in registry.borrow().handlers.get("mount").unwrap_or(&Vec::new()) {
-                        handler(Rc::clone(&self.properties), &self.get_node_context(context), None)
+                    for handler in registry
+                        .borrow()
+                        .handlers
+                        .get("mount")
+                        .unwrap_or(&Vec::new())
+                    {
+                        handler(
+                            Rc::clone(&self.properties),
+                            &self.get_node_context(context),
+                            None,
+                        )
                     }
                 }
                 #[cfg(not(feature = "designtime"))]
@@ -457,15 +485,45 @@ impl ExpandedNode {
         }
     }
 
-    dispatch_event_handler!(dispatch_scroll, ArgsScroll, scroll_handlers, SCROLL_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_scroll,
+        ArgsScroll,
+        scroll_handlers,
+        SCROLL_HANDLERS
+    );
     dispatch_event_handler!(dispatch_clap, ArgsClap, clap_handlers, CLAP_HANDLERS);
-    dispatch_event_handler!(dispatch_touch_start, ArgsTouchStart, touch_start_handlers, TOUCH_START_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_touch_start,
+        ArgsTouchStart,
+        touch_start_handlers,
+        TOUCH_START_HANDLERS
+    );
 
-    dispatch_event_handler!(dispatch_touch_move, ArgsTouchMove, touch_move_handlers, TOUCH_MOVE_HANDLERS);
-    dispatch_event_handler!(dispatch_touch_end, ArgsTouchEnd, touch_end_handlers, TOUCH_END_HANDLERS);
-    dispatch_event_handler!(dispatch_key_down, ArgsKeyDown, key_down_handlers, KEY_DOWN_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_touch_move,
+        ArgsTouchMove,
+        touch_move_handlers,
+        TOUCH_MOVE_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_touch_end,
+        ArgsTouchEnd,
+        touch_end_handlers,
+        TOUCH_END_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_key_down,
+        ArgsKeyDown,
+        key_down_handlers,
+        KEY_DOWN_HANDLERS
+    );
     dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, key_up_handlers, KEY_UP_HANDLERS);
-    dispatch_event_handler!(dispatch_key_press, ArgsKeyPress, key_press_handlers, KEY_PRESS_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_key_press,
+        ArgsKeyPress,
+        key_press_handlers,
+        KEY_PRESS_HANDLERS
+    );
     dispatch_event_handler!(
         dispatch_checkbox_change,
         ArgsCheckboxChange,
@@ -484,11 +542,36 @@ impl ExpandedNode {
         button_click_handlers,
         BUTTON_CLICK_HANDLERS
     );
-    dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, mouse_down_handlers, MOUSE_DOWN_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, mouse_up_handlers, MOUSE_UP_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_move, ArgsMouseMove, mouse_move_handlers, MOUSE_MOVE_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_over, ArgsMouseOver, mouse_over_handlers, MOUSE_OVER_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, mouse_out_handlers, MOUSE_OUT_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_mouse_down,
+        ArgsMouseDown,
+        mouse_down_handlers,
+        MOUSE_DOWN_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_mouse_up,
+        ArgsMouseUp,
+        mouse_up_handlers,
+        MOUSE_UP_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_mouse_move,
+        ArgsMouseMove,
+        mouse_move_handlers,
+        MOUSE_MOVE_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_mouse_over,
+        ArgsMouseOver,
+        mouse_over_handlers,
+        MOUSE_OVER_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_mouse_out,
+        ArgsMouseOut,
+        mouse_out_handlers,
+        MOUSE_OUT_HANDLERS
+    );
     dispatch_event_handler!(
         dispatch_double_click,
         ArgsDoubleClick,

@@ -1,8 +1,10 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-use crate::{HandlersBlockElement, HostCrateInfo, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition};
-
+use crate::{
+    HandlersBlockElement, HostCrateInfo, PaxManifest, PropertyDefinition, SettingElement,
+    SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition,
+};
 
 #[derive(Serialize, Debug)]
 pub struct ComponentInfo {
@@ -13,13 +15,11 @@ pub struct ComponentInfo {
     pub handlers: Vec<HandlerInfo>,
 }
 
-
 #[derive(Serialize, Debug)]
 pub struct PropertyInfo {
     pub name: String,
     pub property_type: PropertyDefinition,
 }
-
 
 #[derive(Serialize, Debug)]
 pub struct HandlerInfo {
@@ -28,14 +28,19 @@ pub struct HandlerInfo {
 }
 
 impl PaxManifest {
-
-    pub fn get_component_handlers(&self, type_id: &str) -> Vec<(String, Vec<String>)>{
+    pub fn get_component_handlers(&self, type_id: &str) -> Vec<(String, Vec<String>)> {
         let mut handlers = Vec::new();
         if let Some(component) = self.components.get(type_id) {
             if let Some(component_handlers) = &component.handlers {
                 for handler in component_handlers {
                     if let HandlersBlockElement::Handler(key, values) = handler {
-                        handlers.push((key.token_value.clone(), values.iter().map(|v| self.clean_handler(v.raw_value.clone())).collect()));
+                        handlers.push((
+                            key.token_value.clone(),
+                            values
+                                .iter()
+                                .map(|v| self.clean_handler(v.raw_value.clone()))
+                                .collect(),
+                        ));
                     }
                 }
             }
@@ -47,23 +52,41 @@ impl PaxManifest {
         let mut map = HashMap::new();
         map.insert("scroll".to_string(), Some("ArgsScroll".to_string()));
         map.insert("clap".to_string(), Some("ArgsClap".to_string()));
-        map.insert("touch_start".to_string(), Some("ArgsTouchStart".to_string()));
+        map.insert(
+            "touch_start".to_string(),
+            Some("ArgsTouchStart".to_string()),
+        );
         map.insert("touch_move".to_string(), Some("ArgsTouchMove".to_string()));
         map.insert("touch_end".to_string(), Some("ArgsTouchEnd".to_string()));
         map.insert("key_down".to_string(), Some("ArgsKeyDown".to_string()));
         map.insert("key_up".to_string(), Some("ArgsKeyUp".to_string()));
         map.insert("key_press".to_string(), Some("ArgsKeyPress".to_string()));
-        map.insert("checkbox_change".to_string(), Some("ArgsCheckboxChange".to_string()));
-        map.insert("button_click".to_string(), Some("ArgsButtonClick".to_string()));
-        map.insert("textbox_change".to_string(), Some("ArgsTextboxChange".to_string()));
+        map.insert(
+            "checkbox_change".to_string(),
+            Some("ArgsCheckboxChange".to_string()),
+        );
+        map.insert(
+            "button_click".to_string(),
+            Some("ArgsButtonClick".to_string()),
+        );
+        map.insert(
+            "textbox_change".to_string(),
+            Some("ArgsTextboxChange".to_string()),
+        );
         map.insert("click".to_string(), Some("ArgsClick".to_string()));
         map.insert("mouse_down".to_string(), Some("ArgsMouseDown".to_string()));
         map.insert("mouse_up".to_string(), Some("ArgsMouseUp".to_string()));
         map.insert("mouse_move".to_string(), Some("ArgsMouseMove".to_string()));
         map.insert("mouse_over".to_string(), Some("ArgsMouseOver".to_string()));
         map.insert("mouse_out".to_string(), Some("ArgsMouseOut".to_string()));
-        map.insert("double_click".to_string(), Some("ArgsDoubleClick".to_string()));
-        map.insert("context_menu".to_string(), Some("ArgsContextMenu".to_string()));
+        map.insert(
+            "double_click".to_string(),
+            Some("ArgsDoubleClick".to_string()),
+        );
+        map.insert(
+            "context_menu".to_string(),
+            Some("ArgsContextMenu".to_string()),
+        );
         map.insert("wheel".to_string(), Some("ArgsWheel".to_string()));
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
@@ -99,13 +122,13 @@ impl PaxManifest {
             if let Some(handlers) = &component.handlers {
                 for handler in handlers {
                     if let HandlersBlockElement::Handler(key, values) = handler {
-                       for value in values {
+                        for value in values {
                             let args_type = event_map.get(key.token_value.as_str()).unwrap();
                             handler_data.push(HandlerInfo {
-                                 name: self.clean_handler(value.raw_value.clone()),
-                                 args_type: args_type.clone(),
+                                name: self.clean_handler(value.raw_value.clone()),
+                                args_type: args_type.clone(),
                             });
-                       }
+                        }
                     }
                 }
             }
@@ -118,20 +141,20 @@ impl PaxManifest {
                             for setting in settings {
                                 if let SettingElement::Setting(key, value) = setting {
                                     if let ValueDefinition::EventBindingTarget(e) = value {
-                                        let args_type = event_map.get(key.token_value.as_str()).expect("Unsupported event");
+                                        let args_type = event_map
+                                            .get(key.token_value.as_str())
+                                            .expect("Unsupported event");
                                         handler_data.push(HandlerInfo {
                                             name: self.clean_handler(e.raw_value.clone()),
                                             args_type: args_type.clone(),
                                         });
-                                    }                                    
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-
-
 
             component_infos.push(ComponentInfo {
                 type_id: component.type_id.clone(),
@@ -142,22 +165,27 @@ impl PaxManifest {
             });
         }
         component_infos
-
     }
 
-    pub fn get_inline_properties(&self,containing_component_type_id: &str, tnd: &TemplateNodeDefinition) -> HashMap<String,ValueDefinition> {
+    pub fn get_inline_properties(
+        &self,
+        containing_component_type_id: &str,
+        tnd: &TemplateNodeDefinition,
+    ) -> HashMap<String, ValueDefinition> {
         let component = self.components.get(containing_component_type_id).unwrap();
-        let settings = Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
+        let settings =
+            Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
         let mut map = HashMap::new();
-        if let Some(settings) = &settings{
+        if let Some(settings) = &settings {
             for setting in settings {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
-                        ValueDefinition::LiteralValue(_) | 
-                        ValueDefinition::Block(_)| 
-                        ValueDefinition::Expression(_, _) | 
-                        ValueDefinition::Identifier(_, _) => {
-                            map.insert(key.token_value.clone(), value.clone());}
+                        ValueDefinition::LiteralValue(_)
+                        | ValueDefinition::Block(_)
+                        | ValueDefinition::Expression(_, _)
+                        | ValueDefinition::Identifier(_, _) => {
+                            map.insert(key.token_value.clone(), value.clone());
+                        }
                         _ => {}
                     }
                 }
@@ -166,18 +194,23 @@ impl PaxManifest {
         map
     }
 
-    pub fn get_inline_common_properties(&self, containing_component_type_id: &str, tnd: &TemplateNodeDefinition) -> HashMap<String,ValueDefinition> {
+    pub fn get_inline_common_properties(
+        &self,
+        containing_component_type_id: &str,
+        tnd: &TemplateNodeDefinition,
+    ) -> HashMap<String, ValueDefinition> {
         let component = self.components.get(containing_component_type_id).unwrap();
-        let settings = Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
+        let settings =
+            Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
         let mut map = HashMap::new();
         if let Some(settings) = &settings {
             for setting in settings {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
-                        ValueDefinition::LiteralValue(_) | 
-                        ValueDefinition::Block(_)| 
-                        ValueDefinition::Expression(_, _) | 
-                        ValueDefinition::Identifier(_, _) => {
+                        ValueDefinition::LiteralValue(_)
+                        | ValueDefinition::Block(_)
+                        | ValueDefinition::Expression(_, _)
+                        | ValueDefinition::Identifier(_, _) => {
                             if CommonProperty::get_common_properties().contains(&key.token_value) {
                                 map.insert(key.token_value.clone(), value.clone());
                             }
@@ -197,7 +230,10 @@ impl PaxManifest {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
                         ValueDefinition::EventBindingTarget(e) => {
-                            handlers.push((key.token_value.clone(), self.clean_handler(e.raw_value.clone())));
+                            handlers.push((
+                                key.token_value.clone(),
+                                self.clean_handler(e.raw_value.clone()),
+                            ));
                         }
                         _ => {}
                     }
@@ -206,7 +242,7 @@ impl PaxManifest {
         }
         handlers
     }
-    
+
     fn pull_matched_identifiers_from_inline(
         inline_settings: &Option<Vec<SettingElement>>,
         s: String,
@@ -228,7 +264,7 @@ impl PaxManifest {
         }
         ret
     }
-    
+
     fn pull_settings_with_selector(
         settings: &Option<Vec<SettingsBlockElement>>,
         selector: String,
@@ -248,52 +284,55 @@ impl PaxManifest {
             (!merged_setting.is_empty()).then(|| merged_setting)
         })
     }
-    
+
     pub fn merge_inline_settings_with_settings_block(
         inline_settings: &Option<Vec<SettingElement>>,
         settings_block: &Option<Vec<SettingsBlockElement>>,
     ) -> Option<Vec<SettingElement>> {
         // collect id settings
         let ids = Self::pull_matched_identifiers_from_inline(&inline_settings, "id".to_string());
-    
+
         let mut id_settings = Vec::new();
         if ids.len() == 1 {
-            if let Some(settings) =
-                Self::pull_settings_with_selector(&settings_block, format!("#{}", ids[0].token_value))
-            {
+            if let Some(settings) = Self::pull_settings_with_selector(
+                &settings_block,
+                format!("#{}", ids[0].token_value),
+            ) {
                 id_settings.extend(settings.clone());
             }
         } else if ids.len() > 1 {
             panic!("Specified more than one id inline!");
         }
-    
+
         // collect all class settings
-        let classes = Self::pull_matched_identifiers_from_inline(&inline_settings, "class".to_string());
-    
+        let classes =
+            Self::pull_matched_identifiers_from_inline(&inline_settings, "class".to_string());
+
         let mut class_settings = Vec::new();
         for class in classes {
-            if let Some(settings) =
-                Self::pull_settings_with_selector(&settings_block, format!(".{}", class.token_value))
-            {
+            if let Some(settings) = Self::pull_settings_with_selector(
+                &settings_block,
+                format!(".{}", class.token_value),
+            ) {
                 class_settings.extend(settings.clone());
             }
         }
-    
+
         let mut map = HashMap::new();
-    
+
         // Iterate in reverse order of priority (class, then id, then inline)
         for e in class_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
                 map.insert(key, e);
             }
         }
-    
+
         for e in id_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
                 map.insert(key, e);
             }
         }
-    
+
         if let Some(inline) = inline_settings.clone() {
             for e in inline.into_iter() {
                 if let SettingElement::Setting(key, _) = e.clone() {
@@ -302,7 +341,7 @@ impl PaxManifest {
             }
         }
         let merged: Vec<SettingElement> = map.values().cloned().collect();
-    
+
         if merged.len() > 0 {
             Some(merged)
         } else {
@@ -310,7 +349,6 @@ impl PaxManifest {
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct CommonProperty {
@@ -320,7 +358,6 @@ pub struct CommonProperty {
 }
 
 impl CommonProperty {
-
     pub fn get_common_properties() -> Vec<String> {
         vec![
             "x".to_string(),
@@ -367,4 +404,3 @@ impl CommonProperty {
         common_properties
     }
 }
-
