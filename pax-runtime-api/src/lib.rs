@@ -122,7 +122,6 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
 
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
-
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeContext {
@@ -450,8 +449,6 @@ impl Size {
             }
         }
     }
-
-
 }
 
 pub enum Axis {
@@ -509,7 +506,6 @@ pub struct CommonProperties {
 }
 
 impl CommonProperties {
-
     pub fn get_default_properties_literal() -> Vec<(String, String)> {
         Self::get_property_identifiers()
             .iter()
