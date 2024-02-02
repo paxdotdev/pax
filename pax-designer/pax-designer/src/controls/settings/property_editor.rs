@@ -16,14 +16,21 @@ pub struct PropertyEditor {
     pub textbox: Property<String>,
     pub stid: Property<StringBox>,
     pub snid: Property<Numeric>,
+    pub error: Property<String>,
 }
 
 impl PropertyEditor {
-    pub fn on_render(&mut self, _ctx: &NodeContext) {
+    pub fn on_render(&mut self, ctx: &NodeContext) {
         if &self.definition.get().string != self.last_definition.get() {
             self.last_definition
                 .set(self.definition.get().string.clone());
             self.textbox.set(self.definition.get().string.clone());
+            self.text_change(
+                ctx,
+                ArgsTextboxChange {
+                    text: self.definition.get().string.to_owned(),
+                },
+            );
         }
     }
 
@@ -37,7 +44,11 @@ impl PropertyEditor {
         );
 
         let variable = name.strip_suffix(':').unwrap_or(&name);
-        let _ = node_definition.set_property(variable, &args.text);
-        node_definition.save().expect("failed to save");
+        if let Err(error) = node_definition.set_property(variable, &args.text) {
+            self.error.set("error".to_owned());
+        } else {
+            node_definition.save().expect("failed to save");
+            self.error.set("".to_owned());
+        }
     }
 }
