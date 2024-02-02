@@ -37,14 +37,6 @@ pub fn build_web_chassis_with_cartridge(
         .join(PKG_DIR_NAME)
         .join(format!("pax-chassis-{}", target_str_lower));
 
-    if ctx.is_libdev_mode {
-        let mut cmd = Command::new("./build-interface.sh");
-        cmd.current_dir(&chassis_path)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        cmd.output().expect("failed to build web interface");
-    }
-
     let is_release: bool = ctx.is_release;
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };

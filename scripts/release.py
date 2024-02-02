@@ -42,7 +42,19 @@ PACKAGES = [
     "pax-std/pax-std-primitives"
 ]
 
-# Create a mapping from package name to path
+# Compile ts to js and css for the web chassi
+original_dir = os.getcwd()
+try:
+    target_dir = os.path.join(original_dir, 'pax-chassis-web')
+    os.chdir(target_dir)
+    subprocess.run(['./build-interface.sh'], check=True)
+except: 
+    print("ERROR: failed to build ts files")
+    exit(1)
+
+os.chdir(original_dir)
+
+Create a mapping from package name to path
 PACKAGE_NAMES = {}
 for elem in PACKAGES:
     with open("{}/Cargo.toml".format(elem), 'r') as file:
