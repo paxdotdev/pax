@@ -1,8 +1,8 @@
 use pax_manifest::{
     escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec,
     ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition,
-    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token,
-    TypeDefinition, TypeTable, ValueDefinition,
+    PropertyDefinitionFlags, SettingElement, TemplateNodeDefinition, Token, TypeDefinition,
+    TypeTable, ValueDefinition,
 };
 use std::collections::HashMap;
 use std::ops::RangeFrom;
