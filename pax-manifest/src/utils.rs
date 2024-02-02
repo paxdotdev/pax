@@ -10,6 +10,12 @@ use pest_derive::Parser;
 pub struct PaxParser;
 
 pub fn parse_value(raw_value: &str) -> Result<ValueDefinition> {
+    if raw_value.is_empty() {
+        return Ok(ValueDefinition::LiteralValue(Token::new_only_raw(
+            "".to_owned(),
+            TokenType::LiteralValue,
+        )));
+    }
     let mut values = PaxParser::parse(Rule::any_template_value, raw_value)?;
     if values.as_str() != raw_value {
         return Err(anyhow!("no rule matched entire raw value"));
