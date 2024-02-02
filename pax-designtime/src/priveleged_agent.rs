@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
-use crate::messages::{AgentMessage, ComponentSerializationRequest, ManifestSerializationRequest};
+use crate::messages::{AgentMessage, ComponentSerializationRequest};
 use anyhow::{anyhow, Result};
-use pax_manifest::{ComponentDefinition, PaxManifest};
+use pax_manifest::ComponentDefinition;
 
 pub struct PrivilegedAgentConnection {
     sender: ewebsock::WsSender,

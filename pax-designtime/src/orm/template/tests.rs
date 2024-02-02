@@ -298,7 +298,9 @@ mod tests {
         let mut orm = PaxManifestORM::new(manifest);
         let mut node_builder = orm.get_node("component1", 1);
 
-        let _ = node_builder.set_property("newProperty", "new_Value");
+        node_builder
+            .set_property("newProperty", "new_Value")
+            .unwrap();
         assert!(node_builder.save().is_ok());
 
         let updated_manifest = orm.get_manifest();
