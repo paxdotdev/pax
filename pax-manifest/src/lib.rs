@@ -8,6 +8,10 @@ use serde_json;
 
 #[cfg(feature = "parsing")]
 pub mod utils;
+
+#[cfg(feature = "parsing")]
+pub mod cartridge_generation;
+
 pub static TYPE_ID_IF: &str = "IF";
 pub static TYPE_ID_REPEAT: &str = "REPEAT";
 pub static TYPE_ID_SLOT: &str = "SLOT";
@@ -435,7 +439,6 @@ pub struct ControlFlowRepeatSourceDefinition {
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
     pub elements: Vec<SettingElement>,
-    pub raw_block_string: Option<String>,
 }
 
 impl LiteralBlockDefinition {
@@ -443,7 +446,6 @@ impl LiteralBlockDefinition {
         Self {
             explicit_type_pascal_identifier: None,
             elements,
-            raw_block_string: None,
         }
     }
 }
