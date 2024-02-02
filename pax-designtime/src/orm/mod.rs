@@ -20,13 +20,10 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::{
-    ComponentDefinition, LiteralBlockDefinition, PaxManifest, TemplateNodeDefinition,
-};
+use pax_manifest::{ComponentDefinition, LiteralBlockDefinition, PaxManifest};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use std::collections::HashMap;
 
 use self::{
     handlers::{builder::HandlerBuilder, RemoveHandlerRequest},

@@ -1,4 +1,4 @@
-use pax_manifest::{ComponentDefinition, PaxManifest};
+use pax_manifest::PaxManifest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
