@@ -13,7 +13,6 @@ pub struct Toolbar {}
 
 impl Toolbar {
     pub fn save_component(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        log("saving!");
         let mut dt = ctx.designtime.borrow_mut();
         dt.send_component_update("pax_designer::pax_reexports::designer_project::Example");
     }
