@@ -6,6 +6,9 @@ use pax_message::serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
+#[cfg(feature = "parsing")]
+pub mod utils;
+
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
@@ -514,6 +517,16 @@ impl Token {
             token_type,
             source_line,
             token_location: Some(token_location),
+        }
+    }
+
+    pub fn new_only_raw(raw_value: String, token_type: TokenType) -> Self {
+        Self {
+            token_value: "INVALID TOKEN".to_owned(),
+            raw_value,
+            token_type,
+            source_line: Some("INVALID SOURCE".to_owned()),
+            token_location: None,
         }
     }
 
