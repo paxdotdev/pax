@@ -57,7 +57,7 @@ mod tests {
             "Node1".to_string(),
             None,
         );
-        node_builder.set_property("key", "new_Value");
+        node_builder.set_property("key", "new_Value").unwrap();
         node_builder.save().unwrap();
 
         assert_eq!(
@@ -266,7 +266,7 @@ mod tests {
             "Node3".to_string(),
             None,
         );
-        node.set_property("key", "newValue");
+        node.set_property("key", "newValue").unwrap();
         node.save().unwrap();
 
         orm.build_new_selector(
