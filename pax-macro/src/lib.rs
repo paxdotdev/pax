@@ -3,10 +3,10 @@ extern crate proc_macro2;
 
 mod parsing;
 mod templating;
+use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
-use std::{collections::HashMap, fs};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
