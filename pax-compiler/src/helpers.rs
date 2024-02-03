@@ -382,25 +382,14 @@ impl InlinedTemplateFinder {
 
 impl<'ast> Visit<'ast> for InlinedTemplateFinder {
     fn visit_item_struct(&mut self, i: &'ast ItemStruct) {
-        let mut has_derive_pax = false;
+        let mut has_pax = false;
         let struct_name = i.ident.to_string();
         for attr in &i.attrs {
-            // Check for derive(Pax)
-            if attr.path.is_ident("derive") {
-                if let Ok(parsed_meta) = attr.parse_meta() {
-                    if let syn::Meta::List(meta_list) = parsed_meta {
-                        for nested_meta in meta_list.nested.iter() {
-                            if let syn::NestedMeta::Meta(syn::Meta::Path(path)) = nested_meta {
-                                if path.is_ident("Pax") {
-                                    has_derive_pax = true;
-                                }
-                            }
-                        }
-                    }
-                }
+            // Check for #[pax]
+            if attr.path.is_ident("pax") {
+                has_pax = true;
             }
 
-            // pull inlined attribute
             if attr.path.is_ident("inlined") {
                 let start = attr.tokens.span().start();
                 let start_tuple = (start.line, start.column + 1);
@@ -412,7 +401,7 @@ impl<'ast> Visit<'ast> for InlinedTemplateFinder {
                         .trim_start_matches("(")
                         .trim_end_matches(")")
                         .to_string();
-                if has_derive_pax {
+                if has_pax {
                     let found_template = InlinedTemplate {
                         struct_name: struct_name.clone(),
                         start: start_tuple,
