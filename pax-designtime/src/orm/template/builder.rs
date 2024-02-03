@@ -150,6 +150,7 @@ impl<'a> NodeBuilder<'a> {
                 name: name.to_owned(),
                 type_id: type_id.to_owned(),
                 flags: Default::default(),
+                type_id_escaped: type_id.to_owned(),
             }),
         );
         let props: Vec<_> = available_props

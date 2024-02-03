@@ -54,7 +54,6 @@ mod tests {
         let new_selector_value = LiteralBlockDefinition {
             elements: vec![SettingElement::Comment("New Selector".to_string())],
             explicit_type_pascal_identifier: None,
-            raw_block_string: None,
         };
 
         let request = AddSelectorRequest {
@@ -120,7 +119,6 @@ mod tests {
         let updated_selector_value = LiteralBlockDefinition {
             elements: vec![SettingElement::Comment("Updated Selector".to_string())],
             explicit_type_pascal_identifier: None,
-            raw_block_string: None,
         };
 
         let request = UpdateSelectorRequest {
@@ -158,7 +156,7 @@ mod tests {
                 .unwrap(),
             vec![SettingsBlockElement::SelectorBlock(
                 Token::new_from_raw_value("existing_selector".to_string(), TokenType::Selector),
-                LiteralBlockDefinition {elements:vec![],explicit_type_pascal_identifier:None, raw_block_string: None },
+                LiteralBlockDefinition {elements:vec![],explicit_type_pascal_identifier:None},
             )]
         );
 
@@ -209,7 +207,6 @@ mod tests {
                 LiteralBlockDefinition {
                     elements: vec![],
                     explicit_type_pascal_identifier: None,
-                    raw_block_string: None,
                 },
             )]
         );
@@ -241,7 +238,6 @@ mod tests {
                 LiteralBlockDefinition {
                     elements: vec![],
                     explicit_type_pascal_identifier: None,
-                    raw_block_string: None,
                 }
             ))
         );
@@ -285,7 +281,6 @@ mod tests {
                 LiteralBlockDefinition {
                     elements: vec![],
                     explicit_type_pascal_identifier: None,
-                    raw_block_string: None,
                 }
             )
         );
