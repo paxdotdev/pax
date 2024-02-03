@@ -1,5 +1,5 @@
 use include_dir::{include_dir, Dir};
-use pax_manifest::{helpers::{CommonProperty, ComponentInfo}, HostCrateInfo, PaxManifest, TypeTable};
+use pax_manifest::{cartridge_generation::{CommonProperty, ComponentInfo}, HostCrateInfo, PaxManifest, TypeTable};
 #[allow(unused_imports)]
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
