@@ -14,13 +14,13 @@ use crate::SettingElement::Setting;
 trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
-        Box::new(|| Rc::new(RefCell::new(CommonProperties::default())))    
+        Box::new(|| Rc::new(RefCell::new(CommonProperties::default())))
     }
 
     /// Returns the default properties factory for this component
     fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
-    
-    /// Returns the CommonProperties factory based on the defined properties 
+
+    /// Returns the CommonProperties factory based on the defined properties
     fn build_inline_common_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
         let cloned_properties = defined_properties.clone();
         Box::new(move || Rc::new(RefCell::new({
@@ -55,20 +55,20 @@ trait ComponentFactory {
 
     /// Returns the properties factory based on the defined properties
     fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
-    
+
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template
     fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>);
-    
+
     /// Returns the handler registry based on the defined handlers for this component
     fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>>;
 
     // Takes a hander registry and adds the given inline handlers to it
     fn add_inline_handlers(&self, handlers: Vec<(String, String)>, registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>>;
-    
+
     /// Returns the compute properties function for the component
     fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>;
-    
+
     // Calls the instantion function for the component
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 }
@@ -81,7 +81,7 @@ trait ComponentFactory {
 
 trait TypeFactory {
     type Output: Default + Clone;
-    
+
     fn build_type(&self, args: &LiteralBlockDefinition) -> Self::Output;
 }
 
@@ -189,7 +189,7 @@ impl DefinitionToInstanceTraverser {
                         children_instances.push(self.build_control_flow(type_id, &child));
                     },
                     "COMMENT" => continue,
-                    _ => {  
+                    _ => {
                         children_instances.push(self.build_template_node(type_id, &child));
                     }
                 }
@@ -265,7 +265,7 @@ impl DefinitionToInstanceTraverser {
                 let vtable_id = rsd.vtable_id.unwrap();
                 let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
                         let mut properties = RepeatProperties::default();
-                        properties.source_expression_vec = 
+                        properties.source_expression_vec =
                             if let Some(t) = &rsd.symbolic_binding {
                                 Some(Box::new(PropertyExpression::new(vtable_id)))
                             } else {
@@ -288,10 +288,10 @@ impl DefinitionToInstanceTraverser {
                     children: Some(children),
                 })
             },
-            _ => {  
+            _ => {
                 unreachable!("Unexpected control flow type {}", tnd.type_id)
             }
-        
+
         }
 
     }
@@ -309,7 +309,7 @@ impl DefinitionToInstanceTraverser {
                     children_instances.push(self.build_control_flow(containing_component_type_id, &child));
                 },
                 "COMMENT" => continue,
-                _ => {  
+                _ => {
                     children_instances.push(self.build_template_node(containing_component_type_id, child));
                 }
             }
@@ -330,14 +330,14 @@ impl DefinitionToInstanceTraverser {
         // update handlers from tnd
         let handlers_from_tnd = manifest.get_inline_event_handlers(node);
         let updated_registry = if let Some(registry) = args.handler_registry {
-            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)    
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)
         } else {
-            containing_component_factory.add_inline_handlers(handlers_from_tnd, Rc::new(RefCell::new(HandlerRegistry::default())))       
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, Rc::new(RefCell::new(HandlerRegistry::default())))
         };
 
         args.handler_registry = Some(updated_registry);
 
-        // update properties from tnd 
+        // update properties from tnd
         let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
         let updated_properties = node_component_factory.build_inline_properties(&inline_properties);
         args.prototypical_properties_factory = updated_properties;
@@ -346,7 +346,7 @@ impl DefinitionToInstanceTraverser {
         let updated_common_properties = node_component_factory.build_inline_common_properties(&inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
 
-       
+
         args.children = Some(self.build_children(containing_component_type_id, node));
         node_component_factory.build_component(args)
     }

@@ -2,13 +2,14 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 
-use crate::orm::PaxManifestORM;
-use crate::selection::SelectionManager;
+use std::cell::RefCell;
+use std::rc::Rc;
 
+pub mod action;
 pub mod cartridge_generation;
+pub mod input;
 pub mod orm;
 pub mod selection;
-pub mod action;
 
 pub mod messages;
 pub mod serde_pax;
@@ -19,7 +20,7 @@ pub use setup::add_additional_dependencies_to_cargo_toml;
 use core::fmt::Debug;
 pub use pax_manifest;
 use pax_manifest::{ComponentDefinition, PaxManifest};
-use priveleged_agent::PrivilegedAgentConnection;
+use privileged_agent::PrivilegedAgentConnection;
 pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
@@ -28,13 +29,17 @@ pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
 type Factories = HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>;
 use crate::action::ActionManager;
+use crate::input::InputManager;
+use crate::orm::PaxManifestORM;
+use crate::selection::SelectionManager;
 
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
-    selection: SelectionManager,
+    selection_manager: SelectionManager,
     // active_component_id: String,
     factories: Factories,
-    action: ActionManager,
+    input_manager: InputManager,
+    action_manager: ActionManager,
     priv_agent_connection: PrivilegedAgentConnection,
 }
 
@@ -44,25 +49,27 @@ impl Debug for DesigntimeManager {
         f.debug_struct("DesigntimeManager").finish()
     }
 }
-pub mod priveleged_agent;
+pub mod privileged_agent;
 
 impl DesigntimeManager {
-    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
+    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Rc<RefCell<Self>> {
         let orm = PaxManifestORM::new(manifest);
-        let selection = SelectionManager::new();
-        let action = ActionManager::new();
+        let selection_manager = SelectionManager::new();
+        let action_manager = ActionManager::new();
+        let input_manager = InputManager::new();
         let factories = HashMap::new();
-        DesigntimeManager {
+        Rc::new(RefCell::new(DesigntimeManager {
             orm,
-            selection,
-            action,
+            selection_manager,
+            action_manager,
+            input_manager,
             factories,
             priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
                 .expect("couldn't connect to privileged agent"),
-        }
+        }))
     }
 
-    pub fn new(manifest: PaxManifest) -> Self {
+    pub fn new(manifest: PaxManifest) -> Rc<RefCell<Self>> {
         Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8252)))
     }
 
