@@ -1,5 +1,8 @@
 use include_dir::{include_dir, Dir};
-use pax_manifest::{cartridge_generation::{CommonProperty, ComponentInfo}, HostCrateInfo, PaxManifest, TypeTable};
+use pax_manifest::{
+    cartridge_generation::{CommonProperty, ComponentInfo},
+    HostCrateInfo, PaxManifest, TypeTable,
+};
 #[allow(unused_imports)]
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -18,13 +21,18 @@ pub struct TemplateArgsCodegenDesigntimeCartridge {
     type_table: TypeTable,
 }
 
-
-pub fn generate_designtime_cartridge(manifest: &PaxManifest, _host_crate_info: &HostCrateInfo) -> String {
+pub fn generate_designtime_cartridge(
+    manifest: &PaxManifest,
+    _host_crate_info: &HostCrateInfo,
+) -> String {
     let component_info = manifest.generate_codegen_component_info();
-    let args = TemplateArgsCodegenDesigntimeCartridge { components: component_info, common_properties: CommonProperty::get_as_common_property(), type_table: manifest.type_table.clone() };
+    let args = TemplateArgsCodegenDesigntimeCartridge {
+        components: component_info,
+        common_properties: CommonProperty::get_as_common_property(),
+        type_table: manifest.type_table.clone(),
+    };
     press_template_codegen_designtime_cartridge(args)
 }
-
 
 pub fn press_template_codegen_designtime_cartridge(
     args: TemplateArgsCodegenDesigntimeCartridge,

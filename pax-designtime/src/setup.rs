@@ -21,7 +21,6 @@ pub fn add_additional_dependencies_to_cargo_toml(
         doc["features"] = toml_edit::Item::Table(Table::new());
     }
 
-
     match pkg {
         "pax-chassis-web" => {
             let mut array = Array::default();
