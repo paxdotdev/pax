@@ -6,10 +6,9 @@ use std::ops::Deref;
 /// are all modeled into this FSM
 
 #[derive(Default)]
-struct InputManager {
+pub struct InputManager {
     current_state: FSMState,
     current_modifiers: ModifierKeys,
-    // selection_manager: Rc<RefCell<>>,
 }
 
 
@@ -86,7 +85,7 @@ pub struct ModifierKeys {
 }
 
 impl InputManager {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Default::default()
     }
 
