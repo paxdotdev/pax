@@ -49,7 +49,11 @@ impl PaxEnum {
                 identifier = second;
             }
             _ => {
-                unreachable!("Unexpected rule: {:?}, original value: {:?}", end.as_rule(), end.as_str())
+                unreachable!(
+                    "Unexpected rule: {:?}, original value: {:?}",
+                    end.as_rule(),
+                    end.as_str()
+                )
             }
         }
         PaxEnum {

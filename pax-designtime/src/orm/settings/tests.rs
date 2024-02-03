@@ -156,7 +156,10 @@ mod tests {
                 .unwrap(),
             vec![SettingsBlockElement::SelectorBlock(
                 Token::new_from_raw_value("existing_selector".to_string(), TokenType::Selector),
-                LiteralBlockDefinition {elements:vec![],explicit_type_pascal_identifier:None},
+                LiteralBlockDefinition {
+                    elements: vec![],
+                    explicit_type_pascal_identifier: None
+                },
             )]
         );
 
