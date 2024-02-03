@@ -14,12 +14,12 @@ pub use crate::numeric::Numeric;
 use kurbo::BezPath;
 use mut_static::MutStatic;
 pub use pax_message::serde;
-use pax_message::serde::{Deserialize, Serialize};
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use piet::PaintBrush;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "designtime")]
 use std::rc::Rc;
