@@ -149,7 +149,7 @@ impl Tree {
     }
 
     pub fn set_tree1(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        let type_id = "crate::controls::Controls";
+        let type_id = "pax_designer::pax_reexports::controls::Controls";
         self.set_tree(type_id, ctx);
     }
 
