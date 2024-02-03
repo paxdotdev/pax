@@ -18,16 +18,25 @@ pub struct Glass {
 
 impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
-        pax_lang::log("mousedown");
+        pax_lang::log("mouse down");
+        //TODO: pass event into InputMapper
     }
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
-        pax_lang::log("mousemove");
+        pax_lang::log("mouse move");
+        //TODO: pass event into InputMapper
     }
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
-        pax_lang::log("mouseup");
+        pax_lang::log("mouse up");
+        //TODO: pass event into InputMapper
     }
+
+    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
+        pax_lang::log("key down");
+        //TODO: handle keydowns and pass into InputMapper
+    }
+
 }
 
 impl Default for Glass {
