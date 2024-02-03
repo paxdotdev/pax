@@ -176,6 +176,10 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
+        if value.is_empty() {
+            self.remove_property(key);
+            return Ok(());
+        }
         let value = pax_manifest::utils::parse_value(value)?;
         let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
         if let Some(index) = self.property_map.get(key) {
@@ -195,8 +199,8 @@ impl<'a> NodeBuilder<'a> {
         Ok(())
     }
 
-    pub fn remove_property(&mut self, key: String) {
-        if let Some(index) = self.property_map.get(&key) {
+    pub fn remove_property(&mut self, key: &str) {
+        if let Some(index) = self.property_map.get(key) {
             self.template_node.settings.as_mut().unwrap().remove(*index);
 
             let keys_to_update: Vec<String> = self
@@ -212,7 +216,7 @@ impl<'a> NodeBuilder<'a> {
                 }
             }
 
-            self.property_map.remove(&key);
+            self.property_map.remove(key);
         }
     }
 
