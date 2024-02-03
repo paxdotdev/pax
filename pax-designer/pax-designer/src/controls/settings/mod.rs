@@ -54,7 +54,7 @@ impl Settings {
     pub fn set_object1(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
         self.component_selected.set(true);
         self.stid.set(StringBox::from(
-            "crate::controls::settings::Settings".to_owned(),
+            "pax_designer::pax_reexports::controls::settings::Settings".to_owned(),
         ));
         self.snid.set(5.into());
     }
@@ -62,7 +62,7 @@ impl Settings {
     pub fn set_object2(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
         self.component_selected.set(true);
         self.stid.set(StringBox::from(
-            "crate::controls::settings::property_editor::PropertyEditor".to_owned(),
+            "pax_designer::pax_reexports::controls::settings::property_editor::PropertyEditor".to_owned(),
         ));
         self.snid.set(1.into());
     }
@@ -70,7 +70,7 @@ impl Settings {
     pub fn set_object3(&mut self, _ctx: &NodeContext, _args: ArgsButtonClick) {
         self.component_selected.set(true);
         self.stid
-            .set(StringBox::from("crate::controls::tree::Tree".to_owned()));
+            .set(StringBox::from("pax_designer::pax_reexports::controls::tree::Tree".to_owned()));
         self.snid.set(1.into());
     }
 
