@@ -12,7 +12,6 @@ use super::{
 };
 use crate::orm::PaxManifestORM;
 
-
 pub static TYPE_ID_IF: &str = "IF";
 pub static TYPE_ID_REPEAT: &str = "REPEAT";
 pub static TYPE_ID_SLOT: &str = "SLOT";
