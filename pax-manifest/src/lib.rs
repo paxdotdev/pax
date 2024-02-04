@@ -691,9 +691,7 @@ pub const IMPORTS_BUILTINS: [&str; 28] = [
 
 impl<'a> HostCrateInfo {
     pub fn fully_qualify_path(&self, path: &str) -> String {
-        if path.contains("pax_reexports") {
-            return path.replace("crate::", "").to_string();
-        }
+        let ret = path.replace("crate::", "").to_string();
         #[allow(non_snake_case)]
         let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);
         let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
@@ -705,10 +703,14 @@ impl<'a> HostCrateInfo {
         primitives_set.insert(TYPE_ID_REPEAT);
         primitives_set.insert(TYPE_ID_SLOT);
         primitives_set.insert(TYPE_ID_COMMENT);
-        if primitives_set.contains(path) {
-            path.to_string()
+        if primitives_set.contains(path) || path.contains("pax_reexports") {
+            ret.to_string()
         } else if !imports_builtins_set.contains(path) {
-            IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+            if path.contains("{PREFIX}") {
+                ret.replace("{PREFIX}", &IMPORT_PREFIX)
+            } else {
+                IMPORT_PREFIX.clone() + ret.as_str()
+            }
         } else {
             "".to_string()
         }
