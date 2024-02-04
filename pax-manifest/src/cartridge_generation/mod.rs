@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    HandlersBlockElement, HostCrateInfo, PaxManifest, PropertyDefinition, SettingElement,
-    SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition,
+    HandlersBlockElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
+    TemplateNodeDefinition, Token, ValueDefinition,
 };
 
 #[derive(Serialize, Debug)]
