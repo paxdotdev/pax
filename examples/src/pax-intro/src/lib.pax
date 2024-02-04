@@ -1,13 +1,7 @@
-<Frame @mouse_move=self.mouse_move>
-	for rect in self.rects {
-		<Rectangle x={rect.x} y={rect.y} width={rect.w} height={rect.h}
+<Frame @mouse_move=self.handle_mouse_move @touch_move=self.handle_touch_move >
+	for tile in self.tiles {
+		<Rectangle x={tile.x} y={tile.y} width={tile.w} height={tile.h}
 		    fill={Fill::Solid(Color::rgba(0.05, 0.05, 0.05, 1.0))}
-		    corner_radii={RectangleCornerRadii::radii(4.0,4.0,4.0,4.0)}
-		/>
-	}
-	for rect in self.rects_bellow {
-		<Rectangle x={rect.x} y={rect.y} width={rect.w} height={rect.h}
-		    fill={Fill::Solid(Color::rgba(0.1, 0.1, 0.1, 1.0))}
 		    corner_radii={RectangleCornerRadii::radii(4.0,4.0,4.0,4.0)}
 		/>
 	}

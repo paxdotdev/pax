@@ -11,19 +11,22 @@ use pax_std::types::*;
 #[pax]
 #[main]
 #[file("lib.pax")]
-pub struct DynamicObject {
+pub struct Fidget {
+    pub tiles: Property<Vec<Tile>>,
     pub ticks: Property<f64>,
-    pub mouse_x: Property<f64>,
-    pub mouse_y: Property<f64>,
-    pub rects: Property<Vec<Rect>>,
-    pub rects_bellow: Property<Vec<Rect>>,
+    pub last_pointer_x: Property<f64>,
+    pub last_pointer_y: Property<f64>,
 }
 
 #[pax]
 #[custom(Imports)]
-pub struct Rect {
+pub struct Tile {
     pub x: Size,
+    pub x_home: Size,
+    pub x_prev: Size,
     pub y: Size,
+    pub y_home: Size,
+    pub y_prev: Size,
     pub w: Size,
     pub h: Size,
 }
@@ -32,10 +35,24 @@ const N_X: f64 = 10.0;
 const N_Y: f64 = 10.0;
 const LEN: usize = N_X as usize * N_Y as usize;
 
-impl DynamicObject {
+impl Fidget {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        self.rects.set(vec![Rect::default(); LEN]);
-        self.rects_bellow.set(vec![Rect::default(); LEN]);
+        self.tiles.set(vec![Tile::default(); LEN]);
+    }
+
+    pub fn tick(&mut self, old_tiles: &Vec<Tile>) -> Vec<Tile> {
+        let new_tiles = old_tiles.clone();
+
+        //TODO: satisfy constraints:
+        //  - Particles repel each other, disallowing overlapping.  We can assume a particle will never be more than one neighor's-distance away from its home,
+        //    so we only need to check repulsion vs. our 8 immediate neighbors
+        //  - Particles allow pointer to enter their bounds without disturbance, but "stick" for a while as the pointer leaves, following the pointer to a maximum `stickiness extent`, and "snapping back" after the cursor moves beyond that extent.
+        //  - In the absence of pointer that is constraining a particle's location, particles want to return to their centers on a spring
+        //Tune the system such that bounce-back will cause ripple effects à la wake behind the user's mouse / cursor.
+
+        self.ticks.set(self.ticks.get() + 1.0);
+        // self.previous_pointer_coords = latest_pointer_coords;
+        new_tiles.to_vec()
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
@@ -71,34 +88,32 @@ impl DynamicObject {
                 let delay = -cent_offset_x.abs() * 0.02 - (1.0 - cent_offset_y.abs() * 0.2) * 0.5;
                 x += dir * smoothstep(2.0 + delay, 2.8 + delay, t) * 5.0 * r_w;
                 let ind = i_int + j_int * N_X as usize;
-                let rect = &mut self.rects.get_mut()[ind];
+                let rect = &mut self.tiles.get_mut()[ind];
                 rect.x = Size::Pixels(x.into());
                 rect.y = Size::Pixels(y.into());
                 rect.w = Size::Pixels((r_w).into());
                 rect.h = Size::Pixels((r_h).into());
-                let rect_b = &mut self.rects_bellow.get_mut()[ind];
-                rect_b.x = Size::Pixels((x - sp).into());
-                rect_b.y = Size::Pixels((y - sp).into());
-                rect_b.w = Size::Pixels((r_w + 2.0 * sp).into());
-                rect_b.h = Size::Pixels((r_h + 2.0 * sp).into());
             }
         }
 
         //hack to make repeat refresh
-        if self.rects.get().len() <= LEN {
-            self.rects.get_mut().push(Rect::default());
-            self.rects_bellow.get_mut().push(Rect::default());
+        if self.tiles.get().len() <= LEN {
+            self.tiles.get_mut().push(Tile::default());
         } else {
-            self.rects.get_mut().pop();
-            self.rects_bellow.get_mut().pop();
+            self.tiles.get_mut().pop();
         }
     }
 
     pub fn increment(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
 
-    pub fn mouse_move(&mut self, _ctx: &NodeContext, args: ArgsMouseMove) {
-        self.mouse_x.set(args.mouse.x);
-        self.mouse_y.set(args.mouse.y);
+    pub fn handle_touch_move(&mut self, _ctx: &NodeContext, args: ArgsTouchMove) {
+        self.last_pointer_x.set(args.touches[0].x);
+        self.last_pointer_y.set(args.touches[0].y);
+    }
+
+    pub fn handle_mouse_move(&mut self, _ctx: &NodeContext, args: ArgsMouseMove) {
+        self.last_pointer_x.set(args.mouse.x);
+        self.last_pointer_y.set(args.mouse.y);
     }
 }
 
@@ -112,3 +127,6 @@ fn smoothstep(edge0: f64, edge1: f64, x: f64) -> f64 {
     let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - t * 2.0)
 }
+
+
+
