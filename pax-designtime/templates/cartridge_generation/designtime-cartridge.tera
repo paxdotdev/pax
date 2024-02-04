@@ -300,19 +300,12 @@ impl DefinitionToInstanceTraverser {
         for child_id in &node.child_ids {
             let child = containing_template.get(&child_id).unwrap();
             match child.type_id.as_str() {
-                "IF" => {
-                    continue;
-                },
-                "SLOT" => {
-                    continue;
-                },
-                "REPEAT" => {
-                    continue;
+                "IF" | "SLOT" | "REPEAT" => {
+                    children_instances.push(self.build_control_flow(containing_component_type_id, &child));
                 },
                 "COMMENT" => continue,
                 _ => {  
-                    let child_instance = self.build_template_node(containing_component_type_id, child);
-                    children_instances.push(child_instance);
+                    children_instances.push(self.build_template_node(containing_component_type_id, child));
                 }
             }
         }
