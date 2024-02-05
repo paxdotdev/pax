@@ -14,54 +14,54 @@ use pax_std::types::*;
 pub struct Fidget {
     pub tiles: Property<Vec<Tile>>,
     pub tiles_mobile: Property<Vec<Tile>>,
-    
     pub ticks: Property<usize>,
     pub last_pointer_x: Property<f64>,
     pub last_pointer_y: Property<f64>,
-
-    pub last_bounds_x: Property<f64>,
-    pub last_bounds_y: Property<f64>,
-
     pub is_mobile: Property<bool>,
-    
 }
-
 
 pub fn is_mobile(viewport_width: f64, _viewport_height: f64) -> bool {
     viewport_width < 500.0
 }
 
+const LAYOUT_WIDTH : usize = 6;
+const LAYOUT_HEIGHT : usize = 5;
+const LAYOUT_WIDTH_MOBILE : usize = 6;
+const LAYOUT_HEIGHT_MOBILE : usize = 5;
+
 impl Fidget {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        // self.tiles.set(vec![Tile::default(); LEN]);
+        self.tiles.set(vec![Tile::default(); LAYOUT_WIDTH * LAYOUT_HEIGHT]);
+        self.tiles_mobile.set(vec![Tile::default(); LAYOUT_WIDTH_MOBILE * LAYOUT_HEIGHT_MOBILE]);
     }
 
-
-    pub fn advance_tiles(&mut self, active_tiles: &Vec<Tile>) -> Vec<Tile> {
+    pub fn advance_tiles_in_place(&mut self) {
         //TODO: satisfy constraints:
-        //  - Each particle (`Tile`) has a home, (x_home, y_home).  These home points are evenly distributed across a grid, as if by two Stackers (but computed manually) 
-        //  - Tiles repel each other, disallowing overlapping at their bounds.  We can assume a particle will never be more than one neighor's-distance away from its home,
-        //    so we only need to check repulsion vs. our 8 immediate neighbors
-        //  - Particles allow pointer to enter their bounds without disturbance, but "stick" for a while as the pointer leaves, following the pointer to a maximum `stickiness extent`, and "snapping back" after the cursor moves beyond that extent.
-        //  - In the absence of pointer that is constraining a particle's location, particles want to return to their centers on a spring
-        //Tune the system such that bounce-back will cause ripple effects à la wake behind the user's mouse / cursor.
 
+        // Rules:
+        // (Particles are arranged previously in a grid, with `x = x_home` and `y = y_home` describing their centers and `w` and `h` describing their entire width & height (2 * extents)
+        // Each tile must end each tick within a circle described by the radius MAX_DISTANCE (enforce this at end of computation)
+        // In the absence of other active forces, each tile wants to return to its home, `x_home`, `y_home`.
+        // Each tick, in the absence of other stimuli, each tile reduces its velocity by FRICTION_COEFFICIENT
+        // When a pointer (tracked by self.last_pointer_x, self.last_pointer_y) enters a tile, nothing changes — but when a pointer _leaves_ a tile's bounding box, the tile "sticks" to the mouse and updates itself to follow the pointer (strictly speaking, to continue _containing_ the pointer) — until the limit MAX_DISTANCE is reached.  After that time, the tile jumps back to its home (x_home, y_home) via a simple spring mechanism
+        let new_tiles = if *self.is_mobile.get() {
+             self.tiles_mobile.get().clone()
+        } else {
+            self.tiles.get().clone()
+        };
+
+        if *self.is_mobile.get() {
+            self.tiles_mobile.set(new_tiles);
+        } else {
+            self.tiles.set(new_tiles);
+        }
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let is_mobile = is_mobile(ctx.bounds_parent.0, ctx.bounds_parent.1);
         self.is_mobile.set(is_mobile);
-        
-        if is_mobile {
-            //operate on self.tiles_mobiles
-            self.advance_tiles(&self.tiles_mobile.get());
-        } else {
-            //operate on self.tiles
-            self.advance_tiles(&self.tiles.get());
-        }
-
+        self.advance_tiles_in_place();
         self.ticks.set(self.ticks.get() + 1);
-        // self.tiles.set(new_tiles);
     }
 
     pub fn increment(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
@@ -84,9 +84,11 @@ pub struct Tile {
     pub x: Size,
     pub x_home: Size,
     pub x_prev: Size,
+    pub x_vel: f64,
     pub y: Size,
     pub y_home: Size,
     pub y_prev: Size,
+    pub y_vel: f64,
     pub w: Size,
     pub h: Size,
 }
