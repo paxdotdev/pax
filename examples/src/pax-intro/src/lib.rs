@@ -13,95 +13,55 @@ use pax_std::types::*;
 #[file("lib.pax")]
 pub struct Fidget {
     pub tiles: Property<Vec<Tile>>,
-    pub ticks: Property<f64>,
+    pub tiles_mobile: Property<Vec<Tile>>,
+    
+    pub ticks: Property<usize>,
     pub last_pointer_x: Property<f64>,
     pub last_pointer_y: Property<f64>,
+
+    pub last_bounds_x: Property<f64>,
+    pub last_bounds_y: Property<f64>,
+
+    pub is_mobile: Property<bool>,
+    
 }
 
-#[pax]
-#[custom(Imports)]
-pub struct Tile {
-    pub x: Size,
-    pub x_home: Size,
-    pub x_prev: Size,
-    pub y: Size,
-    pub y_home: Size,
-    pub y_prev: Size,
-    pub w: Size,
-    pub h: Size,
-}
 
-const N_X: f64 = 10.0;
-const N_Y: f64 = 10.0;
-const LEN: usize = N_X as usize * N_Y as usize;
+pub fn is_mobile(viewport_width: f64, _viewport_height: f64) -> bool {
+    viewport_width < 500.0
+}
 
 impl Fidget {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        self.tiles.set(vec![Tile::default(); LEN]);
+        // self.tiles.set(vec![Tile::default(); LEN]);
     }
 
-    pub fn tick(&mut self, old_tiles: &Vec<Tile>) -> Vec<Tile> {
-        let new_tiles = old_tiles.clone();
 
+    pub fn advance_tiles(&mut self, active_tiles: &Vec<Tile>) -> Vec<Tile> {
         //TODO: satisfy constraints:
-        //  - Particles repel each other, disallowing overlapping.  We can assume a particle will never be more than one neighor's-distance away from its home,
+        //  - Each particle (`Tile`) has a home, (x_home, y_home).  These home points are evenly distributed across a grid, as if by two Stackers (but computed manually) 
+        //  - Tiles repel each other, disallowing overlapping at their bounds.  We can assume a particle will never be more than one neighor's-distance away from its home,
         //    so we only need to check repulsion vs. our 8 immediate neighbors
         //  - Particles allow pointer to enter their bounds without disturbance, but "stick" for a while as the pointer leaves, following the pointer to a maximum `stickiness extent`, and "snapping back" after the cursor moves beyond that extent.
         //  - In the absence of pointer that is constraining a particle's location, particles want to return to their centers on a spring
         //Tune the system such that bounce-back will cause ripple effects à la wake behind the user's mouse / cursor.
 
-        self.ticks.set(self.ticks.get() + 1.0);
-        // self.previous_pointer_coords = latest_pointer_coords;
-        new_tiles.to_vec()
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        let offsets = [0.1, 0.5, 1.0, 0.2, 0.3, 0.9, 0.3, 0.8, 0.7, 0.6];
-        let div_line = [-4, -1, -2, 0, 1, -1, 0, 3, 2, 4];
-        let t = *self.ticks.get();
-        self.ticks.set(t + 0.01);
-        let (b_x, b_y) = ctx.bounds_self;
-        let sp_ratio = 0.1;
-        let sp = b_x * sp_ratio / (N_X + 1.0);
-        let r_w = (b_x * (1.0 - sp_ratio)) / N_X;
-        let r_h = (b_y - sp * (N_Y + 1.0)) / N_Y;
-        for i_int in 0..N_X as usize {
-            for j_int in 0..N_Y as usize {
-                let i = i_int as f64;
-                let j = j_int as f64;
-                let wave_x = i.sin();
-                let wave_y = j.sin();
-                let mut x = sp
-                    + i as f64 * (sp + r_w)
-                    + smooth_sawtooth(i * 0.1 + offsets[j_int % offsets.len()] * 2.0 + t) * sp
-                        / 2.0
-                    + wave_x;
-                let y = sp
-                    + j as f64 * (sp + r_h)
-                    + smooth_sawtooth(j * 0.1 + offsets[i_int % offsets.len()] + t * 0.73) * sp
-                        / 2.0
-                    + wave_y;
-
-                let cent_offset_x = i - N_X / 2.0 + 1.0 - div_line[j_int] as f64;
-                let cent_offset_y = j - N_Y / 2.0 + 1.0;
-                let dir = if cent_offset_x > 0.0 { 1.0 } else { -1.0 };
-                let delay = -cent_offset_x.abs() * 0.02 - (1.0 - cent_offset_y.abs() * 0.2) * 0.5;
-                x += dir * smoothstep(2.0 + delay, 2.8 + delay, t) * 5.0 * r_w;
-                let ind = i_int + j_int * N_X as usize;
-                let rect = &mut self.tiles.get_mut()[ind];
-                rect.x = Size::Pixels(x.into());
-                rect.y = Size::Pixels(y.into());
-                rect.w = Size::Pixels((r_w).into());
-                rect.h = Size::Pixels((r_h).into());
-            }
-        }
-
-        //hack to make repeat refresh
-        if self.tiles.get().len() <= LEN {
-            self.tiles.get_mut().push(Tile::default());
+        let is_mobile = is_mobile(ctx.bounds_parent.0, ctx.bounds_parent.1);
+        self.is_mobile.set(is_mobile);
+        
+        if is_mobile {
+            //operate on self.tiles_mobiles
+            self.advance_tiles(&self.tiles_mobile.get());
         } else {
-            self.tiles.get_mut().pop();
+            //operate on self.tiles
+            self.advance_tiles(&self.tiles.get());
         }
+
+        self.ticks.set(self.ticks.get() + 1);
+        // self.tiles.set(new_tiles);
     }
 
     pub fn increment(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
@@ -117,16 +77,18 @@ impl Fidget {
     }
 }
 
-fn smooth_sawtooth(t: f64) -> f64 {
-    const N: f64 = 5.0;
-    let p = |x: f64| x * (1.0 - x.powf(2.0 * N));
-    p(t.rem_euclid(2.0) - 1.0)
-}
 
-fn smoothstep(edge0: f64, edge1: f64, x: f64) -> f64 {
-    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
-    t * t * (3.0 - t * 2.0)
+#[pax]
+#[custom(Imports)]
+pub struct Tile {
+    pub x: Size,
+    pub x_home: Size,
+    pub x_prev: Size,
+    pub y: Size,
+    pub y_home: Size,
+    pub y_prev: Size,
+    pub w: Size,
+    pub h: Size,
 }
-
 
 
