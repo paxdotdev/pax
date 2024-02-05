@@ -119,6 +119,11 @@ impl DefinitionToInstanceTraverser {
         })
     }
 
+    pub fn is_manifest_outdated(&self) -> bool {
+        let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
+        self.last_updated_manifest != current_manifest_version
+    }
+
     pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {
         let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
         if self.last_updated_manifest == current_manifest_version {
