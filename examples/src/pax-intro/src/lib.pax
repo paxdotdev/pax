@@ -1,6 +1,6 @@
 <Frame @mouse_move=self.handle_mouse_move @touch_move=self.handle_touch_move >
 	for tile in self.tiles {
-		<Rectangle x={tile.x} y={tile.y} width={tile.w} height={tile.h}
+		<Rectangle x={(tile.x)px} y={(tile.y)px} width={(tile.w)px} height={(tile.h)px}
 		    fill={Fill::Solid(Color::rgba(0.05, 0.05, 0.05, 1.0))}
 		    corner_radii={RectangleCornerRadii::radii(4.0,4.0,4.0,4.0)}
 		/>

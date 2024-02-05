@@ -26,34 +26,113 @@ pub fn is_mobile(viewport_width: f64, _viewport_height: f64) -> bool {
 
 const LAYOUT_WIDTH : usize = 6;
 const LAYOUT_HEIGHT : usize = 5;
-const LAYOUT_WIDTH_MOBILE : usize = 6;
-const LAYOUT_HEIGHT_MOBILE : usize = 5;
+const LAYOUT_WIDTH_MOBILE : usize = 3;
+const LAYOUT_HEIGHT_MOBILE : usize = 4;
+const MAX_DISTANCE: f64 = 100.0; 
+const FRICTION_COEFFICIENT: f64 = 0.95;
+const SPRING_CONSTANT: f64 = 0.1;
 
 impl Fidget {
-    pub fn handle_mount(&mut self, _ctx: &NodeContext) {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.tiles.set(vec![Tile::default(); LAYOUT_WIDTH * LAYOUT_HEIGHT]);
         self.tiles_mobile.set(vec![Tile::default(); LAYOUT_WIDTH_MOBILE * LAYOUT_HEIGHT_MOBILE]);
+
+        self.set_tile_home_based_on_viewport(ctx.bounds_parent.0, ctx.bounds_parent.1);
     }
 
-    pub fn advance_tiles_in_place(&mut self) {
-        //TODO: satisfy constraints:
-
-        // Rules:
-        // (Particles are arranged previously in a grid, with `x = x_home` and `y = y_home` describing their centers and `w` and `h` describing their entire width & height (2 * extents)
-        // Each tile must end each tick within a circle described by the radius MAX_DISTANCE (enforce this at end of computation)
-        // In the absence of other active forces, each tile wants to return to its home, `x_home`, `y_home`.
-        // Each tick, in the absence of other stimuli, each tile reduces its velocity by FRICTION_COEFFICIENT
-        // When a pointer (tracked by self.last_pointer_x, self.last_pointer_y) enters a tile, nothing changes — but when a pointer _leaves_ a tile's bounding box, the tile "sticks" to the mouse and updates itself to follow the pointer (strictly speaking, to continue _containing_ the pointer) — until the limit MAX_DISTANCE is reached.  After that time, the tile jumps back to its home (x_home, y_home) via a simple spring mechanism
-        let new_tiles = if *self.is_mobile.get() {
-             self.tiles_mobile.get().clone()
-        } else {
+    pub fn set_tile_home_based_on_viewport(&mut self, viewport_width: f64, viewport_height: f64) {
+        let mut new_tiles = if *self.is_mobile.get() {
+            self.tiles_mobile.get().clone()
+        }  else {
             self.tiles.get().clone()
         };
 
+        // Calculate the horizontal and vertical spacing between tile centers
+        let horizontal_spacing = viewport_width / LAYOUT_WIDTH_MOBILE as f64;
+        let vertical_spacing = viewport_height / LAYOUT_HEIGHT_MOBILE as f64;
+
+        let width = horizontal_spacing.min(vertical_spacing);
+        let height = width;
+
+        // Calculate the starting center position
+        let start_x_center = horizontal_spacing / 2.0;
+        let start_y_center = vertical_spacing / 2.0;
+
+        // Iterate over the grid
+        for i in 0..LAYOUT_WIDTH_MOBILE {
+            for j in 0..LAYOUT_HEIGHT_MOBILE {
+                // Calculate the index in the linear array from the grid position
+                let index = j * LAYOUT_WIDTH_MOBILE + i;
+
+                // Calculate the center position for each tile
+                let x_center = start_x_center + i as f64 * horizontal_spacing;
+                let y_center = start_y_center + j as f64 * vertical_spacing;
+
+                // Update the home positions of the tile
+                if let Some(tile) = new_tiles.get_mut(index) {
+                    tile.x_home = x_center.into();
+                    tile.y_home = y_center.into();
+                    tile.w = width;
+                    tile.h = height;
+                }
+            }
+        }
+
+        // Update the property with the modified tiles
         if *self.is_mobile.get() {
             self.tiles_mobile.set(new_tiles);
         } else {
             self.tiles.set(new_tiles);
+        }
+    }
+
+    pub fn advance_tiles_in_place(&mut self) {
+        let pointer_x = *self.last_pointer_x.get();
+        let pointer_y = *self.last_pointer_y.get();
+
+        let mut new_tiles = if *self.is_mobile.get() {
+            self.tiles_mobile.get().clone()
+        } else {
+            self.tiles.get().clone()
+        };
+
+        for tile in new_tiles.iter_mut() {
+            // Apply friction to velocity
+            tile.x_vel *= FRICTION_COEFFICIENT;
+            tile.y_vel *= FRICTION_COEFFICIENT;
+
+            // Check if pointer is within the tile's bounding box
+            if pointer_x >= tile.x - tile.w / 2.0 && pointer_x <= tile.x + tile.w / 2.0 &&
+               pointer_y >= tile.y - tile.h / 2.0 && pointer_y <= tile.y + tile.h / 2.0 {
+                // If within bounding box, stick to the pointer
+                tile.x_vel = pointer_x - tile.x_prev;
+                tile.y_vel = pointer_y - tile.y_prev;
+            } else {
+                // Apply spring force towards home position
+                tile.x_vel += (tile.x_home - tile.x) * SPRING_CONSTANT;
+                tile.y_vel += (tile.y_home - tile.y) * SPRING_CONSTANT;
+            }
+
+            // Update positions
+            tile.x_prev = tile.x;
+            tile.y_prev = tile.y;
+            tile.x += tile.x_vel;
+            tile.y += tile.y_vel;
+
+            // Ensure tile remains within MAX_DISTANCE from its home
+            let distance = ((tile.x - tile.x_home).powi(2) + (tile.y - tile.y_home).powi(2)).sqrt();
+            if distance > MAX_DISTANCE {
+                let scale = MAX_DISTANCE / distance;
+                tile.x = tile.x_home + (tile.x - tile.x_home) * scale;
+                tile.y = tile.y_home + (tile.y - tile.y_home) * scale;
+            }
+        }
+
+        // Update the property with the modified tiles
+        if *self.is_mobile.get() {
+            self.tiles_mobile.set(new_tiles.clone());
+        } else {
+            self.tiles.set(new_tiles.clone());
         }
     }
 
@@ -81,16 +160,16 @@ impl Fidget {
 #[pax]
 #[custom(Imports)]
 pub struct Tile {
-    pub x: Size,
-    pub x_home: Size,
-    pub x_prev: Size,
+    pub x: f64,
+    pub x_home: f64,
+    pub x_prev: f64,
     pub x_vel: f64,
-    pub y: Size,
-    pub y_home: Size,
-    pub y_prev: Size,
+    pub y: f64,
+    pub y_home: f64,
+    pub y_prev: f64,
     pub y_vel: f64,
-    pub w: Size,
-    pub h: Size,
+    pub w: f64,
+    pub h: f64,
 }
 
 
