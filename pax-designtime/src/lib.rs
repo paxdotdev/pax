@@ -52,6 +52,7 @@ impl Debug for DesigntimeManager {
 pub mod privileged_agent;
 
 impl DesigntimeManager {
+
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Rc<RefCell<Self>> {
         let orm = PaxManifestORM::new(manifest);
         let selection_manager = SelectionManager::new();
