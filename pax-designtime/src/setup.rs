@@ -1,10 +1,10 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::str::FromStr;
 use toml_edit::{Array, Document, Item, Table};
 
 pub fn add_additional_dependencies_to_cargo_toml(
-    dest: &PathBuf,
+    dest: &Path,
     pkg: &str,
 ) -> Result<(), toml_edit::TomlError> {
     let cargo_toml_path = dest.join("Cargo.toml");

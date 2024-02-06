@@ -60,21 +60,19 @@ mod tests {
         node_builder.set_property("key", "new_Value").unwrap();
         node_builder.save().unwrap();
 
-        assert_eq!(
+        assert!(
             orm.get_manifest().components["component1"]
                 .template
-                .is_some(),
-            true
+                .is_some()
         );
 
         // Undo the creation
         orm.undo().unwrap();
 
-        assert_eq!(
+        assert!(
             orm.get_manifest().components["component1"]
                 .template
-                .is_none(),
-            true
+                .is_none()
         );
     }
 
@@ -149,31 +147,28 @@ mod tests {
         orm.remove_handler("component1".to_string(), "existing_handler".to_string())
             .unwrap();
 
-        assert_eq!(
+        assert!(
             orm.get_manifest().components["component1"]
                 .handlers
-                .is_none(),
-            true
+                .is_none()
         );
 
         // Undo the removal
         orm.undo().unwrap();
 
-        assert_eq!(
+        assert!(
             orm.get_manifest().components["component1"]
                 .handlers
-                .is_some(),
-            true
+                .is_some()
         );
 
         // Redo the removal
         orm.redo().unwrap();
 
-        assert_eq!(
+        assert!(
             orm.get_manifest().components["component1"]
                 .handlers
-                .is_none(),
-            true
+                .is_none()
         );
     }
 
@@ -287,11 +282,10 @@ mod tests {
         orm.redo().unwrap();
 
         // Assert final state
-        assert_eq!(
+        assert!(
             orm.get_manifest().components["component1"]
                 .template
-                .is_some(),
-            true
+                .is_some()
         );
         assert_eq!(
             orm.get_manifest().components["component1"]

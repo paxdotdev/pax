@@ -27,11 +27,13 @@ pub use serde_pax::se::{to_pax, Serializer};
 
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
+type Factories = HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>;
+
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     _selection: PaxSelectionManager,
     _undo_stack: PaxUndoManager,
-    factories: HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>,
+    factories: Factories,
     priv_agent_connection: PrivilegedAgentConnection,
 }
 

@@ -92,7 +92,7 @@ impl<'de> VariantAccess<'de> for PaxEnum {
             return seed.deserialize(PrimitiveDeserializer::new(&self.args.unwrap()));
         }
 
-        seed.deserialize(Deserializer::from_str(self.args.unwrap()))
+        seed.deserialize(Deserializer::from_string(self.args.unwrap()))
     }
 
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
@@ -177,7 +177,7 @@ pub struct PaxSeq {
     index: usize,
 }
 
-impl<'de> PaxSeq {
+impl PaxSeq {
     pub fn new(elements: Vec<String>) -> Self {
         PaxSeq { elements, index: 0 }
     }
@@ -192,7 +192,7 @@ impl<'de> SeqAccess<'de> for PaxSeq {
     {
         if self.index < self.elements.len() {
             let val =
-                seed.deserialize(Deserializer::from_str(self.elements[self.index].clone()))?;
+                seed.deserialize(Deserializer::from_string(self.elements[self.index].clone()))?;
             self.index += 1;
             Ok(Some(val))
         } else {
@@ -255,8 +255,9 @@ impl<'de> MapAccess<'de> for PaxObject {
         K: DeserializeSeed<'de>,
     {
         if self.index < self.elements.len() {
-            let val =
-                seed.deserialize(Deserializer::from_str(self.elements[self.index].0.clone()))?;
+            let val = seed.deserialize(Deserializer::from_string(
+                self.elements[self.index].0.clone(),
+            ))?;
             Ok(Some(val))
         } else {
             Ok(None)
@@ -277,8 +278,9 @@ impl<'de> MapAccess<'de> for PaxObject {
         }
 
         if self.index < self.elements.len() {
-            let val =
-                seed.deserialize(Deserializer::from_str(self.elements[self.index].1.clone()))?;
+            let val = seed.deserialize(Deserializer::from_string(
+                self.elements[self.index].1.clone(),
+            ))?;
             self.index += 1;
             Ok(val)
         } else {
