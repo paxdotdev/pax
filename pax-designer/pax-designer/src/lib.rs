@@ -10,6 +10,8 @@ use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
 
+use pax_std::primitives::Group;
+
 #[pax]
 #[main]
 #[file("lib.pax")]
@@ -21,6 +23,11 @@ impl PaxDesigner {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
         let _orm = _ctx.designtime.borrow().get_orm();
         //self.state = load_previous_state_if_relevant();
+    }
+
+
+    pub fn click_test(&mut self, _ctx: &NodeContext, args: ArgsClick) {
+        pax_lang::log("CLICK RECEIVED");
     }
 }
 
