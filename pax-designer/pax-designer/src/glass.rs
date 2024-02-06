@@ -4,7 +4,7 @@ use pax_std::primitives::{Path, Rectangle, Group};
 use pax_std::types::{Color, Fill};
 use serde::Deserialize;
 
-use designer_project::Example;
+
 
 #[pax]
 #[custom(Default)]
