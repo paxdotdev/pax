@@ -1,7 +1,14 @@
 
 
 
+#[derive(Default)]
 pub struct ActionManager {}
+
+impl ActionManager {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
 
 // "central hub" of actions.
 // often triggered by FSM / input manager
