@@ -12,9 +12,9 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 pub mod treeobj;
+use serde::Deserialize;
 use std::collections::HashMap;
 use treeobj::TreeObj;
-use serde::Deserialize;
 
 #[pax]
 #[file("controls/tree/tree.pax")]
@@ -154,7 +154,7 @@ impl Tree {
     }
 
     pub fn set_tree2(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        let type_id = "designer_project::Example";
+        let type_id = "pax_designer::pax_reexports::designer_project::Example";
         self.set_tree(&type_id, ctx);
     }
 
