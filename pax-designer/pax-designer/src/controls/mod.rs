@@ -20,7 +20,6 @@ use tree::Tree;
 pub struct Controls {}
 
 impl Controls {
-   
     pub fn handle_click(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         panic!("Mouse click");
     }
