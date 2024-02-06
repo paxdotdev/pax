@@ -129,18 +129,15 @@ macro_rules! dispatch_event_handler {
                 }
                 #[cfg(feature = "designtime")]
                 {
-                    let handlers = if let Some(hs) = borrowed_registry.handlers.get($handler_key) {
-                        hs
-                    } else {
-                        return;
+                    if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
+                        handlers.iter().for_each(|handler| {
+                            handler(
+                                Rc::clone(&component_properties),
+                                &context,
+                                Some(Box::new(args.clone()) as Box<dyn Any>),
+                            );
+                        });
                     };
-                    handlers.iter().for_each(|handler| {
-                        handler(
-                            Rc::clone(&component_properties),
-                            &context,
-                            Some(Box::new(args.clone()) as Box<dyn Any>),
-                        );
-                    });
                 }
             }
 
