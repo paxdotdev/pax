@@ -49,7 +49,7 @@ pub trait Response {
 pub trait Command<R: Request> {
     fn execute(&mut self, manifest: &mut PaxManifest) -> Result<R::Response, String>;
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
-        return None;
+        None
     }
 }
 

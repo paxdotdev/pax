@@ -5,6 +5,12 @@ pub struct PaxSelectionManager {
     //for other actions (like selection), manage undo/redo separately
 }
 
+impl Default for PaxSelectionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PaxSelectionManager {
     pub fn new() -> Self {
         PaxSelectionManager {}
