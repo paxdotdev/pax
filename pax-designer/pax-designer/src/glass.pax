@@ -1,8 +1,7 @@
-<Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up>
+<Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up @key_down=handle_key_down >
     for pt in self.control_points {
         <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px} />
     }
-
     for segment in self.selection_bounding_segments {
         <Path class=bounding_segment />
     }
