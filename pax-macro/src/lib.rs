@@ -26,7 +26,6 @@ use syn::{
 fn pax_primitive(
     input_parsed: &DeriveInput,
     primitive_instance_import_path: String,
-    include_imports: bool,
     is_custom_interpolatable: bool,
 ) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
@@ -43,7 +42,6 @@ fn pax_primitive(
         args_full_component: None,
         static_property_definitions,
         pascal_identifier,
-        include_imports,
         is_custom_interpolatable,
     }
     .render_once()
@@ -55,7 +53,6 @@ fn pax_primitive(
 
 fn pax_struct_only_component(
     input_parsed: &DeriveInput,
-    include_imports: bool,
     is_custom_interpolatable: bool,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
@@ -70,7 +67,6 @@ fn pax_struct_only_component(
 
         pascal_identifier: pascal_identifier.clone(),
         static_property_definitions,
-        include_imports,
         is_custom_interpolatable,
     }
     .render_once()
@@ -273,7 +269,6 @@ fn pax_full_component(
     input_parsed: &DeriveInput,
     is_main_component: bool,
     include_fix: Option<TokenStream>,
-    include_imports: bool,
     is_custom_interpolatable: bool,
     associated_pax_file_path: Option<String>,
 ) -> proc_macro2::TokenStream {
@@ -303,7 +298,6 @@ fn pax_full_component(
             associated_pax_file_path,
         }),
         pascal_identifier,
-        include_imports,
         static_property_definitions,
         is_custom_interpolatable,
     }
@@ -455,7 +449,6 @@ pub fn pax(
 
     let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize"];
 
-    let mut include_imports = true;
     let mut is_custom_interpolatable = false;
 
     //wipe out the above derives if `#[custom(...)]` attrs are set
@@ -463,9 +456,6 @@ pub fn pax(
         let custom_str: Vec<&str> = custom.iter().map(String::as_str).collect();
         trait_impls.retain(|v| !custom_str.contains(v));
 
-        if custom.contains(&"Imports".to_string()) {
-            include_imports = false;
-        }
         if custom.contains(&"Interpolatable".to_string()) {
             is_custom_interpolatable = true;
         }
@@ -490,7 +480,6 @@ pub fn pax(
             &input,
             config.is_main_component,
             Some(include_fix),
-            include_imports,
             is_custom_interpolatable,
             associated_pax_file,
         )
@@ -502,7 +491,6 @@ pub fn pax(
             &input,
             config.is_main_component,
             None,
-            include_imports,
             is_custom_interpolatable,
             None,
         )
@@ -510,11 +498,10 @@ pub fn pax(
         pax_primitive(
             &input,
             config.primitive_instance_import_path.unwrap(),
-            include_imports,
             is_custom_interpolatable,
         )
     } else {
-        pax_struct_only_component(&input, include_imports, is_custom_interpolatable)
+        pax_struct_only_component(&input, is_custom_interpolatable)
     };
 
     let derives: proc_macro2::TokenStream = trait_impls
