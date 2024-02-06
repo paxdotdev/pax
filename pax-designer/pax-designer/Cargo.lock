@@ -1921,7 +1921,7 @@ dependencies = [
  "tera",
  "tokio",
  "toml_edit 0.14.4",
- "uuid",
+ "uuid 0.8.2",
  "walkdir",
  "wasm-bindgen",
 ]
@@ -1957,6 +1957,7 @@ dependencies = [
  "serde_json",
  "tera",
  "toml_edit 0.21.0",
+ "uuid 1.7.0",
 ]
 
 [[package]]
@@ -2018,7 +2019,7 @@ dependencies = [
  "piet",
  "piet-common",
  "serde",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -3239,6 +3240,15 @@ name = "uuid"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom",
+]
+
+[[package]]
+name = "uuid"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f00cc9702ca12d3c81455259621e676d0f7251cec66a21e98fe2e9a37db93b2a"
 dependencies = [
  "getrandom",
 ]
