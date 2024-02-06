@@ -53,13 +53,13 @@ pub mod privileged_agent;
 
 impl DesigntimeManager {
 
-    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Rc<RefCell<Self>> {
+    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
         let selection_manager = SelectionManager::new();
         let action_manager = ActionManager::new();
         let input_manager = InputManager::new();
         let factories = HashMap::new();
-        Rc::new(RefCell::new(DesigntimeManager {
+        DesigntimeManager {
             orm,
             selection_manager,
             action_manager,
@@ -67,10 +67,10 @@ impl DesigntimeManager {
             factories,
             priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
                 .expect("couldn't connect to privileged agent"),
-        }))
+        }
     }
 
-    pub fn new(manifest: PaxManifest) -> Rc<RefCell<Self>> {
+    pub fn new(manifest: PaxManifest) -> Self {
         Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8252)))
     }
 
