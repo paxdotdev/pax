@@ -1,6 +1,8 @@
-<Controls />
-<Glass />
-<DesigntimeComponentViewer />
+<Group @click=click_test>
+    <Controls />
+    <Glass />
+    <DesigntimeComponentViewer />
+</Group>
 
 @handlers {
     mount: handle_mount
