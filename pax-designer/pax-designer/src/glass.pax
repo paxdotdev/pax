@@ -8,7 +8,7 @@
     <Rectangle id=backing_plate />
 </Group>
 
-<Example id=project/>
+
 
 @settings {
     #backing_plate {

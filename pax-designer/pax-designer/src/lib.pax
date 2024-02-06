@@ -1,9 +1,18 @@
 <Group @click=click_test>
     <Controls />
     <Glass />
-    <DesigntimeComponentViewer />
+    <Example id=project />
 </Group>
 
 @handlers {
     mount: handle_mount
+}
+
+@settings {
+    #project {
+        x: 250px,
+        y: 65px,
+        width: {100% - 700px},
+        height: {100% - 65px},
+    }
 }
