@@ -220,7 +220,7 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn set_condition(&mut self, condition: String) {
-        self.template_node.control_flow_settings = Some(Box::new(ControlFlowSettingsDefinition {
+        self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
             condition_expression_paxel: Some(Token::new_from_raw_value(
                 condition,
                 TokenType::IfExpression,
@@ -230,13 +230,13 @@ impl<'a> NodeBuilder<'a> {
             slot_index_expression_paxel: None,
             condition_expression_vtable_id: None,
             slot_index_expression_vtable_id: None,
-        }));
+        });
         self.template_node.type_id = TYPE_ID_IF.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_IF.to_string();
     }
 
     pub fn set_slot_index(&mut self, slot: String) {
-        self.template_node.control_flow_settings = Some(Box::new(ControlFlowSettingsDefinition {
+        self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
             condition_expression_paxel: None,
             repeat_predicate_definition: None,
             repeat_source_definition: None,
@@ -246,7 +246,7 @@ impl<'a> NodeBuilder<'a> {
             )),
             condition_expression_vtable_id: None,
             slot_index_expression_vtable_id: None,
-        }));
+        });
         self.template_node.type_id = TYPE_ID_SLOT.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_SLOT.to_string();
     }
@@ -256,14 +256,14 @@ impl<'a> NodeBuilder<'a> {
         pred: ControlFlowRepeatPredicateDefinition,
         source: ControlFlowRepeatSourceDefinition,
     ) {
-        self.template_node.control_flow_settings = Some(Box::new(ControlFlowSettingsDefinition {
+        self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
             condition_expression_paxel: None,
             repeat_predicate_definition: Some(pred),
             repeat_source_definition: Some(source),
             slot_index_expression_paxel: None,
             condition_expression_vtable_id: None,
             slot_index_expression_vtable_id: None,
-        }));
+        });
         self.template_node.type_id = TYPE_ID_REPEAT.to_string();
         self.template_node.pascal_identifier = PASCAL_IDENTIFIER_REPEAT.to_string();
     }

@@ -85,7 +85,7 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             id: next_id,
             child_ids: self.child_ids.clone(),
             type_id: self.type_id.clone(),
-            control_flow_settings,
+            control_flow_settings: control_flow_settings.map(|b| *b),
             settings,
             pascal_identifier: self.pascal_identifier.clone(),
             raw_comment_string,
