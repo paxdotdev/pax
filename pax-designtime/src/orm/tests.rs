@@ -60,20 +60,16 @@ mod tests {
         node_builder.set_property("key", "new_Value").unwrap();
         node_builder.save().unwrap();
 
-        assert!(
-            orm.get_manifest().components["component1"]
-                .template
-                .is_some()
-        );
+        assert!(orm.get_manifest().components["component1"]
+            .template
+            .is_some());
 
         // Undo the creation
         orm.undo().unwrap();
 
-        assert!(
-            orm.get_manifest().components["component1"]
-                .template
-                .is_none()
-        );
+        assert!(orm.get_manifest().components["component1"]
+            .template
+            .is_none());
     }
 
     #[test]
@@ -147,29 +143,23 @@ mod tests {
         orm.remove_handler("component1".to_string(), "existing_handler".to_string())
             .unwrap();
 
-        assert!(
-            orm.get_manifest().components["component1"]
-                .handlers
-                .is_none()
-        );
+        assert!(orm.get_manifest().components["component1"]
+            .handlers
+            .is_none());
 
         // Undo the removal
         orm.undo().unwrap();
 
-        assert!(
-            orm.get_manifest().components["component1"]
-                .handlers
-                .is_some()
-        );
+        assert!(orm.get_manifest().components["component1"]
+            .handlers
+            .is_some());
 
         // Redo the removal
         orm.redo().unwrap();
 
-        assert!(
-            orm.get_manifest().components["component1"]
-                .handlers
-                .is_none()
-        );
+        assert!(orm.get_manifest().components["component1"]
+            .handlers
+            .is_none());
     }
 
     #[test]
@@ -282,11 +272,9 @@ mod tests {
         orm.redo().unwrap();
 
         // Assert final state
-        assert!(
-            orm.get_manifest().components["component1"]
-                .template
-                .is_some()
-        );
+        assert!(orm.get_manifest().components["component1"]
+            .template
+            .is_some());
         assert_eq!(
             orm.get_manifest().components["component1"]
                 .settings
