@@ -61,7 +61,7 @@ impl Command<AddSelectorRequest> for AddSelectorRequest {
 
         Ok(AddSelectorResponse {
             command_id: None,
-            selector: selector,
+            selector,
         })
     }
 
@@ -400,11 +400,7 @@ impl Command<GetSelectorRequest> for GetSelectorRequest {
             }
         });
 
-        let ret = if let Some(s) = selector {
-            Some(s.clone())
-        } else {
-            None
-        };
+        let ret = selector.map(|s| s.clone());
 
         Ok(GetSelectorResponse {
             command_id: None,
@@ -443,11 +439,7 @@ impl Command<GetAllSelectorsRequest> for GetAllSelectorsRequest {
             .get_mut(&self.component_type_id)
             .unwrap();
 
-        let selectors = if let Some(s) = &component.settings {
-            Some(s.into_iter().map(|x| x.clone()).collect())
-        } else {
-            None
-        };
+        let selectors = component.settings.as_ref().map(|s| s.to_vec());
 
         Ok(GetAllSelectorsResponse {
             command_id: None,

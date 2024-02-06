@@ -14,7 +14,7 @@ mod tests;
 #[derive(Serialize, Deserialize, Clone)]
 pub enum NodeType {
     Template(Vec<SettingElement>),
-    ControlFlow(ControlFlowSettingsDefinition),
+    ControlFlow(Box<ControlFlowSettingsDefinition>),
     Comment(String),
 }
 
@@ -465,11 +465,7 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
         let id = self.node_id;
         let mut node = None;
         if let Some(template) = &component.template {
-            node = if let Some(n) = template.get(&id) {
-                Some(n.clone())
-            } else {
-                None
-            };
+            node = template.get(&id).cloned();
         }
         Ok(GetTemplateNodeResponse {
             command_id: None,
@@ -507,11 +503,10 @@ impl Command<GetAllTemplateNodeRequest> for GetAllTemplateNodeRequest {
             .get_mut(&self.component_type_id)
             .unwrap();
 
-        let nodes = if let Some(template) = &component.template {
-            Some(template.values().into_iter().map(|x| x.clone()).collect())
-        } else {
-            None
-        };
+        let nodes = component
+            .template
+            .as_ref()
+            .map(|template| template.values().cloned().collect());
 
         Ok(GetAllTemplateNodeResponse {
             command_id: None,

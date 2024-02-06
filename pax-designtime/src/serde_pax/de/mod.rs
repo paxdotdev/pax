@@ -19,7 +19,7 @@ pub struct Deserializer {
 }
 
 impl Deserializer {
-    pub fn from_str(input: String) -> Self {
+    pub fn from_string(input: String) -> Self {
         Deserializer { input }
     }
 }
@@ -29,7 +29,7 @@ pub fn from_pax<T>(str: String) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    let deserializer: Deserializer = Deserializer::from_str(str);
+    let deserializer: Deserializer = Deserializer::from_string(str);
     let t = T::deserialize(deserializer)?;
     Ok(t)
 }
