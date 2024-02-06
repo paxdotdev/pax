@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use pax_lang::api::{ArgsClick, EasingCurve, NodeContext, Property};
 use pax_lang::Pax;
-use pax_std::primitives::{Rectangle, Group, Frame, Text, Ellipse};
+use pax_std::primitives::{Ellipse, Frame, Group, Rectangle, Text};
 
 #[pax]
 #[main]
@@ -15,7 +15,6 @@ pub struct Camera {
 }
 
 #[pax]
-#[custom(Imports)]
 pub struct TypeExample {
     pub foo: Property<usize>,
 }
@@ -28,12 +27,16 @@ impl Camera {
     }
 
     pub fn handle_click(&mut self, _: NodeContext, args: ArgsClick) {
-        let delta_pan = (args.mouse.x - self.pan_x.get(), args.mouse.y - self.pan_y.get());
-        self.pan_x.ease_to(self.pan_x.get() + delta_pan.0, 200, EasingCurve::Linear);
-        self.pan_y.ease_to(self.pan_y.get() + delta_pan.1, 200, EasingCurve::Linear);
+        let delta_pan = (
+            args.mouse.x - self.pan_x.get(),
+            args.mouse.y - self.pan_y.get(),
+        );
+        self.pan_x
+            .ease_to(self.pan_x.get() + delta_pan.0, 200, EasingCurve::Linear);
+        self.pan_y
+            .ease_to(self.pan_y.get() + delta_pan.1, 200, EasingCurve::Linear);
 
         self.zoom.ease_to(0.5, 100, EasingCurve::OutQuad);
         self.zoom.ease_to_later(2.0, 100, EasingCurve::InQuad)
     }
-
 }

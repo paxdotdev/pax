@@ -42,6 +42,5 @@ pub struct TemplateArgsDerivePax {
     /// Shared properties
     pub static_property_definitions: Vec<StaticPropertyDefinition>,
     pub pascal_identifier: String,
-    pub include_imports: bool,
     pub is_custom_interpolatable: bool,
 }

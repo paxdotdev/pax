@@ -21,12 +21,10 @@ pub mod primitives {
     pub struct Frame {}
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::group::GroupInstance")]
     pub struct Group {}
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::scroller::ScrollerInstance")]
     pub struct Scroller {
         pub size_inner_pane_x: Property<Size>,
@@ -36,7 +34,6 @@ pub mod primitives {
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Rectangle {
@@ -46,7 +43,6 @@ pub mod primitives {
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Ellipse {
@@ -55,7 +51,6 @@ pub mod primitives {
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::path::PathInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Path {
@@ -65,7 +60,6 @@ pub mod primitives {
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::text::TextInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Text {
@@ -75,21 +69,18 @@ pub mod primitives {
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::checkbox::CheckboxInstance")]
     pub struct Checkbox {
         pub checked: Property<bool>,
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::textbox::TextboxInstance")]
     pub struct Textbox {
         pub text: Property<StringBox>,
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::button::ButtonInstance")]
     pub struct Button {
         pub label: Property<StringBox>,
@@ -97,7 +88,6 @@ pub mod primitives {
     }
 
     #[pax]
-    #[custom(Imports)]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
         pub path: Property<StringBox>,

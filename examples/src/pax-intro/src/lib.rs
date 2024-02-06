@@ -20,7 +20,6 @@ pub struct DynamicObject {
 }
 
 #[pax]
-#[custom(Imports)]
 pub struct Rect {
     pub x: Size,
     pub y: Size,

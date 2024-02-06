@@ -113,7 +113,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
-#[custom(Default, Imports)]
+#[custom(Default)]
 pub enum Font {
     System(SystemFont),
     Web(WebFont),
@@ -127,7 +127,7 @@ impl Default for Font {
 }
 
 #[pax]
-#[custom(Imports, Default)]
+#[custom(Default)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SystemFont {
     pub family: StringBox,
@@ -146,7 +146,6 @@ impl Default for SystemFont {
 }
 
 #[pax]
-#[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct WebFont {
     pub family: StringBox,
@@ -156,7 +155,6 @@ pub struct WebFont {
 }
 
 #[pax]
-#[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LocalFont {
     pub family: StringBox,
@@ -166,7 +164,6 @@ pub struct LocalFont {
 }
 
 #[pax]
-#[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontStyle {
     #[default]
@@ -176,7 +173,6 @@ pub enum FontStyle {
 }
 
 #[pax]
-#[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontWeight {
     Thin,
@@ -192,7 +188,6 @@ pub enum FontWeight {
 }
 
 #[pax]
-#[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignHorizontal {
     #[default]
@@ -202,7 +197,6 @@ pub enum TextAlignHorizontal {
 }
 
 #[pax]
-#[custom(Imports)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignVertical {
     #[default]
