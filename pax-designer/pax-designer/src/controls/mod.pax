@@ -12,23 +12,23 @@
             <Rectangle fill={Fill::Solid(Color::rgba(1,0,0.25,0.5))} />
         </Group>
         <Group y=150px height={100% - 150px}>
-            <Tree id=tree @click=self.handle_click />
+            <Tree id=tree />
             <Rectangle fill={Fill::Solid(Color::rgba(1,0.5,0.0,0.5))} />
         </Group>
     // </Stacker>
     <Rectangle fill={Fill::Solid(Color::rgba(1,0,0,0.25))} />
 </Group>
 
-    <Group id=right_panel>
-        <Settings id=settings />
-        <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
-    </Group>
-
-    <Frame id=top_panel>
-        <Toolbar id=toolbar />
-        <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
-    </Frame>
+<Group id=right_panel>
+    <Settings id=settings />
+    <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
 </Group>
+
+<Frame id=top_panel>
+    <Toolbar id=toolbar />
+    <Rectangle fill={Fill::Solid(Color::rgb(0,0,0))} />
+</Frame>
+
 
 
 @settings {
