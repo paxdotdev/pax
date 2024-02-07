@@ -34,6 +34,11 @@ You can also run the [examples](https://github.com/paxproject/pax/tree/master/ex
 2. Clone this repo: `git clone git@github.com:paxproject/pax.git && cd pax`
 3. Run an example: `cargo run --example fireworks`.  See the available examples [here](https://github.com/paxproject/pax/tree/master/examples/src).
 
+
+## Docs
+
+Read the docs at [https://docs.pax.dev/](https://docs.pax.dev)
+
 ## License
 
 © 2024 PaxCorp Inc.  [contact@pax.dev].
@@ -43,8 +48,3 @@ This project is licensed under either of:
 - [Apache 2.0 License](LICENSE-APACHE)
 
 at your option.
-
-
----
-
-[1] Interestingly, Pax’s prioritization of  machine-editibility appears to cross-pollinate with large language models (LLMs), in addition to visual tooling.  While our experiments are early, Pax is a promising substrate for collaborating on UIs between humans and LLMs.
