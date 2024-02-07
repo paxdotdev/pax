@@ -1,10 +1,9 @@
+use pax_designtime::input::{FSMEvent, ScreenspacePoint};
 use pax_lang::api::*;
 use pax_lang::*;
-use pax_std::primitives::{Path, Rectangle, Group};
+use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::{Color, Fill};
 use serde::Deserialize;
-
-
 
 #[pax]
 #[custom(Default)]
@@ -18,25 +17,45 @@ pub struct Glass {
 
 impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
-        pax_lang::log("mouse down");
-        //TODO: pass event into InputMapper
+        let res = ctx
+            .designtime
+            .borrow_mut()
+            .input_manager
+            .transition(FSMEvent::MouseDown(ScreenspacePoint {
+                x: args.mouse.x,
+                y: args.mouse.y,
+            }));
+        log(&format!("input result: {:?}", res));
     }
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
-        pax_lang::log("mouse move");
-        //TODO: pass event into InputMapper
+        let res = ctx
+            .designtime
+            .borrow_mut()
+            .input_manager
+            .transition(FSMEvent::MouseMove(ScreenspacePoint {
+                x: args.mouse.x,
+                y: args.mouse.y,
+            }));
+        log(&format!("input result: {:?}", res));
     }
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
-        pax_lang::log("mouse up");
-        //TODO: pass event into InputMapper
+        let res = ctx
+            .designtime
+            .borrow_mut()
+            .input_manager
+            .transition(FSMEvent::MouseUp(ScreenspacePoint {
+                x: args.mouse.x,
+                y: args.mouse.y,
+            }));
+        log(&format!("input result: {:?}", res));
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
         pax_lang::log("key down");
         //TODO: handle keydowns and pass into InputMapper
     }
-
 }
 
 impl Default for Glass {
