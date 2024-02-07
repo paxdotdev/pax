@@ -1,3 +1,4 @@
+use pax_designtime::input::{FSMEvent, Interface};
 use pax_lang::api::{ArgsButtonClick, ArgsClick, NodeContext};
 use pax_lang::*;
 use pax_std::components::Stacker;
@@ -29,8 +30,13 @@ impl Toolbar {
         unimplemented!("handle click for pen")
     }
 
-    pub fn handle_click_rect(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
-        unimplemented!("handle click for rect")
+    pub fn handle_click_rect(&mut self, ctx: &NodeContext, _args: ArgsClick) {
+        let res = ctx
+            .designtime
+            .borrow_mut()
+            .input_manager
+            .transition(FSMEvent::InterfaceEvent(Interface::ActivateRectangleTool));
+        log(&format!("input result: {:?}", res));
     }
 
     pub fn handle_click_stacker(&mut self, _ctx: &NodeContext, _args: ArgsClick) {

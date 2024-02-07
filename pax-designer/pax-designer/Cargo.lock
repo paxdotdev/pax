@@ -1932,6 +1932,7 @@ version = "0.11.3"
 dependencies = [
  "designer_project",
  "pax-compiler",
+ "pax-designtime",
  "pax-lang",
  "pax-manifest",
  "pax-std",
