@@ -25,10 +25,7 @@ impl PaxDesigner {
         //self.state = load_previous_state_if_relevant();
     }
 
-
-    pub fn click_test(&mut self, _ctx: &NodeContext, args: ArgsClick) {
-        pax_lang::log("CLICK RECEIVED");
-    }
+    pub fn click_test(&mut self, _ctx: &NodeContext, args: ArgsClick) {}
 }
 
 //TODO: derive Serialize and Deserialize
