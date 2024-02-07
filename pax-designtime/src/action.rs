@@ -1,12 +1,60 @@
+use anyhow::Result;
 
-
+use crate::DesigntimeManager;
 
 #[derive(Default)]
-pub struct ActionManager {}
+pub struct ActionManager {
+    action_stack: Vec<Box<dyn Action>>,
+}
 
 impl ActionManager {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn perform(
+        &mut self,
+        mut action: Box<dyn Action>,
+        designtime: &mut DesigntimeManager,
+    ) -> Result<()> {
+        action.perform(designtime)?;
+        self.action_stack.push(action);
+        Ok(())
+    }
+
+    pub fn undo_last(
+        &mut self,
+        mut action: Box<dyn Action>,
+        designtime: &mut DesigntimeManager,
+    ) -> Result<()> {
+        action.undo(designtime)?;
+        self.action_stack.push(action);
+        Ok(())
+    }
+}
+
+pub trait Action {
+    fn perform(&mut self, designtime: &mut DesigntimeManager) -> Result<()>;
+    fn undo(&mut self, designtime: &mut DesigntimeManager) -> Result<()>;
+}
+
+struct CreateRectangle {}
+
+impl Action for CreateRectangle {
+    fn perform(&mut self, designtime: &mut DesigntimeManager) -> Result<()> {
+        let builder = designtime.get_orm_mut().build_new_node(
+            "component1".to_owned(),
+            "..rectangle".to_owned(),
+            "???".to_owned(),
+            None,
+        );
+        //do stuff here
+        let _ = builder;
+        Ok(())
+    }
+
+    fn undo(&mut self, _designtime: &mut DesigntimeManager) -> Result<()> {
+        todo!("undo rect creation")
     }
 }
 

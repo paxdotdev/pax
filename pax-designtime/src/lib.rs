@@ -37,8 +37,12 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     selection_manager: SelectionManager,
     // active_component_id: String,
+<<<<<<< HEAD
     factories: Factories,
     input_manager: InputManager,
+=======
+    pub input_manager: InputManager,
+>>>>>>> 7e41c24 (work in progress)
     action_manager: ActionManager,
     priv_agent_connection: PrivilegedAgentConnection,
 }
@@ -52,7 +56,6 @@ impl Debug for DesigntimeManager {
 pub mod privileged_agent;
 
 impl DesigntimeManager {
-
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
         let selection_manager = SelectionManager::new();
