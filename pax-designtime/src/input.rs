@@ -1,4 +1,7 @@
+use anyhow::{anyhow, Result};
 use std::ops::Deref;
+
+use crate::action::ActionManager;
 
 /// Finite State Machine (FSM) manager for Pax Designer user inputs
 /// User inputs like click, mousemove, and keypress are modeled as FSM transitions
@@ -31,20 +34,33 @@ pub enum FSMState {
     ArmedForResize,
     DoResize(usize, ScreenspacePoint, ScreenspaceVec2), //control point index, axis-aligned top-left is 0, incremented clockwise
     ArmedForRotate,
-    DoRotate(ScreenspaceVec2)
+    DoRotate(ScreenspaceVec2),
+    Tool(Tool),
 }
+
+#[derive(Clone)]
+pub enum Tool {
+    RectangleArmed,
+    RectangleState(ScreenspacePoint, ScreenspacePoint),
+}
+
 pub enum FSMEvent {
     MouseDown(ScreenspacePoint),
     MouseUp(ScreenspacePoint),
-    MouseMove(ScreenspacePoint, ScreenspaceVec2),
+    MouseMove(ScreenspacePoint),
+    InterfaceEvent(Interface),
     KeydownEvent(KeyCode),
     ControlPointMouseDown(usize),
 }
 
-#[derive(Clone)]
+pub enum Interface {
+    ActivateRectangleTool,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct ScreenspacePoint {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 #[derive(Clone)]
@@ -70,8 +86,25 @@ impl InputManager {
         Default::default()
     }
 
-    pub fn transition(&mut self, event: FSMEvent) {
-         let new_state = match (&self.current_state, event) {
+    pub fn transition(
+        &mut self,
+        event: FSMEvent,
+        action_manager: &mut ActionManager,
+    ) -> Result<()> {
+        let new_state = match (&self.current_state, event) {
+            (_, FSMEvent::InterfaceEvent(Interface::ActivateRectangleTool)) => {
+                Some(FSMState::Tool(Tool::RectangleArmed))
+            }
+            (FSMState::Tool(Tool::RectangleArmed), FSMEvent::MouseDown(point)) => {
+                Some(FSMState::Tool(Tool::RectangleState(point, point)))
+            }
+            (FSMState::Tool(Tool::RectangleState(p1, _)), FSMEvent::MouseMove(point)) => {
+                Some(FSMState::Tool(Tool::RectangleState(*p1, point)))
+            }
+            (FSMState::Tool(Tool::RectangleState(p1, _)), FSMEvent::MouseUp(p2)) => {
+                action_manager.perform()
+                Some(FSMState::Idle)
+            }
             // // Define state transitions
             // (State::Idle, Event::KeyPress(KeyCode::Space)) => State::Panning,
             // (State::Panning, Event::MouseClick) => State::Selecting,
@@ -83,6 +116,7 @@ impl InputManager {
         if let Some(new_state) = new_state {
             self.set_fsm_state(new_state);
         }
+        Ok(())
     }
 
     /// After entering a new state, this method is called to trigger any registered relevant side effects,
@@ -93,9 +127,7 @@ impl InputManager {
                 todo!("use selection manager to perform selection");
                 self.set_fsm_state(FSMState::ArmedForTranslate);
             }
-            _ => {/*Default: no-op.  Most states don't induce side-effects.*/}
+            _ => { /*Default: no-op.  Most states don't induce side-effects.*/ }
         }
-
-
     }
 }
