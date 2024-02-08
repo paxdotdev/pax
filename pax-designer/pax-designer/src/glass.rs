@@ -20,8 +20,7 @@ impl Glass {
         let res = ctx
             .designtime
             .borrow_mut()
-            .input_manager
-            .transition(FSMEvent::MouseDown(ScreenspacePoint {
+            .input_transition(FSMEvent::MouseDown(ScreenspacePoint {
                 x: args.mouse.x,
                 y: args.mouse.y,
             }));
@@ -32,8 +31,7 @@ impl Glass {
         let res = ctx
             .designtime
             .borrow_mut()
-            .input_manager
-            .transition(FSMEvent::MouseMove(ScreenspacePoint {
+            .input_transition(FSMEvent::MouseMove(ScreenspacePoint {
                 x: args.mouse.x,
                 y: args.mouse.y,
             }));
@@ -44,8 +42,7 @@ impl Glass {
         let res = ctx
             .designtime
             .borrow_mut()
-            .input_manager
-            .transition(FSMEvent::MouseUp(ScreenspacePoint {
+            .input_transition(FSMEvent::MouseUp(ScreenspacePoint {
                 x: args.mouse.x,
                 y: args.mouse.y,
             }));
