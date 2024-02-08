@@ -6,7 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/pax-compiler/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-dev-server/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-macro-expression/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/pax-core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-runtime/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/carbon/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/basic/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-properties-coproduct/src" isTestSource="false" />

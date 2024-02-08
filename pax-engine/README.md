@@ -1,4 +1,4 @@
-# pax-lang
+# pax-engine
 
 Userland entrypoint to pax — ergonomic wrapper for modules/imports
     - minimize userland footprint by default

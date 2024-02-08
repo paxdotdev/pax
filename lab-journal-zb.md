@@ -236,7 +236,7 @@ common.GeoPoint{ latitude: 10.0, longitude: -5.5 }
 
 
 ### On polymorphic data + stack frames
-_Date of authoring unknown; moved from pax-core/src/repeat.rs on Oct 31 2023_
+_Date of authoring unknown; moved from pax-runtime/src/repeat.rs on Oct 31 2023_
 ---------------
 
 To support polymorphic data <T> inside stack frames,
@@ -2939,7 +2939,7 @@ error[E0277]: the trait bound `R: piet::render_context::RenderContext` is not sa
    |                                                                                              ^^^^^^^^^^^^^^^^^^^^ the trait `piet::render_context::RenderContext` is not implemented for `R`
    |
 note: required by a bound in `ExpressionContext`
-  --> /Users/zack/.cargo/registry/src/github.com-1ecc6299db9ec823/pax-core-0.0.1/src/expressions.rs:97:47
+  --> /Users/zack/.cargo/registry/src/github.com-1ecc6299db9ec823/pax-runtime-0.0.1/src/expressions.rs:97:47
    |
 97 | pub struct ExpressionContext<'a, R: 'static + RenderContext> {
    |                                               ^^^^^^^^^^^^^ required by this bound in `ExpressionContext`
@@ -2972,13 +2972,13 @@ error: package collision in the lockfile: packages pax-properties-coproduct v0.0
 When building `pax-example/.pax/chassis/MacOS`, we get a collision of `pax-properties-coproduct`.  Why?
 
 1. we're patching pax-properties-coproduct 0.0.1 to refer to our relative, codegenned properties-coproduct at `.pax/properties-coproduct`.
-2. Meanwhile, `pax-core` refers to a relative path for `pax-properties-coproduct`, `@/pax/pax-properties-coproduct`.  It appears that `patch` doesn't
-   work alongside a relative path.  This can be validated by removing `path = ../pax-properties-coproduct` from pax/pax-core/Cargo.toml —however, then we can't build the core library by itself!
+2. Meanwhile, `pax-runtime` refers to a relative path for `pax-properties-coproduct`, `@/pax/pax-properties-coproduct`.  It appears that `patch` doesn't
+   work alongside a relative path.  This can be validated by removing `path = ../pax-properties-coproduct` from pax/pax-runtime/Cargo.toml —however, then we can't build the core library by itself!
 
 Possible options:
-    Copy `pax-core` into the `.pax` codegen folder (along with everything else, probably!)
+    Copy `pax-runtime` into the `.pax` codegen folder (along with everything else, probably!)
     Deal with a library that doesn't build standalone (blech)
-    Point to `.pax/properties-coproduct` even for core lib deps!  e.g. pax-core::Cargo.toml can refer to path
+    Point to `.pax/properties-coproduct` even for core lib deps!  e.g. pax-runtime::Cargo.toml can refer to path
     Revisit lib_dev_mode: punt for later, just rely on crates.io for pax-example/.pax projects
 
 Conclusion, as of 1/18:
@@ -3406,7 +3406,7 @@ TODO:
         2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
         3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
         NOTE: see Aug 28 entry for resolution
- [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
+ [x] Assess viability of pointing userland projects to .pax/pax-engine (for example)
  [-] verify that include_dir!-based builds work, in addition to libdev builds
      [-] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
 

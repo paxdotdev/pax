@@ -16,7 +16,7 @@ primitives_crate = "./pax-std-primitives"
 [dependencies]
 piet = "0.6.0"
 kurbo = "0.9.0"
-pax-lang = {path = "../pax-lang", version="0.11.5"}
+pax-engine = {path = "../pax-engine", version="0.11.5"}
 pax-message = {path = "../pax-message", version="0.11.5"}
 lazy_static = "1.4.0"
 pax-compiler = {path="../pax-compiler", optional = true, version="0.11.5"}
@@ -26,4 +26,4 @@ pax-manifest = {path = "../pax-manifest", version="0.11.5"}
 serde = { version = "1.0.159", features=["derive"]}
 
 [features]
-parser = ["pax-lang/parser", "dep:pax-compiler", "dep:serde_json"]
+parser = ["pax-engine/parser", "dep:pax-compiler", "dep:serde_json"]
