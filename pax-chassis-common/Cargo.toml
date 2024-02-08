@@ -1,6 +1,6 @@
 [package]
 name = "pax-chassis-common"
-version = "0.11.3"
+version = "0.11.5"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 description = "Shared resources for Pax Chassis"
@@ -14,10 +14,10 @@ include = ["src/**/*","pax-swift-common/**/*"]
 [dependencies]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
-pax-core = { path = "../pax-core", version="0.11.3" }
-pax-cartridge = {path="../pax-cartridge", version="0.11.3"}
-pax-message = {path = "../pax-message", version="0.11.3"}
-pax-runtime-api = {path = "../pax-runtime-api", version="0.11.3"}
+pax-core = { path = "../pax-core", version="0.11.5" }
+pax-cartridge = {path="../pax-cartridge", version="0.11.5"}
+pax-message = {path = "../pax-message", version="0.11.5"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.11.5"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --
