@@ -15,7 +15,6 @@ members = [
     "pax-macro",
     "pax-message",
     "pax-compiler",
-    "pax-runtime-api",
     "pax-cli",
     "pax-std",
     "pax-std/pax-std-primitives",
