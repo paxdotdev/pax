@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Result};
 use std::ops::Deref;
 
-use crate::action::ActionManager;
+use crate::{
+    action::{ActionManager, CreateRectangle},
+    orm::PaxManifestORM,
+    DesigntimeManager,
+};
 
 /// Finite State Machine (FSM) manager for Pax Designer user inputs
 /// User inputs like click, mousemove, and keypress are modeled as FSM transitions
@@ -90,6 +94,7 @@ impl InputManager {
         &mut self,
         event: FSMEvent,
         action_manager: &mut ActionManager,
+        orm: &mut PaxManifestORM,
     ) -> Result<()> {
         let new_state = match (&self.current_state, event) {
             (_, FSMEvent::InterfaceEvent(Interface::ActivateRectangleTool)) => {
@@ -102,7 +107,7 @@ impl InputManager {
                 Some(FSMState::Tool(Tool::RectangleState(*p1, point)))
             }
             (FSMState::Tool(Tool::RectangleState(p1, _)), FSMEvent::MouseUp(p2)) => {
-                action_manager.perform()
+                action_manager.perform(Box::new(CreateRectangle {}), orm)?;
                 Some(FSMState::Idle)
             }
             // // Define state transitions

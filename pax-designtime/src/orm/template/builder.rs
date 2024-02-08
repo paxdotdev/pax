@@ -28,7 +28,7 @@ pub struct NodeBuilder<'a> {
     component_type_id: String,
     template_node: TemplateNodeDefinition,
     property_map: HashMap<String, usize>,
-    parent_node_id: Option<usize>,
+    parent_node_id: usize,
     is_new: bool,
 }
 
@@ -54,7 +54,7 @@ impl<'a> NodeBuilder<'a> {
             component_type_id,
             template_node,
             property_map: HashMap::new(),
-            parent_node_id,
+            parent_node_id: parent_node_id.unwrap_or_default(),
             is_new: true,
         }
     }
@@ -95,7 +95,7 @@ impl<'a> NodeBuilder<'a> {
                     orm,
                     component_type_id: component_type_id.to_owned(),
                     template_node: node.clone(),
-                    parent_node_id,
+                    parent_node_id: parent_node_id.unwrap_or_default(),
                     property_map,
                     is_new: false,
                 }
