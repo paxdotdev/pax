@@ -54,7 +54,7 @@ except:
 
 os.chdir(original_dir)
 
-Create a mapping from package name to path
+# Create a mapping from package name to path
 PACKAGE_NAMES = {}
 for elem in PACKAGES:
     with open("{}/Cargo.toml".format(elem), 'r') as file:
