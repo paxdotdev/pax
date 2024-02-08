@@ -84,9 +84,9 @@ impl PaxManifestORM {
 
     pub fn build_new_node(
         &mut self,
-        component_type_id: String,
-        type_id: String,
-        pascal_identifier: String,
+        component_type_id: String, //containing component
+        type_id: String,           //the thing we want to create
+        pascal_identifier: String, // split at last :: and take end
         parent_node_id: Option<usize>,
     ) -> NodeBuilder {
         NodeBuilder::new(

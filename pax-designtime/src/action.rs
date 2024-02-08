@@ -1,6 +1,6 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
-use crate::DesigntimeManager;
+use crate::PaxManifestORM;
 
 #[derive(Default)]
 pub struct ActionManager {
@@ -12,12 +12,8 @@ impl ActionManager {
         Default::default()
     }
 
-    pub fn perform(
-        &mut self,
-        mut action: Box<dyn Action>,
-        designtime: &mut DesigntimeManager,
-    ) -> Result<()> {
-        action.perform(designtime)?;
+    pub fn perform(&mut self, mut action: Box<dyn Action>, orm: &mut PaxManifestORM) -> Result<()> {
+        action.perform(orm)?;
         self.action_stack.push(action);
         Ok(())
     }
@@ -25,35 +21,40 @@ impl ActionManager {
     pub fn undo_last(
         &mut self,
         mut action: Box<dyn Action>,
-        designtime: &mut DesigntimeManager,
+        orm: &mut PaxManifestORM,
     ) -> Result<()> {
-        action.undo(designtime)?;
+        action.undo(orm)?;
         self.action_stack.push(action);
         Ok(())
     }
 }
 
 pub trait Action {
-    fn perform(&mut self, designtime: &mut DesigntimeManager) -> Result<()>;
-    fn undo(&mut self, designtime: &mut DesigntimeManager) -> Result<()>;
+    fn perform(&mut self, orm: &mut PaxManifestORM) -> Result<()>;
+    fn undo(&mut self, orm: &mut PaxManifestORM) -> Result<()>;
 }
 
-struct CreateRectangle {}
+pub struct CreateRectangle {}
 
 impl Action for CreateRectangle {
-    fn perform(&mut self, designtime: &mut DesigntimeManager) -> Result<()> {
-        let builder = designtime.get_orm_mut().build_new_node(
-            "component1".to_owned(),
-            "..rectangle".to_owned(),
-            "???".to_owned(),
+    fn perform(&mut self, orm: &mut PaxManifestORM) -> Result<()> {
+        let mut builder = orm.build_new_node(
+            "pax_designer::pax_reexports::designer_project::Example".to_owned(),
+            "pax_designer::pax_reexports::pax_std::Rectangle".to_owned(),
+            "Rectangle".to_owned(),
             None,
         );
-        //do stuff here
-        let _ = builder;
-        Ok(())
+        //do stuff here later, and then save
+        builder.set_property("x", "20%")?;
+        builder.set_property("y", "20%")?;
+        builder.set_property("width", "80%")?;
+        builder.set_property("height", "80%")?;
+
+        builder.save().map_err(|e| anyhow!("could save: {}", e))?;
+        Err(anyhow!("successfully created rect!"))
     }
 
-    fn undo(&mut self, _designtime: &mut DesigntimeManager) -> Result<()> {
+    fn undo(&mut self, _orm: &mut PaxManifestORM) -> Result<()> {
         todo!("undo rect creation")
     }
 }

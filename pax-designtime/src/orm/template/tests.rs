@@ -79,7 +79,7 @@ mod tests {
 
         let request = AddTemplateNodeRequest {
             component_type_id: "component1".to_string(),
-            parent_node_id: Some(1),
+            parent_node_id: 1,
             node_id: None,
             child_ids: vec![],
             type_id: "type2".to_string(),
@@ -245,7 +245,7 @@ mod tests {
 
         let request = AddTemplateNodeRequest {
             component_type_id: "component1".to_string(),
-            parent_node_id: Some(1),
+            parent_node_id: 1,
             node_id: None,
             child_ids: vec![],
             type_id: "type2".to_string(),
