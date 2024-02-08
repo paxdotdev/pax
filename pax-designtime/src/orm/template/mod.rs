@@ -21,7 +21,7 @@ pub enum NodeType {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AddTemplateNodeRequest {
     component_type_id: String,
-    parent_node_id: Option<usize>,
+    parent_node_id: usize,
     node_id: Option<usize>,
     child_ids: Vec<usize>,
     type_id: String,
@@ -93,10 +93,8 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
 
         if let Some(template) = &mut component.template {
             template.insert(next_id, new_node.clone());
-            if let Some(parent_id) = self.parent_node_id {
-                if let Some(parent) = template.get_mut(&parent_id) {
-                    parent.child_ids.push(next_id);
-                }
+            if let Some(parent) = template.get_mut(&self.parent_node_id) {
+                parent.child_ids.push(next_id);
             }
         } else {
             let mut template = HashMap::new();
@@ -129,10 +127,8 @@ impl UndoRedo for AddTemplateNodeRequest {
         if let Some(template) = &mut component.template {
             template.remove(&id);
 
-            if let Some(parent_id) = self.parent_node_id {
-                if let Some(parent) = template.get_mut(&parent_id) {
-                    parent.child_ids.retain(|id| *id != self.node_id.unwrap());
-                }
+            if let Some(parent) = template.get_mut(&self.parent_node_id) {
+                parent.child_ids.retain(|id| *id != self.node_id.unwrap());
             }
         }
         if component.template.is_some() && component.template.as_ref().unwrap().is_empty() {
@@ -152,10 +148,8 @@ impl UndoRedo for AddTemplateNodeRequest {
             let node = &self.cached_node.clone().unwrap();
             template.insert(id, node.clone());
 
-            if let Some(parent_id) = self.parent_node_id {
-                if let Some(parent) = template.get_mut(&parent_id) {
-                    parent.child_ids.push(id);
-                }
+            if let Some(parent) = template.get_mut(&self.parent_node_id) {
+                parent.child_ids.push(id);
             }
 
             component.next_template_id = Some(id + 1);

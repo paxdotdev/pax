@@ -15,6 +15,7 @@ pub mod messages;
 pub mod serde_pax;
 
 mod setup;
+use input::FSMEvent;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
@@ -37,12 +38,8 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     selection_manager: SelectionManager,
     // active_component_id: String,
-<<<<<<< HEAD
     factories: Factories,
     input_manager: InputManager,
-=======
-    pub input_manager: InputManager,
->>>>>>> 7e41c24 (work in progress)
     action_manager: ActionManager,
     priv_agent_connection: PrivilegedAgentConnection,
 }
@@ -90,6 +87,11 @@ impl DesigntimeManager {
         factory: Box<fn(ComponentDefinition) -> Box<dyn Any>>,
     ) {
         self.factories.insert(type_id, factory);
+    }
+
+    pub fn input_transition(&mut self, event: FSMEvent) -> anyhow::Result<()> {
+        self.input_manager
+            .transition(event, &mut self.action_manager, &mut self.orm)
     }
 
     pub fn get_manifest(&self) -> &PaxManifest {
