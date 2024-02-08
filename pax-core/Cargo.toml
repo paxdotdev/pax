@@ -1,5 +1,5 @@
 [package]
-name = "pax-core"
+name = "pax-runtime"
 version = "0.11.5"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"

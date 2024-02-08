@@ -428,7 +428,7 @@ _RIL means Rust Intermediate Language, which is the
 [x] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
 [x] e2e `pax run`
 [x] publication to crates.io
-    [x] reserve pax-lang crate on crates.io
+    [x] reserve pax-engine crate on crates.io
     [x] update relative paths in all cargo.tomls, point to hard-coded published versions
         - can include both a relative path & version number, a feature of Cargo for this exact use-case
     [x] publish all crates

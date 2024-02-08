@@ -41,8 +41,8 @@ pub const ALL_PKGS: [&'static str; 14] = [
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
-    "pax-core",
-    "pax-lang",
+    "pax-runtime",
+    "pax-engine",
     "pax-macro",
     "pax-message",
     "pax-runtime-api",
@@ -251,7 +251,7 @@ pub fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'stati
         }
     }
 
-    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
+    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-engine` to your Cargo.toml to resolve this error.")
 }
 
 /// Helper recursive fs copy method, like fs::copy, but suited for our purposes.
