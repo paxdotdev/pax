@@ -22,6 +22,8 @@ jobs:
       run: sudo apt update && sudo apt install -y libgtk-4-dev
     - name: Run tests
       run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
+    - name: Run fireworks example
+      run: cargo run --example fireworks
     - name: Check formatting
       run: cargo fmt -- --check
     - name: Check for linting errors
