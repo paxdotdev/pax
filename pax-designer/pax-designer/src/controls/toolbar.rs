@@ -34,8 +34,7 @@ impl Toolbar {
         let res = ctx
             .designtime
             .borrow_mut()
-            .input_manager
-            .transition(FSMEvent::InterfaceEvent(Interface::ActivateRectangleTool));
+            .input_transition(FSMEvent::InterfaceEvent(Interface::ActivateRectangleTool));
         log(&format!("input result: {:?}", res));
     }
 
