@@ -15,7 +15,6 @@ description = "Primitives crate for Pax's standard library"
 pax-engine = {path = "../../pax-engine", version="0.11.5"}
 pax-runtime = {path = "../../pax-runtime", version="0.11.5"}
 pax-std = {path = "../", version="0.11.5"}
-pax-runtime-api = {path = "../../pax-runtime-api", version="0.11.5"}
 pax-message = {path = "../../pax-message", version="0.11.5" }
 piet = "0.6.0"
 piet-common = "0.6.0"
