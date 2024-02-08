@@ -5,7 +5,7 @@ authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
-repository = "https://www.github.com/pax-lang/pax"
+repository = "https://www.github.com/paxproject/pax"
 description = "Core shared runtime and rendering engine for Pax"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -6,7 +6,7 @@ edition = "2021"
 description = "Shared resources for Pax Chassis"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
-repository = "https://www.github.com/pax-lang/pax"
+repository = "https://www.github.com/paxproject/pax"
 include = ["src/**/*","pax-swift-common/**/*"]
 
 [lib]
