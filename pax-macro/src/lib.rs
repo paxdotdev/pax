@@ -271,52 +271,49 @@ fn pax_full_component(
     is_custom_interpolatable: bool,
     associated_pax_file_path: Option<String>,
 ) -> proc_macro2::TokenStream {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let pascal_identifier = input_parsed.ident.to_string();
+    let pascal_identifier = input_parsed.ident.to_string();
 
-        let static_property_definitions =
-            get_static_property_definitions_from_tokens(&input_parsed.data);
-        let template_dependencies =
-            parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let static_property_definitions =
+        get_static_property_definitions_from_tokens(&input_parsed.data);
+    let template_dependencies =
+        parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-        // Load reexports.partial.rs if PAX_DIR is set
-        let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
-        let reexports_snippet = if let Some(pax_dir) = pax_dir {
-            let reexports_path = std::path::Path::new(pax_dir).join("reexports.partial.rs");
-            fs::read_to_string(&reexports_path).unwrap()
-        } else {
-            "".to_string()
-        };
-        let output = TemplateArgsDerivePax {
-            args_primitive: None,
-            args_struct_only_component: None,
-            args_full_component: Some(ArgsFullComponent {
-                is_main_component,
-                raw_pax,
-                template_dependencies,
-                reexports_snippet,
-                associated_pax_file_path,
-            }),
-            pascal_identifier,
-            static_property_definitions,
-            is_custom_interpolatable,
-        }
-        .render_once()
-        .unwrap()
-        .to_string();
-
-        let ret = TokenStream::from_str(&output).unwrap().into();
-        if !include_fix.is_none() {
-            quote! {
-                #include_fix
-                #ret
-            }
-        } else {
-            ret
-        }
-        .into()
+    // Load reexports.partial.rs if PAX_DIR is set
+    let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
+    let reexports_snippet = if let Some(pax_dir) = pax_dir {
+        let reexports_path = std::path::Path::new(pax_dir).join("reexports.partial.rs");
+        fs::read_to_string(&reexports_path).unwrap()
+    } else {
+        "".to_string()
+    };
+    let output = TemplateArgsDerivePax {
+        args_primitive: None,
+        args_struct_only_component: None,
+        args_full_component: Some(ArgsFullComponent {
+            is_main_component,
+            raw_pax,
+            template_dependencies,
+            reexports_snippet,
+            associated_pax_file_path,
+        }),
+        pascal_identifier,
+        static_property_definitions,
+        is_custom_interpolatable,
     }
+    .render_once()
+    .unwrap()
+    .to_string();
+
+    let ret = TokenStream::from_str(&output).unwrap().into();
+    if !include_fix.is_none() {
+        quote! {
+            #include_fix
+            #ret
+        }
+    } else {
+        ret
+    }
+    .into()
 }
 
 struct Config {
