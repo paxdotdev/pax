@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 use pax_message::{NativeMessage, OcclusionPatch};
@@ -29,6 +30,7 @@ pub use expanded_node::ExpandedNode;
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Globals {
     pub frames_elapsed: usize,
     pub viewport: TransformAndBounds,
@@ -172,8 +174,16 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
     }
 }
 
+
 pub struct ExpressionTable {
     pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>>,
+}
+
+#[cfg(debug_assertions)]
+impl Debug for ExpressionTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        unimplemented!()
+    }
 }
 
 impl ExpressionTable {
