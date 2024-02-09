@@ -93,7 +93,7 @@ pub extern "C" fn pax_interrupt(
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
         NativeInterrupt::Click(args) => {
-            let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
+            let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
                     let modifiers = args
