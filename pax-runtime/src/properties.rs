@@ -7,6 +7,7 @@ use std::{any::Any, collections::HashMap};
 use crate::{ExpandedNode, ExpressionTable, Globals};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Uid(pub u32);
 
 #[derive(Default)]
@@ -15,6 +16,7 @@ pub struct NodeCache {
 }
 
 /// Shared context for properties pass recursion
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimeContext {
     next_uid: Uid,
     messages: Vec<NativeMessage>,
@@ -117,6 +119,7 @@ impl RuntimeContext {
 ///
 /// `Component`s push `RuntimePropertiesStackFrame`s before computing properties and pop them after computing, thus providing a
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimePropertiesStackFrame {
     properties: Rc<RefCell<dyn Any>>,
     parent: Option<Rc<RuntimePropertiesStackFrame>>,
