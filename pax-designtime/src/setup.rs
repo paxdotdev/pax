@@ -25,21 +25,20 @@ pub fn add_additional_dependencies_to_cargo_toml(
         "pax-chassis-web" => {
             let mut array = Array::default();
             array.push("pax-designtime");
-            array.push("pax-core/designtime");
             array.push("pax-cartridge/designtime");
-            array.push("pax-runtime-api/designtime");
+            array.push("pax-runtime/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
             doc["dependencies"]["pax-designtime"] = pax_designtime_dependency;
         }
-        "pax-core" | "pax-runtime-api" => {
+        "pax-runtime" => {
             let mut array = Array::default();
             array.push("pax-designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
             doc["dependencies"]["pax-designtime"] = pax_designtime_dependency;
         }
-        "pax-lang" => {
+        "pax-engine" => {
             let mut array = Array::default();
-            array.push("pax-runtime-api/designtime");
+            array.push("pax-runtime/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
         }
         "pax-cartridge" => {
@@ -47,8 +46,7 @@ pub fn add_additional_dependencies_to_cargo_toml(
             array.push("serde_json");
             array.push("include_dir");
             array.push("pax-designtime");
-            array.push("pax-core/designtime");
-            array.push("pax-runtime-api/designtime");
+            array.push("pax-runtime/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
 
             let mut array = Array::default();
