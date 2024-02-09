@@ -291,7 +291,9 @@ impl ExpandedNode {
     fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
         if *self.attached.borrow() == 0 {
             *self.attached.borrow_mut() += 1;
-            context.node_cache.insert(self.id_chain[0], Rc::clone(&self));
+            context
+                .node_cache
+                .insert(self.id_chain[0], Rc::clone(&self));
             self.instance_node.handle_mount(&self, context);
             if let Some(ref registry) = self.instance_node.base().handler_registry {
                 for handler in registry

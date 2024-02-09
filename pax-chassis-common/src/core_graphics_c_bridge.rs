@@ -93,7 +93,9 @@ pub extern "C" fn pax_interrupt(
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
         NativeInterrupt::Click(args) => {
-            let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+            let prospective_hit = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
                     let modifiers = args
@@ -109,7 +111,11 @@ pub extern "C" fn pax_interrupt(
                             modifiers,
                         },
                     };
-                    topmost_node.dispatch_click(args_click, engine.runtime_context.globals(), &engine.runtime_context);
+                    topmost_node.dispatch_click(
+                        args_click,
+                        engine.runtime_context.globals(),
+                        &engine.runtime_context,
+                    );
                 }
                 _ => {}
             };
@@ -122,7 +128,11 @@ pub extern "C" fn pax_interrupt(
                         delta_x: args.delta_x,
                         delta_y: args.delta_y,
                     };
-                    topmost_node.dispatch_scroll(args_scroll, engine.runtime_context.globals(), &engine.runtime_context);
+                    topmost_node.dispatch_scroll(
+                        args_scroll,
+                        engine.runtime_context.globals(),
+                        &engine.runtime_context,
+                    );
                 }
                 _ => {}
             };

@@ -42,7 +42,6 @@ pub struct Globals {
 pub struct PaxEngine {
     pub runtime_context: RuntimeContext,
     pub root_node: Rc<ExpandedNode>,
-
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -173,7 +172,6 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
             .draw_image(img, rect, InterpolationMode::Bilinear);
     }
 }
-
 
 pub struct ExpressionTable {
     pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>>,
@@ -338,8 +336,10 @@ impl PaxEngine {
                 state.push(Rc::clone(&n));
             }
 
-            self.root_node
-                .recurse_visit_postorder(&assign_z_indicies, &mut self.runtime_context.z_index_node_cache);
+            self.root_node.recurse_visit_postorder(
+                &assign_z_indicies,
+                &mut self.runtime_context.z_index_node_cache,
+            );
         }
 
         // Occlusion
@@ -377,7 +377,8 @@ impl PaxEngine {
 
     pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode>> {
         let (x, y) = self.runtime_context.globals().viewport.bounds;
-        self.runtime_context.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
+        self.runtime_context
+            .get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
