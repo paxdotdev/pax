@@ -1,10 +1,10 @@
 use std::{iter, rc::Rc};
 
+use crate::api::Layer;
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use crate::api::Layer;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
 /// subtree of a component template to be rendered conditionally,

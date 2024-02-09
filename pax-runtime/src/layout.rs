@@ -1,6 +1,6 @@
+use crate::api::{Axis, Size, Transform2D};
 use crate::{ExpandedNode, TransformAndBounds};
 use kurbo::Affine;
-use crate::api::{Axis, Size, Transform2D};
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
 /// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.

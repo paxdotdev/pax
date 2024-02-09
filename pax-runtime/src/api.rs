@@ -1,7 +1,7 @@
+use lazy_static::lazy_static;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::ffi::CString;
-use lazy_static::lazy_static;
 
 use std::ops::{Add, Deref, Mul, Neg};
 

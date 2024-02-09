@@ -2,11 +2,11 @@ use pax_runtime::api::RenderContext;
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
+use pax_message::ImagePatch;
 use pax_runtime::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_message::ImagePatch;
 use std::rc::Rc;
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`
