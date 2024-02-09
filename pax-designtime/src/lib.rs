@@ -2,20 +2,14 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-pub mod action;
 pub mod cartridge_generation;
-pub mod input;
 pub mod orm;
-pub mod selection;
+pub mod privileged_agent;
 
 pub mod messages;
 pub mod serde_pax;
 
 mod setup;
-use input::FSMEvent;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
@@ -29,18 +23,11 @@ pub use serde_pax::se::{to_pax, Serializer};
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
 type Factories = HashMap<String, Box<fn(ComponentDefinition) -> Box<dyn Any>>>;
-use crate::action::ActionManager;
-use crate::input::InputManager;
 use crate::orm::PaxManifestORM;
-use crate::selection::SelectionManager;
 
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
-    selection_manager: SelectionManager,
-    // active_component_id: String,
     factories: Factories,
-    input_manager: InputManager,
-    action_manager: ActionManager,
     priv_agent_connection: PrivilegedAgentConnection,
 }
 
@@ -50,20 +37,13 @@ impl Debug for DesigntimeManager {
         f.debug_struct("DesigntimeManager").finish()
     }
 }
-pub mod privileged_agent;
 
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let orm = PaxManifestORM::new(manifest);
-        let selection_manager = SelectionManager::new();
-        let action_manager = ActionManager::new();
-        let input_manager = InputManager::new();
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
-            selection_manager,
-            action_manager,
-            input_manager,
             factories,
             priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
                 .expect("couldn't connect to privileged agent"),
@@ -87,11 +67,6 @@ impl DesigntimeManager {
         factory: Box<fn(ComponentDefinition) -> Box<dyn Any>>,
     ) {
         self.factories.insert(type_id, factory);
-    }
-
-    pub fn input_transition(&mut self, event: FSMEvent) -> anyhow::Result<()> {
-        self.input_manager
-            .transition(event, &mut self.action_manager, &mut self.orm)
     }
 
     pub fn get_manifest(&self) -> &PaxManifest {
