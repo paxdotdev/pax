@@ -5,11 +5,7 @@ use std::rc::Rc;
 
 use pax_message::{NativeMessage, OcclusionPatch};
 
-use crate::api::{
-    ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
-    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
-    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
-    ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, NodeContext,
+use crate::api::{CommonProperties, Interpolatable, Layer, NodeContext,
     OcclusionLayerGen, RenderContext, TransitionManager,
 };
 use piet::InterpolationMode;
@@ -79,30 +75,6 @@ impl PropertiesComputable for CommonProperties {
 }
 
 pub struct HandlerRegistry {
-    pub scroll_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsScroll)>,
-    pub clap_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsClap)>,
-    pub touch_start_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTouchStart)>,
-    pub touch_move_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTouchMove)>,
-    pub touch_end_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTouchEnd)>,
-    pub key_down_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyDown)>,
-    pub key_up_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyUp)>,
-    pub key_press_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsKeyPress)>,
-    pub checkbox_change_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsCheckboxChange)>,
-    pub button_click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsButtonClick)>,
-    pub textbox_change_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsTextboxChange)>,
-    pub click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsClick)>,
-    pub mouse_down_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseDown)>,
-    pub mouse_up_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseUp)>,
-    pub mouse_move_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseMove)>,
-    pub mouse_over_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseOver)>,
-    pub mouse_out_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsMouseOut)>,
-    pub double_click_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsDoubleClick)>,
-    pub context_menu_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsContextMenu)>,
-    pub wheel_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, ArgsWheel)>,
-    pub pre_render_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
-    pub tick_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
-    pub mount_handlers: Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext)>,
-    #[cfg(feature = "designtime")]
     pub handlers:
         HashMap<String, Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>)>>,
 }
@@ -110,30 +82,6 @@ pub struct HandlerRegistry {
 impl Default for HandlerRegistry {
     fn default() -> Self {
         HandlerRegistry {
-            scroll_handlers: Vec::new(),
-            clap_handlers: Vec::new(),
-            touch_start_handlers: Vec::new(),
-            touch_move_handlers: Vec::new(),
-            touch_end_handlers: Vec::new(),
-            key_down_handlers: Vec::new(),
-            key_up_handlers: Vec::new(),
-            key_press_handlers: Vec::new(),
-            click_handlers: Vec::new(),
-            mouse_down_handlers: Vec::new(),
-            mouse_up_handlers: Vec::new(),
-            mouse_move_handlers: Vec::new(),
-            mouse_over_handlers: Vec::new(),
-            mouse_out_handlers: Vec::new(),
-            double_click_handlers: Vec::new(),
-            context_menu_handlers: Vec::new(),
-            wheel_handlers: Vec::new(),
-            pre_render_handlers: Vec::new(),
-            mount_handlers: Vec::new(),
-            checkbox_change_handlers: Vec::new(),
-            button_click_handlers: Vec::new(),
-            textbox_change_handlers: Vec::new(),
-            tick_handlers: Vec::new(),
-            #[cfg(feature = "designtime")]
             handlers: HashMap::new(),
         }
     }

@@ -16,7 +16,7 @@ include = [
 
 
 [features]
-default = ["console_error_panic_hook","json", "pax-manifest/parsing"]
+default = ["console_error_panic_hook","json"]
 json = ["serde_json"]
 
 [lib]

@@ -57,9 +57,9 @@ pub fn build_web_chassis_with_cartridge(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    if is_release {
+    //if is_release {
         cmd.arg("--release");
-    }
+    //}
 
     if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");
@@ -107,7 +107,7 @@ pub fn build_web_chassis_with_cartridge(
     if is_release {
         cmd.arg("--release");
     } else {
-        cmd.arg("--dev");
+        cmd.arg("--release");
     }
     if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");
