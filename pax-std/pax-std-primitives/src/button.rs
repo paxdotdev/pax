@@ -1,9 +1,9 @@
-use pax_core::declarative_macros::handle_vtable_update;
-use pax_core::{
+use pax_runtime::declarative_macros::handle_vtable_update;
+use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_message::{AnyCreatePatch, ButtonPatch};
-use pax_runtime_api::Layer;
+use pax_runtime::api::Layer;
 use pax_std::primitives::Button;
 use std::cell::RefCell;
 use std::collections::HashMap;

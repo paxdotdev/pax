@@ -4,7 +4,7 @@ use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::Layer;
+use crate::api::Layer;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
 /// subtree of a component template to be rendered conditionally,
@@ -18,7 +18,7 @@ pub struct ConditionalInstance {
 ///Contains the expression of a conditional, evaluated as an expression.
 #[derive(Default)]
 pub struct ConditionalProperties {
-    pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
+    pub boolean_expression: Box<dyn crate::api::PropertyInstance<bool>>,
     last_boolean_expression: Option<bool>,
 }
 
@@ -91,7 +91,7 @@ impl InstanceNode for ConditionalInstance {
     fn get_clipping_size(
         &self,
         _expanded_node: &ExpandedNode,
-    ) -> Option<(pax_runtime_api::Size, pax_runtime_api::Size)> {
+    ) -> Option<(crate::api::Size, crate::api::Size)> {
         None
     }
 }

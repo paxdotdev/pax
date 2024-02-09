@@ -7,13 +7,13 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::{
+use pax_runtime::{
     recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
     InstanceNodePtrList, InstantiationArgs, PropertiesComputable, PropertiesTreeContext,
     RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
-use pax_runtime_api::{
+use pax_runtime::api::{
     ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
 };
 use pax_std::primitives::Scroller;

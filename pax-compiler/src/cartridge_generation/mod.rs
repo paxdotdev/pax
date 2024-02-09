@@ -5,7 +5,7 @@
 
 use crate::helpers::PKG_DIR_NAME;
 use itertools::Itertools;
-use pax_runtime_api::CommonProperties;
+use pax_runtime::api::CommonProperties;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fs;
@@ -592,7 +592,7 @@ fn recurse_generate_render_nodes_literal(
             .cloned()
             .collect();
 
-        let identifiers_and_types = pax_runtime_api::CommonProperties::get_property_identifiers();
+        let identifiers_and_types = pax_runtime::api::CommonProperties::get_property_identifiers();
 
         fn default_common_property_value(identifier: &str) -> String {
             if identifier == "transform" {

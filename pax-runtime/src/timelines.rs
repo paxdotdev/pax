@@ -1,4 +1,4 @@
-use pax_runtime_api::{Property, Tweenable};
+use pax_runtime::api::{Property, Tweenable};
 
 pub struct PropertyTimeline {
     pub id: String,

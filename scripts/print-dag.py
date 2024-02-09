@@ -17,7 +17,6 @@ PACKAGES = [
     "pax-language-server",
     "pax-macro",
     "pax-message",
-    "pax-runtime-api",
     "pax-std",
     "pax-std/pax-std-primitives"
     "pax-manifest",

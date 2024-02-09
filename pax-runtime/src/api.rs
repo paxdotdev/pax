@@ -1,14 +1,9 @@
-pub mod numeric;
-
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::ffi::CString;
+use lazy_static::lazy_static;
 
 use std::ops::{Add, Deref, Mul, Neg};
-
-#[macro_use]
-extern crate lazy_static;
-extern crate mut_static;
 
 pub use crate::numeric::Numeric;
 use kurbo::BezPath;
@@ -356,7 +351,7 @@ pub struct ArgsContextMenu {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Copy, Clone, Serialize, Deserialize)]
-#[serde(crate = "crate::serde")]
+#[serde(crate = "crate::api::serde")]
 pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
@@ -695,7 +690,7 @@ pub fn register_logger(logger: PlatformSpecificLogger) {
 }
 
 /// Log to the appropriate native logging mechanism
-/// Most often called as `pax_lang::log("some message")`
+/// Most often called as `pax_engine::log("some message")`
 pub fn log(msg: &str) {
     let logging_variant = &(LOGGER.borrow().read().expect("Logger isn't registered").0);
     match logging_variant {
@@ -1179,7 +1174,7 @@ impl Interpolatable for StringBox {}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Default, Serialize, Deserialize)]
-#[serde(crate = "crate::serde")]
+#[serde(crate = "crate::api::serde")]
 pub struct StringBox {
     pub string: String,
 }

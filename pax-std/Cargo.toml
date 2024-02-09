@@ -22,6 +22,7 @@ lazy_static = "1.4.0"
 pax-compiler = {path="../pax-compiler", optional = true, version="0.11.5"}
 serde_json = {version="1.0.95", optional = true}
 pax-manifest = {path = "../pax-manifest", version="0.11.5"}
+pax-runtime = {path = "../pax-runtime", version="0.11.5"}
 serde = { version = "1.0.159", features=["derive"]}
 
 [features]

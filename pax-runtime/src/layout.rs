@@ -1,6 +1,6 @@
 use crate::{ExpandedNode, TransformAndBounds};
 use kurbo::Affine;
-use pax_runtime_api::{Axis, Size, Transform2D};
+use crate::api::{Axis, Size, Transform2D};
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
 /// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.
@@ -61,12 +61,12 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
             if let Some(ref val) = comm.scale_x {
                 val.get().clone()
             } else {
-                Size::Percent(pax_runtime_api::Numeric::from(100.0))
+                Size::Percent(crate::numeric::Numeric::from(100.0))
             },
             if let Some(ref val) = comm.scale_y {
                 val.get().clone()
             } else {
-                Size::Percent(pax_runtime_api::Numeric::from(100.0))
+                Size::Percent(crate::numeric::Numeric::from(100.0))
             },
         ];
         desugared_transform2d.scale = Some(scale);
@@ -88,7 +88,7 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
         let rotate = if let Some(ref val) = comm.rotate {
             val.get().clone()
         } else {
-            pax_runtime_api::Rotation::ZERO()
+            crate::api::Rotation::ZERO()
         };
         desugared_transform2d.rotate = Some(rotate);
 

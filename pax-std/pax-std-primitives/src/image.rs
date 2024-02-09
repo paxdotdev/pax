@@ -1,8 +1,8 @@
-use pax_runtime_api::RenderContext;
+use pax_runtime::api::RenderContext;
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
-use pax_core::{
+use pax_runtime::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -26,7 +26,7 @@ impl InstanceNode for ImageInstance {
                 InstanceFlags {
                     invisible_to_slot: false,
                     invisible_to_raycasting: false,
-                    layer: pax_runtime_api::Layer::Canvas,
+                    layer: pax_runtime::api::Layer::Canvas,
                     is_component: false,
                 },
             ),
@@ -107,7 +107,7 @@ impl InstanceNode for ImageInstance {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        _expanded_node: Option<&pax_core::ExpandedNode>,
+        _expanded_node: Option<&pax_runtime::ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Image").finish_non_exhaustive()
     }
