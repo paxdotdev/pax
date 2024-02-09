@@ -85,7 +85,6 @@ impl RuntimeContext {
         ret
     }
 
-
     pub fn gen_uid(&mut self) -> Uid {
         self.next_uid.0 += 1;
         self.next_uid

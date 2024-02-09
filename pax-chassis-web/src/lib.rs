@@ -183,7 +183,11 @@ impl PaxChassisWeb {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
                     .expect("textbox node exists in engine");
-                node.dispatch_textbox_change(ArgsTextboxChange { text: args.text }, globals, &engine.runtime_context);
+                node.dispatch_textbox_change(
+                    ArgsTextboxChange { text: args.text },
+                    globals,
+                    &engine.runtime_context,
+                );
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let node = engine
@@ -200,7 +204,9 @@ impl PaxChassisWeb {
 
             NativeInterrupt::AddedLayer(_args) => {}
             NativeInterrupt::Click(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_click = ArgsClick {
                         mouse: MouseEventArgs {
@@ -228,7 +234,9 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::Clap(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_clap = ArgsClap {
                         x: args.x,
@@ -239,32 +247,47 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::TouchStart(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let prospective_hit =
-                    engine.runtime_context.get_topmost_element_beneath_ray((first_touch.x, first_touch.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_start = ArgsTouchStart { touches };
-                    topmost_node.dispatch_touch_start(args_touch_start, globals, &engine.runtime_context);
+                    topmost_node.dispatch_touch_start(
+                        args_touch_start,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::TouchMove(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let prospective_hit =
-                    engine.runtime_context.get_topmost_element_beneath_ray((first_touch.x, first_touch.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_move = ArgsTouchMove { touches };
-                    topmost_node.dispatch_touch_move(args_touch_move, globals, &engine.runtime_context);
+                    topmost_node.dispatch_touch_move(
+                        args_touch_move,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::TouchEnd(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let prospective_hit =
-                    engine.runtime_context.get_topmost_element_beneath_ray((first_touch.x, first_touch.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_end = ArgsTouchEnd { touches };
-                    topmost_node.dispatch_touch_end(args_touch_end, globals, &engine.runtime_context);
+                    topmost_node.dispatch_touch_end(
+                        args_touch_end,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::KeyDown(args) => {
@@ -318,11 +341,17 @@ impl PaxChassisWeb {
                             is_repeat: args.is_repeat,
                         },
                     };
-                    topmost_node.dispatch_key_press(args_key_press, globals, &engine.runtime_context);
+                    topmost_node.dispatch_key_press(
+                        args_key_press,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::DoubleClick(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_double_click = ArgsDoubleClick {
                         mouse: MouseEventArgs {
@@ -336,11 +365,17 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_double_click(args_double_click, globals, &engine.runtime_context);
+                    topmost_node.dispatch_double_click(
+                        args_double_click,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::MouseMove(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_move = ArgsMouseMove {
                         mouse: MouseEventArgs {
@@ -354,11 +389,17 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_move(args_mouse_move, globals, &engine.runtime_context);
+                    topmost_node.dispatch_mouse_move(
+                        args_mouse_move,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::Wheel(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let modifiers = args
                         .modifiers
@@ -376,7 +417,9 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::MouseDown(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_down = ArgsMouseDown {
                         mouse: MouseEventArgs {
@@ -390,11 +433,17 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_down(args_mouse_down, globals, &engine.runtime_context);
+                    topmost_node.dispatch_mouse_down(
+                        args_mouse_down,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::MouseUp(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_up = ArgsMouseUp {
                         mouse: MouseEventArgs {
@@ -412,7 +461,9 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::MouseOver(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_over = ArgsMouseOver {
                         mouse: MouseEventArgs {
@@ -426,11 +477,17 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_over(args_mouse_over, globals, &engine.runtime_context);
+                    topmost_node.dispatch_mouse_over(
+                        args_mouse_over,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::MouseOut(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_out = ArgsMouseOut {
                         mouse: MouseEventArgs {
@@ -444,11 +501,17 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_out(args_mouse_out, globals, &engine.runtime_context);
+                    topmost_node.dispatch_mouse_out(
+                        args_mouse_out,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
             NativeInterrupt::ContextMenu(args) => {
-                let prospective_hit = engine.runtime_context.get_topmost_element_beneath_ray((args.x, args.y));
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_context_menu = ArgsContextMenu {
                         mouse: MouseEventArgs {
@@ -462,7 +525,11 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_context_menu(args_context_menu, globals, &engine.runtime_context);
+                    topmost_node.dispatch_context_menu(
+                        args_context_menu,
+                        globals,
+                        &engine.runtime_context,
+                    );
                 }
             }
         };
