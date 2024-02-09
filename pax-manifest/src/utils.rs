@@ -1,6 +1,5 @@
 use crate::{LiteralBlockDefinition, SettingElement, Token, TokenType, ValueDefinition};
 
-use anyhow::{anyhow, Result};
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
@@ -9,10 +8,10 @@ use pest_derive::Parser;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn parse_value(raw_value: &str) -> Result<ValueDefinition> {
-    let mut values = PaxParser::parse(Rule::any_template_value, raw_value)?;
+pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
+    let mut values = PaxParser::parse(Rule::any_template_value, raw_value).unwrap();
     if values.as_str() != raw_value {
-        return Err(anyhow!("no rule matched entire raw value"));
+        return Err("no rule matched entire raw value");
     }
     let value = values.next().unwrap().into_inner().next().unwrap();
     let res = match value.as_rule() {
@@ -35,9 +34,9 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition> {
             ValueDefinition::Identifier(identifier_token, None)
         }
         _ => {
-            return Err(anyhow!(
+            return Err(
                 "couldn't parse value: didn't match literal, expression, or identifier rules"
-            ));
+            );
         }
     };
     Ok(res)

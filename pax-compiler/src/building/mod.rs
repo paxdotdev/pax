@@ -18,7 +18,6 @@ use color_eyre::eyre;
 use tar::Archive;
 
 use crate::{
-    errors::source_map::SourceMap,
     helpers::{copy_dir_recursively, ALL_PKGS, DIR_IGNORE_LIST_MACOS, PKG_DIR_NAME},
     RunContext, RunTarget,
 };
@@ -38,7 +37,6 @@ pub fn build_chassis_with_cartridge(
     pax_dir: &PathBuf,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-    source_map: &SourceMap,
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -79,7 +77,7 @@ pub fn build_chassis_with_cartridge(
             build_apple_chassis_with_cartridge(ctx, &pax_dir, process_child_ids)?;
         }
         RunTarget::Web => {
-            build_web_chassis_with_cartridge(ctx, &pax_dir, process_child_ids, source_map)?;
+            build_web_chassis_with_cartridge(ctx, &pax_dir, process_child_ids)?;
         }
     }
     Ok(())

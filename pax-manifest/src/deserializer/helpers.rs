@@ -4,7 +4,7 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use crate::{
+use crate::constants::{
     NUMERIC, STRING_BOX,
 };
 

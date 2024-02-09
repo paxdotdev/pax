@@ -2,36 +2,20 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
+use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_message::serde::{Deserialize, Serialize};
-#[allow(unused_imports)]
-use serde_json;
 
 #[cfg(feature = "parsing")]
 pub mod utils;
 
 pub mod cartridge_generation;
+pub mod constants;
 
+#[cfg(feature = "parsing")]
 pub mod deserializer;
 
-pub static TYPE_ID_IF: &str = "IF";
-pub static TYPE_ID_REPEAT: &str = "REPEAT";
-pub static TYPE_ID_SLOT: &str = "SLOT";
-pub static TYPE_ID_COMMENT: &str = "COMMENT";
-
-const NUMERIC: &str = "Numeric";
-const SIZE: &str = "Size";
-const ROTATION: &str = "Rotation";
-const STRING_BOX: &str = "StringBox";
-const DEGREES: &str = "Degrees";
-const RADIANS: &str = "Radians";
-const PIXELS: &str = "Pixels";
-const PERCENT: &str = "Percent";
-const INTEGER: &str = "Integer";
-const FLOAT: &str = "Float";
-const TRUE: &str = "true";
-
 /// Definition container for an entire Pax cartridge
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 #[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {

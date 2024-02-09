@@ -5,6 +5,7 @@
 
 use crate::helpers::PKG_DIR_NAME;
 use itertools::Itertools;
+use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
 
@@ -94,12 +95,21 @@ pub fn generate_and_overwrite_cartridge(
             components: manifest.generate_codegen_component_info(),
             common_properties: CommonProperty::get_as_common_property(),
             type_table: manifest.type_table.clone(),
+            is_designtime: cfg!(feature = "designtime"),
         },
     );
 
+
+    #[cfg(not(feature = "designtime"))]
+    {
+        let de_map: HashMap<String, String> = HashMap::new();
+        let de_map_str = serde_json::to_string(&de_map).unwrap();
+        let de_map_path = target_dir.join("de_map.json");
+        fs::write(de_map_path, de_map_str).unwrap();
+    }
+
     // write manifest to cartridge
     let manifest_path = target_dir.join(INITIAL_MANIFEST_FILE_NAME);
-    //let buf = rmp_serde::to_vec(&manifest).unwrap();
     fs::write(manifest_path, serde_json::to_string(manifest).unwrap()).unwrap();
 
     // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
