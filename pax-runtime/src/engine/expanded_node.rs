@@ -90,7 +90,7 @@ pub struct ExpandedNode {
 
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident) => {
-        pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
+        pub fn $fn_name(&self, args: $arg_type, globals: &Globals, ctx: &RuntimeContext) {
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.properties)
@@ -114,6 +114,7 @@ macro_rules! dispatch_event_handler {
                     bounds_self,
                     bounds_parent,
                     frames_elapsed: globals.frames_elapsed,
+                    runtime_context: ctx,
                     #[cfg(feature = "designtime")]
                     designtime: globals.designtime.clone(),
                 };
@@ -131,7 +132,7 @@ macro_rules! dispatch_event_handler {
             }
 
             if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
-                parent.$fn_name(args, globals);
+                parent.$fn_name(args, globals, ctx);
             }
         }
     };
@@ -362,7 +363,7 @@ impl ExpandedNode {
         func(self, val);
     }
 
-    pub fn get_node_context(&self, context: &RuntimeContext) -> NodeContext {
+    pub fn get_node_context<'a>(&'a self, context: &'a RuntimeContext) -> NodeContext {
         let globals = context.globals();
         let computed_props = self.layout_properties.borrow();
         let bounds_self = computed_props
@@ -381,6 +382,7 @@ impl ExpandedNode {
             frames_elapsed: globals.frames_elapsed,
             bounds_self,
             bounds_parent,
+            runtime_context: context,
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }

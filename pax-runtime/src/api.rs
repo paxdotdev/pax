@@ -1,24 +1,25 @@
-use lazy_static::lazy_static;
-use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::ffi::CString;
-
 use std::ops::{Add, Deref, Mul, Neg};
 
-pub use crate::numeric::Numeric;
+#[cfg(feature = "designtime")]
+use std::rc::Rc;
+
 use kurbo::BezPath;
+use lazy_static::lazy_static;
 use mut_static::MutStatic;
-pub use pax_message::serde;
-use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use piet::PaintBrush;
+
+use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
+use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
+pub use pax_message::serde;
+pub use crate::numeric::Numeric;
+use crate::RuntimeContext;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "designtime")]
-use std::rc::Rc;
 
 #[cfg(feature = "designtime")]
 use std::cell::RefCell;
@@ -120,13 +121,15 @@ pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct NodeContext {
+pub struct NodeContext<'a> {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's immediate container (parent) in px
     pub bounds_parent: (f64, f64),
     /// The bounds of this element in px
     pub bounds_self: (f64, f64),
+    /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
+    pub runtime_context: &'a RuntimeContext,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
@@ -390,9 +393,7 @@ impl Add for Size {
     }
 }
 
-use std::ops::Sub;
-
-impl Sub for Size {
+impl std::ops::Sub for Size {
     type Output = Size;
     fn sub(self, rhs: Self) -> Self::Output {
         let mut pixel_component: Numeric = Default::default();
