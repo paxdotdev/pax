@@ -1,11 +1,11 @@
 pub extern crate pax_macro;
 pub use pax_macro::*;
 
-pub use pax_runtime_api as api;
+pub use pax_runtime::api;
 
-pub use pax_runtime_api::log;
-pub use pax_runtime_api::serde;
-pub use pax_runtime_api::Property;
+pub use pax_runtime::api::log;
+pub use pax_runtime::api::serde;
+pub use pax_runtime::api::Property;
 
 mod declarative_macros {
     #[macro_export]

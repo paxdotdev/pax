@@ -5,7 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-lang = { version="VERSION_PLACEHOLDER"}
+pax-engine = { version="VERSION_PLACEHOLDER"}
 pax-std = { version="VERSION_PLACEHOLDER"}
 pax-compiler = {version = "VERSION_PLACEHOLDER", optional = true}
 pax-manifest = {version = "VERSION_PLACEHOLDER", optional = true}
@@ -21,4 +21,4 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]

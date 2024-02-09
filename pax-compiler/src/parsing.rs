@@ -1305,7 +1305,7 @@ fn span_to_location(span: &Span) -> LocationInfo {
 /// on primitive types
 pub trait Reflectable {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
-        //Default impl for primitives and pax_runtime_api
+        //Default impl for primitives and pax_runtime::api
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
             type_id: type_id.to_string(),
@@ -1459,9 +1459,9 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     }
 }
 
-impl Reflectable for pax_runtime_api::Size {
+impl Reflectable for pax_runtime::api::Size {
     fn get_import_path() -> String {
-        "pax_lang::api::Size".to_string()
+        "pax_engine::api::Size".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
@@ -1469,9 +1469,9 @@ impl Reflectable for pax_runtime_api::Size {
     }
 }
 
-impl Reflectable for pax_runtime_api::Rotation {
+impl Reflectable for pax_runtime::api::Rotation {
     fn get_import_path() -> String {
-        "pax_lang::api::Rotation".to_string()
+        "pax_engine::api::Rotation".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
@@ -1479,9 +1479,9 @@ impl Reflectable for pax_runtime_api::Rotation {
     }
 }
 
-impl Reflectable for pax_runtime_api::Numeric {
+impl Reflectable for pax_runtime::api::Numeric {
     fn get_import_path() -> String {
-        "pax_lang::api::Numeric".to_string()
+        "pax_engine::api::Numeric".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
@@ -1499,9 +1499,9 @@ impl Reflectable for kurbo::Point {
     }
 }
 
-impl Reflectable for pax_runtime_api::Transform2D {
+impl Reflectable for pax_runtime::api::Transform2D {
     fn get_import_path() -> String {
-        "pax_lang::api::Transform2D".to_string()
+        "pax_engine::api::Transform2D".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
@@ -1509,9 +1509,9 @@ impl Reflectable for pax_runtime_api::Transform2D {
     }
 }
 
-impl Reflectable for pax_runtime_api::StringBox {
+impl Reflectable for pax_runtime::api::StringBox {
     fn get_import_path() -> String {
-        "pax_lang::api::StringBox".to_string()
+        "pax_engine::api::StringBox".to_string()
     }
     fn get_self_pascal_identifier() -> String {
         "StringBox".to_string()

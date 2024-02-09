@@ -3,11 +3,11 @@ use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
 
+use crate::api::Layer;
 use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::Layer;
 
 /// A special "control-flow" primitive associated with the `for` statement.
 /// Repeat allows for nodes to be rendered dynamically per data specified in `source_expression`.
@@ -23,9 +23,9 @@ pub struct RepeatInstance {
 #[derive(Default)]
 pub struct RepeatProperties {
     pub source_expression_vec:
-        Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
+        Option<Box<dyn crate::api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
     pub source_expression_range:
-        Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
+        Option<Box<dyn crate::api::PropertyInstance<std::ops::Range<isize>>>>,
     last_len: usize,
     last_bounds: (f64, f64),
 }

@@ -2,7 +2,7 @@ use colored::{ColoredString, Colorize};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use pax_manifest::HostCrateInfo;
-use pax_runtime_api::serde::Deserialize;
+use pax_runtime::api::serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -33,7 +33,7 @@ pub const ERR_SPAWN: &str = "failed to spawn child";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
-pub const ALL_PKGS: [&'static str; 14] = [
+pub const ALL_PKGS: [&'static str; 13] = [
     "pax-cartridge",
     "pax-chassis-common",
     "pax-chassis-ios",
@@ -41,23 +41,22 @@ pub const ALL_PKGS: [&'static str; 14] = [
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
-    "pax-core",
-    "pax-lang",
+    "pax-runtime",
+    "pax-engine",
     "pax-macro",
     "pax-message",
-    "pax-runtime-api",
     "pax-std",
     "pax-manifest",
 ];
 
 #[derive(Debug, Deserialize)]
-#[serde(crate = "pax_runtime_api::serde")]
+#[serde(crate = "pax_runtime::api::serde")]
 struct Metadata {
     packages: Vec<Package>,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(crate = "pax_runtime_api::serde")]
+#[serde(crate = "pax_runtime::api::serde")]
 struct Package {
     name: String,
     version: String,
@@ -251,7 +250,7 @@ pub fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'stati
         }
     }
 
-    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
+    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-engine` to your Cargo.toml to resolve this error.")
 }
 
 /// Helper recursive fs copy method, like fs::copy, but suited for our purposes.

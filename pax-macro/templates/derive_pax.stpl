@@ -10,12 +10,12 @@
 
         let (mut ctx, _) = <<%= pascal_identifier %> as pax_compiler::parsing::Reflectable>::parse_to_manifest(ctx);
 
-        //Special-case pax_runtime_api built-ins, ensure they're imported at least once because it's a built-in but must be surfaced through
+        //Special-case pax_runtime::api built-ins, ensure they're imported at least once because it's a built-in but must be surfaced through
         //the userland project in order to ensure deduping
-        ctx.import_paths.insert(<pax_lang::api::Size as pax_compiler::parsing::Reflectable>::get_import_path());
-        ctx.import_paths.insert(<pax_lang::api::Numeric as pax_compiler::parsing::Reflectable>::get_import_path());
-        ctx.import_paths.insert(<pax_lang::api::Rotation as pax_compiler::parsing::Reflectable>::get_import_path());
-        ctx.import_paths.insert(<pax_lang::api::Transform2D as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Size as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Numeric as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Rotation as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Transform2D as pax_compiler::parsing::Reflectable>::get_import_path());
 
         let manifest = pax_manifest::PaxManifest {
             components: ctx.component_definitions,
@@ -38,7 +38,7 @@
 <% } %>
 
 <% if !is_custom_interpolatable { %>
-    impl pax_lang::api::Interpolatable for <%= pascal_identifier %> {}
+    impl pax_engine::api::Interpolatable for <%= pascal_identifier %> {}
 <% } %>
 
 #[cfg(feature = "parser")]

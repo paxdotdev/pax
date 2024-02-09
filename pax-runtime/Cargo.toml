@@ -1,11 +1,11 @@
 [package]
-name = "pax-core"
+name = "pax-runtime"
 version = "0.11.5"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
-repository = "https://www.github.com/pax-lang/pax"
+repository = "https://www.github.com/paxproject/pax"
 description = "Core shared runtime and rendering engine for Pax"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,6 +14,8 @@ description = "Core shared runtime and rendering engine for Pax"
 piet = "0.6.0"
 piet-common = "0.6.0"
 kurbo = "0.9.0"
-pax-runtime-api = {path = "../pax-runtime-api", version="0.11.5"}
+serde = {version="1.0.196", features=["derive"]}
+lazy_static = "1.4.0"
+mut_static = "5.0.0"
 pax-message = {path = "../pax-message", version="0.11.5"}
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}

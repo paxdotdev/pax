@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
-use pax_lang::api::{ArgsClick, ArgsWheel, EasingCurve, NodeContext};
-use pax_lang::*;
+use pax_engine::api::{ArgsClick, ArgsWheel, EasingCurve, NodeContext};
+use pax_engine::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[pax]

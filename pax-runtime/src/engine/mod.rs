@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use pax_message::{NativeMessage, OcclusionPatch};
 
-use pax_runtime_api::{
+use crate::api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
     ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
     ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
@@ -47,8 +47,8 @@ pub struct PaxEngine {
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
-//so that it can use the type RenderTreeContext (defined in pax_core, which depends on pax_runtime_api, which
-//defines CommonProperties, and which can thus not depend on pax_core due to a would-be circular dependency.)
+//so that it can use the type RenderTreeContext (defined in pax_runtime, which depends on crate::api, which
+//defines CommonProperties, and which can thus not depend on pax_runtime due to a would-be circular dependency.)
 pub trait PropertiesComputable {
     fn compute_properties(
         &mut self,
@@ -165,7 +165,7 @@ impl<R: piet::RenderContext> Renderer<R> {
     }
 }
 
-impl<R: piet::RenderContext> pax_runtime_api::RenderContext for Renderer<R> {
+impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
     fn fill(&mut self, layer: &str, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
         self.backends.get_mut(layer).unwrap().fill(path, brush);
     }
@@ -292,10 +292,10 @@ impl PaxEngine {
     pub fn new(
         main_component_instance: Rc<ComponentInstance>,
         expression_table: ExpressionTable,
-        logger: pax_runtime_api::PlatformSpecificLogger,
+        logger: crate::api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
     ) -> Self {
-        pax_runtime_api::register_logger(logger);
+        crate::api::register_logger(logger);
 
         let globals = Globals {
             frames_elapsed: 0,
@@ -320,11 +320,11 @@ impl PaxEngine {
     pub fn new_with_designtime(
         main_component_instance: Rc<ComponentInstance>,
         expression_table: ExpressionTable,
-        logger: pax_runtime_api::PlatformSpecificLogger,
+        logger: crate::api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
     ) -> Self {
-        pax_runtime_api::register_logger(logger);
+        crate::api::register_logger(logger);
 
         let globals = Globals {
             frames_elapsed: 0,
@@ -405,7 +405,7 @@ impl PaxEngine {
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         // This is pretty useful during debugging - left it here since I use it often. /Sam
-        // pax_runtime_api::log(&format!("tree: {:#?}", self.root_node));
+        // crate::api::log(&format!("tree: {:#?}", self.root_node));
 
         self.root_node
             .recurse_render(&mut self.runtime_context, rcs);

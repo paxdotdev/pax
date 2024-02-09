@@ -2,11 +2,11 @@ use core::option::Option;
 
 use std::rc::Rc;
 
+use crate::api::Layer;
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::Layer;
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
 /// an slot_child can be rendered.  Slot relies on `slot_children` being present
@@ -25,7 +25,7 @@ pub struct SlotInstance {
 ///Contains the index value for slot, either a literal or an expression.
 #[derive(Default)]
 pub struct SlotProperties {
-    pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
+    pub index: Box<dyn crate::api::PropertyInstance<crate::api::Numeric>>,
     last_index: usize,
     last_node_id: Option<u32>,
 }

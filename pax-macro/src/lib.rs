@@ -510,7 +510,7 @@ pub fn pax(
             let syn_ident = syn::Ident::new(ident, Span::call_site());
             if ["Serialize", "Deserialize"].contains(&ident) {
                 // fully qualify serde dependencies
-                quote! {pax_lang::serde::#syn_ident,}
+                quote! {pax_engine::serde::#syn_ident,}
             } else {
                 quote! {#syn_ident,}
             }
@@ -519,7 +519,7 @@ pub fn pax(
 
     let output = quote! {
         #[derive(#derives)]
-        #[serde(crate = "pax_lang::serde")]
+        #[serde(crate = "pax_engine::serde")]
         #input
         #appended_tokens
     };
