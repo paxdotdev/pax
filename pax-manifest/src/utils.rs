@@ -9,6 +9,9 @@ use pest_derive::Parser;
 pub struct PaxParser;
 
 pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
+    if raw_value.is_empty() {
+        return Err("raw value cannot be empty");
+    }
     let mut values = PaxParser::parse(Rule::any_template_value, raw_value).unwrap();
     if values.as_str() != raw_value {
         return Err("no rule matched entire raw value");
