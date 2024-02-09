@@ -2,13 +2,16 @@ use crate::model::AppState;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 
-pub mod create_components;
-pub mod pointer_events;
-pub mod tool_events;
+pub mod meta;
+pub mod orm;
+pub mod pointer;
+pub mod tools;
+
+type UndoFunc = dyn FnOnce(&mut ActionContext) -> Result<()>;
 
 #[derive(Default)]
 pub struct ActionManager {
-    action_stack: Vec<Box<dyn UndoableAction>>,
+    action_stack: Vec<Box<UndoFunc>>,
 }
 
 impl ActionManager {
@@ -17,29 +20,29 @@ impl ActionManager {
         app_state: &mut AppState,
         designtime: &mut DesigntimeManager,
     ) -> Result<()> {
-        let mut action = self.action_stack.pop().ok_or(anyhow!("undo stack embty"))?;
+        let mut undo_fn = self.action_stack.pop().ok_or(anyhow!("undo stack embty"))?;
         let mut ctx = ActionContext {
             designtime,
             app_state,
             action_manager: self,
         };
-        action.undo(&mut ctx)?;
-        Ok(())
+        undo_fn(&mut ctx)
     }
 }
 
-pub enum Action {
-    Undoable(Box<dyn UndoableAction>),
-    Oneshot(Box<dyn OneshotAction>),
+pub trait Action {
+    fn perform(self, ctx: &mut ActionContext) -> Result<Undoable>;
 }
 
-pub trait UndoableAction {
-    fn perform(&mut self, ctx: &mut ActionContext) -> Result<()>;
-    fn undo(&mut self, ctx: &mut ActionContext) -> Result<()>;
+impl Action for Box<dyn Action> {
+    fn perform(self, ctx: &mut ActionContext) -> Result<Undoable> {
+        self.perform(ctx)
+    }
 }
 
-pub trait OneshotAction {
-    fn perform(&mut self, ctx: &mut ActionContext) -> Result<()>;
+pub enum Undoable {
+    Yes(Box<UndoFunc>),
+    No,
 }
 
 pub struct ActionContext<'a> {
@@ -49,14 +52,10 @@ pub struct ActionContext<'a> {
 }
 
 impl ActionContext<'_> {
-    pub fn perform(&mut self, action: impl Into<Action>) -> Result<()> {
-        match action.into() {
-            Action::Undoable(mut a) => {
-                let res = a.perform(self)?;
-                self.action_manager.action_stack.push(a);
-                Ok(res)
-            }
-            Action::Oneshot(mut a) => a.perform(self),
+    pub fn perform(&mut self, action: impl Action) -> Result<()> {
+        if let Undoable::Yes(undo_fn) = action.perform(self)? {
+            self.action_manager.action_stack.push(undo_fn);
         }
+        Ok(())
     }
 }
