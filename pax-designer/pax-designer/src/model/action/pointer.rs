@@ -1,4 +1,4 @@
-use super::Undoable;
+use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::model::action;
 use crate::model::AppState;
@@ -20,7 +20,7 @@ pub enum Pointer {
 }
 
 impl Action for PointerAction {
-    fn perform(self, ctx: &mut ActionContext) -> Result<Undoable> {
+    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         if let Some(tool) = ctx.app_state.selected_tool {
             ctx.perform(action::tools::ToolAction {
                 tool,
@@ -31,6 +31,6 @@ impl Action for PointerAction {
         } else {
             return Err(anyhow!("only rect tool supported at the moment"));
         }
-        Ok(Undoable::No)
+        Ok(CanUndo::No)
     }
 }

@@ -1,11 +1,11 @@
-use super::{Action, ActionContext, Undoable};
+use super::{Action, ActionContext, CanUndo};
 use crate::model::AppState;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 
 pub struct CreateRectangle {}
 impl Action for CreateRectangle {
-    fn perform(self, ctx: &mut ActionContext) -> Result<Undoable> {
+    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut builder = ctx.designtime.get_orm_mut().build_new_node(
             "pax_designer::pax_reexports::designer_project::Example".to_owned(),
             "pax_designer::pax_reexports::pax_std::Rectangle".to_owned(),
@@ -22,10 +22,10 @@ impl Action for CreateRectangle {
         builder
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
-        pax_lang::api::log("saved new rect");
+        pax_engine::api::log("saved new rect");
 
-        Ok(Undoable::Yes(Box::new(|ctx: &mut ActionContext| {
-            pax_lang::api::log("undid rect");
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            pax_engine::api::log("undid rect");
             ctx.designtime
                 .get_orm_mut()
                 .undo()
