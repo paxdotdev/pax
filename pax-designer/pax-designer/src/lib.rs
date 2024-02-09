@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
-use pax_lang::api::*;
-use pax_lang::*;
+use pax_engine::api::*;
+use pax_engine::*;
 
 pub mod controls;
 pub mod designtime_component_viewer;
