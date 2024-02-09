@@ -1,5 +1,5 @@
-use pax_message::NativeMessage;
 use crate::numeric::Numeric;
+use pax_message::NativeMessage;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::{any::Any, collections::HashMap};

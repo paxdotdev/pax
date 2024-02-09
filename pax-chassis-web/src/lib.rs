@@ -1,11 +1,11 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
-use pax_runtime::ExpressionTable;
 use pax_runtime::api::ArgsButtonClick;
 use pax_runtime::api::ArgsCheckboxChange;
 use pax_runtime::api::ArgsTextboxChange;
 use pax_runtime::api::RenderContext;
+use pax_runtime::ExpressionTable;
 use std::cell::RefCell;
 
 use std::rc::Rc;

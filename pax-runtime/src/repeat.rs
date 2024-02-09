@@ -3,11 +3,11 @@ use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
 
+use crate::api::Layer;
 use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use crate::api::Layer;
 
 /// A special "control-flow" primitive associated with the `for` statement.
 /// Repeat allows for nodes to be rendered dynamically per data specified in `source_expression`.

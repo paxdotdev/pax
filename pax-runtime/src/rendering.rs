@@ -5,8 +5,8 @@ use std::iter;
 use std::ops::Mul;
 use std::rc::Rc;
 
-use kurbo::Affine;
 use crate::api::{CommonProperties, RenderContext};
+use kurbo::Affine;
 use piet::{Color, StrokeStyle};
 
 use crate::api::{ArgsScroll, Layer, Size};

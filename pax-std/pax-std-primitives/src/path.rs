@@ -1,10 +1,10 @@
 use kurbo::BezPath;
 use pax_runtime::declarative_macros::handle_vtable_update;
 
+use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api::{Layer, RenderContext};
 use pax_std::primitives::Path;
 use pax_std::types::PathSegment;
 
