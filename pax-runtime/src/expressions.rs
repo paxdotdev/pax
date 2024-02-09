@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::properties::RuntimePropertiesStackFrame;
 
-use pax_runtime_api::{EasingCurve, PropertyInstance, TransitionManager, TransitionQueueEntry};
+use crate::api::{EasingCurve, PropertyInstance, TransitionManager, TransitionQueueEntry};
 
 // The `Expression` form of a property — stores a function
 // that evaluates the value itself, as well as a "register" of

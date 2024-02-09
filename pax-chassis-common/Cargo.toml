@@ -6,7 +6,7 @@ edition = "2021"
 description = "Shared resources for Pax Chassis"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
-repository = "https://www.github.com/pax-lang/pax"
+repository = "https://www.github.com/paxproject/pax"
 include = ["src/**/*","pax-swift-common/**/*"]
 
 [lib]
@@ -14,10 +14,9 @@ include = ["src/**/*","pax-swift-common/**/*"]
 [dependencies]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
-pax-core = { path = "../pax-core", version="0.11.5" }
+pax-runtime = { path = "../pax-runtime", version="0.11.5" }
 pax-cartridge = {path="../pax-cartridge", version="0.11.5"}
 pax-message = {path = "../pax-message", version="0.11.5"}
-pax-runtime-api = {path = "../pax-runtime-api", version="0.11.5"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --

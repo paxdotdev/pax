@@ -5,11 +5,11 @@ use std::iter;
 use std::ops::Mul;
 use std::rc::Rc;
 
+use crate::api::{CommonProperties, RenderContext};
 use kurbo::Affine;
-use pax_runtime_api::{CommonProperties, RenderContext};
 use piet::{Color, StrokeStyle};
 
-use pax_runtime_api::{ArgsScroll, Layer, Size};
+use crate::api::{ArgsScroll, Layer, Size};
 
 use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
 
@@ -179,7 +179,7 @@ pub trait InstanceNode {
     /// Returns the bounds of an InstanceNode.  This computation requires a stateful [`ExpandedNode`], yet requires
     /// customization at the trait-implementor level (dyn InstanceNode), thus this method accepts an expanded_node
     /// parameter.
-    /// The default implementation retrieves the expanded_node's [`pax_runtime_api::CommonProperties#width`] and [`pax_runtime_api::CommonProperties#height`]
+    /// The default implementation retrieves the expanded_node's [`crate::api::CommonProperties#width`] and [`crate::api::CommonProperties#height`]
     fn get_size(&self, expanded_node: &ExpandedNode) -> (Size, Size) {
         let common_properties = expanded_node.get_common_properties();
         let common_properties_borrowed = common_properties.borrow();

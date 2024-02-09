@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::Interpolatable;
+use crate::api::Interpolatable;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
@@ -9,7 +9,7 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 /// It encapsulates the built-in Rust numeric scalar types and defines behavior across them
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Copy, Serialize, Deserialize)]
-#[serde(crate = "crate::serde")]
+#[serde(crate = "crate::api::serde")]
 pub enum Numeric {
     Integer(isize),
     Float(f64),

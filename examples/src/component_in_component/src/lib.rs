@@ -2,8 +2,8 @@
 
 mod inner;
 use inner::Inner;
-use pax_lang::api::*;
-use pax_lang::*;
+use pax_engine::api::*;
+use pax_engine::*;
 use pax_std::components::Stacker;
 use pax_std::components::*;
 use pax_std::primitives::*;

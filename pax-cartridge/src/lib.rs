@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use pax_core::{ComponentInstance, ExpressionContext, InstantiationArgs};
+use pax_runtime::{ComponentInstance, ExpressionContext, InstantiationArgs};
 use piet_common::RenderContext;
 use std::rc::Rc;
 

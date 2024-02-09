@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
-use pax_lang::*;
-use pax_lang::api::*;
+use pax_engine::*;
+use pax_engine::api::*;
 use pax_std::primitives::*;
 use pax_std::types::*;
 use pax_std::types::text::*;

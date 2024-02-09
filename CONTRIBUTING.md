@@ -5,7 +5,7 @@ We warmly welcome contributions!  Pax is free and open source software, licensed
 ### Running the monorepo
 Follow the *workstation* (e.g. macOS, Linux) and *target* (e.g. WebAssembly, macOS app) setup instructions here: https://docs.pax.dev/start-creating-a-project.html
 
-The examples are an appropriate testbed for developing the monorepo.  Any pending changes to e.g. `pax-core` will be reflected
+The examples are an appropriate testbed for developing the monorepo.  Any pending changes to e.g. `pax-runtime` will be reflected
 when running examples.  You can run any of the examples with the root monorepo command `cargo run --example fireworks`, or from inside one of the example directories you can use the bash script CLI surrogate: `cd examples/src/fireworks && ./pax run --target=web`
 
 ### Communicating with our team

@@ -1,8 +1,8 @@
-use pax_core::{BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs};
+use pax_runtime::{BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs};
 use pax_std::primitives::Group;
 use std::rc::Rc;
 
-use pax_runtime_api::Layer;
+use pax_runtime::api::Layer;
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.

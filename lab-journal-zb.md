@@ -236,7 +236,7 @@ common.GeoPoint{ latitude: 10.0, longitude: -5.5 }
 
 
 ### On polymorphic data + stack frames
-_Date of authoring unknown; moved from pax-core/src/repeat.rs on Oct 31 2023_
+_Date of authoring unknown; moved from pax-runtime/src/repeat.rs on Oct 31 2023_
 ---------------
 
 To support polymorphic data <T> inside stack frames,
@@ -484,7 +484,7 @@ Note it's easier to generate RectangleProperties alongside Rectangle in cartridg
 with an engine dependency they seem to need to exist in fully code-genned cartridge-runtime...
 
 One possible tool to share the core Property definition is to split Property, PropertyLiteral,
-PropertyExpression, and PropertyTimeline into pax_runtime_api (importable by both Engine & userland) —
+PropertyExpression, and PropertyTimeline into pax_runtime::api (importable by both Engine & userland) —
 then to write traits/impls that allow engine to `compute_in_place` and `read`
 
 *^ proceeding with this strategy*
@@ -668,7 +668,7 @@ Should this be the general approach?  Is there a benefit to doing this?
 though note that this could be generalized by exposing an iterator over
 
 two options:
-- expose RenderTreeContext via pax_runtime_api, untangle as needed, e.g. through traits or closure-passing
+- expose RenderTreeContext via pax_runtime::api, untangle as needed, e.g. through traits or closure-passing
 - codegen `compute_properties_fn` closures in RIL, cartridge-runtime; add properties intelligence to parser
 
 For the former, conceptually it's a tough split.  the RenderTreeContext is squarely conceptually attached to the runtime.
@@ -1402,11 +1402,11 @@ Decision: port to Size, panic if px value is passed
 Stacker needs to update its cached computed layout as a function of its ~six properties:
 
 pub computed_layout_spec: Vec<Rc<StackerCell>>,
-pub direction:  Box<dyn pax_lang::api::Property<StackerDirection>>,
-pub cells: Box<dyn pax_lang::api::Property<usize>>,
-pub gutter: Box<dyn pax_lang::api::Property<pax_lang::api::Size>>,
-pub overrides_cell_size: Option(Vec<(usize, pax_lang::api::Size)>),
-pub overrides_gutter_size: Option(Vec<(usize, pax_lang::api::Size)>),
+pub direction:  Box<dyn pax_engine::api::Property<StackerDirection>>,
+pub cells: Box<dyn pax_engine::api::Property<usize>>,
+pub gutter: Box<dyn pax_engine::api::Property<pax_engine::api::Size>>,
+pub overrides_cell_size: Option(Vec<(usize, pax_engine::api::Size)>),
+pub overrides_gutter_size: Option(Vec<(usize, pax_engine::api::Size)>),
 
 
 As a single expression? (probably requires functional list operators in PAXEL, like `map`, as well
@@ -1514,7 +1514,7 @@ Is it the API object?  It would be the easiest to author (`impl Stacker { ... }`
 Let's say it's the API object.  Can we also have the Properties available on that API object?
 (This would suggest that the PropertiesObject and the API object are the same thing.
 This would further suggest that RectangleProperties -> Rectangle, and that the user is responsible
-for wrapping properties in Box<pax_lang::api::Property<>> — or that the `pax` macro help in this regard
+for wrapping properties in Box<pax_engine::api::Property<>> — or that the `pax` macro help in this regard
 (perhaps suppressible with an arg to the macro))
 
 So, we can reduce our surface area to:
@@ -1527,7 +1527,7 @@ So, we can reduce our surface area to:
 (cont. 2022-03-07)
 
 SO: when declaring a component instance, say `Root` or `Stacker` —
-1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax_lang::api::Property<some_type>>` properties
+1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax_engine::api::Property<some_type>>` properties
 2. there will be auto-generated Instance impl (or Factory, or boilerplate instantiation code)
     1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
 3.
@@ -2507,7 +2507,7 @@ impl HelloWorld {
     
     #[pax_on(PreMount)]
     pub fn mount(&mut self) {
-        pax_lang::async(do_async_things, self::http_callback);
+        pax_engine::async(do_async_things, self::http_callback);
     }
     
     pub fn http_callback(&mut self, args: ArgsCallback<DataType>) {
@@ -2939,7 +2939,7 @@ error[E0277]: the trait bound `R: piet::render_context::RenderContext` is not sa
    |                                                                                              ^^^^^^^^^^^^^^^^^^^^ the trait `piet::render_context::RenderContext` is not implemented for `R`
    |
 note: required by a bound in `ExpressionContext`
-  --> /Users/zack/.cargo/registry/src/github.com-1ecc6299db9ec823/pax-core-0.0.1/src/expressions.rs:97:47
+  --> /Users/zack/.cargo/registry/src/github.com-1ecc6299db9ec823/pax-runtime-0.0.1/src/expressions.rs:97:47
    |
 97 | pub struct ExpressionContext<'a, R: 'static + RenderContext> {
    |                                               ^^^^^^^^^^^^^ required by this bound in `ExpressionContext`
@@ -2972,13 +2972,13 @@ error: package collision in the lockfile: packages pax-properties-coproduct v0.0
 When building `pax-example/.pax/chassis/MacOS`, we get a collision of `pax-properties-coproduct`.  Why?
 
 1. we're patching pax-properties-coproduct 0.0.1 to refer to our relative, codegenned properties-coproduct at `.pax/properties-coproduct`.
-2. Meanwhile, `pax-core` refers to a relative path for `pax-properties-coproduct`, `@/pax/pax-properties-coproduct`.  It appears that `patch` doesn't
-   work alongside a relative path.  This can be validated by removing `path = ../pax-properties-coproduct` from pax/pax-core/Cargo.toml —however, then we can't build the core library by itself!
+2. Meanwhile, `pax-runtime` refers to a relative path for `pax-properties-coproduct`, `@/pax/pax-properties-coproduct`.  It appears that `patch` doesn't
+   work alongside a relative path.  This can be validated by removing `path = ../pax-properties-coproduct` from pax/pax-runtime/Cargo.toml —however, then we can't build the core library by itself!
 
 Possible options:
-    Copy `pax-core` into the `.pax` codegen folder (along with everything else, probably!)
+    Copy `pax-runtime` into the `.pax` codegen folder (along with everything else, probably!)
     Deal with a library that doesn't build standalone (blech)
-    Point to `.pax/properties-coproduct` even for core lib deps!  e.g. pax-core::Cargo.toml can refer to path
+    Point to `.pax/properties-coproduct` even for core lib deps!  e.g. pax-runtime::Cargo.toml can refer to path
     Revisit lib_dev_mode: punt for later, just rely on crates.io for pax-example/.pax projects
 
 Conclusion, as of 1/18:
@@ -3252,8 +3252,8 @@ Probably the same issue as "cannot yet use enum literals in PAXEL."  (so cannot 
 
 3) when I added stacker to lib, ran into the same import issue with built-ins for Numeric/Size and the re-exports of them by stacker. Solved this by removing Numeric & Size from the built-ins. But a real solution would be to add proper dedupe logic. Wasn't immediately obvious if we should just use type name to dedupe.
 
-Probably due to different apparent import paths for the aliased pax_lang::... import vs. the pax_runtime_api::... import, both pointing to the same struct
-Using the `import_path` discovered dynamically in our hard-coded list, instead of using `pax_runtime_api::Numeric` in the hard-coded list, for example, is probably a suitable approach
+Probably due to different apparent import paths for the aliased pax_engine::... import vs. the pax_runtime::api::... import, both pointing to the same struct
+Using the `import_path` discovered dynamically in our hard-coded list, instead of using `pax_runtime::api::Numeric` in the hard-coded list, for example, is probably a suitable approach
 
 4) Hit a bug when using the stacker horizontally with text. Realized I had somehow lost absolute positioning on the native layer. Fixed it and finished navbar
 
@@ -3406,7 +3406,7 @@ TODO:
         2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
         3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
         NOTE: see Aug 28 entry for resolution
- [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
+ [x] Assess viability of pointing userland projects to .pax/pax-engine (for example)
  [-] verify that include_dir!-based builds work, in addition to libdev builds
      [-] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
 

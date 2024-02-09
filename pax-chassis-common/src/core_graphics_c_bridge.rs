@@ -15,13 +15,13 @@ use flexbuffers::DeserializationError;
 use serde::Serialize;
 
 use pax_cartridge;
-use pax_core::{ExpressionTable, PaxEngine, Renderer};
+use pax_runtime::{ExpressionTable, PaxEngine, Renderer};
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime_api::{
+use pax_runtime::api::{
     ArgsClick, ArgsScroll, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
 };
 
@@ -46,7 +46,7 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     let engine: ManuallyDrop<Box<PaxEngine>> = ManuallyDrop::new(Box::new(PaxEngine::new(
         main_component_instance,
         expression_table,
-        pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
+        pax_runtime::api::PlatformSpecificLogger::MacOS(logger),
         (1.0, 1.0),
     )));
 

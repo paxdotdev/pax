@@ -31,13 +31,12 @@ PACKAGES = [
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
-    "pax-core",
-    "pax-lang",
+    "pax-runtime",
+    "pax-engine",
     "pax-language-server",
     "pax-macro",
     "pax-manifest",
     "pax-message",
-    "pax-runtime-api",
     "pax-std",
     "pax-std/pax-std-primitives"
 ]

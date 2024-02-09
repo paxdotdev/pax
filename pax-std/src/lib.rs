@@ -8,10 +8,10 @@ pub mod components {
 }
 
 pub mod primitives {
-    use pax_lang::pax;
-    use pax_runtime_api::Property;
-    use pax_runtime_api::Size;
-    use pax_runtime_api::StringBox;
+    use pax_engine::pax;
+    use pax_runtime::api::Property;
+    use pax_runtime::api::Size;
+    use pax_runtime::api::StringBox;
 
     use crate::types::text::TextStyle;
     use crate::types::PathSegment;

@@ -1,6 +1,6 @@
 use std::{any::Any, rc::Rc};
 
-use pax_runtime_api::PropertyInstance;
+use crate::api::PropertyInstance;
 
 use crate::{ExpressionTable, RuntimePropertiesStackFrame};
 
