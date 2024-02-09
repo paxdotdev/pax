@@ -1,5 +1,5 @@
-use pax_lang::api::*;
-use pax_lang::*;
+use pax_engine::api::*;
+use pax_engine::*;
 
 // Given a string component ID, this component is intended
 // to coordinate with the designtime to render a specific component, selected by string ID

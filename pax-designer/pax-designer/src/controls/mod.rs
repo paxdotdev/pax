@@ -4,8 +4,8 @@ pub mod settings;
 pub mod toolbar;
 pub mod tree;
 
-use pax_lang::api::*;
-use pax_lang::*;
+use pax_engine::api::*;
+use pax_engine::*;
 
 use pax_std::primitives::{Frame, Group, Rectangle, Text};
 
