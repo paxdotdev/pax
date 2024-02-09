@@ -271,7 +271,8 @@ fn pax_full_component(
     is_custom_interpolatable: bool,
     associated_pax_file_path: Option<String>,
 ) -> proc_macro2::TokenStream {
-    #[cfg(not(target_arch = "wasm32"))]{
+    #[cfg(not(target_arch = "wasm32"))]
+    {
         let pascal_identifier = input_parsed.ident.to_string();
 
         let static_property_definitions =

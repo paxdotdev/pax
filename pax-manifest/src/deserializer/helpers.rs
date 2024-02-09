@@ -4,11 +4,12 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use crate::constants::{
-    NUMERIC, STRING_BOX,
-};
+use crate::constants::{NUMERIC, STRING_BOX};
 
-use super::{error::{Error, Result}, Deserializer, PaxParser, Rule};
+use super::{
+    error::{Error, Result},
+    Deserializer, PaxParser, Rule,
+};
 
 pub struct PaxEnum {
     identifier: String,

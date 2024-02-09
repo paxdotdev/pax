@@ -35,7 +35,7 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
         }
         _ => {
             return Err(
-                "couldn't parse value: didn't match literal, expression, or identifier rules"
+                "couldn't parse value: didn't match literal, expression, or identifier rules",
             );
         }
     };

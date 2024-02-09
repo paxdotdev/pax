@@ -80,7 +80,7 @@ impl PaxChassisWeb {
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
         let mut definition_to_instance_traverser =
-                pax_cartridge::DefinitionToInstanceTraverser::new();
+            pax_cartridge::DefinitionToInstanceTraverser::new();
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let expression_table = ExpressionTable {
             table: pax_cartridge::instantiate_expression_table(),

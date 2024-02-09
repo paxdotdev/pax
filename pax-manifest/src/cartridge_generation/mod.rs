@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, HandlersBlockElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition
+    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
+    HandlersBlockElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
+    TemplateNodeDefinition, Token, ValueDefinition,
 };
 
 #[derive(Serialize, Debug)]
@@ -358,11 +360,14 @@ pub struct CommonProperty {
 
 impl CommonProperty {
     pub fn get_common_properties() -> Vec<String> {
-       COMMON_PROPERTIES.iter().map(|e| e.to_string()).collect()
+        COMMON_PROPERTIES.iter().map(|e| e.to_string()).collect()
     }
 
     pub fn get_property_types() -> Vec<(String, String)> {
-        COMMON_PROPERTIES_TYPE.iter().map(|(c,t)| (c.to_string(), t.to_string())).collect()
+        COMMON_PROPERTIES_TYPE
+            .iter()
+            .map(|(c, t)| (c.to_string(), t.to_string()))
+            .collect()
     }
 
     pub fn get_as_common_property() -> Vec<CommonProperty> {

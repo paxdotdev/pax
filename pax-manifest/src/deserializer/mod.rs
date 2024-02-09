@@ -3,9 +3,9 @@ use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
 
+pub mod error;
 mod helpers;
 mod tests;
-pub mod error;
 
 use self::helpers::{PaxEnum, PaxObject, PaxSeq};
 
@@ -13,7 +13,9 @@ pub use error::{Error, Result};
 
 use crate::utils::{PaxParser, Rule};
 
-use crate::constants::{DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE};
+use crate::constants::{
+    DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
+};
 
 pub struct Deserializer {
     input: String,
@@ -47,7 +49,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
         } else if let Ok(ast) = PaxParser::parse(Rule::literal_object, &self.input) {
             ast.clone().next().unwrap()
         } else if let Ok(_) = PaxParser::parse(Rule::identifier, &self.input) {
-            return self.deserialize_identifier(visitor)
+            return self.deserialize_identifier(visitor);
         } else {
             panic!("Failed to parse: {}", &self.input)
         };
@@ -130,7 +132,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
             _ => Err(Error::UnsupportedType(ast.as_str().to_string())),
         }?;
 
-      Ok(ret)
+        Ok(ret)
     }
 
     forward_to_deserialize_any! {

@@ -5,12 +5,14 @@ use pax_runtime::api::serde::{Deserialize, Serialize};
 use serde_json;
 use tera::{Context, Tera};
 
-use pax_manifest::{cartridge_generation::{CommonProperty, ComponentInfo}, ExpressionSpec, TypeTable};
+use pax_manifest::{
+    cartridge_generation::{CommonProperty, ComponentInfo},
+    ExpressionSpec, TypeTable,
+};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");
 static CARTRIDGE_TEMPLATE: &str = "cartridge.tera";
 static MACROS_TEMPLATE: &str = "macros.tera";
-
 
 #[derive(Serialize)]
 #[serde(crate = "pax_runtime::api::serde")]
@@ -59,9 +61,6 @@ pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLi
     )
     .expect("Failed to add cartridge.tera");
 
-    tera.render(
-        CARTRIDGE_TEMPLATE,
-        &Context::from_serialize(args).unwrap(),
-    )
-    .expect("Failed to render template")
+    tera.render(CARTRIDGE_TEMPLATE, &Context::from_serialize(args).unwrap())
+        .expect("Failed to render template")
 }
