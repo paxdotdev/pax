@@ -149,17 +149,12 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
-    let cartridge_path =
-        generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
+    let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
     source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
-    build_chassis_with_cartridge(
-        &pax_dir,
-        &ctx,
-        Arc::clone(&ctx.process_child_ids),
-    )?;
+    build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
     Ok(())
 }
 

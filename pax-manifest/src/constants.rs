@@ -11,13 +11,12 @@ pub const INTEGER: &str = "Integer";
 pub const FLOAT: &str = "Float";
 pub const TRUE: &str = "true";
 
-
 pub const TYPE_ID_IF: &str = "IF";
 pub const TYPE_ID_REPEAT: &str = "REPEAT";
 pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
-pub const COMMON_PROPERTIES: [&str; 13] =  [
+pub const COMMON_PROPERTIES: [&str; 13] = [
     "id",
     "x",
     "y",
@@ -33,7 +32,7 @@ pub const COMMON_PROPERTIES: [&str; 13] =  [
     "height",
 ];
 
-pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] =  [
+pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] = [
     ("id", "String"),
     ("x", "Size"),
     ("y", "Size"),

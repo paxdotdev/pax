@@ -520,7 +520,10 @@ impl CommonProperties {
     }
 
     pub fn get_property_identifiers() -> Vec<(String, String)> {
-        COMMON_PROPERTIES_TYPE.iter().map(|(c,t)| (c.to_string(), t.to_string())).collect()
+        COMMON_PROPERTIES_TYPE
+            .iter()
+            .map(|(c, t)| (c.to_string(), t.to_string()))
+            .collect()
     }
 
     pub fn get_as_common_property() -> Vec<CommonProperty> {

@@ -5,8 +5,9 @@ use std::rc::Rc;
 
 use pax_message::{NativeMessage, OcclusionPatch};
 
-use crate::api::{CommonProperties, Interpolatable, Layer, NodeContext,
-    OcclusionLayerGen, RenderContext, TransitionManager,
+use crate::api::{
+    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
+    TransitionManager,
 };
 use piet::InterpolationMode;
 
@@ -296,7 +297,9 @@ impl PaxEngine {
 
     #[cfg(feature = "designtime")]
     pub fn update_root_node(&mut self, main_component_instance: Rc<ComponentInstance>) {
-        self.root_node.clone().recurse_unmount(&mut self.runtime_context);
+        self.root_node
+            .clone()
+            .recurse_unmount(&mut self.runtime_context);
         self.root_node = ExpandedNode::root(main_component_instance, &mut self.runtime_context);
     }
 

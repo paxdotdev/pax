@@ -119,15 +119,15 @@ macro_rules! dispatch_event_handler {
                 };
 
                 let borrowed_registry = &(*registry).borrow();
-                    if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
-                        handlers.iter().for_each(|handler| {
-                            handler(
-                                Rc::clone(&component_properties),
-                                &context,
-                                Some(Box::new(args.clone()) as Box<dyn Any>),
-                            );
-                        });
-                    };
+                if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
+                    handlers.iter().for_each(|handler| {
+                        handler(
+                            Rc::clone(&component_properties),
+                            &context,
+                            Some(Box::new(args.clone()) as Box<dyn Any>),
+                        );
+                    });
+                };
             }
 
             if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
@@ -252,17 +252,17 @@ impl ExpandedNode {
 
         if let Some(ref registry) = self.instance_node.base().handler_registry {
             for handler in registry
-                    .borrow()
-                    .handlers
-                    .get("tick")
-                    .unwrap_or(&Vec::new())
-                {
-                    handler(
-                        Rc::clone(&self.properties),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
+                .borrow()
+                .handlers
+                .get("tick")
+                .unwrap_or(&Vec::new())
+            {
+                handler(
+                    Rc::clone(&self.properties),
+                    &self.get_node_context(context),
+                    None,
+                )
+            }
         }
         Rc::clone(&self.instance_node).update(&self, context);
         if *self.attached.borrow() > 0 {
@@ -293,19 +293,18 @@ impl ExpandedNode {
             context.lookup.insert(self.id_chain[0], Rc::clone(&self));
             self.instance_node.handle_mount(&self, context);
             if let Some(ref registry) = self.instance_node.base().handler_registry {
-                    for handler in registry
-                        .borrow()
-                        .handlers
-                        .get("mount")
-                        .unwrap_or(&Vec::new())
-                    {
-                        handler(
-                            Rc::clone(&self.properties),
-                            &self.get_node_context(context),
-                            None,
-                        )
-                    }
-                
+                for handler in registry
+                    .borrow()
+                    .handlers
+                    .get("mount")
+                    .unwrap_or(&Vec::new())
+                {
+                    handler(
+                        Rc::clone(&self.properties),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
             }
         }
         for child in self.children.borrow().iter() {
@@ -464,39 +463,15 @@ impl ExpandedNode {
         }
     }
 
-    dispatch_event_handler!(
-        dispatch_scroll,
-        ArgsScroll,
-        SCROLL_HANDLERS
-    );
+    dispatch_event_handler!(dispatch_scroll, ArgsScroll, SCROLL_HANDLERS);
     dispatch_event_handler!(dispatch_clap, ArgsClap, CLAP_HANDLERS);
-    dispatch_event_handler!(
-        dispatch_touch_start,
-        ArgsTouchStart,
-        TOUCH_START_HANDLERS
-    );
+    dispatch_event_handler!(dispatch_touch_start, ArgsTouchStart, TOUCH_START_HANDLERS);
 
-    dispatch_event_handler!(
-        dispatch_touch_move,
-        ArgsTouchMove,
-        TOUCH_MOVE_HANDLERS
-    );
-    dispatch_event_handler!(
-        dispatch_touch_end,
-        ArgsTouchEnd,
-        TOUCH_END_HANDLERS
-    );
-    dispatch_event_handler!(
-        dispatch_key_down,
-        ArgsKeyDown,
-        KEY_DOWN_HANDLERS
-    );
+    dispatch_event_handler!(dispatch_touch_move, ArgsTouchMove, TOUCH_MOVE_HANDLERS);
+    dispatch_event_handler!(dispatch_touch_end, ArgsTouchEnd, TOUCH_END_HANDLERS);
+    dispatch_event_handler!(dispatch_key_down, ArgsKeyDown, KEY_DOWN_HANDLERS);
     dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, KEY_UP_HANDLERS);
-    dispatch_event_handler!(
-        dispatch_key_press,
-        ArgsKeyPress,
-        KEY_PRESS_HANDLERS
-    );
+    dispatch_event_handler!(dispatch_key_press, ArgsKeyPress, KEY_PRESS_HANDLERS);
     dispatch_event_handler!(
         dispatch_checkbox_change,
         ArgsCheckboxChange,
@@ -512,31 +487,11 @@ impl ExpandedNode {
         ArgsButtonClick,
         BUTTON_CLICK_HANDLERS
     );
-    dispatch_event_handler!(
-        dispatch_mouse_down,
-        ArgsMouseDown,
-        MOUSE_DOWN_HANDLERS
-    );
-    dispatch_event_handler!(
-        dispatch_mouse_up,
-        ArgsMouseUp,
-        MOUSE_UP_HANDLERS
-    );
-    dispatch_event_handler!(
-        dispatch_mouse_move,
-        ArgsMouseMove,
-        MOUSE_MOVE_HANDLERS
-    );
-    dispatch_event_handler!(
-        dispatch_mouse_over,
-        ArgsMouseOver,
-        MOUSE_OVER_HANDLERS
-    );
-    dispatch_event_handler!(
-        dispatch_mouse_out,
-        ArgsMouseOut,
-        MOUSE_OUT_HANDLERS
-    );
+    dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, MOUSE_DOWN_HANDLERS);
+    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, MOUSE_UP_HANDLERS);
+    dispatch_event_handler!(dispatch_mouse_move, ArgsMouseMove, MOUSE_MOVE_HANDLERS);
+    dispatch_event_handler!(dispatch_mouse_over, ArgsMouseOver, MOUSE_OVER_HANDLERS);
+    dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, MOUSE_OUT_HANDLERS);
     dispatch_event_handler!(
         dispatch_double_click,
         ArgsDoubleClick,
