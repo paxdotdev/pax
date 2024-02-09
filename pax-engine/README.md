@@ -1,5 +1,5 @@
 # pax-engine
 
-Userland entrypoint to pax — ergonomic wrapper for modules/imports
-    - minimize userland footprint by default
-    - make import paths short
+Entry crate for using & developing an application with Pax.  
+
+Intended as a thin organizational layer, this crate re-exports 
