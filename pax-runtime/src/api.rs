@@ -11,11 +11,11 @@ use lazy_static::lazy_static;
 use mut_static::MutStatic;
 use piet::PaintBrush;
 
-use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
-use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
-pub use pax_message::serde;
 pub use crate::numeric::Numeric;
 use crate::RuntimeContext;
+use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
+pub use pax_message::serde;
+use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
