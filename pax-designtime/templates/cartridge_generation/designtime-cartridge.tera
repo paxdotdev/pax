@@ -5,9 +5,9 @@ use pax_designtime::pax_manifest::*;
 use pax_designtime;
 use serde_json;
 use pax_designtime::serde_pax::de::from_pax;
-use pax_runtime_api::*;
-use pax_core::*;
-use pax_designer::pax_reexports::pax_lang;
+use pax_runtime::api::*;
+use pax_runtime::*;
+use pax_designer::pax_reexports::pax_engine;
 use std::cell::Ref;
 use crate::SettingElement::Setting;
 
