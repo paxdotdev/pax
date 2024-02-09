@@ -12,6 +12,8 @@ pax-std = { version = "0.11.3" , path = ".pax/pkg/pax-std" }
 serde_json = {version = "1.0.95", optional = true}
 designer_project = { version = "0.11.3", path = "../designer-project" }
 pax-designtime = { path = ".pax/pkg/pax-designtime", version = "0.11.3" }
+uuid = { version = "1.7.0" , features = ["v4"]}
+anyhow = "1.0.79"
 
 [[bin]]
 name = "parser"
