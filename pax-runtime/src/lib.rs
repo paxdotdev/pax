@@ -1,6 +1,7 @@
 pub use kurbo::Affine;
 pub use piet::{Color, Error, StrokeStyle};
 
+pub mod api;
 pub mod component;
 pub mod conditional;
 pub mod constants;
@@ -9,6 +10,7 @@ pub mod engine;
 pub mod expressions;
 pub mod form_event;
 pub mod layout;
+pub mod numeric;
 pub mod properties;
 pub mod rendering;
 pub mod repeat;

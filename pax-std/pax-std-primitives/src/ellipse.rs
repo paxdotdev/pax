@@ -1,9 +1,9 @@
 use kurbo::{Rect, Shape};
-use pax_core::{declarative_macros::handle_vtable_update, BaseInstance};
-use pax_runtime_api::{Layer, RenderContext};
+use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::api::{Layer, RenderContext};
 use pax_std::{primitives::Ellipse, types::Fill};
 
-use pax_core::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
+use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use std::rc::Rc;
 

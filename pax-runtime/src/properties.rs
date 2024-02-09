@@ -1,5 +1,5 @@
 use pax_message::NativeMessage;
-use pax_runtime_api::Numeric;
+use crate::numeric::Numeric;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::{any::Any, collections::HashMap};

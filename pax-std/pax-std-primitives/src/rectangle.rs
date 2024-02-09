@@ -1,12 +1,12 @@
 use kurbo::{RoundedRect, Shape};
-use pax_core::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
 use piet::{LinearGradient, RadialGradient};
 
-use pax_core::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
+use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
 
-use pax_runtime_api::{Layer, RenderContext, Size};
+use pax_runtime::api::{Layer, RenderContext, Size};
 
 use std::rc::Rc;
 

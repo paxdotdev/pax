@@ -484,7 +484,7 @@ Note it's easier to generate RectangleProperties alongside Rectangle in cartridg
 with an engine dependency they seem to need to exist in fully code-genned cartridge-runtime...
 
 One possible tool to share the core Property definition is to split Property, PropertyLiteral,
-PropertyExpression, and PropertyTimeline into pax_runtime_api (importable by both Engine & userland) —
+PropertyExpression, and PropertyTimeline into pax_runtime::api (importable by both Engine & userland) —
 then to write traits/impls that allow engine to `compute_in_place` and `read`
 
 *^ proceeding with this strategy*
@@ -668,7 +668,7 @@ Should this be the general approach?  Is there a benefit to doing this?
 though note that this could be generalized by exposing an iterator over
 
 two options:
-- expose RenderTreeContext via pax_runtime_api, untangle as needed, e.g. through traits or closure-passing
+- expose RenderTreeContext via pax_runtime::api, untangle as needed, e.g. through traits or closure-passing
 - codegen `compute_properties_fn` closures in RIL, cartridge-runtime; add properties intelligence to parser
 
 For the former, conceptually it's a tough split.  the RenderTreeContext is squarely conceptually attached to the runtime.
@@ -1402,11 +1402,11 @@ Decision: port to Size, panic if px value is passed
 Stacker needs to update its cached computed layout as a function of its ~six properties:
 
 pub computed_layout_spec: Vec<Rc<StackerCell>>,
-pub direction:  Box<dyn pax_lang::api::Property<StackerDirection>>,
-pub cells: Box<dyn pax_lang::api::Property<usize>>,
-pub gutter: Box<dyn pax_lang::api::Property<pax_lang::api::Size>>,
-pub overrides_cell_size: Option(Vec<(usize, pax_lang::api::Size)>),
-pub overrides_gutter_size: Option(Vec<(usize, pax_lang::api::Size)>),
+pub direction:  Box<dyn pax_engine::api::Property<StackerDirection>>,
+pub cells: Box<dyn pax_engine::api::Property<usize>>,
+pub gutter: Box<dyn pax_engine::api::Property<pax_engine::api::Size>>,
+pub overrides_cell_size: Option(Vec<(usize, pax_engine::api::Size)>),
+pub overrides_gutter_size: Option(Vec<(usize, pax_engine::api::Size)>),
 
 
 As a single expression? (probably requires functional list operators in PAXEL, like `map`, as well
@@ -1514,7 +1514,7 @@ Is it the API object?  It would be the easiest to author (`impl Stacker { ... }`
 Let's say it's the API object.  Can we also have the Properties available on that API object?
 (This would suggest that the PropertiesObject and the API object are the same thing.
 This would further suggest that RectangleProperties -> Rectangle, and that the user is responsible
-for wrapping properties in Box<pax_lang::api::Property<>> — or that the `pax` macro help in this regard
+for wrapping properties in Box<pax_engine::api::Property<>> — or that the `pax` macro help in this regard
 (perhaps suppressible with an arg to the macro))
 
 So, we can reduce our surface area to:
@@ -1527,7 +1527,7 @@ So, we can reduce our surface area to:
 (cont. 2022-03-07)
 
 SO: when declaring a component instance, say `Root` or `Stacker` —
-1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax_lang::api::Property<some_type>>` properties
+1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax_engine::api::Property<some_type>>` properties
 2. there will be auto-generated Instance impl (or Factory, or boilerplate instantiation code)
     1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
 3.
@@ -2507,7 +2507,7 @@ impl HelloWorld {
     
     #[pax_on(PreMount)]
     pub fn mount(&mut self) {
-        pax_lang::async(do_async_things, self::http_callback);
+        pax_engine::async(do_async_things, self::http_callback);
     }
     
     pub fn http_callback(&mut self, args: ArgsCallback<DataType>) {
@@ -3252,8 +3252,8 @@ Probably the same issue as "cannot yet use enum literals in PAXEL."  (so cannot 
 
 3) when I added stacker to lib, ran into the same import issue with built-ins for Numeric/Size and the re-exports of them by stacker. Solved this by removing Numeric & Size from the built-ins. But a real solution would be to add proper dedupe logic. Wasn't immediately obvious if we should just use type name to dedupe.
 
-Probably due to different apparent import paths for the aliased pax_lang::... import vs. the pax_runtime_api::... import, both pointing to the same struct
-Using the `import_path` discovered dynamically in our hard-coded list, instead of using `pax_runtime_api::Numeric` in the hard-coded list, for example, is probably a suitable approach
+Probably due to different apparent import paths for the aliased pax_engine::... import vs. the pax_runtime::api::... import, both pointing to the same struct
+Using the `import_path` discovered dynamically in our hard-coded list, instead of using `pax_runtime::api::Numeric` in the hard-coded list, for example, is probably a suitable approach
 
 4) Hit a bug when using the stacker horizontally with text. Realized I had somehow lost absolute positioning on the native layer. Fixed it and finished navbar
 

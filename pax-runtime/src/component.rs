@@ -5,7 +5,7 @@ use crate::{
     BaseInstance, ExpandedNode, ExpressionTable, Globals, InstanceFlags, InstanceNode,
     InstanceNodePtrList, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::{Layer, Timeline};
+use crate::api::{Layer, Timeline};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `slot_children` and

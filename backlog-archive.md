@@ -129,7 +129,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] proof of concept (RIL) for timelines
         [x] running on assumption that the problem is isomorphic to the Expression vtable problem
     [x] proof of concept (RIL) for actions
-        [x] pax_lang::log
+        [x] pax_engine::log
         [x] `Tick` support (wired up)
         [x] pencil in `Click`, but don't worry about raycasting yet (or do naive raycasting?? easy to PoC!)
         [x] sanity-check Repeat
@@ -280,12 +280,12 @@ _RIL means Rust Intermediate Language, which is the
                                     -- this addresses compiler error `cannot infer type T for Rc<T>` (non-viable approach)
                                         [x] Alternatively: hard-code a list of prelude types; treat as blacklist for re-exporting
                                             -- note that this adds additional complexity/weakness around "global identifier" constraints, i.e. that as currently implemented, there can be no userland `**::**::Rc` or `**::**::Vec`  
-                            [-] Require fully qualified types inside Property<...>, like `Property<crate::SomeType>` or `Property<pax_lang::api::Color>`  
+                            [-] Require fully qualified types inside Property<...>, like `Property<crate::SomeType>` or `Property<pax_engine::api::Color>`  
                             [-] Make Property types `Pathable` or similar, which exposes a method `get_module_path()` that invoked `module_path!()` internally
                                 Then -- `pax` macro can invoke `get_module_path()` just like `parse_to_manifest`
                                 (Evaluated at compiletime) `Color::_get_module_path()`
                                     ^ wrong -- this would be evaluated at `parser bin`-time
-                                Which returns `pax_runtime_api::Color`
+                                Which returns `pax_runtime::api::Color`
                                 Which gets codegenned into `pub mod pax_reexports`
                                 Checksum: does this resolve at the right time
                                 MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`

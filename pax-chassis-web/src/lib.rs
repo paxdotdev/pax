@@ -1,11 +1,11 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
-use pax_core::ExpressionTable;
-use pax_runtime_api::ArgsButtonClick;
-use pax_runtime_api::ArgsCheckboxChange;
-use pax_runtime_api::ArgsTextboxChange;
-use pax_runtime_api::RenderContext;
+use pax_runtime::ExpressionTable;
+use pax_runtime::api::ArgsButtonClick;
+use pax_runtime::api::ArgsCheckboxChange;
+use pax_runtime::api::ArgsTextboxChange;
+use pax_runtime::api::RenderContext;
 use std::cell::RefCell;
 
 use std::rc::Rc;
@@ -15,10 +15,10 @@ use web_sys::{window, HtmlCanvasElement};
 
 use piet_web::WebRenderContext;
 
-use pax_core::{PaxEngine, Renderer};
+use pax_runtime::{PaxEngine, Renderer};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
-use pax_runtime_api::{
+use pax_runtime::api::{
     ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
     ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
     ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey,
@@ -29,7 +29,7 @@ use serde_json;
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
 
-// Console.log support, piped from `pax_lang::log`
+// Console.log support, piped from `pax_engine::log`
 #[wasm_bindgen]
 extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
@@ -89,10 +89,10 @@ impl PaxChassisWeb {
             let mut definition_to_instance_traverser =
                 pax_cartridge::DefinitionToInstanceTraverser::new();
             let main_component_instance = definition_to_instance_traverser.get_main_component();
-            let engine = pax_core::PaxEngine::new_with_designtime(
+            let engine = pax_runtime::PaxEngine::new_with_designtime(
                 main_component_instance,
                 expression_table,
-                pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
+                pax_runtime::api::PlatformSpecificLogger::Web(log_wrapper),
                 (width, height),
                 definition_to_instance_traverser.get_designtime_manager(),
             );
@@ -105,10 +105,10 @@ impl PaxChassisWeb {
         }
         #[cfg(not(feature = "designtime"))]
         {
-            let engine = pax_core::PaxEngine::new(
+            let engine = pax_runtime::PaxEngine::new(
                 main_component_instance,
                 expression_table,
-                pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
+                pax_runtime::api::PlatformSpecificLogger::Web(log_wrapper),
                 (width, height),
             );
 
