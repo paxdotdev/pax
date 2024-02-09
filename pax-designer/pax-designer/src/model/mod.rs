@@ -1,4 +1,6 @@
 pub mod action;
+mod input;
+
 use crate::model::action::ActionContext;
 use action::Action;
 use anyhow::Result;
@@ -15,7 +17,7 @@ thread_local!(
 
 #[derive(Default)]
 pub struct GlobalDesignerState {
-    pub actions: action::ActionManager,
+    pub undo_stack: action::UndoStack,
     pub app_state: AppState,
 }
 
@@ -23,11 +25,12 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
     GLOBAL_STATE.with(|model| {
         let mut binding = model.borrow_mut();
         let GlobalDesignerState {
-            ref mut actions,
+            ref mut undo_stack,
             ref mut app_state,
+            ..
         } = *binding;
         ActionContext {
-            action_manager: actions,
+            undo_stack,
             designtime: &mut ctx.designtime.borrow_mut(),
             app_state,
         }
@@ -35,9 +38,9 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
     })
 }
 
-pub fn with_app_state(closure: impl FnOnce(&mut AppState)) {
+pub fn read_app_state(closure: impl FnOnce(&AppState)) {
     GLOBAL_STATE.with(|model| {
-        closure(&mut model.borrow_mut().app_state);
+        closure(&model.borrow_mut().app_state);
     });
 }
 
@@ -48,7 +51,6 @@ pub fn with_app_state(closure: impl FnOnce(&mut AppState)) {
 #[derive(Default)]
 pub struct AppState {
     //globals
-    // pub fsm_state: action::FSMState,
     pub selection_state: Vec<usize>,
 
     //toolbar
@@ -56,6 +58,9 @@ pub struct AppState {
 
     //glass
     pub tool_visual: Option<ToolVisual>,
+
+    //keyboard
+    ctrl: bool,
 }
 
 #[derive(Clone, Copy)]

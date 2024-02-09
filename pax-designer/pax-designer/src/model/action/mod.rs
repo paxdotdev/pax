@@ -10,37 +10,21 @@ pub mod tools;
 type UndoFunc = dyn FnOnce(&mut ActionContext) -> Result<()>;
 
 #[derive(Default)]
-pub struct ActionManager {
-    action_stack: Vec<Box<UndoFunc>>,
-}
-
-impl ActionManager {
-    pub fn undo_last(
-        &mut self,
-        app_state: &mut AppState,
-        designtime: &mut DesigntimeManager,
-    ) -> Result<()> {
-        let mut undo_fn = self.action_stack.pop().ok_or(anyhow!("undo stack embty"))?;
-        let mut ctx = ActionContext {
-            designtime,
-            app_state,
-            action_manager: self,
-        };
-        undo_fn(&mut ctx)
-    }
+pub struct UndoStack {
+    stack: Vec<Box<UndoFunc>>,
 }
 
 pub trait Action {
-    fn perform(self, ctx: &mut ActionContext) -> Result<Undoable>;
+    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo>;
 }
 
 impl Action for Box<dyn Action> {
-    fn perform(self, ctx: &mut ActionContext) -> Result<Undoable> {
+    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         self.perform(ctx)
     }
 }
 
-pub enum Undoable {
+pub enum CanUndo {
     Yes(Box<UndoFunc>),
     No,
 }
@@ -48,14 +32,23 @@ pub enum Undoable {
 pub struct ActionContext<'a> {
     pub designtime: &'a mut DesigntimeManager,
     pub app_state: &'a mut AppState,
-    pub action_manager: &'a mut ActionManager,
+    pub undo_stack: &'a mut UndoStack,
 }
 
 impl ActionContext<'_> {
     pub fn perform(&mut self, action: impl Action) -> Result<()> {
-        if let Undoable::Yes(undo_fn) = action.perform(self)? {
-            self.action_manager.action_stack.push(undo_fn);
+        if let CanUndo::Yes(undo_fn) = action.perform(self)? {
+            self.undo_stack.stack.push(undo_fn);
         }
         Ok(())
+    }
+
+    pub fn undo_last(&mut self) -> Result<()> {
+        let mut undo_fn = self
+            .undo_stack
+            .stack
+            .pop()
+            .ok_or(anyhow!("undo stack embty"))?;
+        undo_fn(self)
     }
 }

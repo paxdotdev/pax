@@ -7,11 +7,25 @@ use std::collections::HashMap;
 use pax_std::primitives::Button;
 use std::rc::Rc;
 
+use crate::model::action::Action;
 use crate::model::{self, Tool};
+use anyhow::Result;
+use model::action::CanUndo;
 
 #[pax]
 #[file("controls/toolbar.pax")]
 pub struct Toolbar {}
+
+pub struct SelectTool {
+    tool: Tool,
+}
+
+impl Action for SelectTool {
+    fn perform(self, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
+        ctx.app_state.selected_tool = Some(self.tool);
+        Ok(CanUndo::No)
+    }
+}
 
 impl Toolbar {
     pub fn save_component(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
@@ -20,9 +34,12 @@ impl Toolbar {
     }
 
     pub fn handle_click_pointer(&mut self, ctx: &NodeContext, _args: ArgsClick) {
-        model::with_app_state(|app_state| {
-            app_state.selected_tool = Some(Tool::Pointer);
-        });
+        model::perform_action(
+            SelectTool {
+                tool: Tool::Pointer,
+            },
+            ctx,
+        );
     }
 
     pub fn handle_click_brush(&mut self, ctx: &NodeContext, _args: ArgsClick) {}
@@ -30,9 +47,12 @@ impl Toolbar {
     pub fn handle_click_pen(&mut self, ctx: &NodeContext, _args: ArgsClick) {}
 
     pub fn handle_click_rect(&mut self, ctx: &NodeContext, _args: ArgsClick) {
-        model::with_app_state(|app_state| {
-            app_state.selected_tool = Some(Tool::Rectangle);
-        });
+        model::perform_action(
+            SelectTool {
+                tool: Tool::Rectangle,
+            },
+            ctx,
+        );
     }
 
     pub fn handle_click_stacker(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
