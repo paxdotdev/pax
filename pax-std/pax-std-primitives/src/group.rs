@@ -1,5 +1,4 @@
-use pax_runtime::{BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs};
-use pax_std::primitives::Group;
+use pax_runtime::{BaseInstance, InstanceFlags, InstanceNode, InstantiationArgs};
 use std::rc::Rc;
 
 use pax_runtime::api::Layer;
@@ -32,11 +31,11 @@ impl InstanceNode for GroupInstance {
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
-        expanded_node: Option<&ExpandedNode>,
+        expanded_node: Option<&pax_runtime::ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
             Some(expanded_node) => expanded_node
-                .with_properties_unwrapped(|_g: &mut Group| f.debug_struct("Group").finish()),
+                .with_properties_unwrapped(|_g: &mut pax_std::primitives::Group| f.debug_struct("Group").finish()),
             None => f.debug_struct("Group").finish_non_exhaustive(),
         }
     }

@@ -139,6 +139,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::literal_tuple_access
         | Rule::closing_tag
         | Rule::xo_symbol
+        | Rule::id_binding
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
         Rule::inner_tag_error
@@ -183,6 +184,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::char
         | Rule::any_tag_pair
         | Rule::WHITESPACE
+        | Rule::id
         | Rule::empty => vec![Box::new(IgnoreRule)],
 
         Rule::string => vec![Box::new(DoNotIndentRule)],

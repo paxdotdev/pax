@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    HandlersBlockElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, Token, ValueDefinition,
+    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, HandlersBlockElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition
 };
 
 #[derive(Serialize, Debug)]
@@ -359,37 +358,11 @@ pub struct CommonProperty {
 
 impl CommonProperty {
     pub fn get_common_properties() -> Vec<String> {
-        vec![
-            "x".to_string(),
-            "y".to_string(),
-            "scale_x".to_string(),
-            "scale_y".to_string(),
-            "skew_x".to_string(),
-            "skew_y".to_string(),
-            "anchor_x".to_string(),
-            "anchor_y".to_string(),
-            "rotate".to_string(),
-            "transform".to_string(),
-            "width".to_string(),
-            "height".to_string(),
-        ]
+       COMMON_PROPERTIES.iter().map(|e| e.to_string()).collect()
     }
 
     pub fn get_property_types() -> Vec<(String, String)> {
-        vec![
-            ("x".to_string(), "Size".to_string()),
-            ("y".to_string(), "Size".to_string()),
-            ("scale_x".to_string(), "Size".to_string()),
-            ("scale_y".to_string(), "Size".to_string()),
-            ("skew_x".to_string(), "Numeric".to_string()),
-            ("skew_y".to_string(), "Numeric".to_string()),
-            ("anchor_x".to_string(), "Size".to_string()),
-            ("anchor_y".to_string(), "Size".to_string()),
-            ("rotate".to_string(), "Rotation".to_string()),
-            ("transform".to_string(), "Transform2D".to_string()),
-            ("width".to_string(), "Size".to_string()),
-            ("height".to_string(), "Size".to_string()),
-        ]
+        COMMON_PROPERTIES_TYPE.iter().map(|(c,t)| (c.to_string(), t.to_string())).collect()
     }
 
     pub fn get_as_common_property() -> Vec<CommonProperty> {

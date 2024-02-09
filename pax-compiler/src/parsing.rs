@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use itertools::{Itertools, MultiPeek};
-use pax_manifest::{escape_identifier, TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
+use pax_manifest::constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
+use pax_manifest::escape_identifier;
 use std::ops::RangeFrom;
 
 use pax_manifest::{
@@ -698,6 +699,29 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         ValueDefinition::EventBindingTarget(literal_function_token),
                     )
                 }
+                Rule::id_binding => {
+                    let mut kv = attribute_key_value_pair.into_inner().next().unwrap().into_inner();
+                    let id_binding_key = kv.next().unwrap();
+                    let id_binding_key_location = span_to_location(&id_binding_key.as_span());
+                    let id_binding_key_token = Token::new(
+                        id_binding_key.as_str().to_string(),
+                        TokenType::SettingKey,
+                        id_binding_key_location,
+                        pax,
+                    );
+                    let id_binding_value = kv.next().unwrap();
+                    let id_binding_value_location = span_to_location(&id_binding_value.as_span());
+                    let id_binding_value_token = Token::new(
+                        id_binding_value.as_str().to_string(),
+                        TokenType::LiteralValue,
+                        id_binding_value_location,
+                        pax,
+                    );
+                    SettingElement::Setting(
+                        id_binding_key_token,
+                        ValueDefinition::LiteralValue(id_binding_value_token),
+                    )
+                },
                 _ => {
                     //Vanilla `key=value` setting pair
 

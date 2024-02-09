@@ -1,10 +1,10 @@
 {% import "macros.tera" as macros %}
 
 #![allow(unused, unused_imports, non_snake_case, unused_parens)]
-use pax_manifest::deserializer::from_pax;
 use pax_manifest::*;
-use pax_runtime_api::*;
-use pax_core::*;
+use pax_runtime::api::*;
+use pax_runtime::*;
+use pax_manifest::deserializer::from_pax;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
@@ -113,7 +113,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
     vtable
 }
 
-trait ComponentFactory {
+pub trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
         Box::new(|| Rc::new(RefCell::new(CommonProperties::default())))    
@@ -195,12 +195,12 @@ pub struct DefinitionToInstanceTraverser {
 
 impl DefinitionToInstanceTraverser {
     pub fn new() -> Self {
-        let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).unwrap();
+        let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).expect("Failed to deserialize initial manifest");
         Self {
             manifest,
         }
     }
-
+    
     pub fn get_manifest(&self) -> &PaxManifest {
         &self.manifest
     }

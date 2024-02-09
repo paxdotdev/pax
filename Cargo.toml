@@ -32,6 +32,5 @@ exclude = [
 
 [profile.release]
 lto = true
-opt-level = 'z'
-
-
+opt-level = "z" 
+codegen-units = 1  

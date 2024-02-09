@@ -1,24 +1,19 @@
 use core::panic;
-
-#[cfg(feature = "parsing")]
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
 
-#[cfg(feature = "parsing")]
 mod helpers;
-
 mod tests;
-mod error;
-#[cfg(feature = "parsing")]
+pub mod error;
+
 use self::helpers::{PaxEnum, PaxObject, PaxSeq};
 
-use error::{Error, Result};
+pub use error::{Error, Result};
 
-#[cfg(feature = "parsing")]
 use crate::utils::{PaxParser, Rule};
 
-use crate::{DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE};
+use crate::constants::{DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE};
 
 pub struct Deserializer {
     input: String,
@@ -47,97 +42,95 @@ impl<'de> de::Deserializer<'de> for Deserializer {
     where
         V: Visitor<'de>,
     {
-        #[cfg(feature = "parsing")]
-        {
-            let ast = if let Ok(ast) = PaxParser::parse(Rule::literal_value, &self.input) {
-                ast.clone().next().unwrap()
-            } else if let Ok(ast) = PaxParser::parse(Rule::literal_object, &self.input) {
-                ast.clone().next().unwrap()
-            } else {
-                panic!("Failed to parse: {}", &self.input)
-            };
+        let ast = if let Ok(ast) = PaxParser::parse(Rule::literal_value, &self.input) {
+            ast.clone().next().unwrap()
+        } else if let Ok(ast) = PaxParser::parse(Rule::literal_object, &self.input) {
+            ast.clone().next().unwrap()
+        } else if let Ok(_) = PaxParser::parse(Rule::identifier, &self.input) {
+            return self.deserialize_identifier(visitor)
+        } else {
+            panic!("Failed to parse: {}", &self.input)
+        };
 
-            let ret = match ast.as_rule() {
-                Rule::literal_value => {
-                    let inner_pair = ast.clone().into_inner().next().unwrap();
-                    match inner_pair.as_rule() {
-                        Rule::literal_number => {
-                            let number = inner_pair.into_inner().next().unwrap();
-                            match number.as_rule() {
-                                Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
-                                    NUMERIC.to_string(),
-                                    INTEGER.to_string(),
-                                    Some(number.as_str().to_string()),
-                                )),
-                                Rule::literal_number_float => visitor.visit_enum(PaxEnum::new(
-                                    NUMERIC.to_string(),
-                                    FLOAT.to_string(),
-                                    Some(number.as_str().to_string()),
-                                )),
-                                _ => Err(Error::UnsupportedType(number.as_str().to_string())),
-                            }
+        let ret = match ast.as_rule() {
+            Rule::literal_value => {
+                let inner_pair = ast.clone().into_inner().next().unwrap();
+                match inner_pair.as_rule() {
+                    Rule::literal_number => {
+                        let number = inner_pair.into_inner().next().unwrap();
+                        match number.as_rule() {
+                            Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
+                                NUMERIC.to_string(),
+                                INTEGER.to_string(),
+                                Some(number.as_str().to_string()),
+                            )),
+                            Rule::literal_number_float => visitor.visit_enum(PaxEnum::new(
+                                NUMERIC.to_string(),
+                                FLOAT.to_string(),
+                                Some(number.as_str().to_string()),
+                            )),
+                            _ => Err(Error::UnsupportedType(number.as_str().to_string())),
                         }
-                        Rule::literal_number_with_unit => {
-                            let inner = inner_pair.into_inner();
-                            let number = inner.clone().next().unwrap().as_str();
-                            let unit = inner.clone().nth(1).unwrap().as_str();
-                            match unit {
-                                "%" => visitor.visit_enum(PaxEnum::new(
-                                    SIZE.to_string(),
-                                    PERCENT.to_string(),
-                                    Some(number.to_string()),
-                                )),
-                                "px" => visitor.visit_enum(PaxEnum::new(
-                                    SIZE.to_string(),
-                                    PIXELS.to_string(),
-                                    Some(number.to_string()),
-                                )),
-                                "rad" => visitor.visit_enum(PaxEnum::new(
-                                    ROTATION.to_string(),
-                                    RADIANS.to_string(),
-                                    Some(number.to_string()),
-                                )),
-                                "deg" => visitor.visit_enum(PaxEnum::new(
-                                    ROTATION.to_string(),
-                                    DEGREES.to_string(),
-                                    Some(number.to_string()),
-                                )),
-                                _ => {
-                                    unreachable!("Unsupported unit: {}", unit)
-                                }
-                            }
-                        }
-                        Rule::string => {
-                            let string_within_quotes =
-                                inner_pair.into_inner().next().unwrap().as_str().to_string();
-                            visitor.visit_map(PaxObject::new(
-                                Some(STRING_BOX.to_string()),
-                                vec![("string".to_string(), string_within_quotes)],
-                            ))
-                        }
-                        Rule::literal_tuple => {
-                            let pairs = inner_pair.into_inner();
-                            let elements = pairs
-                                .map(|pair| pair.as_str().to_string())
-                                .collect::<Vec<String>>();
-                            visitor.visit_seq(PaxSeq::new(elements))
-                        }
-                        Rule::literal_enum_value => {
-                            visitor.visit_enum(PaxEnum::from_string(inner_pair.as_str().to_string()))
-                        }
-                        Rule::literal_boolean => visitor.visit_bool(inner_pair.as_str() == TRUE),
-                        _ => Err(Error::UnsupportedType(inner_pair.as_str().to_string())),
                     }
+                    Rule::literal_number_with_unit => {
+                        let inner = inner_pair.into_inner();
+                        let number = inner.clone().next().unwrap().as_str();
+                        let unit = inner.clone().nth(1).unwrap().as_str();
+                        match unit {
+                            "%" => visitor.visit_enum(PaxEnum::new(
+                                SIZE.to_string(),
+                                PERCENT.to_string(),
+                                Some(number.to_string()),
+                            )),
+                            "px" => visitor.visit_enum(PaxEnum::new(
+                                SIZE.to_string(),
+                                PIXELS.to_string(),
+                                Some(number.to_string()),
+                            )),
+                            "rad" => visitor.visit_enum(PaxEnum::new(
+                                ROTATION.to_string(),
+                                RADIANS.to_string(),
+                                Some(number.to_string()),
+                            )),
+                            "deg" => visitor.visit_enum(PaxEnum::new(
+                                ROTATION.to_string(),
+                                DEGREES.to_string(),
+                                Some(number.to_string()),
+                            )),
+                            _ => {
+                                unreachable!("Unsupported unit: {}", unit)
+                            }
+                        }
+                    }
+                    Rule::string => {
+                        let string_within_quotes =
+                            inner_pair.into_inner().next().unwrap().as_str().to_string();
+                        visitor.visit_map(PaxObject::new(
+                            Some(STRING_BOX.to_string()),
+                            vec![("string".to_string(), string_within_quotes)],
+                        ))
+                    }
+                    Rule::literal_tuple => {
+                        let pairs = inner_pair.into_inner();
+                        let elements = pairs
+                            .map(|pair| pair.as_str().to_string())
+                            .collect::<Vec<String>>();
+                        visitor.visit_seq(PaxSeq::new(elements))
+                    }
+                    Rule::literal_enum_value => {
+                        visitor.visit_enum(PaxEnum::from_string(inner_pair.as_str().to_string()))
+                    }
+                    Rule::literal_boolean => visitor.visit_bool(inner_pair.as_str() == TRUE),
+                    _ => Err(Error::UnsupportedType(inner_pair.as_str().to_string())),
                 }
-                Rule::literal_object => {
-                    visitor.visit_map(PaxObject::from_string(ast.as_str().to_string()))
-                }
-                _ => Err(Error::UnsupportedType(ast.as_str().to_string())),
-            }?;
+            }
+            Rule::literal_object => {
+                visitor.visit_map(PaxObject::from_string(ast.as_str().to_string()))
+            }
+            _ => Err(Error::UnsupportedType(ast.as_str().to_string())),
+        }?;
 
-            return Ok(ret);
-        }
-        unimplemented!("Parsing feature is not enabled")
+      Ok(ret)
     }
 
     forward_to_deserialize_any! {
