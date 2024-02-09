@@ -787,10 +787,10 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "pax-compiler",
- "pax-lang",
+ "pax-engine",
  "pax-manifest",
  "pax-std",
  "serde_json",
@@ -1883,7 +1883,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-compiler"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -1905,7 +1905,7 @@ dependencies = [
  "nix",
  "pax-manifest",
  "pax-message",
- "pax-runtime-api",
+ "pax-runtime",
  "pest",
  "pest_derive",
  "portpicker",
@@ -1921,33 +1921,33 @@ dependencies = [
  "tera",
  "tokio",
  "toml_edit 0.14.4",
- "uuid 0.8.2",
+ "uuid",
  "walkdir",
  "wasm-bindgen",
 ]
 
 [[package]]
 name = "pax-designer"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "anyhow",
  "designer_project",
  "pax-compiler",
  "pax-designtime",
- "pax-lang",
+ "pax-engine",
  "pax-manifest",
  "pax-std",
  "serde_json",
- "uuid 1.7.0",
 ]
 
 [[package]]
 name = "pax-designtime"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "anyhow",
  "env_logger 0.11.0",
  "ewebsock",
+ "getrandom",
  "include_dir",
  "itoa",
  "log",
@@ -1963,20 +1963,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-lang"
-version = "0.11.3"
+name = "pax-engine"
+version = "0.11.5"
 dependencies = [
  "pax-compiler",
  "pax-macro",
  "pax-message",
- "pax-runtime-api",
+ "pax-runtime",
 ]
 
 [[package]]
 name = "pax-macro"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "litrs",
+ "pax-runtime",
  "pest",
  "pest_derive",
  "proc-macro2",
@@ -1990,7 +1991,7 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "anyhow",
  "pax-message",
@@ -2002,7 +2003,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "serde",
  "serde_json",
@@ -2010,8 +2011,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-runtime-api"
-version = "0.11.3"
+name = "pax-runtime"
+version = "0.11.5"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -2021,20 +2022,20 @@ dependencies = [
  "piet",
  "piet-common",
  "serde",
- "uuid 0.8.2",
+ "wasm-bindgen",
 ]
 
 [[package]]
 name = "pax-std"
-version = "0.11.3"
+version = "0.11.5"
 dependencies = [
  "kurbo",
  "lazy_static",
  "pax-compiler",
- "pax-lang",
+ "pax-engine",
  "pax-manifest",
  "pax-message",
- "pax-runtime-api",
+ "pax-runtime",
  "piet",
  "serde",
  "serde_json",
@@ -3242,15 +3243,6 @@ name = "uuid"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom",
-]
-
-[[package]]
-name = "uuid"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f00cc9702ca12d3c81455259621e676d0f7251cec66a21e98fe2e9a37db93b2a"
 dependencies = [
  "getrandom",
 ]
