@@ -62,7 +62,7 @@ impl Glass {
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
-        model::with_app_state(|app_state| {
+        model::read_app_state(|app_state| {
             if let Some(visual) = &app_state.tool_visual {
                 match visual {
                     ToolVisual::Box {
