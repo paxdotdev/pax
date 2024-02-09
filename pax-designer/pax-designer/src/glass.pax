@@ -55,12 +55,12 @@ if self.rect_tool_active {
     #rect_tool {
         stroke: {
             color: {
-                Color::rgb(0, 0, 1)
+                self.rect_tool.stroke
             }
             width: 1px
         }
         fill: {
-            Fill::Solid(Color::rgba(0,0,1,0.1))
+            Fill::Solid(self.rect_tool.fill)
         }
     }
 

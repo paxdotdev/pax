@@ -4,12 +4,12 @@ use action::Action;
 use anyhow::Result;
 use pax_designtime::DesigntimeManager;
 use pax_lang::api::NodeContext;
+use pax_std::types::Color;
 use std::cell::RefCell;
-use std::ops::DerefMut;
 
 // Needs to be changed if we use a multithreaded async runtime
 thread_local!(
-    pub static GLOBAL_STATE: RefCell<GlobalDesignerState> =
+    static GLOBAL_STATE: RefCell<GlobalDesignerState> =
         RefCell::new(GlobalDesignerState::default());
 );
 
@@ -19,13 +19,13 @@ pub struct GlobalDesignerState {
     pub app_state: AppState,
 }
 
-pub fn perform_action(action: impl Into<Action>, ctx: &NodeContext) -> Result<()> {
+pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
     GLOBAL_STATE.with(|model| {
         let mut binding = model.borrow_mut();
         let GlobalDesignerState {
             ref mut actions,
             ref mut app_state,
-        } = binding.deref_mut();
+        } = *binding;
         ActionContext {
             action_manager: actions,
             designtime: &mut ctx.designtime.borrow_mut(),
@@ -33,6 +33,12 @@ pub fn perform_action(action: impl Into<Action>, ctx: &NodeContext) -> Result<()
         }
         .perform(action)
     })
+}
+
+pub fn with_app_state(closure: impl FnOnce(&mut AppState)) {
+    GLOBAL_STATE.with(|model| {
+        closure(&mut model.borrow_mut().app_state);
+    });
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -52,20 +58,19 @@ pub struct AppState {
     pub tool_visual: Option<ToolVisual>,
 }
 
-// #[derive(Default, Clone)]
-// pub enum FSMState {
-//     #[default]
-//     Idle, //no sceduled action (next input event will likely not do nothing - maybe trigger mouseovers?)
-//     PanningCamera,     // ready to move view
-//     ArmedForTranslate, // ready to move a object
-//     ToolArmed(),
-// }
-
 #[derive(Clone, Copy)]
 pub enum Tool {
     Rectangle,
+    Pointer,
 }
 
 pub enum ToolVisual {
-    Box { x1: f64, y1: f64, x2: f64, y2: f64 },
+    Box {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        fill: Color,
+        stroke: Color,
+    },
 }
