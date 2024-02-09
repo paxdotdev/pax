@@ -8,7 +8,7 @@ use crate::model;
 use crate::model::AppState;
 use crate::model::ToolVisual;
 
-use crate::model::action::pointer_events::Pointer;
+use crate::model::action::pointer::Pointer;
 
 #[pax]
 #[custom(Default)]
@@ -25,7 +25,7 @@ pub struct Glass {
 impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
         model::perform_action(
-            crate::model::action::pointer_events::PointerAction {
+            crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
                 x: args.mouse.x,
                 y: args.mouse.y,
@@ -36,7 +36,7 @@ impl Glass {
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
         model::perform_action(
-            crate::model::action::pointer_events::PointerAction {
+            crate::model::action::pointer::PointerAction {
                 event: Pointer::Move,
                 x: args.mouse.x,
                 y: args.mouse.y,
@@ -47,7 +47,7 @@ impl Glass {
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
         model::perform_action(
-            crate::model::action::pointer_events::PointerAction {
+            crate::model::action::pointer::PointerAction {
                 event: Pointer::Up,
                 x: args.mouse.x,
                 y: args.mouse.y,
@@ -62,16 +62,25 @@ impl Glass {
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
-        model::GLOBAL_STATE.with(|model| {
-            if let Some(visual) = &model.borrow_mut().app_state.tool_visual {
+        model::with_app_state(|app_state| {
+            if let Some(visual) = &app_state.tool_visual {
                 match visual {
-                    ToolVisual::Box { x1, y1, x2, y2 } => {
+                    ToolVisual::Box {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        fill,
+                        stroke,
+                    } => {
                         self.rect_tool_active.set(true);
                         self.rect_tool.set(RectTool {
                             x: Size::Pixels(x1.into()),
                             y: Size::Pixels(y1.into()),
                             width: Size::Pixels((x2 - x1).into()),
                             height: Size::Pixels((y2 - y1).into()),
+                            fill: fill.clone(),
+                            stroke: stroke.clone(),
                         });
                     }
                 }
@@ -127,12 +136,7 @@ impl Default for Glass {
             ])),
             anchor_point: Box::new(PropertyLiteral::new(ControlPoint { x: 350.0, y: 150.0 })),
             rect_tool_active: Box::new(PropertyLiteral::new(false)),
-            rect_tool: Box::new(PropertyLiteral::new(RectTool {
-                x: Size::Percent(20.into()),
-                y: Size::Percent(20.into()),
-                width: Size::Percent(60.into()),
-                height: Size::Percent(60.into()),
-            })),
+            rect_tool: Default::default(),
         }
     }
 }
@@ -157,4 +161,6 @@ pub struct RectTool {
     pub y: Size,
     pub width: Size,
     pub height: Size,
+    pub fill: Color,
+    pub stroke: Color,
 }
