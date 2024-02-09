@@ -34,8 +34,11 @@ impl InstanceNode for GroupInstance {
         expanded_node: Option<&pax_runtime::ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
-            Some(expanded_node) => expanded_node
-                .with_properties_unwrapped(|_g: &mut pax_std::primitives::Group| f.debug_struct("Group").finish()),
+            Some(expanded_node) => {
+                expanded_node.with_properties_unwrapped(|_g: &mut pax_std::primitives::Group| {
+                    f.debug_struct("Group").finish()
+                })
+            }
             None => f.debug_struct("Group").finish_non_exhaustive(),
         }
     }

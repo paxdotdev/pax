@@ -16,9 +16,7 @@ use pax_manifest::{
 use std::path::PathBuf;
 use toml_edit::Item;
 
-
 pub mod templating;
-
 
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
@@ -98,7 +96,6 @@ pub fn generate_and_overwrite_cartridge(
             is_designtime: cfg!(feature = "designtime"),
         },
     );
-
 
     #[cfg(not(feature = "designtime"))]
     {

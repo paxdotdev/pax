@@ -700,7 +700,11 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     )
                 }
                 Rule::id_binding => {
-                    let mut kv = attribute_key_value_pair.into_inner().next().unwrap().into_inner();
+                    let mut kv = attribute_key_value_pair
+                        .into_inner()
+                        .next()
+                        .unwrap()
+                        .into_inner();
                     let id_binding_key = kv.next().unwrap();
                     let id_binding_key_location = span_to_location(&id_binding_key.as_span());
                     let id_binding_key_token = Token::new(
@@ -721,7 +725,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         id_binding_key_token,
                         ValueDefinition::LiteralValue(id_binding_value_token),
                     )
-                },
+                }
                 _ => {
                     //Vanilla `key=value` setting pair
 

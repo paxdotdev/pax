@@ -25,7 +25,7 @@ const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 pub fn build_web_chassis_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
-    process_child_ids: Arc<Mutex<Vec<u64>>>
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
