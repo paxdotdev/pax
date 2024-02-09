@@ -9,13 +9,26 @@ use serde_json;
 #[cfg(feature = "parsing")]
 pub mod utils;
 
-#[cfg(feature = "parsing")]
 pub mod cartridge_generation;
+
+pub mod deserializer;
 
 pub static TYPE_ID_IF: &str = "IF";
 pub static TYPE_ID_REPEAT: &str = "REPEAT";
 pub static TYPE_ID_SLOT: &str = "SLOT";
 pub static TYPE_ID_COMMENT: &str = "COMMENT";
+
+const NUMERIC: &str = "Numeric";
+const SIZE: &str = "Size";
+const ROTATION: &str = "Rotation";
+const STRING_BOX: &str = "StringBox";
+const DEGREES: &str = "Degrees";
+const RADIANS: &str = "Radians";
+const PIXELS: &str = "Pixels";
+const PERCENT: &str = "Percent";
+const INTEGER: &str = "Integer";
+const FLOAT: &str = "Float";
+const TRUE: &str = "true";
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]

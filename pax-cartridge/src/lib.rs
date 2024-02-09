@@ -22,3 +22,15 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(
 pub fn instantiate_main_component() -> Rc<ComponentInstance> {
     unreachable!("{}", PLACEHOLDER_ERROR)
 }
+
+pub struct DefinitionToInstanceTraverser {}
+
+impl DefinitionToInstanceTraverser {
+    pub fn new() -> Self {
+        unreachable!("{}", PLACEHOLDER_ERROR)
+    }
+
+    pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {
+        unreachable!("{}", PLACEHOLDER_ERROR)
+    }
+}
