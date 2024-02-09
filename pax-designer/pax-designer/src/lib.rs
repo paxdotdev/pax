@@ -12,32 +12,15 @@ use crate::glass::Glass;
 use designer_project::Example;
 use pax_std::primitives::Group;
 
+pub mod model;
+
 #[pax]
 #[main]
 #[file("lib.pax")]
-pub struct PaxDesigner {
-    // pub state: DesignerState,
-}
+pub struct PaxDesigner {}
 
 impl PaxDesigner {
-    pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        let _orm = _ctx.designtime.borrow().get_orm();
-        //self.state = load_previous_state_if_relevant();
-    }
+    pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
 
     pub fn click_test(&mut self, _ctx: &NodeContext, args: ArgsClick) {}
 }
-
-//TODO: derive Serialize and Deserialize
-#[derive(Default, Clone)]
-pub struct DesignerState {
-    // designtime_api: pax_designtime::api::DesigntimeApi,
-    // undo_stack
-    // redo_stack
-}
-
-// pub trait DesignerCommand {
-//     fn execute_command(&mut DesignerState, &DesigntimeApi);
-//     fn undo(&mut DesignerState, &DesigntimeApi);
-//     fn redo(&mut DesignerState, &DesigntimeApi);
-// }
