@@ -29,6 +29,9 @@ pub struct TemplateArgsCodegenCartridgeLib {
 
     // Information about known types and their properties
     pub type_table: TypeTable,
+
+    // Whether or not this is a designtime cartridge
+    pub is_designtime: bool,
 }
 
 #[allow(unused)]

@@ -296,6 +296,7 @@ impl PaxEngine {
 
     #[cfg(feature = "designtime")]
     pub fn update_root_node(&mut self, main_component_instance: Rc<ComponentInstance>) {
+        self.root_node.clone().recurse_unmount(&mut self.runtime_context);
         self.root_node = ExpandedNode::root(main_component_instance, &mut self.runtime_context);
     }
 

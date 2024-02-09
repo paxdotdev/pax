@@ -159,7 +159,6 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
         &pax_dir,
         &ctx,
         Arc::clone(&ctx.process_child_ids),
-        &source_map,
     )?;
     Ok(())
 }

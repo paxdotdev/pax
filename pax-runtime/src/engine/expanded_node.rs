@@ -6,6 +6,7 @@ use crate::constants::{
     TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use crate::Globals;
+#[cfg(debug_assertions)]
 use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
@@ -312,7 +313,7 @@ impl ExpandedNode {
         }
     }
 
-    fn recurse_unmount(self: Rc<Self>, context: &mut RuntimeContext) {
+    pub fn recurse_unmount(self: Rc<Self>, context: &mut RuntimeContext) {
         for child in self.children.borrow().iter() {
             Rc::clone(child).recurse_unmount(context);
         }

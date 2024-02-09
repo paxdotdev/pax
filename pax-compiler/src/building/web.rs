@@ -1,9 +1,8 @@
-use crate::errors::source_map::SourceMap;
 use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, ERR_SPAWN, PAX_BADGE,
     PKG_DIR_NAME, PUBLIC_DIR_NAME,
 };
-use crate::{copy_dir_recursively, errors, pre_exec_hook, RunContext, RunTarget};
+use crate::{copy_dir_recursively, pre_exec_hook, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use colored::Colorize;
@@ -26,8 +25,7 @@ const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 pub fn build_web_chassis_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
-    source_map: &SourceMap,
+    process_child_ids: Arc<Mutex<Vec<u64>>>
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -45,44 +43,6 @@ pub fn build_web_chassis_with_cartridge(
         .join(PKG_DIR_NAME)
         .join(format!("pax-chassis-{}", target_str_lower))
         .join("interface");
-
-    // First pass cargo build to catch errors in template with source map
-    let mut cmd = Command::new("cargo");
-    cmd.current_dir(&chassis_path)
-        .arg("build")
-        .arg("--target")
-        .arg("wasm32-unknown-unknown")
-        .arg("--message-format=json")
-        .env("PAX_DIR", &pax_dir)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    //if is_release {
-        cmd.arg("--release");
-    //}
-
-    if IS_DESIGN_TIME_BUILD {
-        cmd.arg("--features").arg("designtime");
-    }
-
-    #[cfg(unix)]
-    unsafe {
-        cmd.pre_exec(pre_exec_hook);
-    }
-
-    let child = cmd.spawn().expect(ERR_SPAWN);
-    let output = wait_with_output(&process_child_ids, child);
-    if !output.status.success() {
-        let result = errors::process_messages(output, source_map, ctx.verbose);
-        if ctx.verbose {
-            // Print and continue to wasm-pack to get full error stack trace
-            if let Err(e) = result {
-                eprintln!("Error encountered: {:?}", e);
-            }
-        } else {
-            result?;
-        }
-    }
 
     // wasm-pack build
     let mut cmd = Command::new("wasm-pack");
@@ -107,7 +67,7 @@ pub fn build_web_chassis_with_cartridge(
     if is_release {
         cmd.arg("--release");
     } else {
-        cmd.arg("--release");
+        cmd.arg("--dev");
     }
     if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");

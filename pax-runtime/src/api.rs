@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::ffi::CString;
@@ -486,6 +487,7 @@ pub struct CommonProperty {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default)]
 pub struct CommonProperties {
+    pub id: Option<Box<dyn PropertyInstance<String>>>,
     pub x: Option<Box<dyn PropertyInstance<Size>>>,
     pub y: Option<Box<dyn PropertyInstance<Size>>>,
     pub scale_x: Option<Box<dyn PropertyInstance<Size>>>,
@@ -518,20 +520,7 @@ impl CommonProperties {
     }
 
     pub fn get_property_identifiers() -> Vec<(String, String)> {
-        vec![
-            ("x".to_string(), "Size".to_string()),
-            ("y".to_string(), "Size".to_string()),
-            ("scale_x".to_string(), "Size".to_string()),
-            ("scale_y".to_string(), "Size".to_string()),
-            ("skew_x".to_string(), "Numeric".to_string()),
-            ("skew_y".to_string(), "Numeric".to_string()),
-            ("anchor_x".to_string(), "Size".to_string()),
-            ("anchor_y".to_string(), "Size".to_string()),
-            ("rotate".to_string(), "Rotation".to_string()),
-            ("transform".to_string(), "Transform2D".to_string()),
-            ("width".to_string(), "Size".to_string()),
-            ("height".to_string(), "Size".to_string()),
-        ]
+        COMMON_PROPERTIES_TYPE.iter().map(|(c,t)| (c.to_string(), t.to_string())).collect()
     }
 
     pub fn get_as_common_property() -> Vec<CommonProperty> {

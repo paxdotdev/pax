@@ -49,12 +49,16 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
-attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
+attribute_key_value_pair = {attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value)}
 attribute_event_id = {"@" ~ identifier}
 attribute_event_binding = {attribute_event_id ~ "=" ~ literal_function}
 
-//`...=5.0`, `...={...}`, `id=some_id`
+//`...=5.0`, `...={...}`
 any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
+
+// id=identifier (non-expression)
+id = {"id"}
+id_binding = {id ~ "=" ~ identifier}
 
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)

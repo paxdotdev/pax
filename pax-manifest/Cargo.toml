@@ -9,16 +9,12 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Definition container for an entire Pax cartridge"
 
 [features]
-default = ["json"]
-json = ["serde","serde_json"]
 parsing = ["pest", "pest_derive"]
 
 [lib]
 
 [dependencies]
-serde_json = { version = "1.0.95", optional = true }
-serde = { version="1.0.95", features=["derive"], optional=true}
+serde = { version="1.0.95", features=["derive"]}
 pax-message = {path="../pax-message", version="0.11.5"}
 pest = { version="2.7.6", optional=true}
 pest_derive = {version="2.7.6", optional=true}
-anyhow = "1.0.79"
