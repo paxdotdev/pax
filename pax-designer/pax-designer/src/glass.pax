@@ -8,8 +8,19 @@
     <Rectangle id=backing_plate />
 </Group>
 
+if self.rect_tool_active {
+    <Rectangle id=rect_tool
+        x={self.rect_tool.x}
+        y={self.rect_tool.y}
+        width={self.rect_tool.width}
+        height={self.rect_tool.height}
+    />
+}
 
 
+@handlers {
+    pre_render: update_view
+}
 @settings {
     #backing_plate {
         //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
@@ -39,6 +50,18 @@
         height: 7px
         anchor_x: 50%
         anchor_y: 50%
+    }
+
+    #rect_tool {
+        stroke: {
+            color: {
+                Color::rgb(0, 0, 1)
+            }
+            width: 1px
+        }
+        fill: {
+            Fill::Solid(Color::rgba(0,0,1,0.1))
+        }
     }
 
     .bounding_segment {

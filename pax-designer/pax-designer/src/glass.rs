@@ -1,9 +1,14 @@
-use pax_designtime::input::{FSMEvent, ScreenspacePoint};
 use pax_lang::api::*;
 use pax_lang::*;
 use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::{Color, Fill};
 use serde::Deserialize;
+
+use crate::model;
+use crate::model::AppState;
+use crate::model::ToolVisual;
+
+use crate::model::action::pointer_events::Pointer;
 
 #[pax]
 #[custom(Default)]
@@ -13,45 +18,67 @@ pub struct Glass {
     pub control_points: Property<Vec<ControlPoint>>,
     pub anchor_point: Property<ControlPoint>,
     pub selection_bounding_segments: Property<Vec<BoundingSegment>>,
+    pub rect_tool_active: Property<bool>,
+    pub rect_tool: Property<RectTool>,
 }
 
 impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
-        let res = ctx
-            .designtime
-            .borrow_mut()
-            .input_transition(FSMEvent::MouseDown(ScreenspacePoint {
+        model::perform_action(
+            crate::model::action::pointer_events::PointerAction {
+                event: Pointer::Down,
                 x: args.mouse.x,
                 y: args.mouse.y,
-            }));
-        log(&format!("input result: {:?}", res));
+            },
+            ctx,
+        );
     }
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
-        let res = ctx
-            .designtime
-            .borrow_mut()
-            .input_transition(FSMEvent::MouseMove(ScreenspacePoint {
+        model::perform_action(
+            crate::model::action::pointer_events::PointerAction {
+                event: Pointer::Move,
                 x: args.mouse.x,
                 y: args.mouse.y,
-            }));
-        log(&format!("input result: {:?}", res));
+            },
+            ctx,
+        );
     }
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
-        let res = ctx
-            .designtime
-            .borrow_mut()
-            .input_transition(FSMEvent::MouseUp(ScreenspacePoint {
+        model::perform_action(
+            crate::model::action::pointer_events::PointerAction {
+                event: Pointer::Up,
                 x: args.mouse.x,
                 y: args.mouse.y,
-            }));
-        log(&format!("input result: {:?}", res));
+            },
+            ctx,
+        );
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
         pax_lang::log("key down");
         //TODO: handle keydowns and pass into InputMapper
+    }
+
+    pub fn update_view(&mut self, ctx: &NodeContext) {
+        model::GLOBAL_STATE.with(|model| {
+            if let Some(visual) = &model.borrow_mut().app_state.tool_visual {
+                match visual {
+                    ToolVisual::Box { x1, y1, x2, y2 } => {
+                        self.rect_tool_active.set(true);
+                        self.rect_tool.set(RectTool {
+                            x: Size::Pixels(x1.into()),
+                            y: Size::Pixels(y1.into()),
+                            width: Size::Pixels((x2 - x1).into()),
+                            height: Size::Pixels((y2 - y1).into()),
+                        });
+                    }
+                }
+            } else {
+                self.rect_tool_active.set(false);
+            };
+        });
     }
 }
 
@@ -99,22 +126,35 @@ impl Default for Glass {
                 },
             ])),
             anchor_point: Box::new(PropertyLiteral::new(ControlPoint { x: 350.0, y: 150.0 })),
+            rect_tool_active: Box::new(PropertyLiteral::new(false)),
+            rect_tool: Box::new(PropertyLiteral::new(RectTool {
+                x: Size::Percent(20.into()),
+                y: Size::Percent(20.into()),
+                width: Size::Percent(60.into()),
+                height: Size::Percent(60.into()),
+            })),
         }
     }
 }
 
 #[pax]
-#[custom(Imports)]
 pub struct ControlPoint {
     pub x: f64,
     pub y: f64,
 }
 
 #[pax]
-#[custom(Imports)]
 pub struct BoundingSegment {
     pub x0: f64,
     pub y0: f64,
     pub x1: f64,
     pub y1: f64,
+}
+
+#[pax]
+pub struct RectTool {
+    pub x: Size,
+    pub y: Size,
+    pub width: Size,
+    pub height: Size,
 }
