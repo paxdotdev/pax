@@ -40,7 +40,7 @@ pub struct Globals {
 pub struct PaxEngine {
     pub runtime_context: RuntimeContext,
     pub root_node: Rc<ExpandedNode>,
-    pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
+
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -261,7 +261,6 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_node,
-            z_index_node_cache: Vec::new(),
         }
     }
 
@@ -291,7 +290,6 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_node,
-            z_index_node_cache: Vec::new(),
         }
     }
 
@@ -325,18 +323,18 @@ impl PaxEngine {
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here.
         {
-            self.z_index_node_cache.clear();
+            self.runtime_context.z_index_node_cache.clear();
             fn assign_z_indicies(n: &Rc<ExpandedNode>, state: &mut Vec<Rc<ExpandedNode>>) {
                 state.push(Rc::clone(&n));
             }
 
             self.root_node
-                .recurse_visit_postorder(&assign_z_indicies, &mut self.z_index_node_cache);
+                .recurse_visit_postorder(&assign_z_indicies, &mut self.runtime_context.z_index_node_cache);
         }
 
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
-        for node in self.z_index_node_cache.iter() {
+        for node in self.runtime_context.z_index_node_cache.clone().iter() {
             let layer = node.instance_node.base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();
@@ -363,60 +361,13 @@ impl PaxEngine {
             .recurse_render(&mut self.runtime_context, rcs);
     }
 
-    /// Simple 2D raycasting: the coordinates of the ray represent a
-    /// ray running orthogonally to the view plane, intersecting at
-    /// the specified point `ray`.  Areas outside of clipping bounds will
-    /// not register a `hit`, nor will elements that suppress input events.
-    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<ExpandedNode>> {
-        //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
-        //First: check whether events are suppressed
-        //Next: check whether ancestral clipping bounds (hit_test) are satisfied
-        //Finally: check whether element itself satisfies hit_test(ray)
-
-        //Instead of storing a pointer to `last_rtc`, we should store a custom
-        //struct with exactly the fields we need for ray-casting
-
-        let mut ret: Option<Rc<ExpandedNode>> = None;
-        for node in self.z_index_node_cache.iter().rev().skip(1) {
-            if node.ray_cast_test(&ray) {
-                //We only care about the topmost node getting hit, and the element
-                //pool is ordered by z-index so we can just resolve the whole
-                //calculation when we find the first matching node
-
-                let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode>> =
-                    node.parent_expanded_node.borrow().upgrade();
-
-                loop {
-                    if let Some(unwrapped_parent) = parent {
-                        if let Some(_) = unwrapped_parent.get_clipping_size() {
-                            ancestral_clipping_bounds_are_satisfied =
-                            //clew
-                                (*unwrapped_parent).ray_cast_test(&ray);
-                            break;
-                        }
-                        parent = unwrapped_parent.parent_expanded_node.borrow().upgrade();
-                    } else {
-                        break;
-                    }
-                }
-
-                if ancestral_clipping_bounds_are_satisfied {
-                    ret = Some(Rc::clone(&node));
-                    break;
-                }
-            }
-        }
-        ret
-    }
-
     pub fn get_expanded_node(&self, id: u32) -> Option<&Rc<ExpandedNode>> {
-        self.runtime_context.lookup.get(&id)
+        self.runtime_context.node_cache.get(&id)
     }
 
     pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode>> {
         let (x, y) = self.runtime_context.globals().viewport.bounds;
-        self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
+        self.runtime_context.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
