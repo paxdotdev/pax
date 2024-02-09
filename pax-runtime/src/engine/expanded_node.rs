@@ -1,4 +1,3 @@
-#[cfg(feature = "designtime")]
 use crate::constants::{
     BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS,
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS,
@@ -89,7 +88,7 @@ pub struct ExpandedNode {
 }
 
 macro_rules! dispatch_event_handler {
-    ($fn_name:ident, $arg_type:ty, $handler_field:ident, $handler_key:ident) => {
+    ($fn_name:ident, $arg_type:ty, $handler_key:ident) => {
         pub fn $fn_name(&self, args: $arg_type, globals: &Globals) {
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
@@ -119,16 +118,6 @@ macro_rules! dispatch_event_handler {
                 };
 
                 let borrowed_registry = &(*registry).borrow();
-
-                #[cfg(not(feature = "designtime"))]
-                {
-                    let handlers = &borrowed_registry.$handler_field;
-                    handlers.iter().for_each(|handler| {
-                        handler(Rc::clone(&component_properties), &context, args.clone());
-                    });
-                }
-                #[cfg(feature = "designtime")]
-                {
                     if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
                         handlers.iter().for_each(|handler| {
                             handler(
@@ -138,7 +127,6 @@ macro_rules! dispatch_event_handler {
                             );
                         });
                     };
-                }
             }
 
             if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
@@ -262,21 +250,10 @@ impl ExpandedNode {
         });
 
         if let Some(ref registry) = self.instance_node.base().handler_registry {
-            for handler in &registry.borrow().tick_handlers {
-                handler(Rc::clone(&self.properties), &self.get_node_context(context))
-            }
-        }
-        Rc::clone(&self.instance_node).update(&self, context);
-        if *self.attached.borrow() > 0 {
-            self.instance_node.handle_native_patches(self, context);
-        }
-        if let Some(ref registry) = self.instance_node.base().handler_registry {
-            #[cfg(feature = "designtime")]
-            {
-                for handler in registry
+            for handler in registry
                     .borrow()
                     .handlers
-                    .get("pre_render")
+                    .get("tick")
                     .unwrap_or(&Vec::new())
                 {
                     handler(
@@ -285,12 +262,23 @@ impl ExpandedNode {
                         None,
                     )
                 }
-            }
-            #[cfg(not(feature = "designtime"))]
+        }
+        Rc::clone(&self.instance_node).update(&self, context);
+        if *self.attached.borrow() > 0 {
+            self.instance_node.handle_native_patches(self, context);
+        }
+        if let Some(ref registry) = self.instance_node.base().handler_registry {
+            for handler in registry
+                .borrow()
+                .handlers
+                .get("pre_render")
+                .unwrap_or(&Vec::new())
             {
-                for handler in &registry.borrow().pre_render_handlers {
-                    handler(Rc::clone(&self.properties), &self.get_node_context(context))
-                }
+                handler(
+                    Rc::clone(&self.properties),
+                    &self.get_node_context(context),
+                    None,
+                )
             }
         }
         for child in self.children.borrow().iter() {
@@ -304,8 +292,6 @@ impl ExpandedNode {
             context.lookup.insert(self.id_chain[0], Rc::clone(&self));
             self.instance_node.handle_mount(&self, context);
             if let Some(ref registry) = self.instance_node.base().handler_registry {
-                #[cfg(feature = "designtime")]
-                {
                     for handler in registry
                         .borrow()
                         .handlers
@@ -318,13 +304,7 @@ impl ExpandedNode {
                             None,
                         )
                     }
-                }
-                #[cfg(not(feature = "designtime"))]
-                {
-                    for handler in &registry.borrow().mount_handlers {
-                        handler(Rc::clone(&self.properties), &self.get_node_context(context))
-                    }
-                }
+                
             }
         }
         for child in self.children.borrow().iter() {
@@ -486,104 +466,88 @@ impl ExpandedNode {
     dispatch_event_handler!(
         dispatch_scroll,
         ArgsScroll,
-        scroll_handlers,
         SCROLL_HANDLERS
     );
-    dispatch_event_handler!(dispatch_clap, ArgsClap, clap_handlers, CLAP_HANDLERS);
+    dispatch_event_handler!(dispatch_clap, ArgsClap, CLAP_HANDLERS);
     dispatch_event_handler!(
         dispatch_touch_start,
         ArgsTouchStart,
-        touch_start_handlers,
         TOUCH_START_HANDLERS
     );
 
     dispatch_event_handler!(
         dispatch_touch_move,
         ArgsTouchMove,
-        touch_move_handlers,
         TOUCH_MOVE_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_touch_end,
         ArgsTouchEnd,
-        touch_end_handlers,
         TOUCH_END_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_key_down,
         ArgsKeyDown,
-        key_down_handlers,
         KEY_DOWN_HANDLERS
     );
-    dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, key_up_handlers, KEY_UP_HANDLERS);
+    dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, KEY_UP_HANDLERS);
     dispatch_event_handler!(
         dispatch_key_press,
         ArgsKeyPress,
-        key_press_handlers,
         KEY_PRESS_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_checkbox_change,
         ArgsCheckboxChange,
-        checkbox_change_handlers,
         CHECKBOX_CHANGE_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_textbox_change,
         ArgsTextboxChange,
-        textbox_change_handlers,
         TEXTBOX_CHANGE_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_button_click,
         ArgsButtonClick,
-        button_click_handlers,
         BUTTON_CLICK_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_mouse_down,
         ArgsMouseDown,
-        mouse_down_handlers,
         MOUSE_DOWN_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_mouse_up,
         ArgsMouseUp,
-        mouse_up_handlers,
         MOUSE_UP_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_mouse_move,
         ArgsMouseMove,
-        mouse_move_handlers,
         MOUSE_MOVE_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_mouse_over,
         ArgsMouseOver,
-        mouse_over_handlers,
         MOUSE_OVER_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_mouse_out,
         ArgsMouseOut,
-        mouse_out_handlers,
         MOUSE_OUT_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_double_click,
         ArgsDoubleClick,
-        double_click_handlers,
         DOUBLE_CLICK_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_context_menu,
         ArgsContextMenu,
-        context_menu_handlers,
         CONTEXT_MENU_HANDLERS
     );
-    dispatch_event_handler!(dispatch_click, ArgsClick, click_handlers, CLICK_HANDLERS);
-    dispatch_event_handler!(dispatch_wheel, ArgsWheel, wheel_handlers, WHEEL_HANDLERS);
+    dispatch_event_handler!(dispatch_click, ArgsClick, CLICK_HANDLERS);
+    dispatch_event_handler!(dispatch_wheel, ArgsWheel, WHEEL_HANDLERS);
 }
 
 /// Properties that are currently re-computed each frame before rendering.

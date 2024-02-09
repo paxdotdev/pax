@@ -1,0 +1,426 @@
+{% import "macros.tera" as macros %}
+
+#![allow(unused, unused_imports, non_snake_case, unused_parens)]
+use pax_manifest::deserializer::from_pax;
+use pax_manifest::*;
+use pax_runtime_api::*;
+use pax_core::*;
+
+const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
+
+// generate imports, pointing to userland cartridge `pub mod pax_reexports`
+{% for import in imports %}
+use {{ import }};
+{% endfor %}
+
+
+pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>> {
+    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>> = HashMap::new();
+
+    {% for expression_spec in expression_specs %}
+    //{{ expression_spec.input_statement.content}}
+    {% if expression_spec.input_statement.source_map_start_marker %}
+        {{ expression_spec.input_statement.source_map_start_marker }}
+    {% endif %}
+    vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext| -> Box<dyn Any> {
+        {% for invocation in expression_spec.invocations %}
+            let {{ invocation.escaped_identifier }} =
+            {
+                let properties = if let Some(sf) = ec.stack_frame.peek_nth({{ invocation.stack_offset }}) {
+                    Rc::clone(&sf)
+                } else {
+                    panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
+                };
+                let mut borrowed = &mut *(*properties).borrow_mut();
+                {% if invocation.property_flags.is_binding_repeat_elem %}
+                    // binding repeat elem
+                    if let Some(unwrapped_repeat_item) = borrowed.downcast_ref::<RepeatItem>() {
+                        let i = unwrapped_repeat_item.i;
+                        let elem = Rc::clone(&unwrapped_repeat_item.elem);
+
+                        {% if invocation.is_numeric %}
+                            //iterable numeric as `elem`
+                            get_numeric_from_wrapped_properties(elem)
+                        {% elif invocation.is_string %}
+                            //string as `elem`
+
+                            let elem_borrowed = elem.borrow();
+                            if let Some(unwrapped) = elem_borrowed.downcast_ref::<{{invocation.fully_qualified_iterable_type}}>() {
+                                StringBox::from(unwrapped)
+                            } else {
+                                panic!();//Failed to unpack string from dyn Any
+                            }
+
+                        {% elif invocation.is_bool %}
+                            //bool as `elem`
+                            elem.clone()
+                        {% else %}
+                            //iterable complex type
+                            let mut elem_borrowed = elem.borrow_mut();
+                            if let Some(dc) = elem_borrowed.downcast_mut::<{{invocation.fully_qualified_iterable_type}}>() {
+                                dc.clone()
+                            } else {unreachable!()}
+                        {% endif %}
+                    } else {panic!()} // Failed to downcast
+
+
+                {% elif invocation.property_flags.is_binding_repeat_i %}
+                    //binding repeat i
+                    let mut unwrapped_repeat_item = if let Some(val) = borrowed.downcast_mut::<RepeatItem>() {val} else {panic!()}; // Failed to downcast
+                    let i = unwrapped_repeat_item.i;
+                    Numeric::from(i)
+                {% else %}
+
+                    if let Some(p) = borrowed.downcast_ref::<{{invocation.fully_qualified_properties_struct_type}}>(){
+
+                        {% if invocation.is_numeric %}
+                            //binding simple numeric property
+                            Numeric::from(p.{{invocation.root_identifier}}.get())
+                        {% elif invocation.is_string %}
+                            //binding simple stringbox property
+                            StringBox::from(p.{{invocation.root_identifier}}.get())
+                        {% else %}
+                            //binding cloneable property
+                            p.{{invocation.root_identifier}}.get().clone()
+                        {% endif %}
+                    } else {unreachable!()}
+                {% endif %}
+            }{{ invocation.nested_symbol_tail_literal }};
+            {% if invocation.is_nested_numeric %}
+                let {{ invocation.escaped_identifier }} = Numeric::from( {{ invocation.escaped_identifier }} );
+            {% endif %}
+
+        {% endfor %}
+
+        {% if expression_spec.is_repeat_source_iterable_expression %}
+            {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<Rc<RefCell<dyn Any>>> for Repeat #}
+            {% for invocation in expression_spec.invocations %}
+                let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
+                    let converted_cell: Rc<RefCell<(dyn Any + 'static)>> = Rc::new(RefCell::new(t.clone()));
+                    converted_cell
+                }).collect::<Vec<Rc<RefCell<dyn Any>>>>();
+            {% endfor %}
+        {% endif %}
+
+        Box::new({{expression_spec.output_statement}})
+
+    }));
+    {% if expression_spec.input_statement.source_map_end_marker %}
+        {{ expression_spec.input_statement.source_map_end_marker }}
+    {% endif %}
+    {% endfor %}
+
+    vtable
+}
+
+trait ComponentFactory {
+    /// Returns the default CommonProperties factory
+    fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
+        Box::new(|| Rc::new(RefCell::new(CommonProperties::default())))    
+    }
+
+    /// Returns the default properties factory for this component
+    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    
+    /// Returns the CommonProperties factory based on the defined properties 
+    fn build_inline_common_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
+        let cloned_properties = defined_properties.clone();
+        Box::new(move || Rc::new(RefCell::new({
+            let mut cp = CommonProperties::default();
+            for (key, value) in &cloned_properties {
+                match key.as_str() {
+                    {% for common_property in common_properties %}
+                    "{{common_property.name}}" => {
+                        let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value.clone() {
+                            ValueDefinition::LiteralValue(lv) => {
+                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
+                            },
+                            ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                            {
+                                Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                            },
+                            _ => unreachable!("Invalid value definition for {{common_property.name}}")
+                        };
+                        {%if common_property.is_optional %}
+                            cp.{{common_property.name}} = Some(resolved_property)
+                        {% else %}
+                            cp.{{common_property.name}} = resolved_property
+                        {% endif %}
+                    },
+                    {% endfor %}
+                    _ => {}
+                }
+            }
+            cp
+        })))
+    }
+
+    /// Returns the properties factory based on the defined properties
+    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    
+    /// Returns the requested closure for the handler registry based on the defined handlers for this component
+    /// The argument type is extrapolated based on how the handler was used in the initial compiled template
+    fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>);
+    
+    /// Returns the handler registry based on the defined handlers for this component
+    fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>>;
+
+    // Takes a hander registry and adds the given inline handlers to it
+    fn add_inline_handlers(&self, handlers: Vec<(String, String)>, registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>>;
+    
+    /// Returns the compute properties function for the component
+    fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>;
+    
+    // Calls the instantion function for the component
+    fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
+}
+
+{% for c in components -%}
+        {{ macros::render_component_factory(component=c) }}
+{%- endfor %}
+
+trait TypeFactory {
+    type Output: Default + Clone;
+    
+    fn build_type(&self, args: &LiteralBlockDefinition) -> Self::Output;
+}
+
+{% for key, value in type_table -%}
+        {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
+{%- endfor %}
+
+pub struct DefinitionToInstanceTraverser {
+    manifest: PaxManifest,
+}
+
+impl DefinitionToInstanceTraverser {
+    pub fn new() -> Self {
+        let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).unwrap();
+        Self {
+            manifest,
+        }
+    }
+
+    pub fn get_manifest(&self) -> &PaxManifest {
+        &self.manifest
+    }
+
+    pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {
+        let main_component_type_id = {
+            let manifest = self.get_manifest();
+            manifest.main_component_type_id.clone()
+        };
+        let args = self.build_component_args(&main_component_type_id);
+        let main_component = ComponentInstance::instantiate(args);
+        main_component
+    }
+
+    pub fn get_component(&mut self, type_id: &str) -> Rc<dyn InstanceNode> {
+        let factory = Self::get_component_factory(type_id).expect("Failed to get component factory");
+        let args = self.build_component_args(type_id);
+        factory.build_component(args)
+    }
+
+    pub fn get_component_factory(type_id: &str) -> Option<Box<dyn ComponentFactory>> {
+        match type_id {
+            {% for component in components %}
+            "{{component.type_id}}" => {
+                        Some(Box::new({{component.pascal_identifier}}Factory{}) as Box<dyn ComponentFactory>)
+                },
+            {% endfor %}
+            _ => None
+        }
+    }
+
+    pub fn build_component_args(&self, type_id: &str) -> InstantiationArgs {
+
+        let manifest = self.get_manifest();
+        if let None = manifest.components.get(type_id) {
+            panic!("Components with type_id {} not found in manifest", type_id);
+        }
+        let component = manifest.components.get(type_id).unwrap();
+        let factory = Self::get_component_factory(type_id).unwrap();
+        let prototypical_common_properties_factory = factory.build_default_common_properties();
+        let prototypical_properties_factory = factory.build_default_properties();
+
+        // pull handlers for this component
+        let handlers = manifest.get_component_handlers(type_id);
+        let handler_registry = Some(factory.build_component_handlers(handlers));
+
+
+        let compute_properties_fn = factory.build_compute_properties_fn();
+
+        let mut component_template = None;
+        if let Some(template_nodes) = &component.template {
+            let root = template_nodes.get(&0).unwrap();
+            let children = &root.child_ids;
+            let mut children_instances = Vec::new();
+            for child_id in children {
+                let child = template_nodes.get(&child_id).unwrap();
+                match child.type_id.as_str() {
+                    "IF" | "SLOT" | "REPEAT" => {
+                        children_instances.push(self.build_control_flow(type_id, &child));
+                    },
+                    "COMMENT" => continue,
+                    _ => {  
+                        children_instances.push(self.build_template_node(type_id, &child));
+                    }
+                }
+            }
+            component_template = Some(children_instances);
+        }
+
+        InstantiationArgs {
+            prototypical_common_properties_factory,
+            prototypical_properties_factory,
+            handler_registry,
+            component_template,
+            compute_properties_fn,
+            children: None,
+        }
+    }
+
+    pub fn build_control_flow(&self, containing_component_type_id: &str, tnd: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+
+        let manifest = self.get_manifest();
+        let prototypical_common_properties_factory = Box::new(|| Rc::new(RefCell::new(CommonProperties::default())));
+        let children = self.build_children(containing_component_type_id, tnd);
+        match tnd.type_id.as_str(){
+            "IF" => {
+                let vtable_id = tnd.control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .condition_expression_vtable_id
+                    .unwrap();
+                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                        let mut properties = ConditionalProperties::default();
+                        properties.boolean_expression = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        properties
+                    })));
+                ConditionalInstance::instantiate(InstantiationArgs {
+                    prototypical_common_properties_factory,
+                    prototypical_properties_factory,
+                    handler_registry: None,
+                    component_template: None,
+                    compute_properties_fn: None,
+                    children: Some(children),
+                })
+            },
+            "SLOT" => {
+                let vtable_id = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .slot_index_expression_vtable_id
+                    .unwrap();
+                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                        let mut properties = SlotProperties::default();
+                        properties.index = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        properties
+                    })));
+                SlotInstance::instantiate(InstantiationArgs {
+                    prototypical_common_properties_factory,
+                    prototypical_properties_factory,
+                    handler_registry: None,
+                    component_template: None,
+                    compute_properties_fn: None,
+                    children: Some(children),
+                })
+            },
+            "REPEAT" => {
+                let rsd = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .repeat_source_definition
+                    .clone()
+                    .unwrap();
+                let vtable_id = rsd.vtable_id.unwrap();
+                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                        let mut properties = RepeatProperties::default();
+                        properties.source_expression_vec = 
+                            if let Some(t) = &rsd.symbolic_binding {
+                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                            } else {
+                                None
+                            };
+                        properties.source_expression_range =
+                            if let Some(t) = &rsd.range_expression_paxel {
+                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                            } else {
+                                None
+                            };
+                        properties
+                    })));
+                RepeatInstance::instantiate(InstantiationArgs {
+                    prototypical_common_properties_factory,
+                    prototypical_properties_factory,
+                    handler_registry: None,
+                    component_template: None,
+                    compute_properties_fn: None,
+                    children: Some(children),
+                })
+            },
+            _ => {  
+                unreachable!("Unexpected control flow type {}", tnd.type_id)
+            }
+        
+        }
+
+    }
+
+    fn build_children(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Vec<Rc<dyn InstanceNode>> {
+        let manifest = self.get_manifest();
+        let containing_component = manifest.components.get(containing_component_type_id).unwrap();
+        let containing_template = containing_component.template.as_ref().unwrap();
+
+        let mut children_instances = Vec::new();
+        for child_id in &node.child_ids {
+            let child = containing_template.get(&child_id).unwrap();
+            match child.type_id.as_str() {
+                "IF" | "SLOT" | "REPEAT" => {
+                    children_instances.push(self.build_control_flow(containing_component_type_id, &child));
+                },
+                "COMMENT" => continue,
+                _ => {  
+                    children_instances.push(self.build_template_node(containing_component_type_id, child));
+                }
+            }
+        }
+        children_instances
+    }
+
+    pub fn build_template_node(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+        let mut args = self.build_component_args(&node.type_id);
+        let node_component_factory = Self::get_component_factory(&node.type_id).unwrap();
+
+        let manifest = self.get_manifest();
+
+        let containing_component = manifest.components.get(containing_component_type_id).unwrap();
+        let containing_template = containing_component.template.as_ref().unwrap();
+        let containing_component_factory = Self::get_component_factory(containing_component_type_id).unwrap();
+
+        // update handlers from tnd
+        let handlers_from_tnd = manifest.get_inline_event_handlers(node);
+        let updated_registry = if let Some(registry) = args.handler_registry {
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)    
+        } else {
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, Rc::new(RefCell::new(HandlerRegistry::default())))       
+        };
+
+        args.handler_registry = Some(updated_registry);
+
+        // update properties from tnd 
+        let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
+        let updated_properties = node_component_factory.build_inline_properties(&inline_properties);
+        args.prototypical_properties_factory = updated_properties;
+
+        // update common properties from tnd
+        let updated_common_properties = node_component_factory.build_inline_common_properties(&inline_properties);
+        args.prototypical_common_properties_factory = updated_common_properties;
+
+       
+        args.children = Some(self.build_children(containing_component_type_id, node));
+        node_component_factory.build_component(args)
+    }
+}

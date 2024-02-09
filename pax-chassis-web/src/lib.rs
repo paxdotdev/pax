@@ -79,17 +79,17 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let main_component_instance = pax_cartridge::instantiate_main_component();
+        let mut definition_to_instance_traverser =
+                pax_cartridge::DefinitionToInstanceTraverser::new();
+        let main_component_instance = definition_to_instance_traverser.get_main_component();
         let expression_table = ExpressionTable {
             table: pax_cartridge::instantiate_expression_table(),
         };
 
         #[cfg(feature = "designtime")]
         {
-            let mut definition_to_instance_traverser =
-                pax_cartridge::DefinitionToInstanceTraverser::new();
-            let main_component_instance = definition_to_instance_traverser.get_main_component();
-            let engine = pax_runtime::PaxEngine::new_with_designtime(
+            // build designtime manager
+            let engine = pax_core::PaxEngine::new_with_designtime(
                 main_component_instance,
                 expression_table,
                 pax_runtime::api::PlatformSpecificLogger::Web(log_wrapper),
