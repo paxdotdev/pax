@@ -20,7 +20,8 @@ pub struct RuntimeContext {
     messages: Vec<NativeMessage>,
     globals: Globals,
     expression_table: ExpressionTable,
-    pub lookup: HashMap<u32, Rc<ExpandedNode>>,
+    pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
+    pub node_cache: HashMap<u32, Rc<ExpandedNode>>,
 }
 
 impl RuntimeContext {
@@ -30,9 +31,58 @@ impl RuntimeContext {
             messages: Vec::new(),
             globals,
             expression_table,
-            lookup: HashMap::default(),
+            z_index_node_cache: vec![],
+            node_cache: HashMap::default(),
         }
     }
+
+    /// Simple 2D raycasting: the coordinates of the ray represent a
+    /// ray running orthogonally to the view plane, intersecting at
+    /// the specified point `ray`.  Areas outside of clipping bounds will
+    /// not register a `hit`, nor will elements that suppress input events.
+    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<ExpandedNode>> {
+        //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
+        //First: check whether events are suppressed
+        //Next: check whether ancestral clipping bounds (hit_test) are satisfied
+        //Finally: check whether element itself satisfies hit_test(ray)
+
+        //Instead of storing a pointer to `last_rtc`, we should store a custom
+        //struct with exactly the fields we need for ray-casting
+
+        let mut ret: Option<Rc<ExpandedNode>> = None;
+        for node in self.z_index_node_cache.iter().rev().skip(1) {
+            if node.ray_cast_test(&ray) {
+                //We only care about the topmost node getting hit, and the element
+                //pool is ordered by z-index so we can just resolve the whole
+                //calculation when we find the first matching node
+
+                let mut ancestral_clipping_bounds_are_satisfied = true;
+                let mut parent: Option<Rc<ExpandedNode>> =
+                    node.parent_expanded_node.borrow().upgrade();
+
+                loop {
+                    if let Some(unwrapped_parent) = parent {
+                        if let Some(_) = unwrapped_parent.get_clipping_size() {
+                            ancestral_clipping_bounds_are_satisfied =
+                                //clew
+                                (*unwrapped_parent).ray_cast_test(&ray);
+                            break;
+                        }
+                        parent = unwrapped_parent.parent_expanded_node.borrow().upgrade();
+                    } else {
+                        break;
+                    }
+                }
+
+                if ancestral_clipping_bounds_are_satisfied {
+                    ret = Some(Rc::clone(&node));
+                    break;
+                }
+            }
+        }
+        ret
+    }
+
 
     pub fn gen_uid(&mut self) -> Uid {
         self.next_uid.0 += 1;
