@@ -51,7 +51,7 @@ pub struct ExpandedNode {
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    children: RefCell<Vec<Rc<ExpandedNode>>>,
+    pub children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     pub properties: Rc<RefCell<dyn Any>>,
