@@ -253,12 +253,9 @@ impl PaxEngine {
     pub fn new(
         main_component_instance: Rc<ComponentInstance>,
         expression_table: ExpressionTable,
-        logger: crate::api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
     ) -> Self {
         use crate::math::Transform2;
-
-        crate::api::register_logger(logger);
 
         let globals = Globals {
             frames_elapsed: 0,
@@ -282,14 +279,10 @@ impl PaxEngine {
     pub fn new_with_designtime(
         main_component_instance: Rc<ComponentInstance>,
         expression_table: ExpressionTable,
-        logger: crate::api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
     ) -> Self {
         use crate::math::Transform2;
-
-        crate::api::register_logger(logger);
-
         let globals = Globals {
             frames_elapsed: 0,
             viewport: TransformAndBounds {

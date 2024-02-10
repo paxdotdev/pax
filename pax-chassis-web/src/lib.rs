@@ -1,6 +1,7 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
+use log::Level;
 use pax_runtime::api::ArgsButtonClick;
 use pax_runtime::api::ArgsCheckboxChange;
 use pax_runtime::api::ArgsTextboxChange;
@@ -34,33 +35,6 @@ use pax_designtime::DesigntimeManager;
 #[cfg(feature = "designtime")]
 const USERLAND_PROJECT_ID: &str = "userland_project";
 
-// Console.log support, piped from `pax_engine::log`
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-
-    // The `console.log` is quite polymorphic, so we can bind it with multiple
-    // signatures. Note that we need to use `js_name` to ensure we always call
-    // `log` in JS.
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_u32(a: u32);
-
-    // Multiple arguments too!
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_many(a: &str, b: &str);
-}
-
-macro_rules! console_log {
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
-
-pub fn log_wrapper(msg: &str) {
-    console_log!("{}", msg);
-}
-
 #[wasm_bindgen]
 pub fn wasm_memory() -> JsValue {
     wasm_bindgen::memory()
@@ -84,6 +58,8 @@ impl PaxChassisWeb {
     pub fn new() -> Self {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        console_log::init_with_level(Level::Debug)
+            .expect("console_log::init_with_level initialized correctly");
         let window = window().unwrap();
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
@@ -101,7 +77,6 @@ impl PaxChassisWeb {
             let engine = pax_runtime::PaxEngine::new_with_designtime(
                 main_component_instance,
                 expression_table,
-                pax_runtime::api::PlatformSpecificLogger::Web(log_wrapper),
                 (width, height),
                 designtime_manager.clone(),
             );
@@ -119,7 +94,6 @@ impl PaxChassisWeb {
             let engine = pax_runtime::PaxEngine::new(
                 main_component_instance,
                 expression_table,
-                pax_runtime::api::PlatformSpecificLogger::Web(log_wrapper),
                 (width, height),
             );
 

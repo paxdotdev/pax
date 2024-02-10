@@ -1,14 +1,10 @@
-use std::borrow::Borrow;
 use std::collections::VecDeque;
-use std::ffi::CString;
 use std::ops::{Add, Deref, Mul, Neg};
 
 #[cfg(feature = "designtime")]
 use std::rc::Rc;
 
 use kurbo::BezPath;
-use lazy_static::lazy_static;
-use mut_static::MutStatic;
 use piet::PaintBrush;
 
 use crate::math::{Point2, Space};
@@ -721,36 +717,6 @@ impl Default for Size {
     }
 }
 
-/// Coproduct for storing various kinds of function pointer,
-/// needed to achieve compatibility with various native bridge mechanisms
-pub enum PlatformSpecificLogger {
-    Web(fn(&str)),
-    MacOS(extern "C" fn(*const std::os::raw::c_char)),
-}
-
-pub struct Logger(PlatformSpecificLogger);
-
-lazy_static! {
-    static ref LOGGER: MutStatic<Logger> = MutStatic::new();
-}
-
-pub fn register_logger(logger: PlatformSpecificLogger) {
-    LOGGER.borrow().set(Logger(logger)).unwrap();
-}
-
-/// Log to the appropriate native logging mechanism
-/// Most often called as `pax_engine::log("some message")`
-pub fn log(msg: &str) {
-    let logging_variant = &(LOGGER.borrow().read().expect("Logger isn't registered").0);
-    match logging_variant {
-        PlatformSpecificLogger::Web(closure) => closure(msg),
-        PlatformSpecificLogger::MacOS(closure) => {
-            let msg = CString::new(msg).unwrap();
-            (closure)(msg.as_ptr());
-        }
-    }
-}
-
 impl Mul for Size {
     type Output = Size;
 
@@ -964,7 +930,6 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     }
 
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
-        // log(&format!("property T not printable"));
         if let None = self.transition_manager.value {
             None
         } else {
