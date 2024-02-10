@@ -20,7 +20,7 @@ typedef struct InterruptBuffer {
 
 typedef struct PaxEngineContainer PaxEngineContainer;
 
-struct PaxEngineContainer *pax_init(void (*logger)(const char*));
+struct PaxEngineContainer *pax_init();
 
 void pax_dealloc_engine(struct PaxEngineContainer * container);
 
