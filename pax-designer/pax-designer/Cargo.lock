@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "pax-compiler",
  "pax-engine",
@@ -1883,7 +1883,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-compiler"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -1928,7 +1928,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "designer_project",
@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "env_logger 0.11.0",
@@ -1964,7 +1964,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "pax-compiler",
  "pax-macro",
@@ -1974,7 +1974,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "litrs",
  "pax-runtime",
@@ -1991,33 +1991,31 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
- "anyhow",
  "pax-message",
  "pest",
  "pest_derive",
  "serde",
- "serde_json",
 ]
 
 [[package]]
 name = "pax-message"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "serde",
- "serde_json",
  "wasm-bindgen",
 ]
 
 [[package]]
 name = "pax-runtime"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "kurbo",
  "lazy_static",
  "mut_static",
  "pax-designtime",
+ "pax-manifest",
  "pax-message",
  "piet",
  "piet-common",
@@ -2027,7 +2025,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.11.5"
+version = "0.12.0"
 dependencies = [
  "kurbo",
  "lazy_static",
