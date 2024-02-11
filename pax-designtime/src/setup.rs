@@ -47,6 +47,7 @@ pub fn add_additional_dependencies_to_cargo_toml(
             array.push("include_dir");
             array.push("pax-designtime");
             array.push("pax-runtime/designtime");
+            array.push("pax-designer/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
 
             let mut array = Array::default();
