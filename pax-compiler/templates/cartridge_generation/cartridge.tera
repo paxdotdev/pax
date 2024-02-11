@@ -5,6 +5,7 @@ use pax_manifest::*;
 use pax_runtime::api::*;
 use pax_runtime::*;
 use pax_manifest::deserializer::from_pax;
+use std::cell::Ref;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
@@ -190,19 +191,46 @@ trait TypeFactory {
 {%- endfor %}
 
 pub struct DefinitionToInstanceTraverser {
+    #[cfg(not(feature = "designtime"))]
     manifest: PaxManifest,
+    #[cfg(feature = "designtime")]
+    designtime_manager: Rc<RefCell<pax_designtime::DesigntimeManager>>,
 }
 
 impl DefinitionToInstanceTraverser {
+
+    #[cfg(not(feature = "designtime"))]
     pub fn new() -> Self {
         let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).expect("Failed to deserialize initial manifest");
         Self {
             manifest,
         }
     }
-    
-    pub fn get_manifest(&self) -> &PaxManifest {
+
+    #[cfg(not(feature = "designtime"))]
+    pub fn get_manifest(&self) ->  &PaxManifest {
         &self.manifest
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn new() -> Self {
+        let manifest: PaxManifest = serde_json::from_str(INITAL_MANIFEST).expect("Failed to deserialize initial manifest");
+        let designtime_manager = Rc::new(RefCell::new(pax_designtime::DesigntimeManager::new(manifest)));
+        Self {
+            designtime_manager,
+        }
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn get_designtime_manager(&self) -> Rc<RefCell<pax_designtime::DesigntimeManager>> {
+        self.designtime_manager.clone()
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn get_manifest(&self) ->  Ref<PaxManifest> {
+        Ref::map(self.designtime_manager.borrow(), |manager| {
+            manager.get_manifest()
+        })
     }
 
     pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {

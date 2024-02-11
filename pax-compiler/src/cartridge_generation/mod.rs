@@ -5,7 +5,6 @@
 
 use crate::helpers::PKG_DIR_NAME;
 use itertools::Itertools;
-use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
 
@@ -34,19 +33,6 @@ pub fn generate_and_overwrite_cartridge(
     let mut target_cargo_toml_contents =
         toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
             .unwrap();
-
-    #[cfg(feature = "designtime")]
-    {
-        if let Some(features) = target_cargo_toml_contents
-            .as_table_mut()
-            .get_mut("features")
-        {
-            if let Some(designtime) = features["designtime"].as_array_mut() {
-                let new_dependency = "pax-designer/designtime";
-                designtime.push(new_dependency);
-            }
-        }
-    }
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
@@ -96,14 +82,6 @@ pub fn generate_and_overwrite_cartridge(
             is_designtime: cfg!(feature = "designtime"),
         },
     );
-
-    #[cfg(not(feature = "designtime"))]
-    {
-        let de_map: HashMap<String, String> = HashMap::new();
-        let de_map_str = serde_json::to_string(&de_map).unwrap();
-        let de_map_path = target_dir.join("de_map.json");
-        fs::write(de_map_path, de_map_str).unwrap();
-    }
 
     // write manifest to cartridge
     let manifest_path = target_dir.join(INITIAL_MANIFEST_FILE_NAME);
