@@ -32,7 +32,7 @@ pub fn from_pax<T>(str: String) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    let deserializer: Deserializer = Deserializer::from_string(str);
+    let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
     let t = T::deserialize(deserializer)?;
     Ok(t)
 }
