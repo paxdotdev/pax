@@ -14,7 +14,8 @@ use piet::InterpolationMode;
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
-    Affine, ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds
+    Affine, ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext,
+    RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
@@ -301,7 +302,9 @@ impl PaxEngine {
     }
 
     pub fn update_root_node(&mut self, main_component_instance: Rc<ComponentInstance>) {
-        self.root_node.clone().recurse_unmount(&mut self.runtime_context);
+        self.root_node
+            .clone()
+            .recurse_unmount(&mut self.runtime_context);
         self.root_node = ExpandedNode::root(main_component_instance, &mut self.runtime_context);
     }
 
@@ -315,18 +318,29 @@ impl PaxEngine {
         new_instance: Rc<dyn InstanceNode>,
         current_expanded_node: Rc<ExpandedNode>,
     ) {
-        let id = current_expanded_node.get_common_properties().borrow().id.clone();
+        let id = current_expanded_node
+            .get_common_properties()
+            .borrow()
+            .id
+            .clone();
         if let Some(p) = id {
-                if *(p.get()) == target_id {
-                    let parent = current_expanded_node.parent_expanded_node.borrow().upgrade();
-                    if let Some(p) = parent {
-                        let env = Rc::clone(&p.stack);
-                        p.set_children(vec![(new_instance, env)], &mut self.runtime_context);
-                    }
+            if *(p.get()) == target_id {
+                let parent = current_expanded_node
+                    .parent_expanded_node
+                    .borrow()
+                    .upgrade();
+                if let Some(p) = parent {
+                    let env = Rc::clone(&p.stack);
+                    p.set_children(vec![(new_instance, env)], &mut self.runtime_context);
+                }
             }
         } else {
             for child in current_expanded_node.children.borrow_mut().iter() {
-                self.recurse_replace_by_id(target_id.clone(), new_instance.clone(), Rc::clone(child));
+                self.recurse_replace_by_id(
+                    target_id.clone(),
+                    new_instance.clone(),
+                    Rc::clone(child),
+                );
             }
         }
     }
