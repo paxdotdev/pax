@@ -58,8 +58,14 @@ impl PaxChassisWeb {
     pub fn new() -> Self {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
+        #[cfg(debug_assertions)]
         console_log::init_with_level(Level::Debug)
             .expect("console_log::init_with_level initialized correctly");
+        #[cfg(not(debug_assertions))]
+        console_log::init_with_level(Level::Error)
+            .expect("console_log::init_with_level initialized correctly");
+
         let window = window().unwrap();
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
