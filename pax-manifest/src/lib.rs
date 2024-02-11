@@ -15,7 +15,7 @@ pub mod constants;
 pub mod deserializer;
 
 /// Definition container for an entire Pax cartridge
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {

@@ -33,4 +33,8 @@ impl DefinitionToInstanceTraverser {
     pub fn get_main_component(&mut self) -> Rc<ComponentInstance> {
         unreachable!("{}", PLACEHOLDER_ERROR)
     }
+
+    pub fn get_manifest(&self) -> &pax_manifest::PaxManifest {
+        unreachable!("{}", PLACEHOLDER_ERROR)
+    }
 }
