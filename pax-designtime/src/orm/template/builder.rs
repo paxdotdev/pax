@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use pax_manifest::{
     ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
     ControlFlowSettingsDefinition, PropertyDefinition, SettingElement, TemplateNodeDefinition,
@@ -179,7 +179,7 @@ impl<'a> NodeBuilder<'a> {
             self.remove_property(key);
             return Ok(());
         }
-        let value = pax_manifest::utils::parse_value(value)?;
+        let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
         let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
         if let Some(index) = self.property_map.get(key) {
             self.template_node.settings.as_mut().unwrap()[*index] =
