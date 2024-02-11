@@ -91,6 +91,7 @@ impl PaxManifest {
         map.insert("wheel".to_string(), Some("ArgsWheel".to_string()));
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
+        map.insert("tick".to_string(), None);
         map
     }
 
@@ -257,7 +258,7 @@ impl PaxManifest {
             for e in matched_settings {
                 if let SettingElement::Setting(_, value) = e {
                     match value {
-                        ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
+                        ValueDefinition::LiteralValue(s) => ret.push(s.clone()),
                         _ => {}
                     };
                 }
