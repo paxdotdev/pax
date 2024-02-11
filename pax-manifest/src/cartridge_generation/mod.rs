@@ -259,6 +259,7 @@ impl PaxManifest {
                 if let SettingElement::Setting(_, value) = e {
                     match value {
                         ValueDefinition::LiteralValue(s) => ret.push(s.clone()),
+                        ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
                         _ => {}
                     };
                 }
