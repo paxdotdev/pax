@@ -176,6 +176,22 @@ impl ExpandedNode {
         })
     }
 
+    /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id_chain)
+    /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
+    /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.
+    pub fn is_descendant_of(&self, other_expanded_node_id: &Vec<u32>) -> bool {
+        if let Some(parent) = self.parent_expanded_node.borrow().upgrade() {
+            // We have a parent — if it matches the ID, this node is indeed an ancestor of other_expanded_node_id.  Otherwise, recurse upward.
+            if parent.id_chain.eq(other_expanded_node_id) {
+                true
+            } else {
+                parent.is_descendant_of(other_expanded_node_id)
+            }
+        } else {
+            false
+        }
+    }
+
     pub fn create_children_detached(
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
