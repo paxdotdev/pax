@@ -1,3 +1,4 @@
+use crate::api::log;
 use crate::numeric::Numeric;
 use pax_message::NativeMessage;
 use std::cell::RefCell;
@@ -49,6 +50,26 @@ impl RuntimeContext {
                 } else {
                     false
                 }
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub fn get_expanded_nodes_by_global_ids(
+        &self,
+        component_id: &str,
+        template_id: usize,
+    ) -> Vec<Rc<ExpandedNode>> {
+        self.node_cache
+            .values()
+            .filter(|val| {
+                let node_template_id = val.instance_node.base().template_node_id;
+                let containing_component_id = val
+                    .containing_component
+                    .upgrade()
+                    .map(|n| n.instance_node.base().component_type_id.clone())
+                    .unwrap_or_default();
+                component_id == containing_component_id && template_id == node_template_id
             })
             .cloned()
             .collect()
