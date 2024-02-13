@@ -17,7 +17,7 @@ use model::action::CanUndo;
 pub struct Toolbar {}
 
 pub struct SelectTool {
-    tool: Tool,
+    pub tool: Tool,
 }
 
 impl Action for SelectTool {

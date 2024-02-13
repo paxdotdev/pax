@@ -51,7 +51,8 @@ pub fn read_app_state(closure: impl FnOnce(&AppState)) {
 #[derive(Default)]
 pub struct AppState {
     //globals
-    pub selection_state: Vec<usize>,
+    pub selected_component_id: String,
+    pub selected_template_node_id: Option<usize>,
 
     //toolbar
     pub selected_tool: Option<Tool>,
@@ -60,7 +61,7 @@ pub struct AppState {
     pub tool_visual: Option<ToolVisual>,
 
     //keyboard
-    ctrl: bool,
+    main_mod_key: bool,
 }
 
 #[derive(Clone, Copy)]
