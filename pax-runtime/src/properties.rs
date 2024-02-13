@@ -38,20 +38,37 @@ impl RuntimeContext {
         }
     }
 
+    /// Finds all ExpandedNodes with the CommonProperty#id matching the provided string
+    pub fn get_expanded_nodes_by_id(&self, id: &str) -> Vec<Rc<ExpandedNode>> {
+        //v0 limitation: currently an O(n) lookup cost (could be made O(1) with an id->expandednode cache)
+        self.node_cache
+            .values()
+            .filter(|val| {
+                if let Some(other_id) = &val.get_common_properties().borrow().id {
+                    other_id.get() == id
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect()
+    }
+
     /// Simple 2D raycasting: the coordinates of the ray represent a
     /// ray running orthogonally to the view plane, intersecting at
     /// the specified point `ray`.  Areas outside of clipping bounds will
     /// not register a `hit`, nor will elements that suppress input events.
-    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<ExpandedNode>> {
+    pub fn get_elements_beneath_ray(
+        &self,
+        ray: (f64, f64),
+        limit_one: bool,
+        mut accum: Vec<Rc<ExpandedNode>>,
+    ) -> Vec<Rc<ExpandedNode>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
-        //Instead of storing a pointer to `last_rtc`, we should store a custom
-        //struct with exactly the fields we need for ray-casting
-
-        let mut ret: Option<Rc<ExpandedNode>> = None;
         for node in self.z_index_node_cache.iter().rev().skip(1) {
             if node.ray_cast_test(&ray) {
                 //We only care about the topmost node getting hit, and the element
@@ -66,7 +83,6 @@ impl RuntimeContext {
                     if let Some(unwrapped_parent) = parent {
                         if let Some(_) = unwrapped_parent.get_clipping_size() {
                             ancestral_clipping_bounds_are_satisfied =
-                                //clew
                                 (*unwrapped_parent).ray_cast_test(&ray);
                             break;
                         }
@@ -77,12 +93,26 @@ impl RuntimeContext {
                 }
 
                 if ancestral_clipping_bounds_are_satisfied {
-                    ret = Some(Rc::clone(&node));
-                    break;
+                    accum.push(Rc::clone(&node));
+                    if limit_one {
+                        return accum;
+                    }
                 }
             }
         }
-        ret
+        accum
+    }
+
+    /// Alias for `get_elements_beneath_ray` with `limit_one = true`
+    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<ExpandedNode>> {
+        let res = self.get_elements_beneath_ray(ray, true, vec![]);
+        if res.len() == 0 {
+            None
+        } else if res.len() == 1 {
+            Some(res.get(0).unwrap().clone())
+        } else {
+            unreachable!() //bug in limit_one logic
+        }
     }
 
     pub fn gen_uid(&mut self) -> Uid {
