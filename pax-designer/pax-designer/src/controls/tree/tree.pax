@@ -12,9 +12,6 @@ for (obj, i) in self.visible_tree_objects {
 		 image_path={obj.image_path}
 	/>
 }
-
-<Button width=100px height=30px anchor_y=100% y=100% label="Tree 1" @button_click=self.set_tree1/>
-<Button x=110px width=100px height=30px anchor_y=100% y=100% label="Tree 2" @button_click=self.set_tree2/>
 <Rectangle
      fill={Fill::Solid(Color::rgb(0.1, 0.1, 0.1))}
 />

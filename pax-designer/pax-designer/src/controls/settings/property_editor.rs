@@ -47,7 +47,7 @@ impl PropertyEditor {
         if let Err(error) = node_definition.set_property(variable, &args.text) {
             self.error.set("error".to_owned());
         } else {
-            node_definition.save().expect("failed to save");
+            //node_definition.save().expect("failed to save");
             self.error.set("".to_owned());
         }
     }
