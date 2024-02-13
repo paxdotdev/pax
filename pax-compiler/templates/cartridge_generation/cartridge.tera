@@ -305,6 +305,7 @@ impl DefinitionToInstanceTraverser {
             component_template,
             compute_properties_fn,
             children: None,
+            template_node_id: 0,
         }
     }
 
@@ -332,6 +333,7 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(children),
+                    template_node_id: tnd.id,
                 })
             },
             "SLOT" => {
@@ -353,6 +355,7 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(children),
+                    template_node_id: tnd.id,
                 })
             },
             "REPEAT" => {
@@ -387,6 +390,7 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(children),
+                    template_node_id: tnd.id,
                 })
             },
             _ => {  
@@ -449,6 +453,57 @@ impl DefinitionToInstanceTraverser {
 
        
         args.children = Some(self.build_children(containing_component_type_id, node));
+        args.template_node_id = node.id;
         node_component_factory.build_component(args)
+    }
+
+
+    pub fn get_template_node_by_id(&self, id: &str) -> Option<Rc<dyn InstanceNode>> {
+        let manifest = self.get_manifest();
+        let main_component_type_id = manifest.main_component_type_id.clone();
+        let main_component = manifest.components.get(&main_component_type_id).unwrap();
+        let template = main_component.template.as_ref().unwrap();
+        for template_node in template.values() {
+            if let Some(found) = self.recurse_get_template_node_by_id(id, &main_component_type_id, template_node) {
+                return Some(self.build_template_node(&found.0, &found.1))
+            }
+        }
+        None
+    }
+
+    fn check_for_id_in_template_node(&self, id: &str, tnd: &TemplateNodeDefinition) -> bool {
+        if let Some(settings) = &tnd.settings {
+            for setting in settings {
+                if let SettingElement::Setting(token, value) = setting {
+                    if &token.raw_value == "id" {
+                        if let ValueDefinition::LiteralValue(lv) = value {
+                            if lv.raw_value == id {
+                                return true;
+                            }
+                        }
+                    
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn recurse_get_template_node_by_id<'a>(&'a self, id: &str, containing_component_type_id: &'a str, tnd: &'a TemplateNodeDefinition) -> Option<(String, TemplateNodeDefinition)>{
+        let manifest = self.get_manifest();
+        if self.check_for_id_in_template_node(id, tnd) {
+            return Some((containing_component_type_id.to_string(), tnd.clone()));
+        }
+
+        if let Some(component) = &manifest.components.get(&tnd.type_id){
+            if let Some(template) = &component.template {
+                for template_node in template.values() {
+                    if let Some(found) = self.recurse_get_template_node_by_id(id, &tnd.type_id, template_node) {
+                        return Some(found.clone());
+                    }
+                }
+            }
+        }
+        None
     }
 }

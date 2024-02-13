@@ -2,6 +2,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::iter;
 use std::rc::Rc;
 
 use pax_message::{NativeMessage, OcclusionPatch};
@@ -308,14 +309,14 @@ impl PaxEngine {
         self.root_node = ExpandedNode::root(main_component_instance, &mut self.runtime_context);
     }
 
-    pub fn replace_by_id(&mut self, id: String, new_instance: Rc<dyn InstanceNode>) {
-        self.recurse_replace_by_id(id, new_instance, Rc::clone(&self.root_node));
+    pub fn replace_by_id(&mut self, id: &str, new_instance: Rc<dyn InstanceNode>) {
+        self.recurse_replace_by_id(id, &new_instance, Rc::clone(&self.root_node));
     }
 
     pub fn recurse_replace_by_id(
         &mut self,
-        target_id: String,
-        new_instance: Rc<dyn InstanceNode>,
+        target_id: &str,
+        new_instance: &Rc<dyn InstanceNode>,
         current_expanded_node: Rc<ExpandedNode>,
     ) {
         let id = current_expanded_node
@@ -330,17 +331,36 @@ impl PaxEngine {
                     .borrow()
                     .upgrade();
                 if let Some(p) = parent {
+                    let children = p.children.clone();
+                    let index = children
+                        .borrow()
+                        .iter()
+                        .position(|e| {
+                            e.get_common_properties()
+                                .borrow()
+                                .id
+                                .clone()
+                                .is_some_and(|id| *(id.get()) == target_id)
+                        })
+                        .unwrap();
+
+                    let mut instance_children = children
+                        .borrow()
+                        .iter()
+                        .map(|e| e.instance_node.clone())
+                        .collect::<Vec<Rc<dyn InstanceNode>>>();
+
+                    instance_children[index] = new_instance.clone();
+
                     let env = Rc::clone(&p.stack);
-                    p.set_children(vec![(new_instance, env)], &mut self.runtime_context);
+                    let new_templates = instance_children.into_iter().zip(iter::repeat(env));
+                    p.set_children(new_templates, &mut self.runtime_context);
+                    return;
                 }
             }
         } else {
-            for child in current_expanded_node.children.borrow_mut().iter() {
-                self.recurse_replace_by_id(
-                    target_id.clone(),
-                    new_instance.clone(),
-                    Rc::clone(child),
-                );
+            for child in current_expanded_node.children.clone().borrow().iter() {
+                self.recurse_replace_by_id(target_id, &new_instance, child.clone());
             }
         }
     }

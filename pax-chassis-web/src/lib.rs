@@ -29,6 +29,9 @@ use serde_json;
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
 
+#[cfg(feature = "designtime")]
+const USERLAND_PROJECT_ID: &str = "userland_project";
+
 // Console.log support, piped from `pax_engine::log`
 #[wasm_bindgen]
 extern "C" {
@@ -69,6 +72,8 @@ pub struct PaxChassisWeb {
     definition_to_instance_traverser: pax_cartridge::DefinitionToInstanceTraverser,
     #[cfg(feature = "designtime")]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
+    #[cfg(feature = "designtime")]
+    last_manifest_version_rendered: usize,
 }
 
 #[wasm_bindgen]
@@ -104,6 +109,7 @@ impl PaxChassisWeb {
                 drawing_contexts: Renderer::new(),
                 definition_to_instance_traverser,
                 designtime_manager: designtime_manager,
+                last_manifest_version_rendered: 0,
             }
         }
         #[cfg(not(feature = "designtime"))]
@@ -545,7 +551,25 @@ impl PaxChassisWeb {
         }
     }
 
+    #[cfg(feature = "designtime")]
+    pub fn update_userland_component(&mut self) {
+        let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
+        if current_manifest_version != self.last_manifest_version_rendered {
+            if let Some(instance_node) = self
+                .definition_to_instance_traverser
+                .get_template_node_by_id(USERLAND_PROJECT_ID)
+            {
+                let mut engine = self.engine.borrow_mut();
+                engine.replace_by_id(USERLAND_PROJECT_ID, instance_node);
+            }
+            self.last_manifest_version_rendered = current_manifest_version;
+        }
+    }
+
     pub fn tick(&mut self) -> MemorySlice {
+        #[cfg(feature = "designtime")]
+        self.update_userland_component();
+
         let message_queue = self.engine.borrow_mut().tick();
 
         // Serialize data to a JSON string
