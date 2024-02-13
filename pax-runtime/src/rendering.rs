@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::RefCell;
 
 use std::iter;
-use std::ops::Mul;
+use std::ops::{Add, Div, Mul, Sub};
 use std::rc::Rc;
 
 use crate::api::{CommonProperties, RenderContext};
@@ -33,10 +33,41 @@ pub struct InstantiationArgs {
     pub component_type_id: String,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Point2D {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Add<Point2D> for Point2D {
+    type Output = Point2D;
+
+    fn add(self, rhs: Point2D) -> Self::Output {
+        Self::Output {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl Sub<Point2D> for Point2D {
+    type Output = Point2D;
+    fn sub(self, rhs: Point2D) -> Self::Output {
+        Self::Output {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl Div<f64> for Point2D {
+    type Output = Point2D;
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::Output {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
 }
 
 impl Point2D {
