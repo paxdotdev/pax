@@ -113,7 +113,7 @@ impl Tree {
         self.header_text
             .set("Tree View: No loaded project".to_owned());
     }
-
+    
     fn to_tree(root: usize, graph: &HashMap<usize, (String, Vec<usize>)>) -> TreeEntry {
         let (name, children) = &graph[&root];
         TreeEntry(
@@ -148,16 +148,6 @@ impl Tree {
         )
     }
 
-    pub fn set_tree1(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        let type_id = "pax_designer::pax_reexports::controls::Controls";
-        self.set_tree(type_id, ctx);
-    }
-
-    pub fn set_tree2(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        let type_id = "pax_designer::pax_reexports::designer_project::Example";
-        self.set_tree(&type_id, ctx);
-    }
-
     pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
         self.project_loaded.set(true);
         self.header_text.set("".to_owned());
@@ -183,28 +173,30 @@ impl Tree {
         self.visible_tree_objects.set(flattened);
     }
 
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        let mut channel = TREE_CLICK_SENDER.lock().unwrap();
-        if let Some(sender) = channel.take() {
-            let tree = &mut self.tree_objects.get_mut();
-            tree[sender].collapsed = !tree[sender].collapsed;
-            let collapsed = tree[sender].collapsed;
-            for i in (sender + 1)..tree.len() {
-                if tree[sender].indent_level < tree[i].indent_level {
-                    tree[i].visible = !collapsed;
-                    tree[i].collapsed = collapsed;
-                } else {
-                    break;
-                }
-            }
-            self.visible_tree_objects.set(
-                self.tree_objects
-                    .get()
-                    .iter()
-                    .filter(|o| o.visible)
-                    .cloned()
-                    .collect(),
-            );
-        }
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
+        // let mut channel = TREE_CLICK_SENDER.lock().unwrap();
+        // if let Some(sender) = channel.take() {
+        //     let tree = &mut self.tree_objects.get_mut();
+        //     tree[sender].collapsed = !tree[sender].collapsed;
+        //     let collapsed = tree[sender].collapsed;
+        //     for i in (sender + 1)..tree.len() {
+        //         if tree[sender].indent_level < tree[i].indent_level {
+        //             tree[i].visible = !collapsed;
+        //             tree[i].collapsed = collapsed;
+        //         } else {
+        //             break;
+        //         }
+        //     }
+        //     self.visible_tree_objects.set(
+        //         self.tree_objects
+        //             .get()
+        //             .iter()
+        //             .filter(|o| o.visible)
+        //             .cloned()
+        //             .collect(),
+        //     );
+        // }
+        let type_id = "pax_designer::pax_reexports::designer_project::Example";
+        self.set_tree(&type_id, ctx);
     }
 }
