@@ -8,7 +8,7 @@ impl Action for CreateRectangle {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut builder = ctx.designtime.get_orm_mut().build_new_node(
             "pax_designer::pax_reexports::designer_project::Example".to_owned(),
-            "pax_designer::pax_reexports::pax_std::Rectangle".to_owned(),
+            "pax_designer::pax_reexports::pax_std::primitives::Rectangle".to_owned(),
             "Rectangle".to_owned(),
             None,
         );
