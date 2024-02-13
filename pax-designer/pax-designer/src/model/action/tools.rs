@@ -105,8 +105,7 @@ impl Action for PointerTool {
                         .iter()
                         .find(|elem| elem.is_descendant_of(&container.id_chain))
                     {
-                        //`target` was hit! select it
-                        pax_engine::log::info!("Element hit! {:?}", target);
+                        // pax_engine::log::info!("Element hit! {:?}", target);
                         ctx.app_state.selected_template_node_id =
                             Some(target.instance_node.base().template_node_id);
                         let lp = target.layout_properties.borrow();
