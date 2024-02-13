@@ -8,7 +8,7 @@ use std::rc::Rc;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
-    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
+    log, CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
     TransitionManager,
 };
 use piet::InterpolationMode;
@@ -313,6 +313,7 @@ impl PaxEngine {
                     .into_iter()
                     .zip(iter::repeat(env));
                 p.set_children(new_templates, &mut self.runtime_context);
+                self.root_node.recurse_update(&mut self.runtime_context);
                 return;
             }
         }
