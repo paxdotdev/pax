@@ -33,7 +33,7 @@ pub struct InstantiationArgs {
     pub component_type_id: String,
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct Point2D {
     pub x: f64,
     pub y: f64,
