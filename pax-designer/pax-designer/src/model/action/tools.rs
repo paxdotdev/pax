@@ -84,18 +84,24 @@ impl Action for PointerTool {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                // TODO don't always go into selection state.
-                // if on top of object (query the engine for this)
-                // then set "dragged object" to that object, and check for that in the below cases
-                // or refactor into one "selection" tool and one "drag" tool
-                ctx.app_state.tool_visual = Some(ToolVisual::Box {
-                    x1: self.x,
-                    y1: self.y,
-                    x2: self.x,
-                    y2: self.y,
-                    stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
-                    fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
-                });
+                // TODO replace bellow (self.x > self.y) and inside content with this when it exists:
+                // let hit = ctx.node_context.get_topmost_element_beneath_ray();
+                // if let Some(expanded_node) = hit {
+                //     ctx.app_state.selected_template_node_id = Some(expanded_node.instance_node.id);
+                // }
+
+                if self.x > self.y {
+                    ctx.app_state.selected_template_node_id = Some(1); //mock
+                } else {
+                    ctx.app_state.tool_visual = Some(ToolVisual::Box {
+                        x1: self.x,
+                        y1: self.y,
+                        x2: self.x,
+                        y2: self.y,
+                        stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
+                        fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
+                    });
+                }
             }
             Pointer::Move => {
                 if let Some(ToolVisual::Box {
@@ -114,6 +120,11 @@ impl Action for PointerTool {
                 {
                     // TODO get objects within rectangle from engine, and find their
                     // TemplateNode ids to set selection state.
+                    let something_in_rectangle = true;
+                    if something_in_rectangle {
+                        ctx.app_state.selected_template_node_id = None;
+                        //select things
+                    }
                 }
             }
         }

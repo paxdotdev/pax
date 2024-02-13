@@ -14,10 +14,11 @@ use crate::model::action::pointer::Pointer;
 #[custom(Default)]
 #[file("glass.pax")]
 pub struct Glass {
-    pub show_selection_controls: Property<bool>,
-    pub control_points: Property<Vec<ControlPoint>>,
-    pub anchor_point: Property<ControlPoint>,
-    pub selection_bounding_segments: Property<Vec<BoundingSegment>>,
+    // selection state
+    pub selection_active: Property<bool>,
+    pub selection_visual: Property<SelectionVisual>,
+
+    // rect tool state
     pub rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
 }
@@ -71,12 +72,21 @@ impl Glass {
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
-        pax_engine::log("key down");
+        pax_engine::log::debug!("key down");
         //TODO: handle keydowns and pass into InputMapper
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
+            // selection state visual
+            if let Some(id) = app_state.selected_template_node_id {
+                // TODO let bounding box = ctx.get_template_node_bounding_box(id);
+                self.selection_active.set(true);
+            } else {
+                self.selection_active.set(false);
+            }
+
+            // tool use visual
             if let Some(visual) = &app_state.tool_visual {
                 match visual {
                     ToolVisual::Box {
@@ -108,47 +118,10 @@ impl Glass {
 impl Default for Glass {
     fn default() -> Self {
         Self {
-            show_selection_controls: Box::new(PropertyLiteral::new(true)),
-            control_points: Box::new(PropertyLiteral::new(vec![
-                ControlPoint { x: 300.0, y: 100.0 },
-                ControlPoint { x: 350.0, y: 100.0 },
-                ControlPoint { x: 400.0, y: 100.0 },
-                ControlPoint { x: 300.0, y: 150.0 },
-                //
-                // anchor point
-                //
-                ControlPoint { x: 400.0, y: 150.0 },
-                ControlPoint { x: 300.0, y: 200.0 },
-                ControlPoint { x: 350.0, y: 200.0 },
-                ControlPoint { x: 400.0, y: 200.0 },
-            ])),
-            selection_bounding_segments: Box::new(PropertyLiteral::new(vec![
-                BoundingSegment {
-                    x0: 300.0,
-                    y0: 100.0,
-                    x1: 400.0,
-                    y1: 100.0,
-                },
-                BoundingSegment {
-                    x0: 400.0,
-                    y0: 100.0,
-                    x1: 400.0,
-                    y1: 200.0,
-                },
-                BoundingSegment {
-                    x0: 400.0,
-                    y0: 200.0,
-                    x1: 300.0,
-                    y1: 200.0,
-                },
-                BoundingSegment {
-                    x0: 300.0,
-                    y0: 200.0,
-                    x1: 300.0,
-                    y1: 100.0,
-                },
-            ])),
-            anchor_point: Box::new(PropertyLiteral::new(ControlPoint { x: 350.0, y: 150.0 })),
+            selection_active: Default::default(),
+            selection_visual: Box::new(PropertyLiteral::new(SelectionVisual::new_from_box_bounds(
+                300.0, 100.0, 400.0, 200.0,
+            ))),
             rect_tool_active: Box::new(PropertyLiteral::new(false)),
             rect_tool: Default::default(),
         }
@@ -167,6 +140,75 @@ pub struct BoundingSegment {
     pub y0: f64,
     pub x1: f64,
     pub y1: f64,
+}
+
+#[pax]
+pub struct SelectionVisual {
+    pub control_points: Property<Vec<ControlPoint>>,
+    pub anchor_point: Property<ControlPoint>,
+    pub bounding_segments: Property<Vec<BoundingSegment>>,
+}
+
+impl SelectionVisual {
+    fn new_from_box_bounds(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
+        Self {
+            control_points: Box::new(PropertyLiteral::new(vec![
+                ControlPoint { x: x0, y: y0 },
+                ControlPoint {
+                    x: (x0 + x1) / 2.0,
+                    y: y0,
+                },
+                ControlPoint { x: x1, y: y0 },
+                ControlPoint {
+                    x: x0,
+                    y: (y0 + y1) / 2.0,
+                },
+                //
+                // anchor point
+                //
+                ControlPoint {
+                    x: x1,
+                    y: (y0 + y1) / 2.0,
+                },
+                ControlPoint { x: x0, y: y1 },
+                ControlPoint {
+                    x: (x0 + x1) / 2.0,
+                    y: y1,
+                },
+                ControlPoint { x: x1, y: y1 },
+            ])),
+            bounding_segments: Box::new(PropertyLiteral::new(vec![
+                BoundingSegment {
+                    x0: x0,
+                    y0: y0,
+                    x1: x1,
+                    y1: y0,
+                },
+                BoundingSegment {
+                    x0: x0,
+                    y0: y0,
+                    x1: x0,
+                    y1: y1,
+                },
+                BoundingSegment {
+                    x0: x1,
+                    y0: y1,
+                    x1: x1,
+                    y1: y0,
+                },
+                BoundingSegment {
+                    x0: x1,
+                    y0: y1,
+                    x1: x0,
+                    y1: y1,
+                },
+            ])),
+            anchor_point: Box::new(PropertyLiteral::new(ControlPoint {
+                x: (x0 + x1) / 2.0,
+                y: (y0 + y1) / 2.0,
+            })),
+        }
+    }
 }
 
 #[pax]

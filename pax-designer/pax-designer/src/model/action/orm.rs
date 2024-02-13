@@ -22,10 +22,10 @@ impl Action for CreateRectangle {
         builder
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
-        pax_engine::api::log("saved new rect");
+        pax_engine::log::debug!("saved new rect");
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            pax_engine::api::log("undid rect");
+            pax_engine::log::debug!("undid rect");
             ctx.designtime
                 .get_orm_mut()
                 .undo()

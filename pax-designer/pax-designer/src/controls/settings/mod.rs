@@ -92,7 +92,6 @@ impl Settings {
             .get_property_definitions()
             .expect("selected node has properties");
 
-        // log(&format!("{:#?}", properties));
         let mut custom_props = vec![];
         for (value, name, _type_id) in properties {
             let str_value: String = value

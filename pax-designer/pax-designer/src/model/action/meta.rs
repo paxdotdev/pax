@@ -7,7 +7,7 @@ use pax_designtime::DesigntimeManager;
 use pax_std::types::Color;
 
 pub struct ActionSet {
-    actions: Vec<Box<dyn Action>>,
+    pub actions: Vec<Box<dyn Action>>,
 }
 
 impl Action for ActionSet {
