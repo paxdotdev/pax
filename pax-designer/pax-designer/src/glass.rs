@@ -16,29 +16,18 @@ use crate::model::action::pointer::Pointer;
 pub struct Glass {
     // selection state
     pub selection_active: Property<bool>,
-    pub selection_visual: Property<SelectionVisual>,
+    pub control_points: Property<Vec<ControlPoint>>,
+    pub anchor_point: Property<ControlPoint>,
+    pub bounding_segments: Property<Vec<BoundingSegment>>,
+    // pub selection_visual: Property<SelectionVisual>,
 
     // rect tool state
     pub rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
 }
 
-const USERLAND_PROJECT_ID : &'static str = "userland_project";
-
 impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
-
-        //TODO: move this logic to the appropriate layer, which probably is not the view layer
-        let all_elements_beneath_ray = ctx.runtime_context.get_elements_beneath_ray((args.mouse.x, args.mouse.y), false, vec![]);
-        if let Some(container) = ctx.runtime_context.get_expanded_nodes_by_id(USERLAND_PROJECT_ID).first() {
-            if let Some(target) = all_elements_beneath_ray.iter().find(|elem| { elem.is_descendant_of(&container.id_chain) }) {
-                //`target` was hit! select it
-                pax_engine::log(&format!("Element hit! {:?}",target))
-            }
-        } else {
-            //no element was hit; deselect all the things
-        }
-
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
@@ -82,6 +71,11 @@ impl Glass {
             if let Some(id) = app_state.selected_template_node_id {
                 // TODO let bounding box = ctx.get_template_node_bounding_box(id);
                 self.selection_active.set(true);
+                let (x1, y1, x2, y2) = app_state.TEMP_TODO_REMOVE_bounds;
+                let sv = SelectionVisual::new_from_box_bounds(x1, y1, x2, y2);
+                self.control_points.set(sv.control_points);
+                self.anchor_point.set(sv.anchor_point);
+                self.bounding_segments.set(sv.bounding_segments);
             } else {
                 self.selection_active.set(false);
             }
@@ -117,11 +111,13 @@ impl Glass {
 
 impl Default for Glass {
     fn default() -> Self {
+        let sv = SelectionVisual::new_from_box_bounds(300.0, 100.0, 400.0, 200.0);
+
         Self {
             selection_active: Default::default(),
-            selection_visual: Box::new(PropertyLiteral::new(SelectionVisual::new_from_box_bounds(
-                300.0, 100.0, 400.0, 200.0,
-            ))),
+            control_points: Box::new(PropertyLiteral::new(sv.control_points)),
+            anchor_point: Box::new(PropertyLiteral::new(sv.anchor_point)),
+            bounding_segments: Box::new(PropertyLiteral::new(sv.bounding_segments)),
             rect_tool_active: Box::new(PropertyLiteral::new(false)),
             rect_tool: Default::default(),
         }
@@ -144,15 +140,15 @@ pub struct BoundingSegment {
 
 #[pax]
 pub struct SelectionVisual {
-    pub control_points: Property<Vec<ControlPoint>>,
-    pub anchor_point: Property<ControlPoint>,
-    pub bounding_segments: Property<Vec<BoundingSegment>>,
+    pub control_points: Vec<ControlPoint>,
+    pub anchor_point: ControlPoint,
+    pub bounding_segments: Vec<BoundingSegment>,
 }
 
 impl SelectionVisual {
     fn new_from_box_bounds(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
         Self {
-            control_points: Box::new(PropertyLiteral::new(vec![
+            control_points: vec![
                 ControlPoint { x: x0, y: y0 },
                 ControlPoint {
                     x: (x0 + x1) / 2.0,
@@ -176,8 +172,8 @@ impl SelectionVisual {
                     y: y1,
                 },
                 ControlPoint { x: x1, y: y1 },
-            ])),
-            bounding_segments: Box::new(PropertyLiteral::new(vec![
+            ],
+            bounding_segments: vec![
                 BoundingSegment {
                     x0: x0,
                     y0: y0,
@@ -202,11 +198,11 @@ impl SelectionVisual {
                     x1: x0,
                     y1: y1,
                 },
-            ])),
-            anchor_point: Box::new(PropertyLiteral::new(ControlPoint {
+            ],
+            anchor_point: ControlPoint {
                 x: (x0 + x1) / 2.0,
                 y: (y0 + y1) / 2.0,
-            })),
+            },
         }
     }
 }

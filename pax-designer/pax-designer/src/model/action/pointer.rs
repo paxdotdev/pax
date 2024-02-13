@@ -22,7 +22,7 @@ pub enum Pointer {
 impl Action for PointerAction {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         if let Some(tool) = ctx.app_state.selected_tool {
-            ctx.perform(action::tools::ToolAction {
+            ctx.execute(action::tools::ToolAction {
                 tool,
                 event: self.event,
                 x: self.x,

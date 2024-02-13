@@ -1,10 +1,10 @@
 <Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up @key_down=handle_key_down >
 
     if self.selection_active {
-        for pt in self.selection_visual.control_points {
+        for pt in self.control_points {
             <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px}/>
         }
-        for segment in self.selection_visual.bounding_segments {
+        for segment in self.bounding_segments {
             <Path class=bounding_segment />
         }
     }
