@@ -1966,7 +1966,6 @@ dependencies = [
 name = "pax-engine"
 version = "0.12.0"
 dependencies = [
- "log",
  "pax-compiler",
  "pax-macro",
  "pax-message",
