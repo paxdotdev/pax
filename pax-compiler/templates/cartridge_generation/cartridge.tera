@@ -306,6 +306,7 @@ impl DefinitionToInstanceTraverser {
             compute_properties_fn,
             children: None,
             template_node_id: 0,
+            component_type_id: type_id.to_string(),
         }
     }
 
@@ -334,6 +335,7 @@ impl DefinitionToInstanceTraverser {
                     compute_properties_fn: None,
                     children: Some(children),
                     template_node_id: tnd.id,
+                    component_type_id: tnd.type_id.clone(),
                 })
             },
             "SLOT" => {
@@ -356,6 +358,7 @@ impl DefinitionToInstanceTraverser {
                     compute_properties_fn: None,
                     children: Some(children),
                     template_node_id: tnd.id,
+                    component_type_id: tnd.type_id.clone(),
                 })
             },
             "REPEAT" => {
@@ -391,6 +394,7 @@ impl DefinitionToInstanceTraverser {
                     compute_properties_fn: None,
                     children: Some(children),
                     template_node_id: tnd.id,
+                    component_type_id: tnd.type_id.clone(),
                 })
             },
             _ => {  
@@ -454,6 +458,7 @@ impl DefinitionToInstanceTraverser {
        
         args.children = Some(self.build_children(containing_component_type_id, node));
         args.template_node_id = node.id;
+        args.component_type_id = node.type_id.clone();
         node_component_factory.build_component(args)
     }
 
