@@ -22,8 +22,22 @@ pub struct Glass {
     pub rect_tool: Property<RectTool>,
 }
 
+const USERLAND_PROJECT_ID : &'static str = "userland_project";
+
 impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
+
+        //TODO: move this logic to the appropriate layer, which probably is not the view layer
+        let all_elements_beneath_ray = ctx.runtime_context.get_elements_beneath_ray((args.mouse.x, args.mouse.y), false, vec![]);
+        if let Some(container) = ctx.runtime_context.get_expanded_nodes_by_id(USERLAND_PROJECT_ID).first() {
+            if let Some(target) = all_elements_beneath_ray.iter().find(|elem| { elem.is_descendant_of(&container.id_chain) }) {
+                //`target` was hit! select it
+                pax_engine::log(&format!("Element hit! {:?}",target))
+            }
+        } else {
+            //no element was hit; deselect all the things
+        }
+
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,

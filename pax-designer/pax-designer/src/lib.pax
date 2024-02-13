@@ -1,7 +1,7 @@
 <Group @click=click_test>
     <Controls />
     <Glass />
-    <Example id=project />
+    <Example id=userland_project />
 </Group>
 
 @handlers {
