@@ -6,7 +6,8 @@ use pax_designtime::DesigntimeManager;
 pub struct CreateRectangle {}
 impl Action for CreateRectangle {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let mut builder = ctx.designtime.get_orm_mut().build_new_node(
+        let mut dt = ctx.node_context.designtime.borrow_mut();
+        let mut builder = dt.get_orm_mut().build_new_node(
             "pax_designer::pax_reexports::designer_project::Example".to_owned(),
             "pax_designer::pax_reexports::pax_std::primitives::Rectangle".to_owned(),
             "Rectangle".to_owned(),
@@ -26,8 +27,8 @@ impl Action for CreateRectangle {
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             pax_engine::log::debug!("undid rect");
-            ctx.designtime
-                .get_orm_mut()
+            let mut dt = ctx.node_context.designtime.borrow_mut();
+            dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
         })))
