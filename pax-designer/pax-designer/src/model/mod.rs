@@ -54,7 +54,7 @@ pub struct AppState {
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
     // TODO TEMP BOUNDS (before we can go from template_node_id to some kind of bound)
-    pub TEMP_TODO_REMOVE_bounds: [pax_engine::api::rendering::Point2D; 4],
+    pub TEMP_TODO_REMOVE_bounds: [pax_engine::rendering::Point2D; 4],
 
     //toolbar
     pub selected_tool: Option<Tool>,
@@ -72,7 +72,14 @@ pub enum Tool {
     Pointer,
 }
 
+#[derive(Clone)]
 pub enum ToolVisual {
+    MovingNode {
+        // local transform of object in relation to parent,
+        // and parent transform in relation to world
+        grab_offset_x: f64,
+        grab_offset_y: f64,
+    },
     Box {
         x1: f64,
         y1: f64,

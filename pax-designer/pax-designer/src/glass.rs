@@ -1,4 +1,5 @@
 use pax_engine::api::*;
+use pax_engine::rendering::Point2D;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::{Color, Fill};
@@ -71,8 +72,8 @@ impl Glass {
             if let Some(id) = app_state.selected_template_node_id {
                 // TODO let bounding box = ctx.get_template_node_bounding_box(id);
                 self.selection_active.set(true);
-                let (x1, y1, x2, y2) = app_state.TEMP_TODO_REMOVE_bounds;
-                let sv = SelectionVisual::new_from_box_bounds(x1, y1, x2, y2);
+                let points = app_state.TEMP_TODO_REMOVE_bounds;
+                let sv = SelectionVisual::new_from_box_bounds(points);
                 self.control_points.set(sv.control_points);
                 self.anchor_point.set(sv.anchor_point);
                 self.bounding_segments.set(sv.bounding_segments);
@@ -101,6 +102,7 @@ impl Glass {
                             stroke: stroke.clone(),
                         });
                     }
+                    ToolVisual::MovingNode { .. } => (),
                 }
             } else {
                 self.rect_tool_active.set(false);
@@ -111,7 +113,7 @@ impl Glass {
 
 impl Default for Glass {
     fn default() -> Self {
-        let sv = SelectionVisual::new_from_box_bounds(300.0, 100.0, 400.0, 200.0);
+        let sv = SelectionVisual::default();
 
         Self {
             selection_active: Default::default(),
@@ -130,12 +132,33 @@ pub struct ControlPoint {
     pub y: f64,
 }
 
+impl From<pax_engine::rendering::Point2D> for ControlPoint {
+    fn from(value: pax_engine::rendering::Point2D) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+        }
+    }
+}
+
 #[pax]
 pub struct BoundingSegment {
     pub x0: f64,
     pub y0: f64,
     pub x1: f64,
     pub y1: f64,
+}
+
+impl From<(Point2D, Point2D)> for BoundingSegment {
+    fn from(value: (Point2D, Point2D)) -> Self {
+        let (p0, p1) = value;
+        Self {
+            x0: p0.x,
+            y0: p0.y,
+            x1: p1.x,
+            y1: p1.y,
+        }
+    }
 }
 
 #[pax]
@@ -146,63 +169,29 @@ pub struct SelectionVisual {
 }
 
 impl SelectionVisual {
-    fn new_from_box_bounds(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
+    fn new_from_box_bounds(points: [Point2D; 4]) -> Self {
+        let [p1, p2, p3, p4] = points;
         Self {
             control_points: vec![
-                ControlPoint { x: x0, y: y0 },
-                ControlPoint {
-                    x: (x0 + x1) / 2.0,
-                    y: y0,
-                },
-                ControlPoint { x: x1, y: y0 },
-                ControlPoint {
-                    x: x0,
-                    y: (y0 + y1) / 2.0,
-                },
+                p1.into(),
+                ((p1 + p2) / 2.0).into(),
+                p2.into(),
+                ((p1 + p4) / 2.0).into(),
                 //
                 // anchor point
                 //
-                ControlPoint {
-                    x: x1,
-                    y: (y0 + y1) / 2.0,
-                },
-                ControlPoint { x: x0, y: y1 },
-                ControlPoint {
-                    x: (x0 + x1) / 2.0,
-                    y: y1,
-                },
-                ControlPoint { x: x1, y: y1 },
+                ((p2 + p3) / 2.0).into(),
+                p3.into(),
+                ((p3 + p4) / 2.0).into(),
+                p4.into(),
             ],
             bounding_segments: vec![
-                BoundingSegment {
-                    x0: x0,
-                    y0: y0,
-                    x1: x1,
-                    y1: y0,
-                },
-                BoundingSegment {
-                    x0: x0,
-                    y0: y0,
-                    x1: x0,
-                    y1: y1,
-                },
-                BoundingSegment {
-                    x0: x1,
-                    y0: y1,
-                    x1: x1,
-                    y1: y0,
-                },
-                BoundingSegment {
-                    x0: x1,
-                    y0: y1,
-                    x1: x0,
-                    y1: y1,
-                },
+                (p1, p2).into(),
+                (p2, p3).into(),
+                (p3, p4).into(),
+                (p4, p1).into(),
             ],
-            anchor_point: ControlPoint {
-                x: (x0 + x1) / 2.0,
-                y: (y0 + y1) / 2.0,
-            },
+            anchor_point: ((p1 + p3) / 2.0).into(),
         }
     }
 }
