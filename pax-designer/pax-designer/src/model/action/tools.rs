@@ -6,26 +6,24 @@ use crate::model::{Tool, ToolVisual};
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::rendering::{Point2D, TransformAndBounds};
 use pax_std::types::Color;
 
 pub struct ToolAction {
     pub tool: Tool,
     pub event: Pointer,
-    pub x: f64,
-    pub y: f64,
+    pub point: Point2D,
 }
 
 impl Action for ToolAction {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.tool {
             Tool::Rectangle => ctx.execute(RectangleTool {
-                x: self.x,
-                y: self.y,
                 event: self.event,
+                point: self.point,
             }),
             Tool::Pointer => ctx.execute(PointerTool {
-                x: self.x,
-                y: self.y,
+                point: self.point,
                 event: self.event,
             }),
         };
@@ -36,8 +34,7 @@ impl Action for ToolAction {
 
 pub struct RectangleTool {
     pub event: Pointer,
-    pub x: f64,
-    pub y: f64,
+    pub point: Point2D,
 }
 
 impl Action for RectangleTool {
@@ -45,34 +42,24 @@ impl Action for RectangleTool {
         match self.event {
             Pointer::Down => {
                 ctx.app_state.tool_visual = Some(ToolVisual::Box {
-                    x1: self.x,
-                    y1: self.y,
-                    x2: self.x,
-                    y2: self.y,
+                    p1: self.point,
+                    p2: self.point,
                     stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
                     fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
                 });
             }
             Pointer::Move => {
-                if let Some(ToolVisual::Box {
-                    ref mut x2,
-                    ref mut y2,
-                    ..
-                }) = ctx.app_state.tool_visual.as_mut()
+                if let Some(ToolVisual::Box { ref mut p2, .. }) = ctx.app_state.tool_visual.as_mut()
                 {
-                    *x2 = self.x;
-                    *y2 = self.y;
+                    *p2 = self.point;
                 }
             }
             Pointer::Up => {
-                if let Some(ToolVisual::Box { x1, y1, x2, y2, .. }) =
-                    ctx.app_state.tool_visual.take()
-                {
+                if let Some(ToolVisual::Box { p1, p2, .. }) = ctx.app_state.tool_visual.take() {
                     ctx.execute(super::orm::CreateRectangle {
-                        x: x1,
-                        y: y1,
-                        width: x2 - x1,
-                        height: y2 - y1,
+                        origin: p1,
+                        width: p2.x - p1.x,
+                        height: p2.y - p1.y,
                     })?;
                 }
             }
@@ -83,8 +70,7 @@ impl Action for RectangleTool {
 
 pub struct PointerTool {
     pub event: Pointer,
-    pub x: f64,
-    pub y: f64,
+    pub point: Point2D,
 }
 
 impl Action for PointerTool {
@@ -94,7 +80,7 @@ impl Action for PointerTool {
                 let all_elements_beneath_ray = ctx
                     .node_context
                     .runtime_context
-                    .get_elements_beneath_ray((self.x, self.y), false, vec![]);
+                    .get_elements_beneath_ray((self.point.x, self.point.y), false, vec![]);
                 if let Some(container) = ctx
                     .node_context
                     .runtime_context
@@ -111,15 +97,13 @@ impl Action for PointerTool {
                         let lp = target.layout_properties.borrow();
                         let corners = lp.as_ref().unwrap().computed_tab.corners();
                         let curr_pos = ctx.app_state.tool_visual = Some(ToolVisual::MovingNode {
-                            grab_offset_x: self.x,
-                            grab_offset_y: self.y,
+                            grab_offset_x: self.point.x,
+                            grab_offset_y: self.point.y,
                         });
                     } else {
                         ctx.app_state.tool_visual = Some(ToolVisual::Box {
-                            x1: self.x,
-                            y1: self.y,
-                            x2: self.x,
-                            y2: self.y,
+                            p1: self.point,
+                            p2: self.point,
                             stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
                             fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
                         });
@@ -131,35 +115,26 @@ impl Action for PointerTool {
             Pointer::Move => {
                 if let Some(toolvisual) = ctx.app_state.tool_visual.clone() {
                     match toolvisual {
-                        ToolVisual::Box { x2, y2, .. } => {
-                            let Some(ToolVisual::Box {
-                                ref mut x2,
-                                ref mut y2,
-                                ..
-                            }) = ctx.app_state.tool_visual.as_mut()
+                        ToolVisual::Box { p2, .. } => {
+                            let Some(ToolVisual::Box { ref mut p2, .. }) =
+                                ctx.app_state.tool_visual.as_mut()
                             else {
                                 unreachable!();
                             };
-                            *x2 = self.x;
-                            *y2 = self.y;
+                            *p2 = self.point;
                         }
                         ToolVisual::MovingNode {
                             grab_offset_x,
                             grab_offset_y,
                         } => {
                             // TODO move relative to place
-                            ctx.execute(MoveSelected {
-                                x: self.x,
-                                y: self.y,
-                            });
+                            ctx.execute(MoveSelected { point: self.point });
                         }
                     }
                 }
             }
             Pointer::Up => {
-                if let Some(ToolVisual::Box { x1, y1, x2, y2, .. }) =
-                    ctx.app_state.tool_visual.take()
-                {
+                if let Some(ToolVisual::Box { p1, p2, .. }) = ctx.app_state.tool_visual.take() {
                     // TODO get objects within rectangle from engine, and find their
                     // TemplateNode ids to set selection state.
                     let something_in_rectangle = true;

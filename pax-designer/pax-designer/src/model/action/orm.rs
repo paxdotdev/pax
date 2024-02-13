@@ -2,11 +2,10 @@ use super::{Action, ActionContext, CanUndo};
 use crate::model::AppState;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::{api::Size, serde};
+use pax_engine::{api::Size, rendering::Point2D, serde};
 
 pub struct CreateRectangle {
-    pub x: f64,
-    pub y: f64,
+    pub origin: Point2D,
     pub width: f64,
     pub height: f64,
 }
@@ -21,8 +20,11 @@ impl Action for CreateRectangle {
         );
 
         //do stuff here later, and then save
-        builder.set_property("x", &to_pixels(self.x))?;
-        builder.set_property("y", &to_pixels(self.y))?;
+        // TODO later make world space
+        let gs_transform = ctx.app_state.screen_to_glass_transform;
+        let p = gs_transform * self.origin;
+        builder.set_property("x", &to_pixels(p.x))?;
+        builder.set_property("y", &to_pixels(p.y))?;
         builder.set_property("width", &to_pixels(self.width))?;
         builder.set_property("height", &to_pixels(self.height))?;
 
@@ -42,8 +44,7 @@ impl Action for CreateRectangle {
 }
 
 pub struct MoveSelected {
-    pub x: f64,
-    pub y: f64,
+    pub point: Point2D,
 }
 
 impl Action for MoveSelected {
@@ -59,8 +60,10 @@ impl Action for MoveSelected {
             selected,
         );
 
-        builder.set_property("x", &to_pixels(self.x))?;
-        builder.set_property("y", &to_pixels(self.y))?;
+        let gs_transform = ctx.app_state.screen_to_glass_transform;
+        let p = gs_transform * self.point;
+        builder.set_property("x", &to_pixels(p.x))?;
+        builder.set_property("y", &to_pixels(p.y))?;
         builder
             .save()
             .map_err(|e| anyhow!("could not move thing: {}", e))?;

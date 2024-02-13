@@ -5,7 +5,10 @@ use crate::model::action::ActionContext;
 use action::Action;
 use anyhow::Result;
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::NodeContext;
+use pax_engine::{
+    api::NodeContext,
+    rendering::{Affine, Point2D, TransformAndBounds},
+};
 use pax_std::types::Color;
 use std::cell::RefCell;
 
@@ -56,6 +59,13 @@ pub fn read_app_state(closure: impl FnOnce(&AppState)) {
     });
 }
 
+pub fn register_glass_transform(transform: Affine) {
+    GLOBAL_STATE.with(|model| {
+        let mut model = model.borrow_mut();
+        model.app_state.screen_to_glass_transform = transform;
+    });
+}
+
 //--------------------------------------------------------------------------------------------------
 // App state singleton (undo/redo stack that modifies this state handled separately by ActionManager)
 //--------------------------------------------------------------------------------------------------
@@ -65,6 +75,8 @@ pub struct AppState {
     //globals
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
+    pub screen_to_glass_transform: pax_engine::rendering::Affine,
+    pub glass_to_world_transform: pax_engine::rendering::Affine,
 
     //toolbar
     pub selected_tool: Option<Tool>,
@@ -91,10 +103,8 @@ pub enum ToolVisual {
         grab_offset_y: f64,
     },
     Box {
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
+        p1: Point2D,
+        p2: Point2D,
         fill: Color,
         stroke: Color,
     },
