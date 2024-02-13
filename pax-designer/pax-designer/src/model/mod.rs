@@ -11,14 +11,26 @@ use std::cell::RefCell;
 
 // Needs to be changed if we use a multithreaded async runtime
 thread_local!(
-    static GLOBAL_STATE: RefCell<GlobalDesignerState> =
-        RefCell::new(GlobalDesignerState::default());
+    static GLOBAL_STATE: RefCell<GlobalDesignerState> = RefCell::new(GlobalDesignerState::new());
 );
 
 #[derive(Default)]
 pub struct GlobalDesignerState {
     pub undo_stack: action::UndoStack,
     pub app_state: AppState,
+}
+
+impl GlobalDesignerState {
+    fn new() -> Self {
+        Self {
+            app_state: AppState {
+                selected_component_id: "pax_designer::pax_reexports::designer_project::Example"
+                    .to_owned(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
 }
 
 pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
@@ -53,8 +65,6 @@ pub struct AppState {
     //globals
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
-    // TODO TEMP BOUNDS (before we can go from template_node_id to some kind of bound)
-    pub TEMP_TODO_REMOVE_bounds: [pax_engine::rendering::Point2D; 4],
 
     //toolbar
     pub selected_tool: Option<Tool>,

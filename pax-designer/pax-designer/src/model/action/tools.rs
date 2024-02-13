@@ -140,7 +140,7 @@ impl Action for PointerTool {
                             else {
                                 unreachable!();
                             };
-                            *x2 = self.y;
+                            *x2 = self.x;
                             *y2 = self.y;
                         }
                         ToolVisual::MovingNode {
