@@ -1,2 +1,5 @@
-<Text text="File and Component Picker" />
+<Stacker cells=2 direction=StackerDirection::Vertical >
+    <Text text="File and Component Picker" />
+    <Text text="MAIN COMPONENT" />
+</Stacker>
 
