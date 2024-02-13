@@ -14,6 +14,8 @@ use pax_std::primitives::Group;
 
 pub mod model;
 
+pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
+
 #[pax]
 #[main]
 #[file("lib.pax")]

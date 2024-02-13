@@ -31,10 +31,10 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
         } = *binding;
         ActionContext {
             undo_stack,
-            designtime: &mut ctx.designtime.borrow_mut(),
+            node_context: ctx,
             app_state,
         }
-        .perform(action)
+        .execute(action)
     })
 }
 
@@ -53,6 +53,8 @@ pub struct AppState {
     //globals
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
+    // TODO TEMP BOUNDS (before we can go from template_node_id to some kind of bound)
+    pub TEMP_TODO_REMOVE_bounds: [pax_engine::api::rendering::Point2D; 4],
 
     //toolbar
     pub selected_tool: Option<Tool>,

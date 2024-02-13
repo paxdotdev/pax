@@ -2,6 +2,7 @@ use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
 use crate::model::AppState;
 use crate::model::{Tool, ToolVisual};
+use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_std::types::Color;
@@ -16,12 +17,12 @@ pub struct ToolAction {
 impl Action for ToolAction {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.tool {
-            Tool::Rectangle => ctx.perform(RectangleTool {
+            Tool::Rectangle => ctx.execute(RectangleTool {
                 x: self.x,
                 y: self.y,
                 event: self.event,
             }),
-            Tool::Pointer => ctx.perform(PointerTool {
+            Tool::Pointer => ctx.execute(PointerTool {
                 x: self.x,
                 y: self.y,
                 event: self.event,
@@ -66,7 +67,7 @@ impl Action for RectangleTool {
                 if let Some(ToolVisual::Box { x1, y1, x2, y2, .. }) =
                     ctx.app_state.tool_visual.take()
                 {
-                    ctx.perform(super::orm::CreateRectangle {})?;
+                    ctx.execute(super::orm::CreateRectangle {})?;
                 }
             }
         }
@@ -84,23 +85,38 @@ impl Action for PointerTool {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                // TODO replace bellow (self.x > self.y) and inside content with this when it exists:
-                // let hit = ctx.node_context.get_topmost_element_beneath_ray();
-                // if let Some(expanded_node) = hit {
-                //     ctx.app_state.selected_template_node_id = Some(expanded_node.instance_node.id);
-                // }
-
-                if self.x > self.y {
-                    ctx.app_state.selected_template_node_id = Some(1); //mock
+                let all_elements_beneath_ray = ctx
+                    .node_context
+                    .runtime_context
+                    .get_elements_beneath_ray((self.x, self.y), false, vec![]);
+                if let Some(container) = ctx
+                    .node_context
+                    .runtime_context
+                    .get_expanded_nodes_by_id(USERLAND_PROJECT_ID)
+                    .first()
+                {
+                    if let Some(target) = all_elements_beneath_ray
+                        .iter()
+                        .find(|elem| elem.is_descendant_of(&container.id_chain))
+                    {
+                        //`target` was hit! select it
+                        pax_engine::log::info!("Element hit! {:?}", target);
+                        ctx.app_state.selected_template_node_id = Some(1);
+                        let lp = target.layout_properties.borrow().as_ref();
+                        let corners = lp.unwrap().computed_tab.corners();
+                        ctx.app_state.TEMP_TODO_REMOVE_bounds = corners;
+                    } else {
+                        ctx.app_state.tool_visual = Some(ToolVisual::Box {
+                            x1: self.x,
+                            y1: self.y,
+                            x2: self.x,
+                            y2: self.y,
+                            stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
+                            fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
+                        });
+                    }
                 } else {
-                    ctx.app_state.tool_visual = Some(ToolVisual::Box {
-                        x1: self.x,
-                        y1: self.y,
-                        x2: self.x,
-                        y2: self.y,
-                        stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
-                        fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
-                    });
+                    panic!("somehow raycast didn't hit userland project");
                 }
             }
             Pointer::Move => {
