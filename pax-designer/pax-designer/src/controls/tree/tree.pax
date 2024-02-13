@@ -12,9 +12,6 @@ for (obj, i) in self.visible_tree_objects {
 		 image_path={obj.image_path}
 	/>
 }
-<Rectangle
-     fill={Fill::Solid(Color::rgb(0.1, 0.1, 0.1))}
-/>
 @handlers {
 	mount: on_mount
 	pre_render: pre_render
