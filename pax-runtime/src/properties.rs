@@ -41,20 +41,29 @@ impl RuntimeContext {
     /// Finds all ExpandedNodes with the CommonProperty#id matching the provided string
     pub fn get_expanded_nodes_by_id(&self, id: &str) -> Vec<Rc<ExpandedNode>> {
         //v0 limitation: currently an O(n) lookup cost (could be made O(1) with an id->expandednode cache)
-        self.node_cache.values().filter(|val|{
-            if let Some(other_id) = &val.get_common_properties().borrow().id {
-                other_id.get() == id
-            } else {
-                false
-            }
-        }).cloned().collect()
+        self.node_cache
+            .values()
+            .filter(|val| {
+                if let Some(other_id) = &val.get_common_properties().borrow().id {
+                    other_id.get() == id
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect()
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
     /// ray running orthogonally to the view plane, intersecting at
     /// the specified point `ray`.  Areas outside of clipping bounds will
     /// not register a `hit`, nor will elements that suppress input events.
-    pub fn get_elements_beneath_ray(&self, ray: (f64, f64), limit_one: bool, mut accum: Vec<Rc<ExpandedNode>>) -> Vec<Rc<ExpandedNode>> {
+    pub fn get_elements_beneath_ray(
+        &self,
+        ray: (f64, f64),
+        limit_one: bool,
+        mut accum: Vec<Rc<ExpandedNode>>,
+    ) -> Vec<Rc<ExpandedNode>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -86,7 +95,7 @@ impl RuntimeContext {
                 if ancestral_clipping_bounds_are_satisfied {
                     accum.push(Rc::clone(&node));
                     if limit_one {
-                        return accum
+                        return accum;
                     }
                 }
             }
