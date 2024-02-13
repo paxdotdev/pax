@@ -1,7 +1,9 @@
 <Group @click=click_test>
     <Controls />
     <Glass />
-    <Example id=userland_project />
+    <Group>
+     <Example id=userland_project />
+    </Group>
 </Group>
 
 @handlers {
@@ -9,7 +11,7 @@
 }
 
 @settings {
-    #project {
+    #userland_project {
         x: 250px,
         y: 65px,
         width: {100% - 700px},
