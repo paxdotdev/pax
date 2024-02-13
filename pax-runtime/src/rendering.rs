@@ -30,6 +30,7 @@ pub struct InstantiationArgs {
     pub compute_properties_fn: Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>,
 
     pub template_node_id: usize,
+    pub component_type_id: String,
 }
 
 #[derive(Copy, Clone)]
@@ -290,6 +291,7 @@ pub struct BaseInstance {
     pub instance_prototypical_common_properties_factory:
         Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     pub template_node_id: usize,
+    pub component_type_id: String,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -322,6 +324,7 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_id: args.template_node_id,
+            component_type_id: args.component_type_id,
         }
     }
 
