@@ -61,7 +61,7 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
         } else {
             1
         };
-        self.node_id = Some(next_id);
+
 
         let control_flow_settings = if let NodeType::ControlFlow(c) = &self.node_type {
             Some(c.clone())
@@ -81,35 +81,50 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             None
         };
 
-        let new_node = TemplateNodeDefinition {
-            id: next_id,
-            child_ids: self.child_ids.clone(),
-            type_id: self.type_id.clone(),
-            control_flow_settings: control_flow_settings.map(|b| *b),
-            settings,
-            pascal_identifier: self.pascal_identifier.clone(),
-            raw_comment_string,
-        };
 
-        if let Some(template) = &mut component.template {
-            template.insert(next_id, new_node.clone());
-            if let Some(parent) = template.get_mut(&self.parent_node_id) {
-                parent.child_ids.push(next_id);
-            }
+
+        if let Some(id) = self.node_id {
+            panic!("Not implemented");
         } else {
-            let mut template = HashMap::new();
-            template.insert(next_id, new_node.clone());
-            component.template = Some(template);
-        };
+            let new_node = TemplateNodeDefinition {
+                id: 1,
+                child_ids: self.child_ids.clone(),
+                type_id: self.type_id.clone(),
+                control_flow_settings: control_flow_settings.map(|b| *b),
+                settings,
+                pascal_identifier: self.pascal_identifier.clone(),
+                raw_comment_string,
+            };
 
-        component.next_template_id = Some(next_id + 1);
+            let mut new_template = HashMap::new();
+    
+            if let Some(template) = &mut component.template {
+                // shift everything in the template one id down
+                for (id, tnd) in template {
+                    tnd.child_ids = tnd.child_ids.iter().map(|id| id + 1).collect();
+                    if id == &0 {
+                        tnd.child_ids.insert(0,1);
+                    } else {
+                        tnd.id += 1;
+                    }
+                    new_template.insert(tnd.id, tnd.clone());
+                }
+    
+                new_template.insert(1, new_node.clone());
+    
+            } else {
+                unreachable!("No available template.")
+            };
+            component.template = Some(new_template);
+            component.next_template_id = Some(next_id + 1);
 
-        self.cached_node = Some(new_node.clone());
+             self.cached_node = Some(new_node.clone());
 
-        Ok(AddTemplateNodeResponse {
-            command_id: None,
-            template_node: new_node,
-        })
+            Ok(AddTemplateNodeResponse {
+                command_id: None,
+                template_node: new_node,
+            })
+        }
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
@@ -118,43 +133,12 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
 }
 
 impl UndoRedo for AddTemplateNodeRequest {
-    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
-        let component = manifest
-            .components
-            .get_mut(&self.component_type_id)
-            .unwrap();
-        let id = self.node_id.unwrap();
-        if let Some(template) = &mut component.template {
-            template.remove(&id);
-
-            if let Some(parent) = template.get_mut(&self.parent_node_id) {
-                parent.child_ids.retain(|id| *id != self.node_id.unwrap());
-            }
-        }
-        if component.template.is_some() && component.template.as_ref().unwrap().is_empty() {
-            component.template = None;
-        }
-        component.next_template_id = Some(id);
-        Ok(())
+    fn undo(&mut self, _manifest: &mut PaxManifest) -> Result<(), String> {
+        todo!("Implement undo for AddTemplateNodeRequest")
     }
 
-    fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
-        let component = manifest
-            .components
-            .get_mut(&self.component_type_id)
-            .unwrap();
-        let id = self.node_id.unwrap();
-        if let Some(template) = &mut component.template {
-            let node = &self.cached_node.clone().unwrap();
-            template.insert(id, node.clone());
-
-            if let Some(parent) = template.get_mut(&self.parent_node_id) {
-                parent.child_ids.push(id);
-            }
-
-            component.next_template_id = Some(id + 1);
-        }
-        Ok(())
+    fn redo(&mut self, _manifest: &mut PaxManifest) -> Result<(), String> {
+        todo!("Implement redo for AddTemplateNodeRequest")
     }
 }
 
