@@ -8,13 +8,14 @@
 
 @handlers {
     mount: handle_mount
+    pre_render: tick
 }
 
 @settings {
-     #userland_project {
-         x: 250px,
-         y: 65px,
-         width: {100% - 700px},
-         height: {100% - 65px},
-     }
+    #userland_project {
+        x: 250px,
+        y: 65px,
+        width: {100% - 700px},
+        height: {100% - 65px},
+    }
 }
