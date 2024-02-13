@@ -62,15 +62,13 @@ impl Glass {
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
-        pax_engine::log::debug!("key down");
+        // pax_engine::log::debug!("key down");
         //TODO: handle keydowns and pass into InputMapper
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            // selection state visual
             if let Some(id) = app_state.selected_template_node_id {
-                // TODO let bounding box = ctx.get_template_node_bounding_box(id);
                 self.selection_active.set(true);
                 let points = app_state.TEMP_TODO_REMOVE_bounds;
                 let sv = SelectionVisual::new_from_box_bounds(points);

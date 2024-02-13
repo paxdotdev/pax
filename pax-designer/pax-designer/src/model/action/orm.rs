@@ -29,10 +29,10 @@ impl Action for CreateRectangle {
         builder
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
-        pax_engine::log::debug!("saved new rect");
+        // pax_engine::log::debug!("saved new rect");
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            pax_engine::log::debug!("undid rect");
+            // pax_engine::log::debug!("undid rect");
             let mut dt = ctx.node_context.designtime.borrow_mut();
             dt.get_orm_mut()
                 .undo()
@@ -59,7 +59,6 @@ impl Action for MoveSelected {
             selected,
         );
 
-        //do stuff here later, and then save
         builder.set_property("x", &to_pixels(self.x))?;
         builder.set_property("y", &to_pixels(self.y))?;
         builder
@@ -67,7 +66,7 @@ impl Action for MoveSelected {
             .map_err(|e| anyhow!("could not move thing: {}", e))?;
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            pax_engine::log::debug!("undid move");
+            // pax_engine::log::debug!("undid move");
             let mut dt = ctx.node_context.designtime.borrow_mut();
             dt.get_orm_mut()
                 .undo()
