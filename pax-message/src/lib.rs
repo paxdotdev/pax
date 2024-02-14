@@ -57,6 +57,7 @@ pub enum NativeInterrupt {
     AddedLayer(AddedLayerArgs),
     FormCheckboxToggle(FormCheckboxToggleArgs),
     FormTextboxChange(FormTextboxChangeArgs),
+    FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
 }
 
@@ -70,6 +71,13 @@ pub struct FormCheckboxToggleArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormTextboxChangeArgs {
+    pub text: String,
+    pub id_chain: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormTextboxInputArgs {
     pub text: String,
     pub id_chain: Vec<u32>,
 }
