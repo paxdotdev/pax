@@ -10,7 +10,7 @@ use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
 use designer_project::Example;
-use pax_std::primitives::Group;
+use pax_std::primitives::{Group, Rectangle};
 
 pub mod model;
 
@@ -30,10 +30,7 @@ impl PaxDesigner {
             let up_lp = userland_proj.layout_properties.borrow_mut();
             if let Some(lp) = up_lp.as_ref() {
                 let screen_to_glass_transform = lp.computed_tab.transform.inverse();
-                pax_engine::log(&format!(
-                    "registered transform: {:?}",
-                    screen_to_glass_transform
-                ));
+                
                 model::register_glass_transform(screen_to_glass_transform);
             }
         }

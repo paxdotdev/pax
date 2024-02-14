@@ -1,13 +1,12 @@
-<Image id=logo path="assets/pax-designer-white.png" />
+<Image id=logo path="assets/pax-designer-white.png" @click=handle_logo_click />
 <Image id=face path="assets/zface.png" />
 
 @settings {
     #logo {
-        width: 55px,
-        height: 55px,
-        x: 15px,
-        anchor_y: 50%,
-        y: 50%,
+        width: 75px,
+        height: 75px,
+        x: 16px,
+        y: 4px,
     }
 
     #face {

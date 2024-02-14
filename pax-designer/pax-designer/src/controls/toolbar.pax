@@ -23,8 +23,6 @@
     <Image class=icon path="assets/icons/toolbar/icon-16-speech.png" />
 </Group>
 
-<Button id=save_button label="Save" @button_click=self.save_component/>
-
 @settings {
     .toolbar_panel {
         width: 65px
