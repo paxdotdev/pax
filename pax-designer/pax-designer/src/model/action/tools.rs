@@ -91,15 +91,29 @@ impl Action for PointerTool {
                         .iter()
                         .find(|elem| elem.is_descendant_of(&container.id_chain))
                     {
-                        // pax_engine::log::info!("Element hit! {:?}", target);
                         ctx.app_state.selected_template_node_id =
                             Some(target.instance_node.base().template_node_id);
+
+                        let common_props = target.get_common_properties();
+                        let common_props = common_props.borrow();
                         let lp = target.layout_properties.borrow();
-                        let corners = lp.as_ref().unwrap().computed_tab.corners();
-                        let curr_pos = ctx.app_state.tool_visual = Some(ToolVisual::MovingNode {
-                            grab_offset_x: self.point.x,
-                            grab_offset_y: self.point.y,
-                        });
+                        let tab = &lp.as_ref().unwrap().computed_tab;
+                        let p_anchor = Point2D {
+                            x: common_props
+                                .anchor_x
+                                .as_ref()
+                                .map(|x| x.get().get_pixels(tab.bounds.0))
+                                .unwrap_or(0.0),
+                            y: common_props
+                                .anchor_y
+                                .as_ref()
+                                .map(|y| y.get().get_pixels(tab.bounds.1))
+                                .unwrap_or(0.0),
+                        };
+                        let p = tab.transform * p_anchor;
+                        let delta = p - self.point;
+                        let curr_pos =
+                            ctx.app_state.tool_visual = Some(ToolVisual::MovingNode { delta });
                     } else {
                         ctx.app_state.tool_visual = Some(ToolVisual::Box {
                             p1: self.point,
@@ -123,12 +137,11 @@ impl Action for PointerTool {
                             };
                             *p2 = self.point;
                         }
-                        ToolVisual::MovingNode {
-                            grab_offset_x,
-                            grab_offset_y,
-                        } => {
+                        ToolVisual::MovingNode { delta } => {
                             // TODO move relative to place
-                            ctx.execute(MoveSelected { point: self.point });
+                            ctx.execute(MoveSelected {
+                                point: self.point + delta,
+                            });
                         }
                     }
                 }

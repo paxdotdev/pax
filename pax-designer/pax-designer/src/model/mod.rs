@@ -79,7 +79,7 @@ pub struct AppState {
     pub glass_to_world_transform: pax_engine::rendering::Affine,
 
     //toolbar
-    pub selected_tool: Option<Tool>,
+    pub selected_tool: Tool,
 
     //glass
     pub tool_visual: Option<ToolVisual>,
@@ -88,19 +88,18 @@ pub struct AppState {
     main_mod_key: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum Tool {
-    Rectangle,
+    #[default]
     Pointer,
+    Rectangle,
 }
 
 #[derive(Clone)]
 pub enum ToolVisual {
     MovingNode {
-        // local transform of object in relation to parent,
-        // and parent transform in relation to world
-        grab_offset_x: f64,
-        grab_offset_y: f64,
+        // TODO this should be entire transform relative to parent
+        delta: Point2D,
     },
     Box {
         p1: Point2D,
