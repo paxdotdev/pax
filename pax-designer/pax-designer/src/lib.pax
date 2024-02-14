@@ -5,6 +5,7 @@
      <Example id=userland_project />
     </Group>
 </Group>
+<Rectangle id=global_background />
 
 @handlers {
     mount: handle_mount
@@ -12,6 +13,10 @@
 }
 
 @settings {
+    #global_background {
+        fill: {Fill::Solid(Color::rgb(96.0/255.0,96.0/255.0,96.0/255.0))}
+    }
+
      #userland_project {
          x: 265px,
          y: 65px,
