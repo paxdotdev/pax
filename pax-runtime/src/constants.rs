@@ -9,6 +9,7 @@ pub const KEY_PRESS_HANDLERS: &str = "key_press";
 pub const CHECKBOX_CHANGE_HANDLERS: &str = "checkbox_change";
 pub const BUTTON_CLICK_HANDLERS: &str = "button_click";
 pub const TEXTBOX_CHANGE_HANDLERS: &str = "textbox_change";
+pub const TEXTBOX_INPUT_HANDLERS: &str = "textbox_input";
 pub const CLICK_HANDLERS: &str = "click";
 pub const MOUSE_DOWN_HANDLERS: &str = "mouse_down";
 pub const MOUSE_UP_HANDLERS: &str = "mouse_up";
