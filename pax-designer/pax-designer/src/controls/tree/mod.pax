@@ -1,0 +1,16 @@
+for (obj, i) in self.visible_tree_objects {
+	<TreeObj
+		 ind={obj.ind}
+		 y={(40 + i*42)px}
+		 x={(obj.indent_level*6)%}
+		 height=40px
+		 name={obj.name}
+		 not_leaf={obj.not_leaf}
+		 collapsed={obj.collapsed}
+		 width={100% - (obj.indent_level*6)%}
+		 image_path={obj.image_path}
+	/>
+}
+@handlers {
+	pre_render: pre_render
+}

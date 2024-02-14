@@ -31,12 +31,12 @@
 
 @settings {
     #left_panel {
-        width: 250px,
+        width: 265px,
     }
 
     #top_panel {
         height: 65px,
-        x: 250px,
+        x: 265px,
         width: {100% - 700px}
     }
 

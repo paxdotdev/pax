@@ -1,5 +1,48 @@
-<Stacker cells=2 direction=StackerDirection::Vertical >
-    <Text text="File and Component Picker" />
-    <Text text="MAIN COMPONENT" />
+<Stacker width={100% - 15px} x=15px cells=2 direction=StackerDirection::Vertical >
+    <Text text="github.com/paxcorp/simpleproject" class=h3 />
+    <Text text="MAIN COMPONENT" class=h1 />
 </Stacker>
+
+@settings {
+    .h1 {
+        height: 32px
+        style: {
+            font_size: 26px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            fill: {Color::rgb(1, 1, 1)},
+        }
+    }
+    .h2 {
+        height: 30px,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 24px,
+            fill: {Color::rgb(1, 1, 1)},
+        }
+    }
+    .h3 {
+        height: 18px,
+        anchor_y: 90%,
+        y: 90%,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::ExtraLight
+            )},
+            font_size: 14px,
+            fill: {Color::rgb(1, 1, 1)},
+            align_vertical: TextAlignVertical::Bottom,
+            align_horizontal: TextAlignHorizontal::Left,
+        }
+    }
+}
 

@@ -1,2 +1,21 @@
-<Text text="Logo" width=120px />
-<Text text="Face" width=120px x=100% anchor_x=100% />
+<Image id=logo path="assets/pax-designer-white.png" />
+<Image id=face path="assets/zface.png" />
+
+@settings {
+    #logo {
+        width: 55px,
+        height: 55px,
+        x: 15px,
+        anchor_y: 50%,
+        y: 50%,
+    }
+
+    #face {
+        width: 35px,
+        height: 35px,
+        anchor_x: 100%,
+        anchor_y: 50%,
+        x: {100% - 15px}
+        y: 50%
+    }
+}

@@ -1,11 +1,11 @@
-<Text x=10px y=10px text={self.selected_component_name} class=h1 height=40px/>
+<Text x=10px y=10px text={self.selected_component_name} class=h1 />
 
 if self.component_selected {
 	
 	<Frame y=50px height={100% - 50px}>
 		<Frame x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
 			<Frame height=150px>
-				<Text text="Basic" class=h2 height=20px/>
+				<Text text="Basic" class=h2 />
 				<Frame y=30px height={100% - 30px}>
 					<Frame y=0px height=30px>
 						<Text text="Position" x=10px  class=h3/>
@@ -21,24 +21,24 @@ if self.component_selected {
 			</Frame>
 
 			<Frame y=150px height=300px>
-				<Text text="Transform" class=h2 height=20px/>
+				<Text text="Transform" class=h2 />
 				<Frame y=30px height={100% - 30px}>
 					<Frame y=0px height=30px>
-						<Text text="Rotation" x=10px  class=h3/>
+						<Text text="Rotation" x=10px class=h3/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="rotate" definition={self.rotation_z} x=33% width=32%/>
 					</Frame>
 					<Frame y=40px height=30px>
-						<Text text="Scale" x=10px  class=h3/>
+						<Text text="Scale" x=10px class=h3/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" definition={self.scale_x} x=33% width=32%/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_y:" definition={self.scale_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=80px height=30px>
-						<Text text="Anchor" x=10px  class=h3/>
+						<Text text="Anchor" x=10px class=h3/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" definition={self.anchor_x} x=33% width=32%/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" definition={self.anchor_y} x=66% width=32%/>
 					</Frame>
 					<Frame y=120px height=30px>
-						<Text text="Skew" x=10px  class=h3/>
+						<Text text="Skew" x=10px class=h3/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" definition={self.skew_x} x=33% width=32%/>
 						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" definition={self.skew_y} x=66% width=32%/>
 					</Frame>
@@ -48,7 +48,7 @@ if self.component_selected {
 		
 			<Frame y=380px height=300px>
 				for (property, i) in self.custom_props {
-					<Text text={property.name} class=h2 y={(i*70)px} width=120px height=20px/>
+					<Text text={property.name} class=h2 y={(i*70)px} width=120px />
 					<Frame y={(i*70)px} height=30px>
 						<PropertyEditor name={property.name} stid={self.stid} snid={self.snid} definition={property.definition}/>
 					</Frame>
@@ -65,24 +65,43 @@ if self.component_selected {
 
 @settings {
     .h1 {
+        height: 40px
         style: {
-            font_size: 30px,
+            font_size: 34px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
             fill: {Color::rgb(1, 1, 1)},
-            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
         }
     }
     .h2 {
+        height: 30px,
         style: {
-            font_size: 20px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 24px,
             fill: {Color::rgb(1, 1, 1)},
         }
     }
     .h3 {
-        width: 30%
+        width: 30%,
+        height: 18px,
+        anchor_y: 50%,
+        y: 50%,
         style: {
-            font_size: 15px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::ExtraLight
+            )},
+            font_size: 16px,
             fill: {Color::rgb(1, 1, 1)},
-            align_vertical: TextAlignVertical::Bottom,
+            align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
         }
     }
