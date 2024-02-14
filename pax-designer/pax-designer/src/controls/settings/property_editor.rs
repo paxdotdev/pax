@@ -25,13 +25,12 @@ impl PropertyEditor {
             self.last_definition
                 .set(self.definition.get().string.clone());
             self.textbox.set(self.definition.get().string.clone());
-            self.text_change(
-                ctx,
-                ArgsTextboxChange {
-                    text: self.definition.get().string.to_owned(),
-                },
-            );
+            self.error.set("".to_owned());
         }
+    }
+
+    pub fn text_input(&mut self, ctx: &NodeContext, args: ArgsTextboxInput) {
+        self.textbox.set(args.text.to_owned());
     }
 
     pub fn text_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
@@ -43,12 +42,12 @@ impl PropertyEditor {
             self.snid.get().get_as_int() as usize,
         );
 
-        // let variable = name.strip_suffix(':').unwrap_or(&name);
-        // if let Err(error) = node_definition.set_property(variable, &args.text) {
-        //     self.error.set("error".to_owned());
-        // } else {
-        //     //node_definition.save().expect("failed to save");
-        //     self.error.set("".to_owned());
-        // }
+        let variable = name.strip_suffix(':').unwrap_or(&name);
+        if let Err(error) = node_definition.set_property(variable, &args.text) {
+            self.error.set("error".to_owned());
+        } else {
+            node_definition.save().expect("failed to save");
+            self.error.set("".to_owned());
+        }
     }
 }
