@@ -51,44 +51,30 @@ impl PaxManifest {
 
     pub fn event_to_args_map(&self) -> HashMap<String, Option<String>> {
         let mut map = HashMap::new();
-        map.insert("scroll".to_string(), Some("ArgsScroll".to_string()));
-        map.insert("clap".to_string(), Some("ArgsClap".to_string()));
-        map.insert(
-            "touch_start".to_string(),
-            Some("ArgsTouchStart".to_string()),
-        );
-        map.insert("touch_move".to_string(), Some("ArgsTouchMove".to_string()));
-        map.insert("touch_end".to_string(), Some("ArgsTouchEnd".to_string()));
-        map.insert("key_down".to_string(), Some("ArgsKeyDown".to_string()));
-        map.insert("key_up".to_string(), Some("ArgsKeyUp".to_string()));
-        map.insert("key_press".to_string(), Some("ArgsKeyPress".to_string()));
-        map.insert(
-            "checkbox_change".to_string(),
-            Some("ArgsCheckboxChange".to_string()),
-        );
-        map.insert(
-            "button_click".to_string(),
-            Some("ArgsButtonClick".to_string()),
-        );
-        map.insert(
-            "textbox_change".to_string(),
-            Some("ArgsTextboxChange".to_string()),
-        );
-        map.insert("click".to_string(), Some("ArgsClick".to_string()));
-        map.insert("mouse_down".to_string(), Some("ArgsMouseDown".to_string()));
-        map.insert("mouse_up".to_string(), Some("ArgsMouseUp".to_string()));
-        map.insert("mouse_move".to_string(), Some("ArgsMouseMove".to_string()));
-        map.insert("mouse_over".to_string(), Some("ArgsMouseOver".to_string()));
-        map.insert("mouse_out".to_string(), Some("ArgsMouseOut".to_string()));
-        map.insert(
-            "double_click".to_string(),
-            Some("ArgsDoubleClick".to_string()),
-        );
-        map.insert(
-            "context_menu".to_string(),
-            Some("ArgsContextMenu".to_string()),
-        );
-        map.insert("wheel".to_string(), Some("ArgsWheel".to_string()));
+        let mut add = |from: &str, to: &str| {
+            map.insert(from.to_owned(), Some(to.to_owned()));
+        };
+        add("scroll", "ArgsScroll");
+        add("clap", "ArgsClap");
+        add("touch_start", "ArgsTouchStart");
+        add("touch_move", "ArgsTouchMove");
+        add("touch_end", "ArgsTouchEnd");
+        add("key_down", "ArgsKeyDown");
+        add("key_up", "ArgsKeyUp");
+        add("key_press", "ArgsKeyPress");
+        add("checkbox_change", "ArgsCheckboxChange");
+        add("button_click", "ArgsButtonClick");
+        add("textbox_change", "ArgsTextboxChange");
+        add("textbox_input", "ArgsTextboxInput");
+        add("click", "ArgsClick");
+        add("mouse_down", "ArgsMouseDown");
+        add("mouse_up", "ArgsMouseUp");
+        add("mouse_move", "ArgsMouseMove");
+        add("mouse_over", "ArgsMouseOver");
+        add("mouse_out", "ArgsMouseOut");
+        add("double_click", "ArgsDoubleClick");
+        add("context_menu", "ArgsContextMenu");
+        add("wheel", "ArgsWheel");
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
         map.insert("tick".to_string(), None);

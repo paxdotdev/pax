@@ -189,6 +189,18 @@ export class NativeElementPool {
         textbox.type = "text";
         textbox.addEventListener("input", (_event) => {
             let message = {
+                "FormTextboxInput": {
+                    "id_chain": patch.idChain!,
+                    "text": textbox.value,
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            // @ts-ignore
+            textbox.value = textbox.fixed_text_value;
+        });
+
+        textbox.addEventListener("change", (_event) => {
+            let message = {
                 "FormTextboxChange": {
                     "id_chain": patch.idChain!,
                     "text": textbox.value,

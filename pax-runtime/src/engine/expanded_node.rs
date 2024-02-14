@@ -3,7 +3,8 @@ use crate::constants::{
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS,
     KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS,
     MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
-    TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    TEXTBOX_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
+    WHEEL_HANDLERS,
 };
 use crate::math::Point2;
 use crate::Globals;
@@ -16,8 +17,9 @@ use std::rc::{Rc, Weak};
 use crate::api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
     ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
-    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
-    ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext, Size,
+    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTextboxInput, ArgsTouchEnd,
+    ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext,
+    Size,
 };
 
 use crate::{
@@ -500,6 +502,11 @@ impl ExpandedNode {
         dispatch_textbox_change,
         ArgsTextboxChange,
         TEXTBOX_CHANGE_HANDLERS
+    );
+    dispatch_event_handler!(
+        dispatch_textbox_input,
+        ArgsTextboxInput,
+        TEXTBOX_INPUT_HANDLERS
     );
     dispatch_event_handler!(
         dispatch_button_click,

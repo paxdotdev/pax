@@ -4,6 +4,7 @@ use js_sys::Uint8Array;
 use pax_runtime::api::ArgsButtonClick;
 use pax_runtime::api::ArgsCheckboxChange;
 use pax_runtime::api::ArgsTextboxChange;
+use pax_runtime::api::ArgsTextboxInput;
 use pax_runtime::api::RenderContext;
 use pax_runtime::math::Point2;
 use pax_runtime::ExpressionTable;
@@ -188,6 +189,16 @@ impl PaxChassisWeb {
                     .get_expanded_node(args.id_chain[0])
                     .expect("button node exists in engine");
                 node.dispatch_button_click(ArgsButtonClick {}, globals, &engine.runtime_context);
+            }
+            NativeInterrupt::FormTextboxInput(args) => {
+                let node = engine
+                    .get_expanded_node(args.id_chain[0])
+                    .expect("textbox node exists in engine");
+                node.dispatch_textbox_input(
+                    ArgsTextboxInput { text: args.text },
+                    globals,
+                    &engine.runtime_context,
+                );
             }
             NativeInterrupt::FormTextboxChange(args) => {
                 let node = engine

@@ -369,6 +369,11 @@ pub struct ArgsTextboxChange {
 }
 
 #[derive(Clone)]
+pub struct ArgsTextboxInput {
+    pub text: String,
+}
+
+#[derive(Clone)]
 pub struct ArgsButtonClick {}
 
 /// User presses a mouse button over an element.
