@@ -28,10 +28,6 @@ impl Action for SelectTool {
 }
 
 impl Toolbar {
-    pub fn save_component(&mut self, ctx: &NodeContext, _args: ArgsButtonClick) {
-        let mut dt = ctx.designtime.borrow_mut();
-        dt.send_component_update("pax_designer::pax_reexports::designer_project::Example");
-    }
 
     pub fn handle_click_pointer(&mut self, ctx: &NodeContext, _args: ArgsClick) {
         model::perform_action(
