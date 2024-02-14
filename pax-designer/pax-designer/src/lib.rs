@@ -30,7 +30,7 @@ impl PaxDesigner {
             let up_lp = userland_proj.layout_properties.borrow_mut();
             if let Some(lp) = up_lp.as_ref() {
                 let screen_to_glass_transform = lp.computed_tab.transform.inverse();
-                
+
                 model::register_glass_transform(screen_to_glass_transform);
             }
         }
