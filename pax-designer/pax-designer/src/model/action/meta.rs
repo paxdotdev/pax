@@ -1,7 +1,7 @@
 use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
 use crate::model::AppState;
-use crate::model::{Tool, ToolVisual};
+use crate::model::{Tool, ToolState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::DesigntimeManager;
 use pax_std::types::Color;

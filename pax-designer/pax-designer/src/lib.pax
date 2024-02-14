@@ -1,7 +1,7 @@
 <Group @click=click_test>
     <Controls />
     <Glass />
-    <Group>
+    <Group transform={Transform2D::translate((self.world_transform_x)px, (self.world_transform_y)px)}>
      <Example id=userland_project />
     </Group>
 </Group>
