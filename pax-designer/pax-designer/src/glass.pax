@@ -33,7 +33,7 @@
     }
 
     #project {
-        x: 250px,
+        x: 265px,
         y: 65px,
         width: {100% - 700px},
         height: {100% - 65px},
