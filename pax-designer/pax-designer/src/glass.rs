@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::model;
 use crate::model::AppState;
-use crate::model::ToolVisual;
+use crate::model::ToolState;
 
 use crate::model::action::pointer::Pointer;
 
@@ -32,6 +32,7 @@ impl Glass {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
+                button: args.mouse.button,
                 screenspace_point: Point2D {
                     x: args.mouse.x,
                     y: args.mouse.y,
@@ -45,6 +46,7 @@ impl Glass {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Move,
+                button: args.mouse.button,
                 screenspace_point: Point2D {
                     x: args.mouse.x,
                     y: args.mouse.y,
@@ -58,6 +60,7 @@ impl Glass {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Up,
+                button: args.mouse.button,
                 screenspace_point: Point2D {
                     x: args.mouse.x,
                     y: args.mouse.y,
@@ -104,29 +107,29 @@ impl Glass {
             }
 
             // tool use visual
-            if let Some(visual) = &app_state.tool_visual {
-                match visual {
-                    ToolVisual::Box {
-                        p1,
-                        p2,
-                        fill,
-                        stroke,
-                    } => {
-                        self.rect_tool_active.set(true);
-                        self.rect_tool.set(RectTool {
-                            x: Size::Pixels(p1.x.into()),
-                            y: Size::Pixels(p1.y.into()),
-                            width: Size::Pixels((p2.x - p1.x).into()),
-                            height: Size::Pixels((p2.y - p1.y).into()),
-                            fill: fill.clone(),
-                            stroke: stroke.clone(),
-                        });
-                    }
-                    ToolVisual::MovingNode { .. } => (),
+            match &app_state.tool_state {
+                ToolState::Box {
+                    p1,
+                    p2,
+                    fill,
+                    stroke,
+                } => {
+                    self.rect_tool_active.set(true);
+                    self.rect_tool.set(RectTool {
+                        x: Size::Pixels(p1.x.into()),
+                        y: Size::Pixels(p1.y.into()),
+                        width: Size::Pixels((p2.x - p1.x).into()),
+                        height: Size::Pixels((p2.y - p1.y).into()),
+                        fill: fill.clone(),
+                        stroke: stroke.clone(),
+                    });
                 }
-            } else {
-                self.rect_tool_active.set(false);
-            };
+                ToolState::Movement { .. } => (),
+                ToolState::Idle => {
+                    // reset all tool visuals
+                    self.rect_tool_active.set(false);
+                }
+            }
         });
     }
 }

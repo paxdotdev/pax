@@ -19,7 +19,10 @@ pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
 #[pax]
 #[main]
 #[file("lib.pax")]
-pub struct PaxDesigner {}
+pub struct PaxDesigner {
+    pub world_transform_x: Property<f64>,
+    pub world_transform_y: Property<f64>,
+}
 
 impl PaxDesigner {
     pub fn tick(&mut self, ctx: &NodeContext) {
@@ -34,6 +37,12 @@ impl PaxDesigner {
                 model::register_glass_transform(screen_to_glass_transform);
             }
         }
+
+        model::read_app_state(|app_state| {
+            let world = app_state.glass_to_world_transform.translation();
+            self.world_transform_x.set(world.x);
+            self.world_transform_y.set(world.y);
+        });
     }
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
 

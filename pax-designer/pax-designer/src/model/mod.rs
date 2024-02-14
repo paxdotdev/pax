@@ -5,9 +5,10 @@ use crate::model::action::ActionContext;
 use action::Action;
 use anyhow::Result;
 use pax_designtime::DesigntimeManager;
+use pax_engine::rendering::kurbo;
 use pax_engine::{
     api::NodeContext,
-    rendering::{Affine, Point2D, TransformAndBounds},
+    rendering::{Point2D, TransformAndBounds},
 };
 use pax_std::types::Color;
 use std::cell::RefCell;
@@ -59,7 +60,7 @@ pub fn read_app_state(closure: impl FnOnce(&AppState)) {
     });
 }
 
-pub fn register_glass_transform(transform: Affine) {
+pub fn register_glass_transform(transform: kurbo::Affine) {
     GLOBAL_STATE.with(|model| {
         let mut model = model.borrow_mut();
         model.app_state.screen_to_glass_transform = transform;
@@ -75,14 +76,14 @@ pub struct AppState {
     //globals
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
-    pub screen_to_glass_transform: pax_engine::rendering::Affine,
-    pub glass_to_world_transform: pax_engine::rendering::Affine,
+    pub screen_to_glass_transform: kurbo::Affine,
+    pub glass_to_world_transform: kurbo::Affine,
 
     //toolbar
     pub selected_tool: Tool,
 
     //glass
-    pub tool_visual: Option<ToolVisual>,
+    pub tool_state: ToolState,
 
     //keyboard
     main_mod_key: bool,
@@ -95,10 +96,11 @@ pub enum Tool {
     Rectangle,
 }
 
-#[derive(Clone)]
-pub enum ToolVisual {
-    MovingNode {
-        // TODO this should be entire transform relative to parent
+#[derive(Clone, Default)]
+pub enum ToolState {
+    #[default]
+    Idle,
+    Movement {
         delta: Point2D,
     },
     Box {
