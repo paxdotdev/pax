@@ -43,12 +43,12 @@ impl PropertyEditor {
             self.snid.get().get_as_int() as usize,
         );
 
-        let variable = name.strip_suffix(':').unwrap_or(&name);
-        if let Err(error) = node_definition.set_property(variable, &args.text) {
-            self.error.set("error".to_owned());
-        } else {
-            //node_definition.save().expect("failed to save");
-            self.error.set("".to_owned());
-        }
+        // let variable = name.strip_suffix(':').unwrap_or(&name);
+        // if let Err(error) = node_definition.set_property(variable, &args.text) {
+        //     self.error.set("error".to_owned());
+        // } else {
+        //     //node_definition.save().expect("failed to save");
+        //     self.error.set("".to_owned());
+        // }
     }
 }
