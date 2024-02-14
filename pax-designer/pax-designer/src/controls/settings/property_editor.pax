@@ -1,4 +1,4 @@
-<Textbox x=30% width=70% height=80% text={self.textbox} @textbox_change=self.text_change/>
+<Textbox x=30% width=70% height=80% text={self.textbox} @textbox_change=self.text_change @textbox_input=self.text_input/>
 <Text y=100% height=30% x=30% width=70% id=text text={self.error}/>
 
 @handlers {

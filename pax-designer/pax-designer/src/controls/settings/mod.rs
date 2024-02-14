@@ -107,4 +107,6 @@ impl Settings {
                 .set(name.to_uppercase().to_owned());
         });
     }
+
+    fn test() {}
 }
