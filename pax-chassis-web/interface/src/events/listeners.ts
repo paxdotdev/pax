@@ -41,6 +41,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
 
     // @ts-ignore
     layer.addEventListener('click', (evt) => {
+
         let clickEvent = {
             "Click": {
                 "x": evt.clientX,
@@ -72,11 +73,13 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
     }, true);
     // @ts-ignore
     layer.addEventListener('mousemove', (evt) => {
+        // @ts-ignore
+        let button = window.current_button || 'Left';
         let event = {
             "MouseMove": {
                 "x": evt.clientX,
                 "y": evt.clientY,
-                "button": getMouseButton(evt),
+                "button": button,
                 "modifiers": convertModifiers(evt)
             }
         };
@@ -97,6 +100,9 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
     }, {"passive": true, "capture": true});
     // @ts-ignore
     layer.addEventListener('mousedown', (evt) => {
+        let button = getMouseButton(evt);
+        // @ts-ignore
+        window.current_button = button;
         let event = {
             "MouseDown": {
                 "x": evt.clientX,

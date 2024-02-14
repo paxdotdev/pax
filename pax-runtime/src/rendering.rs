@@ -6,7 +6,8 @@ use std::ops::{Add, Div, Mul, Sub};
 use std::rc::Rc;
 
 use crate::api::{CommonProperties, RenderContext};
-pub use kurbo::Affine;
+pub use kurbo;
+use kurbo::Affine;
 use piet::{Color, StrokeStyle};
 
 use crate::api::{ArgsScroll, Layer, Size};
