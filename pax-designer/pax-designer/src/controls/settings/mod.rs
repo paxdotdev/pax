@@ -16,7 +16,7 @@ use property_editor::PropertyEditor;
 use crate::model;
 
 #[pax]
-#[file("controls/settings/settings.pax")]
+#[file("controls/settings/mod.pax")]
 pub struct Settings {
     pub component_selected: Property<bool>,
     pub selected_component_name: Property<String>,
@@ -103,7 +103,7 @@ impl Settings {
             }
             self.custom_props.set(custom_props);
             let (_, name) = type_name.rsplit_once("::").unwrap_or(("", &type_name));
-            self.selected_component_name.set(name.to_owned());
+            self.selected_component_name.set(name.to_uppercase().to_owned());
         });
     }
 }

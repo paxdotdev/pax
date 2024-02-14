@@ -61,6 +61,8 @@ impl Action for RectangleTool {
                         width: p2.x - p1.x,
                         height: p2.y - p1.y,
                     })?;
+
+                    ctx.app_state.selected_tool = Some(Tool::Pointer);
                 }
             }
         }

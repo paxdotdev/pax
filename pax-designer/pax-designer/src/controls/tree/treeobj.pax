@@ -19,12 +19,16 @@ if self.not_leaf {
 @settings {
     #text {
         style: {
-                // font: Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold),
-                font_size: 15px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 16px,
+            fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left
         }
     }
 }

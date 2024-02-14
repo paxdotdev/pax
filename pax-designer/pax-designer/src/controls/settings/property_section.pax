@@ -17,11 +17,16 @@
     }
     #text {
         style: {
-                font_size: 12px,
-                fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )},
+            font_size: 12px,
+            fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left
         }
     }
 }

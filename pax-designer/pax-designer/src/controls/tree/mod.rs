@@ -6,6 +6,7 @@ use pax_std::primitives::Text;
 use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
+use pax_std::types::text::*;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
@@ -17,11 +18,10 @@ use std::collections::HashMap;
 use treeobj::TreeObj;
 
 #[pax]
-#[file("controls/tree/tree.pax")]
+#[file("controls/tree/mod.pax")]
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
-    pub header_text: Property<String>,
     pub project_loaded: Property<bool>,
 }
 
@@ -59,7 +59,7 @@ impl Desc {
             Desc::Path => ("Path", "07-path"),
             Desc::Component(name) => (name.as_str(), "08-component"),
             Desc::Textbox => ("Textbox", "09-textbox"),
-            Desc::Checkbox => ("Ceckbox", "10-checkbox"),
+            Desc::Checkbox => ("Checkbox", "10-checkbox"),
             Desc::Scroller => ("Scroller", "11-scroller"),
             Desc::Button => ("Button", "12-button"),
             Desc::Image => ("Image", "13-image"),
@@ -109,15 +109,15 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        self.header_text
-            .set("Tree View: No loaded project".to_owned());
-    }
     
     fn to_tree(root: usize, graph: &HashMap<usize, (String, Vec<usize>)>) -> TreeEntry {
         let (name, children) = &graph[&root];
+
+        //hack: assuming that names come in via fully qualified typeids in the form `pax_designer::pax_reexports::pax_std::primitives::Group`
+        let name = *name.split("pax_reexports::").collect::<Vec<_>>().get(1).unwrap();
+
         TreeEntry(
-            match name.as_str() {
+            match name {
                 "pax_std::primitives::Group" => Desc::Group,
                 "pax_std::primitives::Frame" => Desc::Frame,
                 "pax_std::primitives::Ellipse" => Desc::Ellipse,
@@ -150,7 +150,6 @@ impl Tree {
 
     pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
         self.project_loaded.set(true);
-        self.header_text.set("".to_owned());
         let dt = ctx.designtime.borrow_mut();
         let graph = dt
             .get_orm()
