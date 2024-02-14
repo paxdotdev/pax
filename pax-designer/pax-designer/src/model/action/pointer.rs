@@ -22,15 +22,11 @@ pub enum Pointer {
 
 impl Action for PointerAction {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
-        if let Some(tool) = ctx.app_state.selected_tool {
-            ctx.execute(action::tools::ToolAction {
-                tool,
-                event: self.event,
-                point: self.screenspace_point,
-            })?;
-        } else {
-            return Err(anyhow!("only rect tool supported at the moment"));
-        }
+        ctx.execute(action::tools::ToolAction {
+            tool: ctx.app_state.selected_tool,
+            event: self.event,
+            point: self.screenspace_point,
+        })?;
         Ok(CanUndo::No)
     }
 }
