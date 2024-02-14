@@ -176,6 +176,7 @@ impl<'a> NodeBuilder<'a> {
 
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
         if value.is_empty() {
+            self.remove_property(key);
             return Ok(());
         }
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
