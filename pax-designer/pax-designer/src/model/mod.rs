@@ -1,17 +1,17 @@
 pub mod action;
 mod input;
+pub mod math;
 
 use crate::model::action::ActionContext;
 use action::Action;
 use anyhow::Result;
 use pax_designtime::DesigntimeManager;
 use pax_engine::rendering::kurbo;
-use pax_engine::{
-    api::NodeContext,
-    rendering::{Point2D, TransformAndBounds},
-};
+use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_std::types::Color;
 use std::cell::RefCell;
+
+use self::math::Glass;
 
 // Needs to be changed if we use a multithreaded async runtime
 thread_local!(
@@ -101,11 +101,12 @@ pub enum ToolState {
     #[default]
     Idle,
     Movement {
-        delta: Point2D,
+        x: f64,
+        y: f64,
     },
     Box {
-        p1: Point2D,
-        p2: Point2D,
+        p1: Point2<Glass>,
+        p2: Point2<Glass>,
         fill: Color,
         stroke: Color,
     },
