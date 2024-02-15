@@ -1,17 +1,20 @@
 use super::orm::MoveSelected;
 use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
+use crate::model::math::Glass;
 use crate::model::AppState;
 use crate::model::{Tool, ToolState};
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::rendering::{Point2D, TransformAndBounds};
+use pax_engine::math::Point2;
+use pax_engine::math::Vector2;
+use pax_engine::rendering::TransformAndBounds;
 use pax_std::types::Color;
 
 pub struct ToolAction {
     pub event: Pointer,
-    pub point: Point2D,
+    pub point: Point2<Glass>,
 }
 
 impl Action for ToolAction {
@@ -33,7 +36,7 @@ impl Action for ToolAction {
 
 pub struct RectangleTool {
     pub event: Pointer,
-    pub point: Point2D,
+    pub point: Point2<Glass>,
 }
 
 impl Action for RectangleTool {
@@ -71,7 +74,7 @@ impl Action for RectangleTool {
 
 pub struct PointerTool {
     pub event: Pointer,
-    pub point: Point2D,
+    pub point: Point2<Glass>,
 }
 
 impl Action for PointerTool {
@@ -99,21 +102,24 @@ impl Action for PointerTool {
                         let common_props = common_props.borrow();
                         let lp = target.layout_properties.borrow();
                         let tab = &lp.as_ref().unwrap().computed_tab;
-                        let p_anchor = Point2D {
-                            x: common_props
+                        let p_anchor = Point2::new(
+                            common_props
                                 .anchor_x
                                 .as_ref()
                                 .map(|x| x.get().get_pixels(tab.bounds.0))
                                 .unwrap_or(0.0),
-                            y: common_props
+                            common_props
                                 .anchor_y
                                 .as_ref()
                                 .map(|y| y.get().get_pixels(tab.bounds.1))
                                 .unwrap_or(0.0),
-                        };
+                        );
                         let p = tab.transform * p_anchor;
                         let delta = p - self.point;
-                        let curr_pos = ctx.app_state.tool_state = ToolState::Movement { delta };
+                        let curr_pos = ctx.app_state.tool_state = ToolState::Movement {
+                            x: delta.x,
+                            y: delta.y,
+                        };
                     } else {
                         ctx.app_state.tool_state = ToolState::Box {
                             p1: self.point,
@@ -133,9 +139,9 @@ impl Action for PointerTool {
                     };
                     *p2 = self.point;
                 }
-                ToolState::Movement { delta } => {
+                ToolState::Movement { x, y } => {
                     ctx.execute(MoveSelected {
-                        point: self.point + delta,
+                        point: self.point + Vector2::new(x, y),
                     });
                 }
                 ToolState::Idle => (),

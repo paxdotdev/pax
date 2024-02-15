@@ -1,11 +1,14 @@
 use super::{Action, ActionContext, CanUndo};
-use crate::model::AppState;
+use crate::model::{
+    math::{Glass, World},
+    AppState,
+};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::{api::Size, rendering::Point2D, serde};
+use pax_engine::{api::Size, math::Point2, serde};
 
 pub struct CreateRectangle {
-    pub origin: Point2D,
+    pub origin: Point2<Glass>,
     pub width: f64,
     pub height: f64,
 }
@@ -44,7 +47,7 @@ impl Action for CreateRectangle {
 }
 
 pub struct MoveSelected {
-    pub point: Point2D,
+    pub point: Point2<Glass>,
 }
 
 impl Action for MoveSelected {
