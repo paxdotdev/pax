@@ -1,11 +1,12 @@
 use std::any::Any;
 use std::cell::RefCell;
 
+use super::math::Point2;
 use std::iter;
-use std::ops::{Add, Div, Mul, Sub};
 use std::rc::Rc;
 
 use crate::api::{CommonProperties, RenderContext};
+use crate::math::Generic;
 pub use kurbo;
 use kurbo::Affine;
 use piet::{Color, StrokeStyle};
@@ -34,81 +35,6 @@ pub struct InstantiationArgs {
     pub component_type_id: String,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
-pub struct Point2D {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl Add<Point2D> for Point2D {
-    type Output = Point2D;
-
-    fn add(self, rhs: Point2D) -> Self::Output {
-        Self::Output {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-impl Sub<Point2D> for Point2D {
-    type Output = Point2D;
-    fn sub(self, rhs: Point2D) -> Self::Output {
-        Self::Output {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
-    }
-}
-
-impl Div<f64> for Point2D {
-    type Output = Point2D;
-    fn div(self, rhs: f64) -> Self::Output {
-        Self::Output {
-            x: self.x / rhs,
-            y: self.y / rhs,
-        }
-    }
-}
-
-impl Point2D {
-    fn subtract(self, other: Point2D) -> Self {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
-    }
-
-    fn dot(self, other: Point2D) -> f64 {
-        self.x * other.x + self.y * other.y
-    }
-
-    fn normal(self) -> Self {
-        Self {
-            x: -self.y,
-            y: self.x,
-        }
-    }
-
-    fn project_onto(self, axis: Point2D) -> f64 {
-        let dot_product = self.dot(axis);
-        dot_product / (axis.x.powi(2) + axis.y.powi(2))
-    }
-}
-
-impl Mul<Point2D> for Affine {
-    type Output = Point2D;
-
-    #[inline]
-    fn mul(self, other: Point2D) -> Point2D {
-        let coeffs = self.as_coeffs();
-        Point2D {
-            x: coeffs[0] * other.x + coeffs[2] * other.y + coeffs[4],
-            y: coeffs[1] * other.x + coeffs[3] * other.y + coeffs[5],
-        }
-    }
-}
-
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -120,18 +46,14 @@ pub struct TransformAndBounds {
 }
 
 impl TransformAndBounds {
-    pub fn corners(&self) -> [Point2D; 4] {
+    pub fn corners(&self) -> [Point2<Generic>; 4] {
         let width = self.bounds.0;
         let height = self.bounds.1;
 
-        let top_left = self.transform * Point2D { x: 0.0, y: 0.0 };
-        let top_right = self.transform * Point2D { x: width, y: 0.0 };
-        let bottom_left = self.transform * Point2D { x: 0.0, y: height };
-        let bottom_right = self.transform
-            * Point2D {
-                x: width,
-                y: height,
-            };
+        let top_left = self.transform * Point2::new(0.0, 0.0);
+        let top_right = self.transform * Point2::new(width, 0.0);
+        let bottom_left = self.transform * Point2::new(0.0, height);
+        let bottom_right = self.transform * Point2::new(width, height);
 
         [top_left, top_right, bottom_right, bottom_left]
     }
@@ -142,13 +64,15 @@ impl TransformAndBounds {
         let corners_other = other.corners();
 
         for i in 0..2 {
-            let axis = corners_self[i].subtract(corners_self[(i + 1) % 4]).normal();
+            let axis = (corners_self[i] - corners_self[(i + 1) % 4]).normal();
 
-            let self_projections: Vec<_> =
-                corners_self.iter().map(|&p| p.project_onto(axis)).collect();
+            let self_projections: Vec<_> = corners_self
+                .iter()
+                .map(|&p| p.to_vector().project_onto(axis))
+                .collect();
             let other_projections: Vec<_> = corners_other
                 .iter()
-                .map(|&p| p.project_onto(axis))
+                .map(|&p| p.to_vector().project_onto(axis))
                 .collect();
 
             let (min_self, max_self) = min_max_projections(&self_projections);
