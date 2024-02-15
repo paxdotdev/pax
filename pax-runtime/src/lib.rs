@@ -10,6 +10,7 @@ pub mod engine;
 pub mod expressions;
 pub mod form_event;
 pub mod layout;
+pub mod math;
 pub mod numeric;
 pub mod properties;
 pub mod rendering;
