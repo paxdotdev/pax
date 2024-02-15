@@ -1,5 +1,5 @@
 use pax_engine::api::*;
-use pax_engine::rendering::Point2D;
+use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::{Color, Fill};
@@ -10,6 +10,8 @@ use crate::model::AppState;
 use crate::model::ToolState;
 
 use crate::model::action::pointer::Pointer;
+use crate::model::math;
+use crate::model::math::Screen;
 
 #[pax]
 #[custom(Default)]
@@ -33,10 +35,7 @@ impl Glass {
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
                 button: args.mouse.button,
-                screenspace_point: Point2D {
-                    x: args.mouse.x,
-                    y: args.mouse.y,
-                },
+                point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
         );
@@ -47,10 +46,7 @@ impl Glass {
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Move,
                 button: args.mouse.button,
-                screenspace_point: Point2D {
-                    x: args.mouse.x,
-                    y: args.mouse.y,
-                },
+                point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
         );
@@ -61,10 +57,7 @@ impl Glass {
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Up,
                 button: args.mouse.button,
-                screenspace_point: Point2D {
-                    x: args.mouse.x,
-                    y: args.mouse.y,
-                },
+                point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
         );
@@ -85,7 +78,11 @@ impl Glass {
                     .into_iter()
                     .flat_map(|n| {
                         let lp = n.layout_properties.borrow();
-                        lp.as_ref().map(|c| c.computed_tab.corners())
+                        lp.as_ref().map(|c| {
+                            c.computed_tab
+                                .corners()
+                                .map(|p| p.to_world::<math::Glass>())
+                        })
                     })
                     .collect();
                 let bounds = compute_total_bounds(bounds);
@@ -155,8 +152,8 @@ pub struct ControlPoint {
     pub y: f64,
 }
 
-impl From<pax_engine::rendering::Point2D> for ControlPoint {
-    fn from(value: pax_engine::rendering::Point2D) -> Self {
+impl From<Point2<math::Glass>> for ControlPoint {
+    fn from(value: Point2<math::Glass>) -> Self {
         Self {
             x: value.x,
             y: value.y,
@@ -172,8 +169,8 @@ pub struct BoundingSegment {
     pub y1: f64,
 }
 
-impl From<(Point2D, Point2D)> for BoundingSegment {
-    fn from(value: (Point2D, Point2D)) -> Self {
+impl From<(Point2<math::Glass>, Point2<math::Glass>)> for BoundingSegment {
+    fn from(value: (Point2<math::Glass>, Point2<math::Glass>)) -> Self {
         let (p0, p1) = value;
         Self {
             x0: p0.x,
@@ -192,20 +189,20 @@ pub struct SelectionVisual {
 }
 
 impl SelectionVisual {
-    fn new_from_box_bounds(points: [Point2D; 4]) -> Self {
+    fn new_from_box_bounds(points: [Point2<math::Glass>; 4]) -> Self {
         let [p1, p2, p3, p4] = points;
         Self {
             control_points: vec![
                 p1.into(),
-                ((p1 + p2) / 2.0).into(),
+                p1.midpoint_towards(p2).into(),
                 p2.into(),
-                ((p1 + p4) / 2.0).into(),
+                p1.midpoint_towards(p4).into(),
                 //
                 // anchor point
                 //
-                ((p2 + p3) / 2.0).into(),
+                p2.midpoint_towards(p3).into(),
                 p3.into(),
-                ((p3 + p4) / 2.0).into(),
+                p3.midpoint_towards(p4).into(),
                 p4.into(),
             ],
             bounding_segments: vec![
@@ -214,7 +211,7 @@ impl SelectionVisual {
                 (p3, p4).into(),
                 (p4, p1).into(),
             ],
-            anchor_point: ((p1 + p3) / 2.0).into(),
+            anchor_point: p1.midpoint_towards(p3).into(),
         }
     }
 }
@@ -229,7 +226,7 @@ pub struct RectTool {
     pub stroke: Color,
 }
 
-fn compute_total_bounds(bounds: Vec<[Point2D; 4]>) -> [Point2D; 4] {
+fn compute_total_bounds(bounds: Vec<[Point2<math::Glass>; 4]>) -> [Point2<math::Glass>; 4] {
     let mut min_x = f64::MAX;
     let mut min_y = f64::MAX;
     let mut max_x = f64::MIN;
@@ -244,10 +241,10 @@ fn compute_total_bounds(bounds: Vec<[Point2D; 4]>) -> [Point2D; 4] {
     }
 
     let points = [
-        Point2D { x: min_x, y: min_y },
-        Point2D { x: min_x, y: max_y },
-        Point2D { x: max_x, y: max_y },
-        Point2D { x: max_x, y: min_y },
+        Point2::new(min_x, min_y),
+        Point2::new(min_x, max_y),
+        Point2::new(max_x, max_y),
+        Point2::new(max_x, min_y),
     ];
     points
 }

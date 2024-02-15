@@ -1,18 +1,19 @@
 use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::model::action;
+use crate::model::math::{Glass, Screen};
 use crate::model::AppState;
 use crate::model::ToolState;
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::MouseButton;
-use pax_engine::rendering::Point2D;
+use pax_engine::math::Point2;
 
 pub struct PointerAction {
     pub event: Pointer,
     pub button: MouseButton,
-    pub screenspace_point: Point2D,
+    pub point: Point2<Screen>,
 }
 
 #[derive(Clone, Copy)]
@@ -27,11 +28,11 @@ impl Action for PointerAction {
         match self.button {
             MouseButton::Left => ctx.execute(action::tools::ToolAction {
                 event: self.event,
-                point: self.screenspace_point,
+                point: self.point.to_world::<Glass>(),
             }),
             MouseButton::Middle => ctx.execute(action::world::Pan {
                 event: self.event,
-                point: self.screenspace_point,
+                point: self.point.to_world::<Glass>(),
             }),
             _ => Ok(()),
         }?;

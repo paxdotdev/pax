@@ -1,16 +1,17 @@
 use super::{pointer::Pointer, Action, ActionContext, CanUndo};
-use crate::model::{AppState, ToolState};
+use crate::model::{math::Glass, AppState, ToolState};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
     api::{Size, Transform2D},
-    rendering::{kurbo, Point2D},
+    math::{Generic, Point2, Vector2},
+    rendering::kurbo,
     serde,
 };
 
 pub struct Pan {
     pub event: Pointer,
-    pub point: Point2D,
+    pub point: Point2<Glass>,
 }
 
 impl Action for Pan {
@@ -18,15 +19,15 @@ impl Action for Pan {
         match self.event {
             Pointer::Down => {
                 let world = ctx.app_state.glass_to_world_transform.translation();
-                let base = Point2D {
-                    x: world.x - self.point.x,
-                    y: world.y - self.point.y,
+                let base = Point2::<Generic>::new(world.x - self.point.x, world.y - self.point.y);
+                ctx.app_state.tool_state = ToolState::Movement {
+                    x: base.x,
+                    y: base.y,
                 };
-                ctx.app_state.tool_state = ToolState::Movement { delta: base };
             }
             Pointer::Move => {
-                if let ToolState::Movement { delta } = ctx.app_state.tool_state {
-                    let point = self.point + delta;
+                if let ToolState::Movement { x, y } = ctx.app_state.tool_state {
+                    let point = self.point + Vector2::new(x, y);
                     ctx.app_state.glass_to_world_transform = ctx
                         .app_state
                         .glass_to_world_transform
