@@ -6,9 +6,7 @@ use std::iter;
 use std::rc::Rc;
 
 use crate::api::{CommonProperties, RenderContext};
-use crate::math::Generic;
-pub use kurbo;
-use kurbo::Affine;
+use crate::math::{Generic, Space, Transform2};
 use piet::{Color, StrokeStyle};
 
 use crate::api::{ArgsScroll, Layer, Size};
@@ -35,12 +33,17 @@ pub struct InstantiationArgs {
     pub component_type_id: String,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct EngineSpace;
+
+impl Space for EngineSpace {}
+
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, PartialEq)]
 pub struct TransformAndBounds {
-    pub transform: Affine,
+    pub transform: Transform2,
     pub bounds: (f64, f64),
     // pub clipping_bounds: Option<(f64, f64)>,
 }

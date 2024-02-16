@@ -5,14 +5,13 @@ use crate::constants::{
     MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
     TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
+use crate::math::{Point2, Transform2};
 use crate::Globals;
 #[cfg(debug_assertions)]
 use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-
-use kurbo::Point;
 
 use crate::api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
@@ -349,6 +348,16 @@ impl ExpandedNode {
         self.instance_node.render(&self, context, rcs);
     }
 
+    pub fn local_raycast(&self, context: &RuntimeContext, point: Point2) -> Vec<Rc<ExpandedNode>> {
+        let lp = self.layout_properties.borrow();
+        let transform = if let Some(v) = lp.as_ref() {
+            v.computed_tab.transform
+        } else {
+            Transform2::identity()
+        };
+        context.get_elements_beneath_ray(transform * point, false, vec![])
+    }
+
     /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
     /// the parameterized `target_type`, and executing a provided closure `body` in the
     /// context of that unwrapped variant (including support for mutable operations),
@@ -412,7 +421,7 @@ impl ExpandedNode {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: &(f64, f64)) -> bool {
+    pub fn ray_cast_test(&self, ray: Point2) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
         if self.instance_node.base().flags().invisible_to_raycasting {
             return false;
@@ -422,7 +431,7 @@ impl ExpandedNode {
         let computed_tab = &props.as_ref().unwrap().computed_tab;
 
         let inverted_transform = computed_tab.transform.inverse();
-        let transformed_ray = inverted_transform * Point { x: ray.0, y: ray.1 };
+        let transformed_ray = inverted_transform * ray;
 
         let relevant_bounds = computed_tab.bounds;
 

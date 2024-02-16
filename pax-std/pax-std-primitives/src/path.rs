@@ -75,7 +75,10 @@ impl InstanceNode for PathInstance {
                 }
             }
 
-            let transformed_bez_path = bez_path;
+            let computed_props = expanded_node.layout_properties.borrow();
+            let tab = &computed_props.as_ref().unwrap().computed_tab;
+
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = properties.fill.get().to_piet_color();

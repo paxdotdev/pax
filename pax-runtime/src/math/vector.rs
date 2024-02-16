@@ -1,20 +1,46 @@
 use std::{
     marker::PhantomData,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Mul, Neg, Sub},
 };
 
 use super::{Generic, Point2, Space};
 
-#[derive(Copy, Clone, Default, Debug)]
 pub struct Vector2<W = Generic> {
     pub x: f64,
     pub y: f64,
     _panthom: PhantomData<W>,
 }
 
+// Implement Clone, Copy, PartialEq, etc manually, as
+// to not require the Space to implement these.
+
+impl<W: Space> Clone for Vector2<W> {
+    fn clone(&self) -> Self {
+        Self {
+            x: self.x,
+            y: self.y,
+            _panthom: PhantomData,
+        }
+    }
+}
+
+impl<W: Space> Copy for Vector2<W> {}
+
+impl<W: Space> PartialEq for Vector2<W> {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
+}
+
+impl<W: Space> Default for Vector2<W> {
+    fn default() -> Self {
+        Self::new(0.0, 0.0)
+    }
+}
+
 impl<W: Space> Vector2<W> {
     pub fn new(x: f64, y: f64) -> Self {
-        Vector2 {
+        Self {
             x,
             y,
             _panthom: PhantomData,
@@ -41,8 +67,8 @@ impl<W: Space> Vector2<W> {
         Point2::new(self.x, self.y)
     }
 
-    pub fn to_world<WNew: Space>(self) -> Point2<WNew> {
-        Point2::new(self.x, self.y)
+    pub fn to_world<WNew: Space>(self) -> Vector2<WNew> {
+        Vector2::new(self.x, self.y)
     }
 }
 
@@ -74,6 +100,14 @@ impl<W: Space> Add for Vector2<W> {
 
     fn add(self, rhs: Vector2<W>) -> Self::Output {
         Self::Output::new(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+
+impl<W: Space> Neg for Vector2<W> {
+    type Output = Vector2<W>;
+
+    fn neg(self) -> Self::Output {
+        Self::Output::new(-self.x, -self.y)
     }
 }
 
