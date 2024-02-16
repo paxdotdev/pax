@@ -1,4 +1,4 @@
-use crate::api::log;
+use crate::math::Point2;
 use crate::numeric::Numeric;
 use pax_message::NativeMessage;
 use std::cell::RefCell;
@@ -81,7 +81,7 @@ impl RuntimeContext {
     /// not register a `hit`, nor will elements that suppress input events.
     pub fn get_elements_beneath_ray(
         &self,
-        ray: (f64, f64),
+        ray: Point2,
         limit_one: bool,
         mut accum: Vec<Rc<ExpandedNode>>,
     ) -> Vec<Rc<ExpandedNode>> {
@@ -91,7 +91,7 @@ impl RuntimeContext {
         //Finally: check whether element itself satisfies hit_test(ray)
 
         for node in self.z_index_node_cache.iter().rev().skip(1) {
-            if node.ray_cast_test(&ray) {
+            if node.ray_cast_test(ray) {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
                 //calculation when we find the first matching node
@@ -104,7 +104,7 @@ impl RuntimeContext {
                     if let Some(unwrapped_parent) = parent {
                         if let Some(_) = unwrapped_parent.get_clipping_size() {
                             ancestral_clipping_bounds_are_satisfied =
-                                (*unwrapped_parent).ray_cast_test(&ray);
+                                (*unwrapped_parent).ray_cast_test(ray);
                             break;
                         }
                         parent = unwrapped_parent.parent_expanded_node.borrow().upgrade();
@@ -125,7 +125,7 @@ impl RuntimeContext {
     }
 
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
-    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<ExpandedNode>> {
+    pub fn get_topmost_element_beneath_ray(&self, ray: Point2) -> Option<Rc<ExpandedNode>> {
         let res = self.get_elements_beneath_ray(ray, true, vec![]);
         if res.len() == 0 {
             None

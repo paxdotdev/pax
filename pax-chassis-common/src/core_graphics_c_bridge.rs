@@ -8,6 +8,7 @@ use std::mem::{transmute, ManuallyDrop};
 use std::os::raw::c_char;
 
 use core_graphics::context::CGContext;
+use pax_runtime::math::Point2;
 use piet_coregraphics::CoreGraphicsContext;
 
 use flexbuffers;
@@ -95,7 +96,7 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::Click(args) => {
             let prospective_hit = engine
                 .runtime_context
-                .get_topmost_element_beneath_ray((args.x, args.y));
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
                     let modifiers = args

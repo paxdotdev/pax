@@ -2,6 +2,7 @@ pub extern crate pax_macro;
 pub use pax_macro::*;
 
 pub use pax_runtime::api;
+pub use pax_runtime::design_utils;
 pub use pax_runtime::math;
 pub use pax_runtime::rendering;
 

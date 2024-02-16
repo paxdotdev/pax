@@ -1,4 +1,4 @@
-use pax_runtime::api::RenderContext;
+use pax_runtime::{api::RenderContext, math::Point2};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
@@ -88,8 +88,8 @@ impl InstanceNode for ImageInstance {
         let height = bounding_dimens.1;
 
         let bounds = kurbo::Rect::new(0.0, 0.0, width, height);
-        let top_left = transform * kurbo::Point::new(bounds.min_x(), bounds.min_y());
-        let bottom_right = transform * kurbo::Point::new(bounds.max_x(), bounds.max_y());
+        let top_left = transform * Point2::new(bounds.min_x(), bounds.min_y());
+        let bottom_right = transform * Point2::new(bounds.max_x(), bounds.max_y());
         let transformed_bounds =
             kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
 

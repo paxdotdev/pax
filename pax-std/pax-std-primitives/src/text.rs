@@ -105,7 +105,7 @@ impl InstanceNode for TextInstance {
                 patch_if_needed(
                     &mut old_state.transform,
                     &mut patch.transform,
-                    computed_tab.transform.as_coeffs().to_vec(),
+                    computed_tab.transform.coeffs().to_vec(),
                 ),
             ];
 

@@ -5,11 +5,37 @@ use std::{
 
 use super::{vector::Vector2, Generic, Space};
 
-#[derive(Copy, Clone, Default, Debug)]
 pub struct Point2<W = Generic> {
     pub x: f64,
     pub y: f64,
     _panthom: PhantomData<W>,
+}
+
+// Implement Clone, Copy, PartialEq, etc manually, as
+// to not require the Space to implement these.
+
+impl<W: Space> Clone for Point2<W> {
+    fn clone(&self) -> Self {
+        Self {
+            x: self.x,
+            y: self.y,
+            _panthom: PhantomData,
+        }
+    }
+}
+
+impl<W: Space> Copy for Point2<W> {}
+
+impl<W: Space> PartialEq for Point2<W> {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
+}
+
+impl<W: Space> Default for Point2<W> {
+    fn default() -> Self {
+        Self::new(0.0, 0.0)
+    }
 }
 
 impl<W: Space> Point2<W> {

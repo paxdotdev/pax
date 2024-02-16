@@ -1,3 +1,4 @@
+use super::{Generic, Point2, Space, Vector2};
 use std::{marker::PhantomData, ops::Mul};
 
 //-----------------------------------------------------------
@@ -5,40 +6,47 @@ use std::{marker::PhantomData, ops::Mul};
 // transform impl (copy/pasted initially with some modifications)
 // curbo crate: https://www.michaelfbryan.com/arcs/kurbo/index.html
 // original source code: https://www.michaelfbryan.com/arcs/src/kurbo/affine.rs.html#10
-// kurbo is distributed under the following (MIT) license:
-// "Copyright (c) 2018 Raph Levien
-
-// Permission is hereby granted, free of charge, to any
-// person obtaining a copy of this software and associated
-// documentation files (the "Software"), to deal in the
-// Software without restriction, including without
-// limitation the rights to use, copy, modify, merge,
-// publish, distribute, sublicense, and/or sell copies of
-// the Software, and to permit persons to whom the Software
-// is furnished to do so, subject to the following
-// conditions:
-// The above copyright notice and this permission notice
-// shall be included in all copies or substantial portions
-// of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-// ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-// TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-// PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-// SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-// IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-// DEALINGS IN THE SOFTWARE."
+// Kurbo is distributed under an MIT license.
 //-----------------------------------------------------------
 
-use super::{Space, Vector2};
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Transform2<WFrom, WTo = WFrom> {
+pub struct Transform2<WFrom = Generic, WTo = WFrom> {
     m: [f64; 6],
     _panthom_from: PhantomData<WFrom>,
     _panthom_to: PhantomData<WTo>,
+}
+
+// Implement Clone, Copy, PartialEq, etc manually, as
+// to not require the Space to implement these.
+
+impl<F: Space, T: Space> Clone for Transform2<F, T> {
+    fn clone(&self) -> Self {
+        Self {
+            m: self.m,
+            _panthom_from: PhantomData,
+            _panthom_to: PhantomData,
+        }
+    }
+}
+
+impl<F: Space, T: Space> std::fmt::Debug for Transform2<F, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.m[0], self.m[1], self.m[2])?;
+        write!(f, "{} {} {}", self.m[3], self.m[4], self.m[5])
+    }
+}
+
+impl<F: Space, T: Space> PartialEq for Transform2<F, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.m == other.m
+    }
+}
+
+impl<F: Space, T: Space> Copy for Transform2<F, T> {}
+
+impl<F: Space, T: Space> Default for Transform2<F, T> {
+    fn default() -> Self {
+        Self::identity()
+    }
 }
 
 impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
@@ -50,7 +58,7 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         }
     }
 
-    pub fn unit() -> Self {
+    pub fn identity() -> Self {
         Self::new([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
     }
 
@@ -69,6 +77,18 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
 
     pub fn determinant(self) -> f64 {
         self.m[0] * self.m[3] - self.m[1] * self.m[2]
+    }
+
+    pub fn coeffs(&self) -> [f64; 6] {
+        self.m
+    }
+
+    pub fn get_translation(self) -> Vector2<WTo> {
+        (self * Point2::<WFrom>::default()).to_vector()
+    }
+
+    pub fn between_worlds<W: Space, T: Space>(self) -> Transform2<W, T> {
+        Transform2::new(self.m)
     }
 
     /// Produces NaN values when the determinant is zero.
@@ -97,5 +117,33 @@ impl<W1: Space, W2: Space, W3: Space> Mul<Transform2<W1, W2>> for Transform2<W2,
             self.m[0] * rhs.m[4] + self.m[2] * rhs.m[5] + self.m[4],
             self.m[1] * rhs.m[4] + self.m[3] * rhs.m[5] + self.m[5],
         ])
+    }
+}
+
+impl<F: Space, T: Space> Mul<Point2<F>> for Transform2<F, T> {
+    type Output = Point2<T>;
+
+    fn mul(self, other: Point2<F>) -> Self::Output {
+        Self::Output::new(
+            self.m[0] * other.x + self.m[2] * other.y + self.m[4],
+            self.m[1] * other.x + self.m[3] * other.y + self.m[5],
+        )
+    }
+}
+
+impl<F: Space, T: Space> Mul<Vector2<F>> for Transform2<F, T> {
+    type Output = Vector2<T>;
+
+    fn mul(self, other: Vector2<F>) -> Self::Output {
+        Self::Output::new(
+            self.m[0] * other.x + self.m[2] * other.y,
+            self.m[1] * other.x + self.m[3] * other.y,
+        )
+    }
+}
+
+impl<T: Space, F: Space> From<Transform2<T, F>> for kurbo::Affine {
+    fn from(value: Transform2<T, F>) -> Self {
+        Self::new(value.m)
     }
 }

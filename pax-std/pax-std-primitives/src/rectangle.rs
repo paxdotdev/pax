@@ -80,7 +80,7 @@ impl InstanceNode for RectangleInstance {
             let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
             let bez_path = rect.to_path(0.1);
 
-            let transformed_bez_path = tab.transform * bez_path;
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             match properties.fill.get() {

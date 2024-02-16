@@ -8,16 +8,19 @@ use std::rc::Rc;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
-    log, CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
+    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
     TransitionManager,
 };
+use crate::math::Point2;
 use piet::InterpolationMode;
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
-    Affine, ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext,
+    ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext,
     RuntimePropertiesStackFrame, TransformAndBounds,
 };
+
+pub mod design_utils;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
@@ -253,12 +256,14 @@ impl PaxEngine {
         logger: crate::api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
     ) -> Self {
+        use crate::math::Transform2;
+
         crate::api::register_logger(logger);
 
         let globals = Globals {
             frames_elapsed: 0,
             viewport: TransformAndBounds {
-                transform: Affine::default(),
+                transform: Transform2::identity(),
                 bounds: viewport_size,
             },
         };
@@ -281,12 +286,14 @@ impl PaxEngine {
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
     ) -> Self {
+        use crate::math::Transform2;
+
         crate::api::register_logger(logger);
 
         let globals = Globals {
             frames_elapsed: 0,
             viewport: TransformAndBounds {
-                transform: Affine::default(),
+                transform: Transform2::default(),
                 bounds: viewport_size,
             },
             designtime: designtime.clone(),
@@ -388,7 +395,7 @@ impl PaxEngine {
     pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode>> {
         let (x, y) = self.runtime_context.globals().viewport.bounds;
         self.runtime_context
-            .get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
+            .get_topmost_element_beneath_ray(Point2::new(x / 2.0, y / 2.0))
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
