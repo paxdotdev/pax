@@ -33,7 +33,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         })))
     }
 
-    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &EngineContext, Option::<Box<dyn Any>>) {
+    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>) {
         match fn_name {
             {% for handler in component.handlers %}
             "{{handler.name}}" => {

@@ -17,7 +17,7 @@ use crate::api::{
     ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
     ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
     ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTouchEnd, ArgsTouchMove,
-    ArgsTouchStart, ArgsWheel, Axis, CommonProperties, EngineContext, RenderContext, Size,
+    ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext, Size,
 };
 
 use crate::{
@@ -109,7 +109,7 @@ macro_rules! dispatch_event_handler {
                         bounds_parent
                     })
                     .unwrap_or(globals.viewport.bounds);
-                let context = EngineContext {
+                let context = NodeContext {
                     bounds_self,
                     bounds_parent,
                     frames_elapsed: globals.frames_elapsed,
@@ -380,7 +380,7 @@ impl ExpandedNode {
         func(self, val);
     }
 
-    pub fn get_node_context<'a>(&'a self, context: &'a RuntimeContext) -> EngineContext {
+    pub fn get_node_context<'a>(&'a self, context: &'a RuntimeContext) -> NodeContext {
         let globals = context.globals();
         let computed_props = self.layout_properties.borrow();
         let bounds_self = computed_props
@@ -395,7 +395,7 @@ impl ExpandedNode {
                 props.as_ref().map(|v| v.computed_tab.bounds)
             })
             .unwrap_or(globals.viewport.bounds);
-        EngineContext {
+        NodeContext {
             frames_elapsed: globals.frames_elapsed,
             bounds_self,
             bounds_parent,
