@@ -6,8 +6,8 @@ use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
     api::{EngineContext, Window},
-    design_utils::NodeInterface,
     math::{Point2, Space, Transform2},
+    NodeInterface,
 };
 
 use super::math::coordinate_spaces::Glass;
