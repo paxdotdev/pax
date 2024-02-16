@@ -19,20 +19,20 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &EngineContext) {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.num.set(1);
     }
 
-    pub fn click0(&mut self, ctx: &EngineContext, args: ArgsClick) {
+    pub fn click0(&mut self, ctx: &NodeContext, args: ArgsClick) {
         self.num.set(1);
     }
 
-    pub fn click1(&mut self, ctx: &EngineContext, args: ArgsClick) {
+    pub fn click1(&mut self, ctx: &NodeContext, args: ArgsClick) {
         self.num.set(3);
     }
 
-    pub fn click2(&mut self, ctx: &EngineContext, args: ArgsClick) {
+    pub fn click2(&mut self, ctx: &NodeContext, args: ArgsClick) {
         self.num.set(5);
     }
-    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {}
+    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {}
 }

@@ -8,7 +8,7 @@ use std::rc::Rc;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
-    CommonProperties, EngineContext, Interpolatable, Layer, OcclusionLayerGen, RenderContext,
+    CommonProperties, NodeContext, Interpolatable, Layer, OcclusionLayerGen, RenderContext,
     TransitionManager,
 };
 use crate::math::Point2;
@@ -82,7 +82,7 @@ impl PropertiesComputable for CommonProperties {
 
 pub struct HandlerRegistry {
     pub handlers:
-        HashMap<String, Vec<fn(Rc<RefCell<dyn Any>>, &EngineContext, Option<Box<dyn Any>>)>>,
+        HashMap<String, Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>)>>,
 }
 
 impl Default for HandlerRegistry {

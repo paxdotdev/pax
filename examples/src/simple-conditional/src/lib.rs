@@ -19,17 +19,17 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &EngineContext) {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.message.set("Click me".to_string());
         self.activated.set(false);
         self.not_activated.set(true);
     }
-    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {
+    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn increment(&mut self, ctx: &EngineContext, args: ArgsClick) {
+    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick) {
         self.activated.set(!self.activated.get());
         self.not_activated.set(!self.activated.get());
         self.message

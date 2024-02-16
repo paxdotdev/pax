@@ -19,7 +19,7 @@ pub struct OneRect {
 
 impl OneRect {
 
-    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {
+    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
