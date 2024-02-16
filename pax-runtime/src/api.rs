@@ -12,7 +12,7 @@ use mut_static::MutStatic;
 use piet::PaintBrush;
 
 pub use crate::numeric::Numeric;
-use crate::RuntimeContext;
+use crate::{PropertyExpression, RuntimeContext};
 use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
@@ -44,6 +44,11 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
     }
 }
 
+pub enum PropertyType {
+    Literal,
+    Expression,
+}
+
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyInstance<T: Default + Clone> {
@@ -64,6 +69,8 @@ pub trait PropertyInstance<T: Default + Clone> {
     /// after the current queue is complete.  The starting value for this new
     /// transition will be the final value upon completion of the current transition queue.
     fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
+
+    fn property_type(&self) -> PropertyType;
 
     //Wishlist:
     // to_default: set back to default value
@@ -113,7 +120,14 @@ impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
 
 impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
     fn clone(&self) -> Self {
-        Box::new(PropertyLiteral::new(self.deref().get().clone()))
+        match self.property_type() {
+            PropertyType::Literal => Box::new(PropertyLiteral::new(self.deref().get().clone())),
+            PropertyType::Expression => Box::new(PropertyExpression::new(
+                self.deref()
+                    ._get_vtable_id()
+                    .expect("Cloned expression must have a v-table id"),
+            )),
+        }
     }
 }
 
@@ -486,7 +500,7 @@ pub struct CommonProperty {
 // Retrieved via <dyn InstanceNode>#get_common_properties
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CommonProperties {
     pub id: Option<Box<dyn PropertyInstance<String>>>,
     pub x: Option<Box<dyn PropertyInstance<Size>>>,
@@ -914,6 +928,10 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         } else {
             Some(&mut self.transition_manager)
         }
+    }
+
+    fn property_type(&self) -> PropertyType {
+        PropertyType::Literal
     }
 }
 

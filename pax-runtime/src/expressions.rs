@@ -2,7 +2,9 @@ use std::rc::Rc;
 
 use crate::properties::RuntimePropertiesStackFrame;
 
-use crate::api::{EasingCurve, PropertyInstance, TransitionManager, TransitionQueueEntry};
+use crate::api::{
+    EasingCurve, PropertyInstance, PropertyType, TransitionManager, TransitionQueueEntry,
+};
 
 // The `Expression` form of a property — stores a function
 // that evaluates the value itself, as well as a "register" of
@@ -78,6 +80,10 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         } else {
             Some(&mut self.transition_manager)
         }
+    }
+
+    fn property_type(&self) -> PropertyType {
+        PropertyType::Expression
     }
 }
 
