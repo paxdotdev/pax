@@ -5,7 +5,7 @@ use crate::{model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
-    api::{EngineContext, Window},
+    api::{NodeContext, Window},
     math::{Point2, Space, Transform2},
     NodeInterface,
 };
@@ -41,7 +41,7 @@ pub enum CanUndo {
 }
 
 pub struct ActionContext<'a> {
-    pub engine_context: &'a EngineContext<'a>,
+    pub engine_context: &'a NodeContext<'a>,
     pub app_state: &'a mut AppState,
     pub undo_stack: &'a mut UndoStack,
 }

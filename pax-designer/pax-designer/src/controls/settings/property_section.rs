@@ -13,5 +13,5 @@ pub struct PropertyEditor {
 }
 
 impl PropertyEditor {
-    pub fn on_mount(&mut self, ctx: &EngineContext) {}
+    pub fn on_mount(&mut self, ctx: &NodeContext) {}
 }
