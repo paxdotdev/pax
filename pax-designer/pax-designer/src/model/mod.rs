@@ -8,7 +8,7 @@ use anyhow::Result;
 use math::coordinate_spaces::World;
 use pax_designtime::DesigntimeManager;
 use pax_engine::math::{Transform2, Vector2};
-use pax_engine::{api::EngineContext, math::Point2, rendering::TransformAndBounds};
+use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_std::types::Color;
 use std::cell::RefCell;
 
@@ -40,7 +40,7 @@ impl GlobalDesignerState {
     }
 }
 
-pub fn perform_action(action: impl Action, ctx: &EngineContext) -> Result<()> {
+pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
     GLOBAL_STATE.with(|model| {
         let mut binding = model.borrow_mut();
         let GlobalDesignerState {
@@ -57,7 +57,7 @@ pub fn perform_action(action: impl Action, ctx: &EngineContext) -> Result<()> {
     })
 }
 
-pub fn selected_bounds(ctx: &EngineContext) -> Option<[Point2<Glass>; 4]> {
+pub fn selected_bounds(ctx: &NodeContext) -> Option<[Point2<Glass>; 4]> {
     GLOBAL_STATE.with(|model| {
         let mut binding = model.borrow_mut();
         let GlobalDesignerState {

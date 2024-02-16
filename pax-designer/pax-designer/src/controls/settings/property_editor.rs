@@ -20,7 +20,7 @@ pub struct PropertyEditor {
 }
 
 impl PropertyEditor {
-    pub fn on_render(&mut self, ctx: &EngineContext) {
+    pub fn on_render(&mut self, ctx: &NodeContext) {
         if &self.definition.get().string != self.last_definition.get() {
             self.last_definition
                 .set(self.definition.get().string.clone());
@@ -34,7 +34,7 @@ impl PropertyEditor {
         }
     }
 
-    pub fn text_change(&mut self, ctx: &EngineContext, args: ArgsTextboxChange) {
+    pub fn text_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
         self.textbox.set(args.text.to_owned());
         let name = &self.name.get().string;
         let mut dt = ctx.designtime.borrow_mut();

@@ -151,7 +151,7 @@ impl Tree {
         )
     }
 
-    pub fn set_tree(&mut self, type_id: &str, ctx: &EngineContext) {
+    pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
         self.project_loaded.set(true);
         let dt = ctx.designtime.borrow_mut();
         let graph = dt
@@ -175,7 +175,7 @@ impl Tree {
         self.visible_tree_objects.set(flattened);
     }
 
-    pub fn pre_render(&mut self, ctx: &EngineContext) {
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
         // let mut channel = TREE_CLICK_SENDER.lock().unwrap();
         // if let Some(sender) = channel.take() {
         //     let tree = &mut self.tree_objects.get_mut();

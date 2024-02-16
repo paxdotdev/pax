@@ -30,7 +30,7 @@ pub struct Glass {
 }
 
 impl Glass {
-    pub fn handle_mouse_down(&mut self, ctx: &EngineContext, args: ArgsMouseDown) {
+    pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
@@ -41,7 +41,7 @@ impl Glass {
         );
     }
 
-    pub fn handle_mouse_move(&mut self, ctx: &EngineContext, args: ArgsMouseMove) {
+    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Move,
@@ -52,7 +52,7 @@ impl Glass {
         );
     }
 
-    pub fn handle_mouse_up(&mut self, ctx: &EngineContext, args: ArgsMouseUp) {
+    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Up,
@@ -63,12 +63,12 @@ impl Glass {
         );
     }
 
-    pub fn handle_key_down(&mut self, ctx: &EngineContext, args: ArgsKeyDown) {
+    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
         // pax_engine::log::debug!("key down");
         //TODO: handle keydowns and pass into InputMapper
     }
 
-    pub fn update_view(&mut self, ctx: &EngineContext) {
+    pub fn update_view(&mut self, ctx: &NodeContext) {
         if let Some(bounds) = model::selected_bounds(ctx) {
             self.selection_active.set(true);
             let mut sv = SelectionVisual::new_from_box_bounds(bounds);

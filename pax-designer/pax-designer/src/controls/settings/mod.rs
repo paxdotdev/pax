@@ -50,9 +50,9 @@ pub struct PropertyDef {
 }
 
 impl Settings {
-    pub fn on_mount(&mut self, _ctx: &EngineContext) {}
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
 
-    pub fn pre_render(&mut self, ctx: &EngineContext) {
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             let Some(temp_node_id) = app_state.selected_template_node_id else {
                 self.component_selected.set(false);
