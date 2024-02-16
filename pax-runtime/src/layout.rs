@@ -1,6 +1,6 @@
 use crate::api::{Axis, Size, Transform2D};
+use crate::math::{Generic, Transform2, Vector2};
 use crate::{ExpandedNode, TransformAndBounds};
-use kurbo::Affine;
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
 /// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.
@@ -119,7 +119,7 @@ pub trait ComputableTransform {
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> Affine;
+    ) -> Transform2;
 }
 
 impl ComputableTransform for Transform2D {
@@ -129,7 +129,7 @@ impl ComputableTransform for Transform2D {
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> Affine {
+    ) -> Transform2 {
         //Three broad strokes:
         // a.) compute anchor
         // b.) decompose "vanilla" affine matrix
@@ -137,7 +137,7 @@ impl ComputableTransform for Transform2D {
 
         // Compute anchor
         let anchor_transform = match &self.anchor {
-            Some(anchor) => Affine::translate((
+            Some(anchor) => Transform2::<Generic>::translate(Vector2::new(
                 match anchor[0] {
                     Size::Pixels(pix) => -pix.get_as_float(),
                     Size::Percent(per) => -node_size.0 * (per / 100.0),
@@ -154,7 +154,7 @@ impl ComputableTransform for Transform2D {
                 },
             )),
             //No anchor applied: treat as 0,0; identity matrix
-            None => Affine::default(),
+            None => Transform2::default(),
         };
 
         //decompose vanilla affine matrix and pack into `Affine`
@@ -199,12 +199,12 @@ impl ComputableTransform for Transform2D {
         let f = translate_y;
 
         let coeffs = [a, b, c, d, e, f];
-        let transform = Affine::new(coeffs);
+        let transform = Transform2::new(coeffs);
 
         // Compute and combine previous_transform
         let previous_transform = match &self.previous {
             Some(previous) => (*previous).compute_transform2d_matrix(node_size, container_bounds),
-            None => Affine::default(),
+            None => Transform2::default(),
         };
 
         transform * anchor_transform * previous_transform

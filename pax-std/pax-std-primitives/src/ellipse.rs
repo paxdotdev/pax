@@ -48,7 +48,7 @@ impl InstanceNode for EllipseInstance {
             let accuracy = 0.1;
             let bez_path = ellipse.to_path(accuracy);
 
-            let transformed_bez_path = tab.transform * bez_path;
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = if let Fill::Solid(properties_color) = properties.fill.get() {
