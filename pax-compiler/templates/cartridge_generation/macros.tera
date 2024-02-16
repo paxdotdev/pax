@@ -8,30 +8,29 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
     }
 
     fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
-        let cloned_properties = defined_properties.clone(); 
+        let mut properties = {{component.pascal_identifier}}::default();
+        {% for property in component.properties %}
+            if let Some(vd) = defined_properties.get("{{property.name}}") {
+                properties.{{property.name}} =
+                    match vd.clone() {
+                        ValueDefinition::LiteralValue(lv) => {
+                            Box::new(PropertyLiteral::new(from_pax(lv.raw_value).unwrap()))
+                        },
+                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                        {
+                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                        },
+                        ValueDefinition::Block(block) => {
+                            Box::new(PropertyLiteral::new({{property.property_type.type_id_escaped}}TypeFactory{}.build_type(&block)))
+                        }
+                        _ => unreachable!("Invalid value definition for {{property.name}}")
+                    };
+            }
+        {% endfor %}
         Box::new(move || Rc::new(RefCell::new(
-            {
-                let mut properties = {{component.pascal_identifier}}::default();
-                {% for property in component.properties %}
-                    if let Some(vd) = cloned_properties.get("{{property.name}}") {
-                        properties.{{property.name}} =
-                            match vd.clone() {
-                                ValueDefinition::LiteralValue(lv) => {
-                                    Box::new(PropertyLiteral::new(from_pax(lv.raw_value).unwrap()))
-                                },
-                                ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
-                                {
-                                    Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-                                },
-                                ValueDefinition::Block(block) => {
-                                    Box::new(PropertyLiteral::new({{property.property_type.type_id_escaped}}TypeFactory{}.build_type(&block)))
-                                }
-                                _ => unreachable!("Invalid value definition for {{property.name}}")
-                            };
-                    }
-                {% endfor %}
-                properties
-            })))
+        {
+            properties.clone()
+        })))
     }
 
     fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>) {
