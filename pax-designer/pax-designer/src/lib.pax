@@ -1,8 +1,10 @@
 <Group @click=click_test>
     <Controls />
-    <Glass />
-    <Group transform={Transform2D::translate((self.world_transform_x)px, (self.world_transform_y)px)}>
-     <Example id=userland_project />
+    <Group id=designer_glass>
+        <Glass/>
+        <Group transform={Transform2D::translate((self.world_transform_x)px, (self.world_transform_y)px)}>
+            <Example id=userland_project/>
+        </Group>
     </Group>
 </Group>
 <Rectangle id=global_background />
@@ -17,7 +19,7 @@
         fill: {Fill::Solid(Color::rgb(96.0/255.0,96.0/255.0,96.0/255.0))}
     }
 
-     #userland_project {
+     #designer_glass {
          x: 265px,
          y: 65px,
          width: {100% - 700px},

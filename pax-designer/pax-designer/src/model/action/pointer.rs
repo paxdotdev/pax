@@ -1,7 +1,7 @@
 use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::model::action;
-use crate::model::math::{Glass, Screen};
+use crate::model::math::coordinate_spaces::{Glass, Window};
 use crate::model::AppState;
 use crate::model::ToolState;
 use crate::USERLAND_PROJECT_ID;
@@ -13,7 +13,7 @@ use pax_engine::math::Point2;
 pub struct PointerAction {
     pub event: Pointer,
     pub button: MouseButton,
-    pub point: Point2<Screen>,
+    pub point: Point2<Window>,
 }
 
 #[derive(Clone, Copy)]
@@ -25,14 +25,15 @@ pub enum Pointer {
 
 impl Action for PointerAction {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let point_glass = ctx.glass_transform() * self.point;
         match self.button {
             MouseButton::Left => ctx.execute(action::tools::ToolAction {
                 event: self.event,
-                point: self.point.to_world::<Glass>(),
+                point: point_glass,
             }),
             MouseButton::Middle => ctx.execute(action::world::Pan {
                 event: self.event,
-                point: self.point.to_world::<Glass>(),
+                point: point_glass,
             }),
             _ => Ok(()),
         }?;

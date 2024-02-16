@@ -1,7 +1,7 @@
 use super::orm::MoveSelected;
 use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
-use crate::model::math::Glass;
+use crate::model::math::coordinate_spaces::{Glass, Window};
 use crate::model::AppState;
 use crate::model::{Tool, ToolState};
 use crate::USERLAND_PROJECT_ID;
@@ -58,10 +58,12 @@ impl Action for RectangleTool {
             Pointer::Up => {
                 if let ToolState::Box { p1, p2, .. } = std::mem::take(&mut ctx.app_state.tool_state)
                 {
+                    let glass_to_world = ctx.world_transform();
+                    let world_origin = glass_to_world * p1;
+                    let world_dims = glass_to_world * (p2 - p1);
                     ctx.execute(super::orm::CreateRectangle {
-                        origin: p1,
-                        width: p2.x - p1.x,
-                        height: p2.y - p1.y,
+                        origin: world_origin,
+                        dims: world_dims,
                     })?;
 
                     ctx.app_state.selected_tool = Tool::Pointer;
@@ -81,55 +83,38 @@ impl Action for PointerTool {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                let all_elements_beneath_ray = ctx
-                    .node_context
-                    .runtime_context
-                    .get_elements_beneath_ray((self.point.x, self.point.y), false, vec![]);
-                if let Some(container) = ctx
-                    .node_context
-                    .runtime_context
-                    .get_expanded_nodes_by_id(USERLAND_PROJECT_ID)
-                    .first()
-                {
-                    if let Some(target) = all_elements_beneath_ray
-                        .iter()
-                        .find(|elem| elem.is_descendant_of(&container.id_chain))
-                    {
-                        ctx.app_state.selected_template_node_id =
-                            Some(target.instance_node.base().template_node_id);
+                let world_point = ctx.world_transform() * self.point;
+                if let Some(hit) = ctx.raycast_world(world_point) {
+                    ctx.app_state.selected_template_node_id =
+                        Some(hit.instance_node.base().template_node_id);
 
-                        let common_props = target.get_common_properties();
-                        let common_props = common_props.borrow();
-                        let lp = target.layout_properties.borrow();
-                        let tab = &lp.as_ref().unwrap().computed_tab;
-                        let p_anchor = Point2::new(
-                            common_props
-                                .anchor_x
-                                .as_ref()
-                                .map(|x| x.get().get_pixels(tab.bounds.0))
-                                .unwrap_or(0.0),
-                            common_props
-                                .anchor_y
-                                .as_ref()
-                                .map(|y| y.get().get_pixels(tab.bounds.1))
-                                .unwrap_or(0.0),
-                        );
-                        let p = tab.transform * p_anchor;
-                        let delta = p - self.point;
-                        let curr_pos = ctx.app_state.tool_state = ToolState::Movement {
-                            x: delta.x,
-                            y: delta.y,
-                        };
-                    } else {
-                        ctx.app_state.tool_state = ToolState::Box {
-                            p1: self.point,
-                            p2: self.point,
-                            stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
-                            fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
-                        };
-                    }
+                    let common_props = hit.get_common_properties();
+                    let common_props = common_props.borrow();
+                    let lp = hit.layout_properties.borrow();
+                    let tab = &lp.as_ref().unwrap().computed_tab;
+                    let p_anchor = Point2::new(
+                        common_props
+                            .anchor_x
+                            .as_ref()
+                            .map(|x| x.get().get_pixels(tab.bounds.0))
+                            .unwrap_or(0.0),
+                        common_props
+                            .anchor_y
+                            .as_ref()
+                            .map(|y| y.get().get_pixels(tab.bounds.1))
+                            .unwrap_or(0.0),
+                    );
+                    let origin_window: Point2<Window> = (tab.transform * p_anchor).to_world();
+                    let object_origin_glass = ctx.glass_transform() * origin_window;
+                    let offset = ctx.world_transform() * (object_origin_glass - self.point);
+                    let curr_pos = ctx.app_state.tool_state = ToolState::Movement { offset };
                 } else {
-                    panic!("somehow raycast didn't hit userland project");
+                    ctx.app_state.tool_state = ToolState::Box {
+                        p1: self.point,
+                        p2: self.point,
+                        stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
+                        fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
+                    };
                 }
             }
             Pointer::Move => match ctx.app_state.tool_state {
@@ -139,12 +124,11 @@ impl Action for PointerTool {
                     };
                     *p2 = self.point;
                 }
-                ToolState::Movement { x, y } => {
-                    ctx.execute(MoveSelected {
-                        point: self.point + Vector2::new(x, y),
-                    });
+                ToolState::Movement { offset } => {
+                    let world_point = ctx.world_transform() * self.point + offset;
+                    ctx.execute(MoveSelected { point: world_point });
                 }
-                ToolState::Idle => (),
+                _ => (),
             },
             Pointer::Up => {
                 if let ToolState::Box { p1, p2, .. } = std::mem::take(&mut ctx.app_state.tool_state)

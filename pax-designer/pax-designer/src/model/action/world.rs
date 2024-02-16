@@ -1,11 +1,13 @@
 use super::{pointer::Pointer, Action, ActionContext, CanUndo};
-use crate::model::{math::Glass, AppState, ToolState};
+use crate::model::{
+    math::coordinate_spaces::{Glass, Window},
+    AppState, ToolState,
+};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
     api::{Size, Transform2D},
-    math::{Generic, Point2, Vector2},
-    rendering::kurbo,
+    math::{Generic, Point2, Transform2, Vector2},
     serde,
 };
 
@@ -18,30 +20,23 @@ impl Action for Pan {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                let world = ctx.app_state.glass_to_world_transform.translation();
-                let base = Point2::<Generic>::new(world.x - self.point.x, world.y - self.point.y);
-                ctx.app_state.tool_state = ToolState::Movement {
-                    x: base.x,
-                    y: base.y,
+                let original_offset = ctx.world_transform().get_translation();
+                ctx.app_state.tool_state = ToolState::Pan {
+                    offset: original_offset,
+                    point: self.point,
                 };
             }
             Pointer::Move => {
-                if let ToolState::Movement { x, y } = ctx.app_state.tool_state {
-                    let point = self.point + Vector2::new(x, y);
-                    ctx.app_state.glass_to_world_transform = ctx
-                        .app_state
-                        .glass_to_world_transform
-                        .with_translation(kurbo::Vec2::new(point.x, point.y));
+                if let ToolState::Pan { point, offset } = ctx.app_state.tool_state {
+                    let diff = self.point - point;
+                    ctx.app_state.glass_to_world_transform =
+                        Transform2::translate(-diff + offset.to_world());
                 }
             }
             Pointer::Up => {
                 ctx.app_state.tool_state = ToolState::Idle;
             }
         }
-        // ctx.app_state.glass_to_world_transform.then_translate(Vec2 {
-        //     x: self.delta.x,
-        //     y: self.delta.y,
-        // });
         Ok(CanUndo::No)
     }
 }
