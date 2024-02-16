@@ -8,7 +8,7 @@ use pax_std::primitives::{Image, Text};
 pub struct Logobar {}
 
 impl Logobar {
-    pub fn handle_logo_click(&mut self, ctx: &NodeContext, _args: ArgsClick) {
+    pub fn handle_logo_click(&mut self, ctx: &EngineContext, _args: ArgsClick) {
         let mut dt = ctx.designtime.borrow_mut();
         dt.send_component_update("pax_designer::pax_reexports::designer_project::Example");
     }

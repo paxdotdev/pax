@@ -17,7 +17,7 @@ pub struct CreateRectangle {
 }
 impl Action for CreateRectangle {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let mut dt = ctx.node_context.designtime.borrow_mut();
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
         let mut builder = dt.get_orm_mut().build_new_node(
             "pax_designer::pax_reexports::designer_project::Example".to_owned(),
             "pax_designer::pax_reexports::pax_std::primitives::Rectangle".to_owned(),
@@ -36,7 +36,7 @@ impl Action for CreateRectangle {
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             // pax_engine::log::debug!("undid rect");
-            let mut dt = ctx.node_context.designtime.borrow_mut();
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
@@ -54,7 +54,7 @@ impl Action for MoveSelected {
             .app_state
             .selected_template_node_id
             .expect("executed action MoveSelected without a selected object");
-        let mut dt = ctx.node_context.designtime.borrow_mut();
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
 
         let mut builder = dt.get_orm_mut().get_node(
             "pax_designer::pax_reexports::designer_project::Example",
@@ -69,7 +69,7 @@ impl Action for MoveSelected {
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             // pax_engine::log::debug!("undid move");
-            let mut dt = ctx.node_context.designtime.borrow_mut();
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
