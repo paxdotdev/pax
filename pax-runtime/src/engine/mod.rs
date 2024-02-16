@@ -20,7 +20,7 @@ use crate::{
     RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
-pub mod design_utils;
+pub mod node_interface;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.

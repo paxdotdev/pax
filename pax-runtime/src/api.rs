@@ -11,8 +11,8 @@ use lazy_static::lazy_static;
 use mut_static::MutStatic;
 use piet::PaintBrush;
 
-use crate::design_utils::NodeInterface;
 use crate::math::{Point2, Space};
+use crate::node_interface::NodeInterface;
 pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};
 use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
