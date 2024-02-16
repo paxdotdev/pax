@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use pax_engine::api::{ArgsClick, EasingCurve, EngineContext, Property};
+use pax_engine::api::{ArgsClick, EasingCurve, NodeContext, Property};
 use pax_engine::Pax;
 use pax_std::primitives::{Ellipse, Frame, Group, Rectangle, Text};
 
@@ -20,13 +20,13 @@ pub struct TypeExample {
 }
 
 impl Camera {
-    pub fn handle_mount(&mut self, _: EngineContext) {
+    pub fn handle_mount(&mut self, _: NodeContext) {
         self.zoom.set(2.0);
         self.pan_x.set(0.0);
         self.pan_y.set(0.0);
     }
 
-    pub fn handle_click(&mut self, _: EngineContext, args: ArgsClick) {
+    pub fn handle_click(&mut self, _: NodeContext, args: ArgsClick) {
         let delta_pan = (
             args.mouse.x - self.pan_x.get(),
             args.mouse.y - self.pan_y.get(),

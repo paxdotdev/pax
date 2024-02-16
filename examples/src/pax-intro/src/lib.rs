@@ -32,12 +32,12 @@ const N_Y: f64 = 10.0;
 const LEN: usize = N_X as usize * N_Y as usize;
 
 impl DynamicObject {
-    pub fn handle_mount(&mut self, _ctx: &EngineContext) {
+    pub fn handle_mount(&mut self, _ctx: &NodeContext) {
         self.rects.set(vec![Rect::default(); LEN]);
         self.rects_bellow.set(vec![Rect::default(); LEN]);
     }
 
-    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {
+    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let offsets = [0.1, 0.5, 1.0, 0.2, 0.3, 0.9, 0.3, 0.8, 0.7, 0.6];
         let div_line = [-4, -1, -2, 0, 1, -1, 0, 3, 2, 4];
         let t = *self.ticks.get();
@@ -93,9 +93,9 @@ impl DynamicObject {
         }
     }
 
-    pub fn increment(&mut self, _ctx: &EngineContext, _args: ArgsClick) {}
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
 
-    pub fn mouse_move(&mut self, _ctx: &EngineContext, args: ArgsMouseMove) {
+    pub fn mouse_move(&mut self, _ctx: &NodeContext, args: ArgsMouseMove) {
         self.mouse_x.set(args.mouse.x);
         self.mouse_y.set(args.mouse.y);
     }

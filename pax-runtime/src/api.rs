@@ -137,7 +137,7 @@ pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct EngineContext<'a> {
+pub struct NodeContext<'a> {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's immediate container (parent) in px
@@ -155,7 +155,8 @@ pub struct Window;
 
 impl Space for Window {}
 
-impl EngineContext<'_> {
+#[cfg(feature = "designtime")]
+impl NodeContext<'_> {
     pub fn raycast(&self, point: Point2<Window>) -> Vec<NodeInterface> {
         let expanded_nodes =
             self.runtime_context
