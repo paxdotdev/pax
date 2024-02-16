@@ -18,16 +18,16 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+    pub fn handle_mount(&mut self, ctx: &EngineContext) {
         self.message.set("false".to_string());
     }
 
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
+    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn toggle(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn toggle(&mut self, ctx: &EngineContext, args: ArgsClick) {
         self.activated.set(!self.activated.get());
         self.message.set(format!("{}", self.activated.get()));
     }
