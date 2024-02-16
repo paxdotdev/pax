@@ -25,4 +25,3 @@ pub use crate::properties::*;
 pub use crate::rendering::*;
 pub use crate::repeat::*;
 pub use crate::slot::*;
-pub use engine::design_utils;
