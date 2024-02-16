@@ -1,13 +1,13 @@
 use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::model::action;
-use crate::model::math::coordinate_spaces::{Glass, Window};
+use crate::model::math::coordinate_spaces::Glass;
 use crate::model::AppState;
 use crate::model::ToolState;
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::MouseButton;
+use pax_engine::api::{MouseButton, Window};
 use pax_engine::math::Point2;
 
 pub struct PointerAction {

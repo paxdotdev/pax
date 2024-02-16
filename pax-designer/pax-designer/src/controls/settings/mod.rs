@@ -50,9 +50,9 @@ pub struct PropertyDef {
 }
 
 impl Settings {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
+    pub fn on_mount(&mut self, _ctx: &EngineContext) {}
 
-    pub fn pre_render(&mut self, ctx: &NodeContext) {
+    pub fn pre_render(&mut self, ctx: &EngineContext) {
         model::read_app_state(|app_state| {
             let Some(temp_node_id) = app_state.selected_template_node_id else {
                 self.component_selected.set(false);
@@ -103,7 +103,8 @@ impl Settings {
             }
             self.custom_props.set(custom_props);
             let (_, name) = type_name.rsplit_once("::").unwrap_or(("", &type_name));
-            self.selected_component_name.set(name.to_uppercase().to_owned());
+            self.selected_component_name
+                .set(name.to_uppercase().to_owned());
         });
     }
 }

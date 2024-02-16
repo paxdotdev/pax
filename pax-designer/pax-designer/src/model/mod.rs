@@ -8,13 +8,13 @@ use anyhow::Result;
 use math::coordinate_spaces::World;
 use pax_designtime::DesigntimeManager;
 use pax_engine::math::{Transform2, Vector2};
-use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
+use pax_engine::{api::EngineContext, math::Point2, rendering::TransformAndBounds};
 use pax_std::types::Color;
 use std::cell::RefCell;
 
 use math::coordinate_spaces::Glass;
 
-use self::math::coordinate_spaces::Window;
+use self::math::coordinate_spaces;
 
 // Needs to be changed if we use a multithreaded async runtime
 thread_local!(
@@ -40,7 +40,7 @@ impl GlobalDesignerState {
     }
 }
 
-pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
+pub fn perform_action(action: impl Action, ctx: &EngineContext) -> Result<()> {
     GLOBAL_STATE.with(|model| {
         let mut binding = model.borrow_mut();
         let GlobalDesignerState {
@@ -50,14 +50,14 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
         } = *binding;
         ActionContext {
             undo_stack,
-            node_context: ctx,
+            engine_context: ctx,
             app_state,
         }
         .execute(action)
     })
 }
 
-pub fn selected_bounds(ctx: &NodeContext) -> Option<[Point2<Glass>; 4]> {
+pub fn selected_bounds(ctx: &EngineContext) -> Option<[Point2<Glass>; 4]> {
     GLOBAL_STATE.with(|model| {
         let mut binding = model.borrow_mut();
         let GlobalDesignerState {
@@ -67,7 +67,7 @@ pub fn selected_bounds(ctx: &NodeContext) -> Option<[Point2<Glass>; 4]> {
         } = *binding;
         ActionContext {
             undo_stack,
-            node_context: ctx,
+            engine_context: ctx,
             app_state,
         }
         .selected_bounds()
