@@ -20,12 +20,12 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+    pub fn handle_mount(&mut self, ctx: &EngineContext) {
         self.message_outer.set("testing 12049".to_string());
         self.x.set(Size::Percent(30.into()));
     }
 
-    pub fn outer_clicked(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn outer_clicked(&mut self, ctx: &EngineContext, args: ArgsClick) {
         self.outer_active.set(!self.outer_active.get());
     }
 }

@@ -161,7 +161,7 @@ pub trait ComponentFactory {
     
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template
-    fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>);
+    fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &EngineContext, Option::<Box<dyn Any>>);
     
     /// Returns the handler registry based on the defined handlers for this component
     fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>>;

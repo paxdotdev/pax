@@ -23,17 +23,17 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+    pub fn handle_mount(&mut self, ctx: &EngineContext) {
         self.message.set("Click me".to_string());
         self.color
             .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
     }
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
+    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn toggle(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn toggle(&mut self, ctx: &EngineContext, args: ArgsClick) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
         self.message
@@ -41,7 +41,7 @@ impl Example {
         self.conditional.set(!self.conditional.get());
     }
 
-    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsCheckboxChange) {
+    pub fn checkbox_change(&mut self, ctx: &EngineContext, args: ArgsCheckboxChange) {
         self.checked.set(!args.checked);
         self.align_vertical.set(match self.checked.get() {
             true => TextAlignVertical::Top,
@@ -56,11 +56,11 @@ impl Example {
         }
     }
 
-    pub fn textbox_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
+    pub fn textbox_change(&mut self, ctx: &EngineContext, args: ArgsTextboxChange) {
         self.textbox_text.set(args.text);
     }
 
-    pub fn button_click(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn button_click(&mut self, ctx: &EngineContext, args: ArgsButtonClick) {
         self.color
             .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
     }
