@@ -5,7 +5,7 @@
             <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px}/>
         }
         for segment in self.bounding_segments {
-            <Path class=bounding_segment />
+            <Path class=bounding_segment/>
         }
     }
 

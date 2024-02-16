@@ -1,16 +1,19 @@
 use super::{Action, ActionContext, CanUndo};
 use crate::model::{
-    math::{Glass, World},
+    math::coordinate_spaces::{Glass, World},
     AppState,
 };
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::{api::Size, math::Point2, serde};
+use pax_engine::{
+    api::Size,
+    math::{Point2, Vector2},
+    serde,
+};
 
 pub struct CreateRectangle {
-    pub origin: Point2<Glass>,
-    pub width: f64,
-    pub height: f64,
+    pub origin: Point2<World>,
+    pub dims: Vector2<World>,
 }
 impl Action for CreateRectangle {
     fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
@@ -21,15 +24,10 @@ impl Action for CreateRectangle {
             "Rectangle".to_owned(),
             None,
         );
-
-        //do stuff here later, and then save
-        // TODO later make world space
-        let gs_transform = ctx.app_state.screen_to_glass_transform;
-        let p = gs_transform * self.origin;
-        builder.set_property("x", &to_pixels(p.x))?;
-        builder.set_property("y", &to_pixels(p.y))?;
-        builder.set_property("width", &to_pixels(self.width))?;
-        builder.set_property("height", &to_pixels(self.height))?;
+        builder.set_property("x", &to_pixels(self.origin.x))?;
+        builder.set_property("y", &to_pixels(self.origin.y))?;
+        builder.set_property("width", &to_pixels(self.dims.x))?;
+        builder.set_property("height", &to_pixels(self.dims.y))?;
 
         builder
             .save()
@@ -47,7 +45,7 @@ impl Action for CreateRectangle {
 }
 
 pub struct MoveSelected {
-    pub point: Point2<Glass>,
+    pub point: Point2<World>,
 }
 
 impl Action for MoveSelected {
@@ -63,10 +61,8 @@ impl Action for MoveSelected {
             selected,
         );
 
-        let gs_transform = ctx.app_state.screen_to_glass_transform;
-        let p = gs_transform * self.point;
-        builder.set_property("x", &to_pixels(p.x))?;
-        builder.set_property("y", &to_pixels(p.y))?;
+        builder.set_property("x", &to_pixels(self.point.x))?;
+        builder.set_property("y", &to_pixels(self.point.y))?;
         builder
             .save()
             .map_err(|e| anyhow!("could not move thing: {}", e))?;

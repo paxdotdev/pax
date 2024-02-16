@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use model::math::coordinate_spaces::{self, Window};
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -15,6 +16,7 @@ use pax_std::primitives::{Group, Rectangle};
 pub mod model;
 
 pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
+pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
 
 #[pax]
 #[main]
@@ -26,22 +28,10 @@ pub struct PaxDesigner {
 
 impl PaxDesigner {
     pub fn tick(&mut self, ctx: &NodeContext) {
-        let container = ctx
-            .runtime_context
-            .get_expanded_nodes_by_id(USERLAND_PROJECT_ID);
-        if let Some(userland_proj) = container.first() {
-            let up_lp = userland_proj.layout_properties.borrow_mut();
-            if let Some(lp) = up_lp.as_ref() {
-                let screen_to_glass_transform = lp.computed_tab.transform.inverse();
-
-                model::register_glass_transform(screen_to_glass_transform);
-            }
-        }
-
         model::read_app_state(|app_state| {
-            let world = app_state.glass_to_world_transform.translation();
-            self.world_transform_x.set(world.x);
-            self.world_transform_y.set(world.y);
+            let world = app_state.glass_to_world_transform.get_translation();
+            self.world_transform_x.set(-world.x);
+            self.world_transform_y.set(-world.y);
         });
     }
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
