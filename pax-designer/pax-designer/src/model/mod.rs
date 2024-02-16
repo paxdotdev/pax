@@ -5,13 +5,16 @@ pub mod math;
 use crate::model::action::ActionContext;
 use action::Action;
 use anyhow::Result;
+use math::coordinate_spaces::World;
 use pax_designtime::DesigntimeManager;
-use pax_engine::rendering::kurbo;
+use pax_engine::math::{Transform2, Vector2};
 use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_std::types::Color;
 use std::cell::RefCell;
 
-use self::math::Glass;
+use math::coordinate_spaces::Glass;
+
+use self::math::coordinate_spaces::Window;
 
 // Needs to be changed if we use a multithreaded async runtime
 thread_local!(
@@ -54,16 +57,26 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
     })
 }
 
+pub fn selected_bounds(ctx: &NodeContext) -> Option<[Point2<Glass>; 4]> {
+    GLOBAL_STATE.with(|model| {
+        let mut binding = model.borrow_mut();
+        let GlobalDesignerState {
+            ref mut undo_stack,
+            ref mut app_state,
+            ..
+        } = *binding;
+        ActionContext {
+            undo_stack,
+            node_context: ctx,
+            app_state,
+        }
+        .selected_bounds()
+    })
+}
+
 pub fn read_app_state(closure: impl FnOnce(&AppState)) {
     GLOBAL_STATE.with(|model| {
         closure(&model.borrow_mut().app_state);
-    });
-}
-
-pub fn register_glass_transform(transform: kurbo::Affine) {
-    GLOBAL_STATE.with(|model| {
-        let mut model = model.borrow_mut();
-        model.app_state.screen_to_glass_transform = transform;
     });
 }
 
@@ -76,8 +89,7 @@ pub struct AppState {
     //globals
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
-    pub screen_to_glass_transform: kurbo::Affine,
-    pub glass_to_world_transform: kurbo::Affine,
+    pub glass_to_world_transform: Transform2<Glass, World>,
 
     //toolbar
     pub selected_tool: Tool,
@@ -100,9 +112,12 @@ pub enum Tool {
 pub enum ToolState {
     #[default]
     Idle,
+    Pan {
+        point: Point2<Glass>,
+        offset: Vector2<World>,
+    },
     Movement {
-        x: f64,
-        y: f64,
+        offset: Vector2<World>,
     },
     Box {
         p1: Point2<Glass>,

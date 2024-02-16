@@ -1,16 +1,18 @@
-use pax_engine::math;
+pub mod coordinate_spaces {
 
-#[derive(Clone, Copy)]
-pub struct Screen;
+    use pax_engine::math;
+    #[derive(Clone, Copy)]
+    pub struct Window;
 
-impl math::Space for Screen {}
+    impl math::Space for Window {}
 
-#[derive(Clone, Copy)]
-pub struct Glass;
+    #[derive(Clone, Copy)]
+    pub struct Glass;
 
-impl math::Space for Glass {}
+    impl math::Space for Glass {}
 
-#[derive(Clone, Copy)]
-pub struct World;
+    #[derive(Clone, Copy)]
+    pub struct World;
 
-impl math::Space for World {}
+    impl math::Space for World {}
+}
