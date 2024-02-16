@@ -1,4 +1,4 @@
-use pax_engine::api::{ArgsButtonClick, ArgsClick, EngineContext};
+use pax_engine::api::{ArgsButtonClick, ArgsClick, NodeContext};
 use pax_engine::*;
 use pax_std::components::Stacker;
 use pax_std::primitives::{Group, Image, Rectangle};
@@ -28,7 +28,7 @@ impl Action for SelectTool {
 }
 
 impl Toolbar {
-    pub fn handle_click_pointer(&mut self, ctx: &EngineContext, _args: ArgsClick) {
+    pub fn handle_click_pointer(&mut self, ctx: &NodeContext, _args: ArgsClick) {
         model::perform_action(
             SelectTool {
                 tool: Tool::Pointer,
@@ -37,11 +37,11 @@ impl Toolbar {
         );
     }
 
-    pub fn handle_click_brush(&mut self, ctx: &EngineContext, _args: ArgsClick) {}
+    pub fn handle_click_brush(&mut self, ctx: &NodeContext, _args: ArgsClick) {}
 
-    pub fn handle_click_pen(&mut self, ctx: &EngineContext, _args: ArgsClick) {}
+    pub fn handle_click_pen(&mut self, ctx: &NodeContext, _args: ArgsClick) {}
 
-    pub fn handle_click_rect(&mut self, ctx: &EngineContext, _args: ArgsClick) {
+    pub fn handle_click_rect(&mut self, ctx: &NodeContext, _args: ArgsClick) {
         model::perform_action(
             SelectTool {
                 tool: Tool::Rectangle,
@@ -50,19 +50,19 @@ impl Toolbar {
         );
     }
 
-    pub fn handle_click_stacker(&mut self, _ctx: &EngineContext, _args: ArgsClick) {
+    pub fn handle_click_stacker(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         unimplemented!("handle click for stacker")
     }
 
-    pub fn handle_click_text(&mut self, _ctx: &EngineContext, _args: ArgsClick) {
+    pub fn handle_click_text(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         unimplemented!("handle click for text")
     }
 
-    pub fn handle_click_checkbox(&mut self, _ctx: &EngineContext, _args: ArgsClick) {
+    pub fn handle_click_checkbox(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         unimplemented!("handle click for checkbox")
     }
 
-    pub fn handle_click_speech(&mut self, _ctx: &EngineContext, _args: ArgsClick) {
+    pub fn handle_click_speech(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         unimplemented!("handle click for speech")
     }
 }
