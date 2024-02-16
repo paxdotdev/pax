@@ -5,7 +5,7 @@ use crate::constants::{
     MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
     TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
-use crate::math::{Point2, Transform2};
+use crate::math::Point2;
 use crate::Globals;
 #[cfg(debug_assertions)]
 use core::fmt;
@@ -346,16 +346,6 @@ impl ExpandedNode {
             child.recurse_render(context, rcs);
         }
         self.instance_node.render(&self, context, rcs);
-    }
-
-    pub fn local_raycast(&self, context: &RuntimeContext, point: Point2) -> Vec<Rc<ExpandedNode>> {
-        let lp = self.layout_properties.borrow();
-        let transform = if let Some(v) = lp.as_ref() {
-            v.computed_tab.transform
-        } else {
-            Transform2::identity()
-        };
-        context.get_elements_beneath_ray(transform * point, false, vec![])
     }
 
     /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
