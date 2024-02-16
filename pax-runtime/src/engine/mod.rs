@@ -8,7 +8,7 @@ use std::rc::Rc;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
-    CommonProperties, NodeContext, Interpolatable, Layer, OcclusionLayerGen, RenderContext,
+    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
     TransitionManager,
 };
 use crate::math::Point2;
