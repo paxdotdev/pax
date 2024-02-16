@@ -11,6 +11,8 @@ use lazy_static::lazy_static;
 use mut_static::MutStatic;
 use piet::PaintBrush;
 
+use crate::design_utils::NodeInterface;
+use crate::math::{Point2, Space};
 pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};
 use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
@@ -135,7 +137,7 @@ pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct NodeContext<'a> {
+pub struct EngineContext<'a> {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's immediate container (parent) in px
@@ -143,10 +145,44 @@ pub struct NodeContext<'a> {
     /// The bounds of this element in px
     pub bounds_self: (f64, f64),
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
-    pub runtime_context: &'a RuntimeContext,
+    pub(crate) runtime_context: &'a RuntimeContext,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
+}
+
+pub struct Window;
+
+impl Space for Window {}
+
+impl EngineContext<'_> {
+    pub fn raycast(&self, point: Point2<Window>) -> Vec<NodeInterface> {
+        let expanded_nodes =
+            self.runtime_context
+                .get_elements_beneath_ray(point.to_world(), false, vec![]);
+        expanded_nodes
+            .into_iter()
+            .map(Into::<NodeInterface>::into)
+            .collect()
+    }
+
+    pub fn get_nodes_by_global_id(&self, type_id: &str, template_id: usize) -> Vec<NodeInterface> {
+        let expanded_nodes = self
+            .runtime_context
+            .get_expanded_nodes_by_global_ids(type_id, template_id);
+        expanded_nodes
+            .into_iter()
+            .map(Into::<NodeInterface>::into)
+            .collect()
+    }
+
+    pub fn get_nodes_by_id(&self, id: &str) -> Vec<NodeInterface> {
+        let expanded_nodes = self.runtime_context.get_expanded_nodes_by_id(id);
+        expanded_nodes
+            .into_iter()
+            .map(Into::<NodeInterface>::into)
+            .collect()
+    }
 }
 
 // Unified events

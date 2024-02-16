@@ -17,9 +17,9 @@ pub struct Inner {
 }
 
 impl Inner {
-    pub fn handle_mount(&mut self, ctx: &NodeContext) {}
+    pub fn handle_mount(&mut self, ctx: &EngineContext) {}
 
-    pub fn inner_clicked(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn inner_clicked(&mut self, ctx: &EngineContext, args: ArgsClick) {
         self.inner_active.set(!self.inner_active.get());
     }
 }

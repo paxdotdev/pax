@@ -18,15 +18,15 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+    pub fn handle_mount(&mut self, ctx: &EngineContext) {
         self.message.set("Click me".to_string());
     }
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
+    pub fn handle_pre_render(&mut self, ctx: &EngineContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn increment(&mut self, ctx: &EngineContext, args: ArgsClick) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
         self.message

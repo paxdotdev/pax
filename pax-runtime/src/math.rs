@@ -10,9 +10,8 @@ pub use point::Point2;
 pub use transform::Transform2;
 pub use vector::Vector2;
 
-pub trait Space: Copy + Clone {}
+pub trait Space {}
 
-#[derive(Copy, Clone)]
 pub struct Generic;
 
 impl Space for Generic {}
