@@ -125,34 +125,34 @@ pub trait ComponentFactory {
     
     /// Returns the CommonProperties factory based on the defined properties 
     fn build_inline_common_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
-        let cloned_properties = defined_properties.clone();
-        Box::new(move || Rc::new(RefCell::new({
-            let mut cp = CommonProperties::default();
-            for (key, value) in &cloned_properties {
-                match key.as_str() {
-                    {% for common_property in common_properties %}
-                    "{{common_property.name}}" => {
-                        let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value.clone() {
-                            ValueDefinition::LiteralValue(lv) => {
-                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
-                            },
-                            ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
-                            {
-                                Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-                            },
-                            _ => unreachable!("Invalid value definition for {{common_property.name}}")
-                        };
-                        {%if common_property.is_optional %}
-                            cp.{{common_property.name}} = Some(resolved_property)
-                        {% else %}
-                            cp.{{common_property.name}} = resolved_property
-                        {% endif %}
-                    },
-                    {% endfor %}
-                    _ => {}
-                }
+        let mut cp = CommonProperties::default();
+        for (key, value) in defined_properties {
+            match key.as_str() {
+                {% for common_property in common_properties %}
+                "{{common_property.name}}" => {
+                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value.clone() {
+                        ValueDefinition::LiteralValue(lv) => {
+                            Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
+                        },
+                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                        {
+                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                        },
+                        _ => unreachable!("Invalid value definition for {{common_property.name}}")
+                    };
+                    {%if common_property.is_optional %}
+                        cp.{{common_property.name}} = Some(resolved_property)
+                    {% else %}
+                        cp.{{common_property.name}} = resolved_property
+                    {% endif %}
+                },
+                {% endfor %}
+                _ => {}
             }
-            cp
+        }
+
+        Box::new(move || Rc::new(RefCell::new({
+            cp.clone()
         })))
     }
 
