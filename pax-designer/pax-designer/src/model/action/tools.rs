@@ -1,7 +1,7 @@
 use super::orm::MoveSelected;
 use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
-use crate::model::math::coordinate_spaces::{Glass, Window};
+use crate::model::math::coordinate_spaces::Glass;
 use crate::model::AppState;
 use crate::model::{Tool, ToolState};
 use crate::USERLAND_PROJECT_ID;
@@ -85,26 +85,9 @@ impl Action for PointerTool {
             Pointer::Down => {
                 let world_point = ctx.world_transform() * self.point;
                 if let Some(hit) = ctx.raycast_world(world_point) {
-                    ctx.app_state.selected_template_node_id =
-                        Some(hit.instance_node.base().template_node_id);
+                    ctx.app_state.selected_template_node_id = Some(hit.global_id().1);
 
-                    let common_props = hit.get_common_properties();
-                    let common_props = common_props.borrow();
-                    let lp = hit.layout_properties.borrow();
-                    let tab = &lp.as_ref().unwrap().computed_tab;
-                    let p_anchor = Point2::new(
-                        common_props
-                            .anchor_x
-                            .as_ref()
-                            .map(|x| x.get().get_pixels(tab.bounds.0))
-                            .unwrap_or(0.0),
-                        common_props
-                            .anchor_y
-                            .as_ref()
-                            .map(|y| y.get().get_pixels(tab.bounds.1))
-                            .unwrap_or(0.0),
-                    );
-                    let origin_window: Point2<Window> = (tab.transform * p_anchor).to_world();
+                    let origin_window = hit.origin().unwrap();
                     let object_origin_glass = ctx.glass_transform() * origin_window;
                     let offset = ctx.world_transform() * (object_origin_glass - self.point);
                     let curr_pos = ctx.app_state.tool_state = ToolState::Movement { offset };

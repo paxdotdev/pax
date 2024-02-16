@@ -1,8 +1,5 @@
 use super::{pointer::Pointer, Action, ActionContext, CanUndo};
-use crate::model::{
-    math::coordinate_spaces::{Glass, Window},
-    AppState, ToolState,
-};
+use crate::model::{math::coordinate_spaces::Glass, AppState, ToolState};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{

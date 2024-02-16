@@ -5,12 +5,12 @@ use crate::{model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
-    api::NodeContext,
-    design_utils::ExpandedNode,
+    api::{EngineContext, Window},
+    design_utils::NodeInterface,
     math::{Point2, Space, Transform2},
 };
 
-use super::math::coordinate_spaces::{Glass, Window};
+use super::math::coordinate_spaces::Glass;
 
 pub mod meta;
 pub mod orm;
@@ -41,7 +41,7 @@ pub enum CanUndo {
 }
 
 pub struct ActionContext<'a> {
-    pub node_context: &'a NodeContext<'a>,
+    pub engine_context: &'a EngineContext<'a>,
     pub app_state: &'a mut AppState,
     pub undo_stack: &'a mut UndoStack,
 }
@@ -72,14 +72,10 @@ impl ActionContext<'_> {
     }
 
     pub fn transform_from_id<F: Space, T: Space>(&self, id: &str) -> Transform2<F, T> {
-        let container = self
-            .node_context
-            .runtime_context
-            .get_expanded_nodes_by_id(id);
+        let container = self.engine_context.get_nodes_by_id(id);
         if let Some(userland_proj) = container.first() {
-            let up_lp = userland_proj.layout_properties.borrow_mut();
-            if let Some(lp) = up_lp.as_ref() {
-                lp.computed_tab.transform.inverse().between_worlds()
+            if let Some(transform) = userland_proj.transform() {
+                transform.between_worlds()
             } else {
                 Transform2::identity()
             }
@@ -88,24 +84,22 @@ impl ActionContext<'_> {
         }
     }
 
-    pub fn raycast_world(&self, point: Point2<World>) -> Option<Rc<ExpandedNode>> {
-        let all_elements_beneath_ray = self.node_context.runtime_context.get_elements_beneath_ray(
+    pub fn raycast_world(&self, point: Point2<World>) -> Option<NodeInterface> {
+        let all_elements_beneath_ray = self.engine_context.raycast(
             (self.glass_transform().inverse() * self.world_transform().inverse() * point)
                 .to_world(),
-            false,
-            vec![],
         );
+
         if let Some(container) = self
-            .node_context
-            .runtime_context
-            .get_expanded_nodes_by_id(USERLAND_PROJECT_ID)
+            .engine_context
+            .get_nodes_by_id(USERLAND_PROJECT_ID)
             .first()
         {
             if let Some(target) = all_elements_beneath_ray
-                .iter()
-                .find(|elem| elem.is_descendant_of(&container.id_chain))
+                .into_iter()
+                .find(|elem| elem.is_descendant_of(&container))
             {
-                return Some(Rc::clone(target));
+                return Some(target);
             }
         }
         None
@@ -114,21 +108,14 @@ impl ActionContext<'_> {
     pub fn selected_bounds(&self) -> Option<[Point2<Glass>; 4]> {
         let to_glass_transform = self.glass_transform();
         let bounds = self
-            .node_context
-            .runtime_context
-            .get_expanded_nodes_by_global_ids(
+            .engine_context
+            .get_nodes_by_global_id(
                 &self.app_state.selected_component_id,
                 self.app_state.selected_template_node_id?,
             )
             .into_iter()
-            .flat_map(|n| {
-                let lp = n.layout_properties.borrow();
-                lp.as_ref().map(|c| {
-                    c.computed_tab
-                        .corners()
-                        .map(|p| to_glass_transform * p.to_world())
-                })
-            })
+            .flat_map(|n| n.bounding_points())
+            .map(|points| points.map(|p| to_glass_transform * p))
             .collect();
         Some(compute_total_bounds(bounds))
     }

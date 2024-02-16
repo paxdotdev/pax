@@ -5,8 +5,8 @@ use pax_std::components::*;
 use pax_std::primitives::Text;
 use pax_std::primitives::*;
 use pax_std::types::text::*;
-use pax_std::types::*;
 use pax_std::types::text::*;
+use pax_std::types::*;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
@@ -109,12 +109,15 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    
     fn to_tree(root: usize, graph: &HashMap<usize, (String, Vec<usize>)>) -> TreeEntry {
         let (name, children) = &graph[&root];
 
         //hack: assuming that names come in via fully qualified typeids in the form `pax_designer::pax_reexports::pax_std::primitives::Group`
-        let name = *name.split("pax_reexports::").collect::<Vec<_>>().get(1).unwrap();
+        let name = *name
+            .split("pax_reexports::")
+            .collect::<Vec<_>>()
+            .get(1)
+            .unwrap();
 
         TreeEntry(
             match name {
@@ -148,7 +151,7 @@ impl Tree {
         )
     }
 
-    pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
+    pub fn set_tree(&mut self, type_id: &str, ctx: &EngineContext) {
         self.project_loaded.set(true);
         let dt = ctx.designtime.borrow_mut();
         let graph = dt
@@ -172,7 +175,7 @@ impl Tree {
         self.visible_tree_objects.set(flattened);
     }
 
-    pub fn pre_render(&mut self, ctx: &NodeContext) {
+    pub fn pre_render(&mut self, ctx: &EngineContext) {
         // let mut channel = TREE_CLICK_SENDER.lock().unwrap();
         // if let Some(sender) = channel.take() {
         //     let tree = &mut self.tree_objects.get_mut();

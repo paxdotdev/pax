@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use model::math::coordinate_spaces::{self, Window};
+use model::math::coordinate_spaces;
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -27,14 +27,14 @@ pub struct PaxDesigner {
 }
 
 impl PaxDesigner {
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn tick(&mut self, ctx: &EngineContext) {
         model::read_app_state(|app_state| {
             let world = app_state.glass_to_world_transform.get_translation();
             self.world_transform_x.set(-world.x);
             self.world_transform_y.set(-world.y);
         });
     }
-    pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
+    pub fn handle_mount(&mut self, _ctx: &EngineContext) {}
 
-    pub fn click_test(&mut self, _ctx: &NodeContext, args: ArgsClick) {}
+    pub fn click_test(&mut self, _ctx: &EngineContext, args: ArgsClick) {}
 }
