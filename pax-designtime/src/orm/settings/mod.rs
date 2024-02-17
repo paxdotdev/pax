@@ -68,6 +68,10 @@ impl Command<AddSelectorRequest> for AddSelectorRequest {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::AddSelectorRequest(self.clone()))
     }
+
+    fn is_mutative(&self) -> bool {
+        true
+    }
 }
 
 impl UndoRedo for AddSelectorRequest {
@@ -191,6 +195,10 @@ impl Command<UpdateSelectorRequest> for UpdateSelectorRequest {
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::UpdateSelectorRequest(self.clone()))
+    }
+
+    fn is_mutative(&self) -> bool {
+        true
     }
 }
 
@@ -325,6 +333,10 @@ impl Command<RemoveSelectorRequest> for RemoveSelectorRequest {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::RemoveSelectorRequest(self.clone()))
     }
+
+    fn is_mutative(&self) -> bool {
+        true
+    }
 }
 
 impl UndoRedo for RemoveSelectorRequest {
@@ -407,6 +419,10 @@ impl Command<GetSelectorRequest> for GetSelectorRequest {
             selector: ret,
         })
     }
+
+    fn is_mutative(&self) -> bool {
+        false
+    }
 }
 
 pub struct GetAllSelectorsRequest {
@@ -445,5 +461,9 @@ impl Command<GetAllSelectorsRequest> for GetAllSelectorsRequest {
             command_id: None,
             selectors,
         })
+    }
+
+    fn is_mutative(&self) -> bool {
+        false
     }
 }

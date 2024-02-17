@@ -73,6 +73,10 @@ impl Command<AddHandlerRequest> for AddHandlerRequest {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::AddHandlerRequest(self.clone()))
     }
+
+    fn is_mutative(&self) -> bool {
+        true
+    }
 }
 
 impl UndoRedo for AddHandlerRequest {
@@ -188,6 +192,10 @@ impl Command<UpdateHandlerRequest> for UpdateHandlerRequest {
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::UpdateHandlerRequest(self.clone()))
+    }
+
+    fn is_mutative(&self) -> bool {
+        true
     }
 }
 
@@ -311,6 +319,10 @@ impl Command<RemoveHandlerRequest> for RemoveHandlerRequest {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::RemoveHandlerRequest(self.clone()))
     }
+
+    fn is_mutative(&self) -> bool {
+        true
+    }
 }
 
 impl UndoRedo for RemoveHandlerRequest {
@@ -404,6 +416,9 @@ impl Command<GetHandlerRequest> for GetHandlerRequest {
             })
         }
     }
+    fn is_mutative(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -442,5 +457,9 @@ impl Command<GetAllHandlersRequest> for GetAllHandlersRequest {
             command_id: None,
             handlers: component.handlers.clone(),
         })
+    }
+
+    fn is_mutative(&self) -> bool {
+        false
     }
 }
