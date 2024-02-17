@@ -19,7 +19,7 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
+export function setupEventListeners(chassis: PaxChassisWeb) {
 
     let lastPositions = new Map<number, {x: number, y: number}>();
     // @ts-ignore
@@ -40,7 +40,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
     }
 
     // @ts-ignore
-    layer.addEventListener('click', (evt) => {
+    window.addEventListener('click', (evt) => {
 
         let clickEvent = {
             "Click": {
@@ -60,7 +60,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(clapEvent), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('dblclick', (evt) => {
+    window.addEventListener('dblclick', (evt) => {
         let event = {
             "DoubleClick": {
                 "x": evt.clientX,
@@ -72,7 +72,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('mousemove', (evt) => {
+    window.addEventListener('mousemove', (evt) => {
         // @ts-ignore
         let button = window.current_button || 'Left';
         let event = {
@@ -86,7 +86,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('wheel', (evt) => {
+    window.addEventListener('wheel', (evt) => {
         let event = {
             "Wheel": {
                 "x": evt.clientX,
@@ -99,7 +99,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, {"passive": true, "capture": true});
     // @ts-ignore
-    layer.addEventListener('mousedown', (evt) => {
+    window.addEventListener('mousedown', (evt) => {
         let button = getMouseButton(evt);
         // @ts-ignore
         window.current_button = button;
@@ -114,7 +114,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('mouseup', (evt) => {
+    window.addEventListener('mouseup', (evt) => {
         let event = {
             "MouseUp": {
                 "x": evt.clientX,
@@ -126,7 +126,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('mouseover', (evt) => {
+    window.addEventListener('mouseover', (evt) => {
         let event = {
             "MouseOver": {
                 "x": evt.clientX,
@@ -138,7 +138,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('mouseout', (evt) => {
+    window.addEventListener('mouseout', (evt) => {
         let event = {
             "MouseOut": {
                 "x": evt.clientX,
@@ -150,7 +150,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('contextmenu', (evt) => {
+    window.addEventListener('contextmenu', (evt) => {
         let event = {
             "ContextMenu": {
                 "x": evt.clientX,
@@ -162,7 +162,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('touchstart', (evt) => {
+    window.addEventListener('touchstart', (evt) => {
         let event = {
             "TouchStart": {
                 "touches": getTouchMessages(evt.touches)
@@ -182,7 +182,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(clapEvent), []);
     }, {"passive": true, "capture": true});
     // @ts-ignore
-    layer.addEventListener('touchmove', (evt) => {
+    window.addEventListener('touchmove', (evt) => {
         let touches = getTouchMessages(evt.touches);
         let event = {
             "TouchMove": {
@@ -193,7 +193,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
 
     }, {"passive": true, "capture": true});
     // @ts-ignore
-    layer.addEventListener('touchend', (evt) => {
+    window.addEventListener('touchend', (evt) => {
         let event = {
             "TouchEnd": {
                 "touches": getTouchMessages(evt.changedTouches)
@@ -205,7 +205,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         });
     }, {"passive": true, "capture": true});
     // @ts-ignore
-    layer.addEventListener('keydown', (evt) => {
+    window.addEventListener('keydown', (evt) => {
+        if (document.activeElement != document.body) {
+            return;
+        }
         let event = {
             "KeyDown": {
                 "key": evt.key,
@@ -216,7 +219,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('keyup', (evt) => {
+    window.addEventListener('keyup', (evt) => {
+        if (document.activeElement != document.body) {
+            return;
+        }
         let event = {
             "KeyUp": {
                 "key": evt.key,
@@ -227,7 +233,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
-    layer.addEventListener('keypress', (evt) => {
+    window.addEventListener('keypress', (evt) => {
+        if (document.activeElement != document.body) {
+            return;
+        }
         let event = {
             "KeyPress": {
                 "key": evt.key,
