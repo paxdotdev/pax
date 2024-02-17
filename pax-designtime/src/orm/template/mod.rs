@@ -62,7 +62,6 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             1
         };
 
-
         let control_flow_settings = if let NodeType::ControlFlow(c) = &self.node_type {
             Some(c.clone())
         } else {
@@ -81,8 +80,6 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             None
         };
 
-
-
         if let Some(id) = self.node_id {
             panic!("Not implemented");
         } else {
@@ -97,28 +94,27 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             };
 
             let mut new_template = HashMap::new();
-    
+
             if let Some(template) = &mut component.template {
                 // shift everything in the template one id down
                 for (id, tnd) in template {
                     tnd.child_ids = tnd.child_ids.iter().map(|id| id + 1).collect();
                     if id == &0 {
-                        tnd.child_ids.insert(0,1);
+                        tnd.child_ids.insert(0, 1);
                     } else {
                         tnd.id += 1;
                     }
                     new_template.insert(tnd.id, tnd.clone());
                 }
-    
+
                 new_template.insert(1, new_node.clone());
-    
             } else {
                 unreachable!("No available template.")
             };
             component.template = Some(new_template);
             component.next_template_id = Some(next_id + 1);
 
-             self.cached_node = Some(new_node.clone());
+            self.cached_node = Some(new_node.clone());
 
             Ok(AddTemplateNodeResponse {
                 command_id: None,
@@ -129,6 +125,10 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::AddTemplateNodeRequest(self.clone()))
+    }
+
+    fn is_mutative(&self) -> bool {
+        true
     }
 }
 
@@ -228,6 +228,10 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::UpdateTemplateNodeRequest(self.clone()))
+    }
+
+    fn is_mutative(&self) -> bool {
+        true
     }
 }
 
@@ -363,6 +367,10 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::RemoveTemplateNodeRequest(self.clone()))
     }
+
+    fn is_mutative(&self) -> bool {
+        true
+    }
 }
 
 impl UndoRedo for RemoveTemplateNodeRequest {
@@ -450,6 +458,10 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
             node,
         })
     }
+
+    fn is_mutative(&self) -> bool {
+        false
+    }
 }
 
 pub struct GetAllTemplateNodeRequest {
@@ -490,5 +502,9 @@ impl Command<GetAllTemplateNodeRequest> for GetAllTemplateNodeRequest {
             command_id: None,
             nodes,
         })
+    }
+
+    fn is_mutative(&self) -> bool {
+        false
     }
 }
