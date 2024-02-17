@@ -154,18 +154,7 @@ struct PaxViewMacos: View {
             var cgContext = context.cgContext
 
             if PaxEngineContainer.paxEngineContainer == nil {
-                let swiftLoggerCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
-                    (msg) -> () in
-                    let outputString = String(cString: msg!)
-                    print(outputString)
-                }
-
-                //For manual debugger attachment:
-//                do {
-//                    sleep(15)
-//                }
-
-                PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
+                PaxEngineContainer.paxEngineContainer = pax_init()
             } else {
 
                 let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))

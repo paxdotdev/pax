@@ -5,7 +5,6 @@ extern crate core;
 use std::ffi::c_void;
 
 use std::mem::{transmute, ManuallyDrop};
-use std::os::raw::c_char;
 
 use core_graphics::context::CGContext;
 use pax_runtime::math::Point2;
@@ -35,7 +34,8 @@ pub struct PaxEngineContainer {
 
 /// Allocate an instance of the Pax engine, with a specified root/main component from the loaded `pax_cartridge`.
 #[no_mangle] //Exposed to Swift via PaxCartridge.h
-pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngineContainer {
+pub extern "C" fn pax_init() -> *mut PaxEngineContainer {
+    env_logger::init();
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
@@ -47,7 +47,6 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     let engine: ManuallyDrop<Box<PaxEngine>> = ManuallyDrop::new(Box::new(PaxEngine::new(
         main_component_instance,
         expression_table,
-        pax_runtime::api::PlatformSpecificLogger::MacOS(logger),
         (1.0, 1.0),
     )));
 
