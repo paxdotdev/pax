@@ -104,7 +104,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
         };
         window.addEventListener('resize', resizeHandler);
         resizeHandler();//Fire once manually to init viewport size & occlusion context
-        setupEventListeners(chassis, mount);
+        setupEventListeners(chassis);
         initializedChassis = true;
     }
 
