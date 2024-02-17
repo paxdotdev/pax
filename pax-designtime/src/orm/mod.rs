@@ -51,6 +51,7 @@ pub trait Command<R: Request> {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         None
     }
+    fn is_mutative(&self) -> bool;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -168,7 +169,9 @@ impl PaxManifestORM {
 
         response.set_id(command_id);
         self.next_command_id += 1;
-        self.manifest_version += 1;
+        if command.is_mutative() {
+            self.manifest_version += 1;
+        }
         Ok(response)
     }
 
