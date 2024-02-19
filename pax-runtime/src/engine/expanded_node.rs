@@ -23,8 +23,8 @@ use crate::api::{
 };
 
 use crate::{
-    compute_tab, ComponentInstance, InstanceNode, InstanceNodePtr, PropertiesComputable,
-    RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds, HandlerLocation
+    compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr,
+    PropertiesComputable, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 pub struct ExpandedNode {
@@ -123,12 +123,11 @@ macro_rules! dispatch_event_handler {
                 let borrowed_registry = &(*registry).borrow();
                 if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
                     handlers.iter().for_each(|handler| {
-                        let properties =
-                            if let HandlerLocation::Component = &handler.location {
-                                Rc::clone(&self.properties)
-                            } else {
-                                Rc::clone(&component_properties)
-                            };
+                        let properties = if let HandlerLocation::Component = &handler.location {
+                            Rc::clone(&self.properties)
+                        } else {
+                            Rc::clone(&component_properties)
+                        };
                         (handler.function)(
                             Rc::clone(&properties),
                             &context,
