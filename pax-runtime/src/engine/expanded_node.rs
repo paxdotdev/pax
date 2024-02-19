@@ -24,7 +24,7 @@ use crate::api::{
 
 use crate::{
     compute_tab, ComponentInstance, InstanceNode, InstanceNodePtr, PropertiesComputable,
-    RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+    RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds, HandlerLocation
 };
 
 pub struct ExpandedNode {
@@ -124,7 +124,7 @@ macro_rules! dispatch_event_handler {
                 if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
                     handlers.iter().for_each(|handler| {
                         let properties =
-                            if let crate::HandlerLocation::Component = &handler.location {
+                            if let HandlerLocation::Component = &handler.location {
                                 Rc::clone(&self.properties)
                             } else {
                                 Rc::clone(&component_properties)
