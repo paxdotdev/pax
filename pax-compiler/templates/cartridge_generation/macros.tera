@@ -68,7 +68,9 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
     fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>> {
         let mut handler_registry = HandlerRegistry::default();
         for (event, functions) in &handlers {
-            handler_registry.handlers.insert(event.clone(), functions.iter().map(|fn_name| self.build_handler(&fn_name)).collect());
+            handler_registry.handlers.insert(event.clone(), functions.iter().map(|fn_name| {
+                Handler::new_component_handler(self.build_handler(&fn_name))
+            }).collect());
         } 
         Rc::new(RefCell::new(handler_registry))
     }
@@ -78,7 +80,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
             let mut handler_registry_mut = handler_registry.borrow_mut();
             for (event, fn_name) in &handlers {
                 let handler_vec = handler_registry_mut.handlers.entry(event.clone()).or_insert(Vec::new());
-                handler_vec.push(self.build_handler(&fn_name));
+                handler_vec.push(Handler::new_inline_handler(self.build_handler(&fn_name)));
             } 
         }   
         handler_registry

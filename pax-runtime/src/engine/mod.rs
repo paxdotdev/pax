@@ -80,9 +80,38 @@ impl PropertiesComputable for CommonProperties {
     }
 }
 
+pub enum HandlerLocation {
+    Inline,
+    Component,
+}
+
+pub struct Handler {
+    pub function: fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>),
+    pub location: HandlerLocation,
+}
+
+impl Handler {
+    pub fn new_inline_handler(
+        function: fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>),
+    ) -> Self {
+        Handler {
+            function,
+            location: HandlerLocation::Inline,
+        }
+    }
+
+    pub fn new_component_handler(
+        function: fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>),
+    ) -> Self {
+        Handler {
+            function,
+            location: HandlerLocation::Component,
+        }
+    }
+}
+
 pub struct HandlerRegistry {
-    pub handlers:
-        HashMap<String, Vec<fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>)>>,
+    pub handlers: HashMap<String, Vec<Handler>>,
 }
 
 impl Default for HandlerRegistry {
