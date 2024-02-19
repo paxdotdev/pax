@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 
 use itertools::{Itertools, MultiPeek};
@@ -337,7 +337,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
         0,
         TemplateNodeDefinition {
             id: 0,
-            child_ids: roots_ids,
+            child_ids: roots_ids.into(),
             type_id: "IMPLICIT_ROOT".to_string(),
             control_flow_settings: None,
             settings: None,
@@ -411,7 +411,7 @@ fn recurse_visit_tag_pairs_for_template(
                     .expect(&format!("Template key not found {}", &pascal_identifier))
                     .to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
-                child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
+                child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
                 pascal_identifier: pascal_identifier.to_string(),
                 raw_comment_string: None,
             };
@@ -433,7 +433,7 @@ fn recurse_visit_tag_pairs_for_template(
                     .expect(&format!("Template key not found {}", &pascal_identifier))
                     .to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
-                child_ids: vec![],
+                child_ids: VecDeque::new(),
                 pascal_identifier: pascal_identifier.to_string(),
                 raw_comment_string: None,
             };
@@ -481,7 +481,7 @@ fn recurse_visit_tag_pairs_for_template(
                         }),
                         type_id: TYPE_ID_IF.to_string(),
                         settings: None,
-                        child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
+                        child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
                         pascal_identifier: "Conditional".to_string(),
                         raw_comment_string: None,
                     }
@@ -578,7 +578,7 @@ fn recurse_visit_tag_pairs_for_template(
                         type_id: TYPE_ID_REPEAT.to_string(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
-                        child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
+                        child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
                         pascal_identifier: "Repeat".to_string(),
                         raw_comment_string: None,
                     }
@@ -613,7 +613,7 @@ fn recurse_visit_tag_pairs_for_template(
                         }),
                         type_id: TYPE_ID_SLOT.to_string(),
                         settings: None,
-                        child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
+                        child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
                         pascal_identifier: "Slot".to_string(),
                         raw_comment_string: None,
                     }
@@ -634,7 +634,7 @@ fn recurse_visit_tag_pairs_for_template(
                 control_flow_settings: None,
                 type_id: TYPE_ID_COMMENT.to_string(),
                 settings: None,
-                child_ids: vec![],
+                child_ids: VecDeque::new(),
                 pascal_identifier: "Comment".to_string(),
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
             };

@@ -1,5 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hasher;
+use std::ops::RangeFrom;
 use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
@@ -156,8 +157,6 @@ pub struct ComponentDefinition {
     pub template: Option<HashMap<usize, TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsBlockElement>>,
     pub handlers: Option<Vec<HandlerBindingElement>>,
-    pub next_template_id: Option<usize>,
-    pub template_source_file_path: Option<String>,
 }
 
 impl ComponentDefinition {
@@ -190,6 +189,72 @@ pub enum HandlerBindingElement {
     Comment(String),
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+pub struct ComponentTemplate {
+    root: VecDeque<usize>,
+    children: HashMap<usize, VecDeque<usize>>,
+    nodes: HashMap<usize, TemplateNodeDefinition>,
+    next_id: usize,
+    template_source_file_path: Option<String>,
+}
+
+impl ComponentTemplate {
+
+    pub fn add_root_node_front(mut self, tnd: TemplateNodeDefinition) {
+        self.root.push_front(tnd.id);
+        self.nodes.insert(tnd.id, tnd);
+    }
+
+    pub fn add_root_node_back(mut self, tnd: TemplateNodeDefinition) {
+        self.root.push_back(tnd.id);
+        self.nodes.insert(tnd.id, tnd);
+    }
+
+    pub fn add_root_node_at(mut self, index: usize ,tnd: TemplateNodeDefinition) {
+        self.root.insert(index,tnd.id);
+        self.nodes.insert(tnd.id, tnd);
+    }
+
+    pub fn add_child_front(mut self, id: usize, mut tnd: TemplateNodeDefinition){
+        if let Some(parent) = self.nodes.get_mut(&id){
+            parent.child_ids.push_front(tnd.id);
+            tnd.parent_id = Some(id);
+            self.nodes.insert(tnd.id, tnd);
+        }
+    }
+
+    pub fn add_child_back(mut self, id: usize, mut tnd: TemplateNodeDefinition){
+        if let Some(parent) = self.nodes.get_mut(&id){
+            parent.child_ids.push_back(tnd.id);
+            tnd.parent_id = Some(id);
+            self.nodes.insert(tnd.id, tnd);
+        }
+    }
+
+    pub fn add_child_at(mut self, id: usize, index: usize, mut tnd: TemplateNodeDefinition){
+        if let Some(parent) = self.nodes.get_mut(&id){
+            parent.child_ids.insert(index, tnd.id);
+            tnd.parent_id = Some(id);
+            self.nodes.insert(tnd.id, tnd);
+        }
+    }
+
+    pub fn remove_node(mut self, id: usize){
+        if let Some(tnd) = self.nodes.get(&id){ 
+            if let Some(parent_id) = tnd.parent_id {
+                if let Some(parent) = self.nodes.get_mut(&parent_id) {
+                    parent.child_ids.retain(|x| {*x != id});
+                }
+            }
+        }
+        self.root.remove(id);
+    }
+
+}
+
+
+
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 /// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
 /// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
@@ -197,10 +262,6 @@ pub enum HandlerBindingElement {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct TemplateNodeDefinition {
-    /// Component-unique int ID.  Conventionally, id 0 will be the root node for a component's template
-    pub id: usize,
-    /// Vec of int IDs representing the child TemplateNodeDefinitions of this TemplateNodeDefinition
-    pub child_ids: Vec<usize>,
     /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
     pub type_id: String,
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
