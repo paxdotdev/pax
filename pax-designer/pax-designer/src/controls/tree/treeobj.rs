@@ -29,8 +29,8 @@ impl TreeObj {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.arrow_path.set(
             match *self.collapsed.get() {
-                true => "assets/icons/tree/collapse_arrow_collapsed.png",
-                false => "assets/icons/tree/collapse_arrow.png",
+                true => "assets/icons/triangle-down.png",
+                false => "assets/icons/triangle-right.png",
             }
             .into(),
         );
