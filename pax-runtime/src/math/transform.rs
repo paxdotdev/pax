@@ -84,7 +84,7 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
     }
 
     pub fn get_translation(self) -> Vector2<WFrom> {
-        (self * Point2::<WFrom>::default()).to_world().to_vector()
+        (self * Point2::<WFrom>::default()).cast_space().to_vector()
     }
 
     pub fn get_scale(self) -> Vector2<WTo> {
@@ -96,7 +96,7 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         self.m[5] = t.y;
     }
 
-    pub fn between_worlds<W: Space, T: Space>(self) -> Transform2<W, T> {
+    pub fn cast_spaces<W: Space, T: Space>(self) -> Transform2<W, T> {
         Transform2::new(self.m)
     }
 

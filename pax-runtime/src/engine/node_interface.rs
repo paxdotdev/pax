@@ -45,14 +45,14 @@ impl NodeInterface {
                 .map(|y| y.get().get_pixels(tab.bounds.1))
                 .unwrap_or(0.0),
         );
-        let origin_window: Point2<Window> = (tab.transform * p_anchor).to_world();
+        let origin_window: Point2<Window> = (tab.transform * p_anchor).cast_space();
         Some(origin_window)
     }
 
     pub fn transform(&self) -> Option<Transform2<Window, NodeLocal>> {
         let up_lp = self.inner.layout_properties.borrow_mut();
         if let Some(lp) = up_lp.as_ref() {
-            Some(lp.computed_tab.transform.inverse().between_worlds())
+            Some(lp.computed_tab.transform.inverse().cast_spaces())
         } else {
             None
         }
@@ -61,7 +61,7 @@ impl NodeInterface {
     pub fn bounding_points(&self) -> Option<[Point2<Window>; 4]> {
         let lp = self.inner.layout_properties.borrow();
         if let Some(layout) = lp.as_ref() {
-            Some(layout.computed_tab.corners().map(Point2::to_world))
+            Some(layout.computed_tab.corners().map(Point2::cast_space))
         } else {
             None
         }
