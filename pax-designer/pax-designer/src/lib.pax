@@ -1,8 +1,8 @@
-<Group @click=click_test>
+<Group @click=click_test @key_down=handle_key_down>
     <Controls />
     <Group id=designer_glass>
         <Glass/>
-        <Group transform={Transform2D::translate((self.world_transform_x)px, (self.world_transform_y)px)}>
+        <Group transform={self.transform2d}>
             <Example id=userland_project/>
         </Group>
     </Group>
@@ -12,6 +12,8 @@
 @handlers {
     mount: handle_mount
     pre_render: tick
+    key_down: handle_key_down
+    key_up: handle_key_up
 }
 
 @settings {

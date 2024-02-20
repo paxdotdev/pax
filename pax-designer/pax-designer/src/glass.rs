@@ -63,31 +63,29 @@ impl Glass {
         );
     }
 
-    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
-        // pax_engine::log::debug!("key down");
-        //TODO: handle keydowns and pass into InputMapper
-    }
-
     pub fn update_view(&mut self, ctx: &NodeContext) {
-        if let Some(bounds) = model::selected_bounds(ctx) {
-            self.is_selection_active.set(true);
-            let mut sv = SelectionVisual::new_from_box_bounds(bounds);
+        model::read_app_state_with_derived(ctx, |app_state, derived_state| {
+            // Selection state drawing
+            if let Some(bounds) = derived_state.selected_bounds {
+                self.is_selection_active.set(true);
+                let mut sv = SelectionVisual::new_from_box_bounds(bounds);
 
-            // HACK before dirty-dag (to make sure repeat updates)
-            if self.control_points.get().len() == sv.control_points.len() {
-                sv.control_points.push(ControlPoint {
-                    x: f64::MIN,
-                    y: f64::MIN,
-                });
-                sv.bounding_segments.push(BoundingSegment::default());
+                // HACK before dirty-dag (to make sure repeat updates)
+                if self.control_points.get().len() == sv.control_points.len() {
+                    sv.control_points.push(ControlPoint {
+                        x: f64::MIN,
+                        y: f64::MIN,
+                    });
+                    sv.bounding_segments.push(BoundingSegment::default());
+                }
+                self.control_points.set(sv.control_points);
+                self.anchor_point.set(sv.anchor_point);
+                self.bounding_segments.set(sv.bounding_segments);
+            } else {
+                self.is_selection_active.set(false);
             }
-            self.control_points.set(sv.control_points);
-            self.anchor_point.set(sv.anchor_point);
-            self.bounding_segments.set(sv.bounding_segments);
-        } else {
-            self.is_selection_active.set(false);
-        }
-        model::read_app_state(|app_state| {
+
+            // Tool drawing
             match &app_state.tool_state {
                 ToolState::Box {
                     p1,

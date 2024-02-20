@@ -18,7 +18,7 @@ pub struct ToolAction {
 }
 
 impl Action for ToolAction {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match ctx.app_state.selected_tool {
             Tool::Rectangle => ctx.execute(RectangleTool {
                 event: self.event,
@@ -40,7 +40,7 @@ pub struct RectangleTool {
 }
 
 impl Action for RectangleTool {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
                 ctx.app_state.tool_state = ToolState::Box {
@@ -58,7 +58,7 @@ impl Action for RectangleTool {
             Pointer::Up => {
                 if let ToolState::Box { p1, p2, .. } = std::mem::take(&mut ctx.app_state.tool_state)
                 {
-                    let glass_to_world = ctx.world_transform();
+                    let glass_to_world = ctx.world_transform().inverse().between_worlds();
                     let world_origin = glass_to_world * p1;
                     let world_dims = glass_to_world * (p2 - p1);
                     ctx.execute(super::orm::CreateRectangle {
@@ -80,7 +80,7 @@ pub struct PointerTool {
 }
 
 impl Action for PointerTool {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
                 let world_point = ctx.world_transform() * self.point;
@@ -89,7 +89,10 @@ impl Action for PointerTool {
 
                     let origin_window = hit.origin().unwrap();
                     let object_origin_glass = ctx.glass_transform() * origin_window;
-                    let offset = ctx.world_transform() * (object_origin_glass - self.point);
+                    let object_origin_world = ctx.world_transform() * object_origin_glass;
+                    let pointer_world = ctx.world_transform() * self.point;
+                    let offset = ctx.world_transform().inverse()
+                        * (pointer_world - object_origin_world).to_world();
                     let curr_pos = ctx.app_state.tool_state = ToolState::Movement { offset };
                 } else {
                     ctx.app_state.tool_state = ToolState::Box {
@@ -108,8 +111,11 @@ impl Action for PointerTool {
                     *p2 = self.point;
                 }
                 ToolState::Movement { offset } => {
-                    let world_point = ctx.world_transform() * self.point + offset;
-                    ctx.execute(MoveSelected { point: world_point });
+                    let world_point =
+                        ctx.world_transform().inverse() * (self.point - offset).to_world();
+                    ctx.execute(MoveSelected {
+                        point: world_point.to_world(),
+                    });
                 }
                 _ => (),
             },

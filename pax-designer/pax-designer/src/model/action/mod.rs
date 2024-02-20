@@ -26,12 +26,12 @@ pub struct UndoStack {
 }
 
 pub trait Action {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo>;
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo>;
 }
 
 impl Action for Box<dyn Action> {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
-        self.perform(ctx)
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        (*self).perform(ctx)
     }
 }
 
@@ -48,7 +48,7 @@ pub struct ActionContext<'a> {
 
 impl ActionContext<'_> {
     pub fn execute(&mut self, action: impl Action) -> Result<()> {
-        if let CanUndo::Yes(undo_fn) = action.perform(self)? {
+        if let CanUndo::Yes(undo_fn) = Box::new(action).perform(self)? {
             self.undo_stack.stack.push(undo_fn);
         }
         Ok(())
@@ -85,10 +85,9 @@ impl ActionContext<'_> {
     }
 
     pub fn raycast_world(&self, point: Point2<World>) -> Option<NodeInterface> {
-        let all_elements_beneath_ray = self.engine_context.raycast(
-            (self.glass_transform().inverse() * self.world_transform().inverse() * point)
-                .to_world(),
-        );
+        let glass_point = self.world_transform().inverse() * point;
+        let window_point = self.glass_transform().inverse() * glass_point;
+        let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
         if let Some(container) = self
             .engine_context

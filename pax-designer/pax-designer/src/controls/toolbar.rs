@@ -21,7 +21,7 @@ pub struct SelectTool {
 }
 
 impl Action for SelectTool {
-    fn perform(self, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
         ctx.app_state.selected_tool = self.tool;
         Ok(CanUndo::No)
     }
