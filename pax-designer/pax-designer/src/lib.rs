@@ -14,7 +14,6 @@ use crate::glass::Glass;
 use designer_project::Example;
 use pax_std::primitives::{Group, Rectangle};
 
-use pax_engine::layout::ComputableTransform;
 pub mod model;
 
 pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
@@ -25,8 +24,6 @@ pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
 #[file("lib.pax")]
 pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
-    pub debug_p_x: Property<f64>,
-    pub debug_p_y: Property<f64>,
 }
 
 impl PaxDesigner {

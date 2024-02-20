@@ -119,7 +119,8 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
 }
 
 pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) -> anyhow::Result<()> {
-    pax_engine::log::info!("key {:?}: {}", dir, input);
+    // useful! keeping around for now
+    // pax_engine::log::debug!("key {:?}: {}", dir, input);
     let action = GLOBAL_STATE.with(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
         let raw_input = RawInput::try_from(input)?;
         let mut model = model.borrow_mut();
@@ -158,8 +159,8 @@ pub enum ToolState {
     #[default]
     Idle,
     Pan {
-        original: Transform2<Glass, World>,
-        origin: Point2<Glass>,
+        original_transform: Transform2<Glass, World>,
+        glass_start: Point2<Glass>,
     },
     Movement {
         offset: Vector2<Glass>,
