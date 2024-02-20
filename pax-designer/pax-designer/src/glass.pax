@@ -21,6 +21,8 @@
 </Group>
 
 @handlers {
+    key_down: handle_key_down
+    key_up: handle_key_up
     pre_render: update_view
 }
 

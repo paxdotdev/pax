@@ -1,4 +1,4 @@
-<Group @click=click_test @key_down=handle_key_down>
+<Group @click=click_test>
     <Controls />
     <Group id=designer_glass>
         <Glass/>
@@ -13,8 +13,6 @@
 @handlers {
     mount: handle_mount
     pre_render: tick
-    key_down: handle_key_down
-    key_up: handle_key_up
 }
 
 @settings {
