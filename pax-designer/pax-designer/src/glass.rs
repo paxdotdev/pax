@@ -10,6 +10,7 @@ use crate::model::AppState;
 use crate::model::ToolState;
 
 use crate::model::action::pointer::Pointer;
+use crate::model::input::Dir;
 use crate::model::math;
 use crate::model::math::coordinate_spaces::{self, World};
 
@@ -27,8 +28,6 @@ pub struct Glass {
     // rect tool state
     pub is_rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
-
-    pub debug_point: Property<ControlPoint>,
 }
 
 impl Glass {
@@ -63,6 +62,20 @@ impl Glass {
             },
             ctx,
         );
+    }
+
+    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
+        let res = model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key);
+        if let Err(e) = res {
+            pax_engine::log::warn!("{}", e);
+        }
+    }
+
+    pub fn handle_key_up(&mut self, ctx: &NodeContext, args: ArgsKeyUp) {
+        let res = model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key);
+        if let Err(e) = res {
+            pax_engine::log::warn!("{}", e);
+        }
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
@@ -126,10 +139,6 @@ impl Default for Glass {
             bounding_segments: Box::new(PropertyLiteral::new(sv.bounding_segments)),
             is_rect_tool_active: Box::new(PropertyLiteral::new(false)),
             rect_tool: Default::default(),
-            debug_point: Box::new(PropertyLiteral::new(ControlPoint {
-                x: f64::MIN,
-                y: f64::MIN,
-            })),
         }
     }
 }
