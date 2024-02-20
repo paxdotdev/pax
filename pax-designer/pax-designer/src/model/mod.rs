@@ -53,6 +53,7 @@ pub struct AppState {
     pub selected_component_id: String,
     pub selected_template_node_id: Option<usize>,
     pub glass_to_world_transform: Transform2<Glass, World>,
+    pub mouse_position: Point2<Glass>,
 
     //toolbar
     pub selected_tool: Tool,
@@ -158,7 +159,7 @@ pub enum ToolState {
     Idle,
     Pan {
         original: Transform2<Glass, World>,
-        origin: Point2<World>,
+        origin: Point2<Glass>,
     },
     Movement {
         offset: Vector2<Glass>,

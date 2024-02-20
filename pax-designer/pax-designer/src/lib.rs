@@ -1,7 +1,8 @@
 #![allow(unused_imports)]
 
-use model::math::coordinate_spaces;
+use model::math::coordinate_spaces::{self, World};
 use pax_engine::api::*;
+use pax_engine::math::Point2;
 use pax_engine::*;
 
 pub mod controls;
@@ -24,23 +25,30 @@ pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
 #[file("lib.pax")]
 pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
+    pub debug_p_x: Property<f64>,
+    pub debug_p_y: Property<f64>,
 }
 
 impl PaxDesigner {
     pub fn tick(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            let t = app_state.glass_to_world_transform.get_translation();
-            let s = app_state.glass_to_world_transform.get_scale();
+            let world_to_glass = app_state.glass_to_world_transform.inverse();
+            let t = world_to_glass.get_translation();
+            let s = world_to_glass.get_scale();
             self.transform2d.set(
                 Transform2D::scale(
                     Size::Percent((100.0 * s.x).into()),
                     Size::Percent((100.0 * s.y).into()),
                 ) * Transform2D::translate(Size::Pixels((t.x).into()), Size::Pixels((t.y).into())),
             );
-            let transform_computed = self
-                .transform2d
-                .get()
-                .compute_transform2d_matrix((0.0, 0.0), (0.0, 0.0));
+
+            // DEBUG STUFF
+            let glass_point = app_state.mouse_position;
+            // to find the point in the world that corresponds to the mouse
+            // position, we are solving g = M * w for w, we get w = M^-1g.
+            let world_point: Point2<World> = app_state.glass_to_world_transform * glass_point;
+            self.debug_p_x.set(world_point.x);
+            self.debug_p_y.set(world_point.y);
         });
     }
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {

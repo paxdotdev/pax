@@ -11,7 +11,7 @@ use crate::model::ToolState;
 
 use crate::model::action::pointer::Pointer;
 use crate::model::math;
-use crate::model::math::coordinate_spaces;
+use crate::model::math::coordinate_spaces::{self, World};
 
 #[pax]
 #[custom(Default)]
@@ -27,6 +27,8 @@ pub struct Glass {
     // rect tool state
     pub is_rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
+
+    pub debug_point: Property<ControlPoint>,
 }
 
 impl Glass {
@@ -65,7 +67,7 @@ impl Glass {
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
         model::read_app_state_with_derived(ctx, |app_state, derived_state| {
-            // Selection state drawing
+            // Draw Selected Bounds
             if let Some(bounds) = derived_state.selected_bounds {
                 self.is_selection_active.set(true);
                 let mut sv = SelectionVisual::new_from_box_bounds(bounds);
@@ -85,7 +87,7 @@ impl Glass {
                 self.is_selection_active.set(false);
             }
 
-            // Tool drawing
+            // Draw current tool visuals
             match &app_state.tool_state {
                 ToolState::Box {
                     p1,
@@ -124,6 +126,10 @@ impl Default for Glass {
             bounding_segments: Box::new(PropertyLiteral::new(sv.bounding_segments)),
             is_rect_tool_active: Box::new(PropertyLiteral::new(false)),
             rect_tool: Default::default(),
+            debug_point: Box::new(PropertyLiteral::new(ControlPoint {
+                x: f64::MIN,
+                y: f64::MIN,
+            })),
         }
     }
 }

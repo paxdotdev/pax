@@ -58,9 +58,8 @@ impl Action for RectangleTool {
             Pointer::Up => {
                 if let ToolState::Box { p1, p2, .. } = std::mem::take(&mut ctx.app_state.tool_state)
                 {
-                    let glass_to_world = ctx.world_transform().inverse().between_worlds();
-                    let world_origin = glass_to_world * p1;
-                    let world_dims = glass_to_world * (p2 - p1);
+                    let world_origin = ctx.world_transform() * p1;
+                    let world_dims = ctx.world_transform() * (p2 - p1);
                     ctx.execute(super::orm::CreateRectangle {
                         origin: world_origin,
                         dims: world_dims,
@@ -90,10 +89,8 @@ impl Action for PointerTool {
                     let origin_window = hit.origin().unwrap();
                     let object_origin_glass = ctx.glass_transform() * origin_window;
                     let object_origin_world = ctx.world_transform() * object_origin_glass;
-                    let pointer_world = ctx.world_transform() * self.point;
-                    let offset = ctx.world_transform().inverse()
-                        * (pointer_world - object_origin_world).to_world();
-                    let curr_pos = ctx.app_state.tool_state = ToolState::Movement { offset };
+                    let offset = self.point - object_origin_glass;
+                    ctx.app_state.tool_state = ToolState::Movement { offset };
                 } else {
                     ctx.app_state.tool_state = ToolState::Box {
                         p1: self.point,
@@ -111,11 +108,8 @@ impl Action for PointerTool {
                     *p2 = self.point;
                 }
                 ToolState::Movement { offset } => {
-                    let world_point =
-                        ctx.world_transform().inverse() * (self.point - offset).to_world();
-                    ctx.execute(MoveSelected {
-                        point: world_point.to_world(),
-                    });
+                    let world_point = ctx.world_transform() * (self.point - offset);
+                    ctx.execute(MoveSelected { point: world_point });
                 }
                 _ => (),
             },

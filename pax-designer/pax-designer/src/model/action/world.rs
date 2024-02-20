@@ -20,14 +20,14 @@ impl Action for Pan {
                 let original_transform = ctx.world_transform();
                 ctx.app_state.tool_state = ToolState::Pan {
                     original: original_transform,
-                    origin: self.point.to_world(),
+                    origin: self.point,
                 };
             }
             Pointer::Move => {
                 if let ToolState::Pan { original, origin } = ctx.app_state.tool_state {
-                    let diff = ctx.world_transform().inverse() * (self.point.to_world() - origin);
+                    let diff = ctx.world_transform() * (origin - self.point);
                     let translation = Transform2::translate(diff);
-                    ctx.app_state.glass_to_world_transform = original * translation;
+                    ctx.app_state.glass_to_world_transform = translation * original;
                 }
             }
             Pointer::Up => {
