@@ -30,8 +30,8 @@ impl<F: Space, T: Space> Clone for Transform2<F, T> {
 
 impl<F: Space, T: Space> std::fmt::Debug for Transform2<F, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}", self.m[0], self.m[1], self.m[2])?;
-        write!(f, "{} {} {}", self.m[3], self.m[4], self.m[5])
+        writeln!(f, "{} {} {}", self.m[0], self.m[2], self.m[4])?;
+        write!(f, "{} {} {}", self.m[1], self.m[3], self.m[5])
     }
 }
 
@@ -71,7 +71,7 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         Self::new([c, s, -s, c, 0.0, 0.0])
     }
 
-    pub fn translate(p: Vector2<WFrom>) -> Self {
+    pub fn translate(p: Vector2<WTo>) -> Self {
         Self::new([1.0, 0.0, 0.0, 1.0, p.x, p.y])
     }
 
@@ -83,8 +83,17 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         self.m
     }
 
-    pub fn get_translation(self) -> Vector2<WTo> {
-        (self * Point2::<WFrom>::default()).to_vector()
+    pub fn get_translation(self) -> Vector2<WFrom> {
+        (self * Point2::<WFrom>::default()).to_world().to_vector()
+    }
+
+    pub fn get_scale(self) -> Vector2<WTo> {
+        self * Vector2::<WFrom>::new(1.0, 1.0)
+    }
+
+    pub fn set_translation(&mut self, t: Point2<WTo>) {
+        self.m[2] = t.x;
+        self.m[5] = t.y;
     }
 
     pub fn between_worlds<W: Space, T: Space>(self) -> Transform2<W, T> {

@@ -592,7 +592,7 @@ impl CommonProperties {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
@@ -758,7 +758,7 @@ impl Mul for Size {
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone, Deserialize)]
+#[derive(Default, Clone, Deserialize, Serialize)]
 pub struct Transform2D {
     /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
@@ -769,6 +769,8 @@ pub struct Transform2D {
     pub scale: Option<[Size; 2]>,
     pub skew: Option<[f64; 2]>,
 }
+
+impl Interpolatable for Transform2D {}
 
 impl Mul for Transform2D {
     type Output = Transform2D;
