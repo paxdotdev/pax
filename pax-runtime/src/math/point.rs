@@ -57,7 +57,7 @@ impl<W: Space> Point2<W> {
         Vector2::new(self.x, self.y)
     }
 
-    pub fn to_world<WNew: Space>(self) -> Point2<WNew> {
+    pub fn cast_space<WNew: Space>(self) -> Point2<WNew> {
         Point2::new(self.x, self.y)
     }
 
