@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{Display, Write};
 use std::hash::Hasher;
-use std::ops::RangeFrom;
+use std::ops::{Index, RangeFrom};
 use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
@@ -20,8 +21,8 @@ pub mod deserializer;
 #[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {
-    pub components: HashMap<String, ComponentDefinition>,
-    pub main_component_type_id: String,
+    pub components: HashMap<TypeId, ComponentDefinition>,
+    pub main_component_type_id: TypeId,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     pub type_table: TypeTable,
     pub import_paths: std::collections::HashSet<String>,
@@ -137,8 +138,7 @@ impl ExpressionSpecInvocation {
 #[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ComponentDefinition {
-    pub type_id: String,
-    pub type_id_escaped: String,
+    pub type_id: TypeId,
     pub is_main_component: bool,
     pub is_primitive: bool,
 
@@ -154,22 +154,14 @@ pub struct ComponentDefinition {
     /// and the Definition struct.  For primitives, then, we need
     /// to store an additional import path to use when instantiating.
     pub primitive_instance_import_path: Option<String>,
-    pub template: Option<HashMap<usize, TemplateNodeDefinition>>,
+    pub template: Option<ComponentTemplate>,
     pub settings: Option<Vec<SettingsBlockElement>>,
     pub handlers: Option<Vec<HandlerBindingElement>>,
 }
 
-impl ComponentDefinition {
-    pub fn get_snake_case_id(&self) -> String {
-        self.type_id
-            .replace("::", "_")
-            .replace("/", "_")
-            .replace("\\", "_")
-            .replace(">", "_")
-            .replace("<", "_")
-            .replace(".", "_")
-    }
 
+
+impl ComponentDefinition {
     pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
         &tt.get(&self.type_id).unwrap().property_definitions
     }
@@ -189,66 +181,241 @@ pub enum HandlerBindingElement {
     Comment(String),
 }
 
+
+#[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+pub struct TemplateNodeId(usize);
+
+impl TemplateNodeId {
+    pub fn build(id: usize) -> Self {
+        TemplateNodeId(id)
+    }
+}
+
+
+impl Display for TemplateNodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
+
+#[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+pub struct TypeId(String);
+
+impl Display for TypeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TypeId {
+    pub fn build(id: String) -> Self {
+        TypeId(id)
+    }
+
+    pub fn build_from_str(id: &str) -> Self {
+        TypeId(id.to_string())
+    }
+
+    pub fn get_id(&self) -> String {
+        self.0.clone()
+    }
+
+    pub fn escaped_id(self) -> String {
+        escape_identifier(self.0)
+    }
+
+    pub fn get_snake_case_id(&self) -> String {
+        self.0
+            .replace("::", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+            .replace(">", "_")
+            .replace("<", "_")
+            .replace(".", "_")
+    }
+}
+
+#[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+pub struct UniqueTemplateNodeIdentifier {
+    component: TypeId,
+    template_node_id: TemplateNodeId,
+}
+
+impl UniqueTemplateNodeIdentifier {
+    pub fn build(component: TypeId, template_node_id: TemplateNodeId) -> Self {
+        UniqueTemplateNodeIdentifier {
+            component,
+            template_node_id
+        }
+    }
+
+    pub fn get_type_id(self) -> TypeId {
+        self.component
+    }
+
+    pub fn get_template_node_id(self) -> TemplateNodeId {
+        self.template_node_id
+    }
+}
+
+impl Display for UniqueTemplateNodeIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.component, self.template_node_id)
+    }
+}
+
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct ComponentTemplate {
-    root: VecDeque<usize>,
-    children: HashMap<usize, VecDeque<usize>>,
-    nodes: HashMap<usize, TemplateNodeDefinition>,
+    containing_component: TypeId,
+    root: VecDeque<TemplateNodeId>,
+    children: HashMap<TemplateNodeId, VecDeque<TemplateNodeId>>,
+    nodes: HashMap<TemplateNodeId, TemplateNodeDefinition>,
     next_id: usize,
     template_source_file_path: Option<String>,
 }
 
 impl ComponentTemplate {
 
-    pub fn add_root_node_front(mut self, tnd: TemplateNodeDefinition) {
-        self.root.push_front(tnd.id);
-        self.nodes.insert(tnd.id, tnd);
+    pub fn get_next_id(&self) -> usize {
+        self.next_id
     }
 
-    pub fn add_root_node_back(mut self, tnd: TemplateNodeDefinition) {
-        self.root.push_back(tnd.id);
-        self.nodes.insert(tnd.id, tnd);
+    pub fn set_next_id(&mut self, id: usize) {
+        self.next_id = id;
     }
 
-    pub fn add_root_node_at(mut self, index: usize ,tnd: TemplateNodeDefinition) {
-        self.root.insert(index,tnd.id);
-        self.nodes.insert(tnd.id, tnd);
+    pub fn get_unique_identifier(&self, id: TemplateNodeId) -> UniqueTemplateNodeIdentifier {
+        let type_id = self.containing_component.clone();
+        UniqueTemplateNodeIdentifier::build(type_id, id)
     }
 
-    pub fn add_child_front(mut self, id: usize, mut tnd: TemplateNodeDefinition){
-        if let Some(parent) = self.nodes.get_mut(&id){
-            parent.child_ids.push_front(tnd.id);
-            tnd.parent_id = Some(id);
-            self.nodes.insert(tnd.id, tnd);
-        }
+    fn consume_next_id(&mut self) -> TemplateNodeId {
+        let current_next_id = self.next_id;
+        self.next_id = self.next_id + 1;
+        TemplateNodeId::build(current_next_id)
     }
 
-    pub fn add_child_back(mut self, id: usize, mut tnd: TemplateNodeDefinition){
-        if let Some(parent) = self.nodes.get_mut(&id){
-            parent.child_ids.push_back(tnd.id);
-            tnd.parent_id = Some(id);
-            self.nodes.insert(tnd.id, tnd);
-        }
+    pub fn add_root_node_front(&mut self, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        let id = self.consume_next_id();
+        self.root.push_front(id.clone());
+        self.nodes.insert(id.clone(), tnd);
+        self.get_unique_identifier(id)
     }
 
-    pub fn add_child_at(mut self, id: usize, index: usize, mut tnd: TemplateNodeDefinition){
-        if let Some(parent) = self.nodes.get_mut(&id){
-            parent.child_ids.insert(index, tnd.id);
-            tnd.parent_id = Some(id);
-            self.nodes.insert(tnd.id, tnd);
-        }
+    pub fn add_root_node_back(mut self, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        let id = self.consume_next_id();
+        self.root.push_back(id.clone());
+        self.nodes.insert(id.clone(), tnd);
+        self.get_unique_identifier(id)
     }
 
-    pub fn remove_node(mut self, id: usize){
-        if let Some(tnd) = self.nodes.get(&id){ 
-            if let Some(parent_id) = tnd.parent_id {
-                if let Some(parent) = self.nodes.get_mut(&parent_id) {
-                    parent.child_ids.retain(|x| {*x != id});
-                }
+    pub fn add_root_node_at(mut self, index: usize ,tnd: TemplateNodeDefinition)-> UniqueTemplateNodeIdentifier {
+        let id = self.consume_next_id();
+        self.root.insert(index, id.clone());
+        self.nodes.insert(id.clone(), tnd);
+        self.get_unique_identifier(id)
+    }
+
+    pub fn add(&mut self, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        self.add_root_node_front(tnd)
+    }
+
+    pub fn add_child_front(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        if let Some(_) = self.nodes.get_mut(&id){
+            let child_id = self.consume_next_id();
+            if let Some(children) = self.children.get_mut(&id){
+                children.push_front(child_id.clone());
+                self.nodes.insert(child_id.clone(), tnd);
+            } else {
+                let mut children = VecDeque::new();
+                children.push_front(child_id.clone());
+                self.nodes.insert(child_id.clone(), tnd);
+                self.children.insert(id, children);
             }
+            self.get_unique_identifier(child_id)
+        } else {
+            panic!("Invalid parent");
         }
-        self.root.remove(id);
+    }
+
+    pub fn add_child_back(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        if let Some(_) = self.nodes.get_mut(&id){
+            let child_id = self.consume_next_id();
+            if let Some(children) = self.children.get_mut(&id){
+                children.push_back(child_id.clone());
+                self.nodes.insert(child_id.clone(), tnd);
+            } else {
+                let mut children = VecDeque::new();
+                children.push_back(child_id.clone());
+                self.nodes.insert(child_id.clone(), tnd);
+                self.children.insert(id, children);
+            }
+            self.get_unique_identifier(child_id)
+        } else {
+            panic!("Invalid parent");
+        }
+    }
+
+    pub fn add_child_at(&mut self, id: TemplateNodeId, index: usize, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        if let Some(_) = self.nodes.get_mut(&id){
+            let child_id = self.consume_next_id();
+            if let Some(children) = self.children.get_mut(&id){
+                children.insert(index, child_id.clone());
+                self.nodes.insert(child_id.clone(), tnd);
+            } else {
+                let mut children = VecDeque::new();
+                children.insert(index, child_id.clone());
+                self.nodes.insert(child_id.clone(), tnd);
+                self.children.insert(id, children);
+            }
+            self.get_unique_identifier(child_id)
+        } else {
+            panic!("Invalid parent");
+        }
+    }
+
+    pub fn add_child(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+        self.add_child_front(id, tnd)
+    }
+
+    pub fn remove_node(&mut self, id: TemplateNodeId) -> TemplateNodeDefinition {
+        if let Some(tnd) = self.nodes.get(&id){ 
+            let node = tnd.clone();
+            self.children.remove(&id);
+            for (_, children) in self.children.iter_mut() {
+                children.retain(|child| { *child != id });
+            }
+            self.root.retain(|root_node| { *root_node != id });
+            node
+        } else {
+            panic!("Requested node doesn't exist in template");
+        }
+    }
+
+    pub fn get_root(&self) -> Vec<TemplateNodeId> {
+        self.root.clone().into()
+    }
+
+    pub fn get_children(&self, id: TemplateNodeId) -> Option<Vec<TemplateNodeId>> {
+        if let Some(c) = self.children.get(&id) {
+            return Some(c.clone().into())
+        }
+        None
+    }
+
+    pub fn get_node(&self, id: TemplateNodeId) -> Option<&TemplateNodeDefinition> {
+        self.nodes.get(&id)
+    }
+
+    pub fn get_nodes(&self) -> Vec<&TemplateNodeDefinition> {
+        self.nodes.values().collect()
     }
 
 }
@@ -274,17 +441,17 @@ pub struct TemplateNodeDefinition {
     pub raw_comment_string: Option<String>,
 }
 
-pub type TypeTable = HashMap<String, TypeDefinition>;
+pub type TypeTable = HashMap<TypeId, TypeDefinition>;
 pub fn get_primitive_type_table() -> TypeTable {
     let mut ret: TypeTable = Default::default();
 
     SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
-        ret.insert(snp.to_string(), TypeDefinition::primitive(snp));
+        ret.insert(TypeId::build(snp.to_string()), TypeDefinition::primitive(snp));
     });
     SUPPORTED_NONNUMERIC_PRIMITIVES
         .into_iter()
         .for_each(|snnp| {
-            ret.insert(snnp.to_string(), TypeDefinition::primitive(snnp));
+            ret.insert(TypeId::build(snnp.to_string()), TypeDefinition::primitive(snnp));
         });
 
     ret
@@ -302,10 +469,7 @@ pub struct PropertyDefinition {
     pub flags: PropertyDefinitionFlags,
 
     /// Statically known type_id for this Property's associated TypeDefinition
-    pub type_id: String,
-
-    /// Pascalized type_id, used for enum identifiers
-    pub type_id_escaped: String,
+    pub type_id: TypeId,
 }
 
 impl PropertyDefinition {
@@ -368,8 +532,7 @@ impl PropertyDefinition {
         PropertyDefinition {
             name: symbol_name.to_string(),
             flags: PropertyDefinitionFlags::default(),
-            type_id: type_name.to_string(),
-            type_id_escaped: escape_identifier(type_name.to_string()),
+            type_id: TypeId::build(type_name.to_string()),
         }
     }
 }
@@ -380,17 +543,14 @@ impl PropertyDefinition {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TypeDefinition {
     /// Program-unique ID for this type
-    pub type_id: String,
-
-    /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
-    pub type_id_escaped: String,
+    pub type_id: TypeId,
 
     /// Unlike type_id, contains no generics data.  Simply used for qualifying / importing a type, like `std::vec::Vec`
     pub import_path: String,
 
     /// Statically known type_id for this Property's iterable TypeDefinition, that is,
     /// T for some Property<Vec<T>>
-    pub inner_iterable_type_id: Option<String>,
+    pub inner_iterable_type_id: Option<TypeId>,
 
     /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
     pub property_definitions: Vec<PropertyDefinition>,
@@ -399,8 +559,7 @@ pub struct TypeDefinition {
 impl TypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
         Self {
-            type_id_escaped: escape_identifier(type_name.to_string()),
-            type_id: type_name.to_string(),
+            type_id: TypeId::build_from_str(type_name),
             property_definitions: vec![],
             inner_iterable_type_id: None,
             import_path: type_name.to_string(),
@@ -411,10 +570,9 @@ impl TypeDefinition {
     pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: String) -> Self {
         let type_id = "std::vec::Vec<std::rc::Rc<core::cell::RefCell<dyn Any>>>";
         Self {
-            type_id: type_id.to_string(),
-            type_id_escaped: escape_identifier(type_id.to_string()),
+            type_id:  TypeId::build_from_str(type_id),
             property_definitions: vec![],
-            inner_iterable_type_id: Some(inner_iterable_type_id),
+            inner_iterable_type_id: Some(TypeId::build(inner_iterable_type_id)),
             import_path: "std::vec::Vec".to_string(),
         }
     }
@@ -422,10 +580,9 @@ impl TypeDefinition {
     pub fn builtin_range_isize() -> Self {
         let type_id = "std::ops::Range<isize>";
         Self {
-            type_id: type_id.to_string(),
-            type_id_escaped: escape_identifier(type_id.to_string()),
+            type_id: TypeId::build_from_str(type_id),
             property_definitions: vec![],
-            inner_iterable_type_id: Some("isize".to_string()),
+            inner_iterable_type_id: Some(TypeId::build_from_str("isize")),
             import_path: "std::ops::Range".to_string(),
         }
     }
