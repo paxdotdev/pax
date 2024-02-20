@@ -1,5 +1,5 @@
 use super::{pointer::Pointer, Action, ActionContext, CanUndo};
-use crate::model::{math::coordinate_spaces::Glass, AppState, ToolState};
+use crate::model::{input::InputEvent, math::coordinate_spaces::Glass, AppState, ToolState};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
@@ -14,25 +14,42 @@ pub struct Pan {
 }
 
 impl Action for Pan {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                let original_offset = ctx.world_transform().get_translation();
+                let original_transform = ctx.world_transform();
                 ctx.app_state.tool_state = ToolState::Pan {
-                    offset: original_offset,
-                    point: self.point,
+                    original: original_transform,
+                    origin: self.point.to_world(),
                 };
             }
             Pointer::Move => {
-                if let ToolState::Pan { point, offset } = ctx.app_state.tool_state {
-                    let diff = self.point - point;
-                    ctx.app_state.glass_to_world_transform =
-                        Transform2::translate(-diff + offset.to_world());
+                if let ToolState::Pan { original, origin } = ctx.app_state.tool_state {
+                    let diff = ctx.world_transform().inverse() * (self.point.to_world() - origin);
+                    let translation = Transform2::translate(diff);
+                    ctx.app_state.glass_to_world_transform = original * translation;
                 }
             }
             Pointer::Up => {
                 ctx.app_state.tool_state = ToolState::Idle;
             }
+        }
+        Ok(CanUndo::No)
+    }
+}
+
+pub struct Zoom {
+    pub closer: bool,
+}
+
+impl Action for Zoom {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        pax_engine::log::info!("zoom");
+        if ctx.app_state.keys_pressed.contains(&InputEvent::Control) {
+            pax_engine::log::info!("zooming");
+            let scale = if self.closer { 1.4 } else { 1.0 / 1.4 };
+            ctx.app_state.glass_to_world_transform =
+                ctx.app_state.glass_to_world_transform * Transform2::scale(scale);
         }
         Ok(CanUndo::No)
     }
