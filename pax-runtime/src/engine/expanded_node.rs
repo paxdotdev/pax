@@ -19,7 +19,7 @@ use crate::api::{
     ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
     ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTextboxInput, ArgsTouchEnd,
     ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext,
-    Size,
+    Size, Window,
 };
 
 use crate::{
@@ -418,7 +418,7 @@ impl ExpandedNode {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: Point2) -> bool {
+    pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
         if self.instance_node.base().flags().invisible_to_raycasting {
             return false;

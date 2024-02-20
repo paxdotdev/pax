@@ -154,9 +154,9 @@ impl Space for Window {}
 #[cfg(feature = "designtime")]
 impl NodeContext<'_> {
     pub fn raycast(&self, point: Point2<Window>) -> Vec<NodeInterface> {
-        let expanded_nodes =
-            self.runtime_context
-                .get_elements_beneath_ray(point.cast_space(), false, vec![]);
+        let expanded_nodes = self
+            .runtime_context
+            .get_elements_beneath_ray(point, false, vec![]);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
