@@ -18,14 +18,14 @@ use crate::model::math::coordinate_spaces;
 #[file("glass.pax")]
 pub struct Glass {
     // selection state
-    pub selection_active: Property<bool>,
+    pub is_selection_active: Property<bool>,
     pub control_points: Property<Vec<ControlPoint>>,
     pub anchor_point: Property<ControlPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
     // pub selection_visual: Property<SelectionVisual>,
 
     // rect tool state
-    pub rect_tool_active: Property<bool>,
+    pub is_rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
 }
 
@@ -70,7 +70,7 @@ impl Glass {
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
         if let Some(bounds) = model::selected_bounds(ctx) {
-            self.selection_active.set(true);
+            self.is_selection_active.set(true);
             let mut sv = SelectionVisual::new_from_box_bounds(bounds);
 
             // HACK before dirty-dag (to make sure repeat updates)
@@ -85,7 +85,7 @@ impl Glass {
             self.anchor_point.set(sv.anchor_point);
             self.bounding_segments.set(sv.bounding_segments);
         } else {
-            self.selection_active.set(false);
+            self.is_selection_active.set(false);
         }
         model::read_app_state(|app_state| {
             match &app_state.tool_state {
@@ -95,7 +95,7 @@ impl Glass {
                     fill,
                     stroke,
                 } => {
-                    self.rect_tool_active.set(true);
+                    self.is_rect_tool_active.set(true);
                     self.rect_tool.set(RectTool {
                         x: Size::Pixels(p1.x.into()),
                         y: Size::Pixels(p1.y.into()),
@@ -108,7 +108,7 @@ impl Glass {
                 ToolState::Movement { .. } => (),
                 _ => {
                     // reset all tool visuals
-                    self.rect_tool_active.set(false);
+                    self.is_rect_tool_active.set(false);
                 }
             }
         });
@@ -120,11 +120,11 @@ impl Default for Glass {
         let sv = SelectionVisual::default();
 
         Self {
-            selection_active: Default::default(),
+            is_selection_active: Default::default(),
             control_points: Box::new(PropertyLiteral::new(sv.control_points)),
             anchor_point: Box::new(PropertyLiteral::new(sv.anchor_point)),
             bounding_segments: Box::new(PropertyLiteral::new(sv.bounding_segments)),
-            rect_tool_active: Box::new(PropertyLiteral::new(false)),
+            is_rect_tool_active: Box::new(PropertyLiteral::new(false)),
             rect_tool: Default::default(),
         }
     }
