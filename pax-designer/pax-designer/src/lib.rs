@@ -8,9 +8,9 @@ use pax_engine::*;
 pub mod controls;
 pub mod designtime_component_viewer;
 pub mod glass;
+use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
-use crate::{controls::Controls, model::input::Dir};
 use designer_project::Example;
 use pax_std::primitives::{Group, Rectangle};
 
@@ -42,19 +42,6 @@ impl PaxDesigner {
                 ) * Transform2D::translate(Size::Pixels((t.x).into()), Size::Pixels((t.y).into())),
             );
         });
-    }
-    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
-        let res = model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key);
-        if let Err(e) = res {
-            pax_engine::log::warn!("{}", e);
-        }
-    }
-
-    pub fn handle_key_up(&mut self, ctx: &NodeContext, args: ArgsKeyUp) {
-        let res = model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key);
-        if let Err(e) = res {
-            pax_engine::log::warn!("{}", e);
-        }
     }
 
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
