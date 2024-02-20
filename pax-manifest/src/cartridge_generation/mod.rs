@@ -1,10 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{any::{Any}, collections::HashMap};
 
 use crate::{
-    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
-    HandlerBindingElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, Token, ValueDefinition,
+    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, HandlerBindingElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition
 };
 
 #[derive(Serialize, Debug)]
@@ -29,7 +27,7 @@ pub struct HandlerInfo {
 }
 
 impl PaxManifest {
-    pub fn get_component_handlers(&self, type_id: &str) -> Vec<(String, Vec<String>)> {
+    pub fn get_component_handlers(&self, type_id: &TypeId) -> Vec<(String, Vec<String>)> {
         let mut handlers = Vec::new();
         if let Some(component) = self.components.get(type_id) {
             if let Some(component_handlers) = &component.handlers {
@@ -123,8 +121,7 @@ impl PaxManifest {
 
             // pull all handlers from the template inline settings
             if let Some(template) = &component.template {
-                for (id, tnd) in template {
-                    if id > &0 {
+                for tnd in template.get_nodes() {
                         if let Some(settings) = &tnd.settings {
                             for setting in settings {
                                 if let SettingElement::Setting(key, value) = setting {
@@ -140,12 +137,11 @@ impl PaxManifest {
                                 }
                             }
                         }
-                    }
                 }
             }
 
             component_infos.push(ComponentInfo {
-                type_id: component.type_id.clone(),
+                type_id: component.type_id.get_id().clone(),
                 pascal_identifier: component.pascal_identifier.clone(),
                 primitive_instance_import_path: component.primitive_instance_import_path.clone(),
                 properties,
@@ -157,10 +153,10 @@ impl PaxManifest {
 
     pub fn get_inline_properties(
         &self,
-        containing_component_type_id: &str,
+        containing_component_type_id: &TypeId,
         tnd: &TemplateNodeDefinition,
     ) -> HashMap<String, ValueDefinition> {
-        let component = self.components.get(containing_component_type_id).unwrap();
+        let component = self.components.get(&containing_component_type_id).unwrap();
         let settings =
             Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
         let mut map = HashMap::new();
@@ -184,7 +180,7 @@ impl PaxManifest {
 
     pub fn get_inline_common_properties(
         &self,
-        containing_component_type_id: &str,
+        containing_component_type_id: &TypeId,
         tnd: &TemplateNodeDefinition,
     ) -> HashMap<String, ValueDefinition> {
         let component = self.components.get(containing_component_type_id).unwrap();
