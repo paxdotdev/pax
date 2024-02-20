@@ -22,7 +22,7 @@ use treeobj::TreeObj;
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
-    pub project_loaded: Property<bool>,
+    pub is_project_loaded: Property<bool>,
 }
 
 pub static TREE_CLICK_SENDER: Mutex<Option<usize>> = Mutex::new(None);
@@ -152,7 +152,7 @@ impl Tree {
     }
 
     pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
-        self.project_loaded.set(true);
+        self.is_project_loaded.set(true);
         let dt = ctx.designtime.borrow_mut();
         let graph = dt
             .get_orm()
