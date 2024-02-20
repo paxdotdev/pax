@@ -17,10 +17,10 @@ pub struct TreeObj {
     pub ind: Property<Numeric>,
     pub name: Property<StringBox>,
     pub image_path: Property<StringBox>,
-    pub selected: Property<bool>,
-    pub collapsed: Property<bool>,
+    pub is_selected: Property<bool>,
+    pub is_collapsed: Property<bool>,
     pub arrow_path: Property<String>,
-    pub not_leaf: Property<bool>,
+    pub is_not_leaf: Property<bool>,
 }
 
 impl TreeObj {
@@ -28,7 +28,7 @@ impl TreeObj {
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.arrow_path.set(
-            match *self.collapsed.get() {
+            match *self.is_collapsed.get() {
                 true => "assets/icons/triangle-down.png",
                 false => "assets/icons/triangle-right.png",
             }
