@@ -120,22 +120,22 @@ pub extern "C" fn pax_interrupt(
                 _ => {}
             };
         }
-        NativeInterrupt::Scroll(args) => {
-            let prospective_hit = engine.get_focused_element();
-            match prospective_hit {
-                Some(topmost_node) => {
-                    let args_scroll = ArgsScroll {
-                        delta_x: args.delta_x,
-                        delta_y: args.delta_y,
-                    };
-                    topmost_node.dispatch_scroll(
-                        args_scroll,
-                        engine.runtime_context.globals(),
-                        &engine.runtime_context,
-                    );
-                }
-                _ => {}
-            };
+        NativeInterrupt::Scroll(_args) => {
+            // let prospective_hit = engine.get_focused_element();
+            // match prospective_hit {
+            //     Some(topmost_node) => {
+            //         let args_scroll = ArgsScroll {
+            //             delta_x: args.delta_x,
+            //             delta_y: args.delta_y,
+            //         };
+            //         topmost_node.dispatch_scroll(
+            //             args_scroll,
+            //             engine.runtime_context.globals(),
+            //             &engine.runtime_context,
+            //         );
+            //     }
+            //     _ => {}
+            // };
         }
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(_ref_args) => {
