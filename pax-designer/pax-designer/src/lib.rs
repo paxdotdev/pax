@@ -41,14 +41,6 @@ impl PaxDesigner {
                     Size::Percent((100.0 * s.y).into()),
                 ) * Transform2D::translate(Size::Pixels((t.x).into()), Size::Pixels((t.y).into())),
             );
-
-            // DEBUG STUFF
-            let glass_point = app_state.mouse_position;
-            // to find the point in the world that corresponds to the mouse
-            // position, we are solving g = M * w for w, we get w = M^-1g.
-            let world_point: Point2<World> = app_state.glass_to_world_transform * glass_point;
-            self.debug_p_x.set(world_point.x);
-            self.debug_p_y.set(world_point.y);
         });
     }
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
