@@ -16,7 +16,7 @@ pub struct CreateRectangle {
     pub dims: Vector2<World>,
 }
 impl Action for CreateRectangle {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = ctx.engine_context.designtime.borrow_mut();
         let mut builder = dt.get_orm_mut().build_new_node(
             "pax_designer::pax_reexports::designer_project::Example".to_owned(),
@@ -49,7 +49,7 @@ pub struct MoveSelected {
 }
 
 impl Action for MoveSelected {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let selected = ctx
             .app_state
             .selected_template_node_id

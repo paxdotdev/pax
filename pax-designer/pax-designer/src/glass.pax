@@ -1,4 +1,4 @@
-<Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up @key_down=handle_key_down >
+<Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up>
 
     if self.is_selection_active {
         for pt in self.control_points {

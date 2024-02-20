@@ -11,7 +11,7 @@ pub struct ActionSet {
 }
 
 impl Action for ActionSet {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut local_undo_stack = vec![];
         for action in self.actions {
             match action.perform(ctx) {

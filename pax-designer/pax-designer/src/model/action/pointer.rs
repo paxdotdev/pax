@@ -1,6 +1,7 @@
 use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::model::action;
+use crate::model::input::InputEvent;
 use crate::model::math::coordinate_spaces::Glass;
 use crate::model::AppState;
 use crate::model::ToolState;
@@ -24,17 +25,20 @@ pub enum Pointer {
 }
 
 impl Action for PointerAction {
-    fn perform(self, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let point_glass = ctx.glass_transform() * self.point;
-        match self.button {
-            MouseButton::Left => ctx.execute(action::tools::ToolAction {
+        let spacebar = ctx.app_state.keys_pressed.contains(&InputEvent::Space);
+        match (self.button, spacebar) {
+            (MouseButton::Left, false) => ctx.execute(action::tools::ToolAction {
                 event: self.event,
                 point: point_glass,
             }),
-            MouseButton::Middle => ctx.execute(action::world::Pan {
-                event: self.event,
-                point: point_glass,
-            }),
+            (MouseButton::Left, true) | (MouseButton::Middle, _) => {
+                ctx.execute(action::world::Pan {
+                    event: self.event,
+                    point: point_glass,
+                })
+            }
             _ => Ok(()),
         }?;
         Ok(CanUndo::No)
