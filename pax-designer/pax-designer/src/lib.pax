@@ -3,7 +3,6 @@
     <Group id=designer_glass>
         <Glass/>
         <Group transform={self.transform2d}>
-            <Rectangle class=debug_point x={(self.debug_p_x)px} y={(self.debug_p_y)px}/>
             <Example id=userland_project/>
         </Group>
     </Group>
@@ -26,21 +25,4 @@
          width: {100% - 700px},
          height: {100% - 65px},
      }
-
-    .debug_point {
-        stroke: {
-            color: {
-                Color::rgb(0, 0, 1)
-            }
-            width: 1px
-        }
-        fill: {
-            Fill::Solid(Color::rgb(1,0,0))
-        }
-        width: 5px
-        height: 5px
-        anchor_x: 50%
-        anchor_y: 50%
-    }
-
 }
