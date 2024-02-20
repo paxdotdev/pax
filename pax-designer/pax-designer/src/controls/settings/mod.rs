@@ -18,7 +18,7 @@ use crate::model;
 #[pax]
 #[file("controls/settings/mod.pax")]
 pub struct Settings {
-    pub component_selected: Property<bool>,
+    pub is_component_selected: Property<bool>,
     pub selected_component_name: Property<String>,
     // common props
     pub pos_x: Property<StringBox>,
@@ -55,12 +55,12 @@ impl Settings {
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             let Some(temp_node_id) = app_state.selected_template_node_id else {
-                self.component_selected.set(false);
+                self.is_component_selected.set(false);
                 return;
             };
             let type_id = &app_state.selected_component_id;
 
-            self.component_selected.set(true);
+            self.is_component_selected.set(true);
 
             self.stid.set(StringBox::from(type_id));
             self.snid.set(temp_node_id.into());

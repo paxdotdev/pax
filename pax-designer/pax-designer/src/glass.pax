@@ -1,6 +1,6 @@
 <Group @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up @key_down=handle_key_down >
 
-    if self.selection_active {
+    if self.is_selection_active {
         for pt in self.control_points {
             <Rectangle class=control_point x={(pt.x)px} y={(pt.y)px}/>
         }
@@ -9,7 +9,7 @@
         }
     }
 
-    if self.rect_tool_active {
+    if self.is_rect_tool_active {
         <Rectangle id=rect_tool
             x={self.rect_tool.x}
             y={self.rect_tool.y}
