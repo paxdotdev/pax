@@ -1,7 +1,7 @@
 
 if self.not_leaf {
 	<Image
-		x=10px anchor_y=50% y=50% height=30px width=30px
+		x=15px anchor_y=50% y=50% height=30px width=30px scale_x=60% scale_y=60%
 		path={self.arrow_path}
 		@click=self.clicked
 	/>
