@@ -91,11 +91,6 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         self * Vector2::<WFrom>::new(1.0, 1.0)
     }
 
-    pub fn set_translation(&mut self, t: Point2<WTo>) {
-        self.m[2] = t.x;
-        self.m[5] = t.y;
-    }
-
     pub fn cast_spaces<W: Space, T: Space>(self) -> Transform2<W, T> {
         Transform2::new(self.m)
     }
