@@ -84,9 +84,8 @@ impl ActionContext<'_> {
         }
     }
 
-    pub fn raycast_world(&self, point: Point2<World>) -> Option<NodeInterface> {
-        let glass_point = self.world_transform().inverse() * point;
-        let window_point = self.glass_transform().inverse() * glass_point;
+    pub fn raycast_glass(&self, point: Point2<Glass>) -> Option<NodeInterface> {
+        let window_point = self.glass_transform().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
         if let Some(container) = self
