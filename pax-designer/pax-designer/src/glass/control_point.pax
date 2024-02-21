@@ -1,0 +1,24 @@
+<Rectangle
+    class=control_point
+    x={(self.location.x)px}
+    y={(self.location.y)px}
+    @mouse_down=self.mouse_down
+/>
+
+@settings {
+    .control_point {
+        stroke: {
+            color: {
+                Color::rgb(0, 0, 1)
+            }
+            width: 1px
+        }
+        fill: {
+            Fill::Solid(Color::rgb(1,1,1))
+        }
+        width: 7px
+        height: 7px
+        anchor_x: 50%
+        anchor_y: 50%
+    }
+}

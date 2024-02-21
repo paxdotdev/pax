@@ -158,17 +158,28 @@ pub enum Tool {
 pub enum ToolState {
     #[default]
     Idle,
-    Pan {
+    MovingControlPoint {
+        x: ControlPointPos,
+        y: ControlPointPos,
+    },
+    Panning {
         original_transform: Transform2<Glass, World>,
         glass_start: Point2<Glass>,
     },
-    Movement {
+    MovingObject {
         offset: Vector2<Glass>,
     },
-    Box {
+    BoxSelect {
         p1: Point2<Glass>,
         p2: Point2<Glass>,
         fill: Color,
         stroke: Color,
     },
+}
+
+#[derive(Clone)]
+pub enum ControlPointPos {
+    First,
+    Middle,
+    Last,
 }
