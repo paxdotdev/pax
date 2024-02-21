@@ -14,16 +14,18 @@ use crate::model::input::Dir;
 use crate::model::math;
 use crate::model::math::coordinate_spaces::{self, World};
 
+pub mod control_point;
+use control_point::ControlPoint;
+
 #[pax]
 #[custom(Default)]
-#[file("glass.pax")]
+#[file("glass/mod.pax")]
 pub struct Glass {
     // selection state
     pub is_selection_active: Property<bool>,
-    pub control_points: Property<Vec<ControlPoint>>,
-    pub anchor_point: Property<ControlPoint>,
+    pub control_points: Property<Vec<GlassPoint>>,
+    pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
-    // pub selection_visual: Property<SelectionVisual>,
 
     // rect tool state
     pub is_rect_tool_active: Property<bool>,
@@ -87,7 +89,7 @@ impl Glass {
 
                 // HACK before dirty-dag (to make sure repeat updates)
                 if self.control_points.get().len() == sv.control_points.len() {
-                    sv.control_points.push(ControlPoint {
+                    sv.control_points.push(GlassPoint {
                         x: f64::MIN,
                         y: f64::MIN,
                     });
@@ -102,7 +104,7 @@ impl Glass {
 
             // Draw current tool visuals
             match &app_state.tool_state {
-                ToolState::Box {
+                ToolState::BoxSelect {
                     p1,
                     p2,
                     fill,
@@ -118,7 +120,7 @@ impl Glass {
                         stroke: stroke.clone(),
                     });
                 }
-                ToolState::Movement { .. } => (),
+                ToolState::MovingObject { .. } => (),
                 _ => {
                     // reset all tool visuals
                     self.is_rect_tool_active.set(false);
@@ -144,14 +146,14 @@ impl Default for Glass {
 }
 
 #[pax]
-pub struct ControlPoint {
+pub struct GlassPoint {
     pub x: f64,
     pub y: f64,
 }
 
-impl From<Point2<coordinate_spaces::Glass>> for ControlPoint {
+impl From<Point2<coordinate_spaces::Glass>> for GlassPoint {
     fn from(value: Point2<coordinate_spaces::Glass>) -> Self {
-        Self {
+        GlassPoint {
             x: value.x,
             y: value.y,
         }
@@ -190,8 +192,8 @@ impl
 
 #[pax]
 pub struct SelectionVisual {
-    pub control_points: Vec<ControlPoint>,
-    pub anchor_point: ControlPoint,
+    pub control_points: Vec<GlassPoint>,
+    pub anchor_point: GlassPoint,
     pub bounding_segments: Vec<BoundingSegment>,
 }
 
