@@ -68,14 +68,14 @@ impl ActionContext<'_> {
     }
 
     pub fn glass_transform(&self) -> Transform2<Window, Glass> {
-        self.transform_from_id(DESIGNER_GLASS_ID)
+        self.transform_from_id::<Window, Glass>(DESIGNER_GLASS_ID)
     }
 
     pub fn transform_from_id<F: Space, T: Space>(&self, id: &str) -> Transform2<F, T> {
         let container = self.engine_context.get_nodes_by_id(id);
         if let Some(userland_proj) = container.first() {
             if let Some(transform) = userland_proj.transform() {
-                transform.cast_spaces()
+                transform.cast_spaces::<F, T>()
             } else {
                 Transform2::identity()
             }
