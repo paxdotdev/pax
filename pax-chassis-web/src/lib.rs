@@ -224,16 +224,7 @@ impl PaxChassisWeb {
                     topmost_node.dispatch_click(args_click, globals, &engine.runtime_context);
                 }
             }
-            NativeInterrupt::Scroll(_args) => {
-                // let prospective_hit = engine.get_focused_element();
-                // if let Some(topmost_node) = prospective_hit {
-                //     let args_scroll = ArgsScroll {
-                //         delta_x: args.delta_x,
-                //         delta_y: args.delta_y,
-                //     };
-                //     topmost_node.dispatch_scroll(args_scroll, globals, &engine.runtime_context);
-                // }
-            }
+            NativeInterrupt::Scroll(_args) => {}
             NativeInterrupt::Clap(args) => {
                 let prospective_hit = engine
                     .runtime_context
