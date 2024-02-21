@@ -15,6 +15,7 @@ use crate::model::math;
 use crate::model::math::coordinate_spaces::{self, World};
 
 pub mod control_point;
+mod object_editing;
 use control_point::ControlPoint;
 
 #[pax]
@@ -85,7 +86,7 @@ impl Glass {
             // Draw Selected Bounds
             if let Some(bounds) = derived_state.selected_bounds {
                 self.is_selection_active.set(true);
-                let mut sv = SelectionVisual::new_from_box_bounds(bounds);
+                let mut sv = EditVisual::new_from_box_bounds(bounds);
 
                 // HACK before dirty-dag (to make sure repeat updates)
                 if self.control_points.get().len() == sv.control_points.len() {
@@ -132,7 +133,7 @@ impl Glass {
 
 impl Default for Glass {
     fn default() -> Self {
-        let sv = SelectionVisual::default();
+        let sv = EditVisual::default();
 
         Self {
             is_selection_active: Default::default(),
@@ -191,28 +192,25 @@ impl
 }
 
 #[pax]
-pub struct SelectionVisual {
+pub struct EditVisual {
     pub control_points: Vec<GlassPoint>,
     pub anchor_point: GlassPoint,
     pub bounding_segments: Vec<BoundingSegment>,
 }
 
-impl SelectionVisual {
+impl EditVisual {
     fn new_from_box_bounds(points: [Point2<coordinate_spaces::Glass>; 4]) -> Self {
-        let [p1, p2, p3, p4] = points;
+        let [p1, p4, p3, p2] = points;
         Self {
             control_points: vec![
                 p1.into(),
                 p1.midpoint_towards(p2).into(),
                 p2.into(),
-                p1.midpoint_towards(p4).into(),
-                //
-                // anchor point
-                //
                 p2.midpoint_towards(p3).into(),
                 p3.into(),
                 p3.midpoint_towards(p4).into(),
                 p4.into(),
+                p4.midpoint_towards(p1).into(),
             ],
             bounding_segments: vec![
                 (p1, p2).into(),

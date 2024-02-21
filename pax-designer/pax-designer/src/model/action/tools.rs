@@ -83,13 +83,11 @@ impl Action for PointerTool {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                let world_point = ctx.world_transform() * self.point;
-                if let Some(hit) = ctx.raycast_world(world_point) {
+                if let Some(hit) = ctx.raycast_glass(self.point) {
                     ctx.app_state.selected_template_node_id = Some(hit.global_id().1);
 
                     let origin_window = hit.origin().unwrap();
                     let object_origin_glass = ctx.glass_transform() * origin_window;
-                    let object_origin_world = ctx.world_transform() * object_origin_glass;
                     let offset = self.point - object_origin_glass;
                     ctx.app_state.tool_state = ToolState::MovingObject { offset };
                 } else {
