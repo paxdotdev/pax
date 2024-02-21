@@ -43,7 +43,7 @@ impl Action for RectangleTool {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                ctx.app_state.tool_state = ToolState::Box {
+                ctx.app_state.tool_state = ToolState::BoxSelect {
                     p1: self.point,
                     p2: self.point,
                     stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
@@ -51,12 +51,13 @@ impl Action for RectangleTool {
                 };
             }
             Pointer::Move => {
-                if let ToolState::Box { ref mut p2, .. } = ctx.app_state.tool_state {
+                if let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state {
                     *p2 = self.point;
                 }
             }
             Pointer::Up => {
-                if let ToolState::Box { p1, p2, .. } = std::mem::take(&mut ctx.app_state.tool_state)
+                if let ToolState::BoxSelect { p1, p2, .. } =
+                    std::mem::take(&mut ctx.app_state.tool_state)
                 {
                     let world_origin = ctx.world_transform() * p1;
                     let world_dims = ctx.world_transform() * (p2 - p1);
@@ -90,9 +91,9 @@ impl Action for PointerTool {
                     let object_origin_glass = ctx.glass_transform() * origin_window;
                     let object_origin_world = ctx.world_transform() * object_origin_glass;
                     let offset = self.point - object_origin_glass;
-                    ctx.app_state.tool_state = ToolState::Movement { offset };
+                    ctx.app_state.tool_state = ToolState::MovingObject { offset };
                 } else {
-                    ctx.app_state.tool_state = ToolState::Box {
+                    ctx.app_state.tool_state = ToolState::BoxSelect {
                         p1: self.point,
                         p2: self.point,
                         stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
@@ -101,20 +102,21 @@ impl Action for PointerTool {
                 }
             }
             Pointer::Move => match ctx.app_state.tool_state {
-                ToolState::Box { p2, .. } => {
-                    let ToolState::Box { ref mut p2, .. } = ctx.app_state.tool_state else {
+                ToolState::BoxSelect { p2, .. } => {
+                    let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state else {
                         unreachable!();
                     };
                     *p2 = self.point;
                 }
-                ToolState::Movement { offset } => {
+                ToolState::MovingObject { offset } => {
                     let world_point = ctx.world_transform() * (self.point - offset);
                     ctx.execute(MoveSelected { point: world_point });
                 }
                 _ => (),
             },
             Pointer::Up => {
-                if let ToolState::Box { p1, p2, .. } = std::mem::take(&mut ctx.app_state.tool_state)
+                if let ToolState::BoxSelect { p1, p2, .. } =
+                    std::mem::take(&mut ctx.app_state.tool_state)
                 {
                     // TODO get objects within rectangle from engine, and find their
                     // TemplateNode ids to set selection state.

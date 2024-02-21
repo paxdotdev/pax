@@ -17,13 +17,13 @@ impl Action for Pan {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.event {
             Pointer::Down => {
-                ctx.app_state.tool_state = ToolState::Pan {
+                ctx.app_state.tool_state = ToolState::Panning {
                     original_transform: ctx.world_transform(),
                     glass_start: self.point,
                 };
             }
             Pointer::Move => {
-                if let ToolState::Pan {
+                if let ToolState::Panning {
                     original_transform,
                     glass_start,
                 } = ctx.app_state.tool_state
