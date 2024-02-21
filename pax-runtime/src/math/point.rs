@@ -14,6 +14,12 @@ pub struct Point2<W = Generic> {
 // Implement Clone, Copy, PartialEq, etc manually, as
 // to not require the Space to implement these.
 
+impl<W: Space> std::fmt::Debug for Point2<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({} {})", self.x, self.y)
+    }
+}
+
 impl<W: Space> Clone for Point2<W> {
     fn clone(&self) -> Self {
         Self {
@@ -51,7 +57,7 @@ impl<W: Space> Point2<W> {
         Vector2::new(self.x, self.y)
     }
 
-    pub fn to_world<WNew: Space>(self) -> Point2<WNew> {
+    pub fn cast_space<WNew: Space>(self) -> Point2<WNew> {
         Point2::new(self.x, self.y)
     }
 
@@ -82,5 +88,12 @@ impl<W: Space> Add<Point2<W>> for Vector2<W> {
     type Output = Point2<W>;
     fn add(self, rhs: Point2<W>) -> Self::Output {
         Self::Output::new(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+
+impl<W: Space> Sub<Vector2<W>> for Point2<W> {
+    type Output = Point2<W>;
+    fn sub(self, rhs: Vector2<W>) -> Self::Output {
+        Self::Output::new(self.x - rhs.x, self.y - rhs.y)
     }
 }

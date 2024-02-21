@@ -4,6 +4,7 @@ pub use pax_macro::*;
 pub use log;
 pub use pax_runtime::api;
 pub use pax_runtime::engine::node_interface::*;
+pub use pax_runtime::layout;
 pub use pax_runtime::math;
 pub use pax_runtime::rendering;
 

@@ -19,7 +19,7 @@ use crate::api::{
     ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
     ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTextboxInput, ArgsTouchEnd,
     ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext,
-    Size,
+    Size, Window,
 };
 
 use crate::{
@@ -90,7 +90,7 @@ pub struct ExpandedNode {
 }
 
 macro_rules! dispatch_event_handler {
-    ($fn_name:ident, $arg_type:ty, $handler_key:ident) => {
+    ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {
         pub fn $fn_name(&self, args: $arg_type, globals: &Globals, ctx: &RuntimeContext) {
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
@@ -137,8 +137,10 @@ macro_rules! dispatch_event_handler {
                 };
             }
 
-            if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
-                parent.$fn_name(args, globals, ctx);
+            if $recurse {
+                if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
+                    parent.$fn_name(args, globals, ctx);
+                }
             }
         }
     };
@@ -418,7 +420,7 @@ impl ExpandedNode {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: Point2) -> bool {
+    pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
         if self.instance_node.base().flags().invisible_to_raycasting {
             return false;
@@ -489,52 +491,83 @@ impl ExpandedNode {
         }
     }
 
-    dispatch_event_handler!(dispatch_scroll, ArgsScroll, SCROLL_HANDLERS);
-    dispatch_event_handler!(dispatch_clap, ArgsClap, CLAP_HANDLERS);
-    dispatch_event_handler!(dispatch_touch_start, ArgsTouchStart, TOUCH_START_HANDLERS);
+    dispatch_event_handler!(dispatch_scroll, ArgsScroll, SCROLL_HANDLERS, true);
+    dispatch_event_handler!(dispatch_clap, ArgsClap, CLAP_HANDLERS, true);
+    dispatch_event_handler!(
+        dispatch_touch_start,
+        ArgsTouchStart,
+        TOUCH_START_HANDLERS,
+        true
+    );
 
-    dispatch_event_handler!(dispatch_touch_move, ArgsTouchMove, TOUCH_MOVE_HANDLERS);
-    dispatch_event_handler!(dispatch_touch_end, ArgsTouchEnd, TOUCH_END_HANDLERS);
-    dispatch_event_handler!(dispatch_key_down, ArgsKeyDown, KEY_DOWN_HANDLERS);
-    dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, KEY_UP_HANDLERS);
-    dispatch_event_handler!(dispatch_key_press, ArgsKeyPress, KEY_PRESS_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_touch_move,
+        ArgsTouchMove,
+        TOUCH_MOVE_HANDLERS,
+        true
+    );
+    dispatch_event_handler!(dispatch_touch_end, ArgsTouchEnd, TOUCH_END_HANDLERS, true);
+    dispatch_event_handler!(dispatch_key_down, ArgsKeyDown, KEY_DOWN_HANDLERS, false);
+    dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, KEY_UP_HANDLERS, false);
+    dispatch_event_handler!(dispatch_key_press, ArgsKeyPress, KEY_PRESS_HANDLERS, false);
     dispatch_event_handler!(
         dispatch_checkbox_change,
         ArgsCheckboxChange,
-        CHECKBOX_CHANGE_HANDLERS
+        CHECKBOX_CHANGE_HANDLERS,
+        true
     );
     dispatch_event_handler!(
         dispatch_textbox_change,
         ArgsTextboxChange,
-        TEXTBOX_CHANGE_HANDLERS
+        TEXTBOX_CHANGE_HANDLERS,
+        true
     );
     dispatch_event_handler!(
         dispatch_textbox_input,
         ArgsTextboxInput,
-        TEXTBOX_INPUT_HANDLERS
+        TEXTBOX_INPUT_HANDLERS,
+        true
     );
     dispatch_event_handler!(
         dispatch_button_click,
         ArgsButtonClick,
-        BUTTON_CLICK_HANDLERS
+        BUTTON_CLICK_HANDLERS,
+        true
     );
-    dispatch_event_handler!(dispatch_mouse_down, ArgsMouseDown, MOUSE_DOWN_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, MOUSE_UP_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_move, ArgsMouseMove, MOUSE_MOVE_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_over, ArgsMouseOver, MOUSE_OVER_HANDLERS);
-    dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, MOUSE_OUT_HANDLERS);
+    dispatch_event_handler!(
+        dispatch_mouse_down,
+        ArgsMouseDown,
+        MOUSE_DOWN_HANDLERS,
+        true
+    );
+    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, MOUSE_UP_HANDLERS, true);
+    dispatch_event_handler!(
+        dispatch_mouse_move,
+        ArgsMouseMove,
+        MOUSE_MOVE_HANDLERS,
+        true
+    );
+    dispatch_event_handler!(
+        dispatch_mouse_over,
+        ArgsMouseOver,
+        MOUSE_OVER_HANDLERS,
+        true
+    );
+    dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, MOUSE_OUT_HANDLERS, true);
     dispatch_event_handler!(
         dispatch_double_click,
         ArgsDoubleClick,
-        DOUBLE_CLICK_HANDLERS
+        DOUBLE_CLICK_HANDLERS,
+        true
     );
     dispatch_event_handler!(
         dispatch_context_menu,
         ArgsContextMenu,
-        CONTEXT_MENU_HANDLERS
+        CONTEXT_MENU_HANDLERS,
+        true
     );
-    dispatch_event_handler!(dispatch_click, ArgsClick, CLICK_HANDLERS);
-    dispatch_event_handler!(dispatch_wheel, ArgsWheel, WHEEL_HANDLERS);
+    dispatch_event_handler!(dispatch_click, ArgsClick, CLICK_HANDLERS, true);
+    dispatch_event_handler!(dispatch_wheel, ArgsWheel, WHEEL_HANDLERS, true);
 }
 
 /// Properties that are currently re-computed each frame before rendering.

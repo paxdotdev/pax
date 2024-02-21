@@ -8,10 +8,9 @@ use std::rc::Rc;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
-    CommonProperties, Interpolatable, Layer, NodeContext, OcclusionLayerGen, RenderContext,
-    TransitionManager,
+    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, CommonProperties, Interpolatable, Layer, NodeContext,
+    OcclusionLayerGen, RenderContext, TransitionManager,
 };
-use crate::math::Point2;
 use piet::InterpolationMode;
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
@@ -414,14 +413,47 @@ impl PaxEngine {
         self.runtime_context.node_cache.get(&id)
     }
 
-    pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode>> {
-        let (x, y) = self.runtime_context.globals().viewport.bounds;
-        self.runtime_context
-            .get_topmost_element_beneath_ray(Point2::new(x / 2.0, y / 2.0))
-    }
-
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.runtime_context.globals_mut().viewport.bounds = new_viewport_size;
+    }
+
+    pub fn global_dispatch_key_down(&self, args: ArgsKeyDown) {
+        self.root_node.recurse_visit_postorder(
+            &|expanded_node, _| {
+                expanded_node.dispatch_key_down(
+                    args.clone(),
+                    self.runtime_context.globals(),
+                    &self.runtime_context,
+                )
+            },
+            &mut (),
+        );
+    }
+
+    pub fn global_dispatch_key_up(&self, args: ArgsKeyUp) {
+        self.root_node.recurse_visit_postorder(
+            &|expanded_node, _| {
+                expanded_node.dispatch_key_up(
+                    args.clone(),
+                    self.runtime_context.globals(),
+                    &self.runtime_context,
+                )
+            },
+            &mut (),
+        );
+    }
+
+    pub fn global_dispatch_key_press(&self, args: ArgsKeyPress) {
+        self.root_node.recurse_visit_postorder(
+            &|expanded_node, _| {
+                expanded_node.dispatch_key_press(
+                    args.clone(),
+                    self.runtime_context.globals(),
+                    &self.runtime_context,
+                )
+            },
+            &mut (),
+        );
     }
 }

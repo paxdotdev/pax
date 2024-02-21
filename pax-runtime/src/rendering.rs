@@ -5,8 +5,9 @@ use super::math::Point2;
 use std::iter;
 use std::rc::Rc;
 
-use crate::api::{CommonProperties, RenderContext};
+use crate::api::{CommonProperties, RenderContext, Window};
 use crate::math::Transform2;
+use crate::node_interface::NodeLocal;
 use piet::{Color, StrokeStyle};
 
 use crate::api::{ArgsScroll, Layer, Size};
@@ -38,13 +39,13 @@ pub struct InstantiationArgs {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, PartialEq)]
 pub struct TransformAndBounds {
-    pub transform: Transform2,
+    pub transform: Transform2<NodeLocal, Window>,
     pub bounds: (f64, f64),
     // pub clipping_bounds: Option<(f64, f64)>,
 }
 
 impl TransformAndBounds {
-    pub fn corners(&self) -> [Point2; 4] {
+    pub fn corners(&self) -> [Point2<Window>; 4] {
         let width = self.bounds.0;
         let height = self.bounds.1;
 
