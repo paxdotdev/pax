@@ -224,16 +224,7 @@ impl PaxChassisWeb {
                     topmost_node.dispatch_click(args_click, globals, &engine.runtime_context);
                 }
             }
-            NativeInterrupt::Scroll(args) => {
-                let prospective_hit = engine.get_focused_element();
-                if let Some(topmost_node) = prospective_hit {
-                    let args_scroll = ArgsScroll {
-                        delta_x: args.delta_x,
-                        delta_y: args.delta_y,
-                    };
-                    topmost_node.dispatch_scroll(args_scroll, globals, &engine.runtime_context);
-                }
-            }
+            NativeInterrupt::Scroll(_args) => {}
             NativeInterrupt::Clap(args) => {
                 let prospective_hit = engine
                     .runtime_context
@@ -292,62 +283,49 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::KeyDown(args) => {
-                let prospective_hit = engine.get_focused_element();
-                if let Some(topmost_node) = prospective_hit {
-                    let modifiers = args
-                        .modifiers
-                        .iter()
-                        .map(|x| ModifierKey::from(x))
-                        .collect();
-                    let args_key_down = ArgsKeyDown {
-                        keyboard: KeyboardEventArgs {
-                            key: args.key,
-                            modifiers,
-                            is_repeat: args.is_repeat,
-                        },
-                    };
-                    topmost_node.dispatch_key_down(args_key_down, globals, &engine.runtime_context);
-                }
+                let modifiers = args
+                    .modifiers
+                    .iter()
+                    .map(|x| ModifierKey::from(x))
+                    .collect();
+                let args_key_down = ArgsKeyDown {
+                    keyboard: KeyboardEventArgs {
+                        key: args.key,
+                        modifiers,
+                        is_repeat: args.is_repeat,
+                    },
+                };
+                engine.global_dispatch_key_down(args_key_down);
             }
             NativeInterrupt::KeyUp(args) => {
-                let prospective_hit = engine.get_focused_element();
-                if let Some(topmost_node) = prospective_hit {
-                    let modifiers = args
-                        .modifiers
-                        .iter()
-                        .map(|x| ModifierKey::from(x))
-                        .collect();
-                    let args_key_up = ArgsKeyUp {
-                        keyboard: KeyboardEventArgs {
-                            key: args.key,
-                            modifiers,
-                            is_repeat: args.is_repeat,
-                        },
-                    };
-                    topmost_node.dispatch_key_up(args_key_up, globals, &engine.runtime_context);
-                }
+                let modifiers = args
+                    .modifiers
+                    .iter()
+                    .map(|x| ModifierKey::from(x))
+                    .collect();
+                let args_key_up = ArgsKeyUp {
+                    keyboard: KeyboardEventArgs {
+                        key: args.key,
+                        modifiers,
+                        is_repeat: args.is_repeat,
+                    },
+                };
+                engine.global_dispatch_key_up(args_key_up);
             }
             NativeInterrupt::KeyPress(args) => {
-                let prospective_hit = engine.get_focused_element();
-                if let Some(topmost_node) = prospective_hit {
-                    let modifiers = args
-                        .modifiers
-                        .iter()
-                        .map(|x| ModifierKey::from(x))
-                        .collect();
-                    let args_key_press = ArgsKeyPress {
-                        keyboard: KeyboardEventArgs {
-                            key: args.key,
-                            modifiers,
-                            is_repeat: args.is_repeat,
-                        },
-                    };
-                    topmost_node.dispatch_key_press(
-                        args_key_press,
-                        globals,
-                        &engine.runtime_context,
-                    );
-                }
+                let modifiers = args
+                    .modifiers
+                    .iter()
+                    .map(|x| ModifierKey::from(x))
+                    .collect();
+                let args_key_press = ArgsKeyPress {
+                    keyboard: KeyboardEventArgs {
+                        key: args.key,
+                        modifiers,
+                        is_repeat: args.is_repeat,
+                    },
+                };
+                engine.global_dispatch_key_press(args_key_press);
             }
             NativeInterrupt::DoubleClick(args) => {
                 let prospective_hit = engine

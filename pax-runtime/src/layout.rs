@@ -1,5 +1,6 @@
 use crate::api::{Axis, Size, Transform2D};
 use crate::math::{Generic, Transform2, Vector2};
+use crate::node_interface::NodeLocal;
 use crate::{ExpandedNode, TransformAndBounds};
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
@@ -20,6 +21,7 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
                 new_accumulated_bounds_and_current_node_size.clone(),
                 container_tab.bounds,
             )
+            .cast_spaces::<NodeLocal, NodeLocal>()
     };
 
     // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
@@ -92,10 +94,12 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
         };
         desugared_transform2d.rotate = Some(rotate);
 
-        desugared_transform2d.compute_transform2d_matrix(
-            new_accumulated_bounds_and_current_node_size.clone(),
-            container_tab.bounds,
-        )
+        desugared_transform2d
+            .compute_transform2d_matrix(
+                new_accumulated_bounds_and_current_node_size.clone(),
+                container_tab.bounds,
+            )
+            .cast_spaces::<NodeLocal, NodeLocal>()
     };
 
     let new_accumulated_transform =
@@ -137,7 +141,7 @@ impl ComputableTransform for Transform2D {
 
         // Compute anchor
         let anchor_transform = match &self.anchor {
-            Some(anchor) => Transform2::<Generic>::translate(Vector2::new(
+            Some(anchor) => Transform2::translate(Vector2::<Generic>::new(
                 match anchor[0] {
                     Size::Pixels(pix) => -pix.get_as_float(),
                     Size::Percent(per) => -node_size.0 * (per / 100.0),

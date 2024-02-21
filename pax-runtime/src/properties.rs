@@ -1,3 +1,4 @@
+use crate::api::Window;
 use crate::math::Point2;
 use crate::numeric::Numeric;
 use pax_message::NativeMessage;
@@ -81,7 +82,7 @@ impl RuntimeContext {
     /// not register a `hit`, nor will elements that suppress input events.
     pub fn get_elements_beneath_ray(
         &self,
-        ray: Point2,
+        ray: Point2<Window>,
         limit_one: bool,
         mut accum: Vec<Rc<ExpandedNode>>,
     ) -> Vec<Rc<ExpandedNode>> {
@@ -125,7 +126,7 @@ impl RuntimeContext {
     }
 
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
-    pub fn get_topmost_element_beneath_ray(&self, ray: Point2) -> Option<Rc<ExpandedNode>> {
+    pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
         let res = self.get_elements_beneath_ray(ray, true, vec![]);
         if res.len() == 0 {
             None
