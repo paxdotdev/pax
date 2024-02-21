@@ -25,6 +25,5 @@ pub struct ControlPoint {
 impl ControlPoint {
     pub fn mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
         pax_engine::log::info!("clicked control point {}", self.ind.get().get_as_int());
-        update_control_point(args, self.ind.get());
     }
 }
