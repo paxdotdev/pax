@@ -2,6 +2,7 @@ pub mod action;
 pub mod input;
 pub mod math;
 
+use crate::math::AxisAlignedBox;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use action::Action;
@@ -15,6 +16,7 @@ use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_std::types::Color;
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use math::coordinate_spaces::Glass;
 
@@ -69,77 +71,71 @@ pub struct AppState {
 }
 
 pub fn read_app_state(closure: impl FnOnce(&AppState)) {
-    GLOBAL_STATE.with(|model| {
-        closure(&model.borrow_mut().app_state);
+    GLOBAL_STATE.with_borrow_mut(|model| {
+        closure(&model.app_state);
     });
+}
+
+pub fn with_action_context<R: 'static>(
+    ctx: &NodeContext,
+    func: impl FnOnce(&mut ActionContext) -> R,
+) -> R {
+    GLOBAL_STATE.with_borrow_mut(|model| {
+        let GlobalDesignerState {
+            ref mut undo_stack,
+            ref mut app_state,
+            ..
+        } = *model;
+        func(&mut ActionContext {
+            undo_stack,
+            engine_context: ctx,
+            app_state,
+        })
+    })
 }
 
 // This represents values that can be deterministically produced from the app
 // state and the projects manifest
 pub struct DerivedAppState {
-    pub selected_bounds: Option<[Point2<Glass>; 4]>,
+    pub selected_bounds: Option<AxisAlignedBox>,
 }
 
 pub fn read_app_state_with_derived(
     ctx: &NodeContext,
     closure: impl FnOnce(&AppState, &DerivedAppState),
 ) {
-    GLOBAL_STATE.with(|model| {
-        let mut binding = model.borrow_mut();
-        let GlobalDesignerState {
-            ref mut undo_stack,
-            ref mut app_state,
-            ..
-        } = *binding;
-        let selected_bounds = ActionContext {
-            undo_stack,
-            engine_context: ctx,
-            app_state,
-        }
-        .selected_bounds();
-        closure(&app_state, &DerivedAppState { selected_bounds });
+    let selected_bounds = with_action_context(ctx, |ac| ac.selected_bounds());
+    GLOBAL_STATE.with_borrow_mut(|model| {
+        closure(&model.app_state, &DerivedAppState { selected_bounds });
     });
 }
 
 pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
-    GLOBAL_STATE.with(|model| {
-        let mut binding = model.borrow_mut();
-        let GlobalDesignerState {
-            ref mut undo_stack,
-            ref mut app_state,
-            ..
-        } = *binding;
-        ActionContext {
-            undo_stack,
-            engine_context: ctx,
-            app_state,
-        }
-        .execute(action)
-    })
+    with_action_context(ctx, |ac| ac.execute(action))
 }
 
 pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) -> anyhow::Result<()> {
     // useful! keeping around for now
     // pax_engine::log::debug!("key {:?}: {}", dir, input);
-    let action = GLOBAL_STATE.with(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
-        let raw_input = RawInput::try_from(input)?;
-        let mut model = model.borrow_mut();
-        let AppState {
-            ref mut input_mapper,
-            ref mut keys_pressed,
-            ..
-        } = &mut model.app_state;
+    let action =
+        GLOBAL_STATE.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
+            let raw_input = RawInput::try_from(input)?;
+            let AppState {
+                ref mut input_mapper,
+                ref mut keys_pressed,
+                ..
+            } = &mut model.app_state;
 
-        let event = input_mapper
-            .to_event(raw_input)
-            .with_context(|| "no mapped input")?;
-        match dir {
-            Dir::Down => keys_pressed.insert(event.clone()),
-            Dir::Up => keys_pressed.remove(event),
-        };
-        let action = input_mapper.to_action(event, dir);
-        Ok(action)
-    })?;
+            let event = input_mapper
+                .to_event(raw_input)
+                .with_context(|| "no mapped input")?;
+            match dir {
+                Dir::Down => keys_pressed.insert(event.clone()),
+                Dir::Up => keys_pressed.remove(event),
+            };
+            let action = input_mapper.to_action(event, dir);
+            Ok(action)
+        })?;
     if let Some(action) = action {
         perform_action(action, ctx)
     } else {
@@ -159,8 +155,7 @@ pub enum ToolState {
     #[default]
     Idle,
     MovingControlPoint {
-        x: ControlPointPos,
-        y: ControlPointPos,
+        move_func: Rc<dyn Fn(&mut ActionContext, Point2<Glass>)>,
     },
     Panning {
         original_transform: Transform2<Glass, World>,
