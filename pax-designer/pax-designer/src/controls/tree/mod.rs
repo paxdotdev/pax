@@ -17,6 +17,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use treeobj::TreeObj;
 
+use crate::model;
+
 #[pax]
 #[file("controls/tree/mod.pax")]
 pub struct Tree {
@@ -198,7 +200,9 @@ impl Tree {
         //             .collect(),
         //     );
         // }
-        let type_id = "pax_designer::pax_reexports::designer_project::Example";
-        self.set_tree(&type_id, ctx);
+        model::read_app_state(|app_state| {
+            let type_id = &app_state.selected_component_id;
+            self.set_tree(type_id, ctx);
+        });
     }
 }

@@ -15,19 +15,15 @@ use crate::model::math;
 use crate::model::math::coordinate_spaces::{self, World};
 
 pub mod control_point;
-mod object_editing;
+pub mod object_editor;
 use control_point::ControlPoint;
+
+use object_editor::ObjectEditor;
 
 #[pax]
 #[custom(Default)]
 #[file("glass/mod.pax")]
 pub struct Glass {
-    // selection state
-    pub is_selection_active: Property<bool>,
-    pub control_points: Property<Vec<GlassPoint>>,
-    pub anchor_point: Property<GlassPoint>,
-    pub bounding_segments: Property<Vec<BoundingSegment>>,
-
     // rect tool state
     pub is_rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
@@ -82,28 +78,9 @@ impl Glass {
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
-        model::read_app_state_with_derived(ctx, |app_state, derived_state| {
-            // Draw Selected Bounds
-            if let Some(bounds) = derived_state.selected_bounds {
-                self.is_selection_active.set(true);
-                let mut sv = EditVisual::new_from_box_bounds(bounds);
-
-                // HACK before dirty-dag (to make sure repeat updates)
-                if self.control_points.get().len() == sv.control_points.len() {
-                    sv.control_points.push(GlassPoint {
-                        x: f64::MIN,
-                        y: f64::MIN,
-                    });
-                    sv.bounding_segments.push(BoundingSegment::default());
-                }
-                self.control_points.set(sv.control_points);
-                self.anchor_point.set(sv.anchor_point);
-                self.bounding_segments.set(sv.bounding_segments);
-            } else {
-                self.is_selection_active.set(false);
-            }
-
+        model::read_app_state(|app_state| {
             // Draw current tool visuals
+            // this could be factored out into it's own component as well eventually
             match &app_state.tool_state {
                 ToolState::BoxSelect {
                     p1,
@@ -133,92 +110,9 @@ impl Glass {
 
 impl Default for Glass {
     fn default() -> Self {
-        let sv = EditVisual::default();
-
         Self {
-            is_selection_active: Default::default(),
-            control_points: Box::new(PropertyLiteral::new(sv.control_points)),
-            anchor_point: Box::new(PropertyLiteral::new(sv.anchor_point)),
-            bounding_segments: Box::new(PropertyLiteral::new(sv.bounding_segments)),
             is_rect_tool_active: Box::new(PropertyLiteral::new(false)),
             rect_tool: Default::default(),
-        }
-    }
-}
-
-#[pax]
-pub struct GlassPoint {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl From<Point2<coordinate_spaces::Glass>> for GlassPoint {
-    fn from(value: Point2<coordinate_spaces::Glass>) -> Self {
-        GlassPoint {
-            x: value.x,
-            y: value.y,
-        }
-    }
-}
-
-#[pax]
-pub struct BoundingSegment {
-    pub x0: f64,
-    pub y0: f64,
-    pub x1: f64,
-    pub y1: f64,
-}
-
-impl
-    From<(
-        Point2<coordinate_spaces::Glass>,
-        Point2<coordinate_spaces::Glass>,
-    )> for BoundingSegment
-{
-    fn from(
-        value: (
-            Point2<coordinate_spaces::Glass>,
-            Point2<coordinate_spaces::Glass>,
-        ),
-    ) -> Self {
-        let (p0, p1) = value;
-        Self {
-            x0: p0.x,
-            y0: p0.y,
-            x1: p1.x,
-            y1: p1.y,
-        }
-    }
-}
-
-#[pax]
-pub struct EditVisual {
-    pub control_points: Vec<GlassPoint>,
-    pub anchor_point: GlassPoint,
-    pub bounding_segments: Vec<BoundingSegment>,
-}
-
-impl EditVisual {
-    fn new_from_box_bounds(points: [Point2<coordinate_spaces::Glass>; 4]) -> Self {
-        let [p1, p4, p3, p2] = points;
-        Self {
-            control_points: vec![
-                p1.into(),
-                p1.midpoint_towards(p2).into(),
-                p2.into(),
-                p2.midpoint_towards(p3).into(),
-                p3.into(),
-                p3.midpoint_towards(p4).into(),
-                p4.into(),
-                p4.midpoint_towards(p1).into(),
-            ],
-            bounding_segments: vec![
-                (p1, p2).into(),
-                (p2, p3).into(),
-                (p3, p4).into(),
-                (p4, p1).into(),
-            ],
-            anchor_point: p1.midpoint_towards(p3).into(),
         }
     }
 }

@@ -3,6 +3,7 @@
     x={(self.location.x)px}
     y={(self.location.y)px}
     @mouse_down=self.mouse_down
+    @mouse_up=self.mouse_up
 />
 
 @settings {

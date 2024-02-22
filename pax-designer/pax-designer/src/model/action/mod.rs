@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use super::math::coordinate_spaces::World;
-use crate::{model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
+use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
@@ -103,7 +103,7 @@ impl ActionContext<'_> {
         None
     }
 
-    pub fn selected_bounds(&self) -> Option<[Point2<Glass>; 4]> {
+    pub fn selected_bounds(&self) -> Option<AxisAlignedBox> {
         let to_glass_transform = self.glass_transform();
         let bounds = self
             .engine_context
@@ -119,7 +119,7 @@ impl ActionContext<'_> {
     }
 }
 
-fn compute_total_bounds(bounds: Vec<[Point2<Glass>; 4]>) -> [Point2<Glass>; 4] {
+fn compute_total_bounds(bounds: Vec<[Point2<Glass>; 4]>) -> AxisAlignedBox {
     let mut min_x = f64::MAX;
     let mut min_y = f64::MAX;
     let mut max_x = f64::MIN;
@@ -133,11 +133,5 @@ fn compute_total_bounds(bounds: Vec<[Point2<Glass>; 4]>) -> [Point2<Glass>; 4] {
         }
     }
 
-    let points = [
-        Point2::new(min_x, min_y),
-        Point2::new(min_x, max_y),
-        Point2::new(max_x, max_y),
-        Point2::new(max_x, min_y),
-    ];
-    points
+    AxisAlignedBox::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y))
 }
