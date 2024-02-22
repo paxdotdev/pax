@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::orm::MoveSelected;
 use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
@@ -19,6 +21,24 @@ pub struct ToolAction {
 
 impl Action for ToolAction {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        // Moving of control point interrupts other tool use
+        if matches!(
+            ctx.app_state.tool_state,
+            ToolState::MovingControlPoint { .. }
+        ) {
+            match self.event {
+                Pointer::Down | Pointer::Move => {
+                    let ToolState::MovingControlPoint { ref mut move_func } =
+                        ctx.app_state.tool_state
+                    else {
+                        unreachable!();
+                    };
+                    Rc::clone(move_func)(ctx, self.point);
+                }
+                Pointer::Up => ctx.app_state.tool_state = ToolState::Idle,
+            }
+        }
+
         match ctx.app_state.selected_tool {
             Tool::Rectangle => ctx.execute(RectangleTool {
                 event: self.event,
@@ -100,7 +120,7 @@ impl Action for PointerTool {
                 }
             }
             Pointer::Move => match ctx.app_state.tool_state {
-                ToolState::BoxSelect { p2, .. } => {
+                ToolState::BoxSelect { .. } => {
                     let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state else {
                         unreachable!();
                     };
@@ -126,6 +146,15 @@ impl Action for PointerTool {
                 }
             }
         }
+        Ok(CanUndo::No)
+    }
+}
+
+pub struct ResetToolState {}
+
+impl Action for ResetToolState {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        ctx.app_state.tool_state = ToolState::Idle;
         Ok(CanUndo::No)
     }
 }

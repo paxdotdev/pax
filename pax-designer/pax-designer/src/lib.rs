@@ -14,6 +14,7 @@ use crate::glass::Glass;
 use designer_project::Example;
 use pax_std::primitives::{Group, Rectangle};
 
+pub mod math;
 pub mod model;
 
 pub const USERLAND_PROJECT_ID: &'static str = "userland_project";

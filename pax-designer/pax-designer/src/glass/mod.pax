@@ -1,12 +1,5 @@
 <Group>
-    if self.is_selection_active {
-        for (pt, i) in self.control_points {
-            <ControlPoint location=pt ind=i/>
-        }
-        for segment in self.bounding_segments {
-            <Path class=bounding_segment/>
-        }
-    }
+    <ObjectEditor/>
 
     if self.is_rect_tool_active {
         <Rectangle id=rect_tool
