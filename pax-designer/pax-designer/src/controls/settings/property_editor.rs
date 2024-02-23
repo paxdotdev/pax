@@ -20,7 +20,7 @@ pub struct PropertyEditor {
 }
 
 impl PropertyEditor {
-    pub fn on_render(&mut self, ctx: &NodeContext) {
+    pub fn on_render(&mut self, _ctx: &NodeContext) {
         if &self.definition.get().string != self.last_definition.get() {
             self.last_definition
                 .set(self.definition.get().string.clone());
@@ -29,7 +29,7 @@ impl PropertyEditor {
         }
     }
 
-    pub fn text_input(&mut self, ctx: &NodeContext, args: ArgsTextboxInput) {
+    pub fn text_input(&mut self, _ctx: &NodeContext, args: ArgsTextboxInput) {
         self.textbox.set(args.text.to_owned());
     }
 
@@ -43,7 +43,7 @@ impl PropertyEditor {
         );
 
         let variable = name.strip_suffix(':').unwrap_or(&name);
-        if let Err(error) = node_definition.set_property(variable, &args.text) {
+        if let Err(_error) = node_definition.set_property(variable, &args.text) {
             self.error.set("error".to_owned());
         } else {
             node_definition.save().expect("failed to save");

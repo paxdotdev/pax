@@ -1,4 +1,4 @@
-<Group>
+<Group @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up>
     <ObjectEditor/>
 
     if self.is_rect_tool_active {
@@ -9,7 +9,7 @@
             height={self.rect_tool.height}
         />
     }
-    <Rectangle id=backing_plate  @mouse_down=handle_mouse_down @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up/>
+    <Rectangle id=backing_plate  @mouse_down=handle_mouse_down/>
 </Group>
 
 @handlers {

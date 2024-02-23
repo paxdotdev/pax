@@ -28,7 +28,7 @@ pub struct PaxDesigner {
 }
 
 impl PaxDesigner {
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn tick(&mut self, _ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             let world_to_glass = app_state.glass_to_world_transform.inverse();
             let t = world_to_glass.get_translation();
@@ -44,5 +44,5 @@ impl PaxDesigner {
 
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
 
-    pub fn click_test(&mut self, _ctx: &NodeContext, args: ArgsClick) {}
+    pub fn click_test(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
 }

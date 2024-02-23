@@ -2014,6 +2014,7 @@ version = "0.12.0"
 dependencies = [
  "kurbo",
  "lazy_static",
+ "log",
  "mut_static",
  "pax-designtime",
  "pax-manifest",
@@ -2030,6 +2031,7 @@ version = "0.12.0"
 dependencies = [
  "kurbo",
  "lazy_static",
+ "log",
  "pax-compiler",
  "pax-engine",
  "pax-manifest",

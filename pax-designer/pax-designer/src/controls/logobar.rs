@@ -13,7 +13,9 @@ impl Logobar {
     pub fn handle_logo_click(&mut self, ctx: &NodeContext, _args: ArgsClick) {
         model::read_app_state(|app_state| {
             let mut dt = ctx.designtime.borrow_mut();
-            dt.send_component_update(&app_state.selected_component_id);
+            if let Err(e) = dt.send_component_update(&app_state.selected_component_id) {
+                pax_engine::log::error!("failed to save component to file: {:?}", e);
+            }
         });
     }
 }
