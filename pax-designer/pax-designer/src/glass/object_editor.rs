@@ -59,7 +59,7 @@ impl ObjectEditor {
     fn set_generic_object_editor(&mut self, selection_bounds: &AxisAlignedBox) {
         let [p1, p4, p3, p2] = selection_bounds.bounding_points();
 
-        fn behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
+        fn resize_behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
             Rc::new(move |ctx, original_bounds, new_point| {
                 let world_point = ctx.world_transform() * new_point;
                 let &(ref axis_box, origin) = original_bounds;
@@ -78,14 +78,26 @@ impl ObjectEditor {
         }
 
         let control_points_with_behaviour = vec![
-            (p1, behaviour(Point2::new(1.0, 1.0))),
-            (p1.midpoint_towards(p2), behaviour(Point2::new(0.0, 1.0))),
-            (p2, behaviour(Point2::new(-1.0, 1.0))),
-            (p2.midpoint_towards(p3), behaviour(Point2::new(-1.0, 0.0))),
-            (p3, behaviour(Point2::new(-1.0, -1.0))),
-            (p3.midpoint_towards(p4), behaviour(Point2::new(0.0, -1.0))),
-            (p4, behaviour(Point2::new(1.0, -1.0))),
-            (p4.midpoint_towards(p1), behaviour(Point2::new(1.0, 0.0))),
+            (p1, resize_behaviour(Point2::new(1.0, 1.0))),
+            (
+                p1.midpoint_towards(p2),
+                resize_behaviour(Point2::new(0.0, 1.0)),
+            ),
+            (p2, resize_behaviour(Point2::new(-1.0, 1.0))),
+            (
+                p2.midpoint_towards(p3),
+                resize_behaviour(Point2::new(-1.0, 0.0)),
+            ),
+            (p3, resize_behaviour(Point2::new(-1.0, -1.0))),
+            (
+                p3.midpoint_towards(p4),
+                resize_behaviour(Point2::new(0.0, -1.0)),
+            ),
+            (p4, resize_behaviour(Point2::new(1.0, -1.0))),
+            (
+                p4.midpoint_towards(p1),
+                resize_behaviour(Point2::new(1.0, 0.0)),
+            ),
         ];
 
         let (control_points, behaviour): (Vec<Point2<Glass>>, Vec<_>) =
