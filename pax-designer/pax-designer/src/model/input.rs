@@ -27,6 +27,7 @@ impl Default for InputMapper {
                 (RawInput::Minus, InputEvent::Minus),
                 (RawInput::Alt, InputEvent::Alt),
                 (RawInput::Meta, InputEvent::Meta),
+                (RawInput::Shift, InputEvent::Shift),
             ]),
         }
     }
@@ -68,6 +69,7 @@ pub enum RawInput {
     Alt,
     Z,
     Meta,
+    Shift,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -86,6 +88,7 @@ impl TryFrom<String> for RawInput {
             "-" => Self::Minus,
             "Alt" => Self::Alt,
             "Meta" => Self::Meta,
+            "Shift" => Self::Shift,
             _ => return Err(anyhow!("no configured raw input mapping for {:?}", value)),
         })
     }
@@ -103,4 +106,5 @@ pub enum InputEvent {
     Minus,
     Alt,
     Meta,
+    Shift,
 }
