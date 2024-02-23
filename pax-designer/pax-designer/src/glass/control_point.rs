@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::rc::Rc;
 
 use super::object_editor::GlassPoint;
@@ -26,34 +27,34 @@ pub struct ControlPoint {
     pub ind: Property<Numeric>,
 }
 
-pub type ControlPointBehaviour =
-    dyn Fn(&mut ActionContext, &(AxisAlignedBox, Point2<Glass>), Point2<Glass>);
+pub trait ControlPointBehaviour {
+    fn init(&self, ctx: &mut ActionContext, point: Point2<Glass>);
+    fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>);
+}
 
 pub struct ActivateControlPoint {
-    behaviour: Rc<ControlPointBehaviour>,
-    original_bounds: (AxisAlignedBox, Point2<Glass>),
+    behaviour: Rc<dyn ControlPointBehaviour>,
+    point: Point2<Window>,
 }
 
 impl Action for ActivateControlPoint {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+        self.behaviour.init(ctx, ctx.glass_transform() * self.point);
         ctx.app_state.tool_state = ToolState::MovingControlPoint {
-            move_func: self.behaviour,
-            original_bounds: self.original_bounds,
+            behaviour: self.behaviour,
         };
         Ok(CanUndo::No)
     }
 }
 
 impl ControlPoint {
-    pub fn mouse_down(&mut self, ctx: &NodeContext, _args: ArgsMouseDown) {
-        let bounds = model::with_action_context(ctx, |ac| ac.selected_bounds())
-            .expect("selection bounds exist since we are editing a control point");
+    pub fn mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
         super::object_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 model::perform_action(
                     ActivateControlPoint {
                         behaviour: Rc::clone(&funcs[self.ind.get().get_as_int() as usize]),
-                        original_bounds: bounds,
+                        point: Point2::new(args.mouse.x, args.mouse.y),
                     },
                     ctx,
                 );
