@@ -9,6 +9,7 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
     //get the size of this node (calc'd or otherwise) and use
     //it as the new accumulated bounds: both for this node's children (their parent container bounds)
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
+
     let new_accumulated_bounds_and_current_node_size =
         { node.get_size_computed(container_tab.bounds) };
 

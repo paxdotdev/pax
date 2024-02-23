@@ -148,14 +148,14 @@ impl<'de> de::Deserializer<'de> for PrimitiveDeserializer {
     where
         V: Visitor<'de>,
     {
-        if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_integer, &self.input) {
-            visitor.visit_i64(ast.next().unwrap().as_str().parse::<i64>().unwrap())
-        } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_float, &self.input) {
+        if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_float, &self.input) {
             visitor.visit_f64(ast.next().unwrap().as_str().parse::<f64>().unwrap())
-        } else if let Ok(mut ast) = PaxParser::parse(Rule::inner, &self.input) {
-            visitor.visit_str(ast.next().unwrap().as_str())
+        } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_integer, &self.input) {
+            visitor.visit_i64(ast.next().unwrap().as_str().parse::<i64>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_boolean, &self.input) {
             visitor.visit_bool(ast.next().unwrap().as_str().parse::<bool>().unwrap())
+        } else if let Ok(mut ast) = PaxParser::parse(Rule::inner, &self.input) {
+            visitor.visit_str(ast.next().unwrap().as_str())
         } else {
             panic!("Failed to parse: {}", &self.input)
         }
