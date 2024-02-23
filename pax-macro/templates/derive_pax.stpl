@@ -60,8 +60,8 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
         pax_compiler::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
     }
 
-    fn get_type_id() -> String {
-        Self::get_import_path()
+    fn get_type_id() -> TypeId {
+       TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
     }
 
     fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
@@ -72,8 +72,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
 
         // Populate `PropertyDefinition`s
         <% for spd in &static_property_definitions { %>
-
-
 
             //Special-handle the root scoped_resolvable_type (the one whose properties
             //must be available as nested symbols in PAXEL, like `foo.bar`).
@@ -87,8 +85,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
             <% } %>
 
             let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
-            let escaped_property_type_id = pax_manifest::escape_identifier(property_type_id.clone());
-
 
             let mut flags = pax_manifest::PropertyDefinitionFlags::default();
             flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
@@ -96,7 +92,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
             property_definitions.push(pax_manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
                 type_id: property_type_id,
-                type_id_escaped: escaped_property_type_id,
                 flags,
             });
         <% } %>
@@ -126,7 +121,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                     ctx,
                     property_definitions.clone(),
                     None,
-                    &self_type_id,
+                    self_type_id.clone(),
                     import_path,
                 );
 
@@ -142,11 +137,10 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                         pax_compiler::parsing::assemble_component_definition(
                             ctx,
                             &raw_pax,
-                            PASCAL_IDENTIFIER,
                             <%= args_full_component.as_ref().unwrap().is_main_component %>,
                             template_map,
                             &pax_compiler::parsing::clean_module_path(module_path!()),
-                            &self_type_id,
+                            self_type_id.clone(),
                             &component_source_file_path,
                         );
                 <% } %>
@@ -154,9 +148,8 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                     let (mut ctx, comp_def) =
                         pax_compiler::parsing::assemble_struct_only_component_definition(
                             ctx,
-                            PASCAL_IDENTIFIER,
                             &pax_compiler::parsing::clean_module_path(module_path!()),
-                            &self_type_id,
+                            self_type_id.clone(),
                         );
                 <% } %>
                 <% if args_primitive.as_ref().is_some() { %>
@@ -164,7 +157,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                         PASCAL_IDENTIFIER,
                         &pax_compiler::parsing::clean_module_path(module_path!()),
                         "<%=  args_primitive.as_ref().unwrap().primitive_instance_import_path  %>".to_string(),
-                        &self_type_id,
+                        self_type_id.clone(),
                     );
                 <% } %>
 

@@ -7,8 +7,7 @@ use crate::{
 
 #[derive(Serialize, Debug)]
 pub struct ComponentInfo {
-    pub type_id: String,
-    pub pascal_identifier: String,
+    pub type_id: TypeId,
     pub primitive_instance_import_path: Option<String>,
     pub properties: Vec<PropertyInfo>,
     pub handlers: Vec<HandlerInfo>,
@@ -141,8 +140,7 @@ impl PaxManifest {
             }
 
             component_infos.push(ComponentInfo {
-                type_id: component.type_id.get_id().clone(),
-                pascal_identifier: component.pascal_identifier.clone(),
+                type_id: component.type_id.clone(),
                 primitive_instance_import_path: component.primitive_instance_import_path.clone(),
                 properties,
                 handlers: handler_data,
