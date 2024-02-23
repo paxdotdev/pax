@@ -83,7 +83,7 @@ impl Action for MoveSelected {
 pub struct ResizeSelected {
     pub attachment_point: Point2<BoxPoint>,
     pub original_bounds: (AxisAlignedBox<World>, Point2<World>),
-    pub position: Point2<World>,
+    pub point: Point2<World>,
 }
 
 impl Action for ResizeSelected {
@@ -99,25 +99,43 @@ impl Action for ResizeSelected {
 
         let (bounds, origin) = self.original_bounds;
 
-        // Resize from center if alt is down
+        let is_meta_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Meta);
+        let meta_modifier = |v: Vector2<World>| {
+            // Bind the resize direction to be in the same
+            // direction as the original aspect ratio of this object
+            let aspect_ratio = (bounds.bottom_right() - bounds.top_left()).normalize();
+            v.coord_abs()
+                .project_axis_aligned(aspect_ratio)
+                .to_signums_of(v)
+        };
+
         let new_box = if ctx.app_state.keys_pressed.contains(&InputEvent::Alt) {
+            // Resize from center if alt is down
             let center = bounds.from_inner_space(Point2::new(0.0, 0.0));
-            let v = center - self.position;
-            AxisAlignedBox::new(self.position, self.position + 2.0 * v)
+            let mut v = (center - self.point).coord_abs();
+            if is_meta_key_down {
+                v = meta_modifier(v);
+            }
+            AxisAlignedBox::new(center + v, center - v)
         } else {
+            // Otherwise resize from attachment point
             let resize_anchor = bounds.from_inner_space(self.attachment_point);
-            AxisAlignedBox::new(self.position, resize_anchor)
+            let mut v = self.point - resize_anchor;
+            if is_meta_key_down {
+                v = meta_modifier(v);
+            }
+            AxisAlignedBox::new(resize_anchor + v, resize_anchor)
         };
 
         let origin_relative: Point2<BoxPoint> = bounds.to_inner_space(origin);
         let new_origin_relative = new_box.from_inner_space(origin_relative);
 
-        if self.attachment_point.y.abs() > 0.01 {
+        if self.attachment_point.y.abs() > f64::EPSILON {
             builder.set_property("y", &to_pixels(new_origin_relative.y))?;
             builder.set_property("height", &to_pixels(new_box.height()))?;
         }
 
-        if self.attachment_point.x.abs() > 0.01 {
+        if self.attachment_point.x.abs() > f64::EPSILON {
             builder.set_property("x", &to_pixels(new_origin_relative.x))?;
             builder.set_property("width", &to_pixels(new_box.width()))?;
         }

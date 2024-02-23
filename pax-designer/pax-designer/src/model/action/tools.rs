@@ -16,12 +16,16 @@ use pax_std::types::Color;
 
 pub struct ToolAction {
     pub event: Pointer,
-    pub point: Point2<Glass>,
 }
 
 impl Action for ToolAction {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let point = ctx.app_state.mouse_position;
+
         // Moving of control point interrupts other tool use
+        // TODO: figure out how other tool actions that
+        // don't originate from ctx.app_state.selected_tool should
+        // be handled
         if matches!(
             ctx.app_state.tool_state,
             ToolState::MovingControlPoint { .. }
@@ -36,21 +40,15 @@ impl Action for ToolAction {
                         unreachable!();
                     };
                     let bounds = original_bounds.clone();
-                    Rc::clone(move_func)(ctx, &bounds, self.point);
+                    Rc::clone(move_func)(ctx, &bounds, point);
                 }
                 Pointer::Up => ctx.app_state.tool_state = ToolState::Idle,
             }
         }
 
         match ctx.app_state.selected_tool {
-            Tool::Rectangle => ctx.execute(RectangleTool {
-                event: self.event,
-                point: self.point,
-            }),
-            Tool::Pointer => ctx.execute(PointerTool {
-                point: self.point,
-                event: self.event,
-            }),
+            Tool::Rectangle => ctx.execute(RectangleTool { event: self.event }),
+            Tool::Pointer => ctx.execute(PointerTool { event: self.event }),
         }?;
 
         Ok(CanUndo::No)
@@ -59,23 +57,23 @@ impl Action for ToolAction {
 
 pub struct RectangleTool {
     pub event: Pointer,
-    pub point: Point2<Glass>,
 }
 
 impl Action for RectangleTool {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let point = ctx.app_state.mouse_position;
         match self.event {
             Pointer::Down => {
                 ctx.app_state.tool_state = ToolState::BoxSelect {
-                    p1: self.point,
-                    p2: self.point,
+                    p1: point,
+                    p2: point,
                     stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
                     fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
                 };
             }
             Pointer::Move => {
                 if let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state {
-                    *p2 = self.point;
+                    *p2 = point;
                 }
             }
             Pointer::Up => {
@@ -99,24 +97,24 @@ impl Action for RectangleTool {
 
 pub struct PointerTool {
     pub event: Pointer,
-    pub point: Point2<Glass>,
 }
 
 impl Action for PointerTool {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let point = ctx.app_state.mouse_position;
         match self.event {
             Pointer::Down => {
-                if let Some(hit) = ctx.raycast_glass(self.point) {
+                if let Some(hit) = ctx.raycast_glass(point) {
                     ctx.app_state.selected_template_node_id = Some(hit.global_id().1);
 
                     let origin_window = hit.origin().unwrap();
                     let object_origin_glass = ctx.glass_transform() * origin_window;
-                    let offset = self.point - object_origin_glass;
+                    let offset = point - object_origin_glass;
                     ctx.app_state.tool_state = ToolState::MovingObject { offset };
                 } else {
                     ctx.app_state.tool_state = ToolState::BoxSelect {
-                        p1: self.point,
-                        p2: self.point,
+                        p1: point,
+                        p2: point,
                         stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
                         fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
                     };
@@ -127,10 +125,10 @@ impl Action for PointerTool {
                     let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state else {
                         unreachable!();
                     };
-                    *p2 = self.point;
+                    *p2 = point;
                 }
                 ToolState::MovingObject { offset } => {
-                    let world_point = ctx.world_transform() * (self.point - offset);
+                    let world_point = ctx.world_transform() * (point - offset);
                     ctx.execute(MoveSelected { point: world_point })?;
                 }
                 _ => (),
