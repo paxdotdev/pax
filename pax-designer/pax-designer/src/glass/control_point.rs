@@ -22,7 +22,7 @@ use crate::model::math::coordinate_spaces::{self, Glass, World};
 #[pax]
 #[file("glass/control_point.pax")]
 pub struct ControlPoint {
-    pub location: Property<GlassPoint>,
+    pub data: Property<ControlPointDef>,
     pub ind: Property<Numeric>,
 }
 
@@ -47,7 +47,7 @@ impl Action for ActivateControlPoint {
 impl ControlPoint {
     pub fn mouse_down(&mut self, ctx: &NodeContext, _args: ArgsMouseDown) {
         let bounds = model::with_action_context(ctx, |ac| ac.selected_bounds())
-            .expect("selection bounds exist");
+            .expect("selection bounds exist since we are editing a control point");
         super::object_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 model::perform_action(
@@ -58,8 +58,21 @@ impl ControlPoint {
                     ctx,
                 );
             } else {
-                pax_engine::log::error!("tried to grigger control point while none exist");
+                pax_engine::log::warn!("tried to grigger control point while none exist");
             }
         })
     }
+}
+
+#[pax]
+pub struct ControlPointDef {
+    pub point: GlassPoint,
+    pub styling: ControlPointStyling,
+}
+
+#[pax]
+pub struct ControlPointStyling {
+    pub stroke: Color,
+    pub fill: Color,
+    pub size_pixels: f64,
 }
