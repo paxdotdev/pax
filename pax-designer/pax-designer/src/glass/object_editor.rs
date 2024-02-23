@@ -70,7 +70,7 @@ impl ObjectEditor {
                 if let Err(e) = ctx.execute(action::orm::ResizeSelected {
                     attachment_point,
                     original_bounds: (axis_box_world, origin_world),
-                    position: world_point,
+                    point: world_point,
                 }) {
                     pax_engine::log::warn!("resize failed: {:?}", e);
                 };
