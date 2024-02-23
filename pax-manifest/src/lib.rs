@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Write};
 use std::hash::Hasher;
@@ -146,7 +147,6 @@ pub struct ComponentDefinition {
     /// struct decorated with `#[pax]` for use as the `T` in `Property<T>`.
     pub is_struct_only_component: bool,
 
-    pub pascal_identifier: String,
     pub module_path: String,
 
     /// For primitives like Rectangle or Group, a separate import
@@ -199,37 +199,141 @@ impl Display for TemplateNodeId {
     }
 }
 
-
+#[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+pub enum PaxType {
+    If,
+    Slot,
+    Repeat,
+    Comment,
+    Singleton{ pascal_identifier: String },
+    Range { identifier: String },
+    Option { identifier: String },
+    Vector{ elem_identifier: String },
+    Map{ key_identifier: String, value_identifier: String},
+    #[default]
+    Unknown,
+}
 
 #[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
-pub struct TypeId(String);
+pub struct TypeId {
+    pax_type: PaxType,
+    import_path: Option<String>,
+}
 
 impl Display for TypeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.get_unique_identifier())
     }
 }
 
 impl TypeId {
-    pub fn build(id: String) -> Self {
-        TypeId(id)
+
+    pub fn build_if() -> Self {
+        TypeId {
+            pax_type: PaxType::If,
+            import_path: None
+        }
     }
 
-    pub fn build_from_str(id: &str) -> Self {
-        TypeId(id.to_string())
+    pub fn build_repeat() -> Self {
+        TypeId {
+            pax_type: PaxType::Repeat,
+            import_path: None
+        }
     }
 
-    pub fn get_id(&self) -> String {
-        self.0.clone()
+    pub fn build_slot() -> Self {
+        TypeId {
+            pax_type: PaxType::Slot,
+            import_path: None,
+        }
+    }
+
+    pub fn build_comment() -> Self {
+        TypeId {
+            pax_type: PaxType::Comment,
+            import_path: None,
+        }
+    }
+
+
+    pub fn build_singleton(import_path: String, pascal_identifier: Option<String>) -> Self {
+        let pascal_identifier = if let Some(p) = pascal_identifier {p} else {
+            import_path.split("::").last().unwrap().to_string()
+        };
+
+        Self {
+            pax_type: PaxType::Singleton { pascal_identifier },
+            import_path: Some(import_path)
+        }
+    }
+
+    pub fn build_primitive(identifier: String) -> Self {
+        TypeId{
+            pax_type: PaxType::Singleton { pascal_identifier: identifier.clone() },
+            import_path: None
+        }
+    }
+
+    pub fn build_vector(elem_identifier: String)-> Self {
+        Self {
+            pax_type: PaxType::Vector{elem_identifier},
+            import_path: Some("std::vec::Vec".to_string()),
+        }
+    }
+
+    pub fn build_range(identifier: String)-> Self {
+        Self {
+            pax_type: PaxType::Range { identifier },
+            import_path: Some("std::ops::Range".to_string()),
+        }
+    }
+
+    pub fn build_option(identifier: String)-> Self {
+        Self {
+            pax_type: PaxType::Option { identifier },
+            import_path: Some("std::option::Option".to_string()),
+        }
+    }
+
+    pub fn build_map(key_identifier: String, value_identifier: String)-> Self {
+        Self {
+            pax_type: PaxType::Map{key_identifier, value_identifier},
+            import_path: Some("std::collections::HashMap".to_string()),
+        }
+    }
+
+    pub fn get_import_path(&self) -> Option<String> {
+        self.import_path.clone()
+    }
+
+    pub fn get_unique_identifier(&self) -> String{
+        match &self.pax_type {
+            PaxType::Singleton { pascal_identifier: _ } => self.import_path.clone().unwrap(),
+            PaxType::Range { identifier } => format!("{}<{}>", self.import_path.clone().unwrap(), identifier),
+            PaxType::Option { identifier } => format!("{}<{}>", self.import_path.clone().unwrap(), identifier),
+            PaxType::Vector{elem_identifier} => format!("{}<{}>", self.import_path.clone().unwrap(), elem_identifier),
+            PaxType::Map{key_identifier, value_identifier} => format!("{}<{}><{}>",self.import_path.clone().unwrap(), key_identifier, value_identifier),
+            PaxType::Unknown => unreachable!("Unknown type doesn't have a unique identifier"),
+            PaxType::If => "If".to_string(),
+            PaxType::Slot => "Slot".to_string(),
+            PaxType::Repeat => "Repeat".to_string(),
+            PaxType::Comment => "Comment".to_string(),
+        }
+    }
+
+    pub fn get_pax_type(&self) -> &PaxType {
+        self.pax_type.borrow()
     }
 
     pub fn escaped_id(self) -> String {
-        escape_identifier(self.0)
+        escape_identifier(self.get_unique_identifier())
     }
 
     pub fn get_snake_case_id(&self) -> String {
-        self.0
+        self.get_unique_identifier()
             .replace("::", "_")
             .replace("/", "_")
             .replace("\\", "_")
@@ -237,9 +341,38 @@ impl TypeId {
             .replace("<", "_")
             .replace(".", "_")
     }
+
+    pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
+        if let Some(path) = self.get_import_path() {
+            let ret = path.replace("crate::", "").to_string();
+            #[allow(non_snake_case)]
+            let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
+            let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
+            let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
+                .into_iter()
+                .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
+                .collect();
+            primitives_set.insert(TYPE_ID_IF);
+            primitives_set.insert(TYPE_ID_REPEAT);
+            primitives_set.insert(TYPE_ID_SLOT);
+            primitives_set.insert(TYPE_ID_COMMENT);
+            self.import_path = if primitives_set.contains(path.as_str()) || path.contains("pax_reexports") {
+                Some(ret.to_string())
+            } else if !imports_builtins_set.contains(path.as_str()) {
+                if path.contains("{PREFIX}") {
+                    Some(ret.replace("{PREFIX}", &IMPORT_PREFIX))
+                } else {
+                    Some(IMPORT_PREFIX.clone() + ret.as_str())
+                }
+            } else {
+                None
+            }
+        }
+        self
+    }
 }
 
-#[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
 pub struct UniqueTemplateNodeIdentifier {
     component: TypeId,
@@ -269,8 +402,13 @@ impl Display for UniqueTemplateNodeIdentifier {
     }
 }
 
+pub enum TemplateLocation {
+    Root,
+    Parent(TemplateNodeId),
+}
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct ComponentTemplate {
     containing_component: TypeId,
@@ -282,6 +420,17 @@ pub struct ComponentTemplate {
 }
 
 impl ComponentTemplate {
+
+    pub fn new(containing_component: TypeId, template_source_file_path: Option<String>) -> Self {
+        Self {
+            containing_component,
+            root: VecDeque::new(),
+            children: HashMap::new(),
+            nodes: HashMap::new(),
+            next_id: 0,
+            template_source_file_path
+        }
+    }
 
     pub fn get_next_id(&self) -> usize {
         self.next_id
@@ -418,6 +567,13 @@ impl ComponentTemplate {
         self.nodes.values().collect()
     }
 
+    pub fn fully_qualify_template_type_ids(&mut self, host_crate_info: &HostCrateInfo){
+        self.containing_component.fully_qualify_type_id(host_crate_info);
+        for (_, val) in self.nodes.iter_mut() {
+            val.type_id.fully_qualify_type_id(&host_crate_info);
+        }
+    }
+
 }
 
 
@@ -430,13 +586,11 @@ impl ComponentTemplate {
 #[serde(crate = "pax_message::serde")]
 pub struct TemplateNodeDefinition {
     /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
-    pub type_id: String,
+    pub type_id: TypeId,
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
     pub settings: Option<Vec<SettingElement>>,
-    /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
-    pub pascal_identifier: String,
     /// IFF this TND is a comment node: raw comment string
     pub raw_comment_string: Option<String>,
 }
@@ -446,12 +600,12 @@ pub fn get_primitive_type_table() -> TypeTable {
     let mut ret: TypeTable = Default::default();
 
     SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
-        ret.insert(TypeId::build(snp.to_string()), TypeDefinition::primitive(snp));
+        ret.insert(TypeId::build_primitive(snp.to_string()), TypeDefinition::primitive(snp));
     });
     SUPPORTED_NONNUMERIC_PRIMITIVES
         .into_iter()
         .for_each(|snnp| {
-            ret.insert(TypeId::build(snnp.to_string()), TypeDefinition::primitive(snnp));
+            ret.insert(TypeId::build_primitive(snnp.to_string()), TypeDefinition::primitive(snnp));
         });
 
     ret
@@ -532,7 +686,7 @@ impl PropertyDefinition {
         PropertyDefinition {
             name: symbol_name.to_string(),
             flags: PropertyDefinitionFlags::default(),
-            type_id: TypeId::build(type_name.to_string()),
+            type_id: TypeId::build_primitive(type_name.to_string()),
         }
     }
 }
@@ -545,9 +699,6 @@ pub struct TypeDefinition {
     /// Program-unique ID for this type
     pub type_id: TypeId,
 
-    /// Unlike type_id, contains no generics data.  Simply used for qualifying / importing a type, like `std::vec::Vec`
-    pub import_path: String,
-
     /// Statically known type_id for this Property's iterable TypeDefinition, that is,
     /// T for some Property<Vec<T>>
     pub inner_iterable_type_id: Option<TypeId>,
@@ -559,31 +710,26 @@ pub struct TypeDefinition {
 impl TypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
         Self {
-            type_id: TypeId::build_from_str(type_name),
+            type_id: TypeId::build_primitive(type_name.to_string()),
             property_definitions: vec![],
             inner_iterable_type_id: None,
-            import_path: type_name.to_string(),
         }
     }
 
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
-    pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: String) -> Self {
-        let type_id = "std::vec::Vec<std::rc::Rc<core::cell::RefCell<dyn Any>>>";
+    pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: TypeId) -> Self {
         Self {
-            type_id:  TypeId::build_from_str(type_id),
+            type_id:  TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>".to_string()),
             property_definitions: vec![],
-            inner_iterable_type_id: Some(TypeId::build(inner_iterable_type_id)),
-            import_path: "std::vec::Vec".to_string(),
+            inner_iterable_type_id: Some(inner_iterable_type_id),
         }
     }
 
     pub fn builtin_range_isize() -> Self {
-        let type_id = "std::ops::Range<isize>";
         Self {
-            type_id: TypeId::build_from_str(type_id),
+            type_id: TypeId::build_range("isize".to_string()),
             property_definitions: vec![],
-            inner_iterable_type_id: Some(TypeId::build_from_str("isize")),
-            import_path: "std::ops::Range".to_string(),
+            inner_iterable_type_id: Some(TypeId::build_primitive("isize".to_string())),
         }
     }
 }
@@ -903,31 +1049,3 @@ pub const IMPORTS_BUILTINS: [&str; 28] = [
     "pax_runtime::repeat::RepeatInstance",
     "piet_common::RenderContext",
 ];
-
-impl<'a> HostCrateInfo {
-    pub fn fully_qualify_path(&self, path: &str) -> String {
-        let ret = path.replace("crate::", "").to_string();
-        #[allow(non_snake_case)]
-        let IMPORT_PREFIX = format!("{}::pax_reexports::", self.identifier);
-        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
-        let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
-            .into_iter()
-            .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
-            .collect();
-        primitives_set.insert(TYPE_ID_IF);
-        primitives_set.insert(TYPE_ID_REPEAT);
-        primitives_set.insert(TYPE_ID_SLOT);
-        primitives_set.insert(TYPE_ID_COMMENT);
-        if primitives_set.contains(path) || path.contains("pax_reexports") {
-            ret.to_string()
-        } else if !imports_builtins_set.contains(path) {
-            if path.contains("{PREFIX}") {
-                ret.replace("{PREFIX}", &IMPORT_PREFIX)
-            } else {
-                IMPORT_PREFIX.clone() + ret.as_str()
-            }
-        } else {
-            "".to_string()
-        }
-    }
-}

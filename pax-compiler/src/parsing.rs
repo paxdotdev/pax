@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use itertools::{Itertools, MultiPeek};
 use pax_manifest::constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
-use pax_manifest::escape_identifier;
+use pax_manifest::{escape_identifier, ComponentTemplate, TemplateLocation, TypeId};
 use std::ops::RangeFrom;
 
 use pax_manifest::{
@@ -311,68 +311,30 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
         .next()
         .unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    let mut roots_ids = vec![];
-
-    //insert placeholder for IMPLICIT_ROOT.  We will fill this back in on the post-order.
-    ctx.template_node_definitions
-        .insert(0, TemplateNodeDefinition::default());
-
     pax_component_definition
         .into_inner()
         .for_each(|pair| match pair.as_rule() {
             Rule::root_tag_pair => {
-                ctx.child_id_tracking_stack.push(vec![]);
-                let next_id = ctx.uid_gen.peek().unwrap();
-                roots_ids.push(*next_id);
-                recurse_visit_tag_pairs_for_template(ctx, pair.into_inner().next().unwrap(), pax);
+                recurse_visit_tag_pairs_for_template(ctx, pair.into_inner().next().unwrap(), pax, TemplateLocation::Root);
             }
             _ => {}
         });
-
-    // This IMPLICIT_ROOT placeholder node, at index 0 of the TND vec,
-    // is a container for the child_ids that act as "multi-roots," which enables
-    // templates to be authored without requiring a single top-level container
-    ctx.template_node_definitions.remove(&0);
-    ctx.template_node_definitions.insert(
-        0,
-        TemplateNodeDefinition {
-            id: 0,
-            child_ids: roots_ids.into(),
-            type_id: "IMPLICIT_ROOT".to_string(),
-            control_flow_settings: None,
-            settings: None,
-            pascal_identifier: "<UNREACHABLE>".to_string(),
-            raw_comment_string: None,
-        },
-    );
 }
 
 struct TemplateNodeParseContext {
-    pub template_node_definitions: HashMap<usize, TemplateNodeDefinition>,
-    pub pascal_identifier_to_type_id_map: HashMap<String, String>,
-    //each frame of the outer vec represents a list of
-    //children for a given node;
-    //a new frame is added when descending the tree
-    //but not when iterating over siblings
-    pub child_id_tracking_stack: Vec<Vec<usize>>,
-    pub uid_gen: MultiPeek<RangeFrom<usize>>,
+    pub template: ComponentTemplate,
+    pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
+    // In the case of a live-reload (no compilation), we use cached expressions when we re-parse template
+    pub cached_expressions: Option<HashMap<String, ValueDefinition>>
 }
 
 fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
     any_tag_pair: Pair<Rule>,
     pax: &str,
+    location: TemplateLocation
 ) {
-    let new_id = ctx.uid_gen.next().unwrap();
-    //insert blank placeholder
-    ctx.template_node_definitions
-        .insert(new_id, TemplateNodeDefinition::default());
-
-    //add self to parent's children_id_list
-    let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
-    parents_children_id_list.push(new_id);
-    ctx.child_id_tracking_stack.push(parents_children_id_list);
-
+    
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
@@ -385,8 +347,22 @@ fn recurse_visit_tag_pairs_for_template(
                 .into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
 
-            //push the empty frame for this node's children
-            ctx.child_id_tracking_stack.push(vec![]);
+
+            let mut template_node = TemplateNodeDefinition {
+                type_id: TypeId::build_singleton(ctx
+                    .pascal_identifier_to_type_id_map
+                    .get(pascal_identifier)
+                    .expect(&format!("Template key not found {}", &pascal_identifier))
+                    .to_string(), Some(pascal_identifier.to_string()) ),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
+                raw_comment_string: None,
+                control_flow_settings: None,
+            };
+
+            let id = match location {
+                TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
+                TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+            };
 
             //recurse into inner_nodes
             let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
@@ -394,59 +370,35 @@ fn recurse_visit_tag_pairs_for_template(
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
                     inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                        recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
+                        recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
                     })
                 }
                 _ => {
                     panic!("wrong prospective inner nodes (or nth)")
                 }
             }
-
-            let mut template_node = TemplateNodeDefinition {
-                id: new_id,
-                control_flow_settings: None,
-                type_id: ctx
-                    .pascal_identifier_to_type_id_map
-                    .get(pascal_identifier)
-                    .expect(&format!("Template key not found {}", &pascal_identifier))
-                    .to_string(),
-                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
-                child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
-                pascal_identifier: pascal_identifier.to_string(),
-                raw_comment_string: None,
-            };
-            std::mem::swap(
-                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
-                &mut template_node,
-            );
         }
         Rule::self_closing_tag => {
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
 
             let mut template_node = TemplateNodeDefinition {
-                id: new_id,
-                control_flow_settings: None,
-                type_id: ctx
+                type_id: TypeId::build_singleton(ctx
                     .pascal_identifier_to_type_id_map
                     .get(pascal_identifier)
                     .expect(&format!("Template key not found {}", &pascal_identifier))
-                    .to_string(),
+                    .to_string(), Some(pascal_identifier.to_string()) ),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
-                child_ids: VecDeque::new(),
-                pascal_identifier: pascal_identifier.to_string(),
                 raw_comment_string: None,
+                control_flow_settings: None,
             };
-            std::mem::swap(
-                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
-                &mut template_node,
-            );
+            let _ = match location {
+                TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
+                TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+            };
         }
         Rule::statement_control_flow => {
             /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
-
-            //push the empty frame for this node's children
-            ctx.child_id_tracking_stack.push(vec![]);
 
             let any_tag_pair = any_tag_pair.into_inner().next().unwrap();
             let mut template_node_definition = match any_tag_pair.as_rule() {
@@ -460,17 +412,9 @@ fn recurse_visit_tag_pairs_for_template(
                         expression_body_location,
                         pax,
                     );
-                    let prospective_inner_nodes = statement_if.next();
-
-                    if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
-                        })
-                    }
 
                     //`if` TemplateNodeDefinition
-                    TemplateNodeDefinition {
-                        id: new_id,
+                    let template_node = TemplateNodeDefinition {
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: Some(expression_body_token),
                             condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
@@ -479,12 +423,26 @@ fn recurse_visit_tag_pairs_for_template(
                             repeat_predicate_definition: None,
                             repeat_source_definition: None,
                         }),
-                        type_id: TYPE_ID_IF.to_string(),
+                        type_id: TypeId::build_if(),
                         settings: None,
-                        child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
-                        pascal_identifier: "Conditional".to_string(),
                         raw_comment_string: None,
+                    };
+
+
+                    let id = match location {
+                        TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
+                        TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                    };
+
+                    let prospective_inner_nodes = statement_if.next();
+
+                    if let Some(inner_nodes) = prospective_inner_nodes {
+                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                        })
                     }
+
+                    
                 }
                 Rule::statement_for => {
                     let mut cfavd = ControlFlowSettingsDefinition::default();
@@ -566,21 +524,24 @@ fn recurse_visit_tag_pairs_for_template(
 
                     cfavd.repeat_source_definition = Some(repeat_source_definition);
 
-                    if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
-                        })
-                    }
-
                     //`for` TemplateNodeDefinition
-                    TemplateNodeDefinition {
-                        id: new_id,
-                        type_id: TYPE_ID_REPEAT.to_string(),
+                    let template_node = TemplateNodeDefinition {
+                        type_id: TypeId::build_repeat(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
-                        child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
-                        pascal_identifier: "Repeat".to_string(),
                         raw_comment_string: None,
+                    };
+
+                    let id = match location {
+                        TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
+                        TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                    };
+
+
+                    if let Some(inner_nodes) = prospective_inner_nodes {
+                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                        })
                     }
                 }
                 Rule::statement_slot => {
@@ -595,14 +556,8 @@ fn recurse_visit_tag_pairs_for_template(
                     );
                     let prospective_inner_nodes = statement_slot.next();
 
-                    if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax);
-                        })
-                    }
 
-                    TemplateNodeDefinition {
-                        id: *&new_id,
+                    let template_node = TemplateNodeDefinition {
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,
@@ -611,37 +566,38 @@ fn recurse_visit_tag_pairs_for_template(
                             repeat_predicate_definition: None,
                             repeat_source_definition: None,
                         }),
-                        type_id: TYPE_ID_SLOT.to_string(),
+                        type_id: TypeId::build_slot(),
                         settings: None,
-                        child_ids: ctx.child_id_tracking_stack.pop().unwrap().into(),
-                        pascal_identifier: "Slot".to_string(),
                         raw_comment_string: None,
+                    };
+
+                    let id = match location {
+                        TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
+                        TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                    };
+
+                    if let Some(inner_nodes) = prospective_inner_nodes {
+                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                        })
                     }
                 }
                 _ => {
                     unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
                 }
             };
-
-            std::mem::swap(
-                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
-                &mut template_node_definition,
-            );
         }
         Rule::comment => {
             let mut template_node = TemplateNodeDefinition {
-                id: *&new_id,
                 control_flow_settings: None,
-                type_id: TYPE_ID_COMMENT.to_string(),
+                type_id: TypeId::build_comment(),
                 settings: None,
-                child_ids: VecDeque::new(),
-                pascal_identifier: "Comment".to_string(),
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
             };
-            std::mem::swap(
-                ctx.template_node_definitions.get_mut(&new_id).unwrap(),
-                &mut template_node,
-            );
+            let _ = match location {
+                TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
+                TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+            };
         }
         Rule::node_inner_content => {
             //For example:  `<Text>"I am inner content"</Text>`
@@ -1002,9 +958,9 @@ pub struct ParsingContext {
 
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
-    pub template_map: HashMap<String, String>,
+    pub template_map: HashMap<String, TypeId>,
 
-    pub template_node_definitions: HashMap<usize, TemplateNodeDefinition>,
+    pub template_node_definitions: ComponentTemplate,
 
     pub type_table: TypeTable,
 
@@ -1019,7 +975,7 @@ impl Default for ParsingContext {
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
             type_table: get_primitive_type_table(),
-            template_node_definitions: HashMap::new(),
+            template_node_definitions: ComponentTemplate::default(),
             import_paths: HashSet::new(),
         }
     }
@@ -1093,11 +1049,10 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> 
 pub fn assemble_component_definition(
     mut ctx: ParsingContext,
     pax: &str,
-    pascal_identifier: &str,
     is_main_component: bool,
-    template_map: HashMap<String, String>,
+    template_map: HashMap<String, TypeId>,
     module_path: &str,
-    self_type_id: &str,
+    self_type_id: TypeId,
     component_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
@@ -1131,13 +1086,8 @@ pub fn assemble_component_definition(
 
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_type_id_map: template_map,
-        template_node_definitions: HashMap::new(),
-        //each frame of the outer vec represents a list of
-        //children for a given node; child order matters because of z-index defaults;
-        //a new frame is added when descending the tree
-        //but not when iterating over siblings
-        child_id_tracking_stack: vec![],
-        uid_gen: (1..).multipeek(),
+        template: ComponentTemplate::new(self_type_id.clone(),Some(component_source_file_path.to_owned())),
+        cached_expressions: None,
     };
 
     parse_template_from_component_definition_string(&mut tpc, pax);
@@ -1148,7 +1098,7 @@ pub fn assemble_component_definition(
     };
 
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
-    ctx.template_node_definitions = tpc.template_node_definitions.clone();
+    ctx.template_node_definitions = tpc.template.clone();
 
     let (settings, handlers) = parse_settings_from_component_definition_string(pax);
 
@@ -1157,15 +1107,11 @@ pub fn assemble_component_definition(
         is_struct_only_component: false,
         is_main_component,
         primitive_instance_import_path: None,
-        type_id: self_type_id.to_string(),
-        type_id_escaped: escape_identifier(self_type_id.to_string()),
-        pascal_identifier: pascal_identifier.to_string(),
-        template: Some(tpc.template_node_definitions),
+        type_id: self_type_id,
+        template: Some(tpc.template),
         settings: Some(settings),
         handlers: Some(handlers),
         module_path: modified_module_path,
-        next_template_id: Some(*tpc.uid_gen.peek().unwrap()),
-        template_source_file_path: Some(component_source_file_path.to_string()),
     };
 
     (ctx, new_def)
@@ -1181,36 +1127,29 @@ pub fn clean_module_path(module_path: &str) -> String {
 
 pub fn assemble_struct_only_component_definition(
     ctx: ParsingContext,
-    pascal_identifier: &str,
     module_path: &str,
-    self_type_id: &str,
+    self_type_id: TypeId,
 ) -> (ParsingContext, ComponentDefinition) {
     let modified_module_path = clean_module_path(module_path);
 
     let new_def = ComponentDefinition {
-        type_id: self_type_id.to_string(),
-        type_id_escaped: escape_identifier(self_type_id.to_string()),
+        type_id: self_type_id,
         is_main_component: false,
         is_primitive: false,
         is_struct_only_component: true,
-        pascal_identifier: pascal_identifier.to_string(),
         module_path: modified_module_path,
         primitive_instance_import_path: None,
         template: None,
         settings: None,
         handlers: None,
-        next_template_id: None,
-        template_source_file_path: None,
     };
-
     (ctx, new_def)
 }
 
 pub fn assemble_primitive_definition(
-    pascal_identifier: &str,
     module_path: &str,
     primitive_instance_import_path: String,
-    self_type_id: &str,
+    self_type_id: TypeId,
 ) -> ComponentDefinition {
     let modified_module_path = clean_module_path(module_path);
 
@@ -1219,37 +1158,30 @@ pub fn assemble_primitive_definition(
         is_struct_only_component: false,
         primitive_instance_import_path: Some(primitive_instance_import_path),
         is_main_component: false,
-        type_id: self_type_id.to_string(),
-        type_id_escaped: escape_identifier(self_type_id.to_string()),
-        pascal_identifier: pascal_identifier.to_string(),
+        type_id: self_type_id,
         template: None,
         settings: None,
         module_path: modified_module_path,
         handlers: None,
-        next_template_id: None,
-        template_source_file_path: None,
     }
 }
 
 pub fn assemble_type_definition(
     mut ctx: ParsingContext,
     property_definitions: Vec<PropertyDefinition>,
-    inner_iterable_type_id: Option<String>,
-    self_type_id: &str,
-    import_path: String,
+    inner_iterable_type_id: Option<TypeId>,
+    self_type_id: TypeId,
 ) -> (ParsingContext, TypeDefinition) {
     let type_id_escaped = escape_identifier(self_type_id.to_string());
 
     let new_def = TypeDefinition {
-        type_id: self_type_id.to_string(),
-        type_id_escaped,
+        type_id: self_type_id,
         inner_iterable_type_id,
         property_definitions,
-        import_path,
     };
 
     ctx.type_table
-        .insert(self_type_id.to_string(), new_def.clone());
+        .insert(self_type_id, new_def.clone());
 
     (ctx, new_def)
 }
@@ -1279,11 +1211,9 @@ pub trait Reflectable {
         //Default impl for primitives and pax_runtime::api
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
-            type_id: type_id.to_string(),
-            type_id_escaped: escape_identifier(type_id.to_string()),
+            type_id: type_id,
             inner_iterable_type_id: None,
             property_definitions: vec![],
-            import_path: type_id.to_string(),
         };
 
         if !ctx.type_table.contains_key(&type_id) {
@@ -1305,13 +1235,9 @@ pub trait Reflectable {
 
     fn get_self_pascal_identifier() -> String;
 
-    fn get_type_id() -> String {
-        //This default is used by primitives but expected to
-        //be overridden by userland Pax components / primitives
-        Self::get_import_path()
-    }
+    fn get_type_id() -> TypeId;
 
-    fn get_iterable_type_id() -> Option<String> {
+    fn get_iterable_type_id() -> Option<TypeId> {
         //Most types do not have an iterable type (e.g. the T in Vec<T>) —
         //it is the responsibility of iterable types to override this fn
         None
@@ -1322,65 +1248,105 @@ impl Reflectable for usize {
     fn get_self_pascal_identifier() -> String {
         "usize".to_string()
     }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for isize {
     fn get_self_pascal_identifier() -> String {
         "isize".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i128 {
     fn get_self_pascal_identifier() -> String {
         "i128".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for u128 {
     fn get_self_pascal_identifier() -> String {
         "u128".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i64 {
     fn get_self_pascal_identifier() -> String {
         "i64".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for u64 {
     fn get_self_pascal_identifier() -> String {
         "u64".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i32 {
     fn get_self_pascal_identifier() -> String {
         "i32".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for u32 {
     fn get_self_pascal_identifier() -> String {
         "u32".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i8 {
     fn get_self_pascal_identifier() -> String {
         "i8".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for u8 {
     fn get_self_pascal_identifier() -> String {
         "u8".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for f64 {
     fn get_self_pascal_identifier() -> String {
         "f64".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for f32 {
     fn get_self_pascal_identifier() -> String {
         "f32".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
+    }
 }
 impl Reflectable for bool {
     fn get_self_pascal_identifier() -> String {
         "bool".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for std::string::String {
@@ -1390,6 +1356,9 @@ impl Reflectable for std::string::String {
     fn get_self_pascal_identifier() -> String {
         "String".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    }
 }
 impl<T> Reflectable for std::rc::Rc<T> {
     fn get_import_path() -> String {
@@ -1398,17 +1367,18 @@ impl<T> Reflectable for std::rc::Rc<T> {
     fn get_self_pascal_identifier() -> String {
         "Rc".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    }
 }
 
 impl<T: Reflectable> Reflectable for std::option::Option<T> {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
-            type_id: type_id.to_string(),
-            type_id_escaped: escape_identifier(type_id.to_string()),
+            type_id: type_id,
             inner_iterable_type_id: None,
             property_definitions: vec![],
-            import_path: type_id.to_string(),
         };
 
         if !ctx.type_table.contains_key(&type_id) {
@@ -1424,9 +1394,8 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     fn get_self_pascal_identifier() -> String {
         "Option".to_string()
     }
-
-    fn get_type_id() -> String {
-        format!("std::option::Option<{}{}>", "{PREFIX}", &T::get_type_id())
+    fn get_type_id() -> TypeId {
+        TypeId::build_option(format!("{}{}", "{PREFIX}", &T::get_type_id()))
     }
 }
 
@@ -1438,6 +1407,10 @@ impl Reflectable for pax_runtime::api::Size {
     fn get_self_pascal_identifier() -> String {
         "Size".to_string()
     }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    }
 }
 
 impl Reflectable for pax_runtime::api::Rotation {
@@ -1447,6 +1420,9 @@ impl Reflectable for pax_runtime::api::Rotation {
 
     fn get_self_pascal_identifier() -> String {
         "Rotation".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
     }
 }
 
@@ -1458,6 +1434,9 @@ impl Reflectable for pax_runtime::api::Numeric {
     fn get_self_pascal_identifier() -> String {
         "Numeric".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    }
 }
 
 impl Reflectable for kurbo::Point {
@@ -1467,6 +1446,9 @@ impl Reflectable for kurbo::Point {
 
     fn get_self_pascal_identifier() -> String {
         "Point".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
     }
 }
 
@@ -1478,6 +1460,9 @@ impl Reflectable for pax_runtime::api::Transform2D {
     fn get_self_pascal_identifier() -> String {
         "Transform2D".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    }
 }
 
 impl Reflectable for pax_runtime::api::StringBox {
@@ -1487,15 +1472,16 @@ impl Reflectable for pax_runtime::api::StringBox {
     fn get_self_pascal_identifier() -> String {
         "StringBox".to_string()
     }
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    }
 }
 
 impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
-            type_id: type_id.to_string(),
-            type_id_escaped: escape_identifier(type_id.to_string()),
-            import_path: Self::get_import_path(),
+            type_id,
             inner_iterable_type_id: Self::get_iterable_type_id(),
             property_definitions: vec![],
         };
@@ -1513,15 +1499,12 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn get_self_pascal_identifier() -> String {
         "Vec".to_string()
     }
-    fn get_type_id() -> String {
+    fn get_type_id() -> TypeId {
         //Need to encode generics contents as part of unique id for iterables
-        format!(
-            "std::vec::Vec<{}{}>",
-            "{PREFIX}",
-            &Self::get_iterable_type_id().unwrap()
-        )
+        TypeId::build_vector(format!("{}{}", "{PREFIX}",
+        &Self::get_iterable_type_id().unwrap()))
     }
-    fn get_iterable_type_id() -> Option<String> {
+    fn get_iterable_type_id() -> Option<TypeId> {
         Some(T::get_type_id())
     }
 }
