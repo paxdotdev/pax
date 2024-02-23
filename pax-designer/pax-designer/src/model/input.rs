@@ -25,6 +25,7 @@ impl Default for InputMapper {
                 (RawInput::Space, InputEvent::Space),
                 (RawInput::Plus, InputEvent::Plus),
                 (RawInput::Minus, InputEvent::Minus),
+                (RawInput::Alt, InputEvent::Alt),
             ]),
         }
     }
@@ -63,6 +64,7 @@ pub enum RawInput {
     Space,
     Plus,
     Minus,
+    Alt,
     Z,
 }
 
@@ -80,6 +82,7 @@ impl TryFrom<String> for RawInput {
             "Control" => Self::Control,
             "=" => Self::Plus,
             "-" => Self::Minus,
+            "Alt" => Self::Alt,
             _ => return Err(anyhow!("no configured raw input mapping for {:?}", value)),
         })
     }
@@ -95,4 +98,5 @@ pub enum InputEvent {
     Space,
     Plus,
     Minus,
+    Alt,
 }

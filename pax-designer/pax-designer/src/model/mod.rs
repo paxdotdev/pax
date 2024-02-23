@@ -2,6 +2,7 @@ pub mod action;
 pub mod input;
 pub mod math;
 
+use crate::glass::control_point::ControlPointBehaviour;
 use crate::math::AxisAlignedBox;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
@@ -97,7 +98,7 @@ pub fn with_action_context<R: 'static>(
 // This represents values that can be deterministically produced from the app
 // state and the projects manifest
 pub struct DerivedAppState {
-    pub selected_bounds: Option<AxisAlignedBox>,
+    pub selected_bounds: Option<(AxisAlignedBox, Point2<Glass>)>,
 }
 
 pub fn read_app_state_with_derived(
@@ -110,36 +111,37 @@ pub fn read_app_state_with_derived(
     });
 }
 
-pub fn perform_action(action: impl Action, ctx: &NodeContext) -> Result<()> {
-    with_action_context(ctx, |ac| ac.execute(action))
+pub fn perform_action(action: impl Action, ctx: &NodeContext) {
+    if let Err(e) = with_action_context(ctx, |ac| ac.execute(action)) {
+        pax_engine::log::warn!("action failed: {:?}", e);
+    }
 }
 
-pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) -> anyhow::Result<()> {
+pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     // useful! keeping around for now
-    // pax_engine::log::debug!("key {:?}: {}", dir, input);
-    let action =
-        GLOBAL_STATE.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
-            let raw_input = RawInput::try_from(input)?;
-            let AppState {
-                ref mut input_mapper,
-                ref mut keys_pressed,
-                ..
-            } = &mut model.app_state;
+    pax_engine::log::debug!("key {:?}: {}", dir, input);
+    let action = GLOBAL_STATE.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
+        let raw_input = RawInput::try_from(input)?;
+        let AppState {
+            ref mut input_mapper,
+            ref mut keys_pressed,
+            ..
+        } = &mut model.app_state;
 
-            let event = input_mapper
-                .to_event(raw_input)
-                .with_context(|| "no mapped input")?;
-            match dir {
-                Dir::Down => keys_pressed.insert(event.clone()),
-                Dir::Up => keys_pressed.remove(event),
-            };
-            let action = input_mapper.to_action(event, dir);
-            Ok(action)
-        })?;
-    if let Some(action) = action {
-        perform_action(action, ctx)
-    } else {
-        Ok(())
+        let event = input_mapper
+            .to_event(raw_input)
+            .with_context(|| "no mapped input")?;
+        match dir {
+            Dir::Down => keys_pressed.insert(event.clone()),
+            Dir::Up => keys_pressed.remove(event),
+        };
+        let action = input_mapper.to_action(event, dir);
+        Ok(action)
+    });
+    match action {
+        Ok(Some(action)) => perform_action(action, ctx),
+        Ok(None) => (),
+        Err(e) => pax_engine::log::warn!("couldn't find action: {:?}", e),
     }
 }
 
@@ -155,7 +157,8 @@ pub enum ToolState {
     #[default]
     Idle,
     MovingControlPoint {
-        move_func: Rc<dyn Fn(&mut ActionContext, Point2<Glass>)>,
+        move_func: Rc<ControlPointBehaviour>,
+        original_bounds: (AxisAlignedBox, Point2<Glass>),
     },
     Panning {
         original_transform: Transform2<Glass, World>,

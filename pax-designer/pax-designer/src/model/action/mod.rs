@@ -55,7 +55,7 @@ impl ActionContext<'_> {
     }
 
     pub fn undo_last(&mut self) -> Result<()> {
-        let mut undo_fn = self
+        let undo_fn = self
             .undo_stack
             .stack
             .pop()
@@ -103,34 +103,37 @@ impl ActionContext<'_> {
         None
     }
 
-    pub fn selected_bounds(&self) -> Option<AxisAlignedBox> {
+    pub fn selected_bounds(&self) -> Option<(AxisAlignedBox, Point2<Glass>)> {
         let to_glass_transform = self.glass_transform();
-        let bounds = self
+        let expanded_node = self
             .engine_context
             .get_nodes_by_global_id(
                 &self.app_state.selected_component_id,
                 self.app_state.selected_template_node_id?,
             )
             .into_iter()
-            .flat_map(|n| n.bounding_points())
-            .map(|points| points.map(|p| to_glass_transform * p))
-            .collect();
-        Some(compute_total_bounds(bounds))
+            .next()?;
+
+        let bounds = expanded_node
+            .bounding_points()?
+            .map(|p| to_glass_transform * p);
+        Some((
+            axis_aligned(bounds),
+            to_glass_transform * expanded_node.origin()?,
+        ))
     }
 }
 
-fn compute_total_bounds(bounds: Vec<[Point2<Glass>; 4]>) -> AxisAlignedBox {
+fn axis_aligned(bound: [Point2<Glass>; 4]) -> AxisAlignedBox {
     let mut min_x = f64::MAX;
     let mut min_y = f64::MAX;
     let mut max_x = f64::MIN;
     let mut max_y = f64::MIN;
-    for bound in bounds {
-        for p in bound {
-            min_x = min_x.min(p.x);
-            max_x = max_x.max(p.x);
-            min_y = min_y.min(p.y);
-            max_y = max_y.max(p.y);
-        }
+    for p in bound {
+        min_x = min_x.min(p.x);
+        max_x = max_x.max(p.x);
+        min_y = min_y.min(p.y);
+        max_y = max_y.max(p.y);
     }
 
     AxisAlignedBox::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y))
