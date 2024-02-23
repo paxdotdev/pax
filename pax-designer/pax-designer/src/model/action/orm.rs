@@ -99,8 +99,8 @@ impl Action for ResizeSelected {
 
         let (bounds, origin) = self.original_bounds;
 
-        let is_meta_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Meta);
-        let meta_modifier = |v: Vector2<World>| {
+        let is_shift_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Shift);
+        let shift_modifier = |v: Vector2<World>| {
             // Bind the resize direction to be in the same
             // direction as the original aspect ratio of this object
             let aspect_ratio = (bounds.bottom_right() - bounds.top_left()).normalize();
@@ -113,16 +113,16 @@ impl Action for ResizeSelected {
             // Resize from center if alt is down
             let center = bounds.from_inner_space(Point2::new(0.0, 0.0));
             let mut v = (center - self.point).coord_abs();
-            if is_meta_key_down {
-                v = meta_modifier(v);
+            if is_shift_key_down {
+                v = shift_modifier(v);
             }
             AxisAlignedBox::new(center + v, center - v)
         } else {
             // Otherwise resize from attachment point
             let resize_anchor = bounds.from_inner_space(self.attachment_point);
             let mut v = self.point - resize_anchor;
-            if is_meta_key_down {
-                v = meta_modifier(v);
+            if is_shift_key_down {
+                v = shift_modifier(v);
             }
             AxisAlignedBox::new(resize_anchor + v, resize_anchor)
         };
