@@ -10,6 +10,7 @@ use pax_std::types::{Color, Fill};
 use serde::Deserialize;
 
 use super::control_point::{ControlPoint, ControlPointBehaviour};
+use crate::glass::control_point::{ControlPointDef, ControlPointStyling};
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::ActionContext;
 use crate::model::math::coordinate_spaces::Glass;
@@ -18,13 +19,12 @@ use crate::model::{self, action};
 #[pax]
 #[file("glass/object_editor.pax")]
 pub struct ObjectEditor {
-    pub control_points: Property<Vec<GlassPoint>>,
+    pub control_points: Property<Vec<ControlPointDef>>,
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
 }
 
 type ControlPointFuncs = Vec<Rc<ControlPointBehaviour>>;
-
 // Temporary solution - can be moved to private field on ObjectEditor
 // Once we have private variables/upwards data passing (from ControlPoint)
 thread_local!(
@@ -56,8 +56,52 @@ impl ObjectEditor {
         });
     }
 
+    fn set_editor(&mut self, editor: Editor) {
+        let mut control_points = vec![];
+        let mut behaviours = vec![];
+
+        for control_set in editor.controls {
+            let (control_points_set, behaviour_set): (Vec<_>, Vec<_>) = control_set
+                .points
+                .into_iter()
+                .map(|c_point| (c_point.point, c_point.behaviour))
+                .unzip();
+            let control_points_from_set: Vec<ControlPointDef> = control_points_set
+                .into_iter()
+                .map(|p| ControlPointDef {
+                    point: p.into(),
+                    styling: control_set.styling.clone(),
+                })
+                .collect();
+            control_points.extend(control_points_from_set);
+            behaviours.extend(behaviour_set);
+        }
+
+        CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
+            *funcs = Some(behaviours);
+        });
+
+        let mut bounding_segments = editor.segments;
+
+        // HACK before dirty-dag (to make sure repeat updates)
+        if control_points.len() == self.control_points.get().len() {
+            control_points.push(ControlPointDef {
+                point: GlassPoint {
+                    x: f64::MIN,
+                    y: f64::MIN,
+                },
+                styling: ControlPointStyling::default(),
+            });
+            bounding_segments.push(BoundingSegment::default());
+        }
+        self.control_points.set(control_points);
+        self.bounding_segments.set(bounding_segments);
+    }
+
     fn set_generic_object_editor(&mut self, selection_bounds: &AxisAlignedBox) {
         let [p1, p4, p3, p2] = selection_bounds.bounding_points();
+
+        let mut editor = Editor::new();
 
         fn resize_behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
             Rc::new(move |ctx, original_bounds, new_point| {
@@ -77,60 +121,122 @@ impl ObjectEditor {
             })
         }
 
-        let control_points_with_behaviour = vec![
-            (p1, resize_behaviour(Point2::new(1.0, 1.0))),
-            (
-                p1.midpoint_towards(p2),
-                resize_behaviour(Point2::new(0.0, 1.0)),
-            ),
-            (p2, resize_behaviour(Point2::new(-1.0, 1.0))),
-            (
-                p2.midpoint_towards(p3),
-                resize_behaviour(Point2::new(-1.0, 0.0)),
-            ),
-            (p3, resize_behaviour(Point2::new(-1.0, -1.0))),
-            (
-                p3.midpoint_towards(p4),
-                resize_behaviour(Point2::new(0.0, -1.0)),
-            ),
-            (p4, resize_behaviour(Point2::new(1.0, -1.0))),
-            (
-                p4.midpoint_towards(p1),
-                resize_behaviour(Point2::new(1.0, 0.0)),
-            ),
-        ];
+        // resize points
+        editor.add_control_set(
+            vec![
+                CPoint {
+                    point: p1,
+                    behaviour: resize_behaviour(Point2::new(1.0, 1.0)),
+                },
+                CPoint {
+                    point: p1.midpoint_towards(p2),
+                    behaviour: resize_behaviour(Point2::new(0.0, 1.0)),
+                },
+                CPoint {
+                    point: p2,
+                    behaviour: resize_behaviour(Point2::new(-1.0, 1.0)),
+                },
+                CPoint {
+                    point: p2.midpoint_towards(p3),
+                    behaviour: resize_behaviour(Point2::new(-1.0, 0.0)),
+                },
+                CPoint {
+                    point: p3,
+                    behaviour: resize_behaviour(Point2::new(-1.0, -1.0)),
+                },
+                CPoint {
+                    point: p3.midpoint_towards(p4),
+                    behaviour: resize_behaviour(Point2::new(0.0, -1.0)),
+                },
+                CPoint {
+                    point: p4,
+                    behaviour: resize_behaviour(Point2::new(1.0, -1.0)),
+                },
+                CPoint {
+                    point: p4.midpoint_towards(p1),
+                    behaviour: resize_behaviour(Point2::new(1.0, 0.0)),
+                },
+            ],
+            ControlPointStyling {
+                stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
+                fill: Color::rgb(1.0.into(), 1.0.into(), 1.0.into()),
+                size_pixels: 7.0,
+            },
+        );
 
-        let (control_points, behaviour): (Vec<Point2<Glass>>, Vec<_>) =
-            control_points_with_behaviour.into_iter().unzip();
-        let mut control_points: Vec<GlassPoint> =
-            control_points.into_iter().map(Into::into).collect();
-
-        CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
-            *funcs = Some(behaviour);
-        });
-
-        let mut bounding_segments = vec![
+        editor.add_bounding_segments(vec![
             (p1, p2).into(),
             (p2, p3).into(),
             (p3, p4).into(),
             (p4, p1).into(),
-        ];
+        ]);
 
-        // HACK before dirty-dag (to make sure repeat updates)
-        if control_points.len() == self.control_points.get().len() {
-            control_points.push(GlassPoint {
-                x: f64::MIN,
-                y: f64::MIN,
-            });
-            bounding_segments.push(BoundingSegment::default());
+        fn rotation_behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
+            Rc::new(move |ctx, original_bounds, new_point| {
+                pax_engine::log::info!("resize point modified!: anchor: {:?}", attachment_point);
+            })
         }
 
-        *self = Self {
-            control_points: Box::new(PropertyLiteral::new(control_points)),
-            bounding_segments: Box::new(PropertyLiteral::new(bounding_segments)),
-            anchor_point: Box::new(PropertyLiteral::new(p1.midpoint_towards(p3).into())),
-        };
+        editor.add_control_set(
+            vec![
+                CPoint {
+                    point: p1,
+                    behaviour: rotation_behaviour(Point2::new(1.0, 1.0)),
+                },
+                CPoint {
+                    point: p2,
+                    behaviour: rotation_behaviour(Point2::new(-1.0, 1.0)),
+                },
+                CPoint {
+                    point: p3,
+                    behaviour: rotation_behaviour(Point2::new(-1.0, -1.0)),
+                },
+                CPoint {
+                    point: p4,
+                    behaviour: rotation_behaviour(Point2::new(1.0, -1.0)),
+                },
+            ],
+            ControlPointStyling {
+                stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
+                fill: Color::rgba(0.7.into(), 0.7.into(), 1.0.into(), 0.4.into()),
+                size_pixels: 18.0,
+            },
+        );
+
+        self.set_editor(editor);
     }
+}
+
+struct Editor {
+    controls: Vec<ControlPointSet>,
+    segments: Vec<BoundingSegment>,
+}
+
+impl Editor {
+    fn new() -> Self {
+        Self {
+            controls: Default::default(),
+            segments: Default::default(),
+        }
+    }
+
+    fn add_control_set(&mut self, points: Vec<CPoint>, styling: ControlPointStyling) {
+        self.controls.push(ControlPointSet { points, styling });
+    }
+
+    fn add_bounding_segments(&mut self, segments: Vec<BoundingSegment>) {
+        self.segments.extend(segments);
+    }
+}
+
+struct CPoint {
+    point: Point2<Glass>,
+    behaviour: Rc<ControlPointBehaviour>,
+}
+
+struct ControlPointSet {
+    points: Vec<CPoint>,
+    styling: ControlPointStyling,
 }
 
 #[pax]
