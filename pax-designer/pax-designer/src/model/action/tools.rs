@@ -31,16 +31,13 @@ impl Action for ToolAction {
             ToolState::MovingControlPoint { .. }
         ) {
             match self.event {
-                Pointer::Down | Pointer::Move => {
-                    let ToolState::MovingControlPoint {
-                        ref mut move_func,
-                        ref original_bounds,
-                    } = ctx.app_state.tool_state
+                Pointer::Down => (), //this is handled by the control point itself, technically should never fire here
+                Pointer::Move => {
+                    let ToolState::MovingControlPoint { ref behaviour } = ctx.app_state.tool_state
                     else {
                         unreachable!();
                     };
-                    let bounds = original_bounds.clone();
-                    Rc::clone(move_func)(ctx, &bounds, point);
+                    Rc::clone(behaviour).step(ctx, point);
                 }
                 Pointer::Up => ctx.app_state.tool_state = ToolState::Idle,
             }
