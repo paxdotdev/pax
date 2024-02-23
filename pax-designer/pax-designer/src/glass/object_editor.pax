@@ -1,5 +1,8 @@
-for (pt, i) in self.control_points {
-    <ControlPoint location=pt ind=i/>
+for (data, i) in self.control_points {
+    <ControlPoint
+		data=data
+		ind=i
+	/>
 }
 
 for segment in self.bounding_segments {
