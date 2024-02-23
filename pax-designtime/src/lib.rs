@@ -16,7 +16,6 @@ use core::fmt::Debug;
 pub use pax_manifest;
 use pax_manifest::{ComponentDefinition, PaxManifest};
 use privileged_agent::PrivilegedAgentConnection;
-pub use serde_pax::de::{from_pax, Deserializer};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 
