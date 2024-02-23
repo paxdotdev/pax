@@ -87,38 +87,30 @@ pub fn update_type_id_prefixes_in_place(
     manifest: &mut PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
-    manifest.main_component_type_id =
-        host_crate_info.fully_qualify_path(&manifest.main_component_type_id);
+    manifest.main_component_type_id.fully_qualify_type_id(host_crate_info);
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t| {
-        t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
-        t.1.type_id = host_crate_info.fully_qualify_path(&t.1.type_id);
+        t.1.type_id.fully_qualify_type_id(host_crate_info);
         if let Some(inner) = &t.1.inner_iterable_type_id {
-            t.1.inner_iterable_type_id = Some(host_crate_info.fully_qualify_path(&inner));
+            inner.fully_qualify_type_id(host_crate_info);
+            t.1.inner_iterable_type_id = Some(*inner);
         }
         t.1.property_definitions.iter_mut().for_each(|pd| {
-            pd.type_id = host_crate_info.fully_qualify_path(&pd.type_id);
-            pd.type_id_escaped = pd.type_id_escaped.replace("{PREFIX}", "");
+            pd.type_id.fully_qualify_type_id(host_crate_info);
         });
-        updated_type_table.insert(host_crate_info.fully_qualify_path(&t.0), t.1.clone());
+        updated_type_table.insert(t.0.fully_qualify_type_id(host_crate_info).clone(), t.1.clone());
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 
     let mut updated_component_table = HashMap::new();
     manifest.components.iter_mut().for_each(|c| {
-        c.1.type_id = host_crate_info.fully_qualify_path(&c.1.type_id);
-        c.1.type_id_escaped = c.1.type_id_escaped.replace("{PREFIX}", "");
+        c.1.type_id.fully_qualify_type_id(host_crate_info);
 
-        let mut updated_template_table = HashMap::new();
         if let Some(template) = c.1.template.as_mut() {
-            template.iter_mut().for_each(|t| {
-                t.1.type_id = host_crate_info.fully_qualify_path(&t.1.type_id);
-                updated_template_table.insert(t.0.clone(), t.1.clone());
-            });
-            c.1.template = Some(updated_template_table);
+            template.fully_qualify_template_type_ids(host_crate_info);
         }
 
-        updated_component_table.insert(host_crate_info.fully_qualify_path(&c.0), c.1.clone());
+        updated_component_table.insert(c.0.fully_qualify_type_id(host_crate_info).clone(), c.1.clone());
     });
     std::mem::swap(&mut manifest.components, &mut updated_component_table);
 }

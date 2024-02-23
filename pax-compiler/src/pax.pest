@@ -251,3 +251,4 @@ statement_for_predicate_declaration = {
 // in this.some_symbol..25
 // in 25..some_symbol
 statement_for_source = { xo_range | xo_symbol }
+

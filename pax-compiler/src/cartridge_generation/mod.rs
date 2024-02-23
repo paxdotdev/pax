@@ -9,7 +9,7 @@ use std::fs;
 use std::str::FromStr;
 
 use pax_manifest::{
-    cartridge_generation::CommonProperty, ExpressionSpec, HostCrateInfo, PaxManifest,
+    cartridge_generation::CommonProperty, ExpressionSpec, HostCrateInfo, PaxManifest, TypeId,
 };
 
 use std::path::PathBuf;
@@ -52,7 +52,7 @@ pub fn generate_and_overwrite_cartridge(
     let mut imports: Vec<String> = manifest
         .import_paths
         .iter()
-        .map(|e| host_crate_info.fully_qualify_path(e))
+        .map(|e| TypeId::build_singleton(*e, None).fully_qualify_type_id(host_crate_info).get_import_path().unwrap())
         .collect();
 
     imports.append(

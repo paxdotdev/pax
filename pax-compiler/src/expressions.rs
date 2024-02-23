@@ -1,8 +1,5 @@
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ExpressionSpec,
-    ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition,
-    PropertyDefinitionFlags, SettingElement, TemplateNodeDefinition, Token, TypeDefinition,
-    TypeTable, ValueDefinition,
+    escape_identifier, ComponentDefinition, ComponentTemplate, ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeDefinition, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable, ValueDefinition
 };
 use std::collections::HashMap;
 use std::ops::RangeFrom;
@@ -30,12 +27,11 @@ pub fn compile_all_expressions<'a>(
         let read_only_component_def = component_def.clone();
 
         if let Some(ref mut template) = new_component_def.template {
-            let mut active_node_def = TemplateNodeDefinition::default();
-            std::mem::swap(&mut active_node_def, template.get_mut(&0).unwrap());
+
 
             let mut ctx = ExpressionCompilationContext {
                 template,
-                active_node_def,
+                active_node_id: None,
                 scope_stack: vec![component_def
                     .get_property_definitions(&manifest.type_table)
                     .iter()
@@ -49,10 +45,20 @@ pub fn compile_all_expressions<'a>(
                 host_crate_info,
             };
 
-            ctx = recurse_compile_expressions(ctx, source_map)?;
+            for id in template.get_root(){
+                ctx.active_node_id = Some(id.clone());
+                ctx = recurse_compile_expressions(ctx, source_map)?;
+            }
+
+            
+
+
+
+          
+
+          
             vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
             all_expression_specs.extend(ctx.expression_specs.to_owned());
-            std::mem::swap(&mut ctx.active_node_def, template.get_mut(&0).unwrap());
         }
 
         std::mem::swap(component_def, &mut new_component_def);
@@ -314,7 +320,6 @@ fn recurse_compile_expressions<'a>(
                             is_enum: false,
                         },
                         type_id: iterable_type.type_id.clone(),
-                        type_id_escaped: iterable_type.type_id_escaped.clone(),
                     };
 
                     let scope: HashMap<String, PropertyDefinition> = HashMap::from([
@@ -329,7 +334,6 @@ fn recurse_compile_expressions<'a>(
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id.token_value),
                         type_id: iterable_type.type_id,
-                        type_id_escaped: iterable_type.type_id_escaped,
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_elem: true,
                             is_binding_repeat_i: false,
@@ -622,7 +626,7 @@ pub struct ExpressionCompilationContext<'a> {
     pub component_def: &'a ComponentDefinition,
 
     /// Container for mutable list of TemplateNodeDefinitions,
-    pub template: &'a mut HashMap<usize, TemplateNodeDefinition>,
+    pub template: &'a mut ComponentTemplate,
 
     /// Static stack of addressable properties, by string
     /// Enables resolution of scope-nested symbolic identifiers, including shadowing
@@ -637,10 +641,10 @@ pub struct ExpressionCompilationContext<'a> {
     pub expression_specs: &'a mut HashMap<usize, ExpressionSpec>,
 
     /// The current template node whose expressions are being compiled.  For example `<SomeNode some_property={/* some expression */} />`
-    pub active_node_def: TemplateNodeDefinition,
+    pub active_node_id: Option<TemplateNodeId>,
 
     /// All components, by ID
-    pub all_components: HashMap<String, ComponentDefinition>,
+    pub all_components: HashMap<TypeId, ComponentDefinition>,
 
     /// Type table, used for looking up property types by string type_ids
     pub type_table: &'a TypeTable,
@@ -735,4 +739,5 @@ impl<'a> ExpressionCompilationContext<'a> {
             Ok(None)
         }
     }
+
 }
