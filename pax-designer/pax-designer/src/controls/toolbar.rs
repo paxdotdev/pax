@@ -37,9 +37,9 @@ impl Toolbar {
         );
     }
 
-    pub fn handle_click_brush(&mut self, ctx: &NodeContext, _args: ArgsClick) {}
+    pub fn handle_click_brush(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
 
-    pub fn handle_click_pen(&mut self, ctx: &NodeContext, _args: ArgsClick) {}
+    pub fn handle_click_pen(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
 
     pub fn handle_click_rect(&mut self, ctx: &NodeContext, _args: ArgsClick) {
         model::perform_action(

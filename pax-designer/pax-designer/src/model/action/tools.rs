@@ -28,12 +28,15 @@ impl Action for ToolAction {
         ) {
             match self.event {
                 Pointer::Down | Pointer::Move => {
-                    let ToolState::MovingControlPoint { ref mut move_func } =
-                        ctx.app_state.tool_state
+                    let ToolState::MovingControlPoint {
+                        ref mut move_func,
+                        ref original_bounds,
+                    } = ctx.app_state.tool_state
                     else {
                         unreachable!();
                     };
-                    Rc::clone(move_func)(ctx, self.point);
+                    let bounds = original_bounds.clone();
+                    Rc::clone(move_func)(ctx, &bounds, self.point);
                 }
                 Pointer::Up => ctx.app_state.tool_state = ToolState::Idle,
             }
@@ -48,7 +51,7 @@ impl Action for ToolAction {
                 point: self.point,
                 event: self.event,
             }),
-        };
+        }?;
 
         Ok(CanUndo::No)
     }
@@ -128,14 +131,12 @@ impl Action for PointerTool {
                 }
                 ToolState::MovingObject { offset } => {
                     let world_point = ctx.world_transform() * (self.point - offset);
-                    ctx.execute(MoveSelected { point: world_point });
+                    ctx.execute(MoveSelected { point: world_point })?;
                 }
                 _ => (),
             },
             Pointer::Up => {
-                if let ToolState::BoxSelect { p1, p2, .. } =
-                    std::mem::take(&mut ctx.app_state.tool_state)
-                {
+                if let ToolState::BoxSelect { .. } = std::mem::take(&mut ctx.app_state.tool_state) {
                     // TODO get objects within rectangle from engine, and find their
                     // TemplateNode ids to set selection state.
                     let something_in_rectangle = true;
@@ -146,15 +147,6 @@ impl Action for PointerTool {
                 }
             }
         }
-        Ok(CanUndo::No)
-    }
-}
-
-pub struct ResetToolState {}
-
-impl Action for ResetToolState {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        ctx.app_state.tool_state = ToolState::Idle;
         Ok(CanUndo::No)
     }
 }

@@ -64,20 +64,14 @@ impl Glass {
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
-        let res = model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key);
-        if let Err(e) = res {
-            pax_engine::log::warn!("{}", e);
-        }
+        model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key);
     }
 
     pub fn handle_key_up(&mut self, ctx: &NodeContext, args: ArgsKeyUp) {
-        let res = model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key);
-        if let Err(e) = res {
-            pax_engine::log::warn!("{}", e);
-        }
+        model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key);
     }
 
-    pub fn update_view(&mut self, ctx: &NodeContext) {
+    pub fn update_view(&mut self, _ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             // Draw current tool visuals
             // this could be factored out into it's own component as well eventually

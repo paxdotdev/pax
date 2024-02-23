@@ -8,6 +8,7 @@ use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::{Color, Fill};
 use serde::Deserialize;
 
+use crate::math::AxisAlignedBox;
 use crate::model::AppState;
 use crate::model::ToolState;
 use crate::model::{self, action};
@@ -25,26 +26,34 @@ pub struct ControlPoint {
     pub ind: Property<Numeric>,
 }
 
-struct ActivateControlPoint {
-    func: Rc<dyn Fn(&mut ActionContext, Point2<Glass>)>,
+pub type ControlPointBehaviour =
+    dyn Fn(&mut ActionContext, &(AxisAlignedBox, Point2<Glass>), Point2<Glass>);
+
+pub struct ActivateControlPoint {
+    behaviour: Rc<ControlPointBehaviour>,
+    original_bounds: (AxisAlignedBox, Point2<Glass>),
 }
 
 impl Action for ActivateControlPoint {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
         ctx.app_state.tool_state = ToolState::MovingControlPoint {
-            move_func: self.func,
+            move_func: self.behaviour,
+            original_bounds: self.original_bounds,
         };
         Ok(CanUndo::No)
     }
 }
 
 impl ControlPoint {
-    pub fn mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
+    pub fn mouse_down(&mut self, ctx: &NodeContext, _args: ArgsMouseDown) {
+        let bounds = model::with_action_context(ctx, |ac| ac.selected_bounds())
+            .expect("selection bounds exist");
         super::object_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 model::perform_action(
                     ActivateControlPoint {
-                        func: Rc::clone(&funcs[self.ind.get().get_as_int() as usize]),
+                        behaviour: Rc::clone(&funcs[self.ind.get().get_as_int() as usize]),
+                        original_bounds: bounds,
                     },
                     ctx,
                 );
@@ -52,8 +61,5 @@ impl ControlPoint {
                 pax_engine::log::error!("tried to grigger control point while none exist");
             }
         })
-    }
-    pub fn mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
-        model::perform_action(action::tools::ResetToolState {}, ctx);
     }
 }

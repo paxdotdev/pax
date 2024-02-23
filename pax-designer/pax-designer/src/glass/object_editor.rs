@@ -9,7 +9,7 @@ use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::{Color, Fill};
 use serde::Deserialize;
 
-use super::control_point::ControlPoint;
+use super::control_point::{ControlPoint, ControlPointBehaviour};
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::ActionContext;
 use crate::model::math::coordinate_spaces::Glass;
@@ -23,7 +23,7 @@ pub struct ObjectEditor {
     pub bounding_segments: Property<Vec<BoundingSegment>>,
 }
 
-type ControlPointFuncs = Vec<Rc<dyn Fn(&mut ActionContext, Point2<Glass>)>>;
+type ControlPointFuncs = Vec<Rc<ControlPointBehaviour>>;
 
 // Temporary solution - can be moved to private field on ObjectEditor
 // Once we have private variables/upwards data passing (from ControlPoint)
@@ -32,15 +32,15 @@ thread_local!(
 );
 
 impl ObjectEditor {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
         CONTROL_POINT_FUNCS.with_borrow(|funcs| if funcs.is_some() {
             panic!("can't create more than one ObjectEditor with current architecture (need to move CONTROL_POINTS_FUNCS)");
         });
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
-        model::read_app_state_with_derived(ctx, |app_state, derived_state| {
-            if let Some(bounds) = &derived_state.selected_bounds {
+        model::read_app_state_with_derived(ctx, |_app_state, derived_state| {
+            if let Some((bounds, _origin)) = &derived_state.selected_bounds {
                 self.set_generic_object_editor(bounds);
             } else {
                 CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
@@ -59,15 +59,21 @@ impl ObjectEditor {
     fn set_generic_object_editor(&mut self, selection_bounds: &AxisAlignedBox) {
         let [p1, p4, p3, p2] = selection_bounds.bounding_points();
 
-        fn behaviour(
-            attachment_point: Point2<BoxPoint>,
-        ) -> Rc<dyn Fn(&mut ActionContext, Point2<Glass>)> {
-            Rc::new(move |ctx, new_point| {
+        fn behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
+            Rc::new(move |ctx, original_bounds, new_point| {
                 let world_point = ctx.world_transform() * new_point;
-                ctx.execute(action::orm::ResizeSelected {
+                let &(ref axis_box, origin) = original_bounds;
+                let axis_box_world = axis_box
+                    .try_into_space(ctx.world_transform())
+                    .expect("tried to transform axis aligned box to non-axis aligned space");
+                let origin_world = ctx.world_transform() * origin;
+                if let Err(e) = ctx.execute(action::orm::ResizeSelected {
                     attachment_point,
+                    original_bounds: (axis_box_world, origin_world),
                     position: world_point,
-                });
+                }) {
+                    pax_engine::log::warn!("resize failed: {:?}", e);
+                };
             })
         }
 

@@ -1,5 +1,6 @@
 use super::{Action, ActionContext, CanUndo};
 use crate::math::AxisAlignedBox;
+use crate::model::input::InputEvent;
 use crate::{
     math::BoxPoint,
     model::{
@@ -9,6 +10,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::NodeInterface;
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
@@ -80,6 +82,7 @@ impl Action for MoveSelected {
 
 pub struct ResizeSelected {
     pub attachment_point: Point2<BoxPoint>,
+    pub original_bounds: (AxisAlignedBox<World>, Point2<World>),
     pub position: Point2<World>,
 }
 
@@ -94,20 +97,29 @@ impl Action for ResizeSelected {
             .get_orm_mut()
             .get_node(&ctx.app_state.selected_component_id, selected);
 
-        let bounds = ctx.selected_bounds().unwrap();
+        let (bounds, origin) = self.original_bounds;
 
-        let resize_anchor = ctx.world_transform() * bounds.lerp(self.attachment_point);
+        // Resize from center if alt is down
+        let new_box = if ctx.app_state.keys_pressed.contains(&InputEvent::Alt) {
+            let center = bounds.from_inner_space(Point2::new(0.0, 0.0));
+            let v = center - self.position;
+            AxisAlignedBox::new(self.position, self.position + 2.0 * v)
+        } else {
+            let resize_anchor = bounds.from_inner_space(self.attachment_point);
+            AxisAlignedBox::new(self.position, resize_anchor)
+        };
 
-        let new_box = AxisAlignedBox::new(self.position, resize_anchor);
-        pax_engine::log::info!("resizing box: {:?}", new_box);
-        if self.attachment_point.y != 0.0 {
-            builder.set_property("y", &to_pixels(new_box.top_left().y));
-            builder.set_property("height", &to_pixels(new_box.height()));
+        let origin_relative: Point2<BoxPoint> = bounds.to_inner_space(origin);
+        let new_origin_relative = new_box.from_inner_space(origin_relative);
+
+        if self.attachment_point.y.abs() > 0.01 {
+            builder.set_property("y", &to_pixels(new_origin_relative.y))?;
+            builder.set_property("height", &to_pixels(new_box.height()))?;
         }
 
-        if self.attachment_point.x != 0.0 {
-            builder.set_property("x", &to_pixels(new_box.top_left().x));
-            builder.set_property("width", &to_pixels(new_box.width()));
+        if self.attachment_point.x.abs() > 0.01 {
+            builder.set_property("x", &to_pixels(new_origin_relative.x))?;
+            builder.set_property("width", &to_pixels(new_box.width()))?;
         }
 
         builder
@@ -124,5 +136,5 @@ impl Action for ResizeSelected {
 }
 
 fn to_pixels(v: f64) -> String {
-    format!("{}px", v)
+    format!("{:?}px", v)
 }
