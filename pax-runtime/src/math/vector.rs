@@ -56,6 +56,10 @@ impl<W: Space> Vector2<W> {
         Self::new(-self.y, self.x)
     }
 
+    pub fn normalize(self) -> Self {
+        self / self.length()
+    }
+
     pub fn length_squared(&self) -> f64 {
         self.x * self.x + self.y * self.y
     }
@@ -64,16 +68,33 @@ impl<W: Space> Vector2<W> {
         self.length_squared().sqrt()
     }
 
-    pub fn project_onto(self, axis: Vector2<W>) -> f64 {
-        let dot_product = self * axis;
-        dot_product / axis.length_squared()
+    pub fn coord_abs(&self) -> Self {
+        Self::new(self.x.abs(), self.y.abs())
     }
 
-    pub fn to_point(self) -> Point2<W> {
+    pub fn project_onto(self, axis: Self) -> Self {
+        let dot_product = self * axis;
+        axis * dot_product / axis.length_squared()
+    }
+
+    pub fn project_axis_aligned(self, other: Self) -> Self {
+        let v = self.coord_abs();
+        let o = other.coord_abs().normalize();
+        o.to_signums_of(self) * (v.x / o.x).max(v.y / o.y)
+    }
+
+    pub fn to_signums_of(&self, other: Self) -> Self {
+        Self::new(
+            self.x.abs() * other.x.signum(),
+            self.y.abs() * other.y.signum(),
+        )
+    }
+
+    pub fn to_point(&self) -> Point2<W> {
         Point2::new(self.x, self.y)
     }
 
-    pub fn cast_space<WNew: Space>(self) -> Vector2<WNew> {
+    pub fn cast_space<WNew: Space>(&self) -> Vector2<WNew> {
         Vector2::new(self.x, self.y)
     }
 }

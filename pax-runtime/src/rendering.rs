@@ -67,11 +67,11 @@ impl TransformAndBounds {
 
             let self_projections: Vec<_> = corners_self
                 .iter()
-                .map(|&p| p.to_vector().project_onto(axis))
+                .map(|&p| p.to_vector().project_onto(axis).length())
                 .collect();
             let other_projections: Vec<_> = corners_other
                 .iter()
-                .map(|&p| p.to_vector().project_onto(axis))
+                .map(|&p| p.to_vector().project_onto(axis).length())
                 .collect();
 
             let (min_self, max_self) = min_max_projections(&self_projections);
