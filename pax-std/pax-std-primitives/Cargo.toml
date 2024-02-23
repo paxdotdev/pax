@@ -18,6 +18,4 @@ pax-message = {path = "../../pax-message", version="0.12.0" }
 piet = "0.6.0"
 piet-common = "0.6.0"
 kurbo = "0.9.0"
-
-[features]
-Text = []
+log = "0.4.20"

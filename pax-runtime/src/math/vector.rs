@@ -124,9 +124,30 @@ impl<W: Space> Sub for Vector2<W> {
     }
 }
 
+impl<W: Space> Sub<f64> for Vector2<W> {
+    type Output = Vector2<W>;
+    fn sub(self, rhs: f64) -> Self::Output {
+        Self::Output::new(self.x - rhs, self.y - rhs)
+    }
+}
+
+impl<W: Space> Add<f64> for Vector2<W> {
+    type Output = Vector2<W>;
+    fn add(self, rhs: f64) -> Self::Output {
+        Self::Output::new(self.x + rhs, self.y + rhs)
+    }
+}
+
 impl<W: Space> Div<f64> for Vector2<W> {
     type Output = Vector2<W>;
     fn div(self, rhs: f64) -> Self::Output {
         Self::Output::new(self.x / rhs, self.y / rhs)
+    }
+}
+
+impl<W: Space> Div for Vector2<W> {
+    type Output = Vector2<W>;
+    fn div(self, rhs: Vector2<W>) -> Self::Output {
+        Self::Output::new(self.x / rhs.x, self.y / rhs.y)
     }
 }
