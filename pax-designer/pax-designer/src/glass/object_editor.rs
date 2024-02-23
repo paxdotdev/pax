@@ -24,7 +24,7 @@ pub struct ObjectEditor {
     pub bounding_segments: Property<Vec<BoundingSegment>>,
 }
 
-type ControlPointFuncs = Vec<Rc<ControlPointBehaviour>>;
+type ControlPointFuncs = Vec<Rc<dyn ControlPointBehaviour>>;
 // Temporary solution - can be moved to private field on ObjectEditor
 // Once we have private variables/upwards data passing (from ControlPoint)
 thread_local!(
@@ -103,59 +103,77 @@ impl ObjectEditor {
 
         let mut editor = Editor::new();
 
-        fn resize_behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
-            Rc::new(move |ctx, original_bounds, new_point| {
-                let world_point = ctx.world_transform() * new_point;
-                let &(ref axis_box, origin) = original_bounds;
+        struct ResizeBehaviour {
+            attachment_point: Point2<BoxPoint>,
+            initial_box_bounds: RefCell<Option<(AxisAlignedBox, Point2<Glass>)>>,
+        }
+
+        impl ResizeBehaviour {
+            fn new(attachment_point: Point2<BoxPoint>) -> Self {
+                Self {
+                    attachment_point,
+                    initial_box_bounds: RefCell::new(None),
+                }
+            }
+        }
+
+        impl ControlPointBehaviour for ResizeBehaviour {
+            fn init(&self, ctx: &mut ActionContext, _point: Point2<Glass>) {
+                *self.initial_box_bounds.borrow_mut() = ctx.selected_bounds();
+            }
+
+            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
+                let world_point = ctx.world_transform() * point;
+                let bounds = self.initial_box_bounds.borrow();
+                let &(ref axis_box, origin) = bounds.as_ref().expect("resize has been initialized");
                 let axis_box_world = axis_box
                     .try_into_space(ctx.world_transform())
                     .expect("tried to transform axis aligned box to non-axis aligned space");
                 let origin_world = ctx.world_transform() * origin;
                 if let Err(e) = ctx.execute(action::orm::ResizeSelected {
-                    attachment_point,
+                    attachment_point: self.attachment_point,
                     original_bounds: (axis_box_world, origin_world),
                     point: world_point,
                 }) {
                     pax_engine::log::warn!("resize failed: {:?}", e);
                 };
-            })
+            }
         }
-
         // resize points
         editor.add_control_set(
             vec![
-                CPoint {
-                    point: p1,
-                    behaviour: resize_behaviour(Point2::new(1.0, 1.0)),
-                },
-                CPoint {
-                    point: p1.midpoint_towards(p2),
-                    behaviour: resize_behaviour(Point2::new(0.0, 1.0)),
-                },
-                CPoint {
-                    point: p2,
-                    behaviour: resize_behaviour(Point2::new(-1.0, 1.0)),
-                },
-                CPoint {
-                    point: p2.midpoint_towards(p3),
-                    behaviour: resize_behaviour(Point2::new(-1.0, 0.0)),
-                },
-                CPoint {
-                    point: p3,
-                    behaviour: resize_behaviour(Point2::new(-1.0, -1.0)),
-                },
-                CPoint {
-                    point: p3.midpoint_towards(p4),
-                    behaviour: resize_behaviour(Point2::new(0.0, -1.0)),
-                },
-                CPoint {
-                    point: p4,
-                    behaviour: resize_behaviour(Point2::new(1.0, -1.0)),
-                },
-                CPoint {
-                    point: p4.midpoint_towards(p1),
-                    behaviour: resize_behaviour(Point2::new(1.0, 0.0)),
-                },
+                CPoint::new(
+                    p1, //
+                    ResizeBehaviour::new(Point2::new(1.0, 1.0)),
+                ),
+                CPoint::new(
+                    p1.midpoint_towards(p2),
+                    ResizeBehaviour::new(Point2::new(0.0, 1.0)),
+                ),
+                CPoint::new(
+                    p2, //
+                    ResizeBehaviour::new(Point2::new(-1.0, 1.0)),
+                ),
+                CPoint::new(
+                    p2.midpoint_towards(p3),
+                    ResizeBehaviour::new(Point2::new(-1.0, 0.0)),
+                ),
+                CPoint::new(
+                    p3, //
+                    ResizeBehaviour::new(Point2::new(-1.0, -1.0)),
+                ),
+                CPoint::new(
+                    p3.midpoint_towards(p4),
+                    ResizeBehaviour::new(Point2::new(0.0, -1.0)),
+                ),
+                CPoint::new(
+                    p4, //
+                    ResizeBehaviour::new(Point2::new(1.0, -1.0)),
+                ),
+                CPoint::new(
+                    p4.midpoint_towards(p1),
+                    ResizeBehaviour::new(Point2::new(1.0, 0.0)),
+                ),
             ],
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
@@ -171,30 +189,46 @@ impl ObjectEditor {
             (p4, p1).into(),
         ]);
 
-        fn rotation_behaviour(attachment_point: Point2<BoxPoint>) -> Rc<ControlPointBehaviour> {
-            Rc::new(move |ctx, original_bounds, new_point| {
-                pax_engine::log::info!("resize point modified!: anchor: {:?}", attachment_point);
-            })
+        struct RotationBehaviour {
+            rotation_anchor: RefCell<Option<Point2<Glass>>>,
+            start_dir: RefCell<Option<Vector2<Glass>>>,
+        }
+
+        impl RotationBehaviour {
+            fn new() -> Self {
+                Self {
+                    rotation_anchor: RefCell::new(None),
+                    start_dir: RefCell::new(None),
+                }
+            }
+        }
+
+        impl ControlPointBehaviour for RotationBehaviour {
+            fn init(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
+                let rot_anchor = ctx.selected_bounds().expect("an object is selected").1;
+                let start_dir = point - rot_anchor;
+                *self.rotation_anchor.borrow_mut() = Some(rot_anchor);
+                *self.start_dir.borrow_mut() = Some(start_dir);
+            }
+
+            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
+                pax_engine::log::info!("rotation point modified!");
+                // if let Err(e) = ctx.execute(action::orm::ResizeSelected {
+                //     attachment_point,
+                //     original_bounds: (axis_box_world, origin_world),
+                //     point: world_point,
+                // }) {
+                //     pax_engine::log::warn!("rotation failed: {:?}", e);
+                // };
+            }
         }
 
         editor.add_control_set(
             vec![
-                CPoint {
-                    point: p1,
-                    behaviour: rotation_behaviour(Point2::new(1.0, 1.0)),
-                },
-                CPoint {
-                    point: p2,
-                    behaviour: rotation_behaviour(Point2::new(-1.0, 1.0)),
-                },
-                CPoint {
-                    point: p3,
-                    behaviour: rotation_behaviour(Point2::new(-1.0, -1.0)),
-                },
-                CPoint {
-                    point: p4,
-                    behaviour: rotation_behaviour(Point2::new(1.0, -1.0)),
-                },
+                CPoint::new(p1, RotationBehaviour::new()),
+                CPoint::new(p2, RotationBehaviour::new()),
+                CPoint::new(p3, RotationBehaviour::new()),
+                CPoint::new(p4, RotationBehaviour::new()),
             ],
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
@@ -231,7 +265,16 @@ impl Editor {
 
 struct CPoint {
     point: Point2<Glass>,
-    behaviour: Rc<ControlPointBehaviour>,
+    behaviour: Rc<dyn ControlPointBehaviour>,
+}
+
+impl CPoint {
+    fn new(point: Point2<Glass>, behaviour: impl ControlPointBehaviour + 'static) -> Self {
+        Self {
+            point,
+            behaviour: Rc::new(behaviour),
+        }
+    }
 }
 
 struct ControlPointSet {

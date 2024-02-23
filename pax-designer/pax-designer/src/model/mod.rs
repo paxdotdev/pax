@@ -206,8 +206,7 @@ pub enum ToolState {
     #[default]
     Idle,
     MovingControlPoint {
-        move_func: Rc<ControlPointBehaviour>,
-        original_bounds: (AxisAlignedBox, Point2<Glass>),
+        behaviour: Rc<dyn ControlPointBehaviour>,
     },
     Panning {
         original_transform: Transform2<Glass, World>,
