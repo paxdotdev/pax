@@ -20,7 +20,10 @@ pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};
 use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
-use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
+use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
+
+#[cfg(feature = "designtime")]
+use pax_designtime::DesigntimeManager;
 use serde::{Deserialize, Serialize};
 
 pub struct TransitionQueueEntry<T> {
@@ -444,6 +447,9 @@ pub enum Size {
     ///Pixel component, Percent component
     Combined(Numeric, Numeric),
 }
+
+
+
 
 impl Neg for Size {
     type Output = Size;
@@ -1317,4 +1323,169 @@ pub trait RenderContext {
     fn clip(&mut self, layer: &str, path: BezPath);
     fn load_image(&mut self, path: &str, image: &[u8], width: usize, height: usize);
     fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect);
+}
+
+
+
+/// Raw Percent type, which we use for serialization and dynamic traversal.  At the time
+/// of authoring, this type is not used directly at runtime, but is intended for `into` coercion
+/// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
+/// about how we parse `%`, and allow the context in which it is used to pull forward a specific
+/// type through `into` inference.
+pub struct Percent(pub Numeric);
+
+impl Into<ColorChannel> for Percent {
+    fn into(self) -> ColorChannel {
+        ColorChannel::Percent(self.0)
+    }
+}
+
+impl Into<Size> for Percent {
+    fn into(self) -> Size {
+        Size::Percent(self.0)
+    }
+}
+
+impl Into<Rotation> for Percent {
+    fn into(self) -> Rotation {
+        Rotation::Percent(self.0)
+    }
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Serialize, Deserialize)]
+pub enum ColorChannel {
+    /// [0,255]
+    Int(Numeric),
+    /// [0.0, 100.0]
+    Percent(Numeric),
+}
+
+impl Default for ColorChannel {
+    fn default() -> Self {
+        Self::Percent(50.0.into())
+    }
+}
+
+impl From<Numeric> for ColorChannel {
+    fn from(value: Numeric) -> Self {
+        Self::Int(value.to_int().into())
+    }
+}
+
+
+impl ColorChannel {
+    ///Normalizes this ColorChannel as a float [0.0, 1.0]
+    pub fn to_float_0_1(&self) -> f64 {
+        match self {
+            Self::Percent(per) => {
+                assert!(per.to_float() >= -0.000001 && per.to_float() <= 100.000001, "");
+                (per.to_float() / 100.0).clamp(0_f64, 1_f64)
+            },
+            Self::Int(zero_to_255) => {
+                assert!(zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255, "Integer color channel values must be between 0 and 255");
+                let f_zero : f64 = (*zero_to_255).into();
+                f_zero / 255.0_f64.clamp(0_f64, 1_f64)
+            }
+        }
+    }
+}
+
+
+#[allow(non_camel_case_types)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum Color {
+    /// Models a color in the RGB space, with an alpha channel of 100%
+    rgb(ColorChannel, ColorChannel, ColorChannel),
+    /// Models a color in the RGBA space
+    rgba(ColorChannel, ColorChannel, ColorChannel, ColorChannel),
+
+    /// Models a color in the HSL space.
+    hsl(Rotation, ColorChannel, ColorChannel),
+    /// Models a color in the HSLA space.
+    hsla(Rotation, ColorChannel, ColorChannel, ColorChannel),
+
+    #[default]
+    red
+    //TODO: with `red` as a prototype, add Tailwind-inspired pseudo-constants here
+}
+impl Color {
+
+    //TODO: fill out Tailwind-style tint api
+    //pub fn tint(tint_offset_amount) -> Self {...}
+
+    pub fn to_piet_color(&self) -> piet::Color {
+        let rgba = self.to_rgba();
+        piet::Color::rgba(rgba[0], rgba[1], rgba[2], rgba[3])
+    }
+
+    pub fn to_rgba(&self) -> [f64; 4] {
+        match self {
+            Self::hsla(h,s,l,a) => {
+                let rgb = hsl_to_rgb(h.to_float_0_1(),s.to_float_0_1(),l.to_float_0_1());
+                [rgb[0], rgb[1], rgb[2], a.to_float_0_1()]
+            },
+            Self::hsl(h,s,l) => {
+                let rgb = hsl_to_rgb(h.to_float_0_1(),s.to_float_0_1(),l.to_float_0_1());
+                [rgb[0], rgb[1], rgb[2], 1.0]
+
+            },
+            Self::rgba(r,g,b,a) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),a.to_float_0_1()],
+            Self::rgb(r,g,b) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),1.0],
+            Self::red => Self::rgb(Numeric::from(255).into(), Numeric::from(0).into(), Numeric::from(0).into()).to_rgba(),
+            _ => {
+                unimplemented!("Unsupported color variant lacks conversion logic to RGB")
+            }
+        }
+    }
+}
+
+fn hsl_to_rgb(h: f64, s: f64, l: f64) -> [f64; 3] {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+
+    let (r, g, b) = if h < 1.0/6.0 {
+        (c, x, 0.0)
+    } else if h < 2.0/6.0 {
+        (x, c, 0.0)
+    } else if h < 3.0/6.0 {
+        (0.0, c, x)
+    } else if h < 4.0/6.0 {
+        (0.0, x, c)
+    } else if h < 5.0/6.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+
+    [(r + m), (g + m), (b + m)]
+}
+
+impl Into<ColorMessage> for &Color {
+    fn into(self) -> ColorMessage {
+        let rgba = self.to_rgba();
+        ColorMessage::Rgba(rgba)
+    }
+}
+impl PartialEq<ColorMessage> for Color {
+    fn eq(&self, other: &ColorMessage) -> bool {
+        let self_rgba = self.to_rgba();
+
+        match other {
+            ColorMessage::Rgb(other_rgba) => {
+                self_rgba[0] == other_rgba[0] &&
+                    self_rgba[1] == other_rgba[1] &&
+                    self_rgba[2] == other_rgba[2] &&
+                    self_rgba[3] == 1.0
+            },
+            ColorMessage::Rgba(other_rgba) => {
+                self_rgba[0] == other_rgba[0] &&
+                    self_rgba[1] == other_rgba[1] &&
+                    self_rgba[2] == other_rgba[2] &&
+                    self_rgba[3] == other_rgba[3]
+            },
+        }
+    }
 }
