@@ -1,9 +1,9 @@
-use crate::types::Color;
+use crate::types::{Color, ColorChannel};
 use api::{Size, StringBox};
 use pax_engine::api::{Numeric, Property, PropertyLiteral};
 use pax_engine::*;
 use pax_message::{
-    ColorVariantMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
+    ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
     SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, TextStyleMessage,
     WebFontMessage,
 };
@@ -27,10 +27,10 @@ impl Default for TextStyle {
             font: Box::new(PropertyLiteral::new(Font::default())),
             font_size: Box::new(PropertyLiteral::new(Size::Pixels(Numeric::Float(20.0)))),
             fill: Box::new(PropertyLiteral::new(Color::rgba(
-                Numeric::Float(0.0),
-                Numeric::Float(0.0),
-                Numeric::Float(0.0),
-                Numeric::Float(1.0),
+                ColorChannel::Percent(Numeric::Float(0.0)),
+                ColorChannel::Percent(Numeric::Float(0.0)),
+                ColorChannel::Percent(Numeric::Float(0.0)),
+                ColorChannel::Percent(Numeric::Float(0.0)),
             ))),
             underline: Box::new(PropertyLiteral::new(false)),
             align_multiline: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
@@ -45,7 +45,7 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
             font_size: Some(f64::from(self.font_size.get().expect_pixels())),
-            fill: Some(Into::<ColorVariantMessage>::into(self.fill.get())),
+            fill: Some(Into::<ColorMessage>::into(self.fill.get())),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
                 self.align_multiline.get(),

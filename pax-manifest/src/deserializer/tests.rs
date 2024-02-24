@@ -143,12 +143,11 @@ fn test_enum() {
     }
     #[derive(Deserialize, PartialEq, Debug)]
     pub enum Color {
-        Hlca(Numeric, Numeric, Numeric, Numeric),
         Rgba(Numeric, Numeric, Numeric, Numeric),
     }
 
-    let enum_pax = "Color::Hlca(0.0, 0.0, 1.0, 1.0)".to_string();
-    let expected = Color::Hlca(
+    let enum_pax = "Color::Rgba(0.0, 0.0, 1.0, 1.0)".to_string();
+    let expected = Color::Rgba(
         Numeric::Float(0.0),
         Numeric::Float(0.0),
         Numeric::Float(1.0),
