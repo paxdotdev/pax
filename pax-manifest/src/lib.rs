@@ -123,24 +123,30 @@ pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 
 impl ExpressionSpecInvocation {
     pub fn is_primitive_string(property_type: &TypeId) -> bool {
-        if let PaxType::Singleton { pascal_identifier } = &property_type.pax_type {
-            return &SUPPORTED_NONNUMERIC_PRIMITIVES[0] == &pascal_identifier;
+        match property_type.get_pax_type() {
+            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
+                return SUPPORTED_NONNUMERIC_PRIMITIVES[0] == pascal_identifier;
+            }
+            _ => false
         }
-        false
     }
 
     pub fn is_primitive_bool(property_type: &TypeId) -> bool {
-        if let PaxType::Singleton { pascal_identifier } = &property_type.pax_type {
-            return &SUPPORTED_NONNUMERIC_PRIMITIVES[1] == &pascal_identifier;
+        match property_type.get_pax_type() {
+            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
+                return SUPPORTED_NONNUMERIC_PRIMITIVES[1] == pascal_identifier;
+            }
+            _ => false
         }
-        false
     }
 
     pub fn is_numeric(property_type: &TypeId) -> bool {
-        if let PaxType::Singleton { pascal_identifier } = &property_type.pax_type {
-            return SUPPORTED_NUMERIC_PRIMITIVES.contains(&pascal_identifier.as_str());
+        match property_type.get_pax_type() {
+            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
+                return SUPPORTED_NUMERIC_PRIMITIVES.contains(&pascal_identifier.as_str());
+            }
+            _ => false
         }
-        false
     }
 }
 
@@ -290,6 +296,7 @@ impl TypeId {
     }
 
     pub fn build_singleton(import_path: String, pascal_identifier: Option<String>) -> Self {
+
         let pascal_identifier = if let Some(p) = pascal_identifier {
             p
         } else {
@@ -641,7 +648,7 @@ impl ComponentTemplate {
         self.root.clone().into()
     }
 
-    pub fn get_children(&self, id: TemplateNodeId) -> Option<Vec<TemplateNodeId>> {
+    pub fn get_children(&self, id: &TemplateNodeId) -> Option<Vec<TemplateNodeId>> {
         if let Some(c) = self.children.get(&id) {
             return Some(c.clone().into());
         }
@@ -650,6 +657,10 @@ impl ComponentTemplate {
 
     pub fn get_node(&self, id: &TemplateNodeId) -> Option<&TemplateNodeDefinition> {
         self.nodes.get(id)
+    }
+
+    pub fn set_node(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) {
+        self.nodes.insert(id, tnd);
     }
 
     pub fn get_nodes(&self) -> Vec<&TemplateNodeDefinition> {
