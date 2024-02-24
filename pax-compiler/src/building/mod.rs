@@ -87,18 +87,23 @@ pub fn update_type_id_prefixes_in_place(
     manifest: &mut PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
-    manifest.main_component_type_id.fully_qualify_type_id(host_crate_info);
+    manifest
+        .main_component_type_id
+        .fully_qualify_type_id(host_crate_info);
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t| {
         t.1.type_id.fully_qualify_type_id(host_crate_info);
-        if let Some(inner) = &t.1.inner_iterable_type_id {
+        if let Some(inner) = &mut t.1.inner_iterable_type_id {
             inner.fully_qualify_type_id(host_crate_info);
-            t.1.inner_iterable_type_id = Some(*inner);
         }
         t.1.property_definitions.iter_mut().for_each(|pd| {
             pd.type_id.fully_qualify_type_id(host_crate_info);
         });
-        updated_type_table.insert(t.0.fully_qualify_type_id(host_crate_info).clone(), t.1.clone());
+        let mut key = t.0.clone();
+        updated_type_table.insert(
+            key.fully_qualify_type_id(host_crate_info).clone(),
+            t.1.clone(),
+        );
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 
@@ -110,7 +115,11 @@ pub fn update_type_id_prefixes_in_place(
             template.fully_qualify_template_type_ids(host_crate_info);
         }
 
-        updated_component_table.insert(c.0.fully_qualify_type_id(host_crate_info).clone(), c.1.clone());
+        let mut key = c.0.clone();
+        updated_component_table.insert(
+            key.fully_qualify_type_id(host_crate_info).clone(),
+            c.1.clone(),
+        );
     });
     std::mem::swap(&mut manifest.components, &mut updated_component_table);
 }

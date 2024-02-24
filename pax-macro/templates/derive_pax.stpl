@@ -25,9 +25,11 @@
             import_paths: ctx.import_paths,
         };
 
+
         //Send data back to parent process by printing to stdout
         println!("{}", &serde_json::to_string_pretty(&manifest).unwrap());
         std::process::exit(0);
+
     }
 
     //For main component only, and only when we're NOT parsing, include reexports
@@ -60,8 +62,8 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
         pax_compiler::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
     }
 
-    fn get_type_id() -> TypeId {
-       TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+    fn get_type_id() -> pax_manifest::TypeId {
+       pax_manifest::TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
     }
 
     fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
@@ -96,7 +98,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
             });
         <% } %>
 
-        match &ctx.visited_type_ids.get(&self_type_id as &str) {
+        match &ctx.visited_type_ids.get(&self_type_id) {
             None => {
                 //First time visiting this file/source
 
@@ -122,7 +124,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                     property_definitions.clone(),
                     None,
                     self_type_id.clone(),
-                    import_path,
                 );
 
                 <% if args_full_component.as_ref().is_some() { %>
@@ -154,7 +155,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                 <% } %>
                 <% if args_primitive.as_ref().is_some() { %>
                     let comp_def = pax_compiler::parsing::assemble_primitive_definition(
-                        PASCAL_IDENTIFIER,
                         &pax_compiler::parsing::clean_module_path(module_path!()),
                         "<%=  args_primitive.as_ref().unwrap().primitive_instance_import_path  %>".to_string(),
                         self_type_id.clone(),

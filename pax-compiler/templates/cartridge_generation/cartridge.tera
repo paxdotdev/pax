@@ -243,16 +243,16 @@ impl DefinitionToInstanceTraverser {
         main_component
     }
 
-    pub fn get_component(&mut self, type_id: &str) -> Rc<dyn InstanceNode> {
+    pub fn get_component(&mut self, type_id: &TypeId) -> Rc<dyn InstanceNode> {
         let factory = Self::get_component_factory(type_id).expect("Failed to get component factory");
         let args = self.build_component_args(type_id);
         factory.build_component(args)
     }
 
-    pub fn get_component_factory(type_id: &str) -> Option<Box<dyn ComponentFactory>> {
-        match type_id {
+    pub fn get_component_factory(type_id: &TypeId) -> Option<Box<dyn ComponentFactory>> {
+        match type_id.get_unique_identifier().as_str() {
             {% for component in components %}
-            "{{component.type_id}}" => {
+            "{{component.type_id._type_id}}" => {
                         Some(Box::new({{component.pascal_identifier}}Factory{}) as Box<dyn ComponentFactory>)
                 },
             {% endfor %}
@@ -260,14 +260,14 @@ impl DefinitionToInstanceTraverser {
         }
     }
 
-    pub fn build_component_args(&self, type_id: &str) -> InstantiationArgs {
+    pub fn build_component_args(&self, type_id: &TypeId) -> InstantiationArgs {
 
         let manifest = self.get_manifest();
         if let None = manifest.components.get(type_id) {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
         let component = manifest.components.get(type_id).unwrap();
-        let factory = Self::get_component_factory(type_id).unwrap();
+        let factory = Self::get_component_factory(&type_id).unwrap();
         let prototypical_common_properties_factory = factory.build_default_common_properties();
         let prototypical_properties_factory = factory.build_default_properties();
 
@@ -279,23 +279,23 @@ impl DefinitionToInstanceTraverser {
         let compute_properties_fn = factory.build_compute_properties_fn();
 
         let mut component_template = None;
-        if let Some(template_nodes) = &component.template {
-            let root = template_nodes.get(&0).unwrap();
-            let children = &root.child_ids;
-            let mut children_instances = Vec::new();
-            for child_id in children {
-                let child = template_nodes.get(&child_id).unwrap();
-                match child.type_id.as_str() {
-                    "IF" | "SLOT" | "REPEAT" => {
-                        children_instances.push(self.build_control_flow(type_id, &child));
+        if let Some(template) = &component.template {
+
+            let root = template.get_root();
+            let mut instances = Vec::new();
+            for node_id in root {
+                let node = template.get_node(&node_id).unwrap();
+                match node.type_id.get_pax_type(){
+                    PaxType::If | PaxType::Slot | PaxType::Repeat => {
+                        instances.push(self.build_control_flow(type_id, &node_id));
                     },
-                    "COMMENT" => continue,
+                    PaxType::Comment => continue,
                     _ => {  
-                        children_instances.push(self.build_template_node(type_id, &child));
+                        instances.push(self.build_template_node(type_id, &node_id));
                     }
                 }
             }
-            component_template = Some(children_instances);
+            component_template = Some(instances);
         }
 
         InstantiationArgs {
@@ -310,13 +310,18 @@ impl DefinitionToInstanceTraverser {
         }
     }
 
-    pub fn build_control_flow(&self, containing_component_type_id: &str, tnd: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
+    pub fn build_control_flow(&self, containing_component_type_id: &TypeId, node_id: &TemplateNodeId) -> Rc<dyn InstanceNode> {
 
         let manifest = self.get_manifest();
         let prototypical_common_properties_factory = Box::new(|| Rc::new(RefCell::new(CommonProperties::default())));
-        let children = self.build_children(containing_component_type_id, tnd);
-        match tnd.type_id.as_str(){
-            "IF" => {
+
+        let containing_component = manifest.components.get(containing_component_type_id).unwrap();
+        let containing_template = containing_component.template.as_ref().unwrap();
+        let tnd = containing_template.get_node(node_id).unwrap();
+
+        let children = self.build_children(containing_component_type_id, &node_id);
+        match tnd.type_id.get_pax_type(){
+            PaxType::If => {
                 let vtable_id = tnd.control_flow_settings
                     .as_ref()
                     .unwrap()
@@ -338,7 +343,7 @@ impl DefinitionToInstanceTraverser {
                     component_type_id: tnd.type_id.clone(),
                 })
             },
-            "SLOT" => {
+            PaxType::Slot => {
                 let vtable_id = tnd
                     .control_flow_settings
                     .as_ref()
@@ -361,7 +366,7 @@ impl DefinitionToInstanceTraverser {
                     component_type_id: tnd.type_id.clone(),
                 })
             },
-            "REPEAT" => {
+            PaxType::Repeat => {
                 let rsd = tnd
                     .control_flow_settings
                     .as_ref()
@@ -405,36 +410,38 @@ impl DefinitionToInstanceTraverser {
 
     }
 
-    fn build_children(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Vec<Rc<dyn InstanceNode>> {
+    fn build_children(&self, containing_component_type_id: &TypeId, node_id: &TemplateNodeId) -> Vec<Rc<dyn InstanceNode>> {
         let manifest = self.get_manifest();
         let containing_component = manifest.components.get(containing_component_type_id).unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
+        let children = containing_template.get_children(*node_id);
 
         let mut children_instances = Vec::new();
-        for child_id in &node.child_ids {
-            let child = containing_template.get(&child_id).unwrap();
-            match child.type_id.as_str() {
-                "IF" | "SLOT" | "REPEAT" => {
-                    children_instances.push(self.build_control_flow(containing_component_type_id, &child));
+        for child_id in &children.unwrap_or_default() {
+            let child = containing_template.get_node(&child_id).unwrap();
+            match child.type_id.get_pax_type() {
+                PaxType::If | PaxType::Slot | PaxType::Repeat  => {
+                    children_instances.push(self.build_control_flow(containing_component_type_id, &child_id));
                 },
-                "COMMENT" => continue,
+                PaxType::Comment => continue,
                 _ => {  
-                    children_instances.push(self.build_template_node(containing_component_type_id, child));
+                    children_instances.push(self.build_template_node(containing_component_type_id, child_id));
                 }
             }
         }
         children_instances
     }
 
-    pub fn build_template_node(&self, containing_component_type_id: &str, node: &TemplateNodeDefinition) -> Rc<dyn InstanceNode> {
-        let mut args = self.build_component_args(&node.type_id);
-        let node_component_factory = Self::get_component_factory(&node.type_id).unwrap();
-
+    pub fn build_template_node(&self, containing_component_type_id: &TypeId, node_id: &TemplateNodeId) -> Rc<dyn InstanceNode> {
         let manifest = self.get_manifest();
 
         let containing_component = manifest.components.get(containing_component_type_id).unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
+        let node = containing_template.get_node(node_id).unwrap();
         let containing_component_factory = Self::get_component_factory(containing_component_type_id).unwrap();
+
+        let mut args = self.build_component_args(&node.type_id);
+        let node_component_factory = Self::get_component_factory(&node.type_id).unwrap();
 
         // update handlers from tnd
         let handlers_from_tnd = manifest.get_inline_event_handlers(node);
@@ -456,8 +463,8 @@ impl DefinitionToInstanceTraverser {
         args.prototypical_common_properties_factory = updated_common_properties;
 
        
-        args.children = Some(self.build_children(containing_component_type_id, node));
-        args.template_node_id = node.id;
+        args.children = Some(self.build_children(containing_component_type_id, node_id));
+        args.template_node_id = node_id.clone();
         args.component_type_id = node.type_id.clone();
         node_component_factory.build_component(args)
     }
@@ -468,8 +475,8 @@ impl DefinitionToInstanceTraverser {
         let main_component_type_id = manifest.main_component_type_id.clone();
         let main_component = manifest.components.get(&main_component_type_id).unwrap();
         let template = main_component.template.as_ref().unwrap();
-        for template_node in template.values() {
-            if let Some(found) = self.recurse_get_template_node_by_id(id, &main_component_type_id, template_node) {
+        for node_id in template.get_ids() {
+            if let Some(found) = self.recurse_get_template_node_by_id(id, &main_component_type_id, node_id) {
                 return Some(self.build_template_node(&found.0, &found.1))
             }
         }
@@ -494,16 +501,20 @@ impl DefinitionToInstanceTraverser {
         false
     }
 
-    fn recurse_get_template_node_by_id<'a>(&'a self, id: &str, containing_component_type_id: &'a str, tnd: &'a TemplateNodeDefinition) -> Option<(String, TemplateNodeDefinition)>{
+    fn recurse_get_template_node_by_id<'a>(&'a self, id: &str, containing_component_type_id: &'a TypeId, node_id: &'a TemplateNodeId) -> Option<(TypeId, TemplateNodeId)>{
         let manifest = self.get_manifest();
+        let containing_component = manifest.components.get(containing_component_type_id).unwrap();
+        let containing_template = containing_component.template.as_ref().unwrap();
+        let tnd = containing_template.get_node(node_id).unwrap();
+
         if self.check_for_id_in_template_node(id, tnd) {
-            return Some((containing_component_type_id.to_string(), tnd.clone()));
+            return Some((containing_component_type_id.clone(), node_id.clone()));
         }
 
         if let Some(component) = &manifest.components.get(&tnd.type_id){
             if let Some(template) = &component.template {
-                for template_node in template.values() {
-                    if let Some(found) = self.recurse_get_template_node_by_id(id, &tnd.type_id, template_node) {
+                for node_id in template.get_ids() {
+                    if let Some(found) = self.recurse_get_template_node_by_id(id, &tnd.type_id, node_id) {
                         return Some(found.clone());
                     }
                 }
