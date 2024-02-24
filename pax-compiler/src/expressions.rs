@@ -1,6 +1,11 @@
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ComponentTemplate, ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeDefinition, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable, ValueDefinition
+    escape_identifier, ComponentDefinition, ComponentTemplate,
+    ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo,
+    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement,
+    TemplateNodeDefinition, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable,
+    ValueDefinition,
 };
+use std::any::Any;
 use std::collections::HashMap;
 use std::ops::RangeFrom;
 use std::slice::IterMut;
@@ -27,7 +32,7 @@ pub fn compile_all_expressions<'a>(
         let read_only_component_def = component_def.clone();
 
         if let Some(ref mut template) = new_component_def.template {
-
+            let root = template.get_root().clone();
 
             let mut ctx = ExpressionCompilationContext {
                 template,
@@ -45,18 +50,11 @@ pub fn compile_all_expressions<'a>(
                 host_crate_info,
             };
 
-            for id in template.get_root(){
+            for id in root {
                 ctx.active_node_id = Some(id.clone());
                 ctx = recurse_compile_expressions(ctx, source_map)?;
             }
 
-            
-
-
-
-          
-
-          
             vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
             all_expression_specs.extend(ctx.expression_specs.to_owned());
         }
@@ -73,7 +71,7 @@ fn recurse_compile_literal_block<'a>(
     settings_pairs: &mut IterMut<SettingElement>,
     ctx: &mut ExpressionCompilationContext,
     current_property_definitions: Vec<PropertyDefinition>,
-    type_id: String,
+    type_id: TypeId,
     source_map: &mut SourceMap,
 ) -> Result<(), eyre::Report> {
     settings_pairs.try_for_each(|e| {
@@ -89,7 +87,8 @@ fn recurse_compile_literal_block<'a>(
                     .ok_or::<eyre::Report>(PaxTemplateError::new(
                         Some(format!(
                             "Property `{}` not found on `{}`",
-                            &token.token_value, type_id
+                            &token.token_value,
+                            type_id.get_unique_identifier()
                         )),
                         token.clone(),
                     ))?
@@ -98,7 +97,7 @@ fn recurse_compile_literal_block<'a>(
                         &mut block.elements.iter_mut(),
                         ctx,
                         type_def.property_definitions.clone(),
-                        type_def.type_id_escaped.clone(),
+                        type_def.type_id.clone(),
                         source_map,
                     )?;
                 }
@@ -180,16 +179,21 @@ fn recurse_compile_expressions<'a>(
     let mut incremented = false;
 
     let cloned_settings_block = ctx.component_def.settings.clone();
-    let cloned_inline_settings = ctx.active_node_def.settings.clone();
+    let mut active_node_def = ctx
+        .template
+        .get_node(&ctx.active_node_id.clone().unwrap())
+        .unwrap()
+        .clone();
+    let cloned_inline_settings = active_node_def.settings.clone();
     let mut merged_settings = PaxManifest::merge_inline_settings_with_settings_block(
         &cloned_inline_settings,
         &cloned_settings_block,
     );
-    let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
+    let mut cloned_control_flow_settings = active_node_def.control_flow_settings.clone();
 
     if let Some(ref mut inline_settings) = merged_settings {
         // Handle standard key/value declarations (non-control-flow)
-        let type_id = ctx.active_node_def.type_id.clone();
+        let type_id = active_node_def.type_id.clone();
         let pascal_identifier;
         let property_def;
 
@@ -198,7 +202,7 @@ fn recurse_compile_expressions<'a>(
             let active_node_component = ctx.all_components.get(&type_id)
                 .expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &type_id, &type_id));
 
-            pascal_identifier = active_node_component.pascal_identifier.clone();
+            pascal_identifier = type_id.clone();
             property_def = active_node_component.get_property_definitions(&mut ctx.type_table);
         }
 
@@ -447,38 +451,35 @@ fn recurse_compile_expressions<'a>(
         // Write back our modified control_flow_settings, which now contain vtable lookup ids
         std::mem::swap(
             &mut cloned_control_flow_settings,
-            &mut ctx.active_node_def.control_flow_settings,
+            &mut active_node_def.control_flow_settings,
         );
     }
 
-    std::mem::swap(&mut merged_settings, &mut ctx.active_node_def.settings);
+    std::mem::swap(&mut merged_settings, &mut active_node_def.settings);
 
     // Traverse descendent nodes and continue compiling expressions recursively
-    for id in ctx.active_node_def.child_ids.clone().iter() {
-        //Create two blanks
-        let mut active_node_def = TemplateNodeDefinition::default();
-        let mut old_active_node_def = TemplateNodeDefinition::default();
+    for id in ctx
+        .template
+        .get_children(ctx.active_node_id.clone().unwrap())
+        .clone().unwrap_or_default()
+        .iter()
+    {
+        // update active id to child for next level of recursion into tree
+        let parent_id = ctx.active_node_id;
+        ctx.active_node_id = Some(id.clone());
 
-        //Swap the first blank for the node with specified id
-        std::mem::swap(&mut active_node_def, ctx.template.get_mut(id).unwrap());
-
-        //Swap the second blank for the current ctx.active_node_def value, so we can pass it back
-        //to caller when done
-        std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
-
-        //Arm ctx with the newly retrieved, mutable active_node_def
-        ctx.active_node_def = active_node_def;
-
-        //Recurse
         ctx = recurse_compile_expressions(ctx, source_map)?;
 
-        //Pull the (presumably mutated) active_node_def back out of ctx and attach it back into `template`
-        std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(id).unwrap());
-
-        //Put old active_node_def back in place so we can return it to caller
-        std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
+        ctx.active_node_id = parent_id;
     }
 
+    std::mem::swap(
+        &mut ctx
+            .template
+            .get_node(&ctx.active_node_id.clone().unwrap())
+            .unwrap(),
+        &mut &active_node_def,
+    );
     if incremented {
         ctx.scope_stack.pop();
     }
@@ -520,13 +521,11 @@ fn resolve_symbol_as_invocation(
         let root_identifier = split_symbols.next().unwrap().to_string();
         let root_prop_def = prop_def_chain.first().unwrap();
 
-        let fully_qualified_properties_struct_type = ctx
-            .host_crate_info
-            .fully_qualify_path(&ctx.component_def.type_id);
+        let fully_qualified_properties_struct_type =
+            ctx.component_def.type_id.get_import_path().unwrap();
 
         let fully_qualified_iterable_type = if root_prop_def.flags.is_binding_repeat_elem {
-            ctx.host_crate_info
-                .fully_qualify_path(&root_prop_def.type_id)
+            root_prop_def.type_id.get_unique_identifier()
         } else if root_prop_def.flags.is_binding_repeat_i {
             "usize".to_string()
         } else {
@@ -556,12 +555,7 @@ fn resolve_symbol_as_invocation(
             token.clone(),
         ))?;
         let property_flags = found_val.flags;
-        let property_type = &root_prop_def
-            .get_type_definition(ctx.type_table)
-            .type_id
-            .split("::")
-            .last()
-            .unwrap();
+        let property_type = &root_prop_def.type_id;
 
         let mut nested_symbol_tail_literal = "".to_string();
         prop_def_chain.iter().enumerate().for_each(|(i, elem)| {
@@ -739,5 +733,4 @@ impl<'a> ExpressionCompilationContext<'a> {
             Ok(None)
         }
     }
-
 }
