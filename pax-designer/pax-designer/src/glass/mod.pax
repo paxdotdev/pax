@@ -60,21 +60,4 @@
             Fill::Solid(self.rect_tool.fill)
         }
     }
-
-    .bounding_segment {
-        segments: {[
-            PathSegment::line(
-                LineSegmentData::new(
-                    Point::new((segment.x0)px, (segment.y0)px),
-                    Point::new((segment.x1)px, (segment.y1)px)
-                )
-            )
-        ]},
-        stroke: {
-            color: {
-                Color::rgb(0, 0, 1)
-            }
-            width: 1px
-        },
-    }
 }

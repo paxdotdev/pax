@@ -103,17 +103,19 @@ impl ActionContext<'_> {
         None
     }
 
-    pub fn selected_bounds(&self) -> Option<(AxisAlignedBox, Point2<Glass>)> {
-        let to_glass_transform = self.glass_transform();
-        let expanded_node = self
-            .engine_context
+    pub fn selected_node(&self) -> Option<NodeInterface> {
+        self.engine_context
             .get_nodes_by_global_id(
                 &self.app_state.selected_component_id,
                 self.app_state.selected_template_node_id?,
             )
             .into_iter()
-            .next()?;
+            .next()
+    }
 
+    pub fn selected_bounds(&self) -> Option<(AxisAlignedBox, Point2<Glass>)> {
+        let to_glass_transform = self.glass_transform();
+        let expanded_node = self.selected_node()?;
         let bounds = expanded_node
             .bounding_points()?
             .map(|p| to_glass_transform * p);
