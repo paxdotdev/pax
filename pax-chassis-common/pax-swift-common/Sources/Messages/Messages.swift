@@ -392,14 +392,6 @@ public func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
             blue: Double(stub[2]!.asFloat!),
             opacity: Double(stub[3]!.asFloat!)
         )
-    } else if let hlc = fillBuffer["Hlca"], !hlc.isNull {
-        let stub = fillBuffer["Hlca"]!
-        return Color(
-            hue: Double(stub[0]!.asFloat!),
-            saturation: Double(stub[1]!.asFloat!),
-            brightness: Double(stub[2]!.asFloat!),
-            opacity: Double(stub[3]!.asFloat!)
-        )
     } else {
         return Color.black
     }

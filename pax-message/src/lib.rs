@@ -356,7 +356,7 @@ pub struct ButtonPatch {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct CheckboxStyleMessage {
-    //pub fill: Option<ColorVariantMessage>,
+    //pub fill: Option<ColorMessage>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -386,7 +386,7 @@ pub struct TextPatch {
 pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
     pub font_size: Option<f64>,
-    pub fill: Option<ColorVariantMessage>,
+    pub fill: Option<ColorMessage>,
     pub underline: Option<bool>,
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
@@ -404,16 +404,14 @@ pub struct ImagePatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
-pub enum ColorVariantMessage {
-    Hlca([f64; 4]),
-    Hlc([f64; 3]),
+pub enum ColorMessage {
     Rgba([f64; 4]),
     Rgb([f64; 3]),
 }
 
-impl Default for ColorVariantMessage {
+impl Default for ColorMessage {
     fn default() -> Self {
-        ColorVariantMessage::Rgba([1.0, 0.5, 0.0, 1.0])
+        ColorMessage::Rgba([1.0, 0.5, 0.0, 1.0])
     }
 }
 
@@ -441,7 +439,7 @@ pub enum TextAlignVerticalMessage {
 #[repr(C)]
 pub struct LinkStyleMessage {
     pub font: Option<FontPatch>,
-    pub fill: Option<ColorVariantMessage>,
+    pub fill: Option<ColorMessage>,
     pub underline: Option<bool>,
     pub size: Option<f64>,
 }
