@@ -52,7 +52,12 @@ pub fn generate_and_overwrite_cartridge(
     let mut imports: Vec<String> = manifest
         .import_paths
         .iter()
-        .map(|e| TypeId::build_singleton(*e, None).fully_qualify_type_id(host_crate_info).get_import_path().unwrap())
+        .map(|e| {
+            TypeId::build_singleton(e.clone(), None)
+                .fully_qualify_type_id(host_crate_info)
+                .get_import_path()
+                .unwrap()
+        })
         .collect();
 
     imports.append(

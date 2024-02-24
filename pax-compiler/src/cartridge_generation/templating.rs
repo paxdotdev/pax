@@ -4,6 +4,7 @@ use pax_runtime::api::serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 use tera::{Context, Tera};
+use std::collections::HashMap;
 
 use pax_manifest::{
     cartridge_generation::{CommonProperty, ComponentInfo},
@@ -14,6 +15,7 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartr
 static CARTRIDGE_TEMPLATE: &str = "cartridge.tera";
 static MACROS_TEMPLATE: &str = "macros.tera";
 
+#[serde_with::serde_as]
 #[derive(Serialize)]
 #[serde(crate = "pax_runtime::api::serde")]
 pub struct TemplateArgsCodegenCartridgeLib {
@@ -30,6 +32,7 @@ pub struct TemplateArgsCodegenCartridgeLib {
     pub common_properties: Vec<CommonProperty>,
 
     // Information about known types and their properties
+    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
 
     // Whether or not this is a designtime cartridge

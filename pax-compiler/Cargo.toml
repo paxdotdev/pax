@@ -54,6 +54,7 @@ rust-format = "0.3.4"
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
+serde_with = { version= "3.6.1", features = ["json"]} 
 syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 tar = "0.4"
 tera = "1"

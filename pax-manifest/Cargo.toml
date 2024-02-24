@@ -18,3 +18,4 @@ serde = { version="1.0.95", features=["derive"]}
 pax-message = {path="../pax-message", version="0.12.0"}
 pest = { version="2.7.6", optional=true}
 pest_derive = {version="2.7.6", optional=true}
+serde_with = { version= "3.6.1", features = ["json"]} 

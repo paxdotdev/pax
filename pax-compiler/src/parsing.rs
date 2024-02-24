@@ -1,11 +1,8 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use itertools::{Itertools, MultiPeek};
-use pax_manifest::constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_manifest::{escape_identifier, ComponentTemplate, TemplateLocation, TypeId};
-use std::ops::RangeFrom;
 
 use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
@@ -315,7 +312,12 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
         .into_inner()
         .for_each(|pair| match pair.as_rule() {
             Rule::root_tag_pair => {
-                recurse_visit_tag_pairs_for_template(ctx, pair.into_inner().next().unwrap(), pax, TemplateLocation::Root);
+                recurse_visit_tag_pairs_for_template(
+                    ctx,
+                    pair.into_inner().next().unwrap(),
+                    pax,
+                    TemplateLocation::Root,
+                );
             }
             _ => {}
         });
@@ -325,16 +327,15 @@ struct TemplateNodeParseContext {
     pub template: ComponentTemplate,
     pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
     // In the case of a live-reload (no compilation), we use cached expressions when we re-parse template
-    pub cached_expressions: Option<HashMap<String, ValueDefinition>>
+    pub cached_expressions: Option<HashMap<String, ValueDefinition>>,
 }
 
 fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
     any_tag_pair: Pair<Rule>,
     pax: &str,
-    location: TemplateLocation
+    location: TemplateLocation,
 ) {
-    
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
@@ -347,13 +348,14 @@ fn recurse_visit_tag_pairs_for_template(
                 .into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
 
-
-            let mut template_node = TemplateNodeDefinition {
-                type_id: TypeId::build_singleton(ctx
-                    .pascal_identifier_to_type_id_map
-                    .get(pascal_identifier)
-                    .expect(&format!("Template key not found {}", &pascal_identifier))
-                    .to_string(), Some(pascal_identifier.to_string()) ),
+            let template_node = TemplateNodeDefinition {
+                type_id: TypeId::build_singleton(
+                    ctx.pascal_identifier_to_type_id_map
+                        .get(pascal_identifier)
+                        .expect(&format!("Template key not found {}", &pascal_identifier))
+                        .to_string(),
+                    Some(pascal_identifier.to_string()),
+                ),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
                 raw_comment_string: None,
                 control_flow_settings: None,
@@ -370,7 +372,12 @@ fn recurse_visit_tag_pairs_for_template(
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
                     inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                        recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                        recurse_visit_tag_pairs_for_template(
+                            ctx,
+                            sub_tag_pair,
+                            pax,
+                            TemplateLocation::Parent(id.clone().get_template_node_id()),
+                        );
                     })
                 }
                 _ => {
@@ -382,12 +389,14 @@ fn recurse_visit_tag_pairs_for_template(
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
 
-            let mut template_node = TemplateNodeDefinition {
-                type_id: TypeId::build_singleton(ctx
-                    .pascal_identifier_to_type_id_map
-                    .get(pascal_identifier)
-                    .expect(&format!("Template key not found {}", &pascal_identifier))
-                    .to_string(), Some(pascal_identifier.to_string()) ),
+            let template_node = TemplateNodeDefinition {
+                type_id: TypeId::build_singleton(
+                    ctx.pascal_identifier_to_type_id_map
+                        .get(pascal_identifier)
+                        .expect(&format!("Template key not found {}", &pascal_identifier))
+                        .to_string(),
+                    Some(pascal_identifier.to_string()),
+                ),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
                 raw_comment_string: None,
                 control_flow_settings: None,
@@ -428,21 +437,25 @@ fn recurse_visit_tag_pairs_for_template(
                         raw_comment_string: None,
                     };
 
-
                     let id = match location {
                         TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                        TemplateLocation::Parent(id) => {
+                            ctx.template.add_child_back(id, template_node)
+                        }
                     };
 
                     let prospective_inner_nodes = statement_if.next();
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
                         inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                            recurse_visit_tag_pairs_for_template(
+                                ctx,
+                                sub_tag_pair,
+                                pax,
+                                TemplateLocation::Parent(id.clone().get_template_node_id()),
+                            );
                         })
                     }
-
-                    
                 }
                 Rule::statement_for => {
                     let mut cfavd = ControlFlowSettingsDefinition::default();
@@ -534,13 +547,19 @@ fn recurse_visit_tag_pairs_for_template(
 
                     let id = match location {
                         TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                        TemplateLocation::Parent(id) => {
+                            ctx.template.add_child_back(id, template_node)
+                        }
                     };
-
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
                         inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                            recurse_visit_tag_pairs_for_template(
+                                ctx,
+                                sub_tag_pair,
+                                pax,
+                                TemplateLocation::Parent(id.clone().get_template_node_id()),
+                            );
                         })
                     }
                 }
@@ -555,7 +574,6 @@ fn recurse_visit_tag_pairs_for_template(
                         pax,
                     );
                     let prospective_inner_nodes = statement_slot.next();
-
 
                     let template_node = TemplateNodeDefinition {
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
@@ -573,12 +591,19 @@ fn recurse_visit_tag_pairs_for_template(
 
                     let id = match location {
                         TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                        TemplateLocation::Parent(id) => {
+                            ctx.template.add_child_back(id, template_node)
+                        }
                     };
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
                         inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair, pax, TemplateLocation::Parent(id.get_template_node_id()));
+                            recurse_visit_tag_pairs_for_template(
+                                ctx,
+                                sub_tag_pair,
+                                pax,
+                                TemplateLocation::Parent(id.clone().get_template_node_id()),
+                            );
                         })
                     }
                 }
@@ -588,7 +613,7 @@ fn recurse_visit_tag_pairs_for_template(
             };
         }
         Rule::comment => {
-            let mut template_node = TemplateNodeDefinition {
+            let template_node = TemplateNodeDefinition {
                 control_flow_settings: None,
                 type_id: TypeId::build_comment(),
                 settings: None,
@@ -952,11 +977,11 @@ fn parse_settings_from_component_definition_string(
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
-    pub visited_type_ids: HashSet<String>,
+    pub visited_type_ids: HashSet<TypeId>,
 
-    pub main_component_type_id: String,
+    pub main_component_type_id: TypeId,
 
-    pub component_definitions: HashMap<String, ComponentDefinition>,
+    pub component_definitions: HashMap<TypeId, ComponentDefinition>,
 
     pub template_map: HashMap<String, TypeId>,
 
@@ -970,7 +995,7 @@ pub struct ParsingContext {
 impl Default for ParsingContext {
     fn default() -> Self {
         Self {
-            main_component_type_id: "".into(),
+            main_component_type_id: TypeId::default(),
             visited_type_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
@@ -1081,12 +1106,15 @@ pub fn assemble_component_definition(
     }
 
     if is_main_component {
-        ctx.main_component_type_id = self_type_id.to_string();
+        ctx.main_component_type_id = self_type_id.clone();
     }
 
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_type_id_map: template_map,
-        template: ComponentTemplate::new(self_type_id.clone(),Some(component_source_file_path.to_owned())),
+        template: ComponentTemplate::new(
+            self_type_id.clone(),
+            Some(component_source_file_path.to_owned()),
+        ),
         cached_expressions: None,
     };
 
@@ -1113,7 +1141,7 @@ pub fn assemble_component_definition(
         handlers: Some(handlers),
         module_path: modified_module_path,
     };
-
+    
     (ctx, new_def)
 }
 
@@ -1172,16 +1200,14 @@ pub fn assemble_type_definition(
     inner_iterable_type_id: Option<TypeId>,
     self_type_id: TypeId,
 ) -> (ParsingContext, TypeDefinition) {
-    let type_id_escaped = escape_identifier(self_type_id.to_string());
 
     let new_def = TypeDefinition {
-        type_id: self_type_id,
+        type_id: self_type_id.clone(),
         inner_iterable_type_id,
         property_definitions,
     };
 
-    ctx.type_table
-        .insert(self_type_id, new_def.clone());
+    ctx.type_table.insert(self_type_id, new_def.clone());
 
     (ctx, new_def)
 }
@@ -1211,7 +1237,7 @@ pub trait Reflectable {
         //Default impl for primitives and pax_runtime::api
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
-            type_id: type_id,
+            type_id: type_id.clone(),
             inner_iterable_type_id: None,
             property_definitions: vec![],
         };
@@ -1357,7 +1383,10 @@ impl Reflectable for std::string::String {
         "String".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 impl<T> Reflectable for std::rc::Rc<T> {
@@ -1368,7 +1397,10 @@ impl<T> Reflectable for std::rc::Rc<T> {
         "Rc".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1376,7 +1408,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
-            type_id: type_id,
+            type_id: type_id.clone(),
             inner_iterable_type_id: None,
             property_definitions: vec![],
         };
@@ -1409,7 +1441,10 @@ impl Reflectable for pax_runtime::api::Size {
     }
 
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1422,7 +1457,10 @@ impl Reflectable for pax_runtime::api::Rotation {
         "Rotation".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1435,7 +1473,10 @@ impl Reflectable for pax_runtime::api::Numeric {
         "Numeric".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1448,7 +1489,10 @@ impl Reflectable for kurbo::Point {
         "Point".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1461,7 +1505,10 @@ impl Reflectable for pax_runtime::api::Transform2D {
         "Transform2D".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1473,7 +1520,10 @@ impl Reflectable for pax_runtime::api::StringBox {
         "StringBox".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+        TypeId::build_singleton(
+            Self::get_import_path(),
+            Some(Self::get_self_pascal_identifier()),
+        )
     }
 }
 
@@ -1481,7 +1531,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
-            type_id,
+            type_id: type_id.clone(),
             inner_iterable_type_id: Self::get_iterable_type_id(),
             property_definitions: vec![],
         };
@@ -1501,8 +1551,11 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     }
     fn get_type_id() -> TypeId {
         //Need to encode generics contents as part of unique id for iterables
-        TypeId::build_vector(format!("{}{}", "{PREFIX}",
-        &Self::get_iterable_type_id().unwrap()))
+        TypeId::build_vector(format!(
+            "{}{}",
+            "{PREFIX}",
+            &Self::get_iterable_type_id().unwrap()
+        ))
     }
     fn get_iterable_type_id() -> Option<TypeId> {
         Some(T::get_type_id())

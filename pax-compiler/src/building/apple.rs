@@ -585,7 +585,6 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
-
             let output_str = std::str::from_utf8(&output.stdout)
                 .map_err(|_| eyre!("Failed to parse stdout for xcrun"))?;
             let parsed: Value = serde_json::from_str(&output_str)

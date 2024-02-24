@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::{any::{Any}, collections::HashMap};
+use std::{any::Any, collections::HashMap};
 
 use crate::{
-    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, HandlerBindingElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition
+    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, HandlerBindingElement, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition
 };
 
 #[derive(Serialize, Debug)]
 pub struct ComponentInfo {
     pub type_id: TypeId,
+    pub pascal_identifier: String,
     pub primitive_instance_import_path: Option<String>,
     pub properties: Vec<PropertyInfo>,
     pub handlers: Vec<HandlerInfo>,
@@ -121,26 +122,27 @@ impl PaxManifest {
             // pull all handlers from the template inline settings
             if let Some(template) = &component.template {
                 for tnd in template.get_nodes() {
-                        if let Some(settings) = &tnd.settings {
-                            for setting in settings {
-                                if let SettingElement::Setting(key, value) = setting {
-                                    if let ValueDefinition::EventBindingTarget(e) = value {
-                                        let args_type = event_map
-                                            .get(key.token_value.as_str())
-                                            .expect("Unsupported event");
-                                        handler_data.push(HandlerInfo {
-                                            name: self.clean_handler(e.raw_value.clone()),
-                                            args_type: args_type.clone(),
-                                        });
-                                    }
+                    if let Some(settings) = &tnd.settings {
+                        for setting in settings {
+                            if let SettingElement::Setting(key, value) = setting {
+                                if let ValueDefinition::EventBindingTarget(e) = value {
+                                    let args_type = event_map
+                                        .get(key.token_value.as_str())
+                                        .expect("Unsupported event");
+                                    handler_data.push(HandlerInfo {
+                                        name: self.clean_handler(e.raw_value.clone()),
+                                        args_type: args_type.clone(),
+                                    });
                                 }
                             }
                         }
+                    }
                 }
             }
 
             component_infos.push(ComponentInfo {
                 type_id: component.type_id.clone(),
+                pascal_identifier: component.type_id.get_pascal_identifier().unwrap(),
                 primitive_instance_import_path: component.primitive_instance_import_path.clone(),
                 properties,
                 handlers: handler_data,

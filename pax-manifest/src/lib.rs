@@ -1,8 +1,7 @@
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::{Display, Write};
+use std::fmt::Display;
 use std::hash::Hasher;
-use std::ops::{Index, RangeFrom};
 use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
@@ -18,13 +17,16 @@ pub mod constants;
 pub mod deserializer;
 
 /// Definition container for an entire Pax cartridge
+#[serde_with::serde_as]
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {
+    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub components: HashMap<TypeId, ComponentDefinition>,
     pub main_component_type_id: TypeId,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
+    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
     pub import_paths: std::collections::HashSet<String>,
 }
@@ -120,16 +122,25 @@ pub const SUPPORTED_NUMERIC_PRIMITIVES: [&str; 13] = [
 pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 
 impl ExpressionSpecInvocation {
-    pub fn is_primitive_string(property_type: &str) -> bool {
-        &SUPPORTED_NONNUMERIC_PRIMITIVES[0] == &property_type
+    pub fn is_primitive_string(property_type: &TypeId) -> bool {
+        if let PaxType::Singleton { pascal_identifier } = &property_type.pax_type {
+            return &SUPPORTED_NONNUMERIC_PRIMITIVES[0] == &pascal_identifier;
+        }
+        false
     }
 
-    pub fn is_primitive_bool(property_type: &str) -> bool {
-        &SUPPORTED_NONNUMERIC_PRIMITIVES[1] == &property_type
+    pub fn is_primitive_bool(property_type: &TypeId) -> bool {
+        if let PaxType::Singleton { pascal_identifier } = &property_type.pax_type {
+            return &SUPPORTED_NONNUMERIC_PRIMITIVES[1] == &pascal_identifier;
+        }
+        false
     }
 
-    pub fn is_numeric(property_type: &str) -> bool {
-        SUPPORTED_NUMERIC_PRIMITIVES.contains(&property_type)
+    pub fn is_numeric(property_type: &TypeId) -> bool {
+        if let PaxType::Singleton { pascal_identifier } = &property_type.pax_type {
+            return SUPPORTED_NUMERIC_PRIMITIVES.contains(&pascal_identifier.as_str());
+        }
+        false
     }
 }
 
@@ -159,8 +170,6 @@ pub struct ComponentDefinition {
     pub handlers: Option<Vec<HandlerBindingElement>>,
 }
 
-
-
 impl ComponentDefinition {
     pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
         &tt.get(&self.type_id).unwrap().property_definitions
@@ -181,7 +190,6 @@ pub enum HandlerBindingElement {
     Comment(String),
 }
 
-
 #[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
 pub struct TemplateNodeId(usize);
@@ -191,7 +199,6 @@ impl TemplateNodeId {
         TemplateNodeId(id)
     }
 }
-
 
 impl Display for TemplateNodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -206,11 +213,25 @@ pub enum PaxType {
     Slot,
     Repeat,
     Comment,
-    Singleton{ pascal_identifier: String },
-    Range { identifier: String },
-    Option { identifier: String },
-    Vector{ elem_identifier: String },
-    Map{ key_identifier: String, value_identifier: String},
+    Primitive {
+        pascal_identifier: String,
+    },
+    Singleton {
+        pascal_identifier: String,
+    },
+    Range {
+        identifier: String,
+    },
+    Option {
+        identifier: String,
+    },
+    Vector {
+        elem_identifier: String,
+    },
+    Map {
+        key_identifier: String,
+        value_identifier: String,
+    },
     #[default]
     Unknown,
 }
@@ -220,6 +241,9 @@ pub enum PaxType {
 pub struct TypeId {
     pax_type: PaxType,
     import_path: Option<String>,
+
+    _type_id: String,
+    _type_id_escaped: String,
 }
 
 impl Display for TypeId {
@@ -229,18 +253,21 @@ impl Display for TypeId {
 }
 
 impl TypeId {
-
     pub fn build_if() -> Self {
         TypeId {
             pax_type: PaxType::If,
-            import_path: None
+            import_path: None,
+            _type_id: "If".to_string(),
+            _type_id_escaped: "".to_string(),
         }
     }
 
     pub fn build_repeat() -> Self {
         TypeId {
             pax_type: PaxType::Repeat,
-            import_path: None
+            import_path: None,
+            _type_id: "Repeat".to_string(),
+            _type_id_escaped: "".to_string(),
         }
     }
 
@@ -248,6 +275,8 @@ impl TypeId {
         TypeId {
             pax_type: PaxType::Slot,
             import_path: None,
+            _type_id: "Slot".to_string(),
+            _type_id_escaped: "".to_string(),
         }
     }
 
@@ -255,81 +284,101 @@ impl TypeId {
         TypeId {
             pax_type: PaxType::Comment,
             import_path: None,
+            _type_id: "Comment".to_string(),
+            _type_id_escaped: "".to_string(),
         }
     }
 
-
     pub fn build_singleton(import_path: String, pascal_identifier: Option<String>) -> Self {
-        let pascal_identifier = if let Some(p) = pascal_identifier {p} else {
+        let pascal_identifier = if let Some(p) = pascal_identifier {
+            p
+        } else {
             import_path.split("::").last().unwrap().to_string()
         };
 
         Self {
             pax_type: PaxType::Singleton { pascal_identifier },
-            import_path: Some(import_path)
+            import_path: Some(import_path.clone()),
+            _type_id: import_path.clone(),
+            _type_id_escaped: escape_identifier(import_path.clone()),
         }
     }
 
     pub fn build_primitive(identifier: String) -> Self {
-        TypeId{
-            pax_type: PaxType::Singleton { pascal_identifier: identifier.clone() },
-            import_path: None
+        TypeId {
+            pax_type: PaxType::Primitive {
+                pascal_identifier: identifier.clone(),
+            },
+            import_path: None,
+            _type_id: identifier.clone(),
+            _type_id_escaped: identifier.clone(),
         }
     }
 
-    pub fn build_vector(elem_identifier: String)-> Self {
+    pub fn build_vector(elem_identifier: String) -> Self {
+        let _id = format!("std::vec::Vec<{}>", elem_identifier);
         Self {
-            pax_type: PaxType::Vector{elem_identifier},
+            pax_type: PaxType::Vector { elem_identifier },
             import_path: Some("std::vec::Vec".to_string()),
+            _type_id: _id.clone(),
+            _type_id_escaped: escape_identifier(_id),
         }
     }
 
-    pub fn build_range(identifier: String)-> Self {
+    pub fn build_range(identifier: String) -> Self {
+        let _id = format!("std::ops::Range<{}>", identifier);
         Self {
             pax_type: PaxType::Range { identifier },
             import_path: Some("std::ops::Range".to_string()),
+            _type_id: _id.clone(),
+            _type_id_escaped: escape_identifier(_id),
         }
     }
 
-    pub fn build_option(identifier: String)-> Self {
+    pub fn build_option(identifier: String) -> Self {
+        let _id = format!("std::option::Option<{}>", identifier);
         Self {
             pax_type: PaxType::Option { identifier },
             import_path: Some("std::option::Option".to_string()),
+            _type_id: _id.clone(),
+            _type_id_escaped: escape_identifier(_id),
         }
     }
 
-    pub fn build_map(key_identifier: String, value_identifier: String)-> Self {
+    pub fn build_map(key_identifier: String, value_identifier: String) -> Self {
+        let _id = format!("std::collections::HashMap<{}><{}>", key_identifier.clone(), value_identifier.clone());
         Self {
-            pax_type: PaxType::Map{key_identifier, value_identifier},
+            pax_type: PaxType::Map {
+                key_identifier,
+                value_identifier,
+            },
             import_path: Some("std::collections::HashMap".to_string()),
+            _type_id: _id.clone(),
+            _type_id_escaped: escape_identifier(_id),
         }
     }
 
     pub fn get_import_path(&self) -> Option<String> {
+        if let PaxType::Primitive { pascal_identifier } = &self.pax_type {
+            return Some(pascal_identifier.clone());
+        }
         self.import_path.clone()
     }
 
-    pub fn get_unique_identifier(&self) -> String{
+    pub fn get_pascal_identifier(&self) -> Option<String> {
         match &self.pax_type {
-            PaxType::Singleton { pascal_identifier: _ } => self.import_path.clone().unwrap(),
-            PaxType::Range { identifier } => format!("{}<{}>", self.import_path.clone().unwrap(), identifier),
-            PaxType::Option { identifier } => format!("{}<{}>", self.import_path.clone().unwrap(), identifier),
-            PaxType::Vector{elem_identifier} => format!("{}<{}>", self.import_path.clone().unwrap(), elem_identifier),
-            PaxType::Map{key_identifier, value_identifier} => format!("{}<{}><{}>",self.import_path.clone().unwrap(), key_identifier, value_identifier),
-            PaxType::Unknown => unreachable!("Unknown type doesn't have a unique identifier"),
-            PaxType::If => "If".to_string(),
-            PaxType::Slot => "Slot".to_string(),
-            PaxType::Repeat => "Repeat".to_string(),
-            PaxType::Comment => "Comment".to_string(),
+            PaxType::Primitive { pascal_identifier } | 
+            PaxType::Singleton { pascal_identifier } =>  Some(pascal_identifier.clone()),
+            _ => None,
         }
+    }
+
+    pub fn get_unique_identifier(&self) -> String {
+        self._type_id.clone()
     }
 
     pub fn get_pax_type(&self) -> &PaxType {
         self.pax_type.borrow()
-    }
-
-    pub fn escaped_id(self) -> String {
-        escape_identifier(self.get_unique_identifier())
     }
 
     pub fn get_snake_case_id(&self) -> String {
@@ -341,32 +390,44 @@ impl TypeId {
             .replace("<", "_")
             .replace(".", "_")
     }
+    
+
+    pub fn fully_qualify_id(host_crate_info: &HostCrateInfo, id: String) -> Option<String> {
+        let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
+        .into_iter()
+        .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
+        .collect();
+        primitives_set.insert(TYPE_ID_IF);
+        primitives_set.insert(TYPE_ID_REPEAT);
+        primitives_set.insert(TYPE_ID_SLOT);
+        primitives_set.insert(TYPE_ID_COMMENT);
+
+        let ret = id.replace("crate::", "").to_string();
+        #[allow(non_snake_case)]
+        let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
+        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
+            
+        if primitives_set.contains(id.as_str()) || id.contains("pax_reexports") {
+            Some(ret.to_string())
+        } else if !imports_builtins_set.contains(id.as_str()) {
+            if id.contains("{PREFIX}") {
+                Some(ret.replace("{PREFIX}", &IMPORT_PREFIX))
+            } else {
+                Some(IMPORT_PREFIX.clone() + ret.as_str())
+            }
+        } else {
+            None
+        }
+    }
 
     pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
+       
         if let Some(path) = self.get_import_path() {
-            let ret = path.replace("crate::", "").to_string();
-            #[allow(non_snake_case)]
-            let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-            let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
-            let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
-                .into_iter()
-                .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
-                .collect();
-            primitives_set.insert(TYPE_ID_IF);
-            primitives_set.insert(TYPE_ID_REPEAT);
-            primitives_set.insert(TYPE_ID_SLOT);
-            primitives_set.insert(TYPE_ID_COMMENT);
-            self.import_path = if primitives_set.contains(path.as_str()) || path.contains("pax_reexports") {
-                Some(ret.to_string())
-            } else if !imports_builtins_set.contains(path.as_str()) {
-                if path.contains("{PREFIX}") {
-                    Some(ret.replace("{PREFIX}", &IMPORT_PREFIX))
-                } else {
-                    Some(IMPORT_PREFIX.clone() + ret.as_str())
-                }
-            } else {
-                None
-            }
+            self.import_path = Self::fully_qualify_id(host_crate_info, path);
+        }
+        if let Some(id) =  Self::fully_qualify_id(host_crate_info, self._type_id.clone()){
+            self._type_id =id;
+            self._type_id_escaped = self._type_id_escaped.replace("{PREFIX}", "");
         }
         self
     }
@@ -383,7 +444,7 @@ impl UniqueTemplateNodeIdentifier {
     pub fn build(component: TypeId, template_node_id: TemplateNodeId) -> Self {
         UniqueTemplateNodeIdentifier {
             component,
-            template_node_id
+            template_node_id,
         }
     }
 
@@ -407,20 +468,21 @@ pub enum TemplateLocation {
     Parent(TemplateNodeId),
 }
 
-
+#[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct ComponentTemplate {
     containing_component: TypeId,
     root: VecDeque<TemplateNodeId>,
+    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     children: HashMap<TemplateNodeId, VecDeque<TemplateNodeId>>,
+    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     nodes: HashMap<TemplateNodeId, TemplateNodeDefinition>,
     next_id: usize,
     template_source_file_path: Option<String>,
 }
 
 impl ComponentTemplate {
-
     pub fn new(containing_component: TypeId, template_source_file_path: Option<String>) -> Self {
         Self {
             containing_component,
@@ -428,7 +490,7 @@ impl ComponentTemplate {
             children: HashMap::new(),
             nodes: HashMap::new(),
             next_id: 0,
-            template_source_file_path
+            template_source_file_path,
         }
     }
 
@@ -451,21 +513,31 @@ impl ComponentTemplate {
         TemplateNodeId::build(current_next_id)
     }
 
-    pub fn add_root_node_front(&mut self, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+    pub fn add_root_node_front(
+        &mut self,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
         let id = self.consume_next_id();
         self.root.push_front(id.clone());
         self.nodes.insert(id.clone(), tnd);
         self.get_unique_identifier(id)
     }
 
-    pub fn add_root_node_back(mut self, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+    pub fn add_root_node_back(
+        &mut self,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
         let id = self.consume_next_id();
         self.root.push_back(id.clone());
         self.nodes.insert(id.clone(), tnd);
         self.get_unique_identifier(id)
     }
 
-    pub fn add_root_node_at(mut self, index: usize ,tnd: TemplateNodeDefinition)-> UniqueTemplateNodeIdentifier {
+    pub fn add_root_node_at(
+        &mut self,
+        index: usize,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
         let id = self.consume_next_id();
         self.root.insert(index, id.clone());
         self.nodes.insert(id.clone(), tnd);
@@ -476,10 +548,14 @@ impl ComponentTemplate {
         self.add_root_node_front(tnd)
     }
 
-    pub fn add_child_front(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
-        if let Some(_) = self.nodes.get_mut(&id){
+    pub fn add_child_front(
+        &mut self,
+        id: TemplateNodeId,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
+        if let Some(_) = self.nodes.get_mut(&id) {
             let child_id = self.consume_next_id();
-            if let Some(children) = self.children.get_mut(&id){
+            if let Some(children) = self.children.get_mut(&id) {
                 children.push_front(child_id.clone());
                 self.nodes.insert(child_id.clone(), tnd);
             } else {
@@ -494,10 +570,14 @@ impl ComponentTemplate {
         }
     }
 
-    pub fn add_child_back(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
-        if let Some(_) = self.nodes.get_mut(&id){
+    pub fn add_child_back(
+        &mut self,
+        id: TemplateNodeId,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
+        if let Some(_) = self.nodes.get_mut(&id) {
             let child_id = self.consume_next_id();
-            if let Some(children) = self.children.get_mut(&id){
+            if let Some(children) = self.children.get_mut(&id) {
                 children.push_back(child_id.clone());
                 self.nodes.insert(child_id.clone(), tnd);
             } else {
@@ -512,10 +592,15 @@ impl ComponentTemplate {
         }
     }
 
-    pub fn add_child_at(&mut self, id: TemplateNodeId, index: usize, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
-        if let Some(_) = self.nodes.get_mut(&id){
+    pub fn add_child_at(
+        &mut self,
+        id: TemplateNodeId,
+        index: usize,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
+        if let Some(_) = self.nodes.get_mut(&id) {
             let child_id = self.consume_next_id();
-            if let Some(children) = self.children.get_mut(&id){
+            if let Some(children) = self.children.get_mut(&id) {
                 children.insert(index, child_id.clone());
                 self.nodes.insert(child_id.clone(), tnd);
             } else {
@@ -530,18 +615,22 @@ impl ComponentTemplate {
         }
     }
 
-    pub fn add_child(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) -> UniqueTemplateNodeIdentifier {
+    pub fn add_child(
+        &mut self,
+        id: TemplateNodeId,
+        tnd: TemplateNodeDefinition,
+    ) -> UniqueTemplateNodeIdentifier {
         self.add_child_front(id, tnd)
     }
 
     pub fn remove_node(&mut self, id: TemplateNodeId) -> TemplateNodeDefinition {
-        if let Some(tnd) = self.nodes.get(&id){ 
+        if let Some(tnd) = self.nodes.get(&id) {
             let node = tnd.clone();
             self.children.remove(&id);
             for (_, children) in self.children.iter_mut() {
-                children.retain(|child| { *child != id });
+                children.retain(|child| *child != id);
             }
-            self.root.retain(|root_node| { *root_node != id });
+            self.root.retain(|root_node| *root_node != id);
             node
         } else {
             panic!("Requested node doesn't exist in template");
@@ -554,29 +643,31 @@ impl ComponentTemplate {
 
     pub fn get_children(&self, id: TemplateNodeId) -> Option<Vec<TemplateNodeId>> {
         if let Some(c) = self.children.get(&id) {
-            return Some(c.clone().into())
+            return Some(c.clone().into());
         }
         None
     }
 
-    pub fn get_node(&self, id: TemplateNodeId) -> Option<&TemplateNodeDefinition> {
-        self.nodes.get(&id)
+    pub fn get_node(&self, id: &TemplateNodeId) -> Option<&TemplateNodeDefinition> {
+        self.nodes.get(id)
     }
 
     pub fn get_nodes(&self) -> Vec<&TemplateNodeDefinition> {
         self.nodes.values().collect()
     }
 
-    pub fn fully_qualify_template_type_ids(&mut self, host_crate_info: &HostCrateInfo){
-        self.containing_component.fully_qualify_type_id(host_crate_info);
+    pub fn get_ids(&self) -> Vec<&TemplateNodeId> {
+        self.nodes.keys().collect()
+    }
+
+    pub fn fully_qualify_template_type_ids(&mut self, host_crate_info: &HostCrateInfo) {
+        self.containing_component
+            .fully_qualify_type_id(host_crate_info);
         for (_, val) in self.nodes.iter_mut() {
             val.type_id.fully_qualify_type_id(&host_crate_info);
         }
     }
-
 }
-
-
 
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 /// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
@@ -600,12 +691,18 @@ pub fn get_primitive_type_table() -> TypeTable {
     let mut ret: TypeTable = Default::default();
 
     SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
-        ret.insert(TypeId::build_primitive(snp.to_string()), TypeDefinition::primitive(snp));
+        ret.insert(
+            TypeId::build_primitive(snp.to_string()),
+            TypeDefinition::primitive(snp),
+        );
     });
     SUPPORTED_NONNUMERIC_PRIMITIVES
         .into_iter()
         .for_each(|snnp| {
-            ret.insert(TypeId::build_primitive(snnp.to_string()), TypeDefinition::primitive(snnp));
+            ret.insert(
+                TypeId::build_primitive(snnp.to_string()),
+                TypeDefinition::primitive(snnp),
+            );
         });
 
     ret
@@ -719,7 +816,7 @@ impl TypeDefinition {
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: TypeId) -> Self {
         Self {
-            type_id:  TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>".to_string()),
+            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>".to_string()),
             property_definitions: vec![],
             inner_iterable_type_id: Some(inner_iterable_type_id),
         }
