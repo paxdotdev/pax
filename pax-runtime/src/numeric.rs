@@ -23,7 +23,7 @@ impl Default for Numeric {
 
 impl Interpolatable for Numeric {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        Self::Float(self.get_as_float() + ((other.get_as_float() - self.get_as_float()) * t))
+        Self::Float(self.to_float() + ((other.to_float() - self.to_float()) * t))
     }
 }
 
@@ -423,14 +423,14 @@ impl Numeric {
         }
     }
 
-    pub fn get_as_float(self) -> f64 {
+    pub fn to_float(self) -> f64 {
         match self {
             Numeric::Integer(value) => value as f64,
             Numeric::Float(value) => value,
         }
     }
 
-    pub fn get_as_int(self) -> isize {
+    pub fn to_int(self) -> isize {
         match self {
             Numeric::Integer(value) => value,
             Numeric::Float(value) => value as isize,
@@ -537,7 +537,7 @@ impl Mul<Numeric> for f64 {
     type Output = f64;
 
     fn mul(self, rhs: Numeric) -> Self::Output {
-        self * rhs.get_as_float()
+        self * rhs.to_float()
     }
 }
 
@@ -545,7 +545,7 @@ impl Div<Numeric> for f64 {
     type Output = f64;
 
     fn div(self, rhs: Numeric) -> Self::Output {
-        self / rhs.get_as_float()
+        self / rhs.to_float()
     }
 }
 
@@ -553,7 +553,7 @@ impl Div<f64> for Numeric {
     type Output = f64;
 
     fn div(self, rhs: f64) -> Self::Output {
-        self.get_as_float() / rhs
+        self.to_float() / rhs
     }
 }
 
@@ -611,7 +611,7 @@ mod tests {
         let a = Numeric::from(3.0000000001);
         let b = 3.0000000001;
 
-        assert_eq!(a.get_as_float(), b);
+        assert_eq!(a.to_float(), b);
     }
 
     #[test]
