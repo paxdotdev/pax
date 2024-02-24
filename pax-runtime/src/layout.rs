@@ -76,12 +76,12 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
 
         let skew = [
             if let Some(ref val) = comm.skew_x {
-                val.get().get_as_float()
+                val.get().to_float()
             } else {
                 0.0
             },
             if let Some(ref val) = comm.skew_y {
-                val.get().get_as_float()
+                val.get().to_float()
             } else {
                 0.0
             },
@@ -91,7 +91,7 @@ pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> T
         let rotate = if let Some(ref val) = comm.rotate {
             val.get().clone()
         } else {
-            crate::api::Rotation::ZERO()
+            Default::default()
         };
         desugared_transform2d.rotate = Some(rotate);
 
@@ -144,17 +144,17 @@ impl ComputableTransform for Transform2D {
         let anchor_transform = match &self.anchor {
             Some(anchor) => Transform2::translate(Vector2::<Generic>::new(
                 match anchor[0] {
-                    Size::Pixels(pix) => -pix.get_as_float(),
+                    Size::Pixels(pix) => -pix.to_float(),
                     Size::Percent(per) => -node_size.0 * (per / 100.0),
                     Size::Combined(pix, per) => {
-                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
+                        -pix.to_float() + (-node_size.0 * (per / 100.0))
                     }
                 },
                 match anchor[1] {
-                    Size::Pixels(pix) => -pix.get_as_float(),
+                    Size::Pixels(pix) => -pix.to_float(),
                     Size::Percent(per) => -node_size.1 * (per / 100.0),
                     Size::Combined(pix, per) => {
-                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
+                        -pix.to_float() + (-node_size.0 * (per / 100.0))
                     }
                 },
             )),
@@ -185,7 +185,7 @@ impl ComputableTransform for Transform2D {
         };
 
         let rotate_rads = if let Some(rotate) = &self.rotate {
-            rotate.get_as_radians()
+            rotate.to_float_0_1() * std::f64::consts::PI * 2.0
         } else {
             0.0
         };
