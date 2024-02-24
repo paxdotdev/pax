@@ -10,25 +10,25 @@
 
 @settings {
     .rect {
-        //fill: {Fill::Solid(hsl((ticks + i * 360.0 / 30.0)%, 75%, 75%))},
-        //rotate: {((i + 2) * rotation + ticks / 1000.0)deg},
-        //scale_x: {
-        //    (
-        //        100*
-        //        (0.75 + (i * rotation)) *
-        //        (1 - ((rotation / 5) + i / 1000.0))
-        //    )%
-        //},
-        //scale_y: {
-        //    (
-        //        100*
-        //        (0.75 + (i * rotation)) *
-        //        (1 - ((rotation / 5) + i / 1000.0))
-        //    )%
-        //},
-        //anchor_x: 50%,
-        //anchor_y: 50%,
-        x: {50%},
+        fill: {Fill::Solid(hsl((ticks + i * 360.0 / 30.0)%, 75%, 75%))},
+        rotate: {((i + 2) * rotation + ticks / 1000.0)deg},
+        scale_x: {
+            (
+                100*
+                (0.75 + (i * rotation)) *
+                (1 - ((rotation / 5) + i / 1000.0))
+            )%
+        },
+        scale_y: {
+            (
+                100*
+                (0.75 + (i * rotation)) *
+                (1 - ((rotation / 5) + i / 1000.0))
+            )%
+        },
+        anchor_x: 50%,
+        anchor_y: 50%,
+        x: 50%,
         y: 50%,
     }
 }

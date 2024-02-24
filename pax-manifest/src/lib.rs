@@ -137,6 +137,11 @@ pub struct ExpressionSpec {
     /// metadata to "invoke" those symbols from the runtime
     pub invocations: Vec<ExpressionSpecInvocation>,
 
+    /// Fully qualified (reexport-qualified) type ID, used for explicit RIL statement
+    /// casting before packing into `dyn Any`.  This ensures .into() chains evaluate before packing
+    /// into `dyn Any`, which enables us to downcast correctly at runtime.
+    pub output_type: String,
+
     /// String (RIL) representation of the compiled expression
     pub output_statement: String,
 
