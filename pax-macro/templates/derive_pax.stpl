@@ -13,6 +13,8 @@
         //Special-case pax_runtime::api built-ins, ensure they're imported at least once because it's a built-in but must be surfaced through
         //the userland project in order to ensure deduping
         ctx.import_paths.insert(<pax_engine::api::Size as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Color as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::ColorChannel as pax_compiler::parsing::Reflectable>::get_import_path());
         ctx.import_paths.insert(<pax_engine::api::Numeric as pax_compiler::parsing::Reflectable>::get_import_path());
         ctx.import_paths.insert(<pax_engine::api::Rotation as pax_compiler::parsing::Reflectable>::get_import_path());
         ctx.import_paths.insert(<pax_engine::api::Transform2D as pax_compiler::parsing::Reflectable>::get_import_path());

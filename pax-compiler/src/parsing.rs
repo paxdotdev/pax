@@ -93,7 +93,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     if unit == "px" {
                         format!("Size::Pixels({}.into())", exp_bod)
                     } else if unit == "%" {
-                        format!("Size::Percent({}.into())", exp_bod)
+                        format!("Percent({}.into())", exp_bod)
                     } else if unit == "deg" {
                         format!("Rotation::Degrees({}.into())", exp_bod)
                     } else if unit == "rad" {
@@ -127,7 +127,7 @@ fn recurse_pratt_parse_to_string<'a>(
 
                 output = output + "(";
                 while let Some(next_pair) = expression_body_pairs.next() {
-                    output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + "),"
+                    output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + ").into(),"
                 }
                 output = output + ")";
 
@@ -184,7 +184,7 @@ fn recurse_pratt_parse_to_string<'a>(
                         if unit == "px" {
                             format!("Size::Pixels({}.into())", value)
                         } else if unit == "%" {
-                            format!("Size::Percent({}.into())", value)
+                            format!("Percent({}.into())", value)
                         } else if unit == "deg" {
                             format!("Rotation::Degrees({}.into())", value)
                         } else if unit == "rad" {
@@ -1467,6 +1467,26 @@ impl Reflectable for pax_runtime::api::Size {
             &Self::get_import_path(),
             Some(&Self::get_self_pascal_identifier()),
         )
+    }
+}
+
+impl Reflectable for pax_runtime::api::Color {
+    fn get_import_path() -> String {
+        "pax_engine::api::Color".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Color".to_string()
+    }
+}
+
+impl Reflectable for pax_runtime::api::ColorChannel {
+    fn get_import_path() -> String {
+        "pax_engine::api::ColorChannel".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "ColorChannel".to_string()
     }
 }
 
