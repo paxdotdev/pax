@@ -64,14 +64,15 @@ fn test_degrees() {
         Float(f64),
     }
     #[derive(Deserialize, PartialEq, Debug)]
-    pub enum Size {
-        Pixels(Numeric),
+    pub enum Rotation {
+        Radians(Numeric),
+        Degrees(Numeric),
         Percent(Numeric),
     }
 
-    let percent_pax = "10%".to_string();
-    let expected = Size::Percent(Numeric::Integer(10));
-    let v = from_pax(percent_pax).unwrap();
+    let radians_pax = "10deg".to_string();
+    let expected = Rotation::Degrees(Numeric::Integer(10));
+    let v = from_pax(radians_pax).unwrap();
     assert_eq!(expected, v);
 }
 

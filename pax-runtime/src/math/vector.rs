@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-use super::{Generic, Point2, Space};
+use super::{Angle, Generic, Point2, Space};
 
 pub struct Vector2<W = Generic> {
     pub x: f64,
@@ -81,6 +81,18 @@ impl<W: Space> Vector2<W> {
         let v = self.coord_abs();
         let o = other.coord_abs().normalize();
         o.to_signums_of(self) * (v.x / o.x).max(v.y / o.y)
+    }
+
+    /// Returns the angle walking from self to other counter clockwise
+    pub fn angle_to(self, other: Self) -> Angle {
+        let dot = self.normalize() * other.normalize();
+        let s = self.cross(other).signum();
+        Angle::from_radians(s * dot.acos())
+    }
+
+    /// Returns the magnitude of the cross product as if both vectors had z value 0.0
+    pub fn cross(self, other: Self) -> f64 {
+        self.x * other.y - self.y * other.x
     }
 
     pub fn to_signums_of(&self, other: Self) -> Self {

@@ -494,7 +494,7 @@ impl Size {
         match &self {
             Size::Pixels(val) => val.clone(),
             _ => {
-                panic!("Percentage value expected but stored value was not a percentage.")
+                panic!("Pixel value expected but stored value was: {:?}", self)
             }
         }
     }
