@@ -103,8 +103,9 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
             {% endfor %}
         {% endif %}
 
-        Box::new({{expression_spec.output_statement}})
+        let ___ret : {{ expression_spec.output_type }} = ({{ expression_spec.output_statement }}).into();
 
+        Box::new(___ret)
     }));
     {% if expression_spec.input_statement.source_map_end_marker %}
         {{ expression_spec.input_statement.source_map_end_marker }}
