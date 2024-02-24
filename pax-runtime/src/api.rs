@@ -511,7 +511,7 @@ impl Size {
     /// Panics if wrapped type is not a percentage.
     pub fn expect_percent(&self) -> f64 {
         match &self {
-            Size::Percent(val) => val.get_as_float() / 100.0,
+            Size::Percent(val) => val.to_float() / 100.0,
             _ => {
                 panic!("Percentage value expected but stored value was not a percentage.")
             }
@@ -544,12 +544,12 @@ impl Size {
             Axis::Y => bounds.1,
         };
         match &self {
-            Size::Pixels(num) => num.get_as_float(),
+            Size::Pixels(num) => num.to_float(),
             Size::Percent(num) => target_bound * (*num / 100.0),
             Size::Combined(pixel_component, percent_component) => {
                 //first calc percent, then add pixel
-                (target_bound * (percent_component.get_as_float() / 100.0))
-                    + pixel_component.get_as_float()
+                (target_bound * (percent_component.to_float() / 100.0))
+                    + pixel_component.to_float()
             }
         }
     }
@@ -628,11 +628,33 @@ pub enum Rotation {
     Degrees(Numeric),
     Percent(Numeric),
 }
+impl Default for Rotation {
+    fn default() -> Self {
+        Self::Percent(Numeric::from(0.0))
+    }
+}
+
 
 impl Rotation {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
         Self::Radians(Numeric::from(0.0))
+    }
+
+    /// Returns a float proportional to `0deg : 0.0 :: 360deg :: 1.0`, in the domain 𝕗𝟞𝟜
+    /// For example, 0rad maps to 0.0, 100% maps to 1.0, and 720deg maps to 2.0
+    pub fn to_float_0_1(&self) -> f64 {
+        match self {
+            Self::Radians(rad) => {
+                rad.to_float() / (std::f64::consts::PI * 2.0)
+            },
+            Self::Degrees(deg) => {
+                *deg / 360.0_f64
+            },
+            Self::Percent(per) => {
+                per.to_float()
+            }
+        }
     }
 
     pub fn get_as_radians(&self) -> f64 {
@@ -698,19 +720,13 @@ impl Into<Rotation> for Size {
     }
 }
 
-impl Default for Rotation {
-    fn default() -> Self {
-        Self::ZERO()
-    }
-}
-
 impl Size {
     pub fn get_pixels(&self, parent: f64) -> f64 {
         match &self {
-            Self::Pixels(p) => p.get_as_float(),
-            Self::Percent(p) => parent * (p.get_as_float() / 100.0),
+            Self::Pixels(p) => p.to_float(),
+            Self::Percent(p) => parent * (p.to_float() / 100.0),
             Self::Combined(pix, per) => {
-                (parent * (per.get_as_float() / 100.0)) + pix.get_as_float()
+                (parent * (per.to_float() / 100.0)) + pix.to_float()
             }
         }
     }

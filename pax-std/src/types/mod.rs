@@ -98,15 +98,15 @@ impl Default for Fill {
 impl Fill {
     pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
         let normalized_x = match x {
-            Size::Pixels(val) => val.get_as_float() / width,
-            Size::Percent(val) => val.get_as_float() / 100.0,
-            Size::Combined(pix, per) => (pix.get_as_float() / width) + (per.get_as_float() / 100.0),
+            Size::Pixels(val) => val.to_float() / width,
+            Size::Percent(val) => val.to_float() / 100.0,
+            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
         };
 
         let normalized_y = match y {
-            Size::Pixels(val) => val.get_as_float() / height,
-            Size::Percent(val) => val.get_as_float() / 100.0,
-            Size::Combined(pix, per) => (pix.get_as_float() / width) + (per.get_as_float() / 100.0),
+            Size::Pixels(val) => val.to_float() / height,
+            Size::Percent(val) => val.to_float() / 100.0,
+            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
         };
         UnitPoint::new(normalized_x, normalized_y)
     }
@@ -120,7 +120,7 @@ impl Fill {
                 }
                 Size::Percent(p) => {
                     ret.push(piet::GradientStop {
-                        pos: (p.get_as_float() / 100.0) as f32,
+                        pos: (p.to_float() / 100.0) as f32,
                         color: gradient_stop.color.to_piet_color(),
                     });
                 }
@@ -188,11 +188,11 @@ impl ColorChannel {
     pub fn to_float_0_1(&self) -> f64 {
         match self {
             Self::Percent(per) => {
-                assert!(per.get_as_float() >= -0.000001 && per.get_as_float() <= 100.000001, "");
-                (per.get_as_float() / 100.0).clamp(0_f64, 1_f64)
+                assert!(per.to_float() >= -0.000001 && per.to_float() <= 100.000001, "");
+                (per.to_float() / 100.0).clamp(0_f64, 1_f64)
             },
             Self::Int(zero_to_255) => {
-                assert!(zero_to_255.get_as_int() >= 0 && zero_to_255.get_as_int() <= 255, "Integer color channel values must be between 0 and 255");
+                assert!(zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255, "Integer color channel values must be between 0 and 255");
                 let f_zero : f64 = (*zero_to_255).into();
                 f_zero / 255.0_f64.clamp(0_f64, 1_f64)
             }
@@ -204,10 +204,15 @@ impl ColorChannel {
 #[allow(non_camel_case_types)]
 #[pax]
 pub enum Color {
+
+    /// Models a color in the RGB space, with an alpha channel of 100%
     rgb(ColorChannel, ColorChannel, ColorChannel),
+    /// Models a color in the RGBA space
     rgba(ColorChannel, ColorChannel, ColorChannel, ColorChannel),
-    hsl(ColorChannel, ColorChannel, ColorChannel),
-    hsla(ColorChannel, ColorChannel, ColorChannel, ColorChannel),
+
+    /// Models a color in the HSL space.  Note the use of Rotation rather than a ColorChannel for hue.
+    hsl(Rotation, ColorChannel, ColorChannel),
+    hsla(Rotation, ColorChannel, ColorChannel, ColorChannel),
 
     #[default]
     red
@@ -401,10 +406,10 @@ impl RectangleCornerRadii {
         bottom_left: Numeric,
     ) -> Self {
         RectangleCornerRadii {
-            top_left: Box::new(PropertyLiteral::new(top_left.get_as_float())),
-            top_right: Box::new(PropertyLiteral::new(top_right.get_as_float())),
-            bottom_right: Box::new(PropertyLiteral::new(bottom_right.get_as_float())),
-            bottom_left: Box::new(PropertyLiteral::new(bottom_left.get_as_float())),
+            top_left: Box::new(PropertyLiteral::new(top_left.to_float())),
+            top_right: Box::new(PropertyLiteral::new(top_right.to_float())),
+            bottom_right: Box::new(PropertyLiteral::new(bottom_right.to_float())),
+            bottom_left: Box::new(PropertyLiteral::new(bottom_left.to_float())),
         }
     }
 }

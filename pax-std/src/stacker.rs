@@ -52,7 +52,7 @@ impl Default for Stacker {
 
 impl Stacker {
     pub fn handle_tick(&mut self, ctx: &NodeContext) {
-        let cells = self.cells.get().get_as_float();
+        let cells = self.cells.get().to_float();
         let bounds = ctx.bounds_self;
 
         let active_bound = match *self.direction.get() {
@@ -68,11 +68,11 @@ impl Stacker {
             }
         };
 
-        let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.get_as_float();
+        let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.to_float();
 
         let per_cell_space = usable_interior_space / cells;
 
-        let mut cell_space = vec![per_cell_space; self.cells.get().get_as_float() as usize];
+        let mut cell_space = vec![per_cell_space; self.cells.get().to_float() as usize];
         let sizes = self.sizes.get();
 
         if sizes.len() > 0 {
@@ -95,7 +95,7 @@ impl Stacker {
                             *pix + (Numeric::from(active_bound) * (*per / Numeric::from(100.0)))
                         }
                     }
-                    .get_as_float();
+                    .to_float();
                     used_space += space;
                     cell_space[i] = space;
                 } else {

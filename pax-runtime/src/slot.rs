@@ -58,7 +58,7 @@ impl InstanceNode for SlotInstance {
             let index: usize = properties
                 .index
                 .get()
-                .get_as_int()
+                .to_int()
                 .try_into()
                 .expect("Slot index must be non-negative");
 
