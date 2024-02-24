@@ -15,8 +15,6 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
     stack: &Rc<RuntimePropertiesStackFrame>,
     property: &mut Box<dyn PropertyInstance<V>>,
 ) {
-    todo!("cast to an intermediate known type for RIL statement in expression vtable.  (using : ExplicitType and .into())\
-    Ensure this type is codified before passing into the Box<dyn Any>.  This should fix the downcasting-and-also-need-to-.into() on the other side of dyn Any");
     if let Some(vtable_id) = property._get_vtable_id() {
         let new_value_wrapped: Box<dyn Any> = table.compute_vtable_value(&stack, vtable_id);
         if let Ok(downcast_value) = new_value_wrapped.downcast::<V>() {
