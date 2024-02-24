@@ -305,8 +305,7 @@ impl DefinitionToInstanceTraverser {
             component_template,
             compute_properties_fn,
             children: None,
-            template_node_id: 0,
-            component_type_id: type_id.to_string(),
+            template_node_identifier: None,
         }
     }
 
@@ -318,6 +317,7 @@ impl DefinitionToInstanceTraverser {
         let containing_component = manifest.components.get(containing_component_type_id).unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
         let tnd = containing_template.get_node(node_id).unwrap();
+        let unique_identifier = UniqueTemplateNodeIdentifier::build(containing_component_type_id.clone(), node_id.clone());
 
         let children = self.build_children(containing_component_type_id, &node_id);
         match tnd.type_id.get_pax_type(){
@@ -339,8 +339,7 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(children),
-                    template_node_id: tnd.id,
-                    component_type_id: tnd.type_id.clone(),
+                    template_node_identifier: Some(unique_identifier)
                 })
             },
             PaxType::Slot => {
@@ -362,8 +361,7 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(children),
-                    template_node_id: tnd.id,
-                    component_type_id: tnd.type_id.clone(),
+                    template_node_identifier: Some(unique_identifier)
                 })
             },
             PaxType::Repeat => {
@@ -398,8 +396,7 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(children),
-                    template_node_id: tnd.id,
-                    component_type_id: tnd.type_id.clone(),
+                    template_node_identifier: Some(unique_identifier)
                 })
             },
             _ => {  
@@ -414,7 +411,7 @@ impl DefinitionToInstanceTraverser {
         let manifest = self.get_manifest();
         let containing_component = manifest.components.get(containing_component_type_id).unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
-        let children = containing_template.get_children(*node_id);
+        let children = containing_template.get_children(node_id);
 
         let mut children_instances = Vec::new();
         for child_id in &children.unwrap_or_default() {
@@ -464,8 +461,7 @@ impl DefinitionToInstanceTraverser {
 
        
         args.children = Some(self.build_children(containing_component_type_id, node_id));
-        args.template_node_id = node_id.clone();
-        args.component_type_id = node.type_id.clone();
+        args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(node.type_id.clone(), node_id.clone()));
         node_component_factory.build_component(args)
     }
 

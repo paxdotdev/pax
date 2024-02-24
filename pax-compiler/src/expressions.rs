@@ -113,7 +113,6 @@ fn recurse_compile_literal_block<'a>(
                     let source_map_id = source_map.insert(input.clone());
                     let input_statement =
                         source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
-
                     ctx.expression_specs.insert(
                         id,
                         ExpressionSpec {
@@ -460,7 +459,7 @@ fn recurse_compile_expressions<'a>(
     // Traverse descendent nodes and continue compiling expressions recursively
     for id in ctx
         .template
-        .get_children(ctx.active_node_id.clone().unwrap())
+        .get_children(&ctx.active_node_id.clone().unwrap())
         .clone().unwrap_or_default()
         .iter()
     {
@@ -473,13 +472,8 @@ fn recurse_compile_expressions<'a>(
         ctx.active_node_id = parent_id;
     }
 
-    std::mem::swap(
-        &mut ctx
-            .template
-            .get_node(&ctx.active_node_id.clone().unwrap())
-            .unwrap(),
-        &mut &active_node_def,
-    );
+    ctx.template.set_node(ctx.active_node_id.clone().unwrap(), active_node_def);
+
     if incremented {
         ctx.scope_stack.pop();
     }

@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use pax_manifest::UniqueTemplateNodeIdentifier;
+
 use crate::{
     api::{Rotation, Window},
     math::{Point2, Space, Transform2},
@@ -27,9 +29,9 @@ pub struct Properties {
 impl Space for NodeLocal {}
 
 impl NodeInterface {
-    pub fn global_id(&self) -> (String, usize) {
+    pub fn global_id(&self) -> Option<UniqueTemplateNodeIdentifier> {
         let base = self.inner.instance_node.base();
-        (base.component_type_id.to_owned(), base.template_node_id)
+        base.template_node_identifier.clone()
     }
 
     pub fn properties(&self) -> Properties {
