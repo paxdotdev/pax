@@ -1576,7 +1576,7 @@ pub struct HostCrateInfo {
 }
 
 //Effectively our `Prelude` types
-pub const IMPORTS_BUILTINS: [&str; 28] = [
+pub const IMPORTS_BUILTINS: [&str; 29] = [
     "std::any::Any",
     "std::cell::RefCell",
     "std::collections::HashMap",
@@ -1591,7 +1591,6 @@ pub const IMPORTS_BUILTINS: [&str; 28] = [
     "pax_runtime::api::PropertyInstance",
     "pax_runtime::api::PropertyLiteral",
     "pax_runtime::api::CommonProperties",
-    "pax_runtime::api::Color",
     "pax_runtime::api::Color::*",
     "pax_runtime::ComponentInstance",
     "pax_runtime::InstanceNodePtr",

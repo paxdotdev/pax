@@ -21,6 +21,9 @@ impl Default for Numeric {
     }
 }
 
+
+
+
 impl Interpolatable for Numeric {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         Self::Float(self.to_float() + ((other.to_float() - self.to_float()) * t))

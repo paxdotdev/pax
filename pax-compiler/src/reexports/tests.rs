@@ -13,7 +13,7 @@ fn test_serialize_to_reexports() {
         "pax_std::primitives::Ellipse",
         "pax_std::primitives::Group",
         "pax_std::primitives::Rectangle",
-        "pax_std::types::Color",
+        "pax_runtime::api::Color",
         "pax_std::types::Stroke",
         "std::vec::Vec",
         "usize",
@@ -52,7 +52,7 @@ pub mod pax_std{
         pub use pax_std::primitives::Rectangle;
     }
     pub mod types{
-        pub use pax_std::types::Color;
+        pub use pax_runtime::api::Color;
         pub use pax_std::types::Stroke;
     }
 }

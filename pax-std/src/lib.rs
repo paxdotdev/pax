@@ -9,9 +9,7 @@ pub mod components {
 
 pub mod primitives {
     use pax_engine::pax;
-    use pax_runtime::api::Property;
-    use pax_runtime::api::Size;
-    use pax_runtime::api::StringBox;
+    use pax_runtime::api::{Property, Size, StringBox, Color};
     use pax_runtime::numeric::Numeric;
 
     use crate::types::text::TextStyle;
@@ -41,8 +39,8 @@ pub mod primitives {
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Rectangle {
-        pub stroke: Property<crate::types::Stroke>,
-        pub fill: Property<crate::types::Fill>,
+        pub stroke: Property<Stroke>,
+        pub fill: Property<Fill>,
         pub corner_radii: Property<crate::types::RectangleCornerRadii>,
     }
 
@@ -50,8 +48,8 @@ pub mod primitives {
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Ellipse {
-        pub stroke: Property<crate::types::Stroke>,
-        pub fill: Property<crate::types::Fill>,
+        pub stroke: Property<Stroke>,
+        pub fill: Property<Fill>,
     }
 
     #[pax]
@@ -59,8 +57,8 @@ pub mod primitives {
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Path {
         pub segments: Property<Vec<PathSegment>>,
-        pub stroke: Property<crate::types::Stroke>,
-        pub fill: Property<crate::types::Color>,
+        pub stroke: Property<Stroke>,
+        pub fill: Property<Color>,
     }
 
     #[pax]
