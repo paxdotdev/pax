@@ -1,3 +1,5 @@
+use std::f64::consts::PI;
+
 use super::{Action, ActionContext, CanUndo};
 use crate::math::AxisAlignedBox;
 use crate::model::input::InputEvent;
@@ -8,8 +10,9 @@ use crate::{
         AppState,
     },
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::math::Angle;
 use pax_engine::NodeInterface;
 use pax_engine::{
     api::Size,
@@ -88,22 +91,13 @@ pub struct ResizeSelected {
 
 impl Action for ResizeSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected = ctx
-            .app_state
-            .selected_template_node_id
-            .expect("executed action ResizeSelected without a selected object");
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
-        let mut builder = dt
-            .get_orm_mut()
-            .get_node(&ctx.app_state.selected_component_id, selected);
-
         let (bounds, origin) = self.original_bounds;
 
         let is_shift_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Shift);
         let shift_modifier = |v: Vector2<World>| {
             // Bind the resize direction to be in the same
             // direction as the original aspect ratio of this object
-            let aspect_ratio = (bounds.bottom_right() - bounds.top_left()).normalize();
+            let aspect_ratio = bounds.bottom_right() - bounds.top_left();
             v.coord_abs()
                 .project_axis_aligned(aspect_ratio)
                 .to_signums_of(v)
@@ -130,6 +124,15 @@ impl Action for ResizeSelected {
         let origin_relative: Point2<BoxPoint> = bounds.to_inner_space(origin);
         let new_origin_relative = new_box.from_inner_space(origin_relative);
 
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let selected = ctx
+            .app_state
+            .selected_template_node_id
+            .expect("executed action ResizeSelected without a selected object");
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node(&ctx.app_state.selected_component_id, selected);
+
         if self.attachment_point.y.abs() > f64::EPSILON {
             builder.set_property("y", &to_pixels(new_origin_relative.y))?;
             builder.set_property("height", &to_pixels(new_box.height()))?;
@@ -153,6 +156,49 @@ impl Action for ResizeSelected {
     }
 }
 
+const ANGLE_SNAP_DEG: f64 = 45.0;
+
+pub struct RotateSelected {
+    pub rotation_anchor: Point2<Glass>,
+    pub moving_from: Vector2<Glass>,
+    pub moving_to: Vector2<Glass>,
+    pub start_angle: Angle,
+}
+
+impl Action for RotateSelected {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let angle_diff = self.moving_from.angle_to(self.moving_to);
+        let new_rot = angle_diff + self.start_angle;
+
+        let mut angle_deg = new_rot.degrees().rem_euclid(360.0);
+        if ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+            angle_deg = (angle_deg / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
+            if angle_deg >= 360.0 - f64::EPSILON {
+                angle_deg = 0.0;
+            }
+        }
+
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let selected = ctx
+            .app_state
+            .selected_template_node_id
+            .expect("executed action ResizeSelected without a selected object");
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node(&ctx.app_state.selected_component_id, selected);
+
+        builder.set_property("rotate", &format!("{}deg", angle_deg))?;
+        builder
+            .save()
+            .map_err(|e| anyhow!("could not move thing: {}", e))?;
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            dt.get_orm_mut()
+                .undo()
+                .map_err(|e| anyhow!("cound't undo: {:?}", e))
+        })))
+    }
+}
 fn to_pixels(v: f64) -> String {
     format!("{:?}px", v)
 }

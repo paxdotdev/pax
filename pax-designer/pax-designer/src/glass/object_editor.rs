@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_engine::api::*;
-use pax_engine::math::{Point2, Vector2};
+use pax_engine::math::{Angle, Point2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
@@ -178,6 +178,7 @@ impl ObjectEditor {
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
                 fill: Color::rgb(1.0.into(), 1.0.into(), 1.0.into()),
+                stroke_width: Size::Pixels(1.0.into()),
                 size_pixels: 7.0,
             },
         );
@@ -192,6 +193,7 @@ impl ObjectEditor {
         struct RotationBehaviour {
             rotation_anchor: RefCell<Option<Point2<Glass>>>,
             start_dir: RefCell<Option<Vector2<Glass>>>,
+            start_angle: RefCell<Option<Angle>>,
         }
 
         impl RotationBehaviour {
@@ -199,6 +201,7 @@ impl ObjectEditor {
                 Self {
                     rotation_anchor: RefCell::new(None),
                     start_dir: RefCell::new(None),
+                    start_angle: RefCell::new(None),
                 }
             }
         }
@@ -206,20 +209,25 @@ impl ObjectEditor {
         impl ControlPointBehaviour for RotationBehaviour {
             fn init(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 let rot_anchor = ctx.selected_bounds().expect("an object is selected").1;
+                let initial_object_rotation =
+                    ctx.selected_node().unwrap().properties().local_rotation;
                 let start_dir = point - rot_anchor;
                 *self.rotation_anchor.borrow_mut() = Some(rot_anchor);
                 *self.start_dir.borrow_mut() = Some(start_dir);
+                *self.start_angle.borrow_mut() = Some(initial_object_rotation);
             }
 
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                pax_engine::log::info!("rotation point modified!");
-                // if let Err(e) = ctx.execute(action::orm::ResizeSelected {
-                //     attachment_point,
-                //     original_bounds: (axis_box_world, origin_world),
-                //     point: world_point,
-                // }) {
-                //     pax_engine::log::warn!("rotation failed: {:?}", e);
-                // };
+                let rotation_anchor = self.rotation_anchor.borrow().unwrap();
+                let moving_to = point - rotation_anchor;
+                if let Err(e) = ctx.execute(action::orm::RotateSelected {
+                    rotation_anchor,
+                    moving_from: self.start_dir.borrow().unwrap(),
+                    moving_to,
+                    start_angle: self.start_angle.borrow().unwrap(),
+                }) {
+                    pax_engine::log::warn!("rotation failed: {:?}", e);
+                };
             }
         }
 
@@ -233,7 +241,8 @@ impl ObjectEditor {
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
                 fill: Color::rgba(0.7.into(), 0.7.into(), 1.0.into(), 0.4.into()),
-                size_pixels: 18.0,
+                stroke_width: Size::Pixels(0.0.into()),
+                size_pixels: 20.0,
             },
         );
 
