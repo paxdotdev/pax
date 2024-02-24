@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::{
     api::Window,
-    math::{Point2, Space, Transform2},
+    math::{Angle, Point2, Space, Transform2},
     ExpandedNode,
 };
 
@@ -20,12 +20,29 @@ impl From<Rc<ExpandedNode>> for NodeInterface {
 
 pub struct NodeLocal;
 
+pub struct Properties {
+    pub local_rotation: Angle,
+}
+
 impl Space for NodeLocal {}
 
 impl NodeInterface {
     pub fn global_id(&self) -> (String, usize) {
         let base = self.inner.instance_node.base();
         (base.component_type_id.to_owned(), base.template_node_id)
+    }
+
+    pub fn properties(&self) -> Properties {
+        let cp = self.inner.get_common_properties();
+        let rad = cp
+            .borrow()
+            .rotate
+            .as_ref()
+            .map(|r| r.get().get_as_radians())
+            .unwrap_or(0.0);
+        Properties {
+            local_rotation: Angle::from_radians(rad),
+        }
     }
 
     pub fn origin(&self) -> Option<Point2<Window>> {
