@@ -333,6 +333,10 @@ pub struct TextboxPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub text: Option<String>,
+    pub background: Option<ColorVariantMessage>,
+    pub stroke: Option<StrokeMessage>,
+    pub border_radius: Option<f64>,
+    pub style: Option<TextStyleMessage>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -403,6 +407,13 @@ pub enum ColorVariantMessage {
     Hlc([f64; 3]),
     Rgba([f64; 4]),
     Rgb([f64; 3]),
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Serialize, Clone, PartialEq)]
+#[repr(C)]
+pub struct StrokeMessage {
+    color: Option<Color>,
 }
 
 impl Default for ColorVariantMessage {
