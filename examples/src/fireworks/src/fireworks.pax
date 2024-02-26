@@ -1,5 +1,5 @@
 <Group @wheel=self.handle_scroll >
-    for i in 0..60 {
+    for i in 1..60 {
         <Rectangle class=rect width=300px height=300px />
     }
 </Group>
@@ -10,20 +10,20 @@
 
 @settings {
     .rect {
-        fill: {Fill::Solid(hsl((ticks + i * 360.0 / 30.0)%, 75%, 75%))},
-        rotate: {((i + 2) * rotation + ticks / 1000.0)deg},
+        fill: {Fill::Solid(Color::hsl((i * ticks * 0.01)deg, 75%, 50%))},
+        rotate: {((0.5 * i * rotation) + (ticks * 10)%},
         scale_x: {
             (
                 100*
                 (0.75 + (i * rotation)) *
-                (1 - ((rotation / 5) + i / 1000.0))
+                (1 - ((rotation / 5) + i / 100.0))
             )%
         },
         scale_y: {
             (
                 100*
                 (0.75 + (i * rotation)) *
-                (1 - ((rotation / 5) + i / 1000.0))
+                (1 - ((rotation / 5) + i / 100.0))
             )%
         },
         anchor_x: 50%,
