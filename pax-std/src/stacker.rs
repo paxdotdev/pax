@@ -8,7 +8,7 @@ use pax_runtime::api::{NodeContext, PropertyLiteral};
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
 /// each node.  `Stacker`s can be stacked inside of each other, horizontally
-/// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
+/// and vertically, along with percentage-based positioning and `Transform2D.anchor` to compose any rectilinear 2D layout.
 #[pax]
 #[custom(Default)]
 #[inlined(
