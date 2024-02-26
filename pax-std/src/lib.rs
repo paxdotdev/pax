@@ -14,7 +14,9 @@ pub mod primitives {
     use pax_runtime::api::StringBox;
 
     use crate::types::text::TextStyle;
+    use crate::types::Fill;
     use crate::types::PathSegment;
+    use crate::types::Stroke;
 
     #[pax]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
@@ -78,6 +80,10 @@ pub mod primitives {
     #[primitive("pax_std_primitives::textbox::TextboxInstance")]
     pub struct Textbox {
         pub text: Property<StringBox>,
+        pub background: Property<Fill>,
+        pub stroke: Property<Stroke>,
+        pub border_radius: Property<Size>,
+        pub text_style: Property<TextStyle>,
     }
 
     #[pax]
