@@ -12,13 +12,11 @@
     <Rectangle id=backing_plate  @mouse_down=handle_mouse_down/>
 </Group>
 
-@handlers {
-    key_down: handle_key_down
-    key_up: handle_key_up
-    pre_render: update_view
-}
-
 @settings {
+    @key_down: handle_key_down,
+    @key_up: handle_key_up,
+    @pre_render: update_view,
+
     #backing_plate {
         //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
         //exist in order to intercept events from the rendering layer underneath

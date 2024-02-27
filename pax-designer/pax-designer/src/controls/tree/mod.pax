@@ -11,6 +11,6 @@ for (obj, i) in self.visible_tree_objects {
 		 image_path={obj.image_path}
 	/>
 }
-@handlers {
-	pre_render: pre_render
+@settings {
+	@pre_render: pre_render
 }
