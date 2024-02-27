@@ -2,6 +2,7 @@ pub mod action;
 pub mod input;
 pub mod math;
 
+use crate::glass;
 use crate::glass::control_point::ControlPointBehaviour;
 use crate::math::AxisAlignedBox;
 use crate::model::action::ActionContext;
@@ -18,6 +19,7 @@ use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_std::types::Color;
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::ops::ControlFlow;
 use std::rc::Rc;
 
 use math::coordinate_spaces::Glass;
@@ -87,7 +89,9 @@ pub struct AppState {
     /// Current tool state while in use (ie in the process of drawing a rect,
     /// moving an object, moving a control point)
     /// INVALID_IF: no invalid states
-    pub tool_state: ToolState,
+    /// OBS: needs to be wrapped in Rc<RefCell since tool_behaviour itself needs
+    /// action_context which contains app_state
+    pub tool_behaviour: Rc<RefCell<Option<Box<dyn ToolBehaviour>>>>,
 
     //---------------toolbar----------------
     /// Currently selected tool in the top tool bar
@@ -201,26 +205,13 @@ pub enum Tool {
     Rectangle,
 }
 
-#[derive(Clone, Default)]
-pub enum ToolState {
-    #[default]
-    Idle,
-    MovingControlPoint {
-        behaviour: Rc<dyn ControlPointBehaviour>,
-    },
-    Panning {
-        original_transform: Transform2<Glass, World>,
-        glass_start: Point2<Glass>,
-    },
-    MovingObject {
-        offset: Vector2<Glass>,
-    },
-    BoxSelect {
-        p1: Point2<Glass>,
-        p2: Point2<Glass>,
-        fill: Color,
-        stroke: Color,
-    },
+pub trait ToolBehaviour {
+    fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
+    fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
+    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
+    fn keyboard(&mut self, event: InputEvent, dir: Dir, ctx: &mut ActionContext)
+        -> ControlFlow<()>;
+    fn visualize(&self, glass: &mut glass::Glass);
 }
 
 #[derive(Clone)]
