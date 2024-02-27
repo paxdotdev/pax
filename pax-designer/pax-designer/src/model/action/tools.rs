@@ -1,14 +1,16 @@
+use std::ops::ControlFlow;
 use std::rc::Rc;
 
 use super::orm::MoveSelected;
 use super::pointer::Pointer;
 use super::{Action, ActionContext, CanUndo};
 use crate::model::math::coordinate_spaces::Glass;
-use crate::model::AppState;
-use crate::model::{Tool, ToolState};
+use crate::model::Tool;
+use crate::model::{AppState, ToolBehaviour};
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::Size;
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::rendering::TransformAndBounds;
@@ -20,128 +22,147 @@ pub struct ToolAction {
 
 impl Action for ToolAction {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let point = ctx.app_state.mouse_position;
-
-        // Moving of control point interrupts other tool use
-        // TODO: figure out how other tool actions that
-        // don't originate from ctx.app_state.selected_tool should
-        // be handled
-        if matches!(
-            ctx.app_state.tool_state,
-            ToolState::MovingControlPoint { .. }
-        ) {
-            match self.event {
-                Pointer::Down => (), //this is handled by the control point itself, technically should never fire here
-                Pointer::Move => {
-                    let ToolState::MovingControlPoint { ref behaviour } = ctx.app_state.tool_state
-                    else {
-                        unreachable!();
-                    };
-                    Rc::clone(behaviour).step(ctx, point);
-                }
-                Pointer::Up => ctx.app_state.tool_state = ToolState::Idle,
-            }
-        }
-
-        match ctx.app_state.selected_tool {
-            Tool::Rectangle => ctx.execute(RectangleTool { event: self.event }),
-            Tool::Pointer => ctx.execute(PointerTool { event: self.event }),
-        }?;
-
         Ok(CanUndo::No)
     }
 }
 
 pub struct RectangleTool {
-    pub event: Pointer,
+    p1: Point2<Glass>,
+    p2: Point2<Glass>,
 }
 
-impl Action for RectangleTool {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let point = ctx.app_state.mouse_position;
-        match self.event {
-            Pointer::Down => {
-                ctx.app_state.tool_state = ToolState::BoxSelect {
-                    p1: point,
-                    p2: point,
-                    stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
-                    fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
-                };
-            }
-            Pointer::Move => {
-                if let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state {
-                    *p2 = point;
-                }
-            }
-            Pointer::Up => {
-                if let ToolState::BoxSelect { p1, p2, .. } =
-                    std::mem::take(&mut ctx.app_state.tool_state)
-                {
-                    let world_origin = ctx.world_transform() * p1;
-                    let world_dims = ctx.world_transform() * (p2 - p1);
-                    ctx.execute(super::orm::CreateRectangle {
-                        origin: world_origin,
-                        dims: world_dims,
-                    })?;
-
-                    ctx.app_state.selected_tool = Tool::Pointer;
-                }
-            }
+impl RectangleTool {
+    pub fn new(_ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
+        Self {
+            p1: point,
+            p2: point,
         }
-        Ok(CanUndo::No)
+    }
+}
+
+impl ToolBehaviour for RectangleTool {
+    fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_move(
+        &mut self,
+        point: Point2<Glass>,
+        _ctx: &mut ActionContext,
+    ) -> std::ops::ControlFlow<()> {
+        self.p2 = point;
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        self.p2 = point;
+        let world_origin = ctx.world_transform() * self.p1;
+        let world_dims = ctx.world_transform() * (self.p2 - self.p1);
+        ctx.execute(super::orm::CreateRectangle {
+            origin: world_origin,
+            dims: world_dims,
+        })
+        .unwrap();
+        ControlFlow::Break(())
+    }
+
+    fn keyboard(
+        &mut self,
+        _event: crate::model::input::InputEvent,
+        _dir: crate::model::input::Dir,
+        _ctx: &mut ActionContext,
+    ) -> std::ops::ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn visualize(&self, glass: &mut crate::glass::Glass) {
+        glass.is_rect_tool_active.set(true);
+        glass.rect_tool.set(crate::glass::RectTool {
+            x: Size::Pixels(self.p1.x.into()),
+            y: Size::Pixels(self.p1.y.into()),
+            width: Size::Pixels((self.p2.x - self.p2.x).into()),
+            height: Size::Pixels((self.p2.y - self.p2.y).into()),
+            stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
+            fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
+        });
     }
 }
 
 pub struct PointerTool {
-    pub event: Pointer,
+    state: PointerToolState,
 }
 
-impl Action for PointerTool {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let point = ctx.app_state.mouse_position;
-        match self.event {
-            Pointer::Down => {
-                if let Some(hit) = ctx.raycast_glass(point) {
-                    ctx.app_state.selected_template_node_id = Some(hit.global_id().1);
+enum PointerToolState {
+    Moving {
+        offset: Vector2<Glass>,
+    },
+    Selecting {
+        p1: Point2<Glass>,
+        p2: Point2<Glass>,
+    },
+}
 
-                    let origin_window = hit.origin().unwrap();
-                    let object_origin_glass = ctx.glass_transform() * origin_window;
-                    let offset = point - object_origin_glass;
-                    ctx.app_state.tool_state = ToolState::MovingObject { offset };
-                } else {
-                    ctx.app_state.tool_state = ToolState::BoxSelect {
-                        p1: point,
-                        p2: point,
-                        stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
-                        fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
-                    };
+impl PointerTool {
+    pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
+        Self {
+            state: if let Some(hit) = ctx.raycast_glass(point) {
+                ctx.app_state.selected_template_node_id = Some(hit.global_id().1);
+
+                let origin_window = hit.origin().unwrap();
+                let object_origin_glass = ctx.glass_transform() * origin_window;
+                let offset = point - object_origin_glass;
+                PointerToolState::Moving { offset }
+            } else {
+                PointerToolState::Selecting {
+                    p1: point,
+                    p2: point,
                 }
-            }
-            Pointer::Move => match ctx.app_state.tool_state {
-                ToolState::BoxSelect { .. } => {
-                    let ToolState::BoxSelect { ref mut p2, .. } = ctx.app_state.tool_state else {
-                        unreachable!();
-                    };
-                    *p2 = point;
-                }
-                ToolState::MovingObject { offset } => {
-                    let world_point = ctx.world_transform() * (point - offset);
-                    ctx.execute(MoveSelected { point: world_point })?;
-                }
-                _ => (),
             },
-            Pointer::Up => {
-                if let ToolState::BoxSelect { .. } = std::mem::take(&mut ctx.app_state.tool_state) {
-                    // TODO get objects within rectangle from engine, and find their
-                    // TemplateNode ids to set selection state.
-                    let something_in_rectangle = true;
-                    if something_in_rectangle {
-                        ctx.app_state.selected_template_node_id = None;
-                        //select things
-                    }
-                }
-            }
         }
-        Ok(CanUndo::No)
+    }
+}
+
+impl ToolBehaviour for PointerTool {
+    fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        match self.state {
+            PointerToolState::Moving { offset } => {
+                let world_point = ctx.world_transform() * (point - offset);
+                ctx.execute(MoveSelected { point: world_point });
+            }
+            PointerToolState::Selecting { p1, mut p2 } => p2 = point,
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        // TODO select the objects if in PointerToolState::Selecting h
+        ControlFlow::Break(())
+    }
+
+    fn keyboard(
+        &mut self,
+        event: crate::model::input::InputEvent,
+        dir: crate::model::input::Dir,
+        ctx: &mut ActionContext,
+    ) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn visualize(&self, glass: &mut crate::glass::Glass) {
+        if let PointerToolState::Selecting { p1, p2 } = self.state {
+            glass.is_rect_tool_active.set(true);
+            glass.rect_tool.set(crate::glass::RectTool {
+                x: Size::Pixels(p1.x.into()),
+                y: Size::Pixels(p1.y.into()),
+                width: Size::Pixels((p2.x - p2.x).into()),
+                height: Size::Pixels((p2.y - p2.y).into()),
+                stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
+                fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
+            });
+        }
     }
 }

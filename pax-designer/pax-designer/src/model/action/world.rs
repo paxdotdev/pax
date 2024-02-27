@@ -1,5 +1,11 @@
+use std::ops::ControlFlow;
+
 use super::{pointer::Pointer, Action, ActionContext, CanUndo};
-use crate::model::{input::InputEvent, math::coordinate_spaces::Glass, AppState, ToolState};
+use crate::model::{
+    input::InputEvent,
+    math::coordinate_spaces::{Glass, World},
+    AppState, ToolBehaviour,
+};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
@@ -9,36 +15,44 @@ use pax_engine::{
 };
 
 pub struct Pan {
-    pub event: Pointer,
-    pub point: Point2<Glass>,
+    pub start_point: Point2<Glass>,
+    pub original_transform: Transform2<Glass, World>,
 }
 
-impl Action for Pan {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        match self.event {
-            Pointer::Down => {
-                ctx.app_state.tool_state = ToolState::Panning {
-                    original_transform: ctx.world_transform(),
-                    glass_start: self.point,
-                };
-            }
-            Pointer::Move => {
-                if let ToolState::Panning {
-                    original_transform,
-                    glass_start,
-                } = ctx.app_state.tool_state
-                {
-                    let diff = ctx.world_transform() * (glass_start - self.point);
-                    let translation = Transform2::translate(diff);
-                    ctx.app_state.glass_to_world_transform = translation * original_transform;
-                }
-            }
-            Pointer::Up => {
-                ctx.app_state.tool_state = ToolState::Idle;
-            }
-        }
-        Ok(CanUndo::No)
+impl ToolBehaviour for Pan {
+    fn pointer_down(
+        &mut self,
+        _point: Point2<Glass>,
+        _ctx: &mut ActionContext,
+    ) -> std::ops::ControlFlow<()> {
+        ControlFlow::Continue(())
     }
+
+    fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        let diff = ctx.world_transform() * (self.start_point - point);
+        let translation = Transform2::translate(diff);
+        ctx.app_state.glass_to_world_transform = translation * self.original_transform;
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_up(
+        &mut self,
+        _point: Point2<Glass>,
+        _ctx: &mut ActionContext,
+    ) -> std::ops::ControlFlow<()> {
+        ControlFlow::Break(())
+    }
+
+    fn keyboard(
+        &mut self,
+        _event: InputEvent,
+        _dir: crate::model::input::Dir,
+        _ctx: &mut ActionContext,
+    ) -> std::ops::ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn visualize(&self, _glass: &mut crate::glass::Glass) {}
 }
 
 pub struct Zoom {
