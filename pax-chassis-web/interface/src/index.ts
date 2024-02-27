@@ -161,7 +161,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         } else if (unwrapped_msg["TextboxUpdate"]){
             let msg = unwrapped_msg["TextboxUpdate"]
             let patch: TextboxUpdatePatch = objectManager.getFromPool(TEXTBOX_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
+            patch.fromPatch(msg, nativePool.registeredFontFaces);
             nativePool.textboxUpdate(patch);
         }else if (unwrapped_msg["TextboxDelete"]) {
             let msg = unwrapped_msg["TextboxDelete"];

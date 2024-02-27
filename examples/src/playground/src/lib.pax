@@ -8,7 +8,14 @@
                 align_multiline: TextAlignHorizontal::Center
         }
 />
-<Textbox y=70% anchor_y=50% x=100px width=50% height=30px text={self.textbox_text} @textbox_change=self.textbox_change/>
+<Textbox id=text
+		background={Color::rgba(0.0, 1.0, 0.0, 1.0)}   
+		border_radius=100.0
+		stroke={
+			color: {Color::rgba(1.0, 0.0, 1.0, 1.0)}
+			width: 10px
+		}
+ y=70% anchor_y=50% x=100px width=50% height=30px text={self.textbox_text} @textbox_input=self.textbox_input/>
 <Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
 
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>
@@ -43,10 +50,10 @@
         style: {
                 font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 32px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                fill: {Color::rgba(1.0, 0.0, 1.0, 1.0)},
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Center,
                 align_multiline: TextAlignHorizontal::Center
         }
-    }
+	}
 }

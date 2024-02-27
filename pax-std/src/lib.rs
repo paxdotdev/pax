@@ -12,8 +12,10 @@ pub mod primitives {
     use pax_runtime::api::Property;
     use pax_runtime::api::Size;
     use pax_runtime::api::StringBox;
+    use pax_runtime::numeric::Numeric;
 
     use crate::types::text::TextStyle;
+    use crate::types::Color;
     use crate::types::Fill;
     use crate::types::PathSegment;
     use crate::types::Stroke;
@@ -80,10 +82,10 @@ pub mod primitives {
     #[primitive("pax_std_primitives::textbox::TextboxInstance")]
     pub struct Textbox {
         pub text: Property<StringBox>,
-        pub background: Property<Fill>,
+        pub background: Property<Color>,
         pub stroke: Property<Stroke>,
-        pub border_radius: Property<Size>,
-        pub text_style: Property<TextStyle>,
+        pub border_radius: Property<Numeric>,
+        pub style: Property<TextStyle>,
     }
 
     #[pax]
