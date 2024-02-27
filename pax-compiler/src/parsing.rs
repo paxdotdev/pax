@@ -660,7 +660,7 @@ fn parse_literal_function(literal_function_full: Pair<Rule>, pax: &str) -> Token
     let location_info = span_to_location(&literal_function.as_span());
     let literal_function_token = Token::new_with_raw_value(
         literal_function.as_str().to_string(),
-        literal_function_full.as_str().to_string(),
+        literal_function_full.as_str().to_string().replace(",", ""),
         TokenType::Handler,
         location_info,
         pax,
@@ -669,7 +669,7 @@ fn parse_literal_function(literal_function_full: Pair<Rule>, pax: &str) -> Token
 }
 
 fn parse_event_id(event_id_full: Pair<Rule>, pax: &str) -> Token {
-    let event_id = event_id_full.clone().into_inner().last().unwrap();
+    let event_id = event_id_full.clone().into_inner().next().unwrap();
 
     let event_id_location = span_to_location(&event_id.as_span());
     let event_id_token = Token::new_with_raw_value(
@@ -840,11 +840,6 @@ fn derive_value_definition_from_literal_object_pair(
                 match settings_key_value_pair.as_rule() {
                     Rule::settings_key_value_pair => {
                         let mut pairs = settings_key_value_pair.into_inner();
-
-                        todo!("branch here: if first rule matches `settings_key`,\
-                        handle as setting; if first rule matches `event_id`, handle by patching in former handler-block logic ");
-
-
 
                         let setting_key = pairs.next().unwrap().into_inner().next().unwrap();
                         let setting_key_location = span_to_location(&setting_key.as_span());
