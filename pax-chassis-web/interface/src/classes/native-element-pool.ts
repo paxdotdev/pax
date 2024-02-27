@@ -241,7 +241,6 @@ export class NativeElementPool {
         let textbox = leaf.firstChild;
 
         applyTextTyle(textbox, textbox, patch.style);
-        console.log(patch);
 
         if (patch.background) {
             textbox.style.background = toCssColor(patch.background);
