@@ -2,7 +2,7 @@
 mod tests {
     use crate::orm::PaxManifestORM;
     use pax_manifest::{
-        ComponentDefinition, HandlersBlockElement, LiteralBlockDefinition, PaxManifest,
+        ComponentDefinition, HandlerBindingElement, LiteralBlockDefinition, PaxManifest,
         SettingElement, SettingsBlockElement, Token, TokenType, ValueDefinition,
     };
     use std::collections::{HashMap, HashSet};
@@ -25,7 +25,7 @@ mod tests {
                     Token::new_from_raw_value("existing_selector".to_string(), TokenType::Selector),
                     LiteralBlockDefinition::new(vec![]),
                 )]),
-                handlers: Some(vec![HandlersBlockElement::Handler(
+                handlers: Some(vec![HandlerBindingElement::Handler(
                     Token::new_from_raw_value("existing_handler".to_string(), TokenType::EventId),
                     vec![Token::new_from_raw_value(
                         "handler_action".to_string(),

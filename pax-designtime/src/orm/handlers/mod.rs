@@ -1,4 +1,4 @@
-use pax_manifest::{HandlersBlockElement, PaxManifest, Token, TokenType};
+use pax_manifest::{HandlerBindingElement, PaxManifest, Token, TokenType};
 use serde_derive::{Deserialize, Serialize};
 
 use super::{Command, Request, Response, UndoRedo, UndoRedoCommand};
@@ -18,7 +18,7 @@ pub struct AddHandlerRequest {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AddHandlerResponse {
     command_id: Option<usize>,
-    handler: HandlersBlockElement,
+    handler: HandlerBindingElement,
 }
 
 impl Request for AddHandlerRequest {
@@ -31,8 +31,8 @@ impl Response for AddHandlerResponse {
     }
 }
 
-fn create_handler_element(key: String, value: Vec<String>) -> HandlersBlockElement {
-    HandlersBlockElement::Handler(
+fn create_handler_element(key: String, value: Vec<String>) -> HandlerBindingElement {
+    HandlerBindingElement::Handler(
         Token::new_from_raw_value(key, TokenType::EventId),
         value
             .iter()
@@ -122,14 +122,14 @@ pub struct UpdateHandlerRequest {
     key: String,
     value: Vec<String>,
     // Filled in on execute in order to undo
-    cached_prev_state: Option<HandlersBlockElement>,
+    cached_prev_state: Option<HandlerBindingElement>,
     cached_prev_position: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UpdateHandlerResponse {
     command_id: Option<usize>,
-    handler: HandlersBlockElement,
+    handler: HandlerBindingElement,
 }
 
 impl Request for UpdateHandlerRequest {
@@ -159,7 +159,7 @@ impl Command<UpdateHandlerRequest> for UpdateHandlerRequest {
             .unwrap()
             .iter()
             .position(|handler| {
-                if let HandlersBlockElement::Handler(t1, _) = handler {
+                if let HandlerBindingElement::Handler(t1, _) = handler {
                     return t1.raw_value == self.key;
                 }
                 false
@@ -247,7 +247,7 @@ pub struct RemoveHandlerRequest {
     component_type_id: String,
     key: String,
     // Filled in on execute in order to undo
-    cached_prev_state: Option<HandlersBlockElement>,
+    cached_prev_state: Option<HandlerBindingElement>,
     cached_prev_position: Option<usize>,
 }
 
@@ -294,7 +294,7 @@ impl Command<RemoveHandlerRequest> for RemoveHandlerRequest {
             .unwrap()
             .iter()
             .position(|handler| {
-                if let HandlersBlockElement::Handler(t1, _) = handler {
+                if let HandlerBindingElement::Handler(t1, _) = handler {
                     return t1.raw_value == self.key;
                 }
                 false
@@ -368,7 +368,7 @@ pub struct GetHandlerRequest {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GetHandlerResponse {
     command_id: Option<usize>,
-    handler: Option<HandlersBlockElement>,
+    handler: Option<HandlerBindingElement>,
 }
 
 impl Request for GetHandlerRequest {
@@ -398,7 +398,7 @@ impl Command<GetHandlerRequest> for GetHandlerRequest {
             .unwrap()
             .iter()
             .position(|handler| {
-                if let HandlersBlockElement::Handler(t1, _) = handler {
+                if let HandlerBindingElement::Handler(t1, _) = handler {
                     return t1.raw_value == self.key;
                 }
                 false
@@ -429,7 +429,7 @@ pub struct GetAllHandlersRequest {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GetAllHandlersResponse {
     command_id: Option<usize>,
-    handlers: Option<Vec<HandlersBlockElement>>,
+    handlers: Option<Vec<HandlerBindingElement>>,
 }
 
 impl Request for GetAllHandlersRequest {

@@ -1,7 +1,7 @@
 use crate::orm::PaxManifestORM;
 
 use super::{AddHandlerRequest, RemoveHandlerRequest, UpdateHandlerRequest};
-use pax_manifest::HandlersBlockElement;
+use pax_manifest::HandlerBindingElement;
 
 /// Builder for creating and modifying handlers in the PaxManifest.
 pub struct HandlerBuilder<'a> {
@@ -38,13 +38,13 @@ impl<'a> HandlerBuilder<'a> {
             .handlers
         {
             if let Some((index, handler)) = handlers.iter().enumerate().find(|(_, elem)| {
-                if let HandlersBlockElement::Handler(token, _) = elem {
+                if let HandlerBindingElement::Handler(token, _) = elem {
                     return token.raw_value == key;
                 }
                 false
             }) {
                 let (key, value) = match handler {
-                    HandlersBlockElement::Handler(key, value) => {
+                    HandlerBindingElement::Handler(key, value) => {
                         (key.raw_value.clone(), value.clone())
                     }
                     _ => panic!("Invalid handler type"),
