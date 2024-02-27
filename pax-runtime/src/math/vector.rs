@@ -3,7 +3,9 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-use super::{Angle, Generic, Point2, Space};
+use crate::api::{Numeric, Rotation};
+
+use super::{Generic, Point2, Space};
 
 pub struct Vector2<W = Generic> {
     pub x: f64,
@@ -84,10 +86,10 @@ impl<W: Space> Vector2<W> {
     }
 
     /// Returns the angle walking from self to other counter clockwise
-    pub fn angle_to(self, other: Self) -> Angle {
+    pub fn angle_to(self, other: Self) -> Rotation {
         let dot = self.normalize() * other.normalize();
         let s = self.cross(other).signum();
-        Angle::from_radians(s * dot.acos())
+        Rotation::Radians(Numeric::from(s * dot.acos()))
     }
 
     /// Returns the magnitude of the cross product as if both vectors had z value 0.0
