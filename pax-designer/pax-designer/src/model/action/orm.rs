@@ -12,7 +12,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::math::Angle;
+use pax_engine::api::Rotation;
 use pax_engine::NodeInterface;
 use pax_engine::{
     api::Size,
@@ -162,7 +162,7 @@ pub struct RotateSelected {
     pub rotation_anchor: Point2<Glass>,
     pub moving_from: Vector2<Glass>,
     pub moving_to: Vector2<Glass>,
-    pub start_angle: Angle,
+    pub start_angle: Rotation,
 }
 
 impl Action for RotateSelected {
@@ -170,7 +170,7 @@ impl Action for RotateSelected {
         let angle_diff = self.moving_from.angle_to(self.moving_to);
         let new_rot = angle_diff + self.start_angle;
 
-        let mut angle_deg = new_rot.degrees().rem_euclid(360.0);
+        let mut angle_deg = new_rot.get_as_degrees().rem_euclid(360.0);
         if ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
             angle_deg = (angle_deg / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
             if angle_deg >= 360.0 - f64::EPSILON {

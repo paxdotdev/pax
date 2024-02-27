@@ -9,7 +9,7 @@
     .control_point {
         stroke: {
             color: {self.data.styling.stroke}
-            width: 1px
+            width: {(self.data.styling.stroke_width_pixels)px}
         }
         fill: {
             Fill::Solid(self.data.styling.fill)

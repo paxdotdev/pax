@@ -75,6 +75,6 @@ pub struct ControlPointDef {
 pub struct ControlPointStyling {
     pub stroke: Color,
     pub fill: Color,
-    pub stroke_width: Size,
+    pub stroke_width_pixels: f64,
     pub size_pixels: f64,
 }
