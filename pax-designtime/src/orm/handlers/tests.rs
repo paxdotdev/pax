@@ -8,7 +8,7 @@ mod tests {
         Command, PaxManifestORM, UndoRedo,
     };
     use pax_manifest::{
-        get_primitive_type_table, ComponentDefinition, HandlersBlockElement, PaxManifest, Token,
+        get_primitive_type_table, ComponentDefinition, HandlerBindingElement, PaxManifest, Token,
         TokenType,
     };
     use std::collections::{HashMap, HashSet};
@@ -28,7 +28,7 @@ mod tests {
                 primitive_instance_import_path: None,
                 template: None,
                 settings: None,
-                handlers: Some(vec![HandlersBlockElement::Handler(
+                handlers: Some(vec![HandlerBindingElement::Handler(
                     Token::new_from_raw_value("existing_handler".to_string(), TokenType::EventId),
                     vec![Token::new_from_raw_value(
                         "handler_action".to_string(),
@@ -70,7 +70,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "new_handler"
                         && actions.iter().any(|a| a.raw_value == "new_action"),
                 _ => false,
@@ -84,7 +84,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, _) => key.raw_value == "new_handler",
+                HandlerBindingElement::Handler(key, _) => key.raw_value == "new_handler",
                 _ => false,
             }));
 
@@ -96,7 +96,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "new_handler"
                         && actions.iter().any(|a| a.raw_value == "new_action"),
                 _ => false,
@@ -125,7 +125,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "existing_handler"
                         && actions.iter().any(|a| a.raw_value == "updated_action"),
                 _ => false,
@@ -139,7 +139,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "existing_handler"
                         && actions.iter().any(|a| a.raw_value == "handler_action"),
                 _ => false,
@@ -153,7 +153,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "existing_handler"
                         && actions.iter().any(|a| a.raw_value == "updated_action"),
                 _ => false,
@@ -183,7 +183,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, _) => key.raw_value == "existing_handler",
+                HandlerBindingElement::Handler(key, _) => key.raw_value == "existing_handler",
                 _ => false,
             }));
 
@@ -204,7 +204,7 @@ mod tests {
         let response = command.execute(&mut orm.manifest).unwrap();
 
         // Check retrieval
-        if let Some(HandlersBlockElement::Handler(key, actions)) = response.handler {
+        if let Some(HandlerBindingElement::Handler(key, actions)) = response.handler {
             assert_eq!(key.raw_value, "existing_handler");
             assert!(actions.iter().any(|a| a.raw_value == "handler_action"));
         } else {
@@ -234,13 +234,13 @@ mod tests {
         // Check retrieval
         let handlers = response.handlers.unwrap();
         assert_eq!(handlers.len(), 2);
-        if let HandlersBlockElement::Handler(key, actions) = &handlers[0] {
+        if let HandlerBindingElement::Handler(key, actions) = &handlers[0] {
             assert_eq!(key.raw_value, "existing_handler");
             assert!(actions.iter().any(|a| a.raw_value == "handler_action"));
         } else {
             panic!("First handler not in expected format");
         }
-        if let HandlersBlockElement::Handler(key, actions) = &handlers[1] {
+        if let HandlerBindingElement::Handler(key, actions) = &handlers[1] {
             assert_eq!(key.raw_value, "second_handler");
             assert!(actions.iter().any(|a| a.raw_value == "second_action"));
         } else {
@@ -268,7 +268,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "new_handler"
                         && actions.iter().any(|a| a.raw_value == "new_action"),
                 _ => false,
@@ -295,7 +295,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| match h {
-                HandlersBlockElement::Handler(key, actions) =>
+                HandlerBindingElement::Handler(key, actions) =>
                     key.raw_value == "existing_handler"
                         && actions.iter().any(|a| a.raw_value == "updated_action"),
                 _ => false,
