@@ -40,6 +40,6 @@
     }
 }
 
-@handlers {
-    pre_render: handle_pre_render
+@settings {
+    @pre_render: handle_pre_render
 }
