@@ -42,6 +42,16 @@ impl InstanceNode for RectangleInstance {
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
+                &mut properties.stroke.get_mut().color,
+            );
+            handle_vtable_update(
+                context.expression_table(),
+                &expanded_node.stack,
+                &mut properties.stroke.get_mut().width,
+            );
+            handle_vtable_update(
+                context.expression_table(),
+                &expanded_node.stack,
                 &mut properties.fill,
             );
             handle_vtable_update(

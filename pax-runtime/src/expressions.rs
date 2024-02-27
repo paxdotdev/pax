@@ -12,6 +12,7 @@ use crate::api::{
 // via calls to `read()`
 pub struct PropertyExpression<T: Default> {
     pub id: usize,
+    pub has_been_evaluted: bool,
     pub cached_value: T,
     pub transition_manager: TransitionManager<T>,
 }
@@ -22,12 +23,16 @@ impl<T: Default> PropertyExpression<T> {
             id,
             cached_value: Default::default(),
             transition_manager: TransitionManager::new(),
+            has_been_evaluted: false,
         }
     }
 }
 
 impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     fn get(&self) -> &T {
+        if !self.has_been_evaluted {
+            panic!("expression width id {:?} has'nt been evaluated", self.id)
+        }
         &self.cached_value
     }
 
@@ -41,6 +46,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 
     fn set(&mut self, value: T) {
         self.cached_value = value;
+        self.has_been_evaluted = true;
     }
 
     //FUTURE: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
