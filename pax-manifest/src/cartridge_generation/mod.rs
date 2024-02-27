@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::{
     constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
-    HandlersBlockElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
+    HandlerBindingElement, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement,
     TemplateNodeDefinition, Token, ValueDefinition,
 };
 
@@ -34,7 +34,7 @@ impl PaxManifest {
         if let Some(component) = self.components.get(type_id) {
             if let Some(component_handlers) = &component.handlers {
                 for handler in component_handlers {
-                    if let HandlersBlockElement::Handler(key, values) = handler {
+                    if let HandlerBindingElement::Handler(key, values) = handler {
                         handlers.push((
                             key.token_value.clone(),
                             values
@@ -109,7 +109,7 @@ impl PaxManifest {
             // pull all handlers from the component settings
             if let Some(handlers) = &component.handlers {
                 for handler in handlers {
-                    if let HandlersBlockElement::Handler(key, values) = handler {
+                    if let HandlerBindingElement::Handler(key, values) = handler {
                         for value in values {
                             let args_type = event_map.get(key.token_value.as_str()).unwrap();
                             handler_data.push(HandlerInfo {
