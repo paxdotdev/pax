@@ -7,7 +7,6 @@ use serde::Deserialize;
 
 use crate::model;
 use crate::model::AppState;
-use crate::model::ToolState;
 
 use crate::model::action::pointer::Pointer;
 use crate::model::input::Dir;
@@ -75,29 +74,32 @@ impl Glass {
         model::read_app_state(|app_state| {
             // Draw current tool visuals
             // this could be factored out into it's own component as well eventually
-            match &app_state.tool_state {
-                ToolState::BoxSelect {
-                    p1,
-                    p2,
-                    fill,
-                    stroke,
-                } => {
-                    self.is_rect_tool_active.set(true);
-                    self.rect_tool.set(RectTool {
-                        x: Size::Pixels(p1.x.into()),
-                        y: Size::Pixels(p1.y.into()),
-                        width: Size::Pixels((p2.x - p1.x).into()),
-                        height: Size::Pixels((p2.y - p1.y).into()),
-                        fill: fill.clone(),
-                        stroke: stroke.clone(),
-                    });
-                }
-                ToolState::MovingObject { .. } => (),
-                _ => {
-                    // reset all tool visuals
-                    self.is_rect_tool_active.set(false);
-                }
+            if let Some(tool) = app_state.tool_behaviour.borrow().as_ref() {
+                tool.visualize(self);
             }
+            // match &app_state.tool_behaviour {
+            //     ToolState::BoxSelect {
+            //         p1,
+            //         p2,
+            //         fill,
+            //         stroke,
+            //     } => {
+            //         self.is_rect_tool_active.set(true);
+            //         self.rect_tool.set(RectTool {
+            //             x: Size::Pixels(p1.x.into()),
+            //             y: Size::Pixels(p1.y.into()),
+            //             width: Size::Pixels((p2.x - p1.x).into()),
+            //             height: Size::Pixels((p2.y - p1.y).into()),
+            //             fill: fill.clone(),
+            //             stroke: stroke.clone(),
+            //         });
+            //     }
+            //     ToolState::MovingObject { .. } => (),
+            //     _ => {
+            //         // reset all tool visuals
+            //         self.is_rect_tool_active.set(false);
+            //     }
+            // }
         });
     }
 }

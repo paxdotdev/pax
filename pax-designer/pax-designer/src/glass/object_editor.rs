@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::model::ToolBehaviour;
 use pax_engine::api::*;
 use pax_engine::math::{Point2, Vector2};
 use pax_engine::Property;
@@ -10,7 +11,9 @@ use pax_std::types::{Color, Fill};
 use serde::Deserialize;
 
 use super::control_point::{ControlPoint, ControlPointBehaviour};
-use crate::glass::control_point::{ControlPointDef, ControlPointStyling};
+use crate::glass::control_point::{
+    ControlPointBehaviourFactory, ControlPointDef, ControlPointStyling,
+};
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::ActionContext;
 use crate::model::math::coordinate_spaces::Glass;
@@ -24,11 +27,11 @@ pub struct ObjectEditor {
     pub bounding_segments: Property<Vec<BoundingSegment>>,
 }
 
-type ControlPointFuncs = Vec<Rc<dyn ControlPointBehaviour>>;
 // Temporary solution - can be moved to private field on ObjectEditor
 // Once we have private variables/upwards data passing (from ControlPoint)
 thread_local!(
-    pub static CONTROL_POINT_FUNCS: RefCell<Option<ControlPointFuncs>> = RefCell::new(None);
+    pub static CONTROL_POINT_FUNCS: RefCell<Option<Vec<ControlPointBehaviourFactory>>> =
+        RefCell::new(None);
 );
 
 impl ObjectEditor {
@@ -105,27 +108,25 @@ impl ObjectEditor {
 
         struct ResizeBehaviour {
             attachment_point: Point2<BoxPoint>,
-            initial_box_bounds: RefCell<Option<(AxisAlignedBox, Point2<Glass>)>>,
+            initial_box_bounds: (AxisAlignedBox, Point2<Glass>),
         }
 
         impl ResizeBehaviour {
-            fn new(attachment_point: Point2<BoxPoint>) -> Self {
+            fn new(
+                attachment_point: Point2<BoxPoint>,
+                initial_box_bounds: (AxisAlignedBox, Point2<Glass>),
+            ) -> Self {
                 Self {
                     attachment_point,
-                    initial_box_bounds: RefCell::new(None),
+                    initial_box_bounds,
                 }
             }
         }
 
         impl ControlPointBehaviour for ResizeBehaviour {
-            fn init(&self, ctx: &mut ActionContext, _point: Point2<Glass>) {
-                *self.initial_box_bounds.borrow_mut() = ctx.selected_bounds();
-            }
-
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 let world_point = ctx.world_transform() * point;
-                let bounds = self.initial_box_bounds.borrow();
-                let &(ref axis_box, origin) = bounds.as_ref().expect("resize has been initialized");
+                let (ref axis_box, origin) = self.initial_box_bounds;
                 let axis_box_world = axis_box
                     .try_into_space(ctx.world_transform())
                     .expect("tried to transform axis aligned box to non-axis aligned space");
@@ -139,40 +140,49 @@ impl ObjectEditor {
                 };
             }
         }
+
+        fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviourFactory {
+            Box::new(move |ac, p| {
+                //TODO initialize the bound stuff
+                let box_bounds = todo!();
+                Box::new(ResizeBehaviour::new(anchor, box_bounds))
+            })
+        }
+
         // resize points
         editor.add_control_set(
             vec![
                 CPoint::new(
                     p1, //
-                    ResizeBehaviour::new(Point2::new(1.0, 1.0)),
+                    resize_factory(Point2::new(1.0, 1.0)),
                 ),
                 CPoint::new(
                     p1.midpoint_towards(p2),
-                    ResizeBehaviour::new(Point2::new(0.0, 1.0)),
+                    resize_factory(Point2::new(0.0, 1.0)),
                 ),
                 CPoint::new(
                     p2, //
-                    ResizeBehaviour::new(Point2::new(-1.0, 1.0)),
+                    resize_factory(Point2::new(-1.0, 1.0)),
                 ),
                 CPoint::new(
                     p2.midpoint_towards(p3),
-                    ResizeBehaviour::new(Point2::new(-1.0, 0.0)),
+                    resize_factory(Point2::new(-1.0, 0.0)),
                 ),
                 CPoint::new(
                     p3, //
-                    ResizeBehaviour::new(Point2::new(-1.0, -1.0)),
+                    resize_factory(Point2::new(-1.0, -1.0)),
                 ),
                 CPoint::new(
                     p3.midpoint_towards(p4),
-                    ResizeBehaviour::new(Point2::new(0.0, -1.0)),
+                    resize_factory(Point2::new(0.0, -1.0)),
                 ),
                 CPoint::new(
                     p4, //
-                    ResizeBehaviour::new(Point2::new(1.0, -1.0)),
+                    resize_factory(Point2::new(1.0, -1.0)),
                 ),
                 CPoint::new(
                     p4.midpoint_towards(p1),
-                    ResizeBehaviour::new(Point2::new(1.0, 0.0)),
+                    resize_factory(Point2::new(1.0, 0.0)),
                 ),
             ],
             ControlPointStyling {
@@ -191,52 +201,44 @@ impl ObjectEditor {
         ]);
 
         struct RotationBehaviour {
-            rotation_anchor: RefCell<Option<Point2<Glass>>>,
-            start_dir: RefCell<Option<Vector2<Glass>>>,
-            start_angle: RefCell<Option<Rotation>>,
-        }
-
-        impl RotationBehaviour {
-            fn new() -> Self {
-                Self {
-                    rotation_anchor: RefCell::new(None),
-                    start_dir: RefCell::new(None),
-                    start_angle: RefCell::new(None),
-                }
-            }
+            rotation_anchor: Point2<Glass>,
+            start_dir: Vector2<Glass>,
+            start_angle: Rotation,
         }
 
         impl ControlPointBehaviour for RotationBehaviour {
-            fn init(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                let rot_anchor = ctx.selected_bounds().expect("an object is selected").1;
-                let initial_object_rotation =
-                    ctx.selected_node().unwrap().properties().local_rotation;
-                let start_dir = point - rot_anchor;
-                *self.rotation_anchor.borrow_mut() = Some(rot_anchor);
-                *self.start_dir.borrow_mut() = Some(start_dir);
-                *self.start_angle.borrow_mut() = Some(initial_object_rotation);
-            }
-
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                let rotation_anchor = self.rotation_anchor.borrow().unwrap();
+                let rotation_anchor = self.rotation_anchor;
                 let moving_to = point - rotation_anchor;
                 if let Err(e) = ctx.execute(action::orm::RotateSelected {
                     rotation_anchor,
-                    moving_from: self.start_dir.borrow().unwrap(),
+                    moving_from: self.start_dir,
                     moving_to,
-                    start_angle: self.start_angle.borrow().clone().unwrap(),
+                    start_angle: self.start_angle.clone(),
                 }) {
                     pax_engine::log::warn!("rotation failed: {:?}", e);
                 };
             }
         }
 
+        fn rotate_factory() -> ControlPointBehaviourFactory {
+            Box::new(|ctx, point| {
+                let rotation_anchor = ctx.selected_bounds().expect("an object is selected").1;
+                let start_angle = ctx.selected_node().unwrap().properties().local_rotation;
+                let start_dir = point - rotation_anchor;
+                Box::new(RotationBehaviour {
+                    rotation_anchor,
+                    start_dir,
+                    start_angle,
+                })
+            })
+        }
         editor.add_control_set(
             vec![
-                CPoint::new(p1, RotationBehaviour::new()),
-                CPoint::new(p2, RotationBehaviour::new()),
-                CPoint::new(p3, RotationBehaviour::new()),
-                CPoint::new(p4, RotationBehaviour::new()),
+                CPoint::new(p1, rotate_factory()),
+                CPoint::new(p2, rotate_factory()),
+                CPoint::new(p3, rotate_factory()),
+                CPoint::new(p4, rotate_factory()),
             ],
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
@@ -274,14 +276,14 @@ impl Editor {
 
 struct CPoint {
     point: Point2<Glass>,
-    behaviour: Rc<dyn ControlPointBehaviour>,
+    behaviour: Box<dyn Fn(&mut ActionContext, Point2<Glass>) -> Box<dyn ToolBehaviour>>,
 }
 
 impl CPoint {
-    fn new(point: Point2<Glass>, behaviour: impl ControlPointBehaviour + 'static) -> Self {
+    fn new(point: Point2<Glass>, behaviour: ControlPointBehaviourFactory) -> Self {
         Self {
             point,
-            behaviour: Rc::new(behaviour),
+            behaviour: Box::new(behaviour),
         }
     }
 }
