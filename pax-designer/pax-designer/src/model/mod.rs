@@ -1,6 +1,7 @@
 pub mod action;
 pub mod input;
 pub mod math;
+pub mod tools;
 
 use crate::glass;
 use crate::glass::control_point::ControlPointBehaviour;
@@ -25,7 +26,7 @@ use std::rc::Rc;
 use math::coordinate_spaces::Glass;
 
 use self::action::pointer::Pointer;
-use self::action::tools::ToolAction;
+use self::action::pointer::PointerAction;
 use self::input::{Dir, InputEvent, InputMapper};
 use self::math::coordinate_spaces;
 
@@ -87,10 +88,10 @@ pub struct AppState {
     /// INVALID_IF: doesn't represent current mouse pos
     pub mouse_position: Point2<Glass>,
     /// Current tool state while in use (ie in the process of drawing a rect,
-    /// moving an object, moving a control point)
-    /// INVALID_IF: no invalid states
+    /// moving an object, moving a control point, drawing a sline)
     /// OBS: needs to be wrapped in Rc<RefCell since tool_behaviour itself needs
     /// action_context which contains app_state
+    /// INVALID_IF: no invalid states
     pub tool_behaviour: Rc<RefCell<Option<Box<dyn ToolBehaviour>>>>,
 
     //---------------toolbar----------------
@@ -190,12 +191,13 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     // Trigger tool move in case the current tool
     // changes behaviour when for example Alt is pressed.
     // No-op if no tool is in use
-    perform_action(
-        ToolAction {
-            event: Pointer::Move,
-        },
-        ctx,
-    );
+    with_action_context(ctx, |ctx| {
+        let tool_behaviour = Rc::clone(&ctx.app_state.tool_behaviour);
+        let mut tool_behaviour = tool_behaviour.borrow_mut();
+        if let Some(tool) = tool_behaviour.as_mut() {
+            tool.pointer_move(ctx.app_state.mouse_position, ctx);
+        }
+    });
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

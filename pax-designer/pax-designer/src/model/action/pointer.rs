@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use super::tools::{PointerTool, RectangleTool};
 use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::model::action::world::Pan;
 use crate::model::input::InputEvent;
 use crate::model::math::coordinate_spaces::Glass;
+use crate::model::tools::{PointerTool, RectangleTool};
 use crate::model::AppState;
 use crate::model::{action, Tool};
 use crate::USERLAND_PROJECT_ID;
@@ -62,7 +62,10 @@ impl Action for PointerAction {
             // Check if this tool is done and is returning control flow to main app
             match res {
                 std::ops::ControlFlow::Continue(_) => (),
-                std::ops::ControlFlow::Break(_) => *tool_behaviour = None,
+                std::ops::ControlFlow::Break(_) => {
+                    *tool_behaviour = None;
+                    ctx.app_state.selected_tool = Tool::Pointer;
+                }
             }
         }
         Ok(CanUndo::No)
