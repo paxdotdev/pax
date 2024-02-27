@@ -598,6 +598,7 @@ pub enum Rotation {
     Degrees(Numeric),
     Percent(Numeric),
 }
+
 impl Rotation {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
@@ -615,6 +616,18 @@ impl Rotation {
             unreachable!()
         }
     }
+
+    pub fn get_as_degrees(&self) -> f64 {
+        if let Self::Radians(num) = self {
+            num.get_as_float() * 180.0 / std::f64::consts::PI
+        } else if let Self::Degrees(num) = self {
+            num.get_as_float()
+        } else if let Self::Percent(num) = self {
+            num.get_as_float() * 360.0 / 100.0
+        } else {
+            unreachable!()
+        }
+    }
 }
 impl Neg for Rotation {
     type Output = Rotation;
@@ -626,6 +639,17 @@ impl Neg for Rotation {
         }
     }
 }
+
+impl Add for Rotation {
+    type Output = Rotation;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let self_rad = self.get_as_radians();
+        let other_rad = rhs.get_as_radians();
+        Rotation::Radians(Numeric::from(self_rad + other_rad))
+    }
+}
+
 impl Into<Rotation> for Numeric {
     fn into(self) -> Rotation {
         Rotation::Radians(self)

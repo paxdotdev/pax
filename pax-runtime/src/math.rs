@@ -19,39 +19,6 @@ pub struct Generic;
 
 impl Space for Generic {}
 
-#[derive(Clone, Copy)]
-pub struct Angle {
-    radians: f64,
-}
-
-impl Angle {
-    pub fn from_radians(radians: f64) -> Self {
-        Self { radians }
-    }
-
-    pub fn from_degrees(deg: f64) -> Self {
-        Self {
-            radians: deg * PI / 180.0,
-        }
-    }
-
-    pub fn radians(&self) -> f64 {
-        self.radians
-    }
-
-    pub fn degrees(&self) -> f64 {
-        self.radians * 180.0 / PI
-    }
-}
-
-impl Add for Angle {
-    type Output = Angle;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Angle::from_radians(self.radians() + rhs.radians())
-    }
-}
-
 // TODO remove after Affine not used
 impl<W: Space> Mul<Point2<W>> for Affine {
     type Output = Point2<W>;
