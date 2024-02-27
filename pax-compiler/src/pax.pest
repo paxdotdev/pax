@@ -13,12 +13,12 @@ comment = @{  ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ N
 
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | handlers_block_declaration | block_level_error)+ ~ EOI | empty }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | block_level_error)+ ~ EOI | empty }
 empty = {SOI}
-block_level_error = { (!(root_tag_pair | settings_block_declaration | handlers_block_declaration) ~ ANY)+}
+block_level_error = { (!(root_tag_pair | settings_block_declaration) ~ ANY)+}
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment | tag_error}
-tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@handlers" | "@settings") ~ ANY)* ~ WHITESPACE* }
+tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@settings") ~ ANY)* ~ WHITESPACE* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="..."> 
 //and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
@@ -48,10 +48,10 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 
-//Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
+//Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value)}
-attribute_event_id = {"@" ~ identifier}
-attribute_event_binding = {attribute_event_id ~ "=" ~ literal_function}
+attribute_event_binding = {event_id ~ literal_function}
+event_id = {"@" ~ identifier ~ ("=" | ":")}
 
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
@@ -65,8 +65,6 @@ id_binding = {id ~ "=" ~ identifier}
 //It could also be an `{...}` expression
 node_inner_content = { literal_value | expression_wrapped }
 
-
-
 //string/inner/char from https://pest.rs/book/examples/json.html
 string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ inner ~ "`") }
 inner = @{ char* }
@@ -76,12 +74,11 @@ char = {
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
 
-
 ////// ////// //////
 /// BEGIN SETTINGS
 //////
 
-settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (selector_block | comment | selector_block_error)* ~ "}"}
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ ((settings_key_value_pair) |(selector_block | comment | selector_block_error))* ~ "}"}
 selector_block_error = {(!(WHITESPACE | "}") ~ ANY)+ ~ "}"}
 selector_block = {selector ~ literal_object}
 literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair | comment)* ~ "}" }
@@ -92,23 +89,12 @@ selector = {("." | "#") ~ identifier}
 
 //Describes a key-value pair in a settings block, which supports a number of formats,
 //included recursive nesting via `property_block`
-settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
+settings_key_value_pair = { ((settings_key ~ settings_value) | (event_id ~ literal_function)) ~ ","? }
 settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
 settings_value = { literal_value | literal_object | expression_wrapped }
-////// ////// //////
-/// BEGIN HANDLERS
-//////
 
-handlers_block_declaration = {"@" ~ "handlers" ~ "{" ~ (handlers_key_value_pair | comment |  handler_key_value_pair_error)* ~ "}"}
-handler_key_value_pair_error = {(!(handlers_key_value_pair | "}") ~ ANY)+}
-//Describes a key-value pair in a event handlers block;
-//keys are event names and values are functions to call
-handlers_key_value_pair = { handlers_key ~ handlers_value ~ ","? }
-handlers_key = { identifier ~ ":" }
-handlers_value = { literal_function | function_list }
 literal_function = { "self."? ~ identifier ~ ","? }
 function_list = {"[" ~ literal_function* ~ "]"}
-
 literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}

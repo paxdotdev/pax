@@ -22,8 +22,11 @@ use pax_runtime::api::{NodeContext, PropertyLiteral};
         </Frame>
     }
 
-    @handlers {
-        tick: handle_tick
+    @settings {
+
+
+        @tick: self.handle_tick
+        @pre_render: self.handle_pre_render
     }
 
 )]
