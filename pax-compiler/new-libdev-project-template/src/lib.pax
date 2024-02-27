@@ -4,12 +4,9 @@
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 />
 
-@handlers{
-     mount: handle_mount
-     pre_render: handle_pre_render
-}
-
 @settings {
+     @mount: handle_mount,
+     @pre_render: handle_pre_render,
      .centered {
         x: 50%
         y: 50%

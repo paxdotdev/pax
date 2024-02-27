@@ -12,6 +12,6 @@
 </Frame>
 
 
-@handlers {
-    mount: handle_mount,
+@settings {
+    @mount: handle_mount,
 }

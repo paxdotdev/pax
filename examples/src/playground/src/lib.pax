@@ -30,12 +30,10 @@
 <Rectangle
      fill={Fill::Solid(Color::hlc(10, 0.0, 0.0))}
 />
-@handlers{
-     mount: handle_mount
-     pre_render: handle_pre_render
-}
 
 @settings {
+1    @mount: handle_mount
+     @pre_render: handle_pre_render
      .centered {
         x: 50%
         y: 50%

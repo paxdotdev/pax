@@ -19,12 +19,9 @@
 	/>
 </Frame>
 
-@handlers{
-     mount: handle_mount
-     pre_render: handle_pre_render
-}
-
 @settings {
+    @mount: handle_mount,
+    @pre_render: handle_pre_render,
     #header {
         style: {
                 // font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},

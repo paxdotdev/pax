@@ -23,19 +23,9 @@ if self.activated {
 	</Stacker>
 }
 
-
-// Things that are broken in this example:
-// - text doesn't dissapear
-// - needs to be a frame in the stacker/for loop hierarchy
-// - green rectangle visible when moving
-// - should text be invisible to raycasts?
-
-@handlers{
-     mount: handle_mount
-     pre_render: handle_pre_render
-}
-
 @settings {
+     @mount: handle_mount,
+     @pre_render: handle_pre_render,
      .centered {
         x: 50%
         y: 50%
