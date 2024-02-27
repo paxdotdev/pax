@@ -89,11 +89,14 @@ selector = {("." | "#") ~ identifier}
 
 //Describes a key-value pair in a settings block, which supports a number of formats,
 //included recursive nesting via `property_block`
-settings_key_value_pair = { ((settings_key ~ settings_value) | (event_id ~ literal_function)) ~ ","? }
+settings_key_value_pair = { ((settings_key ~ settings_value) | (event_id ~ literal_function)) ~ silent_comma? }
 settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
 settings_value = { literal_value | literal_object | expression_wrapped }
 
-literal_function = { "self."? ~ identifier ~ ","? }
+literal_function = { silent_self_or_this? ~ identifier ~ silent_comma? }
+silent_self_or_this = _{"self." | "this."}
+silent_comma = _{","}
+
 function_list = {"[" ~ literal_function* ~ "]"}
 literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }
@@ -208,7 +211,7 @@ xo_literal = {literal_enum_value | literal_tuple_access | literal_number_with_un
 //objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
 // `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`
 xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
-xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
+xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ silent_comma? }
 
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}

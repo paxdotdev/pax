@@ -136,6 +136,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::closing_tag
         | Rule::xo_symbol
         | Rule::id_binding
+        | Rule::silent_self_or_this
+        | Rule::silent_comma
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
         Rule::inner_tag_error
