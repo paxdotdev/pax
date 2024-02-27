@@ -40,11 +40,24 @@ impl InstanceNode for TextboxInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Textbox| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.text,
-            );
+            let tbl = context.expression_table();
+            let stk = &expanded_node.stack;
+            handle_vtable_update(tbl, stk, &mut properties.text);
+            handle_vtable_update(tbl, stk, &mut properties.stroke);
+            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color);
+            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().width);
+            handle_vtable_update(tbl, stk, &mut properties.border_radius);
+            handle_vtable_update(tbl, stk, &mut properties.background);
+            // Style
+            handle_vtable_update(tbl, stk, &mut properties.style);
+            let stl = properties.style.get_mut();
+            handle_vtable_update(tbl, stk, &mut stl.fill);
+            handle_vtable_update(tbl, stk, &mut stl.font);
+            handle_vtable_update(tbl, stk, &mut stl.font_size);
+            handle_vtable_update(tbl, stk, &mut stl.underline);
+            handle_vtable_update(tbl, stk, &mut stl.align_vertical);
+            handle_vtable_update(tbl, stk, &mut stl.align_horizontal);
+            handle_vtable_update(tbl, stk, &mut stl.align_multiline);
         });
     }
 
@@ -82,6 +95,36 @@ impl InstanceNode for TextboxInstance {
                     &mut old_state.transform,
                     &mut patch.transform,
                     computed_tab.transform.coeffs().to_vec(),
+                ),
+                patch_if_needed(
+                    &mut old_state.style,
+                    &mut patch.style,
+                    properties.style.get().into(),
+                ),
+                patch_if_needed(
+                    &mut old_state.stroke_color,
+                    &mut patch.stroke_color,
+                    properties.stroke.get().color.get().into(),
+                ),
+                patch_if_needed(
+                    &mut old_state.stroke_width,
+                    &mut patch.stroke_width,
+                    properties
+                        .stroke
+                        .get()
+                        .width
+                        .get()
+                        .get_pixels(computed_tab.bounds.0),
+                ),
+                patch_if_needed(
+                    &mut old_state.background,
+                    &mut patch.background,
+                    properties.background.get().into(),
+                ),
+                patch_if_needed(
+                    &mut old_state.border_radius,
+                    &mut patch.border_radius,
+                    properties.border_radius.get().get_as_float(),
                 ),
             ];
             if updates.into_iter().any(|v| v == true) {

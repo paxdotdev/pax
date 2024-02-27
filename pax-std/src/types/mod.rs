@@ -203,6 +203,7 @@ impl Default for Color {
         }
     }
 }
+
 impl Into<ColorVariantMessage> for &Color {
     fn into(self) -> ColorVariantMessage {
         match self.color_variant {
@@ -213,6 +214,7 @@ impl Into<ColorVariantMessage> for &Color {
         }
     }
 }
+
 impl PartialEq<ColorVariantMessage> for Color {
     fn eq(&self, other: &ColorVariantMessage) -> bool {
         match self.color_variant {

@@ -14,7 +14,7 @@ import {OcclusionContext} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
 import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
-import {TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
+import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
@@ -240,6 +240,24 @@ export class NativeElementPool {
         console.assert(leaf !== undefined);
         let textbox = leaf.firstChild;
 
+        applyTextTyle(textbox, textbox, patch.style);
+        console.log(patch);
+
+        if (patch.background) {
+            textbox.style.background = toCssColor(patch.background);
+        }
+
+        if (patch.border_radius) {
+            textbox.style["border-radius"] = patch.border_radius + "px";
+        }
+
+        if (patch.stroke_color) {
+            textbox.style["border-color"] = toCssColor(patch.stroke_color);
+        }
+
+        if (patch.stroke_width) {
+            textbox.style["border-width"] = patch.stroke_width + "px";
+        }
 
         // Apply the content
         if (patch.text != null) {
@@ -591,7 +609,23 @@ export class NativeElementPool {
 
 }
 
-
+function toCssColor(color: ColorGroup): string {
+    if (color.Rgba != null) {
+        let p = color.Rgba;
+        return `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+    } else if (color.Hsla != null) {
+        let p = color.Hsla;
+        return `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+    } else if (color.Rgb != null) {
+        let p = color.Rgb;
+        return `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+    } else if (color.Hsl != null) {
+        let p = color.Hsl;
+        return `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+    } else {
+        throw new TypeError("Unsupported Color Format");
+    }        
+}
 
 function applyTextTyle(textContainer: HTMLDivElement, textElem: HTMLDivElement, style: TextStyle | undefined) {
     
@@ -601,23 +635,7 @@ function applyTextTyle(textContainer: HTMLDivElement, textElem: HTMLDivElement, 
             style.font.applyFontToDiv(textContainer);
         }
         if (style.fill) {
-            let newValue = "";
-            if (style.fill.Rgba != null) {
-                let p = style.fill.Rgba;
-                newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-            } else if (style.fill.Hsla != null) {
-                let p = style.fill.Hsla;
-                newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-            } else if (style.fill.Rgb != null) {
-                let p = style.fill.Rgb;
-                newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-            } else if (style.fill.Hsl != null) {
-                let p = style.fill.Hsl;
-                newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-            } else {
-                throw new TypeError("Unsupported Color Format");
-            }        
-            textElem.style.color = newValue;
+            textElem.style.color = toCssColor(style.fill);
         }
         if (style.font_size) {
             textElem.style.fontSize = style.font_size + "px";
@@ -637,3 +655,5 @@ function applyTextTyle(textContainer: HTMLDivElement, textElem: HTMLDivElement, 
         }
     }
 }
+
+

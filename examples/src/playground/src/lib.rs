@@ -56,7 +56,7 @@ impl Example {
         }
     }
 
-    pub fn textbox_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
+    pub fn textbox_input(&mut self, ctx: &NodeContext, args: ArgsTextboxInput) {
         self.textbox_text.set(args.text);
     }
 
