@@ -142,10 +142,11 @@ impl ObjectEditor {
         }
 
         fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviourFactory {
-            Box::new(move |ac, p| {
-                //TODO initialize the bound stuff
-                let box_bounds = todo!();
-                Box::new(ResizeBehaviour::new(anchor, box_bounds))
+            Box::new(move |ac, _p| {
+                Box::new(ResizeBehaviour::new(
+                    anchor,
+                    ac.selected_bounds().expect("object is selected"),
+                ))
             })
         }
 
