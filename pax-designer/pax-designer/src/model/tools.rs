@@ -4,6 +4,7 @@ use std::rc::Rc;
 use super::action::orm::{CreateRectangle, MoveSelected};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
+use crate::glass::RectTool;
 use crate::model::math::coordinate_spaces::Glass;
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
@@ -67,11 +68,11 @@ impl ToolBehaviour for RectangleTool {
 
     fn visualize(&self, glass: &mut crate::glass::Glass) {
         glass.is_rect_tool_active.set(true);
-        glass.rect_tool.set(crate::glass::RectTool {
+        glass.rect_tool.set(RectTool {
             x: Size::Pixels(self.p1.x.into()),
             y: Size::Pixels(self.p1.y.into()),
-            width: Size::Pixels((self.p2.x - self.p2.x).into()),
-            height: Size::Pixels((self.p2.y - self.p2.y).into()),
+            width: Size::Pixels((self.p2.x - self.p1.x).into()),
+            height: Size::Pixels((self.p2.y - self.p1.y).into()),
             stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
             fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
         });
@@ -145,11 +146,11 @@ impl ToolBehaviour for PointerTool {
     fn visualize(&self, glass: &mut crate::glass::Glass) {
         if let PointerToolState::Selecting { p1, p2 } = self.state {
             glass.is_rect_tool_active.set(true);
-            glass.rect_tool.set(crate::glass::RectTool {
+            glass.rect_tool.set(RectTool {
                 x: Size::Pixels(p1.x.into()),
                 y: Size::Pixels(p1.y.into()),
-                width: Size::Pixels((p2.x - p2.x).into()),
-                height: Size::Pixels((p2.y - p2.y).into()),
+                width: Size::Pixels((p2.x - p1.x).into()),
+                height: Size::Pixels((p2.y - p1.y).into()),
                 stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
                 fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
             });
