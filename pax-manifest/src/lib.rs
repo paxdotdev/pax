@@ -155,7 +155,7 @@ pub struct ComponentDefinition {
     pub primitive_instance_import_path: Option<String>,
     pub template: Option<HashMap<usize, TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsBlockElement>>,
-    pub handlers: Option<Vec<HandlersBlockElement>>,
+    pub handlers: Option<Vec<HandlerBindingElement>>,
     pub next_template_id: Option<usize>,
     pub template_source_file_path: Option<String>,
 }
@@ -185,7 +185,7 @@ pub enum SettingsBlockElement {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
-pub enum HandlersBlockElement {
+pub enum HandlerBindingElement {
     Handler(Token, Vec<Token>),
     Comment(String),
 }

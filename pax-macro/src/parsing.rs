@@ -42,10 +42,6 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> 
                 format!("{:?}", pair.as_rule()),
                 "Selector block structure is not well-defined.".to_string(),
             )),
-            Rule::handler_key_value_pair_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Event handler key-value pair is malformed.".to_string(),
-            )),
             Rule::expression_body_error => Some((
                 format!("{:?}", pair.as_rule()),
                 "Expression inside curly braces is not well defined.".to_string(),

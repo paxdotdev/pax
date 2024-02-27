@@ -89,8 +89,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
         Rule::literal_object | Rule::xo_object => vec![Box::new(ObjectDefaultRule)],
         Rule::settings_key_value_pair => vec![Box::new(SettingsKeyValuePairDefaultRule)],
-        Rule::handlers_block_declaration => vec![Box::new(HandlersBlockDeclarationDefaultRule)],
-        Rule::handlers_key_value_pair => vec![Box::new(HandlersKeyValuePairDefaultRule)],
         Rule::literal_function => vec![Box::new(LiteralFunctionDefaultRule)],
         Rule::function_list | Rule::xo_list => {
             vec![Box::new(ListMultiLineRule), Box::new(ListDefaultRule)]
@@ -122,14 +120,12 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         }
         Rule::root_tag_pair
         | Rule::xo_literal
-        | Rule::attribute_event_id
-        | Rule::handlers_value
+        | Rule::event_id
         | Rule::literal_value
         | Rule::statement_control_flow => vec![Box::new(ForwardRule)],
 
         Rule::selector
         | Rule::settings_key
-        | Rule::handlers_key
         | Rule::literal_number_with_unit
         | Rule::literal_number
         | Rule::literal_number_integer
@@ -146,7 +142,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::identifier
         | Rule::pascal_identifier
         | Rule::selector_block_error
-        | Rule::handler_key_value_pair_error
         | Rule::attribute_key_value_pair_error
         | Rule::tag_error
         | Rule::open_tag_error
@@ -224,9 +219,6 @@ impl FormattingRule for PaxComponentDefinitionDefaultRule {
         let settings = children
             .iter()
             .filter(|child| child.node_type == Rule::settings_block_declaration);
-        let handlers = children
-            .iter()
-            .filter(|child| child.node_type == Rule::handlers_block_declaration);
 
         let mut component = vec![];
 
@@ -252,18 +244,6 @@ impl FormattingRule for PaxComponentDefinitionDefaultRule {
 
         if formatted_settings.len() > 0 {
             component.push(formatted_settings)
-        }
-
-        let mut formatted_handlers = String::new();
-        for (i, handler) in handlers.enumerate() {
-            if i > 0 {
-                formatted_handlers.push_str("\n");
-            }
-            formatted_handlers.push_str(&handler.formatted_node);
-        }
-
-        if formatted_handlers.len() > 0 {
-            component.push(formatted_handlers)
         }
 
         let formatted_component = component.join("\n\n");
@@ -439,22 +419,6 @@ impl FormattingRule for HandlersBlockDeclarationDefaultRule {
             .join(",\n");
         let indented_handlers = indent_every_line_of_string(handlers);
         formatted_node.push_str(format!("@handlers {{\n{}\n}}", indented_handlers).as_str());
-        formatted_node
-    }
-}
-
-#[derive(Clone)]
-struct HandlersKeyValuePairDefaultRule;
-
-impl FormattingRule for HandlersKeyValuePairDefaultRule {
-    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        let mut formatted_node = String::new();
-        let handler = children
-            .iter()
-            .map(|child| child.formatted_node.clone())
-            .collect::<Vec<String>>()
-            .join(" ");
-        formatted_node.push_str(handler.as_str());
         formatted_node
     }
 }
