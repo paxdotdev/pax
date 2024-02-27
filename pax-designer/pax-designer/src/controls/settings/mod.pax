@@ -58,12 +58,9 @@ if self.is_component_selected {
 	</Frame>
 }
 
-@handlers {
-	mount: on_mount
-	pre_render: pre_render
-}
-
 @settings {
+    @mount: on_mount
+	@pre_render: pre_render
     .h1 {
         height: 40px
         style: {

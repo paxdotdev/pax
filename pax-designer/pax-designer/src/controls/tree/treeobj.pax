@@ -19,12 +19,10 @@ if self.is_selected {
     <Rectangle fill={Fill::Solid(Color::rgb(0.035, 0.145, 0.318))} />
 }
 
-@handlers {
-	mount: on_mount
-	pre_render: pre_render
-}
-
 @settings {
+    @mount: on_mount,
+    @pre_render: pre_render,
+
     #text {
         style: {
             font: {Font::system(

@@ -9,12 +9,9 @@
 </Group>
 <Rectangle id=global_background />
 
-@handlers {
-    mount: handle_mount
-    pre_render: tick
-}
-
 @settings {
+    @mount: handle_mount,
+    @pre_render: pre_render,
     #global_background {
         fill: {Fill::Solid(Color::rgb(96.0/255.0,96.0/255.0,96.0/255.0))}
     }
