@@ -1,9 +1,9 @@
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::orm::MoveSelected;
-use super::pointer::Pointer;
-use super::{Action, ActionContext, CanUndo};
+use super::action::orm::{CreateRectangle, MoveSelected};
+use super::action::pointer::Pointer;
+use super::action::{Action, ActionContext, CanUndo};
 use crate::model::math::coordinate_spaces::Glass;
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
@@ -15,16 +15,6 @@ use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::rendering::TransformAndBounds;
 use pax_std::types::Color;
-
-pub struct ToolAction {
-    pub event: Pointer,
-}
-
-impl Action for ToolAction {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        Ok(CanUndo::No)
-    }
-}
 
 pub struct RectangleTool {
     p1: Point2<Glass>,
@@ -58,7 +48,7 @@ impl ToolBehaviour for RectangleTool {
         self.p2 = point;
         let world_origin = ctx.world_transform() * self.p1;
         let world_dims = ctx.world_transform() * (self.p2 - self.p1);
-        ctx.execute(super::orm::CreateRectangle {
+        ctx.execute(CreateRectangle {
             origin: world_origin,
             dims: world_dims,
         })
@@ -123,7 +113,7 @@ impl PointerTool {
 }
 
 impl ToolBehaviour for PointerTool {
-    fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+    fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }
 
@@ -131,23 +121,23 @@ impl ToolBehaviour for PointerTool {
         match self.state {
             PointerToolState::Moving { offset } => {
                 let world_point = ctx.world_transform() * (point - offset);
-                ctx.execute(MoveSelected { point: world_point });
+                ctx.execute(MoveSelected { point: world_point }).unwrap();
             }
-            PointerToolState::Selecting { p1, mut p2 } => p2 = point,
+            PointerToolState::Selecting { ref mut p2, .. } => *p2 = point,
         }
         ControlFlow::Continue(())
     }
 
-    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        // TODO select the objects if in PointerToolState::Selecting h
+    fn pointer_up(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        // TODO select multiple objects if in PointerToolState::Selecting state
         ControlFlow::Break(())
     }
 
     fn keyboard(
         &mut self,
-        event: crate::model::input::InputEvent,
-        dir: crate::model::input::Dir,
-        ctx: &mut ActionContext,
+        _event: crate::model::input::InputEvent,
+        _dir: crate::model::input::Dir,
+        _ctx: &mut ActionContext,
     ) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }

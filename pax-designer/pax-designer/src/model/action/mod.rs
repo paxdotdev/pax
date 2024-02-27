@@ -15,7 +15,6 @@ use super::math::coordinate_spaces::Glass;
 pub mod meta;
 pub mod orm;
 pub mod pointer;
-pub mod tools;
 pub mod world;
 
 type UndoFunc = dyn FnOnce(&mut ActionContext) -> Result<()>;
