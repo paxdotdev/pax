@@ -76,30 +76,9 @@ impl Glass {
             // this could be factored out into it's own component as well eventually
             if let Some(tool) = app_state.tool_behaviour.borrow().as_ref() {
                 tool.visualize(self);
+            } else {
+                self.is_rect_tool_active.set(false);
             }
-            // match &app_state.tool_behaviour {
-            //     ToolState::BoxSelect {
-            //         p1,
-            //         p2,
-            //         fill,
-            //         stroke,
-            //     } => {
-            //         self.is_rect_tool_active.set(true);
-            //         self.rect_tool.set(RectTool {
-            //             x: Size::Pixels(p1.x.into()),
-            //             y: Size::Pixels(p1.y.into()),
-            //             width: Size::Pixels((p2.x - p1.x).into()),
-            //             height: Size::Pixels((p2.y - p1.y).into()),
-            //             fill: fill.clone(),
-            //             stroke: stroke.clone(),
-            //         });
-            //     }
-            //     ToolState::MovingObject { .. } => (),
-            //     _ => {
-            //         // reset all tool visuals
-            //         self.is_rect_tool_active.set(false);
-            //     }
-            // }
         });
     }
 }
@@ -114,6 +93,7 @@ impl Default for Glass {
 }
 
 #[pax]
+#[derive(Debug)]
 pub struct RectTool {
     pub x: Size,
     pub y: Size,
