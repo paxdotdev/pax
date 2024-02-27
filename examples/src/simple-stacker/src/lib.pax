@@ -10,10 +10,8 @@
     <Rectangle fill={Fill::Solid(Color::hlc(10, 20.0, 20.0))}/>
 </Stacker>
 
-
-
-@handlers{
-    mount: handle_mount
-	pre_render: handle_pre_render
+@settings{
+    @mount: handle_mount
+	@pre_render: handle_pre_render
 }
 
