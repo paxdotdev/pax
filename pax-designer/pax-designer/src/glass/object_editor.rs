@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_engine::api::*;
-use pax_engine::math::{Angle, Point2, Vector2};
+use pax_engine::math::{Point2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
@@ -178,7 +178,7 @@ impl ObjectEditor {
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
                 fill: Color::rgb(1.0.into(), 1.0.into(), 1.0.into()),
-                stroke_width: Size::Pixels(1.0.into()),
+                stroke_width_pixels: 1.0,
                 size_pixels: 7.0,
             },
         );
@@ -193,7 +193,7 @@ impl ObjectEditor {
         struct RotationBehaviour {
             rotation_anchor: RefCell<Option<Point2<Glass>>>,
             start_dir: RefCell<Option<Vector2<Glass>>>,
-            start_angle: RefCell<Option<Angle>>,
+            start_angle: RefCell<Option<Rotation>>,
         }
 
         impl RotationBehaviour {
@@ -224,7 +224,7 @@ impl ObjectEditor {
                     rotation_anchor,
                     moving_from: self.start_dir.borrow().unwrap(),
                     moving_to,
-                    start_angle: self.start_angle.borrow().unwrap(),
+                    start_angle: self.start_angle.borrow().clone().unwrap(),
                 }) {
                     pax_engine::log::warn!("rotation failed: {:?}", e);
                 };
@@ -240,9 +240,9 @@ impl ObjectEditor {
             ],
             ControlPointStyling {
                 stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
-                fill: Color::rgba(0.7.into(), 0.7.into(), 1.0.into(), 0.4.into()),
-                stroke_width: Size::Pixels(0.0.into()),
-                size_pixels: 20.0,
+                fill: Color::rgba(0.0.into(), 0.0.into(), 0.0.into(), 0.0.into()),
+                stroke_width_pixels: 0.0,
+                size_pixels: 25.0,
             },
         );
 
