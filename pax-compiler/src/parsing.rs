@@ -19,8 +19,8 @@ use pest::iterators::{Pair, Pairs};
 use pest::{Parser, Span};
 use pest_derive::Parser;
 
-use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pax_manifest::ValueDefinition::EventBindingTarget;
+use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -654,8 +654,7 @@ fn recurse_visit_tag_pairs_for_template(
 }
 
 fn parse_literal_function(literal_function_full: Pair<Rule>, pax: &str) -> Token {
-    let literal_function =
-        literal_function_full.clone().into_inner().next().unwrap();
+    let literal_function = literal_function_full.clone().into_inner().next().unwrap();
 
     let location_info = span_to_location(&literal_function.as_span());
     let literal_function_token = Token::new_with_raw_value(
@@ -700,10 +699,11 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     let mut kv = attribute_key_value_pair.into_inner();
                     let mut attribute_event_binding = kv.next().unwrap().into_inner();
 
+                    let event_id_token =
+                        parse_event_id(attribute_event_binding.next().unwrap(), pax);
 
-                    let event_id_token = parse_event_id(attribute_event_binding.next().unwrap(), pax);
-
-                    let literal_function_token = parse_literal_function(attribute_event_binding.next().unwrap(), pax);
+                    let literal_function_token =
+                        parse_literal_function(attribute_event_binding.next().unwrap(), pax);
                     SettingElement::Setting(
                         event_id_token,
                         ValueDefinition::EventBindingTarget(literal_function_token),
@@ -906,7 +906,9 @@ fn derive_value_definition_from_literal_object_pair(
     }
 }
 
-fn parse_settings_from_component_definition_string(pax: &str) -> (Vec<SettingsBlockElement>, Vec<HandlerBindingElement>) {
+fn parse_settings_from_component_definition_string(
+    pax: &str,
+) -> (Vec<SettingsBlockElement>, Vec<HandlerBindingElement>) {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
@@ -920,53 +922,70 @@ fn parse_settings_from_component_definition_string(pax: &str) -> (Vec<SettingsBl
         .for_each(|top_level_pair| {
             match top_level_pair.as_rule() {
                 Rule::settings_block_declaration => {
-                    top_level_pair.into_inner().for_each(|top_level_settings_block_entity| {
-                        match top_level_settings_block_entity.as_rule() {
-                            Rule::settings_event_binding => {
-                                //event handler binding in the form of `@pre_render: handle_pre_render`
-                                let mut settings_event_binding_pairs = top_level_settings_block_entity.into_inner();
-                                let event_id_token = parse_event_id(settings_event_binding_pairs.next().unwrap(), pax);
-                                let literal_function_token = parse_literal_function(settings_event_binding_pairs.next().unwrap(), pax);
-                                let handler_element = HandlerBindingElement::Handler(event_id_token, vec![literal_function_token]);
-                                handlers.push(handler_element);
-                            },
-                            Rule::selector_block => {
-                                //selector_block => settings_key_value_pair where v is a ValueDefinition
-                                let mut selector_block_pairs = top_level_settings_block_entity.into_inner();
-                                //first pair is the selector itself
-                                let raw_selector = selector_block_pairs.next().unwrap();
-                                let raw_value_location =
-                                    span_to_location(&raw_selector.as_span());
-                                let selector: String = raw_selector
-                                    .as_str()
-                                    .chars()
-                                    .filter(|c| !c.is_whitespace())
-                                    .collect();
-                                let token = Token::new(
-                                    selector,
-                                    TokenType::Selector,
-                                    raw_value_location,
-                                    pax,
-                                );
-                                let literal_object = selector_block_pairs.next().unwrap();
-
-                                settings.push(SettingsBlockElement::SelectorBlock(
-                                    token,
-                                    derive_value_definition_from_literal_object_pair(
-                                        literal_object,
+                    top_level_pair
+                        .into_inner()
+                        .for_each(|top_level_settings_block_entity| {
+                            match top_level_settings_block_entity.as_rule() {
+                                Rule::settings_event_binding => {
+                                    //event handler binding in the form of `@pre_render: handle_pre_render`
+                                    let mut settings_event_binding_pairs =
+                                        top_level_settings_block_entity.into_inner();
+                                    let event_id_token = parse_event_id(
+                                        settings_event_binding_pairs.next().unwrap(),
                                         pax,
-                                    ),
-                                ));
+                                    );
+                                    let literal_function_token = parse_literal_function(
+                                        settings_event_binding_pairs.next().unwrap(),
+                                        pax,
+                                    );
+                                    let handler_element = HandlerBindingElement::Handler(
+                                        event_id_token,
+                                        vec![literal_function_token],
+                                    );
+                                    handlers.push(handler_element);
+                                }
+                                Rule::selector_block => {
+                                    //selector_block => settings_key_value_pair where v is a ValueDefinition
+                                    let mut selector_block_pairs =
+                                        top_level_settings_block_entity.into_inner();
+                                    //first pair is the selector itself
+                                    let raw_selector = selector_block_pairs.next().unwrap();
+                                    let raw_value_location =
+                                        span_to_location(&raw_selector.as_span());
+                                    let selector: String = raw_selector
+                                        .as_str()
+                                        .chars()
+                                        .filter(|c| !c.is_whitespace())
+                                        .collect();
+                                    let token = Token::new(
+                                        selector,
+                                        TokenType::Selector,
+                                        raw_value_location,
+                                        pax,
+                                    );
+                                    let literal_object = selector_block_pairs.next().unwrap();
+
+                                    settings.push(SettingsBlockElement::SelectorBlock(
+                                        token,
+                                        derive_value_definition_from_literal_object_pair(
+                                            literal_object,
+                                            pax,
+                                        ),
+                                    ));
+                                }
+                                Rule::comment => {
+                                    let comment =
+                                        top_level_settings_block_entity.as_str().to_string();
+                                    settings.push(SettingsBlockElement::Comment(comment));
+                                }
+                                _ => {
+                                    unreachable!(
+                                        "Parsing error: {:?}",
+                                        top_level_settings_block_entity.as_rule()
+                                    );
+                                }
                             }
-                            Rule::comment => {
-                                let comment = top_level_settings_block_entity.as_str().to_string();
-                                settings.push(SettingsBlockElement::Comment(comment));
-                            }
-                            _ => {
-                                unreachable!("Parsing error: {:?}", top_level_settings_block_entity.as_rule());
-                            }
-                        }
-                    });
+                        });
                 }
                 _ => {}
             }
@@ -1131,8 +1150,7 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template_node_definitions.clone();
 
-    let (settings, handlers) =
-        parse_settings_from_component_definition_string(pax);
+    let (settings, handlers) = parse_settings_from_component_definition_string(pax);
 
     let new_def = ComponentDefinition {
         is_primitive: false,
