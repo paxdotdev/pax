@@ -696,7 +696,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                 .as_rule()
             {
                 Rule::attribute_event_binding => {
-                    // attribute_event_binding = {event_id ~ "=" ~ xo_symbol}
+                    // attribute_event_binding = {event_id ~ "=" ~ literal_function}
                     let mut kv = attribute_key_value_pair.into_inner();
                     let mut attribute_event_binding = kv.next().unwrap().into_inner();
 
@@ -920,29 +920,19 @@ fn parse_settings_from_component_definition_string(pax: &str) -> (Vec<SettingsBl
         .for_each(|top_level_pair| {
             match top_level_pair.as_rule() {
                 Rule::settings_block_declaration => {
-                    top_level_pair.into_inner().for_each(|selector_block| {
-                        match selector_block.as_rule() {
-                            Rule::settings_key_value_pair => {
+                    top_level_pair.into_inner().for_each(|top_level_settings_block_entity| {
+                        match top_level_settings_block_entity.as_rule() {
+                            Rule::settings_event_binding => {
                                 //event handler binding in the form of `@pre_render: handle_pre_render`
-                                let mut settings_key_value_pairs = selector_block.into_inner();
-
-                                // - assert next token matches rule `event_id`
-                                // - extract event id and literal_function
-                                let next_rule = settings_key_value_pairs.next().unwrap();
-                                if let Rule::event_id = next_rule.as_rule() {
-                                    let event_id_token = parse_event_id(next_rule, pax);
-                                    let literal_function_token = parse_literal_function(settings_key_value_pairs.next().unwrap(), pax);
-                                    //HACK: only handle `self.foo`, `this.foo`, or `foo` for now — not nested symbols like `self.foo.bar`.
-                                    let handler_element = HandlerBindingElement::Handler(event_id_token, vec![literal_function_token]);
-                                    handlers.push(handler_element);
-
-                                } else {
-                                    unreachable!(); //should be preempted by extract_errors
-                                }
+                                let mut settings_event_binding_pairs = top_level_settings_block_entity.into_inner();
+                                let event_id_token = parse_event_id(settings_event_binding_pairs.next().unwrap(), pax);
+                                let literal_function_token = parse_literal_function(settings_event_binding_pairs.next().unwrap(), pax);
+                                let handler_element = HandlerBindingElement::Handler(event_id_token, vec![literal_function_token]);
+                                handlers.push(handler_element);
                             },
                             Rule::selector_block => {
                                 //selector_block => settings_key_value_pair where v is a ValueDefinition
-                                let mut selector_block_pairs = selector_block.into_inner();
+                                let mut selector_block_pairs = top_level_settings_block_entity.into_inner();
                                 //first pair is the selector itself
                                 let raw_selector = selector_block_pairs.next().unwrap();
                                 let raw_value_location =
@@ -969,11 +959,11 @@ fn parse_settings_from_component_definition_string(pax: &str) -> (Vec<SettingsBl
                                 ));
                             }
                             Rule::comment => {
-                                let comment = selector_block.as_str().to_string();
+                                let comment = top_level_settings_block_entity.as_str().to_string();
                                 settings.push(SettingsBlockElement::Comment(comment));
                             }
                             _ => {
-                                unreachable!("Parsing error: {:?}", selector_block.as_rule());
+                                unreachable!("Parsing error: {:?}", top_level_settings_block_entity.as_rule());
                             }
                         }
                     });

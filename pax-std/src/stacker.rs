@@ -23,8 +23,6 @@ use pax_runtime::api::{NodeContext, PropertyLiteral};
     }
 
     @settings {
-
-
         @tick: self.handle_tick
     }
 

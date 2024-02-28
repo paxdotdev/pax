@@ -70,6 +70,7 @@ pub fn apply_formatting_rules(pair: Pair<Rule>) -> String {
             pair.as_rule()
         );
     }
+
     applicable_rules
         .first()
         .unwrap()
@@ -86,6 +87,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::attribute_key_value_pair => vec![Box::new(AttributeKeyValuePairDefaultRule)],
         Rule::attribute_event_binding => vec![Box::new(AttributeEventBindingDefaultRule)],
         Rule::settings_block_declaration => vec![Box::new(SettingsBlockDeclarationDefaultRule)],
+        Rule::settings_event_binding => vec![Box::new(SettingsEventBindingDefaultRule)],
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
         Rule::literal_object | Rule::xo_object => vec![Box::new(ObjectDefaultRule)],
         Rule::settings_key_value_pair => vec![Box::new(SettingsKeyValuePairDefaultRule)],
@@ -100,6 +102,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             Box::new(IdentifierCallMultiLineRule),
             Box::new(IdentifierCallDefaultRule),
         ],
+        Rule::event_id => vec![Box::new(EventIdDefaultRule)],
         Rule::literal_enum_args_list | Rule::xo_enum_or_function_args_list => vec![
             Box::new(ArgsListMultiLineRule),
             Box::new(ArgsListDefaultRule),
@@ -120,7 +123,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         }
         Rule::root_tag_pair
         | Rule::xo_literal
-        | Rule::event_id
         | Rule::literal_value
         | Rule::statement_control_flow => vec![Box::new(ForwardRule)],
 
@@ -136,8 +138,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::closing_tag
         | Rule::xo_symbol
         | Rule::id_binding
-        | Rule::silent_self_or_this
-        | Rule::silent_comma
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
         Rule::inner_tag_error
@@ -182,6 +182,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::any_tag_pair
         | Rule::WHITESPACE
         | Rule::id
+        | Rule::silent_comma
         | Rule::empty => vec![Box::new(IgnoreRule)],
 
         Rule::string => vec![Box::new(DoNotIndentRule)],
@@ -343,7 +344,7 @@ impl FormattingRule for AttributeEventBindingDefaultRule {
         let mut formatted_node = String::new();
         let key = children[0].formatted_node.clone();
         let value = children[1].formatted_node.clone();
-        formatted_node.push_str(format!("@{}={}", key, value).as_str());
+        formatted_node.push_str(&format!("{}={}", key, value).as_str());
         formatted_node
     }
 }
@@ -409,28 +410,33 @@ impl FormattingRule for SettingsKeyValuePairDefaultRule {
 }
 
 #[derive(Clone)]
-struct HandlersBlockDeclarationDefaultRule;
-
-impl FormattingRule for HandlersBlockDeclarationDefaultRule {
-    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        let mut formatted_node = String::new();
-        let handlers = children
-            .iter()
-            .map(|child| child.formatted_node.clone())
-            .collect::<Vec<String>>()
-            .join(",\n");
-        let indented_handlers = indent_every_line_of_string(handlers);
-        formatted_node.push_str(format!("@handlers {{\n{}\n}}", indented_handlers).as_str());
-        formatted_node
-    }
-}
-
-#[derive(Clone)]
 struct LiteralFunctionDefaultRule;
 
 impl FormattingRule for LiteralFunctionDefaultRule {
     fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
         node.as_str().trim_end_matches(",").trim().to_string()
+    }
+}
+
+
+#[derive(Clone)]
+struct EventIdDefaultRule;
+
+impl FormattingRule for crate::formatting::rules::EventIdDefaultRule {
+    fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
+        "@".to_string()
+            + node.as_str()
+                .trim().trim_start_matches("@").trim()
+
+    }
+}
+
+#[derive(Clone)]
+struct SettingsEventBindingDefaultRule;
+
+impl FormattingRule for crate::formatting::rules::SettingsEventBindingDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        children.get(0).unwrap().formatted_node.clone() + ": " + &children.get(1).unwrap().formatted_node + ","
     }
 }
 
