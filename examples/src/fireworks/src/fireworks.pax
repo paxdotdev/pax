@@ -10,8 +10,8 @@
 
 @settings {
     .rect {
-        fill: {Fill::Solid(Color::hsl((i * ticks * 0.01)deg, 75%, 50%))},
-        rotate: {((0.5 * i * rotation) + (ticks * 10)%},
+        fill: {Fill::Solid(Color::hsl((i * ticks * 0.01)deg, 100%, 50%))},
+        rotate: {((i * rotation * 30) + (ticks / 2))deg},
         scale_x: {
             (
                 100*
