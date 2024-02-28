@@ -1,6 +1,5 @@
 use std::{
-    f64::consts::PI,
-    ops::{Add, Mul},
+    ops::{Mul},
 };
 
 use kurbo::Affine;
