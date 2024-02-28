@@ -1,28 +1,28 @@
-<Group @wheel=self.handle_scroll >
+<Group @wheel=self.handle_wheel >
     for i in 1..60 {
         <Rectangle class=rect width=300px height=300px />
     }
 </Group>
 
 @settings {
-    @pre_render: handle_pre_render
+    @tick: handle_tick
 }
 
 @settings {
     .rect {
-        fill: {Color::hsl((i * 3.0 + ticks)deg, 85%, 55%)},
-        rotate: {((i * rotation * 40) + (ticks / 2))deg},
+        fill: {Color::hsl((i * 5.0 + ticks)deg, 85%, 55%)},
+        rotate: {((i * rotation * 40) + (ticks / 1.5))deg},
         scale_x: {
             (
-                100*
-                (0.75 + (i * rotation)) *
+                50 *
+                (0.75 + (i * i * 0.08 * rotation)) *
                 (1 - ((rotation / 3) + i / 100.0))
             )%
         },
         scale_y: {
             (
-                100*
-                (0.75 + (i * rotation)) *
+                50 *
+                (0.75 + (i * i * 0.08 * rotation)) *
                 (1 - ((rotation / 3) + i / 100.0))
             )%
         },
