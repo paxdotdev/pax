@@ -48,10 +48,12 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 
+//Describes the ID of an event to which a handler may be bound, e.g. `@pre_render`
+event_id = {"@" ~ identifier}
+
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value)}
-attribute_event_binding = {event_id ~ literal_function}
-event_id = {"@" ~ identifier ~ ("=" | ":")}
+attribute_event_binding = {event_id ~ "=" ~ literal_function}
 
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
@@ -78,7 +80,7 @@ char = {
 /// BEGIN SETTINGS
 //////
 
-settings_block_declaration = {"@" ~ "settings" ~ "{" ~ ((settings_key_value_pair) |(selector_block | comment | selector_block_error))* ~ "}"}
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (settings_event_binding | selector_block | comment | selector_block_error)* ~ "}"}
 selector_block_error = {(!(WHITESPACE | "}") ~ ANY)+ ~ "}"}
 selector_block = {selector ~ literal_object}
 literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair | comment)* ~ "}" }
@@ -89,15 +91,15 @@ selector = {("." | "#") ~ identifier}
 
 //Describes a key-value pair in a settings block, which supports a number of formats,
 //included recursive nesting via `property_block`
-settings_key_value_pair = { ((settings_key ~ settings_value) | (event_id ~ literal_function)) ~ silent_comma? }
+settings_key_value_pair = { (settings_key ~ settings_value) ~ silent_comma? }
+settings_event_binding = {event_id ~ ":" ~ literal_function ~ silent_comma? }
 settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
 settings_value = { literal_value | literal_object | expression_wrapped }
 
-literal_function = { silent_self_or_this? ~ identifier ~ silent_comma? }
-silent_self_or_this = _{"self." | "this."}
+literal_function = { ("self." | "this.")? ~ identifier }
 silent_comma = _{","}
 
-function_list = {"[" ~ literal_function* ~ "]"}
+function_list = {"[" ~ (literal_function ~ silent_comma?)* ~ "]"}
 literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
