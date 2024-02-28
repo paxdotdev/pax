@@ -202,9 +202,17 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tool {
+    TodoTool,
     #[default]
     Pointer,
+    CreateComponent(Component),
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Component {
+    #[default]
     Rectangle,
+    Ellipse,
 }
 
 pub trait ToolBehaviour {
