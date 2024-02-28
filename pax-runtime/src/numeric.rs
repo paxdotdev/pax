@@ -610,7 +610,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_as_float() {
+    fn test_to_float() {
         let a = Numeric::from(3.0000000001);
         let b = 3.0000000001;
 

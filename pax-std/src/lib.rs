@@ -13,6 +13,7 @@ pub mod primitives {
     use pax_runtime::numeric::Numeric;
 
     use crate::types::text::TextStyle;
+    use crate::types::Fill;
     use crate::types::Color;
 
     use crate::types::PathSegment;
