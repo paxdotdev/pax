@@ -41,11 +41,18 @@ impl Action for PointerAction {
             *tool_behaviour = Some(match (self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool {
                     Tool::Pointer => Box::new(PointerTool::new(ctx, point_glass)),
-                    Tool::CreateComponent(Component::Rectangle) => {
+                    Tool::CreateComponent(component) => {
+                        let primitive_name = match component {
+                            Component::Rectangle => "Rectangle",
+                            Component::Ellipse => "Ellipse",
+                        };
                         Box::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
-                            "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                            &format!(
+                                "pax_designer::pax_reexports::pax_std::primitives::{}",
+                                primitive_name
+                            ),
                         ))
                     }
                     Tool::CreateComponent(Component::Ellipse) => {
