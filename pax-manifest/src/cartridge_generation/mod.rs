@@ -82,7 +82,7 @@ impl PaxManifest {
     }
 
     fn clean_handler(&self, handler: String) -> String {
-        handler.replace("self.", "")
+        handler.replace("self.", "").replace("this.", "")
     }
 
     pub fn generate_codegen_component_info(&self) -> Vec<ComponentInfo> {
