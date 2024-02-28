@@ -1,6 +1,4 @@
-use std::{
-    ops::{Mul},
-};
+use std::ops::Mul;
 
 use kurbo::Affine;
 

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::PaintBrush;
 
-use crate::math::{Space};
+use crate::math::Space;
 
 pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};

@@ -418,16 +418,12 @@ impl FormattingRule for LiteralFunctionDefaultRule {
     }
 }
 
-
 #[derive(Clone)]
 struct EventIdDefaultRule;
 
 impl FormattingRule for crate::formatting::rules::EventIdDefaultRule {
     fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
-        "@".to_string()
-            + node.as_str()
-                .trim().trim_start_matches("@").trim()
-
+        "@".to_string() + node.as_str().trim().trim_start_matches("@").trim()
     }
 }
 
@@ -436,7 +432,10 @@ struct SettingsEventBindingDefaultRule;
 
 impl FormattingRule for crate::formatting::rules::SettingsEventBindingDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        children.get(0).unwrap().formatted_node.clone() + ": " + &children.get(1).unwrap().formatted_node + ","
+        children.get(0).unwrap().formatted_node.clone()
+            + ": "
+            + &children.get(1).unwrap().formatted_node
+            + ","
     }
 }
 
