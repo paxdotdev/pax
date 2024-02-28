@@ -7,8 +7,8 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::PaintBrush;
 
-use crate::math::{Point2, Space};
-use crate::node_interface::NodeInterface;
+use crate::math::{Space};
+
 pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};
 use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
