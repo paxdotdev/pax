@@ -5,8 +5,9 @@ use super::{Action, ActionContext};
 use crate::model::action::world::Pan;
 use crate::model::input::InputEvent;
 use crate::model::math::coordinate_spaces::Glass;
-use crate::model::tools::{PointerTool, RectangleTool};
+use crate::model::tools::{CreateComponentTool, PointerTool};
 use crate::model::AppState;
+use crate::model::Component;
 use crate::model::{action, Tool};
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
@@ -40,7 +41,21 @@ impl Action for PointerAction {
             *tool_behaviour = Some(match (self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool {
                     Tool::Pointer => Box::new(PointerTool::new(ctx, point_glass)),
-                    Tool::Rectangle => Box::new(RectangleTool::new(ctx, point_glass)),
+                    Tool::CreateComponent(Component::Rectangle) => {
+                        Box::new(CreateComponentTool::new(
+                            ctx,
+                            point_glass,
+                            "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                        ))
+                    }
+                    Tool::CreateComponent(Component::Ellipse) => {
+                        Box::new(CreateComponentTool::new(
+                            ctx,
+                            point_glass,
+                            "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
+                        ))
+                    }
+                    Tool::TodoTool => todo!(),
                 },
                 (MouseButton::Left, true) | (MouseButton::Middle, _) => Box::new(Pan {
                     start_point: point_glass,

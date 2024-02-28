@@ -7,7 +7,7 @@ use crate::{controls::toolbar, glass};
 
 use super::{
     action::{self, meta::ActionSet, world, Action, ActionContext, CanUndo},
-    Tool,
+    Component, Tool,
 };
 
 pub struct InputMapper {
@@ -19,7 +19,10 @@ impl Default for InputMapper {
         Self {
             //Default keymap, will be configurable in settings
             keymap: HashMap::from([
-                (RawInput::R, InputEvent::SelectTool(Tool::Rectangle)),
+                (
+                    RawInput::R,
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Rectangle)),
+                ),
                 (RawInput::V, InputEvent::SelectTool(Tool::Pointer)),
                 (RawInput::Control, InputEvent::Control),
                 (RawInput::Space, InputEvent::Space),

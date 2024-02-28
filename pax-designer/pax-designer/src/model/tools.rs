@@ -1,10 +1,12 @@
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateRectangle, MoveSelected};
+use super::action::orm::{CreateComponent, MoveSelected};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
+use super::input::InputEvent;
 use crate::glass::RectTool;
+use crate::math::AxisAlignedBox;
 use crate::model::math::coordinate_spaces::Glass;
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
@@ -17,21 +19,23 @@ use pax_engine::math::Vector2;
 use pax_engine::rendering::TransformAndBounds;
 use pax_std::types::Color;
 
-pub struct RectangleTool {
-    p1: Point2<Glass>,
-    p2: Point2<Glass>,
+pub struct CreateComponentTool {
+    type_id: String,
+    origin: Point2<Glass>,
+    bounds: AxisAlignedBox,
 }
 
-impl RectangleTool {
-    pub fn new(_ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
+impl CreateComponentTool {
+    pub fn new(_ctx: &mut ActionContext, point: Point2<Glass>, type_id: &str) -> Self {
         Self {
-            p1: point,
-            p2: point,
+            type_id: type_id.to_owned(),
+            origin: point,
+            bounds: AxisAlignedBox::new(Point2::default(), Point2::default()),
         }
     }
 }
 
-impl ToolBehaviour for RectangleTool {
+impl ToolBehaviour for CreateComponentTool {
     fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }
@@ -39,19 +43,24 @@ impl ToolBehaviour for RectangleTool {
     fn pointer_move(
         &mut self,
         point: Point2<Glass>,
-        _ctx: &mut ActionContext,
+        ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        self.p2 = point;
+        let is_shift_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Shift);
+        let is_alt_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Alt);
+        self.bounds = AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
+            .morph_constrained(point, self.origin, is_alt_key_down, is_shift_key_down);
         ControlFlow::Continue(())
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        self.p2 = point;
-        let world_origin = ctx.world_transform() * self.p1;
-        let world_dims = ctx.world_transform() * (self.p2 - self.p1);
-        ctx.execute(CreateRectangle {
-            origin: world_origin,
-            dims: world_dims,
+        self.pointer_move(point, ctx);
+        let world_box = self
+            .bounds
+            .try_into_space(ctx.world_transform())
+            .expect("only translate/scale");
+        ctx.execute(CreateComponent {
+            bounds: world_box,
+            type_id: self.type_id.clone(),
         })
         .unwrap();
         ControlFlow::Break(())
@@ -69,10 +78,10 @@ impl ToolBehaviour for RectangleTool {
     fn visualize(&self, glass: &mut crate::glass::Glass) {
         glass.is_rect_tool_active.set(true);
         glass.rect_tool.set(RectTool {
-            x: Size::Pixels(self.p1.x.into()),
-            y: Size::Pixels(self.p1.y.into()),
-            width: Size::Pixels((self.p2.x - self.p1.x).into()),
-            height: Size::Pixels((self.p2.y - self.p1.y).into()),
+            x: Size::Pixels(self.bounds.top_left().x.into()),
+            y: Size::Pixels(self.bounds.top_left().y.into()),
+            width: Size::Pixels(self.bounds.width().into()),
+            height: Size::Pixels(self.bounds.height().into()),
             stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
             fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
         });
