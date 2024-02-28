@@ -9,11 +9,8 @@ for segment in self.bounding_segments {
     <Path class=bounding_segment/>
 }
 
-@handlers {
-	pre_render: pre_render
-}
-
 @settings {
+    @pre_render: pre_render,
     .bounding_segment {
         segments: {[
             PathSegment::line(
