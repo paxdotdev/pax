@@ -10,9 +10,9 @@ use piet::PaintBrush;
 use crate::math::Space;
 
 #[cfg(feature = "designtime")]
-use crate::node_interface::NodeInterface;
-#[cfg(feature = "designtime")]
 use crate::math::Point2;
+#[cfg(feature = "designtime")]
+use crate::node_interface::NodeInterface;
 
 pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};
