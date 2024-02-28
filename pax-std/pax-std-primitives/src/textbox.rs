@@ -125,7 +125,7 @@ impl InstanceNode for TextboxInstance {
                 patch_if_needed(
                     &mut old_state.border_radius,
                     &mut patch.border_radius,
-                    properties.border_radius.get().get_as_float(),
+                    properties.border_radius.get().to_float(),
                 ),
                 patch_if_needed(
                     &mut old_state.focus_on_mount,

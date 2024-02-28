@@ -665,11 +665,11 @@ impl Rotation {
 
     pub fn get_as_radians(&self) -> f64 {
         if let Self::Radians(num) = self {
-            num.get_as_float()
+            num.to_float()
         } else if let Self::Degrees(num) = self {
-            num.get_as_float() * std::f64::consts::PI * 2.0 / 360.0
+            num.to_float() * std::f64::consts::PI * 2.0 / 360.0
         } else if let Self::Percent(num) = self {
-            num.get_as_float() * std::f64::consts::PI * 2.0 / 100.0
+            num.to_float() * std::f64::consts::PI * 2.0 / 100.0
         } else {
             unreachable!()
         }
@@ -677,11 +677,11 @@ impl Rotation {
 
     pub fn get_as_degrees(&self) -> f64 {
         if let Self::Radians(num) = self {
-            num.get_as_float() * 180.0 / std::f64::consts::PI
+            num.to_float() * 180.0 / std::f64::consts::PI
         } else if let Self::Degrees(num) = self {
-            num.get_as_float()
+            num.to_float()
         } else if let Self::Percent(num) = self {
-            num.get_as_float() * 360.0 / 100.0
+            num.to_float() * 360.0 / 100.0
         } else {
             unreachable!()
         }
@@ -1429,7 +1429,6 @@ impl Color {
             Self::hsl(h,s,l) => {
                 let rgb = hsl_to_rgb(h.to_float_0_1(),s.to_float_0_1(),l.to_float_0_1());
                 [rgb[0], rgb[1], rgb[2], 1.0]
-
             },
             Self::rgba(r,g,b,a) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),a.to_float_0_1()],
             Self::rgb(r,g,b) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),1.0],
@@ -1441,27 +1440,59 @@ impl Color {
     }
 }
 
+
+//hsl_to_rgb logic borrowed & modified from https://github.com/emgyrz/colorsys.rs, licensed MIT Copyright (c) 2019 mz <emgyrz@gmail.com>
+const RGB_UNIT_MAX : f64 = 255.0;
 fn hsl_to_rgb(h: f64, s: f64, l: f64) -> [f64; 3] {
-    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
-    let m = l - c / 2.0;
+    if s == 0.0 {
+        let unit = RGB_UNIT_MAX * l;
+        return [unit /  RGB_UNIT_MAX, unit / RGB_UNIT_MAX, unit / RGB_UNIT_MAX];
+    }
 
-    let (r, g, b) = if h < 1.0/6.0 {
-        (c, x, 0.0)
-    } else if h < 2.0/6.0 {
-        (x, c, 0.0)
-    } else if h < 3.0/6.0 {
-        (0.0, c, x)
-    } else if h < 4.0/6.0 {
-        (0.0, x, c)
-    } else if h < 5.0/6.0 {
-        (x, 0.0, c)
-    } else {
-        (c, 0.0, x)
-    };
+    let temp1 = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
 
-    [(r + m), (g + m), (b + m)]
+    let temp2 = 2.0 * l - temp1;
+    let hue = h;
+
+    let temp_r = bound(hue + (1.0/3.0), 1.0);
+    let temp_g = bound(hue, 1.0);
+    let temp_b = bound(hue - (1.0/3.0), 1.0);
+
+    let r = calc_rgb_unit(temp_r, temp1, temp2);
+    let g = calc_rgb_unit(temp_g, temp1, temp2);
+    let b = calc_rgb_unit(temp_b, temp1, temp2);
+    [r / RGB_UNIT_MAX, g / RGB_UNIT_MAX, b / RGB_UNIT_MAX]
 }
+
+fn calc_rgb_unit(unit: f64, temp1: f64, temp2: f64) -> f64 {
+    let mut result = temp2;
+    if 6.0 * unit < 1.0 {
+        result = temp2 + (temp1 - temp2) * 6.0 * unit
+    } else if 2.0 * unit < 1.0 {
+        result = temp1
+    } else if 3.0 * unit < 2.0 {
+        result = temp2 + (temp1 - temp2) * ((2.0/3.0) - unit) * 6.0
+    }
+    result * RGB_UNIT_MAX
+}
+
+pub fn bound(r: f64, entire: f64) -> f64 {
+    let mut n = r;
+    loop {
+        let less = n < 0.0;
+        let bigger = n > entire;
+        if !less && !bigger {
+            break n;
+        }
+        if less {
+            n += entire;
+        } else {
+            n -= entire;
+        }
+    }
+}
+
+
 
 impl Into<ColorMessage> for &Color {
     fn into(self) -> ColorMessage {
