@@ -101,6 +101,36 @@ impl<W: Space> AxisAlignedBox<W> {
         let t = (origin - p) / v;
         (t * 2.0 - 1.0).to_point().cast_space()
     }
+
+    pub fn morph_constrained(
+        &self,
+        morph_point: Point2<W>,
+        anchor: Point2<W>,
+        fixed_center: bool,
+        keep_aspect: bool,
+    ) -> Self {
+        let keep_aspect_modifier = |v: Vector2<W>| {
+            let aspect_ratio = self.bottom_right() - self.top_left();
+            v.coord_abs()
+                .project_axis_aligned(aspect_ratio)
+                .to_signums_of(v)
+        };
+
+        if fixed_center {
+            let center = self.from_inner_space(Point2::new(0.0, 0.0));
+            let mut v = (center - morph_point).coord_abs();
+            if keep_aspect {
+                v = keep_aspect_modifier(v);
+            }
+            AxisAlignedBox::new(center + v, center - v)
+        } else {
+            let mut v = morph_point - anchor;
+            if keep_aspect {
+                v = keep_aspect_modifier(v);
+            }
+            AxisAlignedBox::new(anchor + v, anchor)
+        }
+    }
 }
 
 #[cfg(test)]
