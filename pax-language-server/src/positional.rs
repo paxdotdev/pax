@@ -83,14 +83,6 @@ pub fn extract_positional_nodes(
     let mut inner = pair.into_inner();
 
     match rule {
-        Rule::handlers_block_declaration => {
-            nodes.push(PositionalNode {
-                start,
-                end,
-                node_type: NodeType::Handlers,
-            });
-            return;
-        }
         Rule::settings_block_declaration => {
             nodes.push(PositionalNode {
                 start,
