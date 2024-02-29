@@ -6,9 +6,9 @@ use pax_manifest::{escape_identifier, ComponentTemplate, TreeLocation, TypeId};
 
 use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
-    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition,
-    LiteralBlockDefinition, LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
+    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, LiteralBlockDefinition,
+    LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
+    Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
 };
 
 extern crate pest;
@@ -439,9 +439,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     let id = match location {
                         TreeLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TreeLocation::Parent(id) => {
-                            ctx.template.add_child_back(id, template_node)
-                        }
+                        TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
                     };
 
                     let prospective_inner_nodes = statement_if.next();
@@ -547,9 +545,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     let id = match location {
                         TreeLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TreeLocation::Parent(id) => {
-                            ctx.template.add_child_back(id, template_node)
-                        }
+                        TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
                     };
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
@@ -591,9 +587,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     let id = match location {
                         TreeLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TreeLocation::Parent(id) => {
-                            ctx.template.add_child_back(id, template_node)
-                        }
+                        TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
                     };
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
@@ -887,9 +881,7 @@ fn derive_value_definition_from_literal_object_pair(
     }
 }
 
-fn parse_settings_from_component_definition_string(
-    pax: &str,
-) -> Vec<SettingsBlockElement> {
+fn parse_settings_from_component_definition_string(pax: &str) -> Vec<SettingsBlockElement> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
@@ -918,10 +910,11 @@ fn parse_settings_from_component_definition_string(
                                         settings_event_binding_pairs.next().unwrap(),
                                         pax,
                                     );
-                                    let handler_element: SettingsBlockElement = SettingsBlockElement::Handler(
-                                        event_id_token,
-                                        vec![literal_function_token],
-                                    );
+                                    let handler_element: SettingsBlockElement =
+                                        SettingsBlockElement::Handler(
+                                            event_id_token,
+                                            vec![literal_function_token],
+                                        );
                                     settings.push(handler_element);
                                 }
                                 Rule::selector_block => {
@@ -1127,7 +1120,7 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template.clone();
 
-    let settings= parse_settings_from_component_definition_string(pax);
+    let settings = parse_settings_from_component_definition_string(pax);
 
     let new_def = ComponentDefinition {
         is_primitive: false,
@@ -1139,7 +1132,7 @@ pub fn assemble_component_definition(
         settings: Some(settings),
         module_path: modified_module_path,
     };
-    
+
     (ctx, new_def)
 }
 
@@ -1196,7 +1189,6 @@ pub fn assemble_type_definition(
     inner_iterable_type_id: Option<TypeId>,
     self_type_id: TypeId,
 ) -> (ParsingContext, TypeDefinition) {
-
     let new_def = TypeDefinition {
         type_id: self_type_id.clone(),
         inner_iterable_type_id,

@@ -460,7 +460,8 @@ fn recurse_compile_expressions<'a>(
     for id in ctx
         .template
         .get_children(&ctx.active_node_id.clone().unwrap())
-        .clone().unwrap_or_default()
+        .clone()
+        .unwrap_or_default()
         .iter()
     {
         // update active id to child for next level of recursion into tree
@@ -472,7 +473,8 @@ fn recurse_compile_expressions<'a>(
         ctx.active_node_id = parent_id;
     }
 
-    ctx.template.set_node(ctx.active_node_id.clone().unwrap(), active_node_def);
+    ctx.template
+        .set_node(ctx.active_node_id.clone().unwrap(), active_node_def);
 
     if incremented {
         ctx.scope_stack.pop();

@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition
+    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
+    PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
+    Token, TypeId, ValueDefinition,
 };
 
 #[derive(Serialize, Debug)]
