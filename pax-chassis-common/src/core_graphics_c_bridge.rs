@@ -2,9 +2,11 @@
 
 extern crate core;
 
+use std::cell::RefCell;
 use std::ffi::c_void;
 
 use std::mem::{transmute, ManuallyDrop};
+use std::rc::Rc;
 
 use core_graphics::context::CGContext;
 use pax_runtime::math::Point2;
@@ -34,14 +36,18 @@ pub struct PaxEngineContainer {
 #[no_mangle] //Exposed to Swift via PaxCartridge.h
 pub extern "C" fn pax_init() -> *mut PaxEngineContainer {
     env_logger::init();
-    //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
-    //engine can be passed back to Swift via the C (FFI) bridge
-    //This could presumably be cleaned up -- see `pax_dealloc_engine`
-    let main_component_instance = pax_cartridge::instantiate_main_component();
+
+    let mut definition_to_instance_traverser =
+        pax_cartridge::DefinitionToInstanceTraverser::new();
+    let main_component_instance = definition_to_instance_traverser.get_main_component();
     let expression_table = ExpressionTable {
         table: pax_cartridge::instantiate_expression_table(),
     };
 
+
+    //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
+    //engine can be passed back to Swift via the C (FFI) bridge
+    //This could presumably be cleaned up -- see `pax_dealloc_engine`
     let engine: ManuallyDrop<Box<PaxEngine>> = ManuallyDrop::new(Box::new(PaxEngine::new(
         main_component_instance,
         expression_table,

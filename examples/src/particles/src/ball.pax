@@ -1,0 +1,20 @@
+<Ellipse class=ball class=inner />
+<Ellipse class=ball class=outer />
+
+@settings {
+    .ball {
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+
+    .inner {
+        width: {magnitude * 25}
+        height: {magnitude * 25}
+        fill: rgb(255,255,0)
+    }
+
+    .outer {
+        width: {magnitude * 27}
+        height: {magnitude * 27}
+    }
+}

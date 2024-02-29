@@ -112,7 +112,7 @@ literal_boolean = {("true" | "false")}
 
 //Enums like Orientation::Vertical or Color::Rgba(100%, 100%, 0, 0)
 //Note that this is parsed separately from expression enums, `xo_enum*`
-literal_enum_value = {identifier ~ ("::" ~ identifier)+ ~ ("("~literal_enum_args_list~")")?}
+literal_enum_value = {identifier ~ ("::" ~ identifier)* ~ ("("~literal_enum_args_list~")")}
 literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
 literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
