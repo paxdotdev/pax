@@ -27,6 +27,12 @@ impl PaxEnum {
     }
 
     pub fn from_string(input: String) -> Self {
+
+
+        //special check:  am I a Color?
+        //special check:  am I a Font?
+        //otherwise: do what I was doing
+
 //         todo!("why is Color::rgb(255, 255, 0) throwing an error via from_pax into this code path: es/src/particles/.pax/pkg/pax-cartridge/src/lib.rs:401:82:
 // called `Result::unwrap()` on an `Err` value: Message(unknown variant `rgb`, expected one of `Solid`, `LinearGradient`, `RadialGradient`) ");
         // latest: `Box::new(PropertyLiteral::new(Into::<Result<particles::pax_reexports::pax_std::types::Fill, _>>::into(from_pax(lv.raw_value)).unwrap()))`
@@ -36,6 +42,14 @@ impl PaxEnum {
         //         Perhaps we can offer an optional type param, akin to `Into::<OTP>`
         //         However... we actually don't know the type Color anywhere statically.  Can we use
         //         the any-parser here instead?
+        //         Could we coerce into something like `dyn Into<KnownTargetType>`, then call into?
+        //           ^ The above seems to be blocked by not being able to return a Box from deserialize_any
+        //         What about an approach with an intermediate type?  Our own "dyn Any"-like thing, e.g. an enum...
+        //           Can this solve our desire to summon a "dyn Into<Fill>"?  (In practice, a `Box<dyn Into<Fill>>`)
+        //           It seems we can't return a bare Box<dyn Into<Fill>> from deserialize_any, but presumably we could
+        //           return a struct with a field of that type?  But how can we populate
+
+
         let mut pairs = crate::utils::PaxParser::parse(Rule::literal_enum_value, &input)
             .unwrap()
             .next()
