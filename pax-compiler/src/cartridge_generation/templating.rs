@@ -3,8 +3,8 @@ use include_dir::{include_dir, Dir};
 use pax_runtime::api::serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use tera::{Context, Tera};
 use std::collections::HashMap;
+use tera::{Context, Tera};
 
 use pax_manifest::{
     cartridge_generation::{CommonProperty, ComponentInfo},

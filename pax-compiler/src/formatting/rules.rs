@@ -140,7 +140,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::id_binding
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
-        
         Rule::identifier
         | Rule::pascal_identifier
         | Rule::statement_for_predicate_declaration
@@ -369,8 +368,7 @@ impl FormattingRule for SettingsBlockDeclarationDefaultRule {
         let mut handlers: VecDeque<Child> = VecDeque::new();
         let mut selectors: VecDeque<Child> = VecDeque::new();
 
-
-        for child in children.iter().rev(){
+        for child in children.iter().rev() {
             if child.node_type == Rule::selector_block {
                 current = SettingType::Selector;
                 selectors.push_front(child.clone());
@@ -386,24 +384,35 @@ impl FormattingRule for SettingsBlockDeclarationDefaultRule {
             }
         }
 
-        if selectors.is_empty(){
+        if selectors.is_empty() {
             handlers.extend(unknown_comments);
         } else {
             selectors.extend(unknown_comments);
         }
 
-        let mut settings : Vec<String> = Vec::new();
+        let mut settings: Vec<String> = Vec::new();
 
-        if !handlers.is_empty(){
-            settings.push(handlers.iter().map(|child| child.formatted_node.clone()).collect::<Vec<String>>().join("\n"));
+        if !handlers.is_empty() {
+            settings.push(
+                handlers
+                    .iter()
+                    .map(|child| child.formatted_node.clone())
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+            );
         }
 
-        if !selectors.is_empty(){
-            settings.push(selectors.iter().map(|child| child.formatted_node.clone()).collect::<Vec<String>>().join("\n"));
+        if !selectors.is_empty() {
+            settings.push(
+                selectors
+                    .iter()
+                    .map(|child| child.formatted_node.clone())
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+            );
         }
 
-        let settings = settings
-            .join("\n\n");
+        let settings = settings.join("\n\n");
         let indented_settings = indent_every_line_of_string(settings);
         formatted_node.push_str(format!("@settings {{\n{}\n}}", indented_settings).as_str());
         formatted_node
@@ -837,7 +846,6 @@ impl FormattingRule for IgnoreRule {
     }
 }
 
-
 #[derive(Clone)]
 struct PanicRule;
 
@@ -846,7 +854,6 @@ impl FormattingRule for PanicRule {
         panic!("{:?}", _node.as_rule());
     }
 }
-
 
 #[derive(Clone)]
 struct WrapExpressionRule;

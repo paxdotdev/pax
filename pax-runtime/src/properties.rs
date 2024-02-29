@@ -64,7 +64,11 @@ impl RuntimeContext {
         self.node_cache
             .values()
             .filter(|val| {
-                val.instance_node.base().template_node_identifier.as_ref().is_some_and(|id| { *id == template_node_identifier})
+                val.instance_node
+                    .base()
+                    .template_node_identifier
+                    .as_ref()
+                    .is_some_and(|id| *id == template_node_identifier)
             })
             .cloned()
             .collect()
