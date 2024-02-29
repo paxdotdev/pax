@@ -850,8 +850,9 @@ impl FormattingRule for IgnoreRule {
 struct PanicRule;
 
 impl FormattingRule for PanicRule {
-    fn format(&self, _node: Pair<Rule>, _children: Vec<Child>) -> String {
-        panic!("{:?}", _node.as_rule());
+    fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
+        let (l,c) = node.as_span().start_pos().line_col();
+        panic!("Cannot format pax. {:?} issue at line: {} column: {}", node.as_rule(), l, c);
     }
 }
 
