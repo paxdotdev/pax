@@ -1409,10 +1409,11 @@ pub enum Color {
     #[default]
     red
     //TODO: with `red` as a prototype, add Tailwind-inspired pseudo-constants here
+
 }
 impl Color {
 
-    //TODO: fill out Tailwind-style tint api
+    //TODO: build out Tailwind-style tint api
     //pub fn tint(tint_offset_amount) -> Self {...}
 
     pub fn to_piet_color(&self) -> piet::Color {

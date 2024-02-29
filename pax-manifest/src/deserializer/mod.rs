@@ -132,7 +132,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
             _ => Err(Error::UnsupportedType(ast.as_str().to_string())),
         }?;
 
-        Ok(ret)
+        Ok(ret.into())
     }
 
     forward_to_deserialize_any! {
