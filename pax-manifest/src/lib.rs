@@ -658,6 +658,10 @@ impl ComponentTemplate {
         self.next_id = id;
     }
 
+    pub fn get_file_path(&self) -> Option<String> {
+        self.template_source_file_path.clone()
+    }
+
     pub fn get_unique_identifier(&self, id: TemplateNodeId) -> UniqueTemplateNodeIdentifier {
         let type_id = self.containing_component.clone();
         UniqueTemplateNodeIdentifier::build(type_id, id)
