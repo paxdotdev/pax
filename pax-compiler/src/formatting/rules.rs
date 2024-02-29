@@ -1,7 +1,7 @@
 use crate::parsing::Rule;
 use core::panic;
 use pest::iterators::Pair;
-use std::vec;
+use std::{collections::VecDeque, vec};
 
 const LINE_LIMIT: usize = 120;
 const INDENTATION: usize = 4;
@@ -140,17 +140,11 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::id_binding
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
-        Rule::inner_tag_error
-        | Rule::identifier
+        
+        Rule::identifier
         | Rule::pascal_identifier
-        | Rule::selector_block_error
-        | Rule::attribute_key_value_pair_error
-        | Rule::tag_error
-        | Rule::open_tag_error
-        | Rule::block_level_error
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
-        | Rule::expression_body_error
         | Rule::comment
         | Rule::xo_neg
         | Rule::xo_bool_not
@@ -186,6 +180,14 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::empty => vec![Box::new(IgnoreRule)],
 
         Rule::string => vec![Box::new(DoNotIndentRule)],
+
+        Rule::inner_tag_error
+        | Rule::selector_block_error
+        | Rule::attribute_key_value_pair_error
+        | Rule::tag_error
+        | Rule::open_tag_error
+        | Rule::block_level_error
+        | Rule::expression_body_error => vec![Box::new(PanicRule)],
     }
 }
 
@@ -355,11 +357,53 @@ struct SettingsBlockDeclarationDefaultRule;
 impl FormattingRule for SettingsBlockDeclarationDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
-        let settings = children
-            .iter()
-            .map(|child| child.formatted_node.clone())
-            .collect::<Vec<String>>()
-            .join("\n");
+
+        enum SettingType {
+            Selector,
+            Event,
+            Unknown,
+        }
+
+        let mut current = SettingType::Unknown;
+        let mut unknown_comments: VecDeque<Child> = VecDeque::new();
+        let mut handlers: VecDeque<Child> = VecDeque::new();
+        let mut selectors: VecDeque<Child> = VecDeque::new();
+
+
+        for child in children.iter().rev(){
+            if child.node_type == Rule::selector_block {
+                current = SettingType::Selector;
+                selectors.push_front(child.clone());
+            } else if child.node_type == Rule::settings_event_binding {
+                current = SettingType::Event;
+                handlers.push_front(child.clone());
+            } else if child.node_type == Rule::comment {
+                match current {
+                    SettingType::Selector => selectors.push_front(child.clone()),
+                    SettingType::Event => handlers.push_front(child.clone()),
+                    SettingType::Unknown => unknown_comments.push_front(child.clone()),
+                }
+            }
+        }
+
+        if selectors.is_empty(){
+            handlers.extend(unknown_comments);
+        } else {
+            selectors.extend(unknown_comments);
+        }
+
+        let mut settings : Vec<String> = Vec::new();
+
+        if !handlers.is_empty(){
+            settings.push(handlers.iter().map(|child| child.formatted_node.clone()).collect::<Vec<String>>().join("\n"));
+        }
+
+        if !selectors.is_empty(){
+            settings.push(selectors.iter().map(|child| child.formatted_node.clone()).collect::<Vec<String>>().join("\n"));
+        }
+
+        let settings = settings
+            .join("\n\n");
         let indented_settings = indent_every_line_of_string(settings);
         formatted_node.push_str(format!("@settings {{\n{}\n}}", indented_settings).as_str());
         formatted_node
@@ -792,6 +836,17 @@ impl FormattingRule for IgnoreRule {
         String::new()
     }
 }
+
+
+#[derive(Clone)]
+struct PanicRule;
+
+impl FormattingRule for PanicRule {
+    fn format(&self, _node: Pair<Rule>, _children: Vec<Child>) -> String {
+        panic!("{:?}", _node.as_rule());
+    }
+}
+
 
 #[derive(Clone)]
 struct WrapExpressionRule;

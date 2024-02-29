@@ -225,7 +225,6 @@ pub struct ComponentDefinition {
     pub primitive_instance_import_path: Option<String>,
     pub template: Option<ComponentTemplate>,
     pub settings: Option<Vec<SettingsBlockElement>>,
-    pub handlers: Option<Vec<HandlerBindingElement>>,
 }
 
 impl ComponentDefinition {
@@ -238,12 +237,6 @@ impl ComponentDefinition {
 #[serde(crate = "pax_message::serde")]
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
-    Comment(String),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(crate = "pax_message::serde")]
-pub enum HandlerBindingElement {
     Handler(Token, Vec<Token>),
     Comment(String),
 }

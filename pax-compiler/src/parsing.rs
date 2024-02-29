@@ -2,11 +2,11 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use pax_manifest::{escape_identifier, ComponentTemplate, TemplateLocation, TypeId};
+use pax_manifest::{escape_identifier, ComponentTemplate, TreeLocation, TypeId};
 
 use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
-    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, HandlerBindingElement,
+    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition,
     LiteralBlockDefinition, LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement,
     TemplateNodeDefinition, Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
 };
@@ -316,7 +316,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
                     ctx,
                     pair.into_inner().next().unwrap(),
                     pax,
-                    TemplateLocation::Root,
+                    TreeLocation::Root,
                 );
             }
             _ => {}
@@ -334,7 +334,7 @@ fn recurse_visit_tag_pairs_for_template(
     ctx: &mut TemplateNodeParseContext,
     any_tag_pair: Pair<Rule>,
     pax: &str,
-    location: TemplateLocation,
+    location: TreeLocation,
 ) {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
@@ -362,8 +362,8 @@ fn recurse_visit_tag_pairs_for_template(
             };
 
             let id = match location {
-                TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+                TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
             };
 
             //recurse into inner_nodes
@@ -376,7 +376,7 @@ fn recurse_visit_tag_pairs_for_template(
                             ctx,
                             sub_tag_pair,
                             pax,
-                            TemplateLocation::Parent(id.clone().get_template_node_id()),
+                            TreeLocation::Parent(id.clone().get_template_node_id()),
                         );
                     })
                 }
@@ -402,8 +402,8 @@ fn recurse_visit_tag_pairs_for_template(
                 control_flow_settings: None,
             };
             let _ = match location {
-                TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+                TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
             };
         }
         Rule::statement_control_flow => {
@@ -438,8 +438,8 @@ fn recurse_visit_tag_pairs_for_template(
                     };
 
                     let id = match location {
-                        TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TemplateLocation::Parent(id) => {
+                        TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+                        TreeLocation::Parent(id) => {
                             ctx.template.add_child_back(id, template_node)
                         }
                     };
@@ -452,7 +452,7 @@ fn recurse_visit_tag_pairs_for_template(
                                 ctx,
                                 sub_tag_pair,
                                 pax,
-                                TemplateLocation::Parent(id.clone().get_template_node_id()),
+                                TreeLocation::Parent(id.clone().get_template_node_id()),
                             );
                         })
                     }
@@ -546,8 +546,8 @@ fn recurse_visit_tag_pairs_for_template(
                     };
 
                     let id = match location {
-                        TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TemplateLocation::Parent(id) => {
+                        TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+                        TreeLocation::Parent(id) => {
                             ctx.template.add_child_back(id, template_node)
                         }
                     };
@@ -558,7 +558,7 @@ fn recurse_visit_tag_pairs_for_template(
                                 ctx,
                                 sub_tag_pair,
                                 pax,
-                                TemplateLocation::Parent(id.clone().get_template_node_id()),
+                                TreeLocation::Parent(id.clone().get_template_node_id()),
                             );
                         })
                     }
@@ -590,8 +590,8 @@ fn recurse_visit_tag_pairs_for_template(
                     };
 
                     let id = match location {
-                        TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                        TemplateLocation::Parent(id) => {
+                        TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+                        TreeLocation::Parent(id) => {
                             ctx.template.add_child_back(id, template_node)
                         }
                     };
@@ -602,7 +602,7 @@ fn recurse_visit_tag_pairs_for_template(
                                 ctx,
                                 sub_tag_pair,
                                 pax,
-                                TemplateLocation::Parent(id.clone().get_template_node_id()),
+                                TreeLocation::Parent(id.clone().get_template_node_id()),
                             );
                         })
                     }
@@ -620,8 +620,8 @@ fn recurse_visit_tag_pairs_for_template(
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
             };
             let _ = match location {
-                TemplateLocation::Root => ctx.template.add_root_node_back(template_node),
-                TemplateLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+                TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+                TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
             };
         }
         Rule::node_inner_content => {
@@ -889,14 +889,13 @@ fn derive_value_definition_from_literal_object_pair(
 
 fn parse_settings_from_component_definition_string(
     pax: &str,
-) -> (Vec<SettingsBlockElement>, Vec<HandlerBindingElement>) {
+) -> Vec<SettingsBlockElement> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
         .unwrap(); // get and unwrap the `pax_component_definition` rule
 
     let mut settings: Vec<SettingsBlockElement> = vec![];
-    let mut handlers: Vec<HandlerBindingElement> = vec![];
 
     pax_component_definition
         .into_inner()
@@ -919,11 +918,11 @@ fn parse_settings_from_component_definition_string(
                                         settings_event_binding_pairs.next().unwrap(),
                                         pax,
                                     );
-                                    let handler_element = HandlerBindingElement::Handler(
+                                    let handler_element: SettingsBlockElement = SettingsBlockElement::Handler(
                                         event_id_token,
                                         vec![literal_function_token],
                                     );
-                                    handlers.push(handler_element);
+                                    settings.push(handler_element);
                                 }
                                 Rule::selector_block => {
                                     //selector_block => settings_key_value_pair where v is a ValueDefinition
@@ -971,7 +970,7 @@ fn parse_settings_from_component_definition_string(
                 _ => {}
             }
         });
-    (settings, handlers)
+    settings
 }
 
 pub struct ParsingContext {
@@ -1128,7 +1127,7 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template.clone();
 
-    let (settings, handlers) = parse_settings_from_component_definition_string(pax);
+    let settings= parse_settings_from_component_definition_string(pax);
 
     let new_def = ComponentDefinition {
         is_primitive: false,
@@ -1138,7 +1137,6 @@ pub fn assemble_component_definition(
         type_id: self_type_id,
         template: Some(tpc.template),
         settings: Some(settings),
-        handlers: Some(handlers),
         module_path: modified_module_path,
     };
     
@@ -1169,7 +1167,6 @@ pub fn assemble_struct_only_component_definition(
         primitive_instance_import_path: None,
         template: None,
         settings: None,
-        handlers: None,
     };
     (ctx, new_def)
 }
@@ -1190,7 +1187,6 @@ pub fn assemble_primitive_definition(
         template: None,
         settings: None,
         module_path: modified_module_path,
-        handlers: None,
     }
 }
 
