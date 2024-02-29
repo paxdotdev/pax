@@ -1,177 +1,101 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use pax_manifest::{
-    ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
-    ControlFlowSettingsDefinition, PropertyDefinition, SettingElement, TemplateNodeDefinition,
-    Token, TokenType, ValueDefinition,
+use pax_manifest::{NodeLocation, PropertyDefinition, SettingElement, TemplateNodeDefinition, Token, TokenType, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
 };
+use serde::Serialize;
 
 use super::{
-    AddTemplateNodeRequest, GetAllTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest,
+    AddTemplateNodeRequest, GetTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest
 };
-use crate::orm::PaxManifestORM;
+use crate::{orm::PaxManifestORM, serde_pax};
 
-pub static TYPE_ID_IF: &str = "IF";
-pub static TYPE_ID_REPEAT: &str = "REPEAT";
-pub static TYPE_ID_SLOT: &str = "SLOT";
-pub static TYPE_ID_COMMENT: &str = "COMMENT";
-pub static PASCAL_IDENTIFIER_SLOT: &str = "Slot";
-pub static PASCAL_IDENTIFIER_COMMENT: &str = "Comment";
-pub static PASCAL_IDENTIFIER_IF: &str = "If";
-pub static PASCAL_IDENTIFIER_REPEAT: &str = "Repeat";
-
-type AllProperties = Option<(Vec<(Option<ValueDefinition>, String, String)>, String)>;
 /// Builder for creating and modifying template nodes in the PaxManifest.
 pub struct NodeBuilder<'a> {
     orm: &'a mut PaxManifestORM,
-    component_type_id: String,
-    template_node: TemplateNodeDefinition,
+    containing_component_type_id: TypeId,
+    node_type_id: TypeId,
     property_map: HashMap<String, usize>,
-    parent_node_id: usize,
-    is_new: bool,
+    settings: Option<Vec<SettingElement>>,
+    unique_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    location: Option<NodeLocation>,
 }
 
 impl<'a> NodeBuilder<'a> {
     pub fn new(
         orm: &'a mut PaxManifestORM,
-        component_type_id: String,
-        type_id: String,
-        pascal_identifier: String,
-        parent_node_id: Option<usize>,
+        containing_component_type_id: TypeId,
+        node_type_id: TypeId,
     ) -> Self {
-        let template_node = TemplateNodeDefinition {
-            id: 0,
-            child_ids: Vec::new(),
-            type_id: type_id.clone(),
-            control_flow_settings: None,
-            settings: None,
-            pascal_identifier: pascal_identifier.clone(),
-            raw_comment_string: None,
-        };
         NodeBuilder {
             orm,
-            component_type_id,
-            template_node,
+            containing_component_type_id,
+            node_type_id,
             property_map: HashMap::new(),
-            parent_node_id: parent_node_id.unwrap_or_default(),
-            is_new: true,
+            settings: None,
+            unique_node_identifier: None,
+            location: None,
         }
     }
 
     pub fn retrieve_node(
         orm: &'a mut PaxManifestORM,
-        component_type_id: &str,
-        node_id: usize,
+        uni: UniqueTemplateNodeIdentifier,
     ) -> Self {
-        let request = GetAllTemplateNodeRequest {
-            component_type_id: component_type_id.to_owned(),
-        };
-
-        let command = request;
-        let response = orm
-            .execute_command::<GetAllTemplateNodeRequest, _>(command)
-            .unwrap();
-
-        if let Some(nodes) = response.nodes {
-            let result = nodes.iter().find(|node| node.id == node_id);
-
-            if let Some(node) = result {
-                let parent_node_id = nodes
-                    .iter()
-                    .find(|node| node.child_ids.contains(&node_id))
-                    .map(|node| node.id);
-
-                let mut property_map = HashMap::new();
-
-                if let Some(settings) = &node.settings {
-                    for (index, setting) in settings.iter().enumerate() {
-                        if let SettingElement::Setting(token, _) = setting {
-                            property_map.insert(token.raw_value.clone(), index);
-                        }
+        let resp = orm.execute_command(GetTemplateNodeRequest {
+            uni: uni.clone(),
+        }).unwrap();
+        if let Some(node) = resp.node {
+            let mut property_map = HashMap::new();
+            if let NodeType::Template(settings) = node.get_node_type() {
+                for (index, setting) in settings.iter().enumerate() {
+                    if let SettingElement::Setting(Token { token_value, .. }, _) = setting {
+                        property_map.insert(token_value.clone(), index);
                     }
                 }
-                NodeBuilder {
-                    orm,
-                    component_type_id: component_type_id.to_owned(),
-                    template_node: node.clone(),
-                    parent_node_id: parent_node_id.unwrap_or_default(),
-                    property_map,
-                    is_new: false,
-                }
-            } else {
-                panic!("No template node found with id {}", node_id);
+            }
+            let location = orm.manifest.get_node_location(&uni);
+            NodeBuilder {
+                orm,
+                containing_component_type_id: uni.get_containing_component_type_id(),
+                node_type_id: node.type_id,
+                property_map,
+                settings: node.settings.clone(),
+                unique_node_identifier: Some(uni),
+                location,
             }
         } else {
-            panic!("No template nodes found");
+            panic!("Node not found");
         }
     }
 
-    pub fn get_id(&self) -> usize {
-        self.template_node.id
+    pub fn get_unique_identifier(&self) -> Option<UniqueTemplateNodeIdentifier> {
+        self.unique_node_identifier.clone()
     }
 
-    pub fn get_type_id(&self) -> &str {
-        &self.template_node.type_id
+
+    pub fn get_all_properties(&self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
+        let properties = self.orm.manifest.get_all_component_properties(&self.node_type_id);
+        let values = properties.iter().map(
+            |prop| {
+                if let Some(index) = self.property_map.get(&prop.name) {
+                    if let Some(SettingElement::Setting(_, value)) = self.settings.as_ref().unwrap().get(*index) {
+                        Some(value.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        ).collect::<Vec<Option<ValueDefinition>>>();
+
+        properties.into_iter().zip(values).collect()
     }
 
-    pub fn get_property_definitions(&self) -> AllProperties {
-        let template_props = self.template_node.settings.clone().unwrap_or_default();
-
-        let template_node_type_id = self.get_type_id().to_owned();
-        let mut available_props = self
-            .orm
-            .manifest
-            .type_table
-            .get(&template_node_type_id)?
-            .property_definitions
-            .to_owned();
-
-        //Manually add common_props for now
-        available_props.extend(
-            [
-                ("x", "Size"),
-                ("y", "Size"),
-                ("scale_x", "Size"),
-                ("scale_y", "Size"),
-                ("skew_x", "Numeric"),
-                ("skew_y", "Numeric"),
-                ("rotate", "Rotation"),
-                ("anchor_x", "Size"),
-                ("anchor_y", "Size"),
-                ("transform", "Transform2D"),
-                ("width", "Size"),
-                ("height", "Size"),
-            ]
-            .into_iter()
-            .map(|(name, type_id)| PropertyDefinition {
-                name: name.to_owned(),
-                type_id: type_id.to_owned(),
-                flags: Default::default(),
-                type_id_escaped: type_id.to_owned(),
-            }),
-        );
-        let props: Vec<_> = available_props
-            .into_iter()
-            .map(|p| {
-                (
-                    template_props
-                        .iter()
-                        .find_map(|settings_elem| match settings_elem {
-                            SettingElement::Setting(Token { token_value, .. }, value)
-                                if token_value == &p.name =>
-                            {
-                                Some(value)
-                            }
-                            _ => None,
-                        })
-                        .cloned(),
-                    p.name,
-                    p.type_id,
-                )
-            })
-            .collect();
-        Some((props, template_node_type_id))
+    pub fn set_typed_property<T: Serialize>(&mut self, key: &str, value: T)  -> Result<()> {
+        let value = serde_pax::se::to_pax::<T>(&value)?;
+        self.set_property(key, &value)
     }
 
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
@@ -182,17 +106,17 @@ impl<'a> NodeBuilder<'a> {
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
         let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
         if let Some(index) = self.property_map.get(key) {
-            self.template_node.settings.as_mut().unwrap()[*index] =
+            self.settings.as_mut().unwrap()[*index] =
                 SettingElement::Setting(token, value);
         } else {
-            if let Some(settings) = &mut self.template_node.settings {
+            if let Some(settings) = &mut self.settings {
                 settings.push(SettingElement::Setting(token, value));
             } else {
-                self.template_node.settings = Some(vec![SettingElement::Setting(token, value)]);
+                self.settings = Some(vec![SettingElement::Setting(token, value)]);
             }
             self.property_map.insert(
                 key.to_string(),
-                self.template_node.settings.as_ref().unwrap().len() - 1,
+                self.settings.as_ref().unwrap().len() - 1,
             );
         };
         Ok(())
@@ -200,7 +124,7 @@ impl<'a> NodeBuilder<'a> {
 
     pub fn remove_property(&mut self, key: &str) {
         if let Some(index) = self.property_map.get(key) {
-            self.template_node.settings.as_mut().unwrap().remove(*index);
+            self.settings.as_mut().unwrap().remove(*index);
 
             let keys_to_update: Vec<String> = self
                 .property_map
@@ -219,101 +143,34 @@ impl<'a> NodeBuilder<'a> {
         }
     }
 
-    pub fn set_condition(&mut self, condition: String) {
-        self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
-            condition_expression_paxel: Some(Token::new_from_raw_value(
-                condition,
-                TokenType::IfExpression,
-            )),
-            repeat_predicate_definition: None,
-            repeat_source_definition: None,
-            slot_index_expression_paxel: None,
-            condition_expression_vtable_id: None,
-            slot_index_expression_vtable_id: None,
-        });
-        self.template_node.type_id = TYPE_ID_IF.to_string();
-        self.template_node.pascal_identifier = PASCAL_IDENTIFIER_IF.to_string();
+
+    pub fn set_location(&mut self, location: NodeLocation) {
+        self.location = Some(location);
     }
 
-    pub fn set_slot_index(&mut self, slot: String) {
-        self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
-            condition_expression_paxel: None,
-            repeat_predicate_definition: None,
-            repeat_source_definition: None,
-            slot_index_expression_paxel: Some(Token::new_from_raw_value(
-                slot,
-                TokenType::SlotExpression,
-            )),
-            condition_expression_vtable_id: None,
-            slot_index_expression_vtable_id: None,
-        });
-        self.template_node.type_id = TYPE_ID_SLOT.to_string();
-        self.template_node.pascal_identifier = PASCAL_IDENTIFIER_SLOT.to_string();
-    }
+    pub fn save(mut self) -> Result<usize, String> {
+        let id = if let Some(uni) = self.unique_node_identifier {
+            // Node already exists
+            let location = self.location.unwrap_or_else(|| self.orm.manifest.get_node_location(&uni).unwrap());
 
-    pub fn set_repeat_expression(
-        &mut self,
-        pred: ControlFlowRepeatPredicateDefinition,
-        source: ControlFlowRepeatSourceDefinition,
-    ) {
-        self.template_node.control_flow_settings = Some(ControlFlowSettingsDefinition {
-            condition_expression_paxel: None,
-            repeat_predicate_definition: Some(pred),
-            repeat_source_definition: Some(source),
-            slot_index_expression_paxel: None,
-            condition_expression_vtable_id: None,
-            slot_index_expression_vtable_id: None,
-        });
-        self.template_node.type_id = TYPE_ID_REPEAT.to_string();
-        self.template_node.pascal_identifier = PASCAL_IDENTIFIER_REPEAT.to_string();
-    }
-
-    pub fn set_comment(&mut self, comment: String) {
-        self.template_node.raw_comment_string = Some(comment);
-        self.template_node.type_id = TYPE_ID_COMMENT.to_string();
-        self.template_node.pascal_identifier = PASCAL_IDENTIFIER_COMMENT.to_string();
-    }
-
-    pub fn add_child(&mut self, child: NodeBuilder<'a>) {
-        self.template_node.child_ids.push(child.template_node.id);
-    }
-
-    pub fn remove_child(&mut self, child_id: usize) {
-        self.template_node.child_ids.retain(|id| *id != child_id);
-    }
-
-    pub fn insert_child_at(&mut self, index: usize, child: NodeBuilder<'a>) {
-        self.template_node
-            .child_ids
-            .insert(index, child.template_node.id);
-    }
-
-    pub fn save(mut self) -> Result<(), String> {
-        if self.is_new {
-            let command = AddTemplateNodeRequest {
-                component_type_id: self.component_type_id,
-                parent_node_id: self.parent_node_id,
-                node_id: None,
-                child_ids: self.template_node.child_ids,
-                type_id: self.template_node.type_id,
-                node_type: NodeType::Template(self.template_node.settings.unwrap_or_default()),
-                pascal_identifier: self.template_node.pascal_identifier,
-                cached_node: None,
+            let updated_node = TemplateNodeDefinition {
+                type_id: self.node_type_id,
+                control_flow_settings: None,
+                settings: self.settings,
+                raw_comment_string: None,
             };
-            self.orm.execute_command(command)?;
-            self.is_new = false;
+
+            let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(uni, updated_node, Some(location)))?;
+            resp.command_id
         } else {
-            let command = UpdateTemplateNodeRequest {
-                component_type_id: self.component_type_id,
-                new_parent: None,
-                updated_node: self.template_node,
-                cached_prev_state: None,
-                cached_prev_parent: None,
-                cached_prev_position: None,
-            };
-
-            self.orm.execute_command(command)?;
+            // Node does not exist
+            let resp = self.orm.execute_command(AddTemplateNodeRequest::new(self.containing_component_type_id, self.node_type_id, 
+                    NodeType::Template(self.settings.unwrap_or_default()), self.location))?;
+            self.location = self.orm.manifest.get_node_location(&resp.uni);
+            self.unique_node_identifier = Some(resp.uni);
+            resp.command_id
         };
-        Ok(())
+
+        Ok(id.unwrap())
     }
 }
