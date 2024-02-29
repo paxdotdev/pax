@@ -27,8 +27,15 @@ impl PaxEnum {
     }
 
     pub fn from_string(input: String) -> Self {
-        todo!("why is Color::rgb(255, 255, 0) throwing an error via from_pax into this code path: es/src/particles/.pax/pkg/pax-cartridge/src/lib.rs:401:82:
-called `Result::unwrap()` on an `Err` value: Message(unknown variant `rgb`, expected one of `Solid`, `LinearGradient`, `RadialGradient`) ");
+//         todo!("why is Color::rgb(255, 255, 0) throwing an error via from_pax into this code path: es/src/particles/.pax/pkg/pax-cartridge/src/lib.rs:401:82:
+// called `Result::unwrap()` on an `Err` value: Message(unknown variant `rgb`, expected one of `Solid`, `LinearGradient`, `RadialGradient`) ");
+        // latest: `Box::new(PropertyLiteral::new(Into::<Result<particles::pax_reexports::pax_std::types::Fill, _>>::into(from_pax(lv.raw_value)).unwrap()))`
+        //         is insufficient.
+        //         Seems like we need to support passing a type param to `from_pax`, so that it
+        //         can be coerced before being inferred by serde.
+        //         Perhaps we can offer an optional type param, akin to `Into::<OTP>`
+        //         However... we actually don't know the type Color anywhere statically.  Can we use
+        //         the any-parser here instead?
         let mut pairs = crate::utils::PaxParser::parse(Rule::literal_enum_value, &input)
             .unwrap()
             .next()
