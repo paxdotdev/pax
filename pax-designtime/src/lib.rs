@@ -14,7 +14,7 @@ pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
 pub use pax_manifest;
-use pax_manifest::{ComponentDefinition, PaxManifest};
+use pax_manifest::{ComponentDefinition, PaxManifest, TypeId};
 use privileged_agent::PrivilegedAgentConnection;
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
@@ -53,7 +53,7 @@ impl DesigntimeManager {
         Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8252)))
     }
 
-    pub fn send_component_update(&mut self, type_id: &str) -> anyhow::Result<()> {
+    pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         let component = self.orm.get_component(type_id)?;
         self.priv_agent_connection
             .send_component_update(component)?;

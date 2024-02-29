@@ -20,20 +20,14 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::{ComponentDefinition, LiteralBlockDefinition, PaxManifest};
+use pax_manifest::{ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
-use self::{
-    handlers::{builder::HandlerBuilder, RemoveHandlerRequest},
-    settings::{builder::SelectorBuilder, RemoveSelectorRequest},
-    template::{builder::NodeBuilder, RemoveTemplateNodeRequest},
-};
+use self::template::{builder::NodeBuilder, RemoveTemplateNodeRequest};
 
 use anyhow::anyhow;
-pub mod handlers;
-pub mod settings;
 pub mod template;
 #[cfg(test)]
 mod tests;
@@ -44,6 +38,7 @@ pub trait Request {
 
 pub trait Response {
     fn set_id(&mut self, id: usize);
+    fn get_id(&self) -> usize;
 }
 
 pub trait Command<R: Request> {
@@ -85,75 +80,38 @@ impl PaxManifestORM {
 
     pub fn build_new_node(
         &mut self,
-        component_type_id: String, //containing component
-        type_id: String,           //the thing we want to create
-        pascal_identifier: String, // split at last :: and take end
-        parent_node_id: Option<usize>,
+        containing_component_type_id: TypeId,
+        node_type_id: TypeId,
     ) -> NodeBuilder {
         NodeBuilder::new(
             self,
-            component_type_id,
-            type_id,
-            pascal_identifier,
-            parent_node_id,
+            containing_component_type_id,
+            node_type_id,
         )
     }
-    pub fn get_node(&mut self, component_type_id: &str, node_id: usize) -> NodeBuilder {
-        NodeBuilder::retrieve_node(self, component_type_id, node_id)
+    pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> NodeBuilder {
+        NodeBuilder::retrieve_node(self, uni)
     }
 
-    pub fn get_main_component(&self) -> &str {
+    pub fn get_main_component(&self) -> &TypeId {
         &self.manifest.main_component_type_id
     }
 
-    pub fn get_component(&self, type_id: &str) -> anyhow::Result<&ComponentDefinition> {
+    pub fn get_components(&self) -> Vec<TypeId> {
+        self.manifest.components.keys().cloned().collect()
+    }
+
+    pub fn get_component(&self, type_id: &TypeId) -> anyhow::Result<&ComponentDefinition> {
         self.manifest
             .components
             .get(type_id)
             .ok_or(anyhow!("couldn't find component"))
     }
 
-    pub fn remove_node(&mut self, component_type_id: String, node_id: usize) -> Result<(), String> {
-        let command = RemoveTemplateNodeRequest::new(component_type_id, node_id);
-        self.execute_command(command)?;
-        Ok(())
-    }
-
-    pub fn build_new_selector(
-        &mut self,
-        component_type_id: String,
-        key: String,
-        value: LiteralBlockDefinition,
-    ) -> SelectorBuilder {
-        SelectorBuilder::new(self, component_type_id, key, value)
-    }
-
-    pub fn get_selector(&mut self, component_type_id: String, key: String) -> SelectorBuilder {
-        SelectorBuilder::retreive_selector(self, component_type_id, key)
-    }
-
-    pub fn remove_selector(
-        &mut self,
-        component_type_id: String,
-        key: String,
-    ) -> Result<(), String> {
-        let command = RemoveSelectorRequest::new(component_type_id, key);
-        self.execute_command(command)?;
-        Ok(())
-    }
-
-    pub fn build_new_handler(&mut self, component_type_id: String, key: String) -> HandlerBuilder {
-        HandlerBuilder::new(self, component_type_id, key)
-    }
-
-    pub fn get_handler(&mut self, component_type_id: String, key: String) -> HandlerBuilder {
-        HandlerBuilder::retrieve_handler(self, component_type_id, key)
-    }
-
-    pub fn remove_handler(&mut self, component_type_id: String, key: String) -> Result<(), String> {
-        let command = RemoveHandlerRequest::new(component_type_id, key);
-        self.execute_command(command)?;
-        Ok(())
+    pub fn remove_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Result<usize, String> {
+        let command = RemoveTemplateNodeRequest::new(uni);
+        let resp = self.execute_command(command)?;
+        Ok(resp.get_id())
     }
 
     pub fn execute_command<R: Request, C>(&mut self, mut command: C) -> Result<R::Response, String>
@@ -204,9 +162,8 @@ impl PaxManifestORM {
     }
 }
 
-pub trait UndoRedo {
+pub trait Undo {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String>;
-    fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String>;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -214,40 +171,26 @@ pub enum UndoRedoCommand {
     AddTemplateNodeRequest(template::AddTemplateNodeRequest),
     RemoveTemplateNodeRequest(template::RemoveTemplateNodeRequest),
     UpdateTemplateNodeRequest(template::UpdateTemplateNodeRequest),
-    AddSelectorRequest(settings::AddSelectorRequest),
-    UpdateSelectorRequest(settings::UpdateSelectorRequest),
-    RemoveSelectorRequest(settings::RemoveSelectorRequest),
-    AddHandlerRequest(handlers::AddHandlerRequest),
-    UpdateHandlerRequest(handlers::UpdateHandlerRequest),
-    RemoveHandlerRequest(handlers::RemoveHandlerRequest),
+    MoveTemplateNodeRequest(template::MoveTemplateNodeRequest),
 }
 
-impl UndoRedo for UndoRedoCommand {
+impl UndoRedoCommand {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         match self {
             UndoRedoCommand::AddTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
-            UndoRedoCommand::AddSelectorRequest(command) => command.undo(manifest),
-            UndoRedoCommand::UpdateSelectorRequest(command) => command.undo(manifest),
-            UndoRedoCommand::RemoveSelectorRequest(command) => command.undo(manifest),
-            UndoRedoCommand::AddHandlerRequest(command) => command.undo(manifest),
-            UndoRedoCommand::UpdateHandlerRequest(command) => command.undo(manifest),
-            UndoRedoCommand::RemoveHandlerRequest(command) => command.undo(manifest),
+            UndoRedoCommand::MoveTemplateNodeRequest(command) => command.undo(manifest),
         }
     }
 
     fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         match self {
-            UndoRedoCommand::AddTemplateNodeRequest(command) => command.redo(manifest),
-            UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.redo(manifest),
-            UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.redo(manifest),
-            UndoRedoCommand::AddSelectorRequest(command) => command.redo(manifest),
-            UndoRedoCommand::UpdateSelectorRequest(command) => command.redo(manifest),
-            UndoRedoCommand::RemoveSelectorRequest(command) => command.redo(manifest),
-            UndoRedoCommand::AddHandlerRequest(command) => command.redo(manifest),
-            UndoRedoCommand::UpdateHandlerRequest(command) => command.redo(manifest),
-            UndoRedoCommand::RemoveHandlerRequest(command) => command.redo(manifest),
+            UndoRedoCommand::AddTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
+            UndoRedoCommand::RemoveTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
+            UndoRedoCommand::UpdateTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
+            UndoRedoCommand::MoveTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
         }
+        Ok(())
     }
 }
