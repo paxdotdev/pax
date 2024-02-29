@@ -3,7 +3,14 @@
     <Text text="MAIN COMPONENT" class=h1 />
 </Stacker>
 
+if self.library_active {
+    for (comp, i) in self.registered_components {
+        <ComponentLibraryItem data=comp height=40px y={(80 + i*40)px}/>
+    }
+}
+
 @settings {
+    @mount: on_mount
     .h1 {
         height: 32px
         style: {
