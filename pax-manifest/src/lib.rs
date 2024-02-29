@@ -32,9 +32,16 @@ pub struct PaxManifest {
 }
 
 impl PaxManifest {
-
     pub fn get_template_node(&self, uni: &UniqueTemplateNodeIdentifier) -> &TemplateNodeDefinition {
-        self.components.get(&uni.component).unwrap().template.as_ref().unwrap().nodes.get(&uni.template_node_id).unwrap()
+        self.components
+            .get(&uni.component)
+            .unwrap()
+            .template
+            .as_ref()
+            .unwrap()
+            .nodes
+            .get(&uni.template_node_id)
+            .unwrap()
     }
 
     pub fn get_all_component_properties(&self, type_id: &TypeId) -> Vec<PropertyDefinition> {
@@ -42,19 +49,33 @@ impl PaxManifest {
             panic!("{} is not a valid component", type_id);
         }
         let mut common_properties = get_common_properties_as_property_definitions();
-        common_properties.extend(self.type_table.get(type_id).unwrap().property_definitions.clone());
+        common_properties.extend(
+            self.type_table
+                .get(type_id)
+                .unwrap()
+                .property_definitions
+                .clone(),
+        );
         common_properties
     }
 
     pub fn get_node_location(&self, uni: &UniqueTemplateNodeIdentifier) -> Option<NodeLocation> {
-        self.components.get(&uni.component).unwrap().template.as_ref().unwrap().get_location(&uni.template_node_id)
+        self.components
+            .get(&uni.component)
+            .unwrap()
+            .template
+            .as_ref()
+            .unwrap()
+            .get_location(&uni.template_node_id)
     }
 }
 
 pub fn get_common_properties_type_ids() -> Vec<TypeId> {
     let mut ret = vec![];
     for (_, import_path) in &constants::COMMON_PROPERTIES_TYPE {
-        if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path) || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path) {
+        if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path)
+            || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path)
+        {
             ret.push(TypeId::build_primitive(import_path.to_string()));
         } else {
             ret.push(TypeId::build_singleton(import_path.to_string(), None));
@@ -66,7 +87,9 @@ pub fn get_common_properties_type_ids() -> Vec<TypeId> {
 pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition> {
     let mut ret = vec![];
     for (cp, import_path) in &constants::COMMON_PROPERTIES_TYPE {
-        if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path) || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path) {
+        if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path)
+            || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path)
+        {
             ret.push(PropertyDefinition {
                 name: cp.to_string(),
                 flags: Default::default(),
@@ -179,7 +202,7 @@ impl ExpressionSpecInvocation {
             PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
                 return SUPPORTED_NONNUMERIC_PRIMITIVES[0] == pascal_identifier;
             }
-            _ => false
+            _ => false,
         }
     }
 
@@ -188,7 +211,7 @@ impl ExpressionSpecInvocation {
             PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
                 return SUPPORTED_NONNUMERIC_PRIMITIVES[1] == pascal_identifier;
             }
-            _ => false
+            _ => false,
         }
     }
 
@@ -197,7 +220,7 @@ impl ExpressionSpecInvocation {
             PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
                 return SUPPORTED_NUMERIC_PRIMITIVES.contains(&pascal_identifier.as_str());
             }
-            _ => false
+            _ => false,
         }
     }
 }
@@ -345,7 +368,6 @@ impl TypeId {
     }
 
     pub fn build_singleton(import_path: String, pascal_identifier: Option<String>) -> Self {
-
         let pascal_identifier = if let Some(p) = pascal_identifier {
             p
         } else {
@@ -402,7 +424,11 @@ impl TypeId {
     }
 
     pub fn build_map(key_identifier: String, value_identifier: String) -> Self {
-        let _id = format!("std::collections::HashMap<{}><{}>", key_identifier.clone(), value_identifier.clone());
+        let _id = format!(
+            "std::collections::HashMap<{}><{}>",
+            key_identifier.clone(),
+            value_identifier.clone()
+        );
         Self {
             pax_type: PaxType::Map {
                 key_identifier,
@@ -423,8 +449,9 @@ impl TypeId {
 
     pub fn get_pascal_identifier(&self) -> Option<String> {
         match &self.pax_type {
-            PaxType::Primitive { pascal_identifier } | 
-            PaxType::Singleton { pascal_identifier } =>  Some(pascal_identifier.clone()),
+            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
+                Some(pascal_identifier.clone())
+            }
             _ => None,
         }
     }
@@ -446,13 +473,12 @@ impl TypeId {
             .replace("<", "_")
             .replace(".", "_")
     }
-    
 
     pub fn fully_qualify_id(host_crate_info: &HostCrateInfo, id: String) -> Option<String> {
         let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
-        .into_iter()
-        .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
-        .collect();
+            .into_iter()
+            .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
+            .collect();
         primitives_set.insert(TYPE_ID_IF);
         primitives_set.insert(TYPE_ID_REPEAT);
         primitives_set.insert(TYPE_ID_SLOT);
@@ -462,7 +488,7 @@ impl TypeId {
         #[allow(non_snake_case)]
         let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
         let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
-            
+
         if primitives_set.contains(id.as_str()) || id.contains("pax_reexports") {
             Some(ret.to_string())
         } else if !imports_builtins_set.contains(id.as_str()) {
@@ -477,12 +503,11 @@ impl TypeId {
     }
 
     pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
-       
         if let Some(path) = self.get_import_path() {
             self.import_path = Self::fully_qualify_id(host_crate_info, path);
         }
-        if let Some(id) =  Self::fully_qualify_id(host_crate_info, self._type_id.clone()){
-            self._type_id =id;
+        if let Some(id) = Self::fully_qualify_id(host_crate_info, self._type_id.clone()) {
+            self._type_id = id;
             self._type_id_escaped = self._type_id_escaped.replace("{PREFIX}", "");
         }
         self
@@ -518,7 +543,6 @@ impl Display for UniqueTemplateNodeIdentifier {
         write!(f, "({}, {})", self.component, self.template_node_id)
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub enum TreeLocation {
@@ -578,7 +602,7 @@ impl NodeLocation {
     pub fn get_type_id(&self) -> &TypeId {
         &self.type_id
     }
-    
+
     pub fn root(type_id: TypeId) -> Self {
         NodeLocation {
             type_id,
@@ -599,8 +623,6 @@ impl NodeLocation {
         self.index = index;
     }
 }
-
-
 
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -647,32 +669,32 @@ impl ComponentTemplate {
         TemplateNodeId::build(current_next_id)
     }
 
-    pub fn add_at(&mut self, tnd: TemplateNodeDefinition, location: NodeLocation) -> UniqueTemplateNodeIdentifier {
+    pub fn add_at(
+        &mut self,
+        tnd: TemplateNodeDefinition,
+        location: NodeLocation,
+    ) -> UniqueTemplateNodeIdentifier {
         match location.get_tree_location() {
-            TreeLocation::Root => {
-                match location.index {
-                    TreeIndexPosition::Top => {
-                        return self.add_root_node_front(tnd);
-                    },
-                    TreeIndexPosition::Bottom => {
-                        return self.add_root_node_back(tnd);
-                    },
-                    TreeIndexPosition::At(index) => {
-                        return self.add_root_node_at(index, tnd);
-                    }
+            TreeLocation::Root => match location.index {
+                TreeIndexPosition::Top => {
+                    return self.add_root_node_front(tnd);
+                }
+                TreeIndexPosition::Bottom => {
+                    return self.add_root_node_back(tnd);
+                }
+                TreeIndexPosition::At(index) => {
+                    return self.add_root_node_at(index, tnd);
                 }
             },
-            TreeLocation::Parent(p) => {
-                match location.index {
-                    TreeIndexPosition::Top => {
-                        return self.add_child_front(p.clone(), tnd);
-                    },
-                    TreeIndexPosition::Bottom => {
-                        return self.add_child_back(p.clone(), tnd);
-                    },
-                    TreeIndexPosition::At(index) => {
-                        return self.add_child_at(p.clone(), index, tnd);
-                    }
+            TreeLocation::Parent(p) => match location.index {
+                TreeIndexPosition::Top => {
+                    return self.add_child_front(p.clone(), tnd);
+                }
+                TreeIndexPosition::Bottom => {
+                    return self.add_child_back(p.clone(), tnd);
+                }
+                TreeIndexPosition::At(index) => {
+                    return self.add_child_at(p.clone(), index, tnd);
                 }
             },
         }
@@ -798,7 +820,7 @@ impl ComponentTemplate {
                 for (_, children) in self.children.iter_mut() {
                     children.retain(|child| *child != node);
                 }
-            } 
+            }
             node
         } else {
             panic!("Requested node doesn't exist in template");
@@ -850,13 +872,20 @@ impl ComponentTemplate {
     pub fn get_location(&self, id: &TemplateNodeId) -> Option<NodeLocation> {
         if self.root.contains(&id) {
             let mut node_location = NodeLocation::root(self.containing_component.clone());
-            node_location.set_index(TreeIndexPosition::new(self.root.iter().position(|x| *x == *id).unwrap(), self.root.len()));
+            node_location.set_index(TreeIndexPosition::new(
+                self.root.iter().position(|x| *x == *id).unwrap(),
+                self.root.len(),
+            ));
             return Some(node_location);
         }
         for (parent, children) in self.children.iter() {
             if children.contains(&id) {
-                let mut node_location = NodeLocation::parent(self.containing_component.clone(), parent.clone());
-                node_location.set_index(TreeIndexPosition::new(children.iter().position(|x| *x == *id).unwrap(), children.len()));
+                let mut node_location =
+                    NodeLocation::parent(self.containing_component.clone(), parent.clone());
+                node_location.set_index(TreeIndexPosition::new(
+                    children.iter().position(|x| *x == *id).unwrap(),
+                    children.len(),
+                ));
                 return Some(node_location);
             }
         }
@@ -864,45 +893,43 @@ impl ComponentTemplate {
     }
 
     pub fn detach_node(&mut self, id: &TemplateNodeId) {
-        let current_location = self.get_location(id).expect("Node doesn't exist in template");
+        let current_location = self
+            .get_location(id)
+            .expect("Node doesn't exist in template");
         let parent = match current_location.get_tree_location() {
             TreeLocation::Root => {
                 self.root.retain(|root_node| *root_node != *id);
                 return;
-            },
+            }
             TreeLocation::Parent(parent) => parent,
         };
         let children = self.children.get_mut(&parent).unwrap();
         children.retain(|child| *child != *id);
     }
 
-    pub fn move_node(&mut self, id: &TemplateNodeId, new_location: NodeLocation){
+    pub fn move_node(&mut self, id: &TemplateNodeId, new_location: NodeLocation) {
         self.detach_node(&id);
         match new_location.get_tree_location() {
-            TreeLocation::Root => {
-                match new_location.index {
-                    TreeIndexPosition::Top => {
-                        self.root.push_front(id.clone());
-                    },
-                    TreeIndexPosition::Bottom => {
-                        self.root.push_back(id.clone());
-                    },
-                    TreeIndexPosition::At(index) => {
-                        self.root.insert(index, id.clone());
-                    }
+            TreeLocation::Root => match new_location.index {
+                TreeIndexPosition::Top => {
+                    self.root.push_front(id.clone());
+                }
+                TreeIndexPosition::Bottom => {
+                    self.root.push_back(id.clone());
+                }
+                TreeIndexPosition::At(index) => {
+                    self.root.insert(index, id.clone());
                 }
             },
-            TreeLocation::Parent(p) => {
-                match new_location.index {
-                    TreeIndexPosition::Top => {
-                        self.children.get_mut(&p).unwrap().push_front(id.clone());
-                    },
-                    TreeIndexPosition::Bottom => {
-                        self.children.get_mut(&p).unwrap().push_back(id.clone());
-                    },
-                    TreeIndexPosition::At(index) => {
-                        self.children.get_mut(&p).unwrap().insert(index, id.clone());
-                    }
+            TreeLocation::Parent(p) => match new_location.index {
+                TreeIndexPosition::Top => {
+                    self.children.get_mut(&p).unwrap().push_front(id.clone());
+                }
+                TreeIndexPosition::Bottom => {
+                    self.children.get_mut(&p).unwrap().push_back(id.clone());
+                }
+                TreeIndexPosition::At(index) => {
+                    self.children.get_mut(&p).unwrap().insert(index, id.clone());
                 }
             },
         }
@@ -948,14 +975,12 @@ impl TemplateNodeDefinition {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Clone)]
 pub enum NodeType {
     Template(Vec<SettingElement>),
     ControlFlow(Box<ControlFlowSettingsDefinition>),
     Comment(String),
 }
-
 
 pub type TypeTable = HashMap<TypeId, TypeDefinition>;
 pub fn get_primitive_type_table() -> TypeTable {
