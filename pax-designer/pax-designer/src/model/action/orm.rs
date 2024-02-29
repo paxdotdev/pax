@@ -182,5 +182,5 @@ impl Action for RotateSelected {
     }
 }
 fn to_pixels(v: f64) -> String {
-    format!("{:?}px", v)
+    format!("{:?}px", v.round())
 }

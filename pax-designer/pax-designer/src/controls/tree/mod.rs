@@ -114,29 +114,22 @@ impl Tree {
     fn to_tree(root: usize, graph: &HashMap<usize, (String, Vec<usize>)>) -> TreeEntry {
         let (name, children) = &graph[&root];
 
-        //hack: assuming that names come in via fully qualified typeids in the form `pax_designer::pax_reexports::pax_std::primitives::Group`
-        let name = *name
-            .split("pax_reexports::")
-            .collect::<Vec<_>>()
-            .get(1)
-            .unwrap();
-
         TreeEntry(
-            match name {
-                "pax_std::primitives::Group" => Desc::Group,
-                "pax_std::primitives::Frame" => Desc::Frame,
-                "pax_std::primitives::Ellipse" => Desc::Ellipse,
-                "pax_std::primitives::Text" => Desc::Text,
-                "pax_std::primitives::Stacker" => Desc::Stacker,
-                "pax_std::primitives::Rectangle" => Desc::Rectangle,
-                "pax_std::primitives::Path" => Desc::Path,
-                "pax_std::primitives::Textbox" => Desc::Textbox,
-                "pax_std::primitives::Checkbox" => Desc::Checkbox,
-                "pax_std::primitives::Scroller" => Desc::Scroller,
-                "pax_std::primitives::Button" => Desc::Button,
-                "pax_std::primitives::Image" => Desc::Image,
-                "pax_std::primitives::Slider" => Desc::Slider,
-                "pax_std::primitives::Dropdown" => Desc::Dropdown,
+            match name.as_str() {
+                "pax_designer::pax_reexports::pax_std::primitives::Group" => Desc::Group,
+                "pax_designer::pax_reexports::pax_std::primitives::Frame" => Desc::Frame,
+                "pax_designer::pax_reexports::pax_std::primitives::Ellipse" => Desc::Ellipse,
+                "pax_designer::pax_reexports::pax_std::primitives::Text" => Desc::Text,
+                "pax_designer::pax_reexports::pax_std::primitives::Stacker" => Desc::Stacker,
+                "pax_designer::pax_reexports::pax_std::primitives::Rectangle" => Desc::Rectangle,
+                "pax_designer::pax_reexports::pax_std::primitives::Path" => Desc::Path,
+                "pax_designer::pax_reexports::pax_std::primitives::Textbox" => Desc::Textbox,
+                "pax_designer::pax_reexports::pax_std::primitives::Checkbox" => Desc::Checkbox,
+                "pax_designer::pax_reexports::pax_std::primitives::Scroller" => Desc::Scroller,
+                "pax_designer::pax_reexports::pax_std::primitives::Button" => Desc::Button,
+                "pax_designer::pax_reexports::pax_std::primitives::Image" => Desc::Image,
+                "pax_designer::pax_reexports::pax_std::primitives::Slider" => Desc::Slider,
+                "pax_designer::pax_reexports::pax_std::primitives::Dropdown" => Desc::Dropdown,
                 other => Desc::Component(
                     other
                         .rsplit_once("::")
