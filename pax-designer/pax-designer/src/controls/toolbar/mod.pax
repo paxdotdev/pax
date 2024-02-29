@@ -16,13 +16,10 @@ for (view, i) in self.entries {
     fill={Fill::Solid(Color::rgba(1.0,1.0,1.0,0.2))}
 />
 
-
-@handlers {
-    pre_render: update_view
-    mount: on_mount
-}
-
 @settings {
+    @pre_render: update_view
+    @mount: on_mount
+
     #save_button {
         x: 100%,
         anchor_x: 100%,
