@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{any::Any, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
-    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, HandlerBindingElement, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition
+    constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE}, PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition
 };
 
 #[derive(Serialize, Debug)]
@@ -30,9 +30,9 @@ impl PaxManifest {
     pub fn get_component_handlers(&self, type_id: &TypeId) -> Vec<(String, Vec<String>)> {
         let mut handlers = Vec::new();
         if let Some(component) = self.components.get(type_id) {
-            if let Some(component_handlers) = &component.handlers {
-                for handler in component_handlers {
-                    if let HandlerBindingElement::Handler(key, values) = handler {
+            if let Some(settings) = &component.settings {
+                for setting in settings {
+                    if let SettingsBlockElement::Handler(key, values) = setting {
                         handlers.push((
                             key.token_value.clone(),
                             values
@@ -105,9 +105,9 @@ impl PaxManifest {
             let mut handler_data = Vec::new();
 
             // pull all handlers from the component settings
-            if let Some(handlers) = &component.handlers {
-                for handler in handlers {
-                    if let HandlerBindingElement::Handler(key, values) = handler {
+            if let Some(settings) = &component.settings {
+                for setting in settings {
+                    if let SettingsBlockElement::Handler(key, values) = setting {
                         for value in values {
                             let args_type = event_map.get(key.token_value.as_str()).unwrap();
                             handler_data.push(HandlerInfo {
