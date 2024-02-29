@@ -104,8 +104,6 @@ struct PaxViewMacos: View {
         private var displayLink: CVDisplayLink?
 
         override init(frame frameRect: NSRect) {
-
-
             super.init(frame: frameRect)
             self.wantsLayer = true
             self.layer?.drawsAsynchronously = true

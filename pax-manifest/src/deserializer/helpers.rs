@@ -27,6 +27,8 @@ impl PaxEnum {
     }
 
     pub fn from_string(input: String) -> Self {
+        todo!("why is Color::rgb(255, 255, 0) throwing an error via from_pax into this code path: es/src/particles/.pax/pkg/pax-cartridge/src/lib.rs:401:82:
+called `Result::unwrap()` on an `Err` value: Message(unknown variant `rgb`, expected one of `Solid`, `LinearGradient`, `RadialGradient`) ");
         let mut pairs = crate::utils::PaxParser::parse(Rule::literal_enum_value, &input)
             .unwrap()
             .next()
