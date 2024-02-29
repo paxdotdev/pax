@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::VecDeque;
 use std::ops::{Add, Deref, Mul, Neg};
 
@@ -499,7 +500,7 @@ impl Size {
         match &self {
             Size::Pixels(val) => val.clone(),
             _ => {
-                panic!("Pixel value expected but stored value was: {:?}", self)
+                panic!("Pixel value expected but stored value was not a pixel value.")
             }
         }
     }
