@@ -101,22 +101,70 @@ silent_comma = _{","}
 
 function_list = {"[" ~ (literal_function ~ silent_comma?)* ~ "]"}
 literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
+literal_boolean = {("true" | "false")}
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {"-"? ~ (!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {"-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 literal_number_unit = {("%" | "px" | "deg" | "rad")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
-literal_boolean = {("true" | "false")}
+literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
 
-
-//Enums like Orientation::Vertical or Color::Rgba(100%, 100%, 0, 0)
+//Enums like Orientation::Vertical
 //Note that this is parsed separately from expression enums, `xo_enum*`
 literal_enum_value = {identifier ~ ("::" ~ identifier)* ~ ("("~literal_enum_args_list~")")}
 literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
-literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
+////// ////// //////
+/// BEGIN COLORS, STROKES, & FILLS
+//////
 
+
+
+//Notes on gradients:
+// 1. if we're unplugging gradients, perhaps we should just set Rectangle's `fill` type to be Color?
+// 2. when we support object literal syntax for gradients, can we just rely on the vanilla Rust structs instead of re-inventing
+//    an object literal syntax in the grammar?  in particular, it would be nice to support the sugared syntax of number+percentage as keys
+
+
+//Now let's say we can parse a `Rule::fill` — this gives us the ability to deserialize directly into a Fill,
+//starting with a hard-coded Fill::Solid, instead of being "some kind of literal, which we hope is a Fill"
+fill = { /*linear_gradient | radial_gradient |*/ color }
+color = {color_space_func | color_const }
+color_space_func = {
+	(("rgb(" | "hsl(") ~  color_channel ~ "," ~ color_channel ~ "," ~ color_channel ~ ","? ~ ")") |
+	(("rgba(" | "hsla(") ~ color_channel ~ "," ~ color_channel ~ "," ~ color_channel ~ "," ~ color_channel ~ ","? ~ ")")
+}
+color_channel = {color_channel_literal | expression_body}
+
+// Valid units include integers 0-255, 0-100%, and arbitrary numeric deg/rad (for hue, which is expressed as an angle)
+color_channel_literal = {literal_number_with_unit | literal_number_integer}
+
+// Color constants inspired by Tailwind
+color_const = {
+    "SLATE" |
+    "GRAY" |
+    "ZINC" |
+    "NEUTRAL" |
+    "STONE" |
+    "RED" |
+    "ORANGE" |
+    "AMBER" |
+    "YELLOW" |
+    "LIME" |
+    "GREEN" |
+    "EMERALD" |
+    "TEAL" |
+    "CYAN" |
+    "SKY" |
+    "BLUE" |
+    "INDIGO" |
+    "VIOLET" |
+    "PURPLE" |
+    "FUCHSIA" |
+    "PINK" |
+    "ROSE"
+}
 
 ////// ////// //////
 /// BEGIN EXPRESSIONS
