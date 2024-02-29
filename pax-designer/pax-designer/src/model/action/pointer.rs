@@ -55,13 +55,6 @@ impl Action for PointerAction {
                             ),
                         ))
                     }
-                    Tool::CreateComponent(Component::Ellipse) => {
-                        Box::new(CreateComponentTool::new(
-                            ctx,
-                            point_glass,
-                            "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
-                        ))
-                    }
                     Tool::TodoTool => todo!(),
                 },
                 (MouseButton::Left, true) | (MouseButton::Middle, _) => Box::new(Pan {

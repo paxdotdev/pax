@@ -1,0 +1,6 @@
+<Text text={self.data.name}/>
+<Rectangle fill={Fill::Solid(Color::rgb(1.0, 0.0, 1.0))}/>
+
+@settings {
+    @click: on_click
+}
