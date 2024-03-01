@@ -28,7 +28,7 @@ pub mod apple;
 pub mod web;
 
 #[cfg(feature = "designtime")]
-use pax_designtime;
+mod design;
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
@@ -133,15 +133,20 @@ pub fn update_type_id_prefixes_in_place(
 /// This assumes that you are in the examples/src directory in the monorepo
 pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
     let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
-
     #[cfg(feature = "designtime")]
     {
         if ctx.is_libdev_mode {
             let pax_corp_root = if let Ok(specified_override) = std::env::var("PAX_CORP_ROOT") {
                 PathBuf::from(&specified_override)
             } else {
-                unreachable!("PAX_CORP_ROOT must be set in libdev design mode")
+                if let Ok(specified_override) = std::env::var("PAX_WORKSPACE_ROOT") {
+                    PathBuf::from(&specified_override).join("..")
+                } else {
+                    eprintln!("ERROR: environment PAX_WORKSPACE_ROOT needs to be set");
+                    std::process::exit(EXIT_FAILURE);
+                }
             };
+
             let src = pax_corp_root.join("pax-designtime");
             let dest = dest_pkg_root.join("pax-designtime");
 
@@ -149,7 +154,7 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
                 .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
 
             let _ =
-                pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
+                design::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
         }
     }
 
@@ -173,7 +178,7 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
 
             #[cfg(feature = "designtime")]
             {
-                let _ = pax_designtime::add_additional_dependencies_to_cargo_toml(&dest, pkg);
+                let _ = design::add_additional_dependencies_to_cargo_toml(&dest, pkg);
             }
         } else {
             let dest = dest_pkg_root.join(pkg);

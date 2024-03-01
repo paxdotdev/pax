@@ -166,7 +166,7 @@ fn perform_nominal_action(
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
 
-            pax_compiler::perform_build(&RunContext {
+            let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 verbose,
@@ -174,7 +174,9 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release: false,
-            })
+            })?;
+
+            Ok(())
         }
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -183,7 +185,7 @@ fn perform_nominal_action(
             let is_libdev_mode = args.is_present("libdev");
             let is_release = args.is_present("release");
 
-            pax_compiler::perform_build(&RunContext {
+            let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 should_also_run: false,
@@ -191,7 +193,9 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release,
-            })
+            })?;
+
+            Ok(())
         }
         ("clean", Some(args)) => {
             println!("🧹 Cleaning cached & temporary files...");
