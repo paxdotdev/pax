@@ -14,6 +14,7 @@ use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{MouseButton, Window};
 use pax_engine::math::Point2;
+use pax_manifest::TypeId;
 
 pub struct PointerAction {
     pub event: Pointer,
@@ -49,10 +50,7 @@ impl Action for PointerAction {
                         Box::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
-                            &format!(
-                                "pax_designer::pax_reexports::pax_std::primitives::{}",
-                                primitive_name
-                            ),
+                            &TypeId::build_primitive(primitive_name),
                         ))
                     }
                     Tool::TodoTool => todo!(),

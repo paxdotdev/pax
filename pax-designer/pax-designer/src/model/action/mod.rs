@@ -9,6 +9,7 @@ use pax_engine::{
     math::{Point2, Space, Transform2},
     NodeInterface,
 };
+use pax_manifest::UniqueTemplateNodeIdentifier;
 
 use super::math::coordinate_spaces::Glass;
 
@@ -103,11 +104,10 @@ impl ActionContext<'_> {
     }
 
     pub fn selected_node(&self) -> Option<NodeInterface> {
+        let type_id = self.app_state.selected_component_id.clone();
+        let temp_node_id = self.app_state.selected_template_node_id.as_ref()?.clone();
         self.engine_context
-            .get_nodes_by_global_id(
-                &self.app_state.selected_component_id,
-                self.app_state.selected_template_node_id?,
-            )
+            .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(type_id, temp_node_id))
             .into_iter()
             .next()
     }

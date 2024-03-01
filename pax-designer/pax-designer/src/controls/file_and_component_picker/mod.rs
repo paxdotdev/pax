@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -46,19 +48,23 @@ impl FileAndComponentPicker {
         let components: Vec<_> = dt
             .get_orm()
             .get_components()
-            .values()
-            .filter_map(|comp| {
-                let is_in_inner_project = comp
-                    .type_id
-                    .starts_with("pax_designer::pax_reexports::designer_project::");
+            .iter()
+            .filter_map(|type_id| {
+                if !type_id.import_path().is_some_and(|p| {
+                    p.starts_with("pax_designer::pax_reexports::designer_project::")
+                }) {
+                    return None;
+                }
+
+                let comp = dt.get_orm().get_component(type_id).unwrap();
                 let has_template = !comp.is_struct_only_component;
                 let mut is_not_current = false;
                 model::read_app_state(|app_state| {
                     is_not_current = app_state.selected_component_id != comp.type_id
                 });
-                if is_in_inner_project && has_template && is_not_current {
+                if has_template && is_not_current {
                     Some(ComponentLibraryItemData {
-                        name: StringBox::from(comp.type_id.rsplit_once("::")?.1.clone()),
+                        name: StringBox::from(comp.type_id.get_pascal_identifier().unwrap()),
                         file_path: StringBox::from(comp.module_path.to_owned()),
                         type_id: comp.type_id.clone(),
                         bounds_pixels: (200.0, 200.0),

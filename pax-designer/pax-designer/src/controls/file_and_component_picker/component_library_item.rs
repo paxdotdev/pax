@@ -4,6 +4,7 @@ use model::action::orm::CreateComponent;
 use pax_engine::api::*;
 use pax_engine::math::Vector2;
 use pax_engine::*;
+use pax_manifest::TypeId;
 use pax_std::primitives::Rectangle;
 use pax_std::primitives::Text;
 
@@ -26,12 +27,12 @@ pub struct ComponentLibraryItem {
 pub struct ComponentLibraryItemData {
     pub name: StringBox,
     pub file_path: StringBox,
-    pub type_id: String,
+    pub type_id: TypeId,
     pub bounds_pixels: (f64, f64),
 }
 
 struct DropComponent {
-    type_id: String,
+    type_id: TypeId,
     bounds_pixels: (f64, f64),
 }
 

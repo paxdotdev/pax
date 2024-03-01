@@ -17,18 +17,19 @@ use pax_engine::api::Size;
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::rendering::TransformAndBounds;
+use pax_manifest::TypeId;
 use pax_std::types::Color;
 
 pub struct CreateComponentTool {
-    type_id: String,
+    type_id: TypeId,
     origin: Point2<Glass>,
     bounds: AxisAlignedBox,
 }
 
 impl CreateComponentTool {
-    pub fn new(_ctx: &mut ActionContext, point: Point2<Glass>, type_id: &str) -> Self {
+    pub fn new(_ctx: &mut ActionContext, point: Point2<Glass>, type_id: &TypeId) -> Self {
         Self {
-            type_id: type_id.to_owned(),
+            type_id: type_id.clone(),
             origin: point,
             bounds: AxisAlignedBox::new(Point2::default(), Point2::default()),
         }
@@ -106,7 +107,8 @@ impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
         Self {
             state: if let Some(hit) = ctx.raycast_glass(point) {
-                ctx.app_state.selected_template_node_id = Some(hit.global_id().1);
+                ctx.app_state.selected_template_node_id =
+                    Some(hit.global_id().unwrap().get_template_node_id());
 
                 let origin_window = hit.origin().unwrap();
                 let object_origin_glass = ctx.glass_transform() * origin_window;

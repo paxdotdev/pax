@@ -14,8 +14,8 @@ pub struct PropertyEditor {
     pub definition: Property<StringBox>,
     pub last_definition: Property<String>,
     pub textbox: Property<String>,
-    pub stid: Property<StringBox>,
-    pub snid: Property<Numeric>,
+    pub stid: Property<TypeId>,
+    pub snid: Property<TemplateNodeId>,
     pub error: Property<String>,
 }
 
@@ -37,10 +37,12 @@ impl PropertyEditor {
         self.textbox.set(args.text.to_owned());
         let name = &self.name.get().string;
         let mut dt = ctx.designtime.borrow_mut();
-        let mut node_definition = dt.get_orm_mut().get_node(
-            &self.stid.get().string,
-            self.snid.get().get_as_int() as usize,
-        );
+        let mut node_definition = dt
+            .get_orm_mut()
+            .get_node(UniqueTemplateNodeIdentifier::build(
+                self.stid.get().clone(),
+                self.snid.get().clone(),
+            ));
 
         let variable = name.strip_suffix(':').unwrap_or(&name);
         if let Err(_error) = node_definition.set_property(variable, &args.text) {
