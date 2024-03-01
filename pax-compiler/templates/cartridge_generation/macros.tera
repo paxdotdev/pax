@@ -14,7 +14,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                 properties.{{property.name}} =
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            Box::new(PropertyLiteral::new(from_pax(lv.raw_value).unwrap()))
+                            Box::new(PropertyLiteral::new(from_pax(lv.raw_value).unwrap().into()))
                         },
                         ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                         {
@@ -147,7 +147,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         if let Err(e) = from_pax::<{{prop.type_id._type_id}}>(lv.raw_value.clone()) {
                                             panic!("Failed to parse value for {} with error {}",lv.raw_value.clone(),e);
                                         }
-                                        Box::new(PropertyLiteral::new(from_pax(lv.raw_value.clone()).unwrap()))
+                                        Box::new(PropertyLiteral::new(from_pax(lv.raw_value.clone()).unwrap().into()))
                                     },
                                     ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                                     {

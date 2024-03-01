@@ -73,20 +73,26 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                     vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
                                 };
 
-                                visitor.visit_enum(PaxEnum::new(
+                                //TODO: import color
+                                //      - once again, break out pax-runtime-api into its own crate
+                                //      - reexport it through pax_runtime, to keep consumers happy
+                                //      - import it directly here, without circ. dep
+                                let explicit_color : Color = visitor.visit_enum(PaxEnum::new(
                                     COLOR.to_string(),
                                     func.as_str().to_string(),
                                     Some(args)
-                                ))
+                                ));
+                                explicit_color
                             }
                             Rule::literal_color_const => {
                                 let color_const = what_kind_of_color.into_inner().next().unwrap();
 
-                                visitor.visit_enum(PaxEnum::new(
+                                let explicit_color : Color = visitor.visit_enum(PaxEnum::new(
                                     COLOR.to_string(),
                                     color_const.to_string(),
                                     None
-                                ))
+                                ));
+                                explicit_color
                             },
                             _ => {unreachable!()}
                         }
