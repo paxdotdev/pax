@@ -14,8 +14,11 @@ use crate::glass::Glass;
 use designer_project::Example;
 use pax_std::primitives::{Group, Rectangle};
 
+pub mod llm_interface;
 pub mod math;
 pub mod model;
+
+use llm_interface::LLMInterface;
 
 pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
 pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
@@ -41,8 +44,4 @@ impl PaxDesigner {
             );
         });
     }
-
-    pub fn handle_mount(&mut self, _ctx: &NodeContext) {}
-
-    pub fn click_test(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
 }

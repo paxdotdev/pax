@@ -66,7 +66,6 @@ impl Settings {
             self.snid.set(temp_node_id.clone());
 
             let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
-            pax_engine::log::info!("{:?}", uni);
             let props = ctx
                 .designtime
                 .borrow_mut()
