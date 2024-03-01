@@ -6,7 +6,7 @@ use std::ops::{Add, Deref, Mul, Neg};
 use std::rc::Rc;
 
 use kurbo::BezPath;
-use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use piet::PaintBrush;
 
 use crate::math::Space;
@@ -644,6 +644,9 @@ impl Neg for Rotation {
         }
     }
 }
+
+impl Interpolatable for TypeId {}
+impl Interpolatable for TemplateNodeId {}
 
 impl Add for Rotation {
     type Output = Rotation;

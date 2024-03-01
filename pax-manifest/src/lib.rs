@@ -452,7 +452,7 @@ impl TypeId {
         }
     }
 
-    pub fn get_import_path(&self) -> Option<String> {
+    pub fn import_path(&self) -> Option<String> {
         if let PaxType::Primitive { pascal_identifier } = &self.pax_type {
             return Some(pascal_identifier.clone());
         }
@@ -520,7 +520,7 @@ impl TypeId {
     /// Adds re-export information to this type-id which is sometimes not know at creation time
     /// Once qualified a type-id can be used to fully import a type in the cartridge
     pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
-        if let Some(path) = self.get_import_path() {
+        if let Some(path) = self.import_path() {
             self.import_path = Self::fully_qualify_id(host_crate_info, path);
         }
         if let Some(id) = Self::fully_qualify_id(host_crate_info, self._type_id.clone()) {
