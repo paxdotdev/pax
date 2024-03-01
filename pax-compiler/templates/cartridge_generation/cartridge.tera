@@ -461,7 +461,7 @@ impl DefinitionToInstanceTraverser {
 
        
         args.children = Some(self.build_children(containing_component_type_id, node_id));
-        args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(node.type_id.clone(), node_id.clone()));
+        args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(containing_component_type_id.clone(), node_id.clone()));
         node_component_factory.build_component(args)
     }
 
