@@ -14,7 +14,6 @@ pub mod primitives {
 
     use crate::types::text::TextStyle;
     use crate::types::Fill;
-    use crate::types::Color;
 
     use crate::types::PathSegment;
     use crate::types::Stroke;
