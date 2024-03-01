@@ -2,13 +2,14 @@
 mod tests {
     use crate::orm::PaxManifestORM;
     use pax_manifest::{
-        ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token, TokenType, TypeId
+        ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token,
+        TokenType, TypeId,
     };
     use std::collections::{HashMap, HashSet};
 
     fn create_basic_manifest() -> PaxManifest {
         let mut components = HashMap::new();
-        let type_id: TypeId = TypeId::build_singleton("Component1".to_string(), Some("Component1".to_string()));
+        let type_id: TypeId = TypeId::build_singleton("Component1", Some("Component1"));
         components.insert(
             type_id.clone(),
             ComponentDefinition {
@@ -38,27 +39,32 @@ mod tests {
     #[test]
     fn test_add_and_undo_node() {
         let mut orm = PaxManifestORM::new(create_basic_manifest());
-        let type_id: TypeId = TypeId::build_singleton("Component1".to_string(), Some("Component1".to_string()));
-        let rectangle_type_id: TypeId = TypeId::build_singleton("Rectangle".to_string(), Some("Rectangle".to_string()));
-        
+        let type_id: TypeId = TypeId::build_singleton("Component1", Some("Component1"));
+        let rectangle_type_id: TypeId = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+
         // Build and configure a new node
-        let mut node_builder = orm.build_new_node(
-            type_id.clone(),
-            rectangle_type_id,
-        );
+        let mut node_builder = orm.build_new_node(type_id.clone(), rectangle_type_id);
 
         node_builder.set_property("x", "10px").unwrap();
         node_builder.save().unwrap();
 
-        assert!(orm.get_manifest().components.get(&type_id).unwrap()
+        assert!(orm
+            .get_manifest()
+            .components
+            .get(&type_id)
+            .unwrap()
             .template
             .is_some());
 
         // Undo the creation
         orm.undo().unwrap();
 
-        assert!(orm.get_manifest().components.get(&type_id).unwrap()
-        .template
-        .is_some());
+        assert!(orm
+            .get_manifest()
+            .components
+            .get(&type_id)
+            .unwrap()
+            .template
+            .is_some());
     }
 }

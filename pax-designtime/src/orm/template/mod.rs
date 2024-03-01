@@ -1,7 +1,8 @@
 use core::panic;
 
 use pax_manifest::{
-    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, TypeId, UniqueTemplateNodeIdentifier
+    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, TypeId,
+    UniqueTemplateNodeIdentifier,
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -15,16 +16,15 @@ pub struct NodeData {
     pub cached_node: TemplateNodeDefinition,
 }
 
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AddTemplateNodeRequest {
     containing_component_type_id: TypeId,
     template_node_type_id: TypeId,
     node_data: NodeType,
     location: Option<NodeLocation>,
-    
+
     // Used for Undo/Redo
-    _cached_node_data: Option<NodeData>
+    _cached_node_data: Option<NodeData>,
 }
 
 impl AddTemplateNodeRequest {
@@ -80,13 +80,13 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
         match &self.node_data {
             NodeType::Template(settings) => {
                 template_node.settings = Some(settings.clone());
-            },
+            }
             NodeType::ControlFlow(control_flow_settings) => {
                 template_node.control_flow_settings = Some(*control_flow_settings.clone());
-            },
+            }
             NodeType::Comment(raw_comment_string) => {
                 template_node.raw_comment_string = Some(raw_comment_string.clone());
-            },
+            }
         }
 
         let mut node_data = NodeData::default();
@@ -99,7 +99,8 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
                 template.add(template_node)
             };
         } else {
-            let mut template = ComponentTemplate::new(self.containing_component_type_id.clone(), None);
+            let mut template =
+                ComponentTemplate::new(self.containing_component_type_id.clone(), None);
             node_data.unique_node_identifier = if let Some(location) = &self.location {
                 template.add_at(template_node, location.clone())
             } else {
@@ -112,7 +113,7 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
 
         Ok(AddTemplateNodeResponse {
             command_id: None,
-            uni: node_data.unique_node_identifier.clone()
+            uni: node_data.unique_node_identifier.clone(),
         })
     }
 
@@ -135,7 +136,12 @@ impl Undo for AddTemplateNodeRequest {
         let cached_data = self._cached_node_data.clone().unwrap();
         if let Some(template) = &mut component.template {
             template.remove_node(cached_data.unique_node_identifier.get_template_node_id());
-            template.set_next_id(cached_data.unique_node_identifier.get_template_node_id().as_usize());
+            template.set_next_id(
+                cached_data
+                    .unique_node_identifier
+                    .get_template_node_id()
+                    .as_usize(),
+            );
         }
         Ok(())
     }
@@ -152,7 +158,11 @@ pub struct UpdateTemplateNodeRequest {
 }
 
 impl UpdateTemplateNodeRequest {
-    pub fn new(uni: UniqueTemplateNodeIdentifier, updated_node: TemplateNodeDefinition, new_location: Option<NodeLocation>) -> Self {
+    pub fn new(
+        uni: UniqueTemplateNodeIdentifier,
+        updated_node: TemplateNodeDefinition,
+        new_location: Option<NodeLocation>,
+    ) -> Self {
         Self {
             uni,
             updated_node,
@@ -194,11 +204,14 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
         if component.is_primitive || component.is_struct_only_component {
             unreachable!("Component doesn't accept template nodes.");
         }
-       
-       if let Some(template) = &mut component.template {
+
+        if let Some(template) = &mut component.template {
             let mut node_data = NodeData::default();
             node_data.unique_node_identifier = uni.clone();
-            node_data.cached_node = template.get_node(&uni.get_template_node_id()).expect("Cannot update node that doesn't exist").clone();
+            node_data.cached_node = template
+                .get_node(&uni.get_template_node_id())
+                .expect("Cannot update node that doesn't exist")
+                .clone();
 
             template.set_node(uni.get_template_node_id(), self.updated_node.clone());
 
@@ -207,11 +220,9 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                 move_request.execute(manifest).unwrap();
                 self._cached_move = Some(move_request.clone());
             }
-       }
+        }
 
-        Ok(UpdateTemplateNodeResponse {
-            command_id: None,
-        })
+        Ok(UpdateTemplateNodeResponse { command_id: None })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
@@ -227,13 +238,12 @@ impl Undo for UpdateTemplateNodeRequest {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         if let Some(move_request) = &mut self._cached_move {
             move_request.undo(manifest).unwrap();
-        }       
-        
-        
+        }
+
         let component = manifest
-        .components
-        .get_mut(&self.uni.get_containing_component_type_id())
-        .unwrap();
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .unwrap();
 
         if let Some(template) = &mut component.template {
             if let Some(data) = &self._cached_node_data {
@@ -243,7 +253,6 @@ impl Undo for UpdateTemplateNodeRequest {
         Ok(())
     }
 }
-
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MoveTemplateNodeRequest {
@@ -281,10 +290,7 @@ impl Response for MoveTemplateNodeResponse {
 }
 
 impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
-    fn execute(
-        &mut self,
-        manifest: &mut PaxManifest,
-    ) -> Result<MoveTemplateNodeResponse, String> {
+    fn execute(&mut self, manifest: &mut PaxManifest) -> Result<MoveTemplateNodeResponse, String> {
         let uni = self.uni.clone();
         let requested_component = self.new_location.get_type_id();
 
@@ -309,9 +315,7 @@ impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
         self._cached_old_position = template.get_location(&self.uni.get_template_node_id());
         template.move_node(&uni.get_template_node_id(), self.new_location.clone());
 
-        Ok(MoveTemplateNodeResponse {
-            command_id: None,
-        })
+        Ok(MoveTemplateNodeResponse { command_id: None })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
@@ -326,9 +330,9 @@ impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
 impl Undo for MoveTemplateNodeRequest {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         let component = manifest
-        .components
-        .get_mut(&self.uni.get_containing_component_type_id())
-        .unwrap();
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .unwrap();
 
         if let Some(template) = &mut component.template {
             if let Some(location) = &self._cached_old_position {
@@ -343,15 +347,14 @@ impl Undo for MoveTemplateNodeRequest {
 pub struct RemoveTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     // Used for Undo/Redo
-    _cached_template: Option<ComponentTemplate>
-    
+    _cached_template: Option<ComponentTemplate>,
 }
 
 impl RemoveTemplateNodeRequest {
     pub fn new(uni: UniqueTemplateNodeIdentifier) -> Self {
         RemoveTemplateNodeRequest {
             uni,
-            _cached_template: None
+            _cached_template: None,
         }
     }
 }
@@ -379,9 +382,9 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
         manifest: &mut PaxManifest,
     ) -> Result<RemoveTemplateNodeResponse, String> {
         let component = manifest
-        .components
-        .get_mut(&self.uni.get_containing_component_type_id())
-        .unwrap();
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .unwrap();
 
         if component.is_primitive || component.is_struct_only_component {
             unreachable!("Component doesn't accept template nodes.");
@@ -407,10 +410,10 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
 impl Undo for RemoveTemplateNodeRequest {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         let component = manifest
-        .components
-        .get_mut(&self.uni.get_containing_component_type_id())
-        .unwrap();
-       component.template = self._cached_template.clone();
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .unwrap();
+        component.template = self._cached_template.clone();
         Ok(())
     }
 }
@@ -444,13 +447,18 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
         manifest: &mut PaxManifest,
     ) -> Result<<GetTemplateNodeRequest as Request>::Response, String> {
         let component = manifest
-        .components
-        .get_mut(&self.uni.get_containing_component_type_id())
-        .unwrap();
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .unwrap();
 
         let mut node = None;
         if let Some(template) = &component.template {
-            node = Some(template.get_node(&self.uni.get_template_node_id()).unwrap().clone());
+            node = Some(
+                template
+                    .get_node(&self.uni.get_template_node_id())
+                    .unwrap()
+                    .clone(),
+            );
         }
 
         Ok(GetTemplateNodeResponse {
