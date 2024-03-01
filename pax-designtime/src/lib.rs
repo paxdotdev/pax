@@ -60,6 +60,11 @@ impl DesigntimeManager {
         Ok(())
     }
 
+    pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
+        log::debug!("sent request: {:?}", request);
+        Ok(())
+    }
+
     pub fn add_factory(
         &mut self,
         type_id: String,
