@@ -6,6 +6,7 @@ use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_message::serde::{Deserialize, Serialize};
+use pax_runtime_api::Interpolatable;
 
 #[cfg(feature = "parsing")]
 pub mod utils;
@@ -328,6 +329,10 @@ pub struct TypeId {
     _type_id: String,
     _type_id_escaped: String,
 }
+
+
+impl Interpolatable for TypeId {}
+impl Interpolatable for TemplateNodeId {}
 
 impl Display for TypeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1553,7 +1558,7 @@ pub const IMPORTS_BUILTINS: [&str; 29] = [
     "pax_runtime::api::Color::*",
     "pax_runtime::ComponentInstance",
     "pax_runtime::InstanceNodePtr",
-    "pax_runtime::PropertyExpression",
+    "pax_runtime::api::expressions::PropertyExpression",
     "pax_runtime::InstanceNodePtrList",
     "pax_runtime::ExpressionContext",
     "pax_runtime::PaxEngine",

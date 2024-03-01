@@ -1,5 +1,5 @@
 use crate::api::{Axis, Size, Transform2D};
-use crate::math::{Generic, Transform2, Vector2};
+use crate::api::math::{Generic, Transform2, Vector2};
 use crate::node_interface::NodeLocal;
 use crate::{ExpandedNode, TransformAndBounds};
 
