@@ -1,6 +1,34 @@
-<Text text={self.data.name}/>
-<Rectangle fill={Fill::Solid(Color::rgb(1.0, 0.0, 1.0))}/>
+<Text x=15px class=component_text text={self.data.name}/>
+<Text x={-15px} class=path_text text={self.data.file_path}/>
+<Rectangle fill={Fill::Solid(Color::rgb(0, 0.0, 0.0))} stroke={color: {Color::rgb(0.1, 0.1, 0.1)}, width: 2px}/>
 
 @settings {
-    @click: on_click
+    @mouse_down: on_down
+    .component_text {
+        style: {
+            font_size: 22px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            fill: {Color::rgb(1, 1, 1)},
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+        }
+    }
+
+    .path_text {
+        style: {
+            font_size: 10px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            fill: {Color::rgb(1, 1, 1)},
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
 }
