@@ -74,8 +74,10 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             unreachable!("Component doesn't accept template nodes.");
         }
 
-        let mut template_node = TemplateNodeDefinition::default();
-        template_node.type_id = self.template_node_type_id.clone();
+        let mut template_node = TemplateNodeDefinition {
+            type_id: self.template_node_type_id.clone(),
+            ..Default::default()
+        };
 
         match &self.node_data {
             NodeType::Template(settings) => {
@@ -89,8 +91,10 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             }
         }
 
-        let mut node_data = NodeData::default();
-        node_data.cached_node = template_node.clone();
+        let mut node_data = NodeData {
+            cached_node: template_node.clone(),
+            ..Default::default()
+        };
 
         if let Some(template) = &mut component.template {
             node_data.unique_node_identifier = if let Some(location) = &self.location {
@@ -206,12 +210,13 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
         }
 
         if let Some(template) = &mut component.template {
-            let mut node_data = NodeData::default();
-            node_data.unique_node_identifier = uni.clone();
-            node_data.cached_node = template
-                .get_node(&uni.get_template_node_id())
-                .expect("Cannot update node that doesn't exist")
-                .clone();
+            self._cached_node_data = Some(NodeData {
+                unique_node_identifier: uni.clone(),
+                cached_node: template
+                    .get_node(&uni.get_template_node_id())
+                    .expect("Cannot update node that doesn't exist")
+                    .clone(),
+            });
 
             template.set_node(uni.get_template_node_id(), self.updated_node.clone());
 

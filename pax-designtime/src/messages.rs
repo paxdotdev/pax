@@ -8,7 +8,7 @@ pub enum AgentMessage {
     ComponentSerializationRequest(ComponentSerializationRequest),
     ManifestSerializationAcknowledgement(ManifestSerializationAcknowledgement),
     ManifestSerializationCompletedNotification(ManifestSerializationCompletedNotification),
-    RecompilationRequest(RecompilationRequest),
+    RecompilationRequest(Box<RecompilationRequest>),
     RecompilationAcknowledgement(RecompilationAcknowledgement),
     RecompilationCompletedNotification(RecompilationCompletedNotification),
 }

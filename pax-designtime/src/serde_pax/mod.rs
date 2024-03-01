@@ -9,7 +9,5 @@ const DEGREES: &str = "Degrees";
 const RADIANS: &str = "Radians";
 const PIXELS: &str = "Pixels";
 const PERCENT: &str = "Percent";
-const INTEGER: &str = "Integer";
-const FLOAT: &str = "Float";
 const TRUE: &str = "true";
 const FALSE: &str = "false";
