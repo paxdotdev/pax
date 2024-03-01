@@ -12,6 +12,7 @@ use pax_std::primitives::Ellipse;
 use std::rc::Rc;
 
 pub mod toolbar_item;
+use crate::llm_interface::OpenLLMPrompt;
 use crate::model::action::{Action, ActionContext};
 use crate::model::math::coordinate_spaces::Glass;
 use crate::model::{self, Component, Tool, ToolBehaviour};
@@ -26,6 +27,11 @@ pub struct Toolbar {
     pub entries: Property<Vec<ToolbarItemView>>,
     pub dropdown_active: Property<bool>,
     pub dropdown_entries: Property<Vec<ToolbarItemView>>,
+}
+
+enum ToolbarEvent {
+    SelectTool(Tool),
+    PerformAction(Box<dyn Fn() -> Box<dyn Action>>),
 }
 
 pub struct SelectTool {
@@ -57,22 +63,23 @@ struct ToolbarEntry {
 
 struct ToolbarItem {
     icon: String,
-    tool: Tool,
+    event: ToolbarEvent,
 }
 
-pub enum ToolbarEvent {
+pub enum ToolbarClickEvent {
     Select(usize, usize),
     Dropdown(usize),
 }
+
 thread_local! {
-    static TOOLBAR_CHANNEL: RefCell<Option<ToolbarEvent>> = RefCell::new(None);
+    static TOOLBAR_CHANNEL: RefCell<Option<ToolbarClickEvent>> = RefCell::new(None);
     static TOOLBAR_ENTRIES: RefCell<Vec<ToolbarEntry>> = RefCell::new(
         vec![
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/toolbar/icon-09-pointer.png".to_string(),
-                        tool: Tool::Pointer
+                        event: ToolbarEvent::SelectTool(Tool::Pointer)
                     }
                 ]
             },
@@ -80,11 +87,11 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/toolbar/icon-10-brush.png".to_string(),
-                        tool: Tool::TodoTool
+                        event: ToolbarEvent::SelectTool(Tool::TodoTool)
                     },
                     ToolbarItem {
                         icon: "assets/icons/toolbar/icon-11-pen.png".to_string(),
-                        tool: Tool::TodoTool
+                        event: ToolbarEvent::SelectTool(Tool::TodoTool)
                     }
                 ]
             },
@@ -92,11 +99,11 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/toolbar/icon-12-rect.png".to_string(),
-                        tool: Tool::CreateComponent(Component::Rectangle)
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Rectangle))
                     },
                     ToolbarItem {
                         icon: "assets/icons/tree/tree-icon-03-ellipse.png".to_string(),
-                        tool: Tool::CreateComponent(Component::Ellipse)
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Ellipse))
                     }
                 ]
             },
@@ -104,7 +111,15 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/toolbar/icon-15-checkbox.png".to_string(),
-                        tool: Tool::TodoTool
+                        event: ToolbarEvent::SelectTool(Tool::TodoTool)
+                    },
+                ]
+            },
+            ToolbarEntry {
+                items: vec![
+                    ToolbarItem {
+                        icon: "assets/icons/toolbar/icon-16-speech.png".to_string(),
+                        event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt { require_meta: false })))
                     },
                 ]
             }
@@ -138,13 +153,17 @@ impl Toolbar {
             if let Some(event) = store.take() {
                 self.dropdown_active.set(false);
                 match event {
-                    ToolbarEvent::Select(row, col) => {
-                        model::with_action_context(ctx, |ctx| {
-                            ctx.app_state.selected_tool =
-                                TOOLBAR_ENTRIES.with_borrow(|entries| entries[row].items[col].tool);
+                    ToolbarClickEvent::Select(row, col) => {
+                        let action = TOOLBAR_ENTRIES.with_borrow(|entries| {
+                            let event = &entries[row].items[col].event;
+                            match event {
+                                &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
+                                ToolbarEvent::PerformAction(action_factory) => action_factory(),
+                            }
                         });
+                        model::perform_action(action, ctx);
                     }
-                    ToolbarEvent::Dropdown(row) => {
+                    ToolbarClickEvent::Dropdown(row) => {
                         self.dropdown_active.set(true);
                         TOOLBAR_ENTRIES.with_borrow(|entries| {
                             let items = &entries[row].items;
@@ -172,20 +191,23 @@ impl Toolbar {
         model::read_app_state(|app_state| {
             let tool = app_state.selected_tool;
             TOOLBAR_ENTRIES.with_borrow(|entries| {
-                for (row, entry) in entries.iter().enumerate() {
+                'outer: for (row, entry) in entries.iter().enumerate() {
                     for (col, item) in entry.items.iter().enumerate() {
-                        if item.tool == tool {
-                            self.selected_ind.set(Numeric::from(row));
-                            self.entries.get_mut()[row] = ToolbarItemView {
-                                background: false,
-                                not_dummy: true,
-                                icon: StringBox::from(item.icon.clone()),
-                                more_than_one_item: entry.items.len() > 1,
-                                row,
-                                col,
-                                x: Size::Pixels((row * 65).into()),
-                                y: Size::Pixels(0.into()),
-                            };
+                        if let ToolbarEvent::SelectTool(toolbar_tool) = item.event {
+                            if toolbar_tool == tool {
+                                self.selected_ind.set(Numeric::from(row));
+                                self.entries.get_mut()[row] = ToolbarItemView {
+                                    background: false,
+                                    not_dummy: true,
+                                    icon: StringBox::from(item.icon.clone()),
+                                    more_than_one_item: entry.items.len() > 1,
+                                    row,
+                                    col,
+                                    x: Size::Pixels((row * 65).into()),
+                                    y: Size::Pixels(0.into()),
+                                };
+                                break 'outer;
+                            }
                         }
                     }
                 }
