@@ -37,34 +37,6 @@ where
     Ok(t)
 }
 
-pub fn from_pax_infer<T, COLOR>(str: String) -> Result<T>
-    where
-        T: DeserializeOwned,
-{
-
-
-
-    let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
-
-    match target_type {
-        "Fill" => {
-            //Color -> Fill
-            let maybe_color : Result<pax_runtime::api::Color, _> = T::deserialize(deserializer);
-            if let Ok(color) = maybe_color {
-                let t : T = color.into();
-                Ok(t)
-            }
-        },
-        _ => {
-            let t = T::deserialize(deserializer)?;
-            Ok(t)
-        }
-    };
-
-
-}
-
-
 impl<'de> de::Deserializer<'de> for Deserializer {
     type Error = Error;
 
