@@ -190,6 +190,7 @@ fn recurse_compile_literal_block<'a>(
                         let input_statement = source_map
                             .generate_mapped_string(identifier.token_value.clone(), source_map_id);
 
+                        let output_type = output_type.to_string();
                         ctx.expression_specs.insert(
                             id,
                             ExpressionSpec {
@@ -429,6 +430,7 @@ fn recurse_compile_expressions<'a>(
             } else {
                 return_type.type_id.clone()
             };
+            let output_type = output_type.to_string();
             ctx.expression_specs.insert(
                 id,
                 ExpressionSpec {

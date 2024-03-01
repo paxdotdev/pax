@@ -188,7 +188,7 @@ lazy_static! {
             }],
         );
         type_map.insert(
-            "crate::types::Color".to_string(),
+            "pax_runtime::api::Color".to_string(),
             vec![CompletionItem {
                 label: "Solid Black".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
