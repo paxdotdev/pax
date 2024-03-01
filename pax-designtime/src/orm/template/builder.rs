@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use pax_manifest::{NodeLocation, PropertyDefinition, SettingElement, TemplateNodeDefinition, Token, TokenType, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
+use pax_manifest::{
+    NodeLocation, PropertyDefinition, SettingElement, TemplateNodeDefinition, Token, TokenType,
+    TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde::Serialize;
 
-use super::{
-    AddTemplateNodeRequest, GetTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest
-};
+use super::{AddTemplateNodeRequest, GetTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest};
 use crate::{orm::PaxManifestORM, serde_pax};
 
 /// Builder for creating and modifying template nodes in the PaxManifest.
@@ -38,13 +38,10 @@ impl<'a> NodeBuilder<'a> {
         }
     }
 
-    pub fn retrieve_node(
-        orm: &'a mut PaxManifestORM,
-        uni: UniqueTemplateNodeIdentifier,
-    ) -> Self {
-        let resp = orm.execute_command(GetTemplateNodeRequest {
-            uni: uni.clone(),
-        }).unwrap();
+    pub fn retrieve_node(orm: &'a mut PaxManifestORM, uni: UniqueTemplateNodeIdentifier) -> Self {
+        let resp = orm
+            .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
+            .unwrap();
         if let Some(node) = resp.node {
             let mut property_map = HashMap::new();
             if let NodeType::Template(settings) = node.get_node_type() {
@@ -73,13 +70,18 @@ impl<'a> NodeBuilder<'a> {
         self.unique_node_identifier.clone()
     }
 
-
     pub fn get_all_properties(&self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
-        let properties = self.orm.manifest.get_all_component_properties(&self.node_type_id);
-        let values = properties.iter().map(
-            |prop| {
+        let properties = self
+            .orm
+            .manifest
+            .get_all_component_properties(&self.node_type_id);
+        let values = properties
+            .iter()
+            .map(|prop| {
                 if let Some(index) = self.property_map.get(&prop.name) {
-                    if let Some(SettingElement::Setting(_, value)) = self.settings.as_ref().unwrap().get(*index) {
+                    if let Some(SettingElement::Setting(_, value)) =
+                        self.settings.as_ref().unwrap().get(*index)
+                    {
                         Some(value.clone())
                     } else {
                         None
@@ -87,13 +89,13 @@ impl<'a> NodeBuilder<'a> {
                 } else {
                     None
                 }
-            }
-        ).collect::<Vec<Option<ValueDefinition>>>();
+            })
+            .collect::<Vec<Option<ValueDefinition>>>();
 
         properties.into_iter().zip(values).collect()
     }
 
-    pub fn set_typed_property<T: Serialize>(&mut self, key: &str, value: T)  -> Result<()> {
+    pub fn set_typed_property<T: Serialize>(&mut self, key: &str, value: T) -> Result<()> {
         let value = serde_pax::se::to_pax::<T>(&value)?;
         self.set_property(key, &value)
     }
@@ -106,18 +108,15 @@ impl<'a> NodeBuilder<'a> {
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
         let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
         if let Some(index) = self.property_map.get(key) {
-            self.settings.as_mut().unwrap()[*index] =
-                SettingElement::Setting(token, value);
+            self.settings.as_mut().unwrap()[*index] = SettingElement::Setting(token, value);
         } else {
             if let Some(settings) = &mut self.settings {
                 settings.push(SettingElement::Setting(token, value));
             } else {
                 self.settings = Some(vec![SettingElement::Setting(token, value)]);
             }
-            self.property_map.insert(
-                key.to_string(),
-                self.settings.as_ref().unwrap().len() - 1,
-            );
+            self.property_map
+                .insert(key.to_string(), self.settings.as_ref().unwrap().len() - 1);
         };
         Ok(())
     }
@@ -143,7 +142,6 @@ impl<'a> NodeBuilder<'a> {
         }
     }
 
-
     pub fn set_location(&mut self, location: NodeLocation) {
         self.location = Some(location);
     }
@@ -151,7 +149,9 @@ impl<'a> NodeBuilder<'a> {
     pub fn save(mut self) -> Result<usize, String> {
         let id = if let Some(uni) = self.unique_node_identifier {
             // Node already exists
-            let location = self.location.unwrap_or_else(|| self.orm.manifest.get_node_location(&uni).unwrap());
+            let location = self
+                .location
+                .unwrap_or_else(|| self.orm.manifest.get_node_location(&uni).unwrap());
 
             let updated_node = TemplateNodeDefinition {
                 type_id: self.node_type_id,
@@ -160,12 +160,20 @@ impl<'a> NodeBuilder<'a> {
                 raw_comment_string: None,
             };
 
-            let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(uni, updated_node, Some(location)))?;
+            let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(
+                uni,
+                updated_node,
+                Some(location),
+            ))?;
             resp.command_id
         } else {
             // Node does not exist
-            let resp = self.orm.execute_command(AddTemplateNodeRequest::new(self.containing_component_type_id, self.node_type_id, 
-                    NodeType::Template(self.settings.unwrap_or_default()), self.location))?;
+            let resp = self.orm.execute_command(AddTemplateNodeRequest::new(
+                self.containing_component_type_id,
+                self.node_type_id,
+                NodeType::Template(self.settings.unwrap_or_default()),
+                self.location,
+            ))?;
             self.location = self.orm.manifest.get_node_location(&resp.uni);
             self.unique_node_identifier = Some(resp.uni);
             resp.command_id
