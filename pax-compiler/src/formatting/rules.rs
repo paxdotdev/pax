@@ -412,7 +412,7 @@ impl FormattingRule for SettingsBlockDeclarationDefaultRule {
             );
         }
 
-        let settings = settings.join("\n\n");
+        let settings = settings.join("\n");
         let indented_settings = indent_every_line_of_string(settings);
         formatted_node.push_str(format!("@settings {{\n{}\n}}", indented_settings).as_str());
         formatted_node

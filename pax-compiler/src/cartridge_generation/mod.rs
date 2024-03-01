@@ -53,7 +53,7 @@ pub fn generate_and_overwrite_cartridge(
         .import_paths
         .iter()
         .map(|e| {
-            TypeId::build_singleton(e.clone(), None)
+            TypeId::build_singleton(e, None)
                 .fully_qualify_type_id(host_crate_info)
                 .get_import_path()
                 .unwrap()
