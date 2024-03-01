@@ -6,10 +6,10 @@ if self.visible {
 	    @textbox_input=self.textbox_input
 	    @textbox_change=self.textbox_change
 	    background={Color::rgba(0.1, 0.1, 0.1, 0.7)}
-		border_radius=20.0
+		border_radius=10.0
 		stroke={
 			color: {Color::rgba(0.5, 0.5, 0.5, 1.0)}
-			width: 2px
+			width: 1px
 		}
 	    x=50%
 	    y=50%
