@@ -37,9 +37,9 @@ pub struct Settings {
     pub custom_props: Property<Vec<PropertyDef>>,
 
     // selected template type id
-    pub stid: Property<StringBox>,
+    pub stid: Property<TypeId>,
     // selected template node id
-    pub snid: Property<Numeric>,
+    pub snid: Property<TemplateNodeId>,
 }
 
 #[pax]
@@ -54,27 +54,29 @@ impl Settings {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            let Some(temp_node_id) = app_state.selected_template_node_id else {
+            let Some(ref temp_node_id) = app_state.selected_template_node_id else {
                 self.is_component_selected.set(false);
                 return;
             };
-            let type_id = &app_state.selected_component_id;
+            let type_id = app_state.selected_component_id.clone();
 
             self.is_component_selected.set(true);
 
-            self.stid.set(StringBox::from(type_id));
-            self.snid.set(temp_node_id.into());
+            self.stid.set(type_id.clone());
+            self.snid.set(temp_node_id.clone());
 
-            let (properties, type_name) = ctx
+            let props = ctx
                 .designtime
                 .borrow_mut()
                 .get_orm_mut()
-                .get_node(type_id, temp_node_id)
-                .get_property_definitions()
-                .expect("selected node has properties");
+                .get_node(UniqueTemplateNodeIdentifier::build(
+                    type_id.clone(),
+                    temp_node_id.clone(),
+                ))
+                .get_all_properties();
 
             let mut custom_props = vec![];
-            for (value, name, _type_id) in properties {
+            for (propdef, value) in props {
                 let str_value: String = value
                     .map(|v| match v {
                         ValueDefinition::LiteralValue(Token { raw_value, .. })
@@ -83,7 +85,7 @@ impl Settings {
                         _ => "ERROR: UNSUPPORTED BINDING TYPE".to_owned(),
                     })
                     .unwrap_or("".to_string());
-                match name.as_str() {
+                match propdef.name.as_str() {
                     "x" => self.pos_x.set(StringBox::from(str_value)),
                     "y" => self.pos_y.set(StringBox::from(str_value)),
                     "width" => self.size_width.set(StringBox::from(str_value)),
@@ -102,9 +104,13 @@ impl Settings {
                 }
             }
             self.custom_props.set(custom_props);
-            let (_, name) = type_name.rsplit_once("::").unwrap_or(("", &type_name));
-            self.selected_component_name
-                .set(name.to_uppercase().to_owned());
+            self.selected_component_name.set(
+                type_id
+                    .get_pascal_identifier()
+                    .unwrap_or_else(|| String::from("UNDEFINED"))
+                    .to_uppercase()
+                    .to_owned(),
+            );
         });
     }
 }
