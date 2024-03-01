@@ -32,7 +32,7 @@
 />
 
 @settings {
-1    @mount: handle_mount
+     @mount: handle_mount
      @pre_render: handle_pre_render
      .centered {
         x: 50%
