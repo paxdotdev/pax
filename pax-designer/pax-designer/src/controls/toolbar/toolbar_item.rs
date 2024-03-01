@@ -19,14 +19,14 @@ impl ToolbarItemVisual {
     pub fn on_click(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         super::TOOLBAR_CHANNEL.with_borrow_mut(|store| {
             let data = self.data.get();
-            *store = Some(super::ToolbarEvent::Select(data.row, data.col));
+            *store = Some(super::ToolbarClickEvent::Select(data.row, data.col));
         });
     }
 
     pub fn dropdown(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
         super::TOOLBAR_CHANNEL.with_borrow_mut(|store| {
             let data = self.data.get();
-            *store = Some(super::ToolbarEvent::Dropdown(data.row));
+            *store = Some(super::ToolbarClickEvent::Dropdown(data.row));
         });
     }
 }
