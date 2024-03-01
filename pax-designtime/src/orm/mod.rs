@@ -83,11 +83,7 @@ impl PaxManifestORM {
         containing_component_type_id: TypeId,
         node_type_id: TypeId,
     ) -> NodeBuilder {
-        NodeBuilder::new(
-            self,
-            containing_component_type_id,
-            node_type_id,
-        )
+        NodeBuilder::new(self, containing_component_type_id, node_type_id)
     }
     pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> NodeBuilder {
         NodeBuilder::retrieve_node(self, uni)
@@ -186,10 +182,18 @@ impl UndoRedoCommand {
 
     fn redo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         match self {
-            UndoRedoCommand::AddTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
-            UndoRedoCommand::RemoveTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
-            UndoRedoCommand::UpdateTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
-            UndoRedoCommand::MoveTemplateNodeRequest(command) => {let _ = command.execute(manifest);},
+            UndoRedoCommand::AddTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::RemoveTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::UpdateTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::MoveTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
         }
         Ok(())
     }
