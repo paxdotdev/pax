@@ -65,14 +65,13 @@ impl Settings {
             self.stid.set(type_id.clone());
             self.snid.set(temp_node_id.clone());
 
+            let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
+            pax_engine::log::info!("{:?}", uni);
             let props = ctx
                 .designtime
                 .borrow_mut()
                 .get_orm_mut()
-                .get_node(UniqueTemplateNodeIdentifier::build(
-                    type_id.clone(),
-                    temp_node_id.clone(),
-                ))
+                .get_node(uni)
                 .get_all_properties();
 
             let mut custom_props = vec![];
