@@ -50,7 +50,13 @@ impl Action for PointerAction {
                         Box::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
-                            &TypeId::build_primitive(primitive_name),
+                            &TypeId::build_singleton(
+                                &format!(
+                                    "pax_designer::pax_reexports::pax_std::primitives::{}",
+                                    primitive_name
+                                ),
+                                None,
+                            ),
                         ))
                     }
                     Tool::TodoTool => todo!(),
