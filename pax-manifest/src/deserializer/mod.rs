@@ -14,7 +14,7 @@ pub use error::{Error, Result};
 use crate::utils::{PaxParser, Rule};
 
 use crate::constants::{
-    DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
+    DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE, COLOR
 };
 
 pub struct Deserializer {
@@ -58,6 +58,39 @@ impl<'de> de::Deserializer<'de> for Deserializer {
             Rule::literal_value => {
                 let inner_pair = ast.clone().into_inner().next().unwrap();
                 match inner_pair.as_rule() {
+                    Rule::literal_color => {
+                        // literal_color = {literal_color_space_func | literal_color_const}
+                        let what_kind_of_color = inner_pair.into_inner().next().unwrap();
+                        match what_kind_of_color.as_rule() {
+                            Rule::literal_color_space_func => {
+                                let mut lcsf_pairs = what_kind_of_color.into_inner();
+                                let func = lcsf_pairs.next().unwrap().as_str().to_string().replace("(", "");
+                                let args = if func == "rgb" || func == "hsl" {
+                                    //three args
+                                    vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
+                                } else {
+                                    //four args
+                                    vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
+                                };
+
+                                visitor.visit_enum(PaxEnum::new(
+                                    COLOR.to_string(),
+                                    func.as_str().to_string(),
+                                    Some(args)
+                                ))
+                            }
+                            Rule::literal_color_const => {
+                                let color_const = what_kind_of_color.into_inner().next().unwrap();
+
+                                visitor.visit_enum(PaxEnum::new(
+                                    COLOR.to_string(),
+                                    color_const.to_string(),
+                                    None
+                                ))
+                            },
+                            _ => {unreachable!()}
+                        }
+                    }
                     Rule::literal_number => {
                         let number = inner_pair.into_inner().next().unwrap();
                         match number.as_rule() {

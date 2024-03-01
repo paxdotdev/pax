@@ -103,7 +103,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             Box::new(IdentifierCallDefaultRule),
         ],
         Rule::event_id => vec![Box::new(EventIdDefaultRule)],
-        Rule::literal_enum_args_list | Rule::xo_enum_or_function_args_list => vec![
+        Rule::literal_enum_args_list | Rule::xo_enum_or_function_args_list | Rule::literal_color | Rule::xo_color => vec![
             Box::new(ArgsListMultiLineRule),
             Box::new(ArgsListDefaultRule),
         ],
@@ -138,6 +138,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::closing_tag
         | Rule::xo_symbol
         | Rule::id_binding
+        | Rule::literal_color_channel
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
         Rule::identifier
@@ -164,6 +165,9 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::xo_tern_then
         | Rule::xo_tern_else
         | Rule::xo_range
+        | Rule::literal_color_space_func
+        | Rule::xo_color_space_func
+        | Rule::xo_color_channel
         | Rule::xo_range_exclusive => vec![Box::new(PrintRule)],
 
         Rule::expression_wrapped
@@ -176,6 +180,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::WHITESPACE
         | Rule::id
         | Rule::silent_comma
+        | Rule::literal_color_const
         | Rule::empty => vec![Box::new(IgnoreRule)],
 
         Rule::string => vec![Box::new(DoNotIndentRule)],

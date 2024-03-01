@@ -10,6 +10,7 @@ pub const PERCENT: &str = "Percent";
 pub const INTEGER: &str = "Integer";
 pub const FLOAT: &str = "Float";
 pub const TRUE: &str = "true";
+pub const COLOR: &str = "Color";
 
 pub const TYPE_ID_IF: &str = "IF";
 pub const TYPE_ID_REPEAT: &str = "REPEAT";
