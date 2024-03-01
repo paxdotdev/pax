@@ -119,16 +119,21 @@ literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 /// BEGIN COLORS, STROKES, & FILLS
 //////
 
-
-
 //Notes on gradients:
-// 1. if we're unplugging gradients, perhaps we should just set Rectangle's `fill` type to be Color?
-// 2. when we support object literal syntax for gradients, can we just rely on the vanilla Rust structs instead of re-inventing
-//    an object literal syntax in the grammar?  in particular, it would be nice to support the sugared syntax of number+percentage as keys
-
+//  - when we support object literal syntax for gradients, can we just rely on the vanilla Rust structs instead of re-inventing
+//    an object literal syntax in the grammar?  in particular, it would be nice to support the sugared syntax of number+percentage as keys,
+//    but perhaps we could do that e.g. by desugaring `{0%: "bar", 100%: "foo" }` into `[(0%, "bar"),(100%, "foo")]`, akin to how
+//    you can construct a HashMap from a vec of k/v tuples in Rust.  Thus, you could express a LinearGradient as
+//    LinearGradient {start: (0,0), stops: {0%: RED, 100%: BLUE}, end: (100%,100%)}
 
 //Now let's say we can parse a `Rule::fill` — this gives us the ability to deserialize directly into a Fill,
 //starting with a hard-coded Fill::Solid, instead of being "some kind of literal, which we hope is a Fill"
+//What about the case where we just want a Color, though?  (e.g. the color property on a Stroke)
+//If we're shrinkwrapping the `fill` rule, we run into a different shape of the same problem
+//Recalling that our primary problem was the inability to know we have a Color in the first place, perhaps
+//the special color (as opposed to fill) parsing logic is sufficient —we parse as a Color, then call .into(), which
+//should support making its way into Fill
+
 fill = { /*linear_gradient | radial_gradient |*/ color }
 color = {color_space_func | color_const }
 color_space_func = {
