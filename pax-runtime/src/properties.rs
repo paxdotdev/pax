@@ -1,5 +1,5 @@
 use crate::api::Window;
-use crate::math::Point2;
+use crate::api::math::Point2;
 use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
@@ -241,4 +241,12 @@ pub fn get_numeric_from_wrapped_properties(wrapped: Rc<RefCell<dyn Any>>) -> Num
     } else {
         panic!("Non-Numeric passed; tried to coerce into Numeric")
     }
+}
+
+/// Data structure used for dynamic injection of values
+/// into Expressions, maintaining a pointer e.g. to the current
+/// stack frame to enable evaluation of properties & dependencies
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct ExpressionContext {
+    pub stack_frame: Rc<RuntimePropertiesStackFrame>,
 }

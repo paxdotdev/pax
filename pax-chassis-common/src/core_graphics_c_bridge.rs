@@ -9,7 +9,7 @@ use std::mem::{transmute, ManuallyDrop};
 use std::rc::Rc;
 
 use core_graphics::context::CGContext;
-use pax_runtime::math::Point2;
+use pax_runtime::api::math::Point2;
 use piet_coregraphics::CoreGraphicsContext;
 
 use flexbuffers;

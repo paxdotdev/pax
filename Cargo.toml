@@ -12,6 +12,7 @@ members = [
     "pax-chassis-common",
     "pax-engine",
     "pax-runtime",
+    "pax-runtime-api",
     "pax-macro",
     "pax-message",
     "pax-compiler",
