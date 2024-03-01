@@ -19,24 +19,18 @@ use pax_engine::{
     math::{Point2, Space, Vector2},
     serde,
 };
+use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
 
 pub struct CreateComponent {
     pub bounds: AxisAlignedBox<World>,
-    pub type_id: String,
+    pub type_id: TypeId,
 }
 impl Action for CreateComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = ctx.engine_context.designtime.borrow_mut();
-        let Some((_, name)) = self.type_id.rsplit_once("::") else {
-            panic!("couldn't create object - type_id weird format")
-        }; //"pax_designer::pax_reexports::pax_std::primitives::Rectangle"
-        let name = name.to_owned();
-        let mut builder = dt.get_orm_mut().build_new_node(
-            ctx.app_state.selected_component_id.clone(),
-            self.type_id,
-            name,
-            None,
-        );
+        let mut builder = dt
+            .get_orm_mut()
+            .build_new_node(ctx.app_state.selected_component_id.clone(), self.type_id);
         builder.set_property("x", &to_pixels(self.bounds.top_left().x))?;
         builder.set_property("y", &to_pixels(self.bounds.top_left().y))?;
         builder.set_property("width", &to_pixels(self.bounds.width()))?;
@@ -64,12 +58,16 @@ impl Action for MoveSelected {
         let selected = ctx
             .app_state
             .selected_template_node_id
+            .clone()
             .expect("executed action MoveSelected without a selected object");
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
         let mut builder = dt
             .get_orm_mut()
-            .get_node(&ctx.app_state.selected_component_id, selected);
+            .get_node(UniqueTemplateNodeIdentifier::build(
+                ctx.app_state.selected_component_id.clone(),
+                selected,
+            ));
 
         builder.set_property("x", &to_pixels(self.point.x))?;
         builder.set_property("y", &to_pixels(self.point.y))?;
@@ -110,10 +108,14 @@ impl Action for ResizeSelected {
         let selected = ctx
             .app_state
             .selected_template_node_id
+            .clone()
             .expect("executed action ResizeSelected without a selected object");
         let mut builder = dt
             .get_orm_mut()
-            .get_node(&ctx.app_state.selected_component_id, selected);
+            .get_node(UniqueTemplateNodeIdentifier::build(
+                ctx.app_state.selected_component_id.clone(),
+                selected,
+            ));
 
         if self.attachment_point.y.abs() > f64::EPSILON {
             builder.set_property("y", &to_pixels(new_origin_relative.y))?;
@@ -164,10 +166,14 @@ impl Action for RotateSelected {
         let selected = ctx
             .app_state
             .selected_template_node_id
+            .clone()
             .expect("executed action ResizeSelected without a selected object");
         let mut builder = dt
             .get_orm_mut()
-            .get_node(&ctx.app_state.selected_component_id, selected);
+            .get_node(UniqueTemplateNodeIdentifier::build(
+                ctx.app_state.selected_component_id.clone(),
+                selected,
+            ));
 
         builder.set_property("rotate", &format!("{}deg", angle_deg))?;
         builder

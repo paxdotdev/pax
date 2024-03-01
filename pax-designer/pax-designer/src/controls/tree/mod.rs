@@ -1,5 +1,6 @@
 use pax_engine::api::*;
 use pax_engine::*;
+use pax_manifest::{ComponentTemplate, PaxType, TemplateNodeId, TypeId};
 use pax_std::components::Stacker;
 use pax_std::components::*;
 use pax_std::primitives::Text;
@@ -111,60 +112,68 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    fn to_tree(root: usize, graph: &HashMap<usize, (String, Vec<usize>)>) -> TreeEntry {
-        let (name, children) = &graph[&root];
-
-        TreeEntry(
-            match name.as_str() {
-                "pax_designer::pax_reexports::pax_std::primitives::Group" => Desc::Group,
-                "pax_designer::pax_reexports::pax_std::primitives::Frame" => Desc::Frame,
-                "pax_designer::pax_reexports::pax_std::primitives::Ellipse" => Desc::Ellipse,
-                "pax_designer::pax_reexports::pax_std::primitives::Text" => Desc::Text,
-                "pax_designer::pax_reexports::pax_std::primitives::Stacker" => Desc::Stacker,
-                "pax_designer::pax_reexports::pax_std::primitives::Rectangle" => Desc::Rectangle,
-                "pax_designer::pax_reexports::pax_std::primitives::Path" => Desc::Path,
-                "pax_designer::pax_reexports::pax_std::primitives::Textbox" => Desc::Textbox,
-                "pax_designer::pax_reexports::pax_std::primitives::Checkbox" => Desc::Checkbox,
-                "pax_designer::pax_reexports::pax_std::primitives::Scroller" => Desc::Scroller,
-                "pax_designer::pax_reexports::pax_std::primitives::Button" => Desc::Button,
-                "pax_designer::pax_reexports::pax_std::primitives::Image" => Desc::Image,
-                "pax_designer::pax_reexports::pax_std::primitives::Slider" => Desc::Slider,
-                "pax_designer::pax_reexports::pax_std::primitives::Dropdown" => Desc::Dropdown,
-                other => Desc::Component(
-                    other
-                        .rsplit_once("::")
-                        .unwrap_or(("", &other))
-                        .1
-                        .to_string(),
-                ),
-            },
-            children
-                .iter()
-                .filter(|id| graph[id].0 != "COMMENT")
-                .map(|&id| Self::to_tree(id, graph))
-                .collect(),
-        )
+    fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> TreeEntry {
+        let node = component_template.get_node(tnid).unwrap();
+        let children = component_template
+            .get_children(tnid)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|c_tnid| {
+                let child = component_template.get_node(c_tnid)?;
+                if child.type_id.get_pax_type() == &PaxType::Comment {
+                    None
+                } else {
+                    Some(Self::to_tree(c_tnid, component_template))
+                }
+            })
+            .collect();
+        let node_type = Self::resolve_tree_type(node.type_id.clone());
+        TreeEntry(node_type, children)
     }
 
-    pub fn set_tree(&mut self, type_id: &str, ctx: &NodeContext) {
+    fn resolve_tree_type(type_id: TypeId) -> Desc {
+        match type_id
+            .import_path()
+            .unwrap()
+            .trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::")
+        {
+            "Group" => Desc::Group,
+            "Frame" => Desc::Frame,
+            "Ellipse" => Desc::Ellipse,
+            "Text" => Desc::Text,
+            "Stacker" => Desc::Stacker,
+            "Rectangle" => Desc::Rectangle,
+            "Path" => Desc::Path,
+            "Textbox" => Desc::Textbox,
+            "Checkbox" => Desc::Checkbox,
+            "Scroller" => Desc::Scroller,
+            "Button" => Desc::Button,
+            "Image" => Desc::Image,
+            "Slider" => Desc::Slider,
+            "Dropdown" => Desc::Dropdown,
+            _ => Desc::Component(type_id.get_pascal_identifier().unwrap()),
+        }
+    }
+
+    pub fn set_tree(&mut self, type_id: TypeId, ctx: &NodeContext) {
         self.is_project_loaded.set(true);
         let dt = ctx.designtime.borrow_mut();
-        let graph = dt
-            .get_orm()
-            .get_component(type_id)
-            .as_ref()
-            .expect("has component")
-            .template
-            .as_ref()
-            .expect("has template")
-            .iter()
-            .map(|(&k, v)| (k, (v.type_id.to_owned(), v.child_ids.to_owned())))
-            .collect();
+        let comps = dt.get_orm().get_components();
+        pax_engine::log::info!("{:?}", comps);
+        let Ok(comp) = dt.get_orm().get_component(&type_id) else {
+            return;
+        };
+        let Some(template) = comp.template.as_ref() else {
+            return;
+        };
         let mut ind = 0;
-        let flattened: Vec<FlattenedTreeEntry> = Self::to_tree(0, &graph)
-            .1
-            .into_iter()
-            .flat_map(|v| v.flatten(&mut ind, 0))
+        let flattened: Vec<FlattenedTreeEntry> = template
+            .get_root()
+            .iter()
+            .flat_map(|tnid| {
+                let tree = Self::to_tree(tnid, &template);
+                tree.flatten(&mut ind, 0)
+            })
             .collect();
         self.tree_objects.set(flattened.clone());
         self.visible_tree_objects.set(flattened);
@@ -195,7 +204,8 @@ impl Tree {
         // }
         model::read_app_state(|app_state| {
             let type_id = &app_state.selected_component_id;
-            self.set_tree(type_id, ctx);
+            pax_engine::log::info!("{:?}", type_id);
+            self.set_tree(type_id.clone(), ctx);
         });
     }
 }

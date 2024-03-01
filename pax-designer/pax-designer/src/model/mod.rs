@@ -17,6 +17,8 @@ use pax_designtime::DesigntimeManager;
 use pax_engine::api::MouseButton;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
+use pax_manifest::TemplateNodeId;
+use pax_manifest::TypeId;
 use pax_std::types::Color;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -45,8 +47,11 @@ impl GlobalDesignerState {
     fn new() -> Self {
         Self {
             app_state: AppState {
-                selected_component_id: "pax_designer::pax_reexports::designer_project::Example"
-                    .to_owned(),
+                selected_component_id: TypeId::build_singleton(
+                    "pax_designer::pax_reexports::designer_project::Example",
+                    None,
+                )
+                .to_owned(),
                 ..Default::default()
             },
             ..Default::default()
@@ -72,11 +77,11 @@ pub struct AppState {
     //---------------global-----------------
     /// The component currently being viewed and edited in the glass
     /// INVALID_IF: String doesn't correspond to a component path
-    pub selected_component_id: String,
+    pub selected_component_id: TypeId,
     /// Currently selected template node inside the current component
     /// INVALID_IF: usize doesn't correspond to an id in the component with id
     /// selected_component_id
-    pub selected_template_node_id: Option<usize>,
+    pub selected_template_node_id: Option<TemplateNodeId>,
 
     //---------------glass------------------
     /// Glass to world/viewport to world camera transform.
