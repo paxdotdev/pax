@@ -76,9 +76,9 @@ pub fn get_common_properties_type_ids() -> Vec<TypeId> {
         if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path)
             || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path)
         {
-            ret.push(TypeId::build_primitive(import_path.to_string()));
+            ret.push(TypeId::build_primitive(import_path));
         } else {
-            ret.push(TypeId::build_singleton(import_path.to_string(), None));
+            ret.push(TypeId::build_singleton(import_path, None));
         }
     }
     ret
@@ -93,13 +93,13 @@ pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition
             ret.push(PropertyDefinition {
                 name: cp.to_string(),
                 flags: Default::default(),
-                type_id: TypeId::build_primitive(import_path.to_string()),
+                type_id: TypeId::build_primitive(import_path),
             });
         } else {
             ret.push(PropertyDefinition {
                 name: cp.to_string(),
                 flags: Default::default(),
-                type_id: TypeId::build_singleton(import_path.to_string(), None),
+                type_id: TypeId::build_singleton(import_path, None),
             });
         }
     }
@@ -367,63 +367,69 @@ impl TypeId {
         }
     }
 
-    pub fn build_singleton(import_path: String, pascal_identifier: Option<String>) -> Self {
+    pub fn build_singleton(import_path: &str, pascal_identifier: Option<&str>) -> Self {
         let pascal_identifier = if let Some(p) = pascal_identifier {
-            p
+            p.to_owned()
         } else {
             import_path.split("::").last().unwrap().to_string()
         };
 
         Self {
             pax_type: PaxType::Singleton { pascal_identifier },
-            import_path: Some(import_path.clone()),
-            _type_id: import_path.clone(),
-            _type_id_escaped: escape_identifier(import_path.clone()),
+            import_path: Some(import_path.to_owned()),
+            _type_id: import_path.to_owned(),
+            _type_id_escaped: escape_identifier(import_path.to_owned()),
         }
     }
 
-    pub fn build_primitive(identifier: String) -> Self {
+    pub fn build_primitive(identifier: &str) -> Self {
         TypeId {
             pax_type: PaxType::Primitive {
-                pascal_identifier: identifier.clone(),
+                pascal_identifier: identifier.to_owned(),
             },
             import_path: None,
-            _type_id: identifier.clone(),
-            _type_id_escaped: identifier.clone(),
+            _type_id: identifier.to_owned(),
+            _type_id_escaped: identifier.to_owned(),
         }
     }
 
-    pub fn build_vector(elem_identifier: String) -> Self {
+    pub fn build_vector(elem_identifier: &str) -> Self {
         let _id = format!("std::vec::Vec<{}>", elem_identifier);
         Self {
-            pax_type: PaxType::Vector { elem_identifier },
+            pax_type: PaxType::Vector {
+                elem_identifier: elem_identifier.to_owned(),
+            },
             import_path: Some("std::vec::Vec".to_string()),
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
     }
 
-    pub fn build_range(identifier: String) -> Self {
+    pub fn build_range(identifier: &str) -> Self {
         let _id = format!("std::ops::Range<{}>", identifier);
         Self {
-            pax_type: PaxType::Range { identifier },
+            pax_type: PaxType::Range {
+                identifier: identifier.to_owned(),
+            },
             import_path: Some("std::ops::Range".to_string()),
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
     }
 
-    pub fn build_option(identifier: String) -> Self {
+    pub fn build_option(identifier: &str) -> Self {
         let _id = format!("std::option::Option<{}>", identifier);
         Self {
-            pax_type: PaxType::Option { identifier },
+            pax_type: PaxType::Option {
+                identifier: identifier.to_owned(),
+            },
             import_path: Some("std::option::Option".to_string()),
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
     }
 
-    pub fn build_map(key_identifier: String, value_identifier: String) -> Self {
+    pub fn build_map(key_identifier: &str, value_identifier: &str) -> Self {
         let _id = format!(
             "std::collections::HashMap<{}><{}>",
             key_identifier.clone(),
@@ -431,8 +437,8 @@ impl TypeId {
         );
         Self {
             pax_type: PaxType::Map {
-                key_identifier,
-                value_identifier,
+                key_identifier: key_identifier.to_owned(),
+                value_identifier: value_identifier.to_owned(),
             },
             import_path: Some("std::collections::HashMap".to_string()),
             _type_id: _id.clone(),
@@ -991,16 +997,13 @@ pub fn get_primitive_type_table() -> TypeTable {
     let mut ret: TypeTable = Default::default();
 
     SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
-        ret.insert(
-            TypeId::build_primitive(snp.to_string()),
-            TypeDefinition::primitive(snp),
-        );
+        ret.insert(TypeId::build_primitive(snp), TypeDefinition::primitive(snp));
     });
     SUPPORTED_NONNUMERIC_PRIMITIVES
         .into_iter()
         .for_each(|snnp| {
             ret.insert(
-                TypeId::build_primitive(snnp.to_string()),
+                TypeId::build_primitive(snnp),
                 TypeDefinition::primitive(snnp),
             );
         });
@@ -1083,7 +1086,7 @@ impl PropertyDefinition {
         PropertyDefinition {
             name: symbol_name.to_string(),
             flags: PropertyDefinitionFlags::default(),
-            type_id: TypeId::build_primitive(type_name.to_string()),
+            type_id: TypeId::build_primitive(type_name),
         }
     }
 }
@@ -1107,7 +1110,7 @@ pub struct TypeDefinition {
 impl TypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
         Self {
-            type_id: TypeId::build_primitive(type_name.to_string()),
+            type_id: TypeId::build_primitive(type_name),
             property_definitions: vec![],
             inner_iterable_type_id: None,
         }
@@ -1116,7 +1119,7 @@ impl TypeDefinition {
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: TypeId) -> Self {
         Self {
-            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>".to_string()),
+            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>"),
             property_definitions: vec![],
             inner_iterable_type_id: Some(inner_iterable_type_id),
         }
@@ -1124,9 +1127,9 @@ impl TypeDefinition {
 
     pub fn builtin_range_isize() -> Self {
         Self {
-            type_id: TypeId::build_range("isize".to_string()),
+            type_id: TypeId::build_range("isize"),
             property_definitions: vec![],
-            inner_iterable_type_id: Some(TypeId::build_primitive("isize".to_string())),
+            inner_iterable_type_id: Some(TypeId::build_primitive("isize")),
         }
     }
 }

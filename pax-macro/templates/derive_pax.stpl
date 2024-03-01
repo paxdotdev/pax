@@ -63,7 +63,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
     }
 
     fn get_type_id() -> pax_manifest::TypeId {
-       pax_manifest::TypeId::build_singleton(Self::get_import_path(), Some(Self::get_self_pascal_identifier()))
+       pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
     }
 
     fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {

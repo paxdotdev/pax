@@ -6,6 +6,7 @@ use std::ops::{Add, Deref, Mul, Neg};
 use std::rc::Rc;
 
 use kurbo::BezPath;
+use pax_manifest::UniqueTemplateNodeIdentifier;
 use piet::PaintBrush;
 
 use crate::math::Space;
@@ -169,10 +170,8 @@ impl NodeContext<'_> {
             .collect()
     }
 
-    pub fn get_nodes_by_global_id(&self, type_id: &str, template_id: usize) -> Vec<NodeInterface> {
-        let expanded_nodes = self
-            .runtime_context
-            .get_expanded_nodes_by_global_ids(type_id, template_id);
+    pub fn get_nodes_by_global_id(&self, uni: UniqueTemplateNodeIdentifier) -> Vec<NodeInterface> {
+        let expanded_nodes = self.runtime_context.get_expanded_nodes_by_global_ids(uni);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
