@@ -367,6 +367,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for a most types, like `Stacker` or `SpecialComponent`
     pub fn build_singleton(import_path: &str, pascal_identifier: Option<&str>) -> Self {
         let pascal_identifier = if let Some(p) = pascal_identifier {
             p.to_owned()
@@ -382,6 +383,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for rust primitives like `u8` or `String`
     pub fn build_primitive(identifier: &str) -> Self {
         TypeId {
             pax_type: PaxType::Primitive {
@@ -393,6 +395,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for vector types like `Vec<Color>`
     pub fn build_vector(elem_identifier: &str) -> Self {
         let _id = format!("std::vec::Vec<{}>", elem_identifier);
         Self {
@@ -405,6 +408,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for range types like `std::ops::Range<Color>`
     pub fn build_range(identifier: &str) -> Self {
         let _id = format!("std::ops::Range<{}>", identifier);
         Self {
@@ -417,6 +421,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for option types like `std::option::Option<Color>`
     pub fn build_option(identifier: &str) -> Self {
         let _id = format!("std::option::Option<{}>", identifier);
         Self {
@@ -429,6 +434,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for map types like `std::collections::HashMap<String><Color>`
     pub fn build_map(key_identifier: &str, value_identifier: &str) -> Self {
         let _id = format!(
             "std::collections::HashMap<{}><{}>",
@@ -511,6 +517,8 @@ impl TypeId {
         }
     }
 
+    /// Adds re-export information to this type-id which is sometimes not know at creation time
+    /// Once qualified a type-id can be used to fully import a type in the cartridge
     pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
         if let Some(path) = self.get_import_path() {
             self.import_path = Self::fully_qualify_id(host_crate_info, path);
