@@ -99,8 +99,8 @@ settings_value = { literal_value | literal_object | expression_wrapped }
 literal_function = { ("self." | "this.")? ~ identifier }
 silent_comma = _{","}
 
-function_list = {"[" ~ (literal_function ~ silent_comma?)* ~ "]"}
-literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
+function_list = {"[" ~ literal_function* ~ "]"}
+literal_value = { literal_color | literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_boolean = {("true" | "false")}
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
@@ -116,7 +116,7 @@ literal_enum_value = {identifier ~ ("::" ~ identifier)* ~ ("("~literal_enum_args
 literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
 ////// ////// //////
-/// BEGIN COLORS, STROKES, & FILLS
+/// BEGIN COLORS
 //////
 
 //Notes on gradients:
@@ -126,27 +126,25 @@ literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 //    you can construct a HashMap from a vec of k/v tuples in Rust.  Thus, you could express a LinearGradient as
 //    LinearGradient {start: (0,0), stops: {0%: RED, 100%: BLUE}, end: (100%,100%)}
 
-//Now let's say we can parse a `Rule::fill` — this gives us the ability to deserialize directly into a Fill,
-//starting with a hard-coded Fill::Solid, instead of being "some kind of literal, which we hope is a Fill"
-//What about the case where we just want a Color, though?  (e.g. the color property on a Stroke)
-//If we're shrinkwrapping the `fill` rule, we run into a different shape of the same problem
-//Recalling that our primary problem was the inability to know we have a Color in the first place, perhaps
-//the special color (as opposed to fill) parsing logic is sufficient —we parse as a Color, then call .into(), which
-//should support making its way into Fill
-
-fill = { /*linear_gradient | radial_gradient |*/ color }
-color = {color_space_func | color_const }
-color_space_func = {
-	(("rgb(" | "hsl(") ~  color_channel ~ "," ~ color_channel ~ "," ~ color_channel ~ ","? ~ ")") |
-	(("rgba(" | "hsla(") ~ color_channel ~ "," ~ color_channel ~ "," ~ color_channel ~ "," ~ color_channel ~ ","? ~ ")")
+//Literal colors
+literal_color = {literal_color_space_func | literal_color_const}
+literal_color_space_func = {
+    (("rgb(" | "hsl(") ~ literal_color_channel ~ "," ~ literal_color_channel ~ "," ~ literal_color_channel ~ ","? ~ ")") |
+	(("rgba(" | "hsla(") ~ literal_color_channel ~ "," ~ literal_color_channel ~ "," ~ literal_color_channel ~ "," ~ literal_color_channel ~ ","? ~ ")")
 }
-color_channel = {color_channel_literal | expression_body}
-
 // Valid units include integers 0-255, 0-100%, and arbitrary numeric deg/rad (for hue, which is expressed as an angle)
-color_channel_literal = {literal_number_with_unit | literal_number_integer}
+literal_color_channel = {literal_number_with_unit | literal_number_integer}
+
+//Expression-friendly colors
+xo_color = {xo_color_space_func | literal_color_const}
+xo_color_space_func = {
+	(("rgb(" | "hsl(") ~  xo_color_channel ~ "," ~ xo_color_channel ~ "," ~ xo_color_channel ~ ","? ~ ")") |
+	(("rgba(" | "hsla(") ~ xo_color_channel ~ "," ~ xo_color_channel ~ "," ~ xo_color_channel ~ "," ~ xo_color_channel ~ ","? ~ ")")
+}
+xo_color_channel = {literal_color_channel | expression_body}
 
 // Color constants inspired by Tailwind
-color_const = {
+literal_color_const = {
     "SLATE" |
     "GRAY" |
     "ZINC" |
