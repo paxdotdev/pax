@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 
-use crate::{controls::toolbar, glass};
+use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::{
     action::{self, meta::ActionSet, world, Action, ActionContext, CanUndo},
@@ -31,6 +31,7 @@ impl Default for InputMapper {
                 (RawInput::Alt, InputEvent::Alt),
                 (RawInput::Meta, InputEvent::Meta),
                 (RawInput::Shift, InputEvent::Shift),
+                (RawInput::K, InputEvent::OpenLLMPrompt),
             ]),
         }
     }
@@ -48,6 +49,9 @@ impl InputMapper {
             }
             (&InputEvent::Plus, Dir::Down) => Some(Box::new(world::Zoom { closer: true })),
             (&InputEvent::Minus, Dir::Down) => Some(Box::new(world::Zoom { closer: false })),
+            (&InputEvent::OpenLLMPrompt, Dir::Down) => {
+                Some(Box::new(OpenLLMPrompt { require_meta: true }))
+            }
             _ => None,
         }
     }
@@ -73,6 +77,7 @@ pub enum RawInput {
     Z,
     Meta,
     Shift,
+    K,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -85,6 +90,7 @@ impl TryFrom<String> for RawInput {
             "r" => Self::R,
             "v" => Self::V,
             "z" => Self::Z,
+            "k" => Self::K,
             " " => Self::Space,
             "Control" => Self::Control,
             "=" => Self::Plus,
@@ -110,4 +116,5 @@ pub enum InputEvent {
     Alt,
     Meta,
     Shift,
+    OpenLLMPrompt,
 }
