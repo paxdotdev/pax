@@ -518,7 +518,7 @@ fn resolve_symbol_as_invocation(
         let root_prop_def = prop_def_chain.first().unwrap();
 
         let fully_qualified_properties_struct_type =
-            ctx.component_def.type_id.get_import_path().unwrap();
+            ctx.component_def.type_id.import_path().unwrap();
 
         let fully_qualified_iterable_type = if root_prop_def.flags.is_binding_repeat_elem {
             root_prop_def.type_id.get_unique_identifier()

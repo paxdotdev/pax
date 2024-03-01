@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use pax_manifest::{escape_identifier, ComponentTemplate, TreeLocation, TypeId};
+use pax_manifest::{escape_identifier, ComponentTemplate, TemplateNodeId, TreeLocation, TypeId};
 
 use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
@@ -1416,6 +1416,40 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_option(&format!("{}{}", "{PREFIX}", &T::get_type_id()))
+    }
+}
+
+impl Reflectable for TypeId {
+    fn get_import_path() -> String {
+        "pax_manifest::TypeId".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "TypeId".to_string()
+    }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
+        )
+    }
+}
+
+impl Reflectable for TemplateNodeId {
+    fn get_import_path() -> String {
+        "pax_manifest::TemplateNodeId".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "TemplateNodeId".to_string()
+    }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
+        )
     }
 }
 

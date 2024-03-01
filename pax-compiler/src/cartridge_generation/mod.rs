@@ -55,7 +55,7 @@ pub fn generate_and_overwrite_cartridge(
         .map(|e| {
             TypeId::build_singleton(e, None)
                 .fully_qualify_type_id(host_crate_info)
-                .get_import_path()
+                .import_path()
                 .unwrap()
         })
         .collect();
