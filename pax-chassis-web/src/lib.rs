@@ -6,9 +6,9 @@ use pax_message::ImageLoadInterruptArgs;
 use pax_runtime::api::ButtonClick;
 use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::RenderContext;
+use pax_runtime::api::math::Point2;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::TextboxInput;
-use pax_runtime::math::Point2;
 use pax_runtime::ExpressionTable;
 use std::cell::RefCell;
 

@@ -20,3 +20,4 @@ mut_static = "5.0.0"
 pax-message = {path = "../pax-message", version="0.12.3"}
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 pax-manifest = {version="0.12.3", path = "../pax-manifest"}
+pax-runtime-api = {version="0.12.3", path = "../pax-runtime-api"}

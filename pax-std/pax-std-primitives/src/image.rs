@@ -1,4 +1,4 @@
-use pax_runtime::{api::RenderContext, math::Point2};
+use pax_runtime::{api::RenderContext, api::math::Point2};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 

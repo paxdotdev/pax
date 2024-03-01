@@ -17,6 +17,8 @@ use crate::constants::{
     DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE, COLOR
 };
 
+use pax_runtime_api::Color;
+
 pub struct Deserializer {
     input: String,
 }
@@ -35,6 +37,13 @@ where
     let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
     let t = T::deserialize(deserializer)?;
     Ok(t)
+}
+
+fn color_visitor<'de, V>(visitor: V) -> V
+    where
+        V: Visitor<'de, Value = Color>,
+{
+    visitor
 }
 
 impl<'de> de::Deserializer<'de> for Deserializer {
@@ -59,6 +68,9 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                 let inner_pair = ast.clone().into_inner().next().unwrap();
                 match inner_pair.as_rule() {
                     Rule::literal_color => {
+
+
+
                         // literal_color = {literal_color_space_func | literal_color_const}
                         let what_kind_of_color = inner_pair.into_inner().next().unwrap();
                         match what_kind_of_color.as_rule() {
@@ -73,11 +85,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                     vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
                                 };
 
-                                //TODO: import color
-                                //      - once again, break out pax-runtime-api into its own crate
-                                //      - reexport it through pax_runtime, to keep consumers happy
-                                //      - import it directly here, without circ. dep
-                                let explicit_color : Color = visitor.visit_enum(PaxEnum::new(
+                                let explicit_color = visitor.visit_enum(PaxEnum::new(
                                     COLOR.to_string(),
                                     func.as_str().to_string(),
                                     Some(args)
@@ -87,7 +95,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                             Rule::literal_color_const => {
                                 let color_const = what_kind_of_color.into_inner().next().unwrap();
 
-                                let explicit_color : Color = visitor.visit_enum(PaxEnum::new(
+                                let explicit_color = visitor.visit_enum(PaxEnum::new(
                                     COLOR.to_string(),
                                     color_const.to_string(),
                                     None

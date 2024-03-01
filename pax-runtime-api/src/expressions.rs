@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use crate::properties::RuntimePropertiesStackFrame;
-
-use crate::api::{
+use crate::{
     EasingCurve, PropertyInstance, PropertyType, TransitionManager, TransitionQueueEntry,
 };
 
@@ -93,10 +91,3 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     }
 }
 
-/// Data structure used for dynamic injection of values
-/// into Expressions, maintaining a pointer e.g. to the current
-/// stack frame to enable evaluation of properties & dependencies
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct ExpressionContext {
-    pub stack_frame: Rc<RuntimePropertiesStackFrame>,
-}

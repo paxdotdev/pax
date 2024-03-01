@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-use crate::api::{Numeric, Rotation};
+use crate::{Numeric, Rotation};
 
 use super::{Generic, Point2, Space};
 

@@ -6,7 +6,7 @@ use crate::constants::{
     TEXTBOX_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
     WHEEL_HANDLERS,
 };
-use crate::math::Point2;
+use crate::api::math::Point2;
 use crate::Globals;
 #[cfg(debug_assertions)]
 use core::fmt;

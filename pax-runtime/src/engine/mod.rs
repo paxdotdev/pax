@@ -283,7 +283,7 @@ impl PaxEngine {
         expression_table: ExpressionTable,
         viewport_size: (f64, f64),
     ) -> Self {
-        use crate::math::Transform2;
+        use crate::api::math::Transform2;
 
         let globals = Globals {
             frames_elapsed: 0,
