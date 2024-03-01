@@ -11,6 +11,7 @@ use pax_std::types::*;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 pub mod treeobj;
@@ -112,31 +113,26 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> TreeEntry {
+    fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> Option<TreeEntry> {
         let node = component_template.get_node(tnid).unwrap();
+        if node.type_id.get_pax_type() == &PaxType::Comment {
+            return None;
+        }
         let children = component_template
             .get_children(tnid)
             .unwrap_or_default()
             .iter()
-            .filter_map(|c_tnid| {
-                let child = component_template.get_node(c_tnid)?;
-                if child.type_id.get_pax_type() == &PaxType::Comment {
-                    None
-                } else {
-                    Some(Self::to_tree(c_tnid, component_template))
-                }
-            })
+            .filter_map(|c_tnid| Self::to_tree(c_tnid, component_template))
             .collect();
         let node_type = Self::resolve_tree_type(node.type_id.clone());
-        TreeEntry(node_type, children)
+        Some(TreeEntry(node_type, children))
     }
 
     fn resolve_tree_type(type_id: TypeId) -> Desc {
-        match type_id
-            .import_path()
-            .unwrap()
-            .trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::")
-        {
+        let Some(import_path) = type_id.import_path() else {
+            return Desc::Component(format!("{:?}", type_id.get_pax_type()));
+        };
+        match import_path.trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::") {
             "Group" => Desc::Group,
             "Frame" => Desc::Frame,
             "Ellipse" => Desc::Ellipse,
@@ -151,19 +147,23 @@ impl Tree {
             "Image" => Desc::Image,
             "Slider" => Desc::Slider,
             "Dropdown" => Desc::Dropdown,
-            _ => Desc::Component(type_id.get_pascal_identifier().unwrap()),
+            _ => Desc::Component(
+                type_id
+                    .get_pascal_identifier()
+                    .unwrap_or("ERROR: NO PASCAL IDENT".to_string()),
+            ),
         }
     }
 
     pub fn set_tree(&mut self, type_id: TypeId, ctx: &NodeContext) {
         self.is_project_loaded.set(true);
         let dt = ctx.designtime.borrow_mut();
-        let comps = dt.get_orm().get_components();
-        pax_engine::log::info!("{:?}", comps);
         let Ok(comp) = dt.get_orm().get_component(&type_id) else {
+            pax_engine::log::warn!("couldn't find component for tree view");
             return;
         };
         let Some(template) = comp.template.as_ref() else {
+            pax_engine::log::warn!("treeview component template embty");
             return;
         };
         let mut ind = 0;
@@ -172,7 +172,7 @@ impl Tree {
             .iter()
             .flat_map(|tnid| {
                 let tree = Self::to_tree(tnid, &template);
-                tree.flatten(&mut ind, 0)
+                tree.map(|t| t.flatten(&mut ind, 0)).unwrap_or_default()
             })
             .collect();
         self.tree_objects.set(flattened.clone());
@@ -204,7 +204,6 @@ impl Tree {
         // }
         model::read_app_state(|app_state| {
             let type_id = &app_state.selected_component_id;
-            pax_engine::log::info!("{:?}", type_id);
             self.set_tree(type_id.clone(), ctx);
         });
     }
