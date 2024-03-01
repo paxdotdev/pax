@@ -336,7 +336,7 @@ impl TypeId {
             pax_type: PaxType::If,
             import_path: None,
             _type_id: "If".to_string(),
-            _type_id_escaped: "".to_string(),
+            _type_id_escaped: "If".to_string(),
         }
     }
 
@@ -345,7 +345,7 @@ impl TypeId {
             pax_type: PaxType::Repeat,
             import_path: None,
             _type_id: "Repeat".to_string(),
-            _type_id_escaped: "".to_string(),
+            _type_id_escaped: "Repeat".to_string(),
         }
     }
 
@@ -354,7 +354,7 @@ impl TypeId {
             pax_type: PaxType::Slot,
             import_path: None,
             _type_id: "Slot".to_string(),
-            _type_id_escaped: "".to_string(),
+            _type_id_escaped: "Slot".to_string(),
         }
     }
 
@@ -363,10 +363,11 @@ impl TypeId {
             pax_type: PaxType::Comment,
             import_path: None,
             _type_id: "Comment".to_string(),
-            _type_id_escaped: "".to_string(),
+            _type_id_escaped: "Comment".to_string(),
         }
     }
 
+    /// Build a TypeId for a most types, like `Stacker` or `SpecialComponent`
     pub fn build_singleton(import_path: &str, pascal_identifier: Option<&str>) -> Self {
         let pascal_identifier = if let Some(p) = pascal_identifier {
             p.to_owned()
@@ -382,6 +383,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for rust primitives like `u8` or `String`
     pub fn build_primitive(identifier: &str) -> Self {
         TypeId {
             pax_type: PaxType::Primitive {
@@ -393,6 +395,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for vector types like `Vec<Color>`
     pub fn build_vector(elem_identifier: &str) -> Self {
         let _id = format!("std::vec::Vec<{}>", elem_identifier);
         Self {
@@ -405,6 +408,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for range types like `std::ops::Range<Color>`
     pub fn build_range(identifier: &str) -> Self {
         let _id = format!("std::ops::Range<{}>", identifier);
         Self {
@@ -417,6 +421,7 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for option types like `std::option::Option<Color>`
     pub fn build_option(identifier: &str) -> Self {
         let _id = format!("std::option::Option<{}>", identifier);
         Self {
@@ -429,11 +434,12 @@ impl TypeId {
         }
     }
 
+    /// Build a TypeId for map types like `std::collections::HashMap<String><Color>`
     pub fn build_map(key_identifier: &str, value_identifier: &str) -> Self {
         let _id = format!(
             "std::collections::HashMap<{}><{}>",
-            key_identifier.clone(),
-            value_identifier.clone()
+            key_identifier.to_owned(),
+            value_identifier.to_owned()
         );
         Self {
             pax_type: PaxType::Map {
@@ -457,6 +463,9 @@ impl TypeId {
         match &self.pax_type {
             PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
                 Some(pascal_identifier.clone())
+            }
+            PaxType::If | PaxType::Slot | PaxType::Repeat | PaxType::Comment => {
+                Some(self._type_id.clone())
             }
             _ => None,
         }
@@ -508,13 +517,15 @@ impl TypeId {
         }
     }
 
+    /// Adds re-export information to this type-id which is sometimes not know at creation time
+    /// Once qualified a type-id can be used to fully import a type in the cartridge
     pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
         if let Some(path) = self.get_import_path() {
             self.import_path = Self::fully_qualify_id(host_crate_info, path);
         }
         if let Some(id) = Self::fully_qualify_id(host_crate_info, self._type_id.clone()) {
-            self._type_id = id;
-            self._type_id_escaped = self._type_id_escaped.replace("{PREFIX}", "");
+            self._type_id = id.clone();
+            self._type_id_escaped = escape_identifier(id);
         }
         self
     }
