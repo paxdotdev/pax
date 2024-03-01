@@ -350,11 +350,11 @@ fn recurse_visit_tag_pairs_for_template(
 
             let template_node = TemplateNodeDefinition {
                 type_id: TypeId::build_singleton(
-                    ctx.pascal_identifier_to_type_id_map
+                    &ctx.pascal_identifier_to_type_id_map
                         .get(pascal_identifier)
                         .expect(&format!("Template key not found {}", &pascal_identifier))
                         .to_string(),
-                    Some(pascal_identifier.to_string()),
+                    Some(&pascal_identifier.to_string()),
                 ),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
                 raw_comment_string: None,
@@ -391,11 +391,11 @@ fn recurse_visit_tag_pairs_for_template(
 
             let template_node = TemplateNodeDefinition {
                 type_id: TypeId::build_singleton(
-                    ctx.pascal_identifier_to_type_id_map
+                    &ctx.pascal_identifier_to_type_id_map
                         .get(pascal_identifier)
                         .expect(&format!("Template key not found {}", &pascal_identifier))
                         .to_string(),
-                    Some(pascal_identifier.to_string()),
+                    Some(&pascal_identifier.to_string()),
                 ),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
                 raw_comment_string: None,
@@ -1264,7 +1264,7 @@ impl Reflectable for usize {
     }
 
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for isize {
@@ -1272,7 +1272,7 @@ impl Reflectable for isize {
         "isize".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i128 {
@@ -1280,7 +1280,7 @@ impl Reflectable for i128 {
         "i128".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for u128 {
@@ -1288,7 +1288,7 @@ impl Reflectable for u128 {
         "u128".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i64 {
@@ -1296,7 +1296,7 @@ impl Reflectable for i64 {
         "i64".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for u64 {
@@ -1304,7 +1304,7 @@ impl Reflectable for u64 {
         "u64".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i32 {
@@ -1312,7 +1312,7 @@ impl Reflectable for i32 {
         "i32".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for u32 {
@@ -1320,7 +1320,7 @@ impl Reflectable for u32 {
         "u32".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for i8 {
@@ -1328,7 +1328,7 @@ impl Reflectable for i8 {
         "i8".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for u8 {
@@ -1336,7 +1336,7 @@ impl Reflectable for u8 {
         "u8".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for f64 {
@@ -1344,7 +1344,7 @@ impl Reflectable for f64 {
         "f64".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for f32 {
@@ -1352,7 +1352,7 @@ impl Reflectable for f32 {
         "f32".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for bool {
@@ -1360,7 +1360,7 @@ impl Reflectable for bool {
         "bool".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_primitive(Self::get_self_pascal_identifier())
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
 impl Reflectable for std::string::String {
@@ -1372,8 +1372,8 @@ impl Reflectable for std::string::String {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1386,8 +1386,8 @@ impl<T> Reflectable for std::rc::Rc<T> {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1415,7 +1415,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
         "Option".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_option(format!("{}{}", "{PREFIX}", &T::get_type_id()))
+        TypeId::build_option(&format!("{}{}", "{PREFIX}", &T::get_type_id()))
     }
 }
 
@@ -1430,8 +1430,8 @@ impl Reflectable for pax_runtime::api::Size {
 
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1446,8 +1446,8 @@ impl Reflectable for pax_runtime::api::Rotation {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1462,8 +1462,8 @@ impl Reflectable for pax_runtime::api::Numeric {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1478,8 +1478,8 @@ impl Reflectable for kurbo::Point {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1494,8 +1494,8 @@ impl Reflectable for pax_runtime::api::Transform2D {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1509,8 +1509,8 @@ impl Reflectable for pax_runtime::api::StringBox {
     }
     fn get_type_id() -> TypeId {
         TypeId::build_singleton(
-            Self::get_import_path(),
-            Some(Self::get_self_pascal_identifier()),
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
         )
     }
 }
@@ -1539,7 +1539,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     }
     fn get_type_id() -> TypeId {
         //Need to encode generics contents as part of unique id for iterables
-        TypeId::build_vector(format!(
+        TypeId::build_vector(&format!(
             "{}{}",
             "{PREFIX}",
             &Self::get_iterable_type_id().unwrap()
