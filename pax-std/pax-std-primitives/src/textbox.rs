@@ -42,6 +42,7 @@ impl InstanceNode for TextboxInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Textbox| {
             let tbl = context.expression_table();
             let stk = &expanded_node.stack;
+            handle_vtable_update(tbl, stk, &mut properties.focus_on_mount);
             handle_vtable_update(tbl, stk, &mut properties.text);
             handle_vtable_update(tbl, stk, &mut properties.stroke);
             handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color);
@@ -125,6 +126,11 @@ impl InstanceNode for TextboxInstance {
                     &mut old_state.border_radius,
                     &mut patch.border_radius,
                     properties.border_radius.get().get_as_float(),
+                ),
+                patch_if_needed(
+                    &mut old_state.focus_on_mount,
+                    &mut patch.focus_on_mount,
+                    *properties.focus_on_mount.get(),
                 ),
             ];
             if updates.into_iter().any(|v| v == true) {
