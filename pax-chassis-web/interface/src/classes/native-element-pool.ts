@@ -278,7 +278,7 @@ export class NativeElementPool {
         }
 
         if (patch.focus_on_mount) {
-            setTimeout(() => { textbox.focus(); console.log("focused!"); }, 10);
+            setTimeout(() => { textbox.focus(); }, 10);
         }
     }
 
