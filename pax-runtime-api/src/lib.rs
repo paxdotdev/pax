@@ -1040,7 +1040,36 @@ impl From<StringBox> for String {
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
 /// about how we parse `%`, and allow the context in which it is used to pull forward a specific
 /// type through `into` inference.
+#[derive(Serialize, Deserialize)]
 pub struct Percent(pub Numeric);
+
+
+impl From<IntoableLiteral> for Rotation {
+    fn from(value: IntoableLiteral) -> Self {
+        match value {
+            IntoableLiteral::Percent(p) => p.into(),
+            _ => {unreachable!()}
+        }
+    }
+}
+
+impl From<IntoableLiteral> for ColorChannel {
+    fn from(value: IntoableLiteral) -> Self {
+        match value {
+            IntoableLiteral::Percent(p) => p.into(),
+            _ => {unreachable!()}
+        }
+    }
+}
+
+impl From<IntoableLiteral> for Size {
+    fn from(value: IntoableLiteral) -> Self {
+        match value {
+            IntoableLiteral::Percent(p) => p.into(),
+            _ => {unreachable!()}
+        }
+    }
+}
 
 impl Into<ColorChannel> for Percent {
     fn into(self) -> ColorChannel {
@@ -1484,3 +1513,9 @@ impl Transform2D {
     }
 }
 
+// Represents literal types from the deserializer that may need to be `into()` downstream types.
+// For example, 5% might need to be `.into()`d a Rotation, a ColorChannel, or a Size.  Color might need to be `.into()`d a Fill or a Stroke.
+pub enum IntoableLiteral {
+    Color(Color),
+    Percent(Percent)
+}

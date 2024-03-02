@@ -8,7 +8,7 @@ pub use pax_engine::api::Size;
 use pax_engine::*;
 use pax_message::ColorMessage;
 use piet::UnitPoint;
-use pax_runtime::api::Rotation;
+use pax_runtime::api::{Rotation, IntoableLiteral};
 
 #[pax]
 #[custom(Default)]
@@ -62,6 +62,16 @@ pub enum Fill {
 impl Into<Fill> for Color {
     fn into(self) -> Fill {
         Fill::Solid(self)
+    }
+}
+
+
+impl From<IntoableLiteral> for Fill {
+    fn from(value: IntoableLiteral) -> Self {
+        match value {
+            IntoableLiteral::Color(c) => c.into(),
+            _ => {unreachable!()}
+        }
     }
 }
 

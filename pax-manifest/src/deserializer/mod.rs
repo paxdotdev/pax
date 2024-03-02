@@ -2,6 +2,9 @@ use core::panic;
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
+use pax_message::serde::Deserialize;
+
+
 
 pub mod error;
 mod helpers;
@@ -17,7 +20,7 @@ use crate::constants::{
     DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE, COLOR
 };
 
-use pax_runtime_api::Color;
+use pax_runtime_api::{Color, Percent, IntoableLiteral};
 
 pub struct Deserializer {
     input: String,
@@ -29,8 +32,20 @@ impl Deserializer {
     }
 }
 
+pub fn from_pax_maybe_intoable(str: &str) -> Result<IntoableLiteral> {
+    if let Ok(ast) = PaxParser::parse(Rule::literal_color, str) {
+        Ok(IntoableLiteral::Color(from_pax::<Color>(str).unwrap()))
+    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
+        let unwrapped_from_pax = from_pax::<Percent>(ast.as_str())?;
+        Ok(IntoableLiteral::Percent(unwrapped_from_pax))
+    } else {
+        Err(Error::Message(format!("Not an intoable literal")))
+    }
+}
+
+
 /// Main entry-point for deserializing a type from Pax.
-pub fn from_pax<T>(str: String) -> Result<T>
+pub fn from_pax<T>(str: &str) -> Result<T>
 where
     T: DeserializeOwned,
 {
@@ -68,9 +83,6 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                 let inner_pair = ast.clone().into_inner().next().unwrap();
                 match inner_pair.as_rule() {
                     Rule::literal_color => {
-
-
-
                         // literal_color = {literal_color_space_func | literal_color_const}
                         let what_kind_of_color = inner_pair.into_inner().next().unwrap();
                         match what_kind_of_color.as_rule() {
@@ -179,7 +191,9 @@ impl<'de> de::Deserializer<'de> for Deserializer {
             _ => Err(Error::UnsupportedType(ast.as_str().to_string())),
         }?;
 
-        Ok(ret.into())
+
+
+        Ok(ret)
     }
 
     forward_to_deserialize_any! {
@@ -198,3 +212,5 @@ impl<'de> de::Deserializer<'de> for Deserializer {
         visitor.visit_str(&self.input)
     }
 }
+
+
