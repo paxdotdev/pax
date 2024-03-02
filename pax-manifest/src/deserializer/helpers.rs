@@ -3,6 +3,7 @@ use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
 };
+use pax_runtime_api::constants::COLOR;
 
 use crate::constants::{NUMERIC, STRING_BOX};
 
@@ -122,6 +123,7 @@ impl<'de> VariantAccess<'de> for PaxEnum {
         visitor.visit_map(&mut map)
     }
 }
+
 
 struct PrimitiveDeserializer {
     input: String,
