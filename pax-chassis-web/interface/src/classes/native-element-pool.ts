@@ -276,6 +276,10 @@ export class NativeElementPool {
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
+
+        if (patch.focus_on_mount) {
+            setTimeout(() => { textbox.focus(); console.log("focused!"); }, 10);
+        }
     }
 
     textboxDelete(id_chain: number[]) {
