@@ -4,14 +4,10 @@ source helpers.sh
 # Path to the pax-cli file
 PAX_CLI="../pax/target/debug/pax-cli"
 
-add_designtime_dependency
-
 # Build pax-cli with designtime flag
 pushd ../pax/pax-cli
-cargo build --features="designtime"
+cargo build
 popd
-
-remove_designtime_dependency
 
 # Run cli & priv agent in parallel, and pipe both outputs to terminal
 (cd ../pax-privileged-agent && cargo run -- ../designer-project) \
