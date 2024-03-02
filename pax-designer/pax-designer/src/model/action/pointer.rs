@@ -65,7 +65,7 @@ impl Action for PointerAction {
                     start_point: point_glass,
                     original_transform: ctx.app_state.glass_to_world_transform,
                 }),
-                _ => panic!("unhandled mouse event"),
+                _ => return Err(anyhow!("unhandled mouse event")),
             });
         }
 
