@@ -37,7 +37,7 @@ pub fn build_chassis_with_cartridge(
     pax_dir: &PathBuf,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Result<(), eyre::Report> {
+) -> Result<Option<PathBuf>, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -75,12 +75,13 @@ pub fn build_chassis_with_cartridge(
     match target {
         RunTarget::macOS | RunTarget::iOS => {
             build_apple_chassis_with_cartridge(ctx, &pax_dir, process_child_ids)?;
+            Ok(None)
         }
         RunTarget::Web => {
-            build_web_chassis_with_cartridge(ctx, &pax_dir, process_child_ids)?;
+            let fs = build_web_chassis_with_cartridge(ctx, &pax_dir, process_child_ids)?;
+            Ok(Some(fs))
         }
     }
-    Ok(())
 }
 
 pub fn update_type_id_prefixes_in_place(
