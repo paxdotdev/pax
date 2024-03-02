@@ -26,7 +26,7 @@ pub fn build_web_chassis_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Result<(), eyre::Report> {
+) -> Result<PathBuf, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -131,7 +131,7 @@ pub fn build_web_chassis_with_cartridge(
             build_dest.to_str().unwrap()
         );
     }
-    Ok(())
+    Ok(build_src)
 }
 
 fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
