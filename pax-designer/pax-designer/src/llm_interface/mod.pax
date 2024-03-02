@@ -11,6 +11,7 @@ if self.visible {
 			color: {Color::rgba(0.5, 0.5, 0.5, 1.0)}
 			width: 1px
 		}
+		focus_on_mount=true
 	    x=50%
 	    y=50%
 	    anchor_x=50%
