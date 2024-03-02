@@ -74,7 +74,7 @@ pub enum RunTarget {
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
-pub fn perform_build(ctx: &RunContext) -> eyre::Result<PaxManifest, Report> {
+pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
     //Compile ts files if applicable (this needs to happen before copying to .pax)
     if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
         let mut cmd = Command::new("./build-interface.sh");
@@ -154,8 +154,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<PaxManifest, Report> {
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
-    build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
-    Ok(manifest)
+    let build_dir = build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
+    Ok((manifest, build_dir))
 }
 
 /// Clean all `.pax` temp files
