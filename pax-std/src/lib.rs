@@ -86,6 +86,7 @@ pub mod primitives {
         pub stroke: Property<Stroke>,
         pub border_radius: Property<Numeric>,
         pub style: Property<TextStyle>,
+        pub focus_on_mount: Property<bool>,
     }
 
     #[pax]

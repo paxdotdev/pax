@@ -338,6 +338,7 @@ pub struct TextboxPatch {
     pub stroke_width: Option<f64>,
     pub border_radius: Option<f64>,
     pub style: Option<TextStyleMessage>,
+    pub focus_on_mount: Option<bool>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
