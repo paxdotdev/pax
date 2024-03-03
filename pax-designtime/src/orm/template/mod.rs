@@ -61,6 +61,9 @@ impl Response for AddTemplateNodeResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+       Some(self.uni.get_containing_component_type_id().clone())
+    }
 }
 
 impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
@@ -124,10 +127,6 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::AddTemplateNodeRequest(self.clone()))
     }
-
-    fn is_mutative(&self) -> bool {
-        true
-    }
 }
 
 impl Undo for AddTemplateNodeRequest {
@@ -179,6 +178,7 @@ impl UpdateTemplateNodeRequest {
 
 pub struct UpdateTemplateNodeResponse {
     command_id: Option<usize>,
+    _affected_component_type_id: TypeId,
 }
 
 impl Request for UpdateTemplateNodeRequest {
@@ -192,6 +192,9 @@ impl Response for UpdateTemplateNodeResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        Some(self._affected_component_type_id.clone())
+    }
 }
 
 impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
@@ -200,9 +203,10 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
         manifest: &mut PaxManifest,
     ) -> Result<UpdateTemplateNodeResponse, String> {
         let uni = self.uni.clone();
+        let containing_component = uni.get_containing_component_type_id().clone();
         let component = manifest
             .components
-            .get_mut(&uni.get_containing_component_type_id())
+            .get_mut(&containing_component)
             .unwrap();
 
         if component.is_primitive || component.is_struct_only_component {
@@ -221,22 +225,19 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
             template.set_node(uni.get_template_node_id(), self.updated_node.clone());
 
             if let Some(location) = &self.new_location {
-                let mut move_request = MoveTemplateNodeRequest::new(uni, location.clone());
+                let mut move_request = MoveTemplateNodeRequest::new(uni.clone(), location.clone());
                 move_request.execute(manifest).unwrap();
                 self._cached_move = Some(move_request.clone());
             }
         }
 
-        Ok(UpdateTemplateNodeResponse { command_id: None })
+        Ok(UpdateTemplateNodeResponse { command_id: None, _affected_component_type_id: uni.get_containing_component_type_id()})
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::UpdateTemplateNodeRequest(self.clone()))
     }
 
-    fn is_mutative(&self) -> bool {
-        true
-    }
 }
 
 impl Undo for UpdateTemplateNodeRequest {
@@ -279,6 +280,7 @@ impl MoveTemplateNodeRequest {
 
 pub struct MoveTemplateNodeResponse {
     command_id: Option<usize>,
+    _affected_component_type_id: TypeId,
 }
 
 impl Request for MoveTemplateNodeRequest {
@@ -291,6 +293,9 @@ impl Response for MoveTemplateNodeResponse {
     }
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
+    }
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        Some(self._affected_component_type_id.clone())
     }
 }
 
@@ -320,15 +325,11 @@ impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
         self._cached_old_position = template.get_location(&self.uni.get_template_node_id());
         template.move_node(&uni.get_template_node_id(), self.new_location.clone());
 
-        Ok(MoveTemplateNodeResponse { command_id: None })
+        Ok(MoveTemplateNodeResponse { command_id: None, _affected_component_type_id: uni.get_containing_component_type_id()})
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::MoveTemplateNodeRequest(self.clone()))
-    }
-
-    fn is_mutative(&self) -> bool {
-        true
     }
 }
 
@@ -366,6 +367,7 @@ impl RemoveTemplateNodeRequest {
 
 pub struct RemoveTemplateNodeResponse {
     command_id: Option<usize>,
+    _affected_component_type_id: TypeId,
 }
 
 impl Request for RemoveTemplateNodeRequest {
@@ -378,6 +380,9 @@ impl Response for RemoveTemplateNodeResponse {
     }
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
+    }
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        Some(self._affected_component_type_id.clone())
     }
 }
 
@@ -400,15 +405,11 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
             template.remove_node(self.uni.get_template_node_id());
         };
 
-        Ok(RemoveTemplateNodeResponse { command_id: None })
+        Ok(RemoveTemplateNodeResponse { command_id: None, _affected_component_type_id: self.uni.get_containing_component_type_id() })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::RemoveTemplateNodeRequest(self.clone()))
-    }
-
-    fn is_mutative(&self) -> bool {
-        true
     }
 }
 
@@ -471,10 +472,6 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
             node,
         })
     }
-
-    fn is_mutative(&self) -> bool {
-        false
-    }
 }
 
 pub struct GetAllTemplateNodeRequest {
@@ -520,8 +517,76 @@ impl Command<GetAllTemplateNodeRequest> for GetAllTemplateNodeRequest {
             nodes,
         })
     }
+}
 
-    fn is_mutative(&self) -> bool {
-        false
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ReplaceTemplateRequest {
+    component_type_id: TypeId,
+    new_template: ComponentTemplate,
+    _cached_prev_template: Option<ComponentTemplate>,
+}
+
+impl ReplaceTemplateRequest {
+    pub fn new(component_type_id: TypeId, new_template: ComponentTemplate) -> Self {
+        Self {
+            component_type_id,
+            new_template,
+            _cached_prev_template: None,
+        }
+    }
+}
+
+pub struct ReplaceTemplateResponse {
+    command_id: Option<usize>,
+    _affected_component_type_id: TypeId,
+}
+
+impl Response for ReplaceTemplateResponse {
+    fn set_id(&mut self, id: usize) {
+        self.command_id = Some(id);
+    }
+    fn get_id(&self) -> usize {
+        self.command_id.unwrap()
+    }
+
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        Some(self._affected_component_type_id.clone())
+    }
+}
+
+impl Request for ReplaceTemplateRequest {
+    type Response = ReplaceTemplateResponse;
+}
+
+impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
+    fn execute(
+        &mut self,
+        manifest: &mut PaxManifest,
+    ) -> Result<ReplaceTemplateResponse, String> {
+        let component = manifest
+            .components
+            .get_mut(&self.component_type_id)
+            .unwrap();
+
+        self._cached_prev_template = component.template.clone();
+
+        component.template = Some(self.new_template.clone());
+
+        Ok(ReplaceTemplateResponse { command_id: None, _affected_component_type_id: self.component_type_id.clone()})
+    }
+
+    fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
+        Some(UndoRedoCommand::ReplaceTemplateRequest(self.clone()))
+    }
+}
+
+impl Undo for ReplaceTemplateRequest {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        let component = manifest
+            .components
+            .get_mut(&self.component_type_id)
+            .unwrap();
+        component.template = self._cached_prev_template.clone();
+        Ok(())
     }
 }

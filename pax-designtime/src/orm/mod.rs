@@ -20,14 +20,14 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::{ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
 use self::template::{builder::NodeBuilder, RemoveTemplateNodeRequest};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 pub mod template;
 #[cfg(test)]
 mod tests;
@@ -39,6 +39,9 @@ pub trait Request {
 pub trait Response {
     fn set_id(&mut self, id: usize);
     fn get_id(&self) -> usize;
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        None
+    }
 }
 
 pub trait Command<R: Request> {
@@ -46,7 +49,6 @@ pub trait Command<R: Request> {
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         None
     }
-    fn is_mutative(&self) -> bool;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -114,7 +116,7 @@ impl PaxManifestORM {
     where
         C: Command<R>,
     {
-        let mut response = command.execute(&mut self.manifest)?;
+        let mut response: <R as Request>::Response = command.execute(&mut self.manifest)?;
         let command_id = self.next_command_id;
         if let Some(command) = command.as_undo_redo() {
             self.undo_stack.push((command_id, command));
@@ -123,9 +125,10 @@ impl PaxManifestORM {
 
         response.set_id(command_id);
         self.next_command_id += 1;
-        if command.is_mutative() {
+        if response.get_affected_component_type_id().is_some() {
             self.manifest_version += 1;
         }
+
         Ok(response)
     }
 
@@ -156,6 +159,13 @@ impl PaxManifestORM {
         }
         Ok(())
     }
+
+    pub fn replace_template(&mut self, component_type_id: TypeId, template: ComponentTemplate) -> Result<usize, String> {
+        let command = template::ReplaceTemplateRequest::new(component_type_id, template);
+        let resp = self.execute_command(command)?;
+        Ok(resp.get_id())
+    }
+    
 }
 
 pub trait Undo {
@@ -168,6 +178,7 @@ pub enum UndoRedoCommand {
     RemoveTemplateNodeRequest(template::RemoveTemplateNodeRequest),
     UpdateTemplateNodeRequest(template::UpdateTemplateNodeRequest),
     MoveTemplateNodeRequest(template::MoveTemplateNodeRequest),
+    ReplaceTemplateRequest(template::ReplaceTemplateRequest),
 }
 
 impl UndoRedoCommand {
@@ -177,6 +188,7 @@ impl UndoRedoCommand {
             UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::MoveTemplateNodeRequest(command) => command.undo(manifest),
+            UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
         }
     }
 
@@ -192,6 +204,9 @@ impl UndoRedoCommand {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::MoveTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            },
+            UndoRedoCommand::ReplaceTemplateRequest(command) => {
                 let _ = command.execute(manifest);
             }
         }
