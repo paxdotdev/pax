@@ -963,6 +963,68 @@ impl ComponentTemplate {
             val.type_id.fully_qualify_type_id(&host_crate_info);
         }
     }
+
+    /// Returns a map from string to expression id.
+    /// This is used for live reloading without compilation
+    pub fn get_known_expressions(&self) -> HashMap<String, usize> {
+        let mut ret = HashMap::new();
+        for (_, tnd) in self.nodes.iter() {
+            if let Some(settings) = &tnd.settings {
+                for setting in settings {
+                    if let SettingElement::Setting(_, v) = setting {
+                        if let ValueDefinition::Expression(t, id) = v {
+                            ret.insert(t.raw_value.clone(), id.unwrap());
+                        }
+                    }
+                }
+            }
+        }
+        ret
+    }
+
+    /// Given a list of known expressions, this function will update the expression ids in the template
+    pub fn update_expression_ids(&mut self, known_expressions: &HashMap<String, usize>) {
+        for (_, tnd) in self.nodes.iter_mut() {
+            if let Some(settings) = &mut tnd.settings {
+                for setting in settings {
+                    if let SettingElement::Setting(_, v) = setting {
+                        if let ValueDefinition::Expression(t, id) = v {
+                            if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
+                                *id = Some(*new_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Returns a set of known control flow settings.
+    /// This is used for live reloading without compilation
+    pub fn get_known_control_flow_settings(&self) -> HashSet<ControlFlowSettingsDefinition> {
+        let mut ret = HashSet::new();
+        for (_, tnd) in self.nodes.iter() {
+            if let Some(cfsd) = &tnd.control_flow_settings {
+                ret.insert(cfsd.clone());
+            }
+        }
+        ret
+    }
+
+    /// Populates this template with a previously compiled template
+    /// This is used for live reloading without compilation
+    pub fn populate_template_with_known_entities(&mut self, original_template: &ComponentTemplate) {
+        let known_expressions = original_template.get_known_expressions();
+        let known_control_flow_settings = original_template.get_known_control_flow_settings();
+        self.update_expression_ids(&known_expressions);
+        for (_, tnd) in self.nodes.iter_mut() {
+            if let Some(cfsd) = &mut tnd.control_flow_settings {
+                if known_control_flow_settings.contains(cfsd) {
+                    *cfsd = known_control_flow_settings.get(cfsd).unwrap().clone();
+                }
+            }
+        }
+    }
 }
 
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
@@ -1172,7 +1234,7 @@ pub struct LocationInfo {
 /// Container for holding parsed data describing a Repeat (`for`)
 /// predicate, for example the `(elem, i)` in `for (elem, i) in foo` or
 /// the `elem` in `for elem in foo`
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(crate = "pax_message::serde")]
 pub enum ControlFlowRepeatPredicateDefinition {
     ElemId(Token),
@@ -1191,6 +1253,40 @@ pub struct ControlFlowSettingsDefinition {
     pub slot_index_expression_vtable_id: Option<usize>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
+}
+
+impl PartialEq for ControlFlowRepeatSourceDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        self.range_expression_paxel == other.range_expression_paxel
+    }
+}
+
+impl Eq for ControlFlowRepeatSourceDefinition {}
+
+impl Hash for ControlFlowRepeatSourceDefinition {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.range_expression_paxel.hash(state);
+    }
+}
+
+impl PartialEq for ControlFlowSettingsDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        self.condition_expression_paxel == other.condition_expression_paxel
+            && self.slot_index_expression_paxel == other.slot_index_expression_paxel
+            && self.repeat_predicate_definition == other.repeat_predicate_definition
+            && self.repeat_source_definition == other.repeat_source_definition
+    }
+}
+
+impl Eq for ControlFlowSettingsDefinition {}
+
+impl Hash for ControlFlowSettingsDefinition {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.condition_expression_paxel.hash(state);
+        self.slot_index_expression_paxel.hash(state);
+        self.repeat_predicate_definition.hash(state);
+        self.repeat_source_definition.hash(state);
+    }
 }
 
 /// Container describing the possible variants of a Repeat source
@@ -1255,6 +1351,20 @@ pub struct Token {
     pub token_location: Option<LocationInfo>,
 }
 
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw_value == other.raw_value
+    }
+}
+
+impl Eq for Token {}
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.raw_value.hash(state);
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub enum TokenType {
@@ -1272,20 +1382,6 @@ pub enum TokenType {
     PascalIdentifier,
     #[default]
     Unknown,
-}
-
-impl PartialEq for Token {
-    fn eq(&self, other: &Self) -> bool {
-        self.token_value == other.token_value
-    }
-}
-
-impl Eq for Token {}
-
-impl Hash for Token {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.token_value.hash(state);
-    }
 }
 
 fn get_line(s: &str, line_number: usize) -> Option<&str> {

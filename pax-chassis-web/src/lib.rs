@@ -536,9 +536,23 @@ impl PaxChassisWeb {
         }
     }
 
+    #[cfg(feature = "designtime")]
+    pub fn handle_recv_designtime(&mut self) {
+        self.designtime_manager
+            .borrow_mut()
+            .handle_recv()
+            .expect("couldn't handle recv");
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn designtime_tick(&mut self) {
+        self.handle_recv_designtime();
+        self.update_userland_component();
+    }
+
     pub fn tick(&mut self) -> MemorySlice {
         #[cfg(feature = "designtime")]
-        self.update_userland_component();
+        self.designtime_tick();
 
         let message_queue = self.engine.borrow_mut().tick();
 
