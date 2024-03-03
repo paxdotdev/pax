@@ -140,8 +140,8 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                     if now
                         .duration_since(last_written)
                         .unwrap_or_default()
-                        .as_secs()
-                        > 1
+                        .as_millis()
+                        > 100
                     {
                         match e.kind {
                             EventKind::Modify(_) => {
