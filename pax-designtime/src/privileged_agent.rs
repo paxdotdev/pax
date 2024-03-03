@@ -1,12 +1,13 @@
 use std::net::SocketAddr;
 
-use crate::messages::{AgentMessage, ComponentSerializationRequest};
+use crate::{messages::{AgentMessage, ComponentSerializationRequest}, orm::PaxManifestORM};
 use anyhow::{anyhow, Result};
+use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::ComponentDefinition;
 
 pub struct PrivilegedAgentConnection {
     sender: ewebsock::WsSender,
-    _recver: ewebsock::WsReceiver,
+    recver: ewebsock::WsReceiver,
 }
 
 impl PrivilegedAgentConnection {
@@ -15,7 +16,7 @@ impl PrivilegedAgentConnection {
             .map_err(|_| anyhow!("couldn't create socket connection"))?;
         Ok(Self {
             sender,
-            _recver: recver,
+            recver: recver,
         })
     }
 
@@ -26,6 +27,26 @@ impl PrivilegedAgentConnection {
         ))?;
 
         self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+        Ok(())
+    }
+
+    pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<()> {
+        while let Some(event) = self.recver.try_recv(){
+            match event {
+                WsEvent::Message(ws_message) => {
+                    if let WsMessage::Binary(msg_bytes) = ws_message {
+                        let msg: AgentMessage = rmp_serde::from_slice(&msg_bytes)?;
+                        match msg {
+                            AgentMessage::UpdateTemplateRequest(resp) => {
+                                manager.replace_template(resp.type_id, resp.new_template).map_err(|e| anyhow!(e))?;
+                            }
+                            _ => {}
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
         Ok(())
     }
 }

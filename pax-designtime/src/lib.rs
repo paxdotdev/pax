@@ -1,6 +1,9 @@
 use std::any::Any;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub mod cartridge_generation;
 pub mod orm;
@@ -27,7 +30,7 @@ use crate::orm::PaxManifestORM;
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
-    priv_agent_connection: PrivilegedAgentConnection,
+    priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
 }
 
 #[cfg(debug_assertions)]
@@ -39,13 +42,15 @@ impl Debug for DesigntimeManager {
 
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
+        let priv_agent = Rc::new(RefCell::new(PrivilegedAgentConnection::new(priv_addr)
+        .expect("couldn't connect to privileged agent")));
+
         let orm = PaxManifestORM::new(manifest);
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
             factories,
-            priv_agent_connection: PrivilegedAgentConnection::new(priv_addr)
-                .expect("couldn't connect to privileged agent"),
+            priv_agent_connection: priv_agent,
         }
     }
 
@@ -55,8 +60,7 @@ impl DesigntimeManager {
 
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         let component = self.orm.get_component(type_id)?;
-        self.priv_agent_connection
-            .send_component_update(component)?;
+        self.priv_agent_connection.borrow_mut().send_component_update(component)?;
         Ok(())
     }
 
@@ -87,6 +91,10 @@ impl DesigntimeManager {
 
     pub fn get_orm_mut(&mut self) -> &mut PaxManifestORM {
         &mut self.orm
+    }
+
+    pub fn handle_recv(&mut self) -> anyhow::Result<()> {
+        self.priv_agent_connection.borrow_mut().handle_recv(&mut self.orm)
     }
 }
 
