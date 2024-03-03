@@ -154,8 +154,7 @@ pub fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx
             copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
                 .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
 
-            let _ =
-                design::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
+            let _ = design::add_additional_dependencies_to_cargo_toml(&dest, "pax-designtime");
         }
     }
 
