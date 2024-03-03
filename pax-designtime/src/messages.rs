@@ -1,4 +1,4 @@
-use pax_manifest::PaxManifest;
+use pax_manifest::{ComponentTemplate, PaxManifest, TypeId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -11,6 +11,7 @@ pub enum AgentMessage {
     RecompilationRequest(Box<RecompilationRequest>),
     RecompilationAcknowledgement(RecompilationAcknowledgement),
     RecompilationCompletedNotification(RecompilationCompletedNotification),
+    UpdateTemplateRequest(UpdateTemplateRequest),
 }
 
 /// A notification indicating that a project file has changed.
@@ -71,4 +72,14 @@ pub struct RecompilationAcknowledgement {
 pub struct RecompilationCompletedNotification {
     /// The identifier of the recompilation request that has been completed.
     pub id: usize,
+}
+
+/// A request to update the template of a component.
+// Sent from `pax-priviliged-agent` to `pax-designtime`.
+#[derive(Serialize, Deserialize)]
+pub struct UpdateTemplateRequest {
+    /// The type identifier of the component to update.
+    pub type_id: TypeId,
+    /// The new template for the component.
+    pub new_template: ComponentTemplate,
 }
