@@ -20,7 +20,9 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{
+    ComponentDefinition, ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
+};
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
@@ -160,12 +162,15 @@ impl PaxManifestORM {
         Ok(())
     }
 
-    pub fn replace_template(&mut self, component_type_id: TypeId, template: ComponentTemplate) -> Result<usize, String> {
+    pub fn replace_template(
+        &mut self,
+        component_type_id: TypeId,
+        template: ComponentTemplate,
+    ) -> Result<usize, String> {
         let command = template::ReplaceTemplateRequest::new(component_type_id, template);
         let resp = self.execute_command(command)?;
         Ok(resp.get_id())
     }
-    
 }
 
 pub trait Undo {
@@ -205,7 +210,7 @@ impl UndoRedoCommand {
             }
             UndoRedoCommand::MoveTemplateNodeRequest(command) => {
                 let _ = command.execute(manifest);
-            },
+            }
             UndoRedoCommand::ReplaceTemplateRequest(command) => {
                 let _ = command.execute(manifest);
             }

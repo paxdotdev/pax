@@ -42,8 +42,10 @@ impl Debug for DesigntimeManager {
 
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
-        let priv_agent = Rc::new(RefCell::new(PrivilegedAgentConnection::new(priv_addr)
-        .expect("couldn't connect to privileged agent")));
+        let priv_agent = Rc::new(RefCell::new(
+            PrivilegedAgentConnection::new(priv_addr)
+                .expect("couldn't connect to privileged agent"),
+        ));
 
         let orm = PaxManifestORM::new(manifest);
         let factories = HashMap::new();
@@ -60,7 +62,9 @@ impl DesigntimeManager {
 
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         let component = self.orm.get_component(type_id)?;
-        self.priv_agent_connection.borrow_mut().send_component_update(component)?;
+        self.priv_agent_connection
+            .borrow_mut()
+            .send_component_update(component)?;
         Ok(())
     }
 
@@ -94,7 +98,9 @@ impl DesigntimeManager {
     }
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
-        self.priv_agent_connection.borrow_mut().handle_recv(&mut self.orm)
+        self.priv_agent_connection
+            .borrow_mut()
+            .handle_recv(&mut self.orm)
     }
 }
 
