@@ -1,0 +1,41 @@
+[package]
+name = "pax-design-server"
+version = "0.12.3"
+edition = "2021"
+description = "Development managing for visual editor and file system"
+
+[[bin]]
+name = "pax-design-server"
+path = "src/main.rs"
+
+[features]
+default = ["serde", "serde_json", "pax-compiler/designtime"]
+
+[dependencies]
+actix = "0.13.1"
+actix-files = "0.6"
+actix-web = "4"
+actix-web-actors = "4.2.0"
+bytes = "1.5.0"
+colored = "2.0.0"
+env_logger = "0.11.1"
+futures = "0.3.30"
+include_dir = {version = "0.7.3", features = ["glob"]}
+notify = "6.1.1"
+pax-compiler = { path = "../pax/pax-compiler", version = "0.12.3" }
+pax-designtime = { path = "../pax-designtime", version = "0.12.3" }
+pax-manifest = { path="../pax/pax-manifest", version = "0.12.3"}
+rmp-serde = "1.1.2"
+serde = { version = "1.0.159", features=["derive"], optional = true }
+serde_derive = "1.0.159"
+serde_json = { version = "1.0.95", optional = true }
+syn = { version = "1.0", features = ["full", "parsing", "visit"] }
+tera = "1"
+
+
+[dev-dependencies]
+actix-test = "0.1.2"
+awc = "3.3.0"
+futures-util = "0.3.30"
+tempfile = "3.9.0"
+serde_json = { version = "1.0.95"} 

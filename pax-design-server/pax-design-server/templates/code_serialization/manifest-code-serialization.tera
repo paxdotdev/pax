@@ -1,0 +1,29 @@
+{% import "macros.tera" as macros %}
+{% if template %}
+    {% for root_node in template.root %}
+        {{ macros::render_template_node(node_map=template.nodes, children=template.children, node_id=root_node) }}
+    {% endfor %}
+{% endif %}
+
+{% if settings or handlers %}
+@settings {
+    {% for settings_block_element in settings %}
+        {% if settings_block_element.SelectorBlock %}
+            {{settings_block_element.SelectorBlock.0.raw_value}}{{macros::render_literal_block(lb=settings_block_element.SelectorBlock.1)}},
+        {% elif settings_block_element.Comment %}
+            {{settings_block_element.Comment}}}
+        {% elif settings_block_element.Handler %}
+            {{settings_block_element.Handler.0.raw_value}}:
+            {% if  settings_block_element.Handler.1 | length() >  1 %}
+                [
+                    {% for handler in settings_block_element.Handler.1 %}
+                        {{handler.raw_value}} {%- if not loop.last -%},{% endif -%}
+                    {% endfor %}
+                ]
+            {% else %}
+                {{settings_block_element.Handler.1[0].raw_value}}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+}
+{% endif %}
