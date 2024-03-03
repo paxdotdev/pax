@@ -62,7 +62,7 @@ impl Response for AddTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
-       Some(self.uni.get_containing_component_type_id().clone())
+        Some(self.uni.get_containing_component_type_id().clone())
     }
 }
 
@@ -204,10 +204,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
     ) -> Result<UpdateTemplateNodeResponse, String> {
         let uni = self.uni.clone();
         let containing_component = uni.get_containing_component_type_id().clone();
-        let component = manifest
-            .components
-            .get_mut(&containing_component)
-            .unwrap();
+        let component = manifest.components.get_mut(&containing_component).unwrap();
 
         if component.is_primitive || component.is_struct_only_component {
             unreachable!("Component doesn't accept template nodes.");
@@ -231,13 +228,15 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
             }
         }
 
-        Ok(UpdateTemplateNodeResponse { command_id: None, _affected_component_type_id: uni.get_containing_component_type_id()})
+        Ok(UpdateTemplateNodeResponse {
+            command_id: None,
+            _affected_component_type_id: uni.get_containing_component_type_id(),
+        })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
         Some(UndoRedoCommand::UpdateTemplateNodeRequest(self.clone()))
     }
-
 }
 
 impl Undo for UpdateTemplateNodeRequest {
@@ -325,7 +324,10 @@ impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
         self._cached_old_position = template.get_location(&self.uni.get_template_node_id());
         template.move_node(&uni.get_template_node_id(), self.new_location.clone());
 
-        Ok(MoveTemplateNodeResponse { command_id: None, _affected_component_type_id: uni.get_containing_component_type_id()})
+        Ok(MoveTemplateNodeResponse {
+            command_id: None,
+            _affected_component_type_id: uni.get_containing_component_type_id(),
+        })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
@@ -405,7 +407,10 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
             template.remove_node(self.uni.get_template_node_id());
         };
 
-        Ok(RemoveTemplateNodeResponse { command_id: None, _affected_component_type_id: self.uni.get_containing_component_type_id() })
+        Ok(RemoveTemplateNodeResponse {
+            command_id: None,
+            _affected_component_type_id: self.uni.get_containing_component_type_id(),
+        })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
@@ -459,12 +464,9 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
 
         let mut node = None;
         if let Some(template) = &component.template {
-            node = Some(
-                template
-                    .get_node(&self.uni.get_template_node_id())
-                    .unwrap()
-                    .clone(),
-            );
+            if let Some(n) = template.get_node(&self.uni.get_template_node_id()) {
+                node = Some(n.clone());
+            }
         }
 
         Ok(GetTemplateNodeResponse {
@@ -559,10 +561,7 @@ impl Request for ReplaceTemplateRequest {
 }
 
 impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
-    fn execute(
-        &mut self,
-        manifest: &mut PaxManifest,
-    ) -> Result<ReplaceTemplateResponse, String> {
+    fn execute(&mut self, manifest: &mut PaxManifest) -> Result<ReplaceTemplateResponse, String> {
         let component = manifest
             .components
             .get_mut(&self.component_type_id)
@@ -572,7 +571,10 @@ impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
 
         component.template = Some(self.new_template.clone());
 
-        Ok(ReplaceTemplateResponse { command_id: None, _affected_component_type_id: self.component_type_id.clone()})
+        Ok(ReplaceTemplateResponse {
+            command_id: None,
+            _affected_component_type_id: self.component_type_id.clone(),
+        })
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
