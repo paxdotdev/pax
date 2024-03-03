@@ -5,7 +5,7 @@ use actix_web::web::Data;
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use actix_web_actors::ws;
 use colored::Colorize;
-use notify::event::ModifyKind;
+
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
