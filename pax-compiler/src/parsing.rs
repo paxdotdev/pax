@@ -302,7 +302,10 @@ fn recurse_pratt_parse_to_string<'a>(
         .parse(expression)
 }
 
-fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseContext, pax: &str) {
+pub fn parse_template_from_component_definition_string(
+    ctx: &mut TemplateNodeParseContext,
+    pax: &str,
+) {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
@@ -323,11 +326,9 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
         });
 }
 
-struct TemplateNodeParseContext {
+pub struct TemplateNodeParseContext {
     pub template: ComponentTemplate,
     pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
-    // In the case of a live-reload (no compilation), we use cached expressions when we re-parse template
-    pub cached_expressions: Option<HashMap<String, ValueDefinition>>,
 }
 
 fn recurse_visit_tag_pairs_for_template(
@@ -1107,7 +1108,6 @@ pub fn assemble_component_definition(
             self_type_id.clone(),
             Some(component_source_file_path.to_owned()),
         ),
-        cached_expressions: None,
     };
 
     parse_template_from_component_definition_string(&mut tpc, pax);
