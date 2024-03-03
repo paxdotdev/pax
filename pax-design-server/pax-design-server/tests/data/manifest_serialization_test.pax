@@ -1,0 +1,9 @@
+// Hello world
+<SpecialComponent />
+
+@settings {
+    @existing_handler: handler_action,
+    #existing_selector {
+    
+    }
+}
