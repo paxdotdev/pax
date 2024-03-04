@@ -18,6 +18,22 @@ pub struct Stroke {
     pub width: Property<Size>,
 }
 
+
+
+impl From<IntoableLiteral> for Stroke {
+    fn from(value: IntoableLiteral) -> Self {
+        match value {
+            IntoableLiteral::Color(c) => {
+                Stroke {
+                    color: Box::new(PropertyLiteral::new(c)),
+                    width: Box::new(PropertyLiteral::new(Numeric::from(1).into())),
+                }
+            },
+            _ => {unreachable!()}
+        }
+    }
+}
+
 impl Default for Stroke {
     fn default() -> Self {
         Self {

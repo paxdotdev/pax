@@ -33,6 +33,22 @@ pub const COMMON_PROPERTIES: [&str; 13] = [
     "height",
 ];
 
+pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
+    blessed_intoable_downstream_types.iter().any(|bidt| {
+        type_to_check.ends_with(*bidt)
+    })
+}
+
+// Only when parsing values for one of the types in this slice
+// will we look ahead and parse for an IntoableLiteral value.
+const blessed_intoable_downstream_types : [&'static str; 5] = [
+    "pax_runtime_api::Size",
+    "pax_runtime_api::Rotation",
+    "pax_runtime_api::ColorChannel",
+    "pax_std::types::Stroke",
+    "pax_std::types::Fill",
+];
+
 pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] = [
     ("id", "String"),
     ("x", "pax_engine::api::Size"),

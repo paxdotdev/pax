@@ -325,6 +325,7 @@ pub enum PaxType {
 pub struct TypeId {
     pax_type: PaxType,
     import_path: Option<String>,
+    is_intoable_downstream_type: bool,
 
     _type_id: String,
     _type_id_escaped: String,
@@ -345,6 +346,7 @@ impl TypeId {
         TypeId {
             pax_type: PaxType::If,
             import_path: None,
+            is_intoable_downstream_type: false,
             _type_id: "If".to_string(),
             _type_id_escaped: "If".to_string(),
         }
@@ -354,6 +356,7 @@ impl TypeId {
         TypeId {
             pax_type: PaxType::Repeat,
             import_path: None,
+            is_intoable_downstream_type: false,
             _type_id: "Repeat".to_string(),
             _type_id_escaped: "Repeat".to_string(),
         }
@@ -363,6 +366,7 @@ impl TypeId {
         TypeId {
             pax_type: PaxType::Slot,
             import_path: None,
+            is_intoable_downstream_type: false,
             _type_id: "Slot".to_string(),
             _type_id_escaped: "Slot".to_string(),
         }
@@ -372,6 +376,7 @@ impl TypeId {
         TypeId {
             pax_type: PaxType::Comment,
             import_path: None,
+            is_intoable_downstream_type: false,
             _type_id: "Comment".to_string(),
             _type_id_escaped: "Comment".to_string(),
         }
@@ -388,6 +393,7 @@ impl TypeId {
         Self {
             pax_type: PaxType::Singleton { pascal_identifier },
             import_path: Some(import_path.to_owned()),
+            is_intoable_downstream_type: crate::constants::is_intoable_downstream_type(import_path),
             _type_id: import_path.to_owned(),
             _type_id_escaped: escape_identifier(import_path.to_owned()),
         }
@@ -400,6 +406,7 @@ impl TypeId {
                 pascal_identifier: identifier.to_owned(),
             },
             import_path: None,
+            is_intoable_downstream_type: crate::constants::is_intoable_downstream_type(identifier),
             _type_id: identifier.to_owned(),
             _type_id_escaped: identifier.to_owned(),
         }
@@ -413,6 +420,7 @@ impl TypeId {
                 elem_identifier: elem_identifier.to_owned(),
             },
             import_path: Some("std::vec::Vec".to_string()),
+            is_intoable_downstream_type: false,
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
@@ -426,6 +434,7 @@ impl TypeId {
                 identifier: identifier.to_owned(),
             },
             import_path: Some("std::ops::Range".to_string()),
+            is_intoable_downstream_type: false,
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
@@ -439,6 +448,7 @@ impl TypeId {
                 identifier: identifier.to_owned(),
             },
             import_path: Some("std::option::Option".to_string()),
+            is_intoable_downstream_type: false,
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
@@ -457,6 +467,7 @@ impl TypeId {
                 value_identifier: value_identifier.to_owned(),
             },
             import_path: Some("std::collections::HashMap".to_string()),
+            is_intoable_downstream_type: false,
             _type_id: _id.clone(),
             _type_id_escaped: escape_identifier(_id),
         }
