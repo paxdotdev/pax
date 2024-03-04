@@ -89,6 +89,7 @@ impl PaxManifestORM {
     ) -> NodeBuilder {
         NodeBuilder::new(self, containing_component_type_id, node_type_id)
     }
+
     pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> NodeBuilder {
         NodeBuilder::retrieve_node(self, uni)
     }
