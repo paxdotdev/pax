@@ -10,7 +10,7 @@ pub mod error;
 mod helpers;
 mod tests;
 
-use self::helpers::{PaxEnum, PaxObject, PaxSeq};
+use self::helpers::{PaxEnum, PaxObject, PaxSeq, PaxColor};
 
 pub use error::{Error, Result};
 
@@ -21,6 +21,7 @@ use crate::constants::{
 };
 
 use pax_runtime_api::{Color, Percent, IntoableLiteral};
+use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
 
 pub struct Deserializer {
     input: String,
@@ -113,18 +114,41 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                 let mut lcsf_pairs = inner_pair.clone().into_inner().next().unwrap().into_inner();
                                 let func = inner_pair.clone().into_inner().next().unwrap().as_str().to_string().trim().to_string().split("(").next().unwrap().to_string();
 
-                                visitor.visit_enum(PaxEnum::new(
-                                    Some(COLOR.to_string()),
-                                    func.to_string(),
-                                    Some(lcsf_pairs.as_str().to_string())
-                                ))
+                                // pre-process each lcsf_pair and wrap into a ColorChannelDefinition
+
+                                //literal_color_channel = {literal_number_with_unit | literal_number_integer}
+                                let args = lcsf_pairs.into_iter().map(|lcsf| {
+                                    let lcsf = lcsf.into_inner().next().unwrap();
+                                    match lcsf.as_rule() {
+                                        Rule::literal_number_with_unit => {
+                                            let inner = lcsf.clone().into_inner();
+                                            let number = inner.clone().next().unwrap().as_str();
+                                            let unit = inner.clone().nth(1).unwrap().as_str();
+                                            match unit {
+                                                "%" => ColorFuncArg::Percent(number.to_string()),
+                                                "rad" | "deg" => ColorFuncArg::Rotation(lcsf.as_str().to_string()),
+                                                _ => {
+                                                    unreachable!(); //Unsupported unit
+                                                }
+                                            }
+                                        },
+                                        Rule::literal_number_integer => {
+                                            ColorFuncArg::Integer(lcsf.as_str().to_string())
+                                        },
+                                        _ => {panic!("{}", lcsf.as_str())}
+                                    }
+                                }).collect();
+
+                                visitor.visit_enum(PaxColor {
+                                    color_func: func,
+                                    args,
+                                })
                             }
                             Rule::literal_color_const => {
-                                let color_const = what_kind_of_color.into_inner().next().unwrap();
-
+                                // panic!("Color: {}", what_kind_of_color.as_str());
                                 let explicit_color = visitor.visit_enum(PaxEnum::new(
                                     Some(COLOR.to_string()),
-                                    color_const.to_string(),
+                                    what_kind_of_color.as_str().to_string(),
                                     None
                                 ));
                                 explicit_color
@@ -189,8 +213,8 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                     Rule::literal_tuple => {
                         let pairs = inner_pair.into_inner();
                         let elements = pairs
-                            .map(|pair| pair.as_str().to_string())
-                            .collect::<Vec<String>>();
+                            .map(|pair| PaxSeqArg::String(pair.as_str().to_string()))
+                            .collect::<Vec<PaxSeqArg>>();
                         visitor.visit_seq(PaxSeq::new(elements))
                     }
 
