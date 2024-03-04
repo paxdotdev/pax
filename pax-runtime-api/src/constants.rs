@@ -43,9 +43,9 @@ pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
 // Only when parsing values for one of the types in this slice
 // will we look ahead and parse for an IntoableLiteral value.
 const blessed_intoable_downstream_types : [&'static str; 5] = [
-    "pax_runtime_api::Size",
-    "pax_runtime_api::Rotation",
-    "pax_runtime_api::ColorChannel",
+    "pax_engine::api::Size",
+    "pax_engine::api::Rotation",
+    "pax_engine::api::ColorChannel",
     "pax_std::types::Stroke",
     "pax_std::types::Fill",
 ];
