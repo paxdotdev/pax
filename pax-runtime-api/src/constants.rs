@@ -11,6 +11,7 @@ pub const INTEGER: &str = "Integer";
 pub const FLOAT: &str = "Float";
 pub const TRUE: &str = "true";
 pub const COLOR: &str = "Color";
+pub const COLOR_CHANNEL: &str = "ColorChannel";
 
 pub const TYPE_ID_IF: &str = "IF";
 pub const TYPE_ID_REPEAT: &str = "REPEAT";
@@ -35,7 +36,7 @@ pub const COMMON_PROPERTIES: [&str; 13] = [
 
 pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
     blessed_intoable_downstream_types.iter().any(|bidt| {
-        type_to_check.ends_with(*bidt)
+        type_to_check.contains(*bidt)
     })
 }
 
@@ -59,8 +60,8 @@ pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] = [
     ("skew_y", "pax_engine::api::Numeric"),
     ("anchor_x", "pax_engine::api::Size"),
     ("anchor_y", "pax_engine::api::Size"),
-    ("rotate", "Rotation"),
-    ("transform", "Transform2D"),
+    ("rotate", "pax_engine::api::Rotation"),
+    ("transform", "pax_engine::api::Transform2D"),
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),
 ];

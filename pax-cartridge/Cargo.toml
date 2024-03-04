@@ -14,6 +14,7 @@ default = ["pax-manifest/parsing"]
 [dependencies]
 piet-common = "0.6.0"
 pax-runtime = {path = "../pax-runtime", version = "0.12.3"}
+pax-runtime-api = {path = "../pax-runtime-api", version = "0.12.3"}
 pax-engine = {path = "../pax-engine", version = "0.12.3"}
 pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.12.3"}
 pax-manifest = {path = "../pax-manifest", version = "0.12.3"}

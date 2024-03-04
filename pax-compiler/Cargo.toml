@@ -44,6 +44,7 @@ nix = "0.20.2"
 pax-manifest = {version= "0.12.3", path="../pax-manifest"}
 pax-message = {version = "0.12.3", path="../pax-message"}
 pax-runtime = {path = "../pax-runtime", version="0.12.3" }
+pax-runtime-api = {path = "../pax-runtime-api", version="0.12.3" }
 pest = "2.6.0"
 pest_derive = "2.6.0"
 portpicker = "0.1.1"
