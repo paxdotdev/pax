@@ -54,10 +54,11 @@ impl Settings {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            let Some(ref temp_node_id) = app_state.selected_template_node_id else {
+            if app_state.selected_template_node_ids.len() != 1 {
                 self.is_component_selected.set(false);
                 return;
-            };
+            }
+            let temp_node_id = app_state.selected_template_node_ids[0].clone();
             let type_id = app_state.selected_component_id.clone();
 
             self.is_component_selected.set(true);

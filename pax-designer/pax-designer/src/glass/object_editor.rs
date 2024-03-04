@@ -17,7 +17,7 @@ use crate::glass::control_point::{
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::ActionContext;
 use crate::model::math::coordinate_spaces::Glass;
-use crate::model::{self, action};
+use crate::model::{self, action, SelectionState};
 
 #[pax]
 #[file("glass/object_editor.pax")]
@@ -43,8 +43,18 @@ impl ObjectEditor {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state_with_derived(ctx, |_app_state, derived_state| {
-            if let Some((bounds, _origin)) = &derived_state.selected_bounds {
+            if let Some((bounds, _origin)) = &derived_state.selected_bounds.get_single() {
                 self.set_generic_object_editor(bounds);
+            } else if let Some(total_bounds) = derived_state.selected_bounds.total_bounds() {
+                let mut editor = Editor::new();
+                let [p1, p2, p3, p4] = total_bounds.corners();
+                editor.add_bounding_segments(vec![
+                    (p1, p2).into(),
+                    (p2, p3).into(),
+                    (p3, p4).into(),
+                    (p4, p1).into(),
+                ]);
+                self.set_editor(editor);
             } else {
                 CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
                     *funcs = None;
@@ -102,23 +112,23 @@ impl ObjectEditor {
     }
 
     fn set_generic_object_editor(&mut self, selection_bounds: &AxisAlignedBox) {
-        let [p1, p4, p3, p2] = selection_bounds.bounding_points();
+        let [p1, p4, p3, p2] = selection_bounds.corners();
 
         let mut editor = Editor::new();
 
         struct ResizeBehaviour {
             attachment_point: Point2<BoxPoint>,
-            initial_box_bounds: (AxisAlignedBox, Point2<Glass>),
+            initial_selection_state: SelectionState,
         }
 
         impl ResizeBehaviour {
             fn new(
                 attachment_point: Point2<BoxPoint>,
-                initial_box_bounds: (AxisAlignedBox, Point2<Glass>),
+                initial_selection_state: SelectionState,
             ) -> Self {
                 Self {
                     attachment_point,
-                    initial_box_bounds,
+                    initial_selection_state,
                 }
             }
         }
@@ -126,7 +136,10 @@ impl ObjectEditor {
         impl ControlPointBehaviour for ResizeBehaviour {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 let world_point = ctx.world_transform() * point;
-                let (ref axis_box, origin) = self.initial_box_bounds;
+                let Some((ref axis_box, origin)) = self.initial_selection_state.get_single() else {
+                    // TODO handle multi-selection
+                    return;
+                };
                 let axis_box_world = axis_box
                     .try_into_space(ctx.world_transform())
                     .expect("tried to transform axis aligned box to non-axis aligned space");
@@ -142,12 +155,7 @@ impl ObjectEditor {
         }
 
         fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviourFactory {
-            Box::new(move |ac, _p| {
-                Box::new(ResizeBehaviour::new(
-                    anchor,
-                    ac.selected_bounds().expect("object is selected"),
-                ))
-            })
+            Box::new(move |ac, _p| Box::new(ResizeBehaviour::new(anchor, ac.selection_state())))
         }
 
         // resize points
@@ -224,8 +232,17 @@ impl ObjectEditor {
 
         fn rotate_factory() -> ControlPointBehaviourFactory {
             Box::new(|ctx, point| {
-                let rotation_anchor = ctx.selected_bounds().expect("an object is selected").1;
-                let start_angle = ctx.selected_node().unwrap().properties().local_rotation;
+                let rotation_anchor = ctx
+                    .selection_state()
+                    .get_single()
+                    .expect("an object is selected")
+                    .1;
+                let start_angle = ctx
+                    .selected_nodes()
+                    .first()
+                    .unwrap()
+                    .properties()
+                    .local_rotation;
                 let start_dir = point - rotation_anchor;
                 Box::new(RotationBehaviour {
                     rotation_anchor,

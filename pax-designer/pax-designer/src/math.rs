@@ -40,6 +40,28 @@ impl<W: Space> AxisAlignedBox<W> {
         Self { min, max }
     }
 
+    pub fn bound_of_boxes(boxes: impl IntoIterator<Item = AxisAlignedBox<W>>) -> Self {
+        Self::bound_of_points(
+            boxes
+                .into_iter()
+                .flat_map(|b| [b.top_left(), b.bottom_right()]),
+        )
+    }
+
+    pub fn bound_of_points(points: impl IntoIterator<Item = Point2<W>>) -> Self {
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
+        for p in points {
+            min_x = min_x.min(p.x);
+            max_x = max_x.max(p.x);
+            min_y = min_y.min(p.y);
+            max_y = max_y.max(p.y);
+        }
+        AxisAlignedBox::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y))
+    }
+
     pub fn top_left(&self) -> Point2<W> {
         self.min
     }
@@ -56,7 +78,7 @@ impl<W: Space> AxisAlignedBox<W> {
         self.max.y - self.min.y
     }
 
-    pub fn bounding_points(&self) -> [Point2<W>; 4] {
+    pub fn corners(&self) -> [Point2<W>; 4] {
         [
             self.min,
             Point2::new(self.min.x, self.max.y),
