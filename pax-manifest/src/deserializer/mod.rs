@@ -52,7 +52,7 @@ impl Deserializer {
 // the Rust `Into` system, while appeasing its particular demands around codegen.
 pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
     if let Ok(ast) = PaxParser::parse(Rule::literal_color, str) {
-        Ok(IntoableLiteral::Color(from_pax::<Color>(str).unwrap()))
+        Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
     } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
         let _number = ast.clone().next().unwrap().as_str();
         let unit = ast.clone().nth(1).unwrap().as_str();
@@ -110,40 +110,14 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let what_kind_of_color = inner_pair.clone().into_inner().next().unwrap();
                         match what_kind_of_color.as_rule() {
                             Rule::literal_color_space_func => {
-
                                 let mut lcsf_pairs = inner_pair.clone().into_inner().next().unwrap().into_inner();
                                 let func = inner_pair.clone().into_inner().next().unwrap().as_str().to_string().trim().to_string().split("(").next().unwrap().to_string();
-                                let args = if func.starts_with("rgba") || func.starts_with("hsla") {
-                                    //four args
-                                    let c0 = lcsf_pairs.next().unwrap();
-                                    //c0 is a `Rule::literal_color_channel`.
-                                    // Deal with it appropriately.
-                                    // literal_color_channel = {literal_number_with_unit | literal_number_integer}
-                                    todo!("see comment above");
-                                    let c1 : Numeric = from_pax(lcsf_pairs.next()).unwrap()
-                                    let c2 : Numeric = from_pax(lcsf_pairs.next()).unwrap()
-                                    let c3 : Numeric = from_pax(lcsf_pairs.next()).unwrap();
 
-
-
-
-
-                                    vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
-                                } else if func.starts_with("rgb") || func.starts_with("hsl") {
-                                    //three args
-                                    vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
-                                } else {
-                                    panic!("{}", &format!("unknown color literal func: {}", func));
-                                };
-
-
-
-                                let explicit_color = visitor.visit_enum(PaxEnum::new(
+                                visitor.visit_enum(PaxEnum::new(
                                     Some(COLOR.to_string()),
                                     func.to_string(),
-                                    Some(args)
-                                ));
-                                explicit_color
+                                    Some(lcsf_pairs.as_str().to_string())
+                                ))
                             }
                             Rule::literal_color_const => {
                                 let color_const = what_kind_of_color.into_inner().next().unwrap();
@@ -162,14 +136,6 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let number = inner_pair.into_inner().next().unwrap();
                         match number.as_rule() {
                             Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
-                                Some(NUMERIC.to_string()),
-                                INTEGER.to_string(),
-                                Some(number.as_str().to_string()),
-                            ))visitor.visit_enum(PaxEnum::new(
-                                Some(NUMERIC.to_string()),
-                                INTEGER.to_string(),
-                                Some(number.as_str().to_string()),
-                            ))visitor.visit_enum(PaxEnum::new(
                                 Some(NUMERIC.to_string()),
                                 INTEGER.to_string(),
                                 Some(number.as_str().to_string()),
