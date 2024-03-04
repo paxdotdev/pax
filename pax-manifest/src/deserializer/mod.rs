@@ -32,6 +32,7 @@ impl Deserializer {
     }
 }
 
+// Literal Intoable Graph, as of initial impl:
 // Numeric
 // - Size
 // - Rotation
@@ -44,17 +45,8 @@ impl Deserializer {
 // - Stroke (1px solid)
 // - Fill (solid)
 
-//(ignore px, rad, deg,
-//what about Fill?  Do we need to represent Fill here? (no; it will vanilla-parse if e.g. Fill::Solid(Color::RED) is specified
-
-// As of now there are no multi-hop chains, but we should expect they will come about
-// Do we encode all types in the graph as IntoableLiterals, or just the non-terminals?
-// (the former, while technically overshooting, feels conceptually cleaner than having to filter strict leaves,
-// especially when dealing with prospective increased complexity in the graph)
-
-
-// Tries to parse the provided string as a literal type that we know how to coerce into
-// other literal types.
+// `from_pax_try_intoable_literal` tries to parse the provided string as a literal type that we know how to coerce into other literal types.
+// Enables type-coercion from certain literal values, like `Percent` and `Color`.
 // If this string parses into a literal type that can be `Into`d (for example, 10% -> ColorChannel::Percent(10))
 // then package the parsed value into the IntoableLiteral enum, which gives us an interface into
 // the Rust `Into` system, while appeasing its particular demands around codegen.
@@ -62,22 +54,17 @@ pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
     if let Ok(ast) = PaxParser::parse(Rule::literal_color, str) {
         Ok(IntoableLiteral::Color(from_pax::<Color>(str).unwrap()))
     } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-        let number = ast.clone().next().unwrap().as_str();
+        let _number = ast.clone().next().unwrap().as_str();
         let unit = ast.clone().nth(1).unwrap().as_str();
         match unit {
             "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
             _ => Err(Error::UnsupportedMethod)
         }
-    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_float, str) {
-        Ok(IntoableLiteral::f64(from_pax(str).unwrap()))
-    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_integer, str) {
-        Ok(IntoableLiteral::isize(from_pax(str).unwrap()))
+    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number, str) {
+        Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
     } else {
         Err(Error::UnsupportedMethod) //Not an IntoableLiteral
     }
-
-
-
 }
 
 /// Main entry-point for deserializing a type from Pax.
@@ -120,22 +107,40 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                 match inner_pair.as_rule() {
                     Rule::literal_color => {
                         // literal_color = {literal_color_space_func | literal_color_const}
-                        let what_kind_of_color = inner_pair.into_inner().next().unwrap();
+                        let what_kind_of_color = inner_pair.clone().into_inner().next().unwrap();
                         match what_kind_of_color.as_rule() {
                             Rule::literal_color_space_func => {
-                                let mut lcsf_pairs = what_kind_of_color.into_inner();
-                                let func = lcsf_pairs.next().unwrap().as_str().to_string().replace("(", "");
-                                let args = if func == "rgb" || func == "hsl" {
+
+                                let mut lcsf_pairs = inner_pair.clone().into_inner().next().unwrap().into_inner();
+                                let func = inner_pair.clone().into_inner().next().unwrap().as_str().to_string().trim().to_string().split("(").next().unwrap().to_string();
+                                let args = if func.starts_with("rgba") || func.starts_with("hsla") {
+                                    //four args
+                                    let c0 = lcsf_pairs.next().unwrap();
+                                    //c0 is a `Rule::literal_color_channel`.
+                                    // Deal with it appropriately.
+                                    // literal_color_channel = {literal_number_with_unit | literal_number_integer}
+                                    todo!("see comment above");
+                                    let c1 : Numeric = from_pax(lcsf_pairs.next()).unwrap()
+                                    let c2 : Numeric = from_pax(lcsf_pairs.next()).unwrap()
+                                    let c3 : Numeric = from_pax(lcsf_pairs.next()).unwrap();
+
+
+
+
+
+                                    vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
+                                } else if func.starts_with("rgb") || func.starts_with("hsl") {
                                     //three args
                                     vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
                                 } else {
-                                    //four args
-                                    vec![lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string(),lcsf_pairs.next().unwrap().as_str().to_string()].join(",")
+                                    panic!("{}", &format!("unknown color literal func: {}", func));
                                 };
+
+
 
                                 let explicit_color = visitor.visit_enum(PaxEnum::new(
                                     Some(COLOR.to_string()),
-                                    func.as_str().to_string(),
+                                    func.to_string(),
                                     Some(args)
                                 ));
                                 explicit_color
@@ -157,6 +162,14 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let number = inner_pair.into_inner().next().unwrap();
                         match number.as_rule() {
                             Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
+                                Some(NUMERIC.to_string()),
+                                INTEGER.to_string(),
+                                Some(number.as_str().to_string()),
+                            ))visitor.visit_enum(PaxEnum::new(
+                                Some(NUMERIC.to_string()),
+                                INTEGER.to_string(),
+                                Some(number.as_str().to_string()),
+                            ))visitor.visit_enum(PaxEnum::new(
                                 Some(NUMERIC.to_string()),
                                 INTEGER.to_string(),
                                 Some(number.as_str().to_string()),
