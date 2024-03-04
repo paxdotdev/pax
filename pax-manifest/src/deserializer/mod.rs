@@ -32,17 +32,53 @@ impl Deserializer {
     }
 }
 
-pub fn from_pax_maybe_intoable(str: &str) -> Result<IntoableLiteral> {
+// Numeric
+// - Size
+// - Rotation
+// - ColorChannel
+// Percent
+// - ColorChannel
+// - Rotation
+// - Size
+// Color
+// - Stroke (1px solid)
+// - Fill (solid)
+
+//(ignore px, rad, deg,
+//what about Fill?  Do we need to represent Fill here? (no; it will vanilla-parse if e.g. Fill::Solid(Color::RED) is specified
+
+// As of now there are no multi-hop chains, but we should expect they will come about
+// Do we encode all types in the graph as IntoableLiterals, or just the non-terminals?
+// (the former, while technically overshooting, feels conceptually cleaner than having to filter strict leaves,
+// especially when dealing with prospective increased complexity in the graph)
+
+
+// Tries to parse the provided string as a literal type that we know how to coerce into
+// other literal types.
+// If this string parses into a literal type that can be `Into`d (for example, 10% -> ColorChannel::Percent(10))
+// then package the parsed value into the IntoableLiteral enum, which gives us an interface into
+// the Rust `Into` system, while appeasing its particular demands around codegen.
+pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
     if let Ok(ast) = PaxParser::parse(Rule::literal_color, str) {
         Ok(IntoableLiteral::Color(from_pax::<Color>(str).unwrap()))
     } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-        let unwrapped_from_pax = from_pax::<Percent>(ast.as_str())?;
-        Ok(IntoableLiteral::Percent(unwrapped_from_pax))
+        let number = ast.clone().next().unwrap().as_str();
+        let unit = ast.clone().nth(1).unwrap().as_str();
+        match unit {
+            "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
+            _ => Err(Error::UnsupportedMethod)
+        }
+    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_float, str) {
+        Ok(IntoableLiteral::f64(from_pax(str).unwrap()))
+    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_integer, str) {
+        Ok(IntoableLiteral::isize(from_pax(str).unwrap()))
     } else {
-        Err(Error::Message(format!("Not an intoable literal")))
+        Err(Error::UnsupportedMethod) //Not an IntoableLiteral
     }
-}
 
+
+
+}
 
 /// Main entry-point for deserializing a type from Pax.
 pub fn from_pax<T>(str: &str) -> Result<T>
@@ -98,7 +134,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                 };
 
                                 let explicit_color = visitor.visit_enum(PaxEnum::new(
-                                    COLOR.to_string(),
+                                    Some(COLOR.to_string()),
                                     func.as_str().to_string(),
                                     Some(args)
                                 ));
@@ -108,7 +144,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                 let color_const = what_kind_of_color.into_inner().next().unwrap();
 
                                 let explicit_color = visitor.visit_enum(PaxEnum::new(
-                                    COLOR.to_string(),
+                                    Some(COLOR.to_string()),
                                     color_const.to_string(),
                                     None
                                 ));
@@ -121,12 +157,12 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let number = inner_pair.into_inner().next().unwrap();
                         match number.as_rule() {
                             Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
-                                NUMERIC.to_string(),
+                                Some(NUMERIC.to_string()),
                                 INTEGER.to_string(),
                                 Some(number.as_str().to_string()),
                             )),
                             Rule::literal_number_float => visitor.visit_enum(PaxEnum::new(
-                                NUMERIC.to_string(),
+                                Some(NUMERIC.to_string()),
                                 FLOAT.to_string(),
                                 Some(number.as_str().to_string()),
                             )),
@@ -139,22 +175,22 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let unit = inner.clone().nth(1).unwrap().as_str();
                         match unit {
                             "%" => visitor.visit_enum(PaxEnum::new(
-                                SIZE.to_string(),
+                                None,
                                 PERCENT.to_string(),
                                 Some(number.to_string()),
                             )),
                             "px" => visitor.visit_enum(PaxEnum::new(
-                                SIZE.to_string(),
+                                Some(SIZE.to_string()),
                                 PIXELS.to_string(),
                                 Some(number.to_string()),
                             )),
                             "rad" => visitor.visit_enum(PaxEnum::new(
-                                ROTATION.to_string(),
+                                Some(ROTATION.to_string()),
                                 RADIANS.to_string(),
                                 Some(number.to_string()),
                             )),
                             "deg" => visitor.visit_enum(PaxEnum::new(
-                                ROTATION.to_string(),
+                                Some(ROTATION.to_string()),
                                 DEGREES.to_string(),
                                 Some(number.to_string()),
                             )),
@@ -178,6 +214,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                             .collect::<Vec<String>>();
                         visitor.visit_seq(PaxSeq::new(elements))
                     }
+
                     Rule::literal_enum_value => {
                         visitor.visit_enum(PaxEnum::from_string(inner_pair.as_str().to_string()))
                     }
