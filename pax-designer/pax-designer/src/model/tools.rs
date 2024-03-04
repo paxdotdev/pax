@@ -107,8 +107,12 @@ impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
         Self {
             state: if let Some(hit) = ctx.raycast_glass(point) {
-                ctx.app_state.selected_template_node_id =
-                    Some(hit.global_id().unwrap().get_template_node_id());
+                if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+                    ctx.app_state.selected_template_node_ids.clear();
+                }
+                ctx.app_state
+                    .selected_template_node_ids
+                    .push(hit.global_id().unwrap().get_template_node_id());
 
                 let origin_window = hit.origin().unwrap();
                 let object_origin_glass = ctx.glass_transform() * origin_window;

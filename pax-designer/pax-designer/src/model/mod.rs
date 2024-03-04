@@ -81,7 +81,7 @@ pub struct AppState {
     /// Currently selected template node inside the current component
     /// INVALID_IF: usize doesn't correspond to an id in the component with id
     /// selected_component_id
-    pub selected_template_node_id: Option<TemplateNodeId>,
+    pub selected_template_node_ids: Vec<TemplateNodeId>,
 
     //---------------glass------------------
     /// Glass to world/viewport to world camera transform.
@@ -143,17 +143,52 @@ pub fn with_action_context<R: 'static>(
     })
 }
 
+pub struct SelectionState {
+    total_bounds: AxisAlignedBox,
+    items: Vec<SelectedItem>,
+}
+
+impl SelectionState {
+    // Temporary way to get the signle selected object, or none.
+    // This will be superseded once all operations on selectionstate
+    // accept multiple objects
+    pub fn get_single(&self) -> Option<(AxisAlignedBox, Point2<Glass>)> {
+        if self.items.len() == 1 {
+            Some((self.items[0].bounds.clone(), self.items[0].origin))
+        } else {
+            None
+        }
+    }
+
+    pub fn selected_count(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn total_bounds(&self) -> Option<AxisAlignedBox> {
+        if self.items.is_empty() {
+            None
+        } else {
+            Some(self.total_bounds.clone())
+        }
+    }
+}
+
+pub struct SelectedItem {
+    bounds: AxisAlignedBox,
+    origin: Point2<Glass>,
+}
+
 // This represents values that can be deterministically produced from the app
 // state and the projects manifest
 pub struct DerivedAppState {
-    pub selected_bounds: Option<(AxisAlignedBox, Point2<Glass>)>,
+    pub selected_bounds: SelectionState,
 }
 
 pub fn read_app_state_with_derived(
     ctx: &NodeContext,
     closure: impl FnOnce(&AppState, &DerivedAppState),
 ) {
-    let selected_bounds = with_action_context(ctx, |ac| ac.selected_bounds());
+    let selected_bounds = with_action_context(ctx, |ac| ac.selection_state());
     GLOBAL_STATE.with_borrow_mut(|model| {
         closure(&model.app_state, &DerivedAppState { selected_bounds });
     });
