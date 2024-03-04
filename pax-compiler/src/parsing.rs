@@ -1504,9 +1504,9 @@ impl Reflectable for pax_runtime::api::ColorChannel {
     }
 }
 
-impl Reflectable for pax_runtime::api::Rotation {
+impl Reflectable for pax_runtime_api::Rotation {
     fn get_import_path() -> String {
-        "pax_engine::api::Rotation".to_string()
+        "pax_runtime_api::Rotation".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {

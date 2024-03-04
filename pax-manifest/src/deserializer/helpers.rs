@@ -3,7 +3,9 @@ use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
 };
-use pax_runtime_api::constants::COLOR;
+use serde::__private::de::EnumDeserializer;
+use pax_runtime_api::ColorChannel;
+use pax_runtime_api::constants::{COLOR, COLOR_CHANNEL, INTEGER, PERCENT, ROTATION};
 
 use crate::constants::{NUMERIC, STRING_BOX};
 
@@ -13,12 +15,106 @@ use super::{
 };
 
 
+pub struct PaxColor {
+    pub color_func: String,
+    pub args: Vec<ColorFuncArg>,
+}
+
+pub enum ColorFuncArg {
+    Percent(String),
+    Integer(String),
+    Rotation(String),
+}
+
+impl<'de> EnumAccess<'de> for crate::deserializer::helpers::PaxColor {
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
+        where
+            V: DeserializeSeed<'de>,
+    {
+        let val = seed.deserialize(crate::deserializer::helpers::PrimitiveDeserializer::new(self.color_func.as_str()))?;
+        Ok((val, self))
+    }
+}
+
+impl<'de> VariantAccess<'de> for crate::deserializer::helpers::PaxColor {
+    type Error = Error;
+
+    // Handle color constants like Color::RED
+    fn unit_variant(self) -> Result<()> {
+        Ok(())
+    }
+
+    // Handle seq args like Color::rgb(255,0,0) or Color::rgb(100%, 0%, 0%)
+    fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
+        where
+            V: Visitor<'de>,
+    {
+        let seq = self.args.iter().map(|cc|{
+            match cc {
+                ColorFuncArg::Rotation(val) => PaxSeqArg::String(val.to_string()),
+                ColorFuncArg::Percent(val) => PaxSeqArg::Enum(PaxEnum {
+                    identifier: Some(COLOR_CHANNEL.to_string()),
+                    variant: PERCENT.to_string(),
+                    args: Some(val.to_string()),
+                }),
+                ColorFuncArg::Integer(val) => {
+
+                    PaxSeqArg::Enum(
+
+                        PaxEnum {
+                            identifier: Some(COLOR_CHANNEL.to_string()),
+                            variant: INTEGER.to_string(),
+                            args: Some(val.to_string())
+                        }
+                    )},
+            }
+        }).collect();
+
+        visitor.visit_seq(PaxSeq::new(seq))
+    }
+
+    // Color::rgb(only_one_arg)
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
+        where
+            T: DeserializeSeed<'de>,
+    {
+        unreachable!(); //Incorrect color syntax
+    }
+
+    // Color::rgb { r: ... } (not supported)
+    fn struct_variant<V>(self, fields: &'static [&'static str], visitor: V) -> std::result::Result<V::Value, Self::Error> where V: Visitor<'de> {
+        unreachable!(); //Incorrect color syntax
+    }
+}
+
+#[derive(Clone)]
 pub struct PaxEnum {
     //a None-identifier allows us to manage tuple-structs as enums, e.g. `Percent(10)`
     identifier: Option<String>,
     variant: String,
     args: Option<String>,
 }
+
+impl<'de> de::Deserializer<'de> for PaxEnum {
+    type Error = Error;
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map struct enum ignored_any identifier
+    }
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+        where
+            V: Visitor<'de>,
+    {
+        visitor.visit_enum(self.clone())
+    }
+}
+
 
 impl PaxEnum {
     pub fn new(identifier: Option<String>, variant: String, args: Option<String>) -> Self {
@@ -111,8 +207,8 @@ impl<'de> VariantAccess<'de> for PaxEnum {
                 .next()
                 .unwrap()
                 .into_inner()
-                .map(|x| x.as_str().to_owned())
-                .collect::<Vec<String>>();
+                .map(|x| PaxSeqArg::String(x.as_str().to_owned()))
+                .collect::<Vec<PaxSeqArg>>();
             visitor.visit_seq(PaxSeq::new(elements))
         } else {
             panic!("Failed to parse: {}", &self.args.unwrap())
@@ -179,15 +275,22 @@ impl<'de> de::Deserializer<'de> for PrimitiveDeserializer {
 }
 
 pub struct PaxSeq {
-    elements: Vec<String>,
+    elements: Vec<PaxSeqArg>,
     index: usize,
 }
 
+#[derive(Clone)]
+pub enum PaxSeqArg {
+    String(String),
+    Enum(PaxEnum),
+}
+
 impl PaxSeq {
-    pub fn new(elements: Vec<String>) -> Self {
+    pub fn new(elements: Vec<PaxSeqArg>) -> Self {
         PaxSeq { elements, index: 0 }
     }
 }
+
 
 impl<'de> SeqAccess<'de> for PaxSeq {
     type Error = Error;
@@ -197,8 +300,18 @@ impl<'de> SeqAccess<'de> for PaxSeq {
         T: DeserializeSeed<'de>,
     {
         if self.index < self.elements.len() {
-            let val =
-                seed.deserialize(Deserializer::from_string(self.elements[self.index].clone()))?;
+
+            let elem = &self.elements[self.index];
+
+            let val = match elem {
+                PaxSeqArg::Enum(pax_enum) => {
+                    seed.deserialize(pax_enum.clone())?
+                },
+                PaxSeqArg::String(str) => {
+                    seed.deserialize(Deserializer::from_string(str.to_string()))?
+                }
+            };
+
             self.index += 1;
             Ok(Some(val))
         } else {

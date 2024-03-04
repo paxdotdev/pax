@@ -1121,8 +1121,8 @@ impl ColorChannel {
             },
             Self::Integer(zero_to_255) => {
                 assert!(zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255, "Integer color channel values must be between 0 and 255");
-                let f_zero : f64 = (*zero_to_255).into();
-                f_zero / 255.0_f64.clamp(0_f64, 1_f64)
+                let f_zero : f64 = (*zero_to_255).to_float();
+                (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
             }
         }
     }
@@ -1144,7 +1144,7 @@ pub enum Color {
     hsla(Rotation, ColorChannel, ColorChannel, ColorChannel),
 
     #[default]
-    red
+    RED
     //TODO: with `red` as a prototype, add Tailwind-inspired pseudo-constants here
 
 }
@@ -1170,7 +1170,7 @@ impl Color {
             },
             Self::rgba(r,g,b,a) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),a.to_float_0_1()],
             Self::rgb(r,g,b) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),1.0],
-            Self::red => Self::rgb(Numeric::from(255).into(), Numeric::from(0).into(), Numeric::from(0).into()).to_rgba(),
+            Self::RED => Self::rgb(Numeric::from(255).into(), Numeric::from(0).into(), Numeric::from(0).into()).to_rgba(),
             _ => {
                 unimplemented!("Unsupported color variant lacks conversion logic to RGB")
             }
