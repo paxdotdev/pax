@@ -14,7 +14,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                 properties.{{property.name}} =
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            let mi = from_pax_maybe_intoable()...
+                            let mi = from_pax_maybe_intoable_literal(&lv.raw_value);
                             if let Ok(intoable_literal) = mi {
                                 Box::new(PropertyLiteral::new(intoable_literal.into()))
                             } else {
@@ -149,10 +149,15 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-                                        if let Err(e) = from_pax::<{{prop.type_id._type_id}}>(lv.raw_value.clone()) {
-                                            panic!("Failed to parse value for {} with error {}",lv.raw_value.clone(),e);
+                                        let mi = from_pax_maybe_intoable_literal(&lv.raw_value);
+                                        if let Ok(intoable_literal) = mi {
+                                            Box::new(PropertyLiteral::new(intoable_literal.into()))
+                                        } else {
+                                            if let Err(e) = from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value) {
+                                                panic!("Failed to parse value for {} with error {}",&lv.raw_value,e);
+                                            }
+                                            Box::new(PropertyLiteral::new(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()))
                                         }
-                                        Box::new(PropertyLiteral::new(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()))
                                     },
                                     ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                                     {
@@ -166,7 +171,12 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% else %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-                                        from_pax(&lv.raw_value).unwrap()
+                                        let mi = from_pax_maybe_intoable_literal(&lv.raw_value);
+                                        if let Ok(intoable_literal) = mi {
+                                            Box::new(PropertyLiteral::new(intoable_literal.into()))
+                                        } else {
+                                            from_pax(&lv.raw_value).unwrap()
+                                        }
                                     },
                                     ValueDefinition::Block(block) => {
                                         {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args)

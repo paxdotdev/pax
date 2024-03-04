@@ -1517,5 +1517,10 @@ impl Transform2D {
 // For example, 5% might need to be `.into()`d a Rotation, a ColorChannel, or a Size.  Color might need to be `.into()`d a Fill or a Stroke.
 pub enum IntoableLiteral {
     Color(Color),
-    Percent(Percent)
+    Percent(Percent),
+    #[allow(non_camel_case)]
+    f64(f64),
+    #[allow(non_camel_case)]
+    isize(isize),
+
 }
