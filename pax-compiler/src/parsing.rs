@@ -1504,19 +1504,24 @@ impl Reflectable for pax_runtime::api::ColorChannel {
     }
 }
 
-impl Reflectable for pax_runtime_api::Rotation {
+impl Reflectable for pax_runtime::api::Rotation {
     fn get_import_path() -> String {
-        "pax_runtime_api::Rotation".to_string()
+        "pax_engine::api::Rotation".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
         "Rotation".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_singleton(
+
+
+        let type_id = TypeId::build_singleton(
             &Self::get_import_path(),
             Some(&Self::get_self_pascal_identifier()),
-        )
+        );
+
+        panic!("{}", type_id);
+        type_id
     }
 }
 
