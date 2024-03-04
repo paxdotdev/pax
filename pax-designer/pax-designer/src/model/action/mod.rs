@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::math::coordinate_spaces::World;
+use super::{math::coordinate_spaces::World, SelectedItem, SelectionState};
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
@@ -103,39 +103,44 @@ impl ActionContext<'_> {
         None
     }
 
-    pub fn selected_node(&self) -> Option<NodeInterface> {
+    pub fn selected_nodes(&self) -> Vec<NodeInterface> {
         let type_id = self.app_state.selected_component_id.clone();
-        let temp_node_id = self.app_state.selected_template_node_id.as_ref()?.clone();
-        self.engine_context
-            .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(type_id, temp_node_id))
-            .into_iter()
-            .next()
+        self.app_state
+            .selected_template_node_ids
+            .iter()
+            .flat_map(|n_id| {
+                // This is returning the FIRST expanded node matching a template, not all.
+                // In the case of one to many relationships existing (for loops), this needs to be revamped.
+                self.engine_context
+                    .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(
+                        type_id.clone(),
+                        n_id.clone(),
+                    ))
+                    .into_iter()
+                    .next()
+            })
+            .collect()
     }
 
-    pub fn selected_bounds(&self) -> Option<(AxisAlignedBox, Point2<Glass>)> {
+    pub fn selection_state(&self) -> SelectionState {
         let to_glass_transform = self.glass_transform();
-        let expanded_node = self.selected_node()?;
-        let bounds = expanded_node
-            .bounding_points()?
-            .map(|p| to_glass_transform * p);
-        Some((
-            axis_aligned(bounds),
-            to_glass_transform * expanded_node.origin()?,
-        ))
-    }
-}
+        let expanded_node = self.selected_nodes();
+        let items: Vec<_> = expanded_node
+            .into_iter()
+            .flat_map(|n| {
+                Some(SelectedItem {
+                    bounds: AxisAlignedBox::bound_of_points(
+                        n.bounding_points()?.map(|p| to_glass_transform * p),
+                    ),
+                    origin: to_glass_transform * n.origin()?,
+                })
+            })
+            .collect();
 
-fn axis_aligned(bound: [Point2<Glass>; 4]) -> AxisAlignedBox {
-    let mut min_x = f64::MAX;
-    let mut min_y = f64::MAX;
-    let mut max_x = f64::MIN;
-    let mut max_y = f64::MIN;
-    for p in bound {
-        min_x = min_x.min(p.x);
-        max_x = max_x.max(p.x);
-        min_y = min_y.min(p.y);
-        max_y = max_y.max(p.y);
+        let total_bounds = AxisAlignedBox::bound_of_boxes(items.iter().map(|i| i.bounds.clone()));
+        SelectionState {
+            items,
+            total_bounds,
+        }
     }
-
-    AxisAlignedBox::new(Point2::new(min_x, min_y), Point2::new(max_x, max_y))
 }

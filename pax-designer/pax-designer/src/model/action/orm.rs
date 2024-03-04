@@ -55,11 +55,11 @@ pub struct MoveSelected {
 
 impl Action for MoveSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected = ctx
-            .app_state
-            .selected_template_node_id
-            .clone()
-            .expect("executed action MoveSelected without a selected object");
+        if ctx.app_state.selected_template_node_ids.len() > 1 {
+            // TODO support multi-selection movement
+            return Ok(CanUndo::No);
+        }
+        let selected = ctx.app_state.selected_template_node_ids[0].clone();
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
         let mut builder = dt
@@ -107,9 +107,11 @@ impl Action for ResizeSelected {
         let mut dt = ctx.engine_context.designtime.borrow_mut();
         let selected = ctx
             .app_state
-            .selected_template_node_id
-            .clone()
-            .expect("executed action ResizeSelected without a selected object");
+            .selected_template_node_ids
+            // TODO multi-select
+            .first()
+            .expect("executed action ResizeSelected without a selected object")
+            .clone();
         let mut builder = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
@@ -165,9 +167,11 @@ impl Action for RotateSelected {
         let mut dt = ctx.engine_context.designtime.borrow_mut();
         let selected = ctx
             .app_state
-            .selected_template_node_id
-            .clone()
-            .expect("executed action ResizeSelected without a selected object");
+            .selected_template_node_ids
+            // TODO multi-select
+            .first()
+            .expect("executed action ResizeSelected without a selected object")
+            .clone();
         let mut builder = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
