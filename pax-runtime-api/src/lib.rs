@@ -1093,7 +1093,7 @@ impl Into<Rotation> for Percent {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ColorChannel {
     /// [0,255]
-    Int(Numeric),
+    Integer(Numeric),
     /// [0.0, 100.0]
     Percent(Numeric),
 }
@@ -1106,7 +1106,7 @@ impl Default for ColorChannel {
 
 impl From<Numeric> for ColorChannel {
     fn from(value: Numeric) -> Self {
-        Self::Int(value.to_int().into())
+        Self::Integer(value.to_int().into())
     }
 }
 
@@ -1119,7 +1119,7 @@ impl ColorChannel {
                 assert!(per.to_float() >= -0.000001 && per.to_float() <= 100.000001, "");
                 (per.to_float() / 100.0).clamp(0_f64, 1_f64)
             },
-            Self::Int(zero_to_255) => {
+            Self::Integer(zero_to_255) => {
                 assert!(zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255, "Integer color channel values must be between 0 and 255");
                 let f_zero : f64 = (*zero_to_255).into();
                 f_zero / 255.0_f64.clamp(0_f64, 1_f64)
@@ -1518,9 +1518,5 @@ impl Transform2D {
 pub enum IntoableLiteral {
     Color(Color),
     Percent(Percent),
-    #[allow(non_camel_case)]
-    f64(f64),
-    #[allow(non_camel_case)]
-    isize(isize),
-
+    Numeric(Numeric),
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::Interpolatable;
+use crate::{Interpolatable, IntoableLiteral, Size};
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
@@ -13,6 +13,22 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 pub enum Numeric {
     Integer(isize),
     Float(f64),
+}
+
+impl From<IntoableLiteral> for Numeric {
+    fn from(value: IntoableLiteral) -> Self {
+
+        match value {
+            IntoableLiteral::Numeric(n) => n,
+            _ => {unreachable!()}
+        }
+    }
+}
+
+impl From<Numeric> for Size {
+    fn from(value: Numeric) -> Self {
+        Size::Pixels(value)
+    }
 }
 
 impl Default for Numeric {
