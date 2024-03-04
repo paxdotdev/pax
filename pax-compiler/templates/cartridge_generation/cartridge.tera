@@ -4,7 +4,7 @@
 use pax_manifest::*;
 use pax_runtime::api::*;
 use pax_runtime::*;
-use pax_manifest::deserializer::from_pax;
+use pax_manifest::deserializer::{from_pax, from_pax_maybe_intoable_literal};
 use std::cell::Ref;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
@@ -133,7 +133,13 @@ pub trait ComponentFactory {
                 "{{common_property.name}}" => {
                     let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(lv.raw_value).unwrap()))
+                            let mi = from_pax_maybe_intoable_literal(&lv.raw_value);
+                            if let Ok(intoable_literal) = mi {
+                                let res : {{common_property.property_type}}
+                                Box::new(PropertyLiteral::new(intoable_literal.into()))
+                            } else {
+                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(&lv.raw_value).unwrap()))
+                            }
                         },
                         ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                         {

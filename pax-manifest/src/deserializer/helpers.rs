@@ -12,14 +12,16 @@ use super::{
     Deserializer, PaxParser, Rule,
 };
 
+
 pub struct PaxEnum {
-    identifier: String,
+    //a None-identifier allows us to manage tuple-structs as enums, e.g. `Percent(10)`
+    identifier: Option<String>,
     variant: String,
     args: Option<String>,
 }
 
 impl PaxEnum {
-    pub fn new(identifier: String, variant: String, args: Option<String>) -> Self {
+    pub fn new(identifier: Option<String>, variant: String, args: Option<String>) -> Self {
         PaxEnum {
             identifier,
             variant,
@@ -58,7 +60,7 @@ impl PaxEnum {
             }
         }
         PaxEnum {
-            identifier,
+            identifier: Some(identifier),
             variant,
             args,
         }
@@ -89,8 +91,10 @@ impl<'de> VariantAccess<'de> for PaxEnum {
     where
         T: DeserializeSeed<'de>,
     {
-        if self.identifier == NUMERIC {
-            return seed.deserialize(PrimitiveDeserializer::new(&self.args.unwrap()));
+        if let Some(i) = self.identifier{
+            if i == NUMERIC {
+                return seed.deserialize(PrimitiveDeserializer::new(&self.args.unwrap()));
+            }
         }
 
         seed.deserialize(Deserializer::from_string(self.args.unwrap()))
