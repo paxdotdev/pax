@@ -1048,6 +1048,7 @@ impl From<IntoableLiteral> for Rotation {
     fn from(value: IntoableLiteral) -> Self {
         match value {
             IntoableLiteral::Percent(p) => p.into(),
+            IntoableLiteral::Numeric(n) => n.into(),
             _ => {unreachable!()}
         }
     }
@@ -1101,6 +1102,13 @@ pub enum ColorChannel {
 impl Default for ColorChannel {
     fn default() -> Self {
         Self::Percent(50.0.into())
+    }
+}
+
+
+impl From<Numeric> for Rotation {
+    fn from(value: Numeric) -> Self {
+        Rotation::Degrees(value)
     }
 }
 
@@ -1342,11 +1350,6 @@ impl Add for Rotation {
     }
 }
 
-impl Into<Rotation> for Numeric {
-    fn into(self) -> Rotation {
-        Rotation::Radians(self)
-    }
-}
 impl Into<Rotation> for Size {
     fn into(self) -> Rotation {
         if let Size::Percent(pix) = self {

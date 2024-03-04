@@ -346,7 +346,7 @@ impl PaxManifest {
 #[derive(Serialize, Deserialize)]
 pub struct CommonProperty {
     name: String,
-    property_type: String,
+    property_type: TypeId,
     is_optional: bool,
 }
 
@@ -367,7 +367,7 @@ impl CommonProperty {
         for (name, property_type) in CommonProperty::get_property_types() {
             common_properties.push(CommonProperty {
                 name: name.clone(),
-                property_type,
+                property_type: TypeId::build_singleton(&property_type, None),
                 is_optional: (name != "transform" && name != "width" && name != "height"),
             });
         }

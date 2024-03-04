@@ -131,17 +131,17 @@ pub trait ComponentFactory {
             match key.as_str() {
                 {% for common_property in common_properties %}
                 "{{common_property.name}}" => {
-                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type}}>> = match value.clone() {
+                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type._type_id}}>> = match value.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            {% if common_property.property_type.type_id.is_intoable_downstream_type %}
+                            {% if common_property.property_type.is_intoable_downstream_type %}
                                 let mi = from_pax_try_intoable_literal(&lv.raw_value);
                                 if let Ok(intoable_literal) = mi {
                                     Box::new(PropertyLiteral::new(intoable_literal.into()))
                                 } else {
-                                    Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(&lv.raw_value).unwrap().into()))
+                                    Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into()))
                                 }
                             {% else %}
-                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type}}>(&lv.raw_value).unwrap().into()))
+                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into()))
                             {% endif %}
                         },
                         ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
