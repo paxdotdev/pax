@@ -1,3 +1,7 @@
-<Rectangle rotate=45 stroke={
- color: RED, width: 10px
-} fill=hsl(250deg, 50%, 50%) />
+<Rectangle
+    rotate=45
+    stroke={
+        color: RED,
+        width: 10px,
+    }
+    fill=hsl(250deg, 50%, 50%)) />
