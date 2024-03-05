@@ -2,6 +2,8 @@
     <LLMInterface/>
     <Controls/>
     <Group id=designer_glass>
+        //Optionally turned on on right click
+        <ContextMenu/>
         <Glass/>
         <Group transform={self.transform2d}>
             <Example id=userland_project/>

@@ -49,6 +49,41 @@ impl Action for CreateComponent {
     }
 }
 
+pub struct SelectedIntoNewComponent {}
+
+impl Action for SelectedIntoNewComponent {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let selected = ctx.app_state.selected_template_node_ids.clone();
+        if selected.is_empty() {
+            return Err(anyhow!("can't create new embty component"));
+        };
+        let bounds = ctx.selection_state().total_bounds;
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+
+        let unique_ids: Vec<_> = selected
+            .into_iter()
+            .map(|s| {
+                UniqueTemplateNodeIdentifier::build(ctx.app_state.selected_component_id.clone(), s)
+            })
+            .collect();
+        dt.get_orm_mut()
+            .move_to_new_component(
+                &unique_ids,
+                bounds.top_left().x,
+                bounds.top_left().y,
+                bounds.width(),
+                bounds.height(),
+            )
+            .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            dt.get_orm_mut()
+                .undo()
+                .map_err(|e| anyhow!("cound't undo: {:?}", e))
+        })))
+    }
+}
+
 pub struct MoveSelected {
     pub point: Point2<World>,
 }
