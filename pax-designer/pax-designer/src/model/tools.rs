@@ -105,6 +105,7 @@ enum PointerToolState {
 
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
+        ctx.app_state.selected_template_node_ids.clear();
         Self {
             state: if let Some(hit) = ctx.raycast_glass(point) {
                 if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
@@ -144,8 +145,10 @@ impl ToolBehaviour for PointerTool {
         ControlFlow::Continue(())
     }
 
-    fn pointer_up(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
-        // TODO select multiple objects if in PointerToolState::Selecting state
+    fn pointer_up(&mut self, _point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        if let PointerToolState::Selecting { .. } = self.state {
+            // TODO select multiple objects
+        }
         ControlFlow::Break(())
     }
 

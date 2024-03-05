@@ -5,9 +5,11 @@ use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
 
+pub mod context_menu;
 pub mod controls;
 pub mod designtime_component_viewer;
 pub mod glass;
+use crate::context_menu::ContextMenu;
 use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
