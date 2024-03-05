@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use super::CanUndo;
 use super::{Action, ActionContext};
+use crate::context_menu::ContextMenuMessage;
 use crate::model::action::world::Pan;
 use crate::model::input::InputEvent;
 use crate::model::math::coordinate_spaces::Glass;
@@ -22,7 +23,7 @@ pub struct PointerAction {
     pub point: Point2<Window>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, PartialEq, Copy)]
 pub enum Pointer {
     Down,
     Move,
@@ -37,17 +38,32 @@ impl Action for PointerAction {
         let tool_behaviour = Rc::clone(&ctx.app_state.tool_behaviour);
         let mut tool_behaviour = tool_behaviour.borrow_mut();
 
+        // Open context menu on right mouse button click no matter what
+        if matches!(
+            (self.event, self.button.clone()),
+            (Pointer::Down, MouseButton::Right)
+        ) {
+            ctx.execute(ContextMenuMessage::Open { pos: point_glass })?;
+            return Ok(CanUndo::No);
+        }
+
+        if matches!(self.event, Pointer::Down) {
+            ctx.execute(ContextMenuMessage::Close)?;
+        }
+
         // If no tool is active, activate a tool on mouse down
         if matches!(self.event, Pointer::Down) && tool_behaviour.is_none() {
-            *tool_behaviour = Some(match (self.button, spacebar) {
+            match (self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool {
-                    Tool::Pointer => Box::new(PointerTool::new(ctx, point_glass)),
+                    Tool::Pointer => {
+                        *tool_behaviour = Some(Box::new(PointerTool::new(ctx, point_glass)));
+                    }
                     Tool::CreateComponent(component) => {
                         let primitive_name = match component {
                             Component::Rectangle => "Rectangle",
                             Component::Ellipse => "Ellipse",
                         };
-                        Box::new(CreateComponentTool::new(
+                        *tool_behaviour = Some(Box::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
                             &TypeId::build_singleton(
@@ -57,16 +73,18 @@ impl Action for PointerAction {
                                 ),
                                 None,
                             ),
-                        ))
+                        )));
                     }
                     Tool::TodoTool => todo!(),
                 },
-                (MouseButton::Left, true) | (MouseButton::Middle, _) => Box::new(Pan {
-                    start_point: point_glass,
-                    original_transform: ctx.app_state.glass_to_world_transform,
-                }),
-                _ => return Err(anyhow!("unhandled mouse event")),
-            });
+                (MouseButton::Left, true) | (MouseButton::Middle, _) => {
+                    *tool_behaviour = Some(Box::new(Pan {
+                        start_point: point_glass,
+                        original_transform: ctx.app_state.glass_to_world_transform,
+                    }));
+                }
+                _ => (),
+            };
         }
 
         // Whatever tool behaviour exists, let it do it's thing
