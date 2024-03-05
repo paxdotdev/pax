@@ -1043,7 +1043,6 @@ impl From<StringBox> for String {
 #[derive(Serialize, Deserialize)]
 pub struct Percent(pub Numeric);
 
-
 impl From<IntoableLiteral> for Rotation {
     fn from(value: IntoableLiteral) -> Self {
         match value {
@@ -1152,9 +1151,31 @@ pub enum Color {
     hsla(Rotation, ColorChannel, ColorChannel, ColorChannel),
 
     #[default]
-    RED
+    SLATE,
+    GRAY,
+    ZINC,
+    NEUTRAL,
+    STONE,
+    RED,
+    ORANGE,
+    AMBER,
+    YELLOW,
+    LIME,
+    GREEN,
+    EMERALD,
+    TEAL,
+    CYAN,
+    SKY,
+    BLUE,
+    INDIGO,
+    VIOLET,
+    PURPLE,
+    FUCHSIA,
+    PINK,
+    ROSE,
+    BLACK,
+    WHITE,
     //TODO: with `red` as a prototype, add Tailwind-inspired pseudo-constants here
-
 }
 impl Color {
 
@@ -1178,7 +1199,33 @@ impl Color {
             },
             Self::rgba(r,g,b,a) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),a.to_float_0_1()],
             Self::rgb(r,g,b) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),1.0],
-            Self::RED => Self::rgb(Numeric::from(255).into(), Numeric::from(0).into(), Numeric::from(0).into()).to_rgba(),
+
+            //Color constants from TailwindCSS
+            Self::SLATE => Self::rgb(Numeric::from(0x64).into(), Numeric::from(0x74).into(), Numeric::from(0x8b).into()).to_rgba(),
+            Self::GRAY => Self::rgb(Numeric::from(0x6b).into(), Numeric::from(0x72).into(), Numeric::from(0x80).into()).to_rgba(),
+            Self::ZINC => Self::rgb(Numeric::from(0x71).into(), Numeric::from(0x71).into(), Numeric::from(0x7a).into()).to_rgba(),
+            Self::NEUTRAL => Self::rgb(Numeric::from(0x73).into(), Numeric::from(0x73).into(), Numeric::from(0x73).into()).to_rgba(),
+            Self::STONE => Self::rgb(Numeric::from(0x78).into(), Numeric::from(0x71).into(), Numeric::from(0x6c).into()).to_rgba(),
+            Self::RED => Self::rgb(Numeric::from(0xeF).into(), Numeric::from(0x44).into(), Numeric::from(0x44).into()).to_rgba(),
+            Self::ORANGE => Self::rgb(Numeric::from(0xf9).into(), Numeric::from(0x73).into(), Numeric::from(0x16).into()).to_rgba(),
+            Self::AMBER => Self::rgb(Numeric::from(0xf5).into(), Numeric::from(0x9e).into(), Numeric::from(0x0b).into()).to_rgba(),
+            Self::YELLOW => Self::rgb(Numeric::from(0xea).into(), Numeric::from(0xb3).into(), Numeric::from(0x08).into()).to_rgba(),
+            Self::LIME => Self::rgb(Numeric::from(0x84).into(), Numeric::from(0xcc).into(), Numeric::from(0x16).into()).to_rgba(),
+            Self::GREEN => Self::rgb(Numeric::from(0x22).into(), Numeric::from(0xc5).into(), Numeric::from(0x5e).into()).to_rgba(),
+            Self::EMERALD => Self::rgb(Numeric::from(0x10).into(), Numeric::from(0xb9).into(), Numeric::from(0x81).into()).to_rgba(),
+            Self::TEAL => Self::rgb(Numeric::from(0x14).into(), Numeric::from(0xb8).into(), Numeric::from(0xa6).into()).to_rgba(),
+            Self::CYAN => Self::rgb(Numeric::from(0x06).into(), Numeric::from(0xb6).into(), Numeric::from(0xd4).into()).to_rgba(),
+            Self::SKY => Self::rgb(Numeric::from(0x0e).into(), Numeric::from(0xa5).into(), Numeric::from(0xe9).into()).to_rgba(),
+            Self::BLUE => Self::rgb(Numeric::from(0x3b).into(), Numeric::from(0x82).into(), Numeric::from(0xf6).into()).to_rgba(),
+            Self::INDIGO => Self::rgb(Numeric::from(0x63).into(), Numeric::from(0x66).into(), Numeric::from(0xf1).into()).to_rgba(),
+            Self::VIOLET => Self::rgb(Numeric::from(0x8b).into(), Numeric::from(0x5c).into(), Numeric::from(0xf6).into()).to_rgba(),
+            Self::PURPLE => Self::rgb(Numeric::from(0xa8).into(), Numeric::from(0x55).into(), Numeric::from(0xf7).into()).to_rgba(),
+            Self::FUCHSIA => Self::rgb(Numeric::from(0xd9).into(), Numeric::from(0x46).into(), Numeric::from(0xef).into()).to_rgba(),
+            Self::PINK => Self::rgb(Numeric::from(0xec).into(), Numeric::from(0x48).into(), Numeric::from(0x99).into()).to_rgba(),
+            Self::ROSE => Self::rgb(Numeric::from(0xf4).into(), Numeric::from(0x3f).into(), Numeric::from(0x5e).into()).to_rgba(),
+            Self::BLACK => Self::rgb(Numeric::from(0x00).into(), Numeric::from(0x00).into(), Numeric::from(0x00).into()).to_rgba(),
+            Self::WHITE => Self::rgb(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xff).into()).to_rgba(),
+
             _ => {
                 unimplemented!("Unsupported color variant lacks conversion logic to RGB")
             }

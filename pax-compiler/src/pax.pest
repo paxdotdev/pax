@@ -166,7 +166,9 @@ literal_color_const = {
     "PURPLE" |
     "FUCHSIA" |
     "PINK" |
-    "ROSE"
+    "ROSE" |
+    "BLACK" |
+    "WHITE"
 }
 
 ////// ////// //////
