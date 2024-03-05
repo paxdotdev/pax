@@ -277,7 +277,7 @@ impl DefinitionToInstanceTraverser {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
         let component = manifest.components.get(type_id).unwrap();
-        let factory = Self::get_component_factory(&type_id).unwrap();
+        let factory = Self::get_component_factory(&type_id).expect(&format!("No component factory for type: {}", type_id));
         let prototypical_common_properties_factory = factory.build_default_common_properties();
         let prototypical_properties_factory = factory.build_default_properties();
 

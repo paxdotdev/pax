@@ -1,9 +1,12 @@
 use pax_engine::*;
 use pax_engine::api::*;
 
+use pax_std::primitives::Ellipse;
+
 #[pax]
+#[file("ball.pax")]
 pub struct Ball {
-    pub x: Property<isize>,
-    pub y: Property<isize>,
-    pub magnitude: Property<f64>,
+    pub magnitude: Property<Numeric>,
+
 }
+
