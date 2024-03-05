@@ -115,6 +115,25 @@ impl PaxManifestORM {
         Ok(resp.get_id())
     }
 
+    pub fn move_to_new_component(
+        &mut self,
+        ids: &[UniqueTemplateNodeIdentifier],
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Result<(), String> {
+        log::debug!(
+            "Moved template nodes {:?} to component at ({:?}, {:?}) with bounds ({:?}, {:?})",
+            ids,
+            x,
+            y,
+            width,
+            height
+        );
+        Ok(())
+    }
+
     pub fn execute_command<R: Request, C>(&mut self, mut command: C) -> Result<R::Response, String>
     where
         C: Command<R>,
