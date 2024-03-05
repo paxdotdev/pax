@@ -54,9 +54,10 @@ impl Deserializer {
 pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
     if let Ok(ast) = PaxParser::parse(Rule::literal_color, str) {
         Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
-    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-        let _number = ast.clone().next().unwrap().as_str();
-        let unit = ast.clone().nth(1).unwrap().as_str();
+    } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
+        // let mut ast= ast.next().unwrap().into_inner();
+        let number = ast.clone().next().unwrap().as_str();
+        let unit = ast.clone().next().unwrap().as_str();
         match unit {
             "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
             _ => Err(Error::UnsupportedMethod)

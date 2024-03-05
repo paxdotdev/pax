@@ -287,7 +287,7 @@ fn recurse_pratt_parse_to_string<'a>(
             Rule::xo_div => {format!("({}/{})", lhs, rhs)},
             Rule::xo_exp => {format!("(({}).pow({}))", lhs, rhs)},
             Rule::xo_mod => {format!("({}%{})", lhs, rhs)},
-            Rule::xo_mul => {format!("({}*({}).into())", lhs, rhs)},
+            Rule::xo_mul => {format!("({}*{})", lhs, rhs)},
             Rule::xo_rel_eq => {format!("({}=={})", lhs, rhs)},
             Rule::xo_rel_gt => {format!("({}>{})", lhs, rhs)},
             Rule::xo_rel_gte => {format!("({}>={})", lhs, rhs)},

@@ -1,7 +1,5 @@
-<Rectangle
-    rotate=45
-    stroke={
-        color: RED,
-        width: 10px,
-    }
-    fill=hsl(250deg, 50%, 50%)) />
+
+for i in 1..10 {
+    <Ball magnitude={i * 3} x={(i * 10)%} y={(i * 10)%} />
+}
+

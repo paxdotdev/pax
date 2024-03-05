@@ -18,6 +18,7 @@ pub struct Example {
     pub ticks: Property<usize>,
     pub num_clicks: Property<usize>,
     pub message: Property<String>,
+    pub particles: Property<Vec<Particle>>,
 }
 
 impl Example {
@@ -34,4 +35,13 @@ impl Example {
         self.num_clicks.set(old_num_clicks + 1);
         self.message.set(format!("{} clicks", self.num_clicks.get()));
     }
+}
+
+
+#[pax]
+#[custom(Defaults)]
+pub struct Particle {
+    pub x: usize,
+    pub y: usize,
+    pub magnitude: f64,
 }
