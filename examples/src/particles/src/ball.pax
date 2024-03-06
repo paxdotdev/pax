@@ -2,10 +2,12 @@
 
 @settings {
     @mount: handle_mount,
+    @tick: handle_tick,
+
     .ball {
         anchor_x:50%
         anchor_y:50%
-        fill: { hsl(magnitude * 4 + 270, 75%, 50%) }
+        fill: { hsl(effective_hue, 75%, 50%) }
         stroke: {
             color: WHITE,
             width: 5px,
