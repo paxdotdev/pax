@@ -47,6 +47,7 @@ impl InstanceNode for ConditionalInstance {
                     context.expression_table(),
                     &expanded_node.stack,
                     &mut properties.boolean_expression,
+                    context.globals(),
                 );
                 let val = Some(*properties.boolean_expression.get());
                 let update_children = properties.last_boolean_expression != val;
