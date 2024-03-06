@@ -557,6 +557,30 @@ impl Mul<Numeric> for f64 {
     }
 }
 
+impl Mul<f64> for Numeric {
+    type Output = f64;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        self * rhs
+    }
+}
+
+impl Mul<&Numeric> for f64 {
+    type Output = f64;
+
+    fn mul(self, rhs: &Numeric) -> Self::Output {
+        self * rhs.to_float()
+    }
+}
+
+impl Mul<f64> for &Numeric {
+    type Output = f64;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        self * rhs
+    }
+}
+
 impl Div<Numeric> for f64 {
     type Output = f64;
 

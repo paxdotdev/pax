@@ -96,6 +96,7 @@ impl InstanceNode for RepeatInstance {
                 };
 
                 let current_len = vec.len();
+
                 let exp_props = expanded_node.layout_properties.borrow();
                 let current_bounds = exp_props
                     .as_ref()
@@ -103,6 +104,7 @@ impl InstanceNode for RepeatInstance {
                     .unwrap_or_default();
                 let update_children =
                     current_len != properties.last_len || current_bounds != properties.last_bounds;
+
                 properties.last_len = current_len;
                 properties.last_bounds = current_bounds;
                 update_children.then_some(vec)
