@@ -1,4 +1,4 @@
-<Group id=hello @wheel=self.handle_scroll >
+<Group id=hello @wheel=self.handle_scroll @context_menu=self.context_menu>
     for i in 0..60 {
         <Rectangle fill={Fill::Solid(Color::hlc(ticks + i * 360.0 / 30.0, 75.0, 150.0))} width=300px height=300px transform={
             Transform2D::anchor(50%, 50%)

@@ -33,7 +33,7 @@ impl Example {
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn toggle(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn toggle(&mut self, ctx: &NodeContext, args: Event<Click>) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
         self.message
@@ -41,7 +41,7 @@ impl Example {
         self.conditional.set(!self.conditional.get());
     }
 
-    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: ArgsCheckboxChange) {
+    pub fn checkbox_change(&mut self, ctx: &NodeContext, args: Event<CheckboxChange>) {
         self.checked.set(!args.checked);
         self.align_vertical.set(match self.checked.get() {
             true => TextAlignVertical::Top,
@@ -56,11 +56,11 @@ impl Example {
         }
     }
 
-    pub fn textbox_input(&mut self, ctx: &NodeContext, args: ArgsTextboxInput) {
+    pub fn textbox_input(&mut self, ctx: &NodeContext, args: Event<TextboxInput>) {
         self.textbox_text.set(args.text);
     }
 
-    pub fn button_click(&mut self, ctx: &NodeContext, args: ArgsButtonClick) {
+    pub fn button_click(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) {
         self.color
             .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
     }

@@ -2,11 +2,12 @@
 
 use js_sys::Uint8Array;
 use log::Level;
-use pax_runtime::api::ArgsButtonClick;
-use pax_runtime::api::ArgsCheckboxChange;
-use pax_runtime::api::ArgsTextboxChange;
-use pax_runtime::api::ArgsTextboxInput;
+use pax_message::ImageLoadInterruptArgs;
+use pax_runtime::api::ButtonClick;
+use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::RenderContext;
+use pax_runtime::api::TextboxChange;
+use pax_runtime::api::TextboxInput;
 use pax_runtime::math::Point2;
 use pax_runtime::ExpressionTable;
 use std::cell::RefCell;
@@ -20,12 +21,11 @@ use piet_web::WebRenderContext;
 
 use pax_runtime::{PaxEngine, Renderer};
 
-use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
+use pax_message::NativeInterrupt;
 use pax_runtime::api::{
-    ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
-    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey,
-    MouseButton, MouseEventArgs, Touch,
+    Clap, Click, ContextMenu, DoubleClick, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
+    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp,
+    Scroll, Touch, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 use serde_json;
 
@@ -50,6 +50,11 @@ pub struct PaxChassisWeb {
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
     #[cfg(feature = "designtime")]
     last_manifest_version_rendered: usize,
+}
+
+#[wasm_bindgen]
+pub struct InterruptResult {
+    pub prevent_default: bool,
 }
 
 #[wasm_bindgen]
@@ -91,7 +96,7 @@ impl PaxChassisWeb {
                 engine: engine_container,
                 drawing_contexts: Renderer::new(),
                 definition_to_instance_traverser,
-                designtime_manager: designtime_manager,
+                designtime_manager,
                 last_manifest_version_rendered: 0,
             }
         }
@@ -146,14 +151,18 @@ impl PaxChassisWeb {
         self.drawing_contexts.remove_context(&id);
     }
 
-    pub fn interrupt(&mut self, native_interrupt: String, additional_payload: &JsValue) {
+    pub fn interrupt(
+        &mut self,
+        native_interrupt: String,
+        additional_payload: &JsValue,
+    ) -> InterruptResult {
         let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
 
         let engine = self.engine.borrow_mut();
         let globals = engine.runtime_context.globals();
-        match x {
+        let prevent_default = match x {
             NativeInterrupt::Image(args) => match args {
-                ImageLoadInterruptArgs::Reference(_ref_args) => {}
+                ImageLoadInterruptArgs::Reference(_ref_args) => false,
                 ImageLoadInterruptArgs::Data(data_args) => {
                     let data = Uint8Array::new(additional_payload).to_vec();
                     self.drawing_contexts.load_image(
@@ -162,54 +171,55 @@ impl PaxChassisWeb {
                         data_args.width,
                         data_args.height,
                     );
+                    false
                 }
             },
             NativeInterrupt::FormButtonClick(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
                     .expect("button node exists in engine");
-                node.dispatch_button_click(ArgsButtonClick {}, globals, &engine.runtime_context);
+                node.dispatch_button_click(ButtonClick {}, globals, &engine.runtime_context)
             }
             NativeInterrupt::FormTextboxInput(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_input(
-                    ArgsTextboxInput { text: args.text },
+                    TextboxInput { text: args.text },
                     globals,
                     &engine.runtime_context,
-                );
+                )
             }
             NativeInterrupt::FormTextboxChange(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_change(
-                    ArgsTextboxChange { text: args.text },
+                    TextboxChange { text: args.text },
                     globals,
                     &engine.runtime_context,
-                );
+                )
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let node = engine
                     .get_expanded_node(args.id_chain[0])
                     .expect("checkbox node exists in engine");
                 node.dispatch_checkbox_change(
-                    ArgsCheckboxChange {
+                    CheckboxChange {
                         checked: args.state,
                     },
                     globals,
                     &engine.runtime_context,
-                );
+                )
             }
 
-            NativeInterrupt::AddedLayer(_args) => {}
+            NativeInterrupt::AddedLayer(_args) => false,
             NativeInterrupt::Click(args) => {
                 let prospective_hit = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_click = ArgsClick {
+                    let args_click = Click {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -221,20 +231,24 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_click(args_click, globals, &engine.runtime_context);
+                    topmost_node.dispatch_click(args_click, globals, &engine.runtime_context)
+                } else {
+                    false
                 }
             }
-            NativeInterrupt::Scroll(_args) => {}
+            NativeInterrupt::Scroll(_args) => false,
             NativeInterrupt::Clap(args) => {
                 let prospective_hit = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_clap = ArgsClap {
+                    let args_clap = Clap {
                         x: args.x,
                         y: args.y,
                     };
-                    topmost_node.dispatch_clap(args_clap, globals, &engine.runtime_context);
+                    topmost_node.dispatch_clap(args_clap, globals, &engine.runtime_context)
+                } else {
+                    false
                 }
             }
             NativeInterrupt::TouchStart(args) => {
@@ -244,12 +258,14 @@ impl PaxChassisWeb {
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_start = ArgsTouchStart { touches };
+                    let args_touch_start = TouchStart { touches };
                     topmost_node.dispatch_touch_start(
                         args_touch_start,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::TouchMove(args) => {
@@ -259,12 +275,14 @@ impl PaxChassisWeb {
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_move = ArgsTouchMove { touches };
+                    let args_touch_move = TouchMove { touches };
                     topmost_node.dispatch_touch_move(
                         args_touch_move,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::TouchEnd(args) => {
@@ -274,12 +292,14 @@ impl PaxChassisWeb {
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_end = ArgsTouchEnd { touches };
+                    let args_touch_end = TouchEnd { touches };
                     topmost_node.dispatch_touch_end(
                         args_touch_end,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::KeyDown(args) => {
@@ -288,7 +308,7 @@ impl PaxChassisWeb {
                     .iter()
                     .map(|x| ModifierKey::from(x))
                     .collect();
-                let args_key_down = ArgsKeyDown {
+                let args_key_down = KeyDown {
                     keyboard: KeyboardEventArgs {
                         key: args.key,
                         modifiers,
@@ -296,6 +316,7 @@ impl PaxChassisWeb {
                     },
                 };
                 engine.global_dispatch_key_down(args_key_down);
+                false
             }
             NativeInterrupt::KeyUp(args) => {
                 let modifiers = args
@@ -303,7 +324,7 @@ impl PaxChassisWeb {
                     .iter()
                     .map(|x| ModifierKey::from(x))
                     .collect();
-                let args_key_up = ArgsKeyUp {
+                let args_key_up = KeyUp {
                     keyboard: KeyboardEventArgs {
                         key: args.key,
                         modifiers,
@@ -311,6 +332,7 @@ impl PaxChassisWeb {
                     },
                 };
                 engine.global_dispatch_key_up(args_key_up);
+                false
             }
             NativeInterrupt::KeyPress(args) => {
                 let modifiers = args
@@ -318,7 +340,7 @@ impl PaxChassisWeb {
                     .iter()
                     .map(|x| ModifierKey::from(x))
                     .collect();
-                let args_key_press = ArgsKeyPress {
+                let args_key_press = KeyPress {
                     keyboard: KeyboardEventArgs {
                         key: args.key,
                         modifiers,
@@ -326,13 +348,14 @@ impl PaxChassisWeb {
                     },
                 };
                 engine.global_dispatch_key_press(args_key_press);
+                false
             }
             NativeInterrupt::DoubleClick(args) => {
                 let prospective_hit = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_double_click = ArgsDoubleClick {
+                    let args_double_click = DoubleClick {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -348,7 +371,9 @@ impl PaxChassisWeb {
                         args_double_click,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::MouseMove(args) => {
@@ -356,7 +381,7 @@ impl PaxChassisWeb {
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_move = ArgsMouseMove {
+                    let args_mouse_move = MouseMove {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -372,7 +397,9 @@ impl PaxChassisWeb {
                         args_mouse_move,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::Wheel(args) => {
@@ -385,14 +412,16 @@ impl PaxChassisWeb {
                         .iter()
                         .map(|x| ModifierKey::from(x))
                         .collect();
-                    let args_wheel = ArgsWheel {
+                    let args_wheel = Wheel {
                         x: args.x,
                         y: args.y,
                         delta_x: args.delta_x,
                         delta_y: args.delta_y,
                         modifiers,
                     };
-                    topmost_node.dispatch_wheel(args_wheel, globals, &engine.runtime_context);
+                    topmost_node.dispatch_wheel(args_wheel, globals, &engine.runtime_context)
+                } else {
+                    false
                 }
             }
             NativeInterrupt::MouseDown(args) => {
@@ -400,7 +429,7 @@ impl PaxChassisWeb {
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_down = ArgsMouseDown {
+                    let args_mouse_down = MouseDown {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -416,7 +445,9 @@ impl PaxChassisWeb {
                         args_mouse_down,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::MouseUp(args) => {
@@ -424,7 +455,7 @@ impl PaxChassisWeb {
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_up = ArgsMouseUp {
+                    let args_mouse_up = MouseUp {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -436,7 +467,9 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_up(args_mouse_up, globals, &engine.runtime_context);
+                    topmost_node.dispatch_mouse_up(args_mouse_up, globals, &engine.runtime_context)
+                } else {
+                    false
                 }
             }
             NativeInterrupt::MouseOver(args) => {
@@ -444,7 +477,7 @@ impl PaxChassisWeb {
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_over = ArgsMouseOver {
+                    let args_mouse_over = MouseOver {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -460,7 +493,9 @@ impl PaxChassisWeb {
                         args_mouse_over,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::MouseOut(args) => {
@@ -468,7 +503,7 @@ impl PaxChassisWeb {
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_out = ArgsMouseOut {
+                    let args_mouse_out = MouseOut {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -484,7 +519,9 @@ impl PaxChassisWeb {
                         args_mouse_out,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
             NativeInterrupt::ContextMenu(args) => {
@@ -492,7 +529,7 @@ impl PaxChassisWeb {
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_context_menu = ArgsContextMenu {
+                    let args_context_menu = ContextMenu {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,
@@ -508,10 +545,14 @@ impl PaxChassisWeb {
                         args_context_menu,
                         globals,
                         &engine.runtime_context,
-                    );
+                    )
+                } else {
+                    false
                 }
             }
         };
+
+        InterruptResult { prevent_default }
     }
 
     pub fn deallocate(&mut self, slice: MemorySlice) {

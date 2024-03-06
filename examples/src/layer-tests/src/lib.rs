@@ -27,7 +27,7 @@ impl Example {
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn toggle(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn toggle(&mut self, ctx: &NodeContext, args: Event<Click>) {
         self.activated.set(!self.activated.get());
         self.message.set(format!("{}", self.activated.get()));
     }
