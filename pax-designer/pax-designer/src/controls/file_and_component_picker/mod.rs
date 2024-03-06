@@ -33,7 +33,7 @@ impl FileAndComponentPicker {
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {}
 
-    pub fn library_toggle(&mut self, ctx: &NodeContext, _args: ArgsClick) {
+    pub fn library_toggle(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         self.library_active.set(!self.library_active.get());
         let curr = self.library_active.get();
         self.library_active_toggle_image.set(StringBox::from(

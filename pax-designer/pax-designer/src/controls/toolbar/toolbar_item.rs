@@ -1,4 +1,4 @@
-use pax_engine::api::{ArgsButtonClick, ArgsClick, NodeContext, Numeric};
+use pax_engine::api::{ButtonClick, Click, Event, NodeContext, Numeric};
 use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::components::Stacker;
@@ -16,14 +16,14 @@ pub struct ToolbarItemVisual {
 }
 
 impl ToolbarItemVisual {
-    pub fn on_click(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
+    pub fn on_click(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         super::TOOLBAR_CHANNEL.with_borrow_mut(|store| {
             let data = self.data.get();
             *store = Some(super::ToolbarClickEvent::Select(data.row, data.col));
         });
     }
 
-    pub fn dropdown(&mut self, _ctx: &NodeContext, _args: ArgsClick) {
+    pub fn dropdown(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         super::TOOLBAR_CHANNEL.with_borrow_mut(|store| {
             let data = self.data.get();
             *store = Some(super::ToolbarClickEvent::Dropdown(data.row));

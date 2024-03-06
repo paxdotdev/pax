@@ -84,7 +84,7 @@ impl Action for ActivateControlPoint {
 }
 
 impl ControlPoint {
-    pub fn mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
+    pub fn mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         super::object_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
