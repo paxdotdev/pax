@@ -22,6 +22,8 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
         } else {
             panic!("property has an unexpected type for vtable id {}", vtable_id);
         }
+    } else if let Some(transition_manager) = property._get_transition_manager() {
+        panic!("found transition manager");
     } else {
     }
 }
