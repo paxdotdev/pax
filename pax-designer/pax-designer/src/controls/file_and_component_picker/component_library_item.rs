@@ -71,7 +71,7 @@ impl ToolBehaviour for DropComponent {
 }
 
 impl ComponentLibraryItem {
-    pub fn on_down(&mut self, ctx: &NodeContext, _args: ArgsMouseDown) {
+    pub fn on_down(&mut self, ctx: &NodeContext, _args: Event<MouseDown>) {
         model::with_action_context(ctx, |ctx| {
             let data = self.data.get();
             *ctx.app_state.tool_behaviour.borrow_mut() = Some(Box::new(DropComponent {

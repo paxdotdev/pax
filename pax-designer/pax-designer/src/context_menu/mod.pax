@@ -9,6 +9,20 @@ if self.visible {
                 stroke={color: {Color::rgb(0.4, 0.4, 0.4)}, width: 1px}
             />
         </Group>
+        <Group y=25px height=25px>
+            <Text text="Undo" id=text x=5px/>
+            <Rectangle
+                fill={Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 0.0))}
+                stroke={color: {Color::rgb(0.4, 0.4, 0.4)}, width: 1px}
+            />
+        </Group>
+        <Group y=50px height=25px>
+            <Text text="Redo" id=text x=5px/>
+            <Rectangle
+                fill={Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 0.0))}
+                stroke={color: {Color::rgb(0.4, 0.4, 0.4)}, width: 1px}
+            />
+        </Group>
         //Background 
         <Rectangle  fill={Fill::Solid(Color::rgb(0.0, 0.0, 0.0))}/>
     </Group>

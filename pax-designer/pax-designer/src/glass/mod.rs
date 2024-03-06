@@ -29,45 +29,49 @@ pub struct Glass {
 }
 
 impl Glass {
-    pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: ArgsMouseDown) {
+    pub fn context_menu(&mut self, ctx: &NodeContext, args: Event<ContextMenu>) {
+        args.prevent_default();
+    }
+
+    pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
-                button: args.mouse.button,
+                button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
         );
     }
 
-    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Move,
-                button: args.mouse.button,
+                button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
         );
     }
 
-    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: ArgsMouseUp) {
+    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Up,
-                button: args.mouse.button,
+                button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
         );
     }
 
-    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: ArgsKeyDown) {
-        model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key);
+    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: Event<KeyDown>) {
+        model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key.clone());
     }
 
-    pub fn handle_key_up(&mut self, ctx: &NodeContext, args: ArgsKeyUp) {
-        model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key);
+    pub fn handle_key_up(&mut self, ctx: &NodeContext, args: Event<KeyUp>) {
+        model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key.clone());
     }
 
     pub fn update_view(&mut self, _ctx: &NodeContext) {

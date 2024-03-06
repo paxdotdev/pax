@@ -16,6 +16,7 @@
     @key_down: handle_key_down,
     @key_up: handle_key_up,
     @pre_render: update_view,
+    @context_menu: self.context_menu
 
     #backing_plate {
         //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
