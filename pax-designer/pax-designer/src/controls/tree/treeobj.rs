@@ -21,6 +21,7 @@ pub struct TreeObj {
     pub is_collapsed: Property<bool>,
     pub arrow_path: Property<String>,
     pub is_not_leaf: Property<bool>,
+    pub is_not_dummy: Property<bool>,
 }
 
 impl TreeObj {
@@ -36,7 +37,13 @@ impl TreeObj {
         );
     }
 
-    pub fn clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        *super::TREE_CLICK_SENDER.lock().unwrap() = Some(self.ind.get().clone().into());
+    pub fn arrow_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
+        *super::TREE_CLICK_SENDER.lock().unwrap() =
+            Some(super::TreeMsg::ArrowClicked(self.ind.get().clone().into()));
+    }
+    pub fn obj_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
+        log::info!("clicked!");
+        *super::TREE_CLICK_SENDER.lock().unwrap() =
+            Some(super::TreeMsg::ObjClicked(self.ind.get().clone().into()));
     }
 }

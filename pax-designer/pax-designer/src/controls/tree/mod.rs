@@ -1,6 +1,8 @@
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_manifest::{ComponentTemplate, PaxType, TemplateNodeId, TypeId};
+use pax_manifest::{
+    ComponentTemplate, PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_std::components::Stacker;
 use pax_std::components::*;
 use pax_std::primitives::Text;
@@ -11,15 +13,16 @@ use pax_std::types::*;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 pub mod treeobj;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use treeobj::TreeObj;
 
 use crate::model;
+use crate::model::tools::SelectNode;
 
 #[pax]
 #[file("controls/tree/mod.pax")]
@@ -27,11 +30,22 @@ pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub is_project_loaded: Property<bool>,
+    pub visible_len: Property<usize>,
 }
 
-pub static TREE_CLICK_SENDER: Mutex<Option<usize>> = Mutex::new(None);
+pub enum TreeMsg {
+    ArrowClicked(usize),
+    ObjClicked(usize),
+}
 
-struct TreeEntry(Desc, Vec<TreeEntry>);
+pub static TREE_CLICK_SENDER: Mutex<Option<TreeMsg>> = Mutex::new(None);
+static COLLAPSED_NODES: Mutex<Option<HashSet<UniqueTemplateNodeIdentifier>>> = Mutex::new(None);
+
+struct TreeEntry {
+    node_id: TemplateNodeId,
+    desc: Desc,
+    children: Vec<TreeEntry>,
+}
 
 enum Desc {
     Frame,
@@ -80,19 +94,22 @@ impl Desc {
 impl TreeEntry {
     fn flatten(self, ind: &mut usize, indent_level: isize) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
-        let (name, img_path) = self.0.info();
+        let (name, img_path) = self.desc.info();
         all.push(FlattenedTreeEntry {
+            node_id: self.node_id,
             name: StringBox::from(name),
             image_path: StringBox::from(img_path),
             ind: *ind,
             indent_level,
-            visible: true,
+            is_visible: true,
             is_collapsed: false,
-            is_not_leaf: !self.1.is_empty(),
+            is_not_leaf: !self.children.is_empty(),
+            is_selected: false,
+            is_not_dummy: true,
         });
         *ind += 1;
         all.extend(
-            self.1
+            self.children
                 .into_iter()
                 .flat_map(|c| c.flatten(ind, indent_level + 1)),
         );
@@ -104,12 +121,15 @@ impl TreeEntry {
 #[custom(Imports)]
 pub struct FlattenedTreeEntry {
     pub name: StringBox,
+    pub node_id: TemplateNodeId,
     pub image_path: StringBox,
     pub ind: usize,
     pub indent_level: isize,
-    pub visible: bool,
+    pub is_visible: bool,
+    pub is_selected: bool,
     pub is_collapsed: bool,
     pub is_not_leaf: bool,
+    pub is_not_dummy: bool,
 }
 
 impl Tree {
@@ -125,7 +145,11 @@ impl Tree {
             .filter_map(|c_tnid| Self::to_tree(c_tnid, component_template))
             .collect();
         let node_type = Self::resolve_tree_type(node.type_id.clone());
-        Some(TreeEntry(node_type, children))
+        Some(TreeEntry {
+            node_id: tnid.clone(),
+            desc: node_type,
+            children,
+        })
     }
 
     fn resolve_tree_type(type_id: TypeId) -> Desc {
@@ -176,35 +200,68 @@ impl Tree {
             })
             .collect();
         self.tree_objects.set(flattened.clone());
+        self.visible_len.set(flattened.len());
         self.visible_tree_objects.set(flattened);
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
-        // let mut channel = TREE_CLICK_SENDER.lock().unwrap();
-        // if let Some(sender) = channel.take() {
-        //     let tree = &mut self.tree_objects.get_mut();
-        //     tree[sender].collapsed = !tree[sender].collapsed;
-        //     let collapsed = tree[sender].collapsed;
-        //     for i in (sender + 1)..tree.len() {
-        //         if tree[sender].indent_level < tree[i].indent_level {
-        //             tree[i].visible = !collapsed;
-        //             tree[i].collapsed = collapsed;
-        //         } else {
-        //             break;
-        //         }
-        //     }
-        //     self.visible_tree_objects.set(
-        //         self.tree_objects
-        //             .get()
-        //             .iter()
-        //             .filter(|o| o.visible)
-        //             .cloned()
-        //             .collect(),
-        //     );
-        // }
+        let mut channel = TREE_CLICK_SENDER.lock().unwrap();
+        if let Some(msg) = channel.take() {
+            match msg {
+                TreeMsg::ArrowClicked(sender) => {
+                    let tree = &mut self.tree_objects.get_mut();
+                    tree[sender].is_collapsed = !tree[sender].is_collapsed;
+                    let collapsed = tree[sender].is_collapsed;
+                    for i in (sender + 1)..tree.len() {
+                        if tree[sender].indent_level < tree[i].indent_level {
+                            tree[i].is_visible = !collapsed;
+                            tree[i].is_collapsed = collapsed;
+                        } else {
+                            break;
+                        }
+                    }
+                    self.visible_tree_objects.set(
+                        self.tree_objects
+                            .get()
+                            .iter()
+                            .filter(|o| o.is_visible)
+                            .cloned()
+                            .collect(),
+                    );
+                    self.visible_len.set(self.visible_tree_objects.get().len());
+                }
+                TreeMsg::ObjClicked(sender) => model::perform_action(
+                    SelectNode {
+                        id: self.tree_objects.get()[sender].node_id.clone(),
+                    },
+                    ctx,
+                ),
+            }
+        }
+
         model::read_app_state(|app_state| {
             let type_id = &app_state.selected_component_id;
             self.set_tree(type_id.clone(), ctx);
+
+            //update selected nodes
+            let selected = &app_state.selected_template_node_ids;
+            for entry in self.visible_tree_objects.get_mut() {
+                entry.is_selected = selected.contains(&entry.node_id);
+            }
         });
+
+        //HACK pre dirty-dag
+        {
+            static ADD_KEEP_TRACK: AtomicBool = AtomicBool::new(false);
+
+            if ADD_KEEP_TRACK.fetch_xor(true, Ordering::Relaxed) {
+                self.visible_tree_objects
+                    .get_mut()
+                    .push(FlattenedTreeEntry {
+                        is_not_dummy: false,
+                        ..Default::default()
+                    });
+            }
+        }
     }
 }
