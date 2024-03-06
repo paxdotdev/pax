@@ -1339,14 +1339,14 @@ impl PartialEq<ColorMessage> for Color {
     }
 }
 impl Interpolatable for Color {
-    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
         let rgba_s = self.to_rgba_0_1();
-        let rgba_o = self.to_rgba_0_1();
+        let rgba_o = other.to_rgba_0_1();
         let rgba_i = [
-            rgba_s[0].interpolate(&rgba_o[0], _t),
-            rgba_s[1].interpolate(&rgba_o[1], _t),
-            rgba_s[2].interpolate(&rgba_o[2], _t),
-            rgba_s[3].interpolate(&rgba_o[3], _t),
+            rgba_s[0].interpolate(&rgba_o[0], t),
+            rgba_s[1].interpolate(&rgba_o[1], t),
+            rgba_s[2].interpolate(&rgba_o[2], t),
+            rgba_s[3].interpolate(&rgba_o[3], t),
         ];
         Color::from_rgba_0_1(rgba_i)
     }

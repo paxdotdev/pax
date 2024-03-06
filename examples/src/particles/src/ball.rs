@@ -8,19 +8,35 @@ use pax_std::primitives::Ellipse;
 pub struct Ball {
     pub magnitude: Property<Numeric>,
     pub effective_diameter: Property<Numeric>,
+    pub effective_hue: Property<Numeric>,
 }
 
 impl Ball {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        let magnitude = self.magnitude.get().to_float();
 
-        let steady = Numeric::from(1.5 * self.magnitude.get());
-        let lower = Numeric::from(0.75 * self.magnitude.get());
-        let upper = Numeric::from(1.75 * self.magnitude.get());
+        let d_base = magnitude * 5.0;
+        let d_steady = Numeric::from(d_base);
+        let d_lower = Numeric::from(0.75 * d_base);
+        let d_upper = Numeric::from(1.75 * d_base);
 
-        //TODO: probably not updating eased values in handle_vtable_updates; need to hook back up
-        self.effective_diameter.set(lower);
-        self.effective_diameter.ease_to(upper,30, EasingCurve::Linear);
-        self.effective_diameter.ease_to_later(steady,30, EasingCurve::Linear);
+        let h_base = magnitude * 4.0 + 270.0;
+        let h_steady = Numeric::from(h_base);
+        let h_lower = Numeric::from(0.75 * h_base);
+        let h_upper = Numeric::from(1.75 * h_base);
+
+        self.effective_diameter.set(d_lower);
+        self.effective_diameter.ease_to(d_upper, 30, EasingCurve::Linear);
+        self.effective_diameter.ease_to_later(d_steady, 30, EasingCurve::Linear);
+
+        self.effective_hue.set(h_lower);
+        self.effective_hue.ease_to(h_upper, 30, EasingCurve::Linear);
+        self.effective_hue.ease_to_later(h_steady, 30, EasingCurve::Linear);
+
+    }
+
+
+    pub fn handle_tick(&mut self, ctx: &NodeContext) {
 
     }
 }
