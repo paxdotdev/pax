@@ -1,6 +1,7 @@
 <Ellipse class=ball />
 
 @settings {
+    @mount: handle_mount,
     .ball {
         anchor_x:50%,
         anchor_y:50%,
@@ -11,7 +12,7 @@
             color: WHITE,
             width: 5px,
         }
-        width: {magnitude * 7}
-        height: {magnitude * 7}
+        width: {effective_diameter}
+        height: {effective_diameter}
     }
 }

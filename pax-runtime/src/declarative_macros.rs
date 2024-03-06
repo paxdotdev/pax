@@ -20,7 +20,7 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
         if let Ok(downcast_value) = new_value_wrapped.downcast::<V>() {
             property.set(*downcast_value);
         } else {
-            panic!("property has an unexpected type")
+            panic!("property has an unexpected type for vtable id {}", vtable_id);
         }
     } else {
     }

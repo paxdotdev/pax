@@ -1,13 +1,13 @@
 
-<Rectangle fill={Fill::Solid(Color::hlc(50, 75.0, 150.0))} width=100px height=100px x=5% anchor_y=50% y=20% @click=self.click0/>
-<Rectangle fill={Fill::Solid(Color::hlc(100, 75.0, 150.0))} width=100px height=100px x=5% anchor_y=50% y=50% @click=self.click1/>
-<Rectangle fill={Fill::Solid(Color::hlc(150, 75.0, 150.0))} width=100px height=100px x=5% anchor_y=50% y=80% @click=self.click2/>
+<Rectangle fill=hsl(50deg, 75%, 50%) width=100px height=100px x=5% anchor_y=50% y=20% @click=self.click0/>
+<Rectangle fill=hsl(100deg, 75%, 50%) width=100px height=100px x=5% anchor_y=50% y=50% @click=self.click1/>
+<Rectangle fill=hsl(150deg, 75%, 50%) width=100px height=100px x=5% anchor_y=50% y=80% @click=self.click2/>
 
 <Stacker cells=5>
     for i in 0..self.num {
-        <Rectangle fill={Fill::Solid(Color::hlc(i*10, 75.0, 150.0))}/>
+        <Rectangle fill={hsl((i*10)deg, 75%, 50%)}/>
     }
-    <Rectangle fill={Fill::Solid(Color::hlc(10, 20.0, 20.0))}/>
+    <Rectangle fill=hsl(10deg, 20%, 20.0%) />
 </Stacker>
 
 @settings{

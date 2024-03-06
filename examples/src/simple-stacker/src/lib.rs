@@ -24,7 +24,7 @@ impl Example {
     }
 
     pub fn click0(&mut self, ctx: &NodeContext, args: Event<Click>) {
-        self.num.set(1);
+        self.num.set(2);
     }
 
     pub fn click1(&mut self, ctx: &NodeContext, args: Event<Click>) {

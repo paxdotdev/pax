@@ -425,11 +425,8 @@ fn recurse_compile_expressions<'a>(
             let input_statement =
                 source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
-            let output_type = if is_repeat_source_iterable {
-                iterable_type.type_id.clone()
-            } else {
-                return_type.type_id.clone()
-            };
+            let output_type = return_type.type_id.clone();
+
             let output_type = output_type.to_string();
             ctx.expression_specs.insert(
                 id,
@@ -489,7 +486,7 @@ fn recurse_compile_expressions<'a>(
                 ExpressionSpec {
                     id,
                     invocations,
-                    output_type: "usize".to_string(),
+                    output_type: "Numeric".to_string(),
                     output_statement,
                     input_statement,
                     is_repeat_source_iterable_expression: false,
