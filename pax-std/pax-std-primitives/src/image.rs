@@ -41,6 +41,7 @@ impl InstanceNode for ImageInstance {
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.path,
+                context.globals()
             );
         });
     }

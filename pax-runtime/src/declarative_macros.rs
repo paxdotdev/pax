@@ -1,8 +1,9 @@
 use std::{any::Any, rc::Rc};
+use pax_runtime_api::Interpolatable;
 
 use crate::api::PropertyInstance;
 
-use crate::{ExpressionTable, RuntimePropertiesStackFrame};
+use crate::{ExpressionTable, RuntimePropertiesStackFrame, Globals};
 
 /// Manages vtable updates (if necessary) for a given `dyn PropertyInstance`.
 /// Is a no-op for `PropertyLiteral`s, and mutates (by calling `.set`) `PropertyExpression` instances.
@@ -10,10 +11,11 @@ use crate::{ExpressionTable, RuntimePropertiesStackFrame};
 /// ```text
 /// handle_vtable_update!(ptc, self.height, Size);
 /// ```
-pub fn handle_vtable_update<V: Default + Clone + 'static>(
+pub fn handle_vtable_update<V: Default + Clone + Interpolatable + 'static>(
     table: &ExpressionTable,
     stack: &Rc<RuntimePropertiesStackFrame>,
     property: &mut Box<dyn PropertyInstance<V>>,
+    globals: &Globals,
 ) {
     if let Some(vtable_id) = property._get_vtable_id() {
         let new_value_wrapped: Box<dyn Any> = table.compute_vtable_value(&stack, vtable_id);
@@ -22,8 +24,8 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
         } else {
             panic!("property has an unexpected type for vtable id {}", vtable_id);
         }
-    } else if let Some(transition_manager) = property._get_transition_manager() {
-        panic!("found transition manager");
+    } else if let Some(new_value) = table.compute_eased_value(property._get_transition_manager(), globals) {
+        property.set(new_value);
     } else {
     }
 }
@@ -35,12 +37,13 @@ pub fn handle_vtable_update<V: Default + Clone + 'static>(
 /// // In this example `scale_x` is `Option`al (`Option<Rc<RefCell<dyn PropertyInstance<Size>>>>`)
 /// handle_vtable_update_optional!(ptc, self.scale_x, Size);
 /// ```
-pub fn handle_vtable_update_optional<V: Default + Clone + 'static>(
+pub fn handle_vtable_update_optional<V: Default + Clone + Interpolatable + 'static>(
     table: &ExpressionTable,
     stack: &Rc<RuntimePropertiesStackFrame>,
     optional_property: Option<&mut Box<dyn PropertyInstance<V>>>,
+    globals: &Globals,
 ) {
     if let Some(property) = optional_property {
-        handle_vtable_update(table, stack, property);
+        handle_vtable_update(table, stack, property, globals);
     }
 }

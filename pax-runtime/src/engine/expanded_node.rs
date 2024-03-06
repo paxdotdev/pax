@@ -265,7 +265,7 @@ impl ExpandedNode {
     pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
         self.get_common_properties()
             .borrow_mut()
-            .compute_properties(&self.stack, context.expression_table());
+            .compute_properties(&self.stack, context.expression_table(), context.globals());
 
         let viewport = self
             .parent_expanded_node

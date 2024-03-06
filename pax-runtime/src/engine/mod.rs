@@ -55,6 +55,7 @@ pub trait PropertiesComputable {
         &mut self,
         stack: &Rc<RuntimePropertiesStackFrame>,
         table: &ExpressionTable,
+        globals: &Globals,
     );
 }
 
@@ -63,19 +64,20 @@ impl PropertiesComputable for CommonProperties {
         &mut self,
         stack: &Rc<RuntimePropertiesStackFrame>,
         table: &ExpressionTable,
+        globals: &Globals,
     ) {
-        handle_vtable_update(table, stack, &mut self.width);
-        handle_vtable_update(table, stack, &mut self.height);
-        handle_vtable_update(table, stack, &mut self.transform);
-        handle_vtable_update_optional(table, stack, self.rotate.as_mut());
-        handle_vtable_update_optional(table, stack, self.scale_x.as_mut());
-        handle_vtable_update_optional(table, stack, self.scale_y.as_mut());
-        handle_vtable_update_optional(table, stack, self.skew_x.as_mut());
-        handle_vtable_update_optional(table, stack, self.skew_y.as_mut());
-        handle_vtable_update_optional(table, stack, self.anchor_x.as_mut());
-        handle_vtable_update_optional(table, stack, self.anchor_y.as_mut());
-        handle_vtable_update_optional(table, stack, self.x.as_mut());
-        handle_vtable_update_optional(table, stack, self.y.as_mut());
+        handle_vtable_update(table, stack, &mut self.width, globals);
+        handle_vtable_update(table, stack, &mut self.height, globals);
+        handle_vtable_update(table, stack, &mut self.transform, globals);
+        handle_vtable_update_optional(table, stack, self.rotate.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.scale_x.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.scale_y.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.skew_x.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.skew_y.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.anchor_x.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.anchor_y.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.x.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.y.as_mut(), globals);
     }
 }
 
@@ -397,6 +399,9 @@ impl PaxEngine {
             }
             *curr_occlusion_ind = new_occlusion_ind;
         }
+
+
+        self.runtime_context.globals_mut().frames_elapsed += 1;
 
         self.runtime_context.take_native_messages()
     }

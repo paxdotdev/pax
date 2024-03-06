@@ -42,23 +42,23 @@ impl InstanceNode for TextboxInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Textbox| {
             let tbl = context.expression_table();
             let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.focus_on_mount);
-            handle_vtable_update(tbl, stk, &mut properties.text);
-            handle_vtable_update(tbl, stk, &mut properties.stroke);
-            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color);
-            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().width);
-            handle_vtable_update(tbl, stk, &mut properties.border_radius);
-            handle_vtable_update(tbl, stk, &mut properties.background);
+            handle_vtable_update(tbl, stk, &mut properties.focus_on_mount, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.text, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.stroke, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().width, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.border_radius, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.background, context.globals());
             // Style
-            handle_vtable_update(tbl, stk, &mut properties.style);
+            handle_vtable_update(tbl, stk, &mut properties.style, context.globals());
             let stl = properties.style.get_mut();
-            handle_vtable_update(tbl, stk, &mut stl.fill);
-            handle_vtable_update(tbl, stk, &mut stl.font);
-            handle_vtable_update(tbl, stk, &mut stl.font_size);
-            handle_vtable_update(tbl, stk, &mut stl.underline);
-            handle_vtable_update(tbl, stk, &mut stl.align_vertical);
-            handle_vtable_update(tbl, stk, &mut stl.align_horizontal);
-            handle_vtable_update(tbl, stk, &mut stl.align_multiline);
+            handle_vtable_update(tbl, stk, &mut stl.fill, context.globals());
+            handle_vtable_update(tbl, stk, &mut stl.font, context.globals());
+            handle_vtable_update(tbl, stk, &mut stl.font_size, context.globals());
+            handle_vtable_update(tbl, stk, &mut stl.underline, context.globals());
+            handle_vtable_update(tbl, stk, &mut stl.align_vertical, context.globals());
+            handle_vtable_update(tbl, stk, &mut stl.align_horizontal, context.globals());
+            handle_vtable_update(tbl, stk, &mut stl.align_multiline, context.globals());
         });
     }
 

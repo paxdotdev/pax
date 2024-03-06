@@ -46,6 +46,7 @@ impl InstanceNode for CheckboxInstance {
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.checked,
+                context.globals()
             );
         });
     }
