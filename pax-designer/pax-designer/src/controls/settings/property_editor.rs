@@ -29,11 +29,11 @@ impl PropertyEditor {
         }
     }
 
-    pub fn text_input(&mut self, _ctx: &NodeContext, args: ArgsTextboxInput) {
+    pub fn text_input(&mut self, _ctx: &NodeContext, args: Event<TextboxInput>) {
         self.textbox.set(args.text.to_owned());
     }
 
-    pub fn text_change(&mut self, ctx: &NodeContext, args: ArgsTextboxChange) {
+    pub fn text_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
         self.textbox.set(args.text.to_owned());
         let name = &self.name.get().string;
         let mut dt = ctx.designtime.borrow_mut();

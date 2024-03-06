@@ -89,11 +89,7 @@ impl ToolBehaviour for CreateComponentTool {
     }
 }
 
-pub struct PointerTool {
-    state: PointerToolState,
-}
-
-enum PointerToolState {
+pub enum PointerTool {
     Moving {
         offset: Vector2<Glass>,
     },
@@ -105,26 +101,23 @@ enum PointerToolState {
 
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
-        ctx.app_state.selected_template_node_ids.clear();
-        Self {
-            state: if let Some(hit) = ctx.raycast_glass(point) {
-                if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
-                    ctx.app_state.selected_template_node_ids.clear();
-                }
-                ctx.app_state
-                    .selected_template_node_ids
-                    .push(hit.global_id().unwrap().get_template_node_id());
+        if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+            ctx.app_state.selected_template_node_ids.clear();
+        }
+        if let Some(hit) = ctx.raycast_glass(point) {
+            ctx.app_state
+                .selected_template_node_ids
+                .push(hit.global_id().unwrap().get_template_node_id());
 
-                let origin_window = hit.origin().unwrap();
-                let object_origin_glass = ctx.glass_transform() * origin_window;
-                let offset = point - object_origin_glass;
-                PointerToolState::Moving { offset }
-            } else {
-                PointerToolState::Selecting {
-                    p1: point,
-                    p2: point,
-                }
-            },
+            let origin_window = hit.origin().unwrap();
+            let object_origin_glass = ctx.glass_transform() * origin_window;
+            let offset = point - object_origin_glass;
+            Self::Moving { offset }
+        } else {
+            Self::Selecting {
+                p1: point,
+                p2: point,
+            }
         }
     }
 }
@@ -135,18 +128,18 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        match self.state {
-            PointerToolState::Moving { offset } => {
+        match self {
+            &mut PointerTool::Moving { offset } => {
                 let world_point = ctx.world_transform() * (point - offset);
                 ctx.execute(MoveSelected { point: world_point }).unwrap();
             }
-            PointerToolState::Selecting { ref mut p2, .. } => *p2 = point,
+            PointerTool::Selecting { ref mut p2, .. } => *p2 = point,
         }
         ControlFlow::Continue(())
     }
 
-    fn pointer_up(&mut self, _point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        if let PointerToolState::Selecting { .. } = self.state {
+    fn pointer_up(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        if let PointerTool::Selecting { .. } = self {
             // TODO select multiple objects
         }
         ControlFlow::Break(())
@@ -162,7 +155,7 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn visualize(&self, glass: &mut crate::glass::Glass) {
-        if let PointerToolState::Selecting { p1, p2 } = self.state {
+        if let PointerTool::Selecting { p1, p2 } = self {
             glass.is_rect_tool_active.set(true);
             glass.rect_tool.set(RectTool {
                 x: Size::Pixels(p1.x.into()),

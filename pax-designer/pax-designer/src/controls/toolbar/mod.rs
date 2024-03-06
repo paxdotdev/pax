@@ -1,4 +1,4 @@
-use pax_engine::api::{ArgsButtonClick, ArgsClick, NodeContext, Numeric, Size, StringBox};
+use pax_engine::api::{ButtonClick, Click, Event, NodeContext, Numeric, Size, StringBox};
 use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::components::Stacker;

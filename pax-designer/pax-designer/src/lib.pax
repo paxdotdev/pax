@@ -3,7 +3,7 @@
     <Controls/>
     <Group id=designer_glass>
         //Optionally turned on on right click
-        <ContextMenu/>
+        <DesignerContextMenu/>
         <Glass/>
         <Group transform={self.transform2d}>
             <Example id=userland_project/>

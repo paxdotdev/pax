@@ -10,7 +10,7 @@ use crate::model;
 pub struct Logobar {}
 
 impl Logobar {
-    pub fn handle_logo_click(&mut self, ctx: &NodeContext, _args: ArgsClick) {
+    pub fn handle_logo_click(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::read_app_state(|app_state| {
             let mut dt = ctx.designtime.borrow_mut();
             if let Err(e) = dt.send_component_update(&app_state.selected_component_id) {

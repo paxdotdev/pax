@@ -31,13 +31,13 @@ static CONTEXT_MENU_CHANNEL: Mutex<Option<ContextMenuMessage>> = Mutex::new(None
 
 #[pax]
 #[file("context_menu/mod.pax")]
-pub struct ContextMenu {
+pub struct DesignerContextMenu {
     pub visible: Property<bool>,
     pub pos_x: Property<f64>,
     pub pos_y: Property<f64>,
 }
 
-impl ContextMenu {
+impl DesignerContextMenu {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         if let Some(message) = CONTEXT_MENU_CHANNEL.lock().unwrap().take() {
             match message {
@@ -53,7 +53,7 @@ impl ContextMenu {
         }
     }
 
-    pub fn create_component(&mut self, ctx: &NodeContext, _args: ArgsClick) {
+    pub fn create_component(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(SelectedIntoNewComponent {}, ctx);
         self.visible.set(false);
     }

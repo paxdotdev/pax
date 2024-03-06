@@ -33,11 +33,11 @@ impl Action for OpenLLMPrompt {
 static OPEN_LLM_PROMPT: AtomicBool = AtomicBool::new(false);
 
 impl LLMInterface {
-    pub fn textbox_input(&mut self, _ctx: &NodeContext, args: ArgsTextboxInput) {
-        self.request.set(args.text);
+    pub fn textbox_input(&mut self, _ctx: &NodeContext, args: Event<TextboxInput>) {
+        self.request.set(args.text.clone());
     }
 
-    pub fn textbox_change(&mut self, ctx: &NodeContext, _args: ArgsTextboxChange) {
+    pub fn textbox_change(&mut self, ctx: &NodeContext, _args: Event<TextboxChange>) {
         let request = self.request.get();
         let mut dt = ctx.designtime.borrow_mut();
         if let Err(e) = dt.llm_request(request) {
