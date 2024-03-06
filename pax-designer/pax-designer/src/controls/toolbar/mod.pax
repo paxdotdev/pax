@@ -13,7 +13,7 @@ for (view, i) in self.entries {
 <Rectangle
     width=65px
     x={(self.selected_ind*65)px}
-    fill={Fill::Solid(Color::rgba(1.0,1.0,1.0,0.2))}
+    fill={Fill::Solid(Color::rgb(0.035, 0.145, 0.318))}
 />
 
 @settings {

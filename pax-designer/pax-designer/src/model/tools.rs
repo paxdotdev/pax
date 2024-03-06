@@ -17,7 +17,7 @@ use pax_engine::api::Size;
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::rendering::TransformAndBounds;
-use pax_manifest::TypeId;
+use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::types::Color;
 
 pub struct CreateComponentTool {
@@ -99,16 +99,40 @@ pub enum PointerTool {
     },
 }
 
+pub struct SelectNode {
+    pub id: TemplateNodeId,
+}
+
+impl Action for SelectNode {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let dt = ctx.engine_context.designtime.borrow_mut();
+        let type_id = &ctx.app_state.selected_component_id;
+        let component = &dt.get_orm().get_component(type_id).unwrap();
+        let template = component.template.as_ref().unwrap();
+        let pax_type = template
+            .get_node(&self.id)
+            .ok_or(anyhow!("node doesn't exist"))?
+            .type_id
+            .get_pax_type();
+
+        // only select if singleton
+        if let PaxType::Singleton { .. } = pax_type {
+            if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+                ctx.app_state.selected_template_node_ids.clear();
+            }
+            ctx.app_state.selected_template_node_ids.push(self.id);
+            Ok(CanUndo::No)
+        } else {
+            Err(anyhow!("can only select pax-singletons (for now)"))
+        }
+    }
+}
+
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
-        if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
-            ctx.app_state.selected_template_node_ids.clear();
-        }
         if let Some(hit) = ctx.raycast_glass(point) {
-            ctx.app_state
-                .selected_template_node_ids
-                .push(hit.global_id().unwrap().get_template_node_id());
-
+            let node_id = hit.global_id().unwrap().get_template_node_id();
+            let _ = ctx.execute(SelectNode { id: node_id });
             let origin_window = hit.origin().unwrap();
             let object_origin_glass = ctx.glass_transform() * origin_window;
             let offset = point - object_origin_glass;
