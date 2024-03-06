@@ -147,7 +147,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::xo_symbol => {
                         symbolic_ids.borrow_mut().push(op0.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        format!("{}.get_as_int()",convert_symbolic_binding_from_paxel_to_ril(op0))
+                        format!("{}.to_int()",convert_symbolic_binding_from_paxel_to_ril(op0))
                     },
                     _ => unimplemented!("")
                 };
@@ -164,7 +164,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::xo_symbol => {
                         symbolic_ids.borrow_mut().push(op2.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        format!("{}.get_as_int()",convert_symbolic_binding_from_paxel_to_ril(op2))
+                        format!("{}.to_int()",convert_symbolic_binding_from_paxel_to_ril(op2))
                     },
                     _ => unimplemented!("")
                 };

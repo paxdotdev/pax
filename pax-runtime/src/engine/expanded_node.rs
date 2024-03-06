@@ -154,6 +154,7 @@ impl ExpandedNode {
             RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
+
         root_node
     }
 
@@ -167,6 +168,9 @@ impl ExpandedNode {
         let common_properties = (&template
             .base()
             .instance_prototypical_common_properties_factory)();
+
+
+
 
         Rc::new(ExpandedNode {
             id_chain: vec![context.gen_uid().0],
@@ -292,6 +296,7 @@ impl ExpandedNode {
             }
         }
         Rc::clone(&self.instance_node).update(&self, context);
+
         if *self.attached.borrow() > 0 {
             self.instance_node.handle_native_patches(self, context);
         }
@@ -320,7 +325,18 @@ impl ExpandedNode {
             context
                 .node_cache
                 .insert(self.id_chain[0], Rc::clone(&self));
+
+
+
+            //Note on subtle sequencing here:
+            // (1) _primitive_ handle_mounts must fire before updating properties for the first time.
+            //     This is at least to appease the needs of Component + Slot ordering; see ComponentInstance#update
+            // (2) separately, in userland, we want `mount` events to have properties available for reading & writing.
+            //     this requires calling `update` at least once.  (Note that this means `update` is currently called twice on init)
+            //Thus: primitive#handle_mount, primitive#update, component#handle_mount.  This requires the primitive author to
+            //  be aware of the fact that properties don't yet exist on mount.
             self.instance_node.handle_mount(&self, context);
+            Rc::clone(&self.instance_node).update(&self, context);
             if let Some(ref registry) = self.instance_node.base().handler_registry {
                 for handler in registry
                     .borrow()
