@@ -13,16 +13,14 @@ pub struct Ball {
 impl Ball {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
 
-        //look up my special ID in static
+        let steady = Numeric::from(1.5 * self.magnitude.get());
+        let lower = Numeric::from(0.75 * self.magnitude.get());
+        let upper = Numeric::from(1.75 * self.magnitude.get());
 
+        //TODO: probably not updating eased values in handle_vtable_updates; need to hook back up
+        self.effective_diameter.set(lower);
+        self.effective_diameter.ease_to(upper,30, EasingCurve::Linear);
+        self.effective_diameter.ease_to_later(steady,30, EasingCurve::Linear);
 
-        // let m = self.magnitude.get();
-
-        //PROBLEM: on mount, self.magnitude.get() is returning the Default, not-yet-initialized value
-        //         options include: rejigger mount / tick / update order
-        self.effective_diameter.set(Numeric::from(1.5 * self.magnitude.get()));
-
-
-        //animated
     }
 }

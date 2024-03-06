@@ -28,9 +28,9 @@ impl<T: Default> PropertyExpression<T> {
 
 impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     fn get(&self) -> &T {
-        if !self.has_been_evaluted {
-            panic!("expression width id {:?} has'nt been evaluated", self.id)
-        }
+        // if !self.has_been_evaluted {
+        //     panic!("expression width id {:?} has'nt been evaluated", self.id)
+        // }
         &self.cached_value
     }
 
