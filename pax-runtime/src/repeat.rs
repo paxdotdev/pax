@@ -73,11 +73,13 @@ impl InstanceNode for RepeatInstance {
                     context.expression_table(),
                     &expanded_node.stack,
                     properties.source_expression_range.as_mut(),
+                    context.globals()
                 );
                 handle_vtable_update_optional(
                     context.expression_table(),
                     &expanded_node.stack,
                     properties.source_expression_vec.as_mut(),
+                    context.globals()
                 );
 
                 let vec = if let Some(ref source) = properties.source_expression_range {

@@ -37,10 +37,10 @@ impl InstanceNode for PathInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let tbl = context.expression_table();
             let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.stroke);
-            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color);
-            handle_vtable_update(tbl, stk, &mut properties.fill);
-            handle_vtable_update(tbl, stk, &mut properties.segments);
+            handle_vtable_update(tbl, stk, &mut properties.stroke, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.fill, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.segments, context.globals());
         });
     }
 

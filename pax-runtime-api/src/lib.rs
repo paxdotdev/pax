@@ -832,6 +832,13 @@ pub trait Interpolatable
     }
 }
 
+impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+        self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
+    }
+}
+impl Interpolatable for std::rc::Rc<std::cell::RefCell<(dyn Any + 'static)>> {}
+
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care" approach to disjoint vec elements
@@ -1040,8 +1047,14 @@ impl From<StringBox> for String {
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
 /// about how we parse `%`, and allow the context in which it is used to pull forward a specific
 /// type through `into` inference.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Percent(pub Numeric);
+
+impl Interpolatable for Percent {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self(self.0.interpolate(&other.0, t))
+    }
+}
 
 impl From<IntoableLiteral> for Rotation {
     fn from(value: IntoableLiteral) -> Self {
@@ -1097,6 +1110,8 @@ pub enum ColorChannel {
     /// [0.0, 100.0]
     Percent(Numeric),
 }
+
+
 
 impl Default for ColorChannel {
     fn default() -> Self {
@@ -1175,19 +1190,29 @@ pub enum Color {
     ROSE,
     BLACK,
     WHITE,
-    //TODO: with `red` as a prototype, add Tailwind-inspired pseudo-constants here
+
 }
 impl Color {
 
-    //TODO: build out Tailwind-style tint api
+    //TODO: build out tint api and consider other color transforms
     //pub fn tint(tint_offset_amount) -> Self {...}
 
     pub fn to_piet_color(&self) -> piet::Color {
-        let rgba = self.to_rgba();
+        let rgba = self.to_rgba_0_1();
         piet::Color::rgba(rgba[0], rgba[1], rgba[2], rgba[3])
     }
 
-    pub fn to_rgba(&self) -> [f64; 4] {
+    pub fn from_rgba_0_1(rgba_0_1: [f64; 4]) -> Self {
+        Self::rgba(
+            ColorChannel::Percent(Numeric::from(rgba_0_1[0] * 100.0)),
+            ColorChannel::Percent(Numeric::from(rgba_0_1[1] * 100.0)),
+            ColorChannel::Percent(Numeric::from(rgba_0_1[2] * 100.0)),
+            ColorChannel::Percent(Numeric::from(rgba_0_1[3] * 100.0)),
+        )
+    }
+
+    // Returns a slice of four channels, normalized to [0,1]
+    pub fn to_rgba_0_1(&self) -> [f64; 4] {
         match self {
             Self::hsla(h,s,l,a) => {
                 let rgb = hsl_to_rgb(h.to_float_0_1(),s.to_float_0_1(),l.to_float_0_1());
@@ -1201,30 +1226,30 @@ impl Color {
             Self::rgb(r,g,b) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),1.0],
 
             //Color constants from TailwindCSS
-            Self::SLATE => Self::rgb(Numeric::from(0x64).into(), Numeric::from(0x74).into(), Numeric::from(0x8b).into()).to_rgba(),
-            Self::GRAY => Self::rgb(Numeric::from(0x6b).into(), Numeric::from(0x72).into(), Numeric::from(0x80).into()).to_rgba(),
-            Self::ZINC => Self::rgb(Numeric::from(0x71).into(), Numeric::from(0x71).into(), Numeric::from(0x7a).into()).to_rgba(),
-            Self::NEUTRAL => Self::rgb(Numeric::from(0x73).into(), Numeric::from(0x73).into(), Numeric::from(0x73).into()).to_rgba(),
-            Self::STONE => Self::rgb(Numeric::from(0x78).into(), Numeric::from(0x71).into(), Numeric::from(0x6c).into()).to_rgba(),
-            Self::RED => Self::rgb(Numeric::from(0xeF).into(), Numeric::from(0x44).into(), Numeric::from(0x44).into()).to_rgba(),
-            Self::ORANGE => Self::rgb(Numeric::from(0xf9).into(), Numeric::from(0x73).into(), Numeric::from(0x16).into()).to_rgba(),
-            Self::AMBER => Self::rgb(Numeric::from(0xf5).into(), Numeric::from(0x9e).into(), Numeric::from(0x0b).into()).to_rgba(),
-            Self::YELLOW => Self::rgb(Numeric::from(0xea).into(), Numeric::from(0xb3).into(), Numeric::from(0x08).into()).to_rgba(),
-            Self::LIME => Self::rgb(Numeric::from(0x84).into(), Numeric::from(0xcc).into(), Numeric::from(0x16).into()).to_rgba(),
-            Self::GREEN => Self::rgb(Numeric::from(0x22).into(), Numeric::from(0xc5).into(), Numeric::from(0x5e).into()).to_rgba(),
-            Self::EMERALD => Self::rgb(Numeric::from(0x10).into(), Numeric::from(0xb9).into(), Numeric::from(0x81).into()).to_rgba(),
-            Self::TEAL => Self::rgb(Numeric::from(0x14).into(), Numeric::from(0xb8).into(), Numeric::from(0xa6).into()).to_rgba(),
-            Self::CYAN => Self::rgb(Numeric::from(0x06).into(), Numeric::from(0xb6).into(), Numeric::from(0xd4).into()).to_rgba(),
-            Self::SKY => Self::rgb(Numeric::from(0x0e).into(), Numeric::from(0xa5).into(), Numeric::from(0xe9).into()).to_rgba(),
-            Self::BLUE => Self::rgb(Numeric::from(0x3b).into(), Numeric::from(0x82).into(), Numeric::from(0xf6).into()).to_rgba(),
-            Self::INDIGO => Self::rgb(Numeric::from(0x63).into(), Numeric::from(0x66).into(), Numeric::from(0xf1).into()).to_rgba(),
-            Self::VIOLET => Self::rgb(Numeric::from(0x8b).into(), Numeric::from(0x5c).into(), Numeric::from(0xf6).into()).to_rgba(),
-            Self::PURPLE => Self::rgb(Numeric::from(0xa8).into(), Numeric::from(0x55).into(), Numeric::from(0xf7).into()).to_rgba(),
-            Self::FUCHSIA => Self::rgb(Numeric::from(0xd9).into(), Numeric::from(0x46).into(), Numeric::from(0xef).into()).to_rgba(),
-            Self::PINK => Self::rgb(Numeric::from(0xec).into(), Numeric::from(0x48).into(), Numeric::from(0x99).into()).to_rgba(),
-            Self::ROSE => Self::rgb(Numeric::from(0xf4).into(), Numeric::from(0x3f).into(), Numeric::from(0x5e).into()).to_rgba(),
-            Self::BLACK => Self::rgb(Numeric::from(0x00).into(), Numeric::from(0x00).into(), Numeric::from(0x00).into()).to_rgba(),
-            Self::WHITE => Self::rgb(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xff).into()).to_rgba(),
+            Self::SLATE => Self::rgb(Numeric::from(0x64).into(), Numeric::from(0x74).into(), Numeric::from(0x8b).into()).to_rgba_0_1(),
+            Self::GRAY => Self::rgb(Numeric::from(0x6b).into(), Numeric::from(0x72).into(), Numeric::from(0x80).into()).to_rgba_0_1(),
+            Self::ZINC => Self::rgb(Numeric::from(0x71).into(), Numeric::from(0x71).into(), Numeric::from(0x7a).into()).to_rgba_0_1(),
+            Self::NEUTRAL => Self::rgb(Numeric::from(0x73).into(), Numeric::from(0x73).into(), Numeric::from(0x73).into()).to_rgba_0_1(),
+            Self::STONE => Self::rgb(Numeric::from(0x78).into(), Numeric::from(0x71).into(), Numeric::from(0x6c).into()).to_rgba_0_1(),
+            Self::RED => Self::rgb(Numeric::from(0xeF).into(), Numeric::from(0x44).into(), Numeric::from(0x44).into()).to_rgba_0_1(),
+            Self::ORANGE => Self::rgb(Numeric::from(0xf9).into(), Numeric::from(0x73).into(), Numeric::from(0x16).into()).to_rgba_0_1(),
+            Self::AMBER => Self::rgb(Numeric::from(0xf5).into(), Numeric::from(0x9e).into(), Numeric::from(0x0b).into()).to_rgba_0_1(),
+            Self::YELLOW => Self::rgb(Numeric::from(0xea).into(), Numeric::from(0xb3).into(), Numeric::from(0x08).into()).to_rgba_0_1(),
+            Self::LIME => Self::rgb(Numeric::from(0x84).into(), Numeric::from(0xcc).into(), Numeric::from(0x16).into()).to_rgba_0_1(),
+            Self::GREEN => Self::rgb(Numeric::from(0x22).into(), Numeric::from(0xc5).into(), Numeric::from(0x5e).into()).to_rgba_0_1(),
+            Self::EMERALD => Self::rgb(Numeric::from(0x10).into(), Numeric::from(0xb9).into(), Numeric::from(0x81).into()).to_rgba_0_1(),
+            Self::TEAL => Self::rgb(Numeric::from(0x14).into(), Numeric::from(0xb8).into(), Numeric::from(0xa6).into()).to_rgba_0_1(),
+            Self::CYAN => Self::rgb(Numeric::from(0x06).into(), Numeric::from(0xb6).into(), Numeric::from(0xd4).into()).to_rgba_0_1(),
+            Self::SKY => Self::rgb(Numeric::from(0x0e).into(), Numeric::from(0xa5).into(), Numeric::from(0xe9).into()).to_rgba_0_1(),
+            Self::BLUE => Self::rgb(Numeric::from(0x3b).into(), Numeric::from(0x82).into(), Numeric::from(0xf6).into()).to_rgba_0_1(),
+            Self::INDIGO => Self::rgb(Numeric::from(0x63).into(), Numeric::from(0x66).into(), Numeric::from(0xf1).into()).to_rgba_0_1(),
+            Self::VIOLET => Self::rgb(Numeric::from(0x8b).into(), Numeric::from(0x5c).into(), Numeric::from(0xf6).into()).to_rgba_0_1(),
+            Self::PURPLE => Self::rgb(Numeric::from(0xa8).into(), Numeric::from(0x55).into(), Numeric::from(0xf7).into()).to_rgba_0_1(),
+            Self::FUCHSIA => Self::rgb(Numeric::from(0xd9).into(), Numeric::from(0x46).into(), Numeric::from(0xef).into()).to_rgba_0_1(),
+            Self::PINK => Self::rgb(Numeric::from(0xec).into(), Numeric::from(0x48).into(), Numeric::from(0x99).into()).to_rgba_0_1(),
+            Self::ROSE => Self::rgb(Numeric::from(0xf4).into(), Numeric::from(0x3f).into(), Numeric::from(0x5e).into()).to_rgba_0_1(),
+            Self::BLACK => Self::rgb(Numeric::from(0x00).into(), Numeric::from(0x00).into(), Numeric::from(0x00).into()).to_rgba_0_1(),
+            Self::WHITE => Self::rgb(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xff).into()).to_rgba_0_1(),
 
             _ => {
                 unimplemented!("Unsupported color variant lacks conversion logic to RGB")
@@ -1289,13 +1314,13 @@ pub fn bound(r: f64, entire: f64) -> f64 {
 
 impl Into<ColorMessage> for &Color {
     fn into(self) -> ColorMessage {
-        let rgba = self.to_rgba();
+        let rgba = self.to_rgba_0_1();
         ColorMessage::Rgba(rgba)
     }
 }
 impl PartialEq<ColorMessage> for Color {
     fn eq(&self, other: &ColorMessage) -> bool {
-        let self_rgba = self.to_rgba();
+        let self_rgba = self.to_rgba_0_1();
 
         match other {
             ColorMessage::Rgb(other_rgba) => {
@@ -1313,6 +1338,20 @@ impl PartialEq<ColorMessage> for Color {
         }
     }
 }
+impl Interpolatable for Color {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+        let rgba_s = self.to_rgba_0_1();
+        let rgba_o = self.to_rgba_0_1();
+        let rgba_i = [
+            rgba_s[0].interpolate(&rgba_o[0], _t),
+            rgba_s[1].interpolate(&rgba_o[1], _t),
+            rgba_s[2].interpolate(&rgba_o[2], _t),
+            rgba_s[3].interpolate(&rgba_o[3], _t),
+        ];
+        Color::from_rgba_0_1(rgba_i)
+    }
+}
+
 
 
 
@@ -1329,6 +1368,12 @@ impl Default for Rotation {
     }
 }
 
+
+impl Interpolatable for Rotation {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self::Percent((other.to_float_0_1() - self.to_float_0_1() * t / 100.0).into())
+    }
+}
 
 impl Rotation {
     #[allow(non_snake_case)]

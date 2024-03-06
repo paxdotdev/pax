@@ -54,6 +54,7 @@ impl InstanceNode for SlotInstance {
                 &context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.index,
+                &context.globals(),
             );
             let index: usize = properties
                 .index
