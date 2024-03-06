@@ -42,7 +42,7 @@ export class PaxChassisWeb {
 * @param {string} native_interrupt
 * @param {any} additional_payload
 */
-  interrupt(native_interrupt: string, additional_payload: any): void;
+  interrupt(native_interrupt: string, additional_payload: any): InterruptResult;
 /**
 * @param {MemorySlice} slice
 */
@@ -57,6 +57,10 @@ export class PaxChassisWeb {
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
+
+export interface InterruptResult {
+  readonly prevent_default: boolean;  
+}
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;

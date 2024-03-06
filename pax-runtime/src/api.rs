@@ -1,33 +1,27 @@
-use std::any::Any;
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::ops::{Add, Deref, Mul, Neg};
 
-#[cfg(feature = "designtime")]
 use std::rc::Rc;
 
 use kurbo::BezPath;
-use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{TemplateNodeId, TypeId};
 use piet::PaintBrush;
 
 use crate::math::Space;
 
 #[cfg(feature = "designtime")]
-use crate::math::Point2;
-#[cfg(feature = "designtime")]
-use crate::node_interface::NodeInterface;
+use {
+    crate::math::Point2, crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,
+    pax_manifest::UniqueTemplateNodeIdentifier, std::cell::RefCell,
+};
 
 pub use crate::numeric::Numeric;
 use crate::{PropertyExpression, RuntimeContext};
 use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
-
-#[cfg(feature = "designtime")]
-use pax_designtime::DesigntimeManager;
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "designtime")]
-use std::cell::RefCell;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -189,12 +183,43 @@ impl NodeContext<'_> {
 
 // Unified events
 
+#[derive(Clone)]
+pub struct Event<T> {
+    pub args: T,
+    cancelled: Rc<Cell<bool>>,
+}
+
+impl<T> Event<T> {
+    pub fn new(args: T) -> Self {
+        Self {
+            args,
+            cancelled: Default::default(),
+        }
+    }
+
+    pub fn prevent_default(&self) {
+        self.cancelled.set(true);
+    }
+
+    pub fn cancelled(&self) -> bool {
+        self.cancelled.get()
+    }
+}
+
+impl<T> Deref for Event<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.args
+    }
+}
+
 /// A Clap describes either a "click" (mousedown followed by mouseup), OR a
 /// "tap" with one finger (singular fingerdown event).
 /// Claps are a useful alternative to most kinds of `Click` or `Tap` events,
 /// when you want the same behavior for both to be contained in one place.
 #[derive(Clone)]
-pub struct ArgsClap {
+pub struct Clap {
     pub x: f64,
     pub y: f64,
 }
@@ -204,7 +229,7 @@ pub struct ArgsClap {
 /// The contained `delta_x` and `delta_y` describe the horizontal and vertical translation of
 /// the frame
 #[derive(Clone)]
-pub struct ArgsScroll {
+pub struct Scroll {
     pub delta_x: f64,
     pub delta_y: f64,
 }
@@ -236,21 +261,21 @@ impl From<&TouchMessage> for Touch {
 /// A TouchStart occurs when the user touches an element.
 /// The contained `touches` represent a list of touch points.
 #[derive(Clone)]
-pub struct ArgsTouchStart {
+pub struct TouchStart {
     pub touches: Vec<Touch>,
 }
 
 /// A TouchMove occurs when the user moves while touching an element.
 /// The contained `touches` represent a list of touch points.
 #[derive(Clone)]
-pub struct ArgsTouchMove {
+pub struct TouchMove {
     pub touches: Vec<Touch>,
 }
 
 /// A TouchEnd occurs when the user stops touching an element.
 /// The contained `touches` represent a list of touch points.
 #[derive(Clone)]
-pub struct ArgsTouchEnd {
+pub struct TouchEnd {
     pub touches: Vec<Touch>,
 }
 
@@ -266,19 +291,19 @@ pub struct KeyboardEventArgs {
 
 /// User is pressing a key.
 #[derive(Clone)]
-pub struct ArgsKeyDown {
+pub struct KeyDown {
     pub keyboard: KeyboardEventArgs,
 }
 
 /// User has released a key.
 #[derive(Clone)]
-pub struct ArgsKeyUp {
+pub struct KeyUp {
     pub keyboard: KeyboardEventArgs,
 }
 
 /// User presses a key that displays a character (alphanumeric or symbol).
 #[derive(Clone)]
-pub struct ArgsKeyPress {
+pub struct KeyPress {
     pub keyboard: KeyboardEventArgs,
 }
 
@@ -333,25 +358,25 @@ impl From<&ModifierKeyMessage> for ModifierKey {
 
 /// User clicks a mouse button over an element.
 #[derive(Clone)]
-pub struct ArgsClick {
+pub struct Click {
     pub mouse: MouseEventArgs,
 }
 
 /// User double-clicks a mouse button over an element.
 #[derive(Clone)]
-pub struct ArgsDoubleClick {
+pub struct DoubleClick {
     pub mouse: MouseEventArgs,
 }
 
 /// User moves the mouse while it is over an element.
 #[derive(Clone)]
-pub struct ArgsMouseMove {
+pub struct MouseMove {
     pub mouse: MouseEventArgs,
 }
 
 /// User scrolls the mouse wheel over an element.
 #[derive(Clone)]
-pub struct ArgsWheel {
+pub struct Wheel {
     pub x: f64,
     pub y: f64,
     pub delta_x: f64,
@@ -360,50 +385,50 @@ pub struct ArgsWheel {
 }
 
 #[derive(Clone)]
-pub struct ArgsCheckboxChange {
+pub struct CheckboxChange {
     pub checked: bool,
 }
 
 #[derive(Clone)]
-pub struct ArgsTextboxChange {
+pub struct TextboxChange {
     pub text: String,
 }
 
 #[derive(Clone)]
-pub struct ArgsTextboxInput {
+pub struct TextboxInput {
     pub text: String,
 }
 
 #[derive(Clone)]
-pub struct ArgsButtonClick {}
+pub struct ButtonClick {}
 
 /// User presses a mouse button over an element.
 #[derive(Clone)]
-pub struct ArgsMouseDown {
+pub struct MouseDown {
     pub mouse: MouseEventArgs,
 }
 
 /// User releases a mouse button over an element.
 #[derive(Clone)]
-pub struct ArgsMouseUp {
+pub struct MouseUp {
     pub mouse: MouseEventArgs,
 }
 
 /// User moves the mouse onto an element.
 #[derive(Clone)]
-pub struct ArgsMouseOver {
+pub struct MouseOver {
     pub mouse: MouseEventArgs,
 }
 
 /// User moves the mouse away from an element.
 #[derive(Clone)]
-pub struct ArgsMouseOut {
+pub struct MouseOut {
     pub mouse: MouseEventArgs,
 }
 
 /// User right-clicks an element to open the context menu.
 #[derive(Clone)]
-pub struct ArgsContextMenu {
+pub struct ContextMenu {
     pub mouse: MouseEventArgs,
 }
 

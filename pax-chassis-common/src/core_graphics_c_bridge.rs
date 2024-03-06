@@ -21,9 +21,7 @@ use pax_runtime::{ExpressionTable, PaxEngine, Renderer};
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime::api::{
-    ArgsClick, ArgsScroll, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
-};
+use pax_runtime::api::{Click, ModifierKey, MouseButton, MouseEventArgs, RenderContext};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
@@ -103,7 +101,7 @@ pub extern "C" fn pax_interrupt(
                         .iter()
                         .map(|x| ModifierKey::from(x))
                         .collect();
-                    let args_click = ArgsClick {
+                    let args_click = Click {
                         mouse: MouseEventArgs {
                             x: args.x,
                             y: args.y,

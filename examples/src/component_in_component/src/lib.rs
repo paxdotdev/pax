@@ -25,7 +25,7 @@ impl Example {
         self.x.set(Size::Percent(30.into()));
     }
 
-    pub fn outer_clicked(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn outer_clicked(&mut self, ctx: &NodeContext, args: Event<Click>) {
         self.outer_active.set(!self.outer_active.get());
     }
 }

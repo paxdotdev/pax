@@ -26,7 +26,7 @@ impl Camera {
         self.pan_y.set(0.0);
     }
 
-    pub fn handle_click(&mut self, _: NodeContext, args: ArgsClick) {
+    pub fn handle_click(&mut self, _: NodeContext, args: Event<Click>) {
         let delta_pan = (
             args.mouse.x - self.pan_x.get(),
             args.mouse.y - self.pan_y.get(),

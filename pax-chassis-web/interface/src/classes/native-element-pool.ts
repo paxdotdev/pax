@@ -215,6 +215,7 @@ export class NativeElementPool {
         runningChain.appendChild(textbox);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
+
         let scroller_id;
         if(patch.scrollerIds != null){
             let length = patch.scrollerIds.length;
@@ -396,6 +397,7 @@ export class NativeElementPool {
                 scroller_id = patch.scrollerIds[length-1];
             }
         }
+        textChild.style.userSelect = "none";
 
         if(patch.idChain != undefined && patch.zIndex != undefined) {
             NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
@@ -414,7 +416,6 @@ export class NativeElementPool {
         console.assert(leaf !== undefined);
 
         let textChild = leaf.firstChild;
-
         // Handle size_x and size_y
         if (patch.size_x != null) {
             leaf.style.width = patch.size_x + "px";

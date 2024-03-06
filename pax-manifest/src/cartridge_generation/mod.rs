@@ -54,27 +54,27 @@ impl PaxManifest {
         let mut add = |from: &str, to: &str| {
             map.insert(from.to_owned(), Some(to.to_owned()));
         };
-        add("scroll", "ArgsScroll");
-        add("clap", "ArgsClap");
-        add("touch_start", "ArgsTouchStart");
-        add("touch_move", "ArgsTouchMove");
-        add("touch_end", "ArgsTouchEnd");
-        add("key_down", "ArgsKeyDown");
-        add("key_up", "ArgsKeyUp");
-        add("key_press", "ArgsKeyPress");
-        add("checkbox_change", "ArgsCheckboxChange");
-        add("button_click", "ArgsButtonClick");
-        add("textbox_change", "ArgsTextboxChange");
-        add("textbox_input", "ArgsTextboxInput");
-        add("click", "ArgsClick");
-        add("mouse_down", "ArgsMouseDown");
-        add("mouse_up", "ArgsMouseUp");
-        add("mouse_move", "ArgsMouseMove");
-        add("mouse_over", "ArgsMouseOver");
-        add("mouse_out", "ArgsMouseOut");
-        add("double_click", "ArgsDoubleClick");
-        add("context_menu", "ArgsContextMenu");
-        add("wheel", "ArgsWheel");
+        add("scroll", "Scroll");
+        add("clap", "Clap");
+        add("touch_start", "TouchStart");
+        add("touch_move", "TouchMove");
+        add("touch_end", "TouchEnd");
+        add("key_down", "KeyDown");
+        add("key_up", "KeyUp");
+        add("key_press", "KeyPress");
+        add("checkbox_change", "CheckboxChange");
+        add("button_click", "ButtonClick");
+        add("textbox_change", "TextboxChange");
+        add("textbox_input", "TextboxInput");
+        add("click", "Click");
+        add("mouse_down", "MouseDown");
+        add("mouse_up", "MouseUp");
+        add("mouse_move", "MouseMove");
+        add("mouse_over", "MouseOver");
+        add("mouse_out", "MouseOut");
+        add("double_click", "DoubleClick");
+        add("context_menu", "ContextMenu");
+        add("wheel", "Wheel");
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
         map.insert("tick".to_string(), None);
@@ -111,7 +111,11 @@ impl PaxManifest {
                 for setting in settings {
                     if let SettingsBlockElement::Handler(key, values) = setting {
                         for value in values {
-                            let args_type = event_map.get(key.token_value.as_str()).unwrap();
+                            let args_type = event_map
+                                .get(key.token_value.as_str())
+                                .unwrap()
+                                .as_ref()
+                                .map(|t| format!("Event<{}>", &t));
                             handler_data.push(HandlerInfo {
                                 name: self.clean_handler(value.raw_value.clone()),
                                 args_type: args_type.clone(),
@@ -130,7 +134,9 @@ impl PaxManifest {
                                 if let ValueDefinition::EventBindingTarget(e) = value {
                                     let args_type = event_map
                                         .get(key.token_value.as_str())
-                                        .expect("Unsupported event");
+                                        .expect("Unsupported event")
+                                        .as_ref()
+                                        .map(|t| format!("Event<{}>", &t));
                                     handler_data.push(HandlerInfo {
                                         name: self.clean_handler(e.raw_value.clone()),
                                         args_type: args_type.clone(),
