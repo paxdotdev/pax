@@ -80,22 +80,22 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         let mut cmd = Command::new("./build-interface.sh");
         if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
             let chassis_web_path = Path::new(&root).join("pax-chassis-web");
-            cmd.current_dir(&chassis_web_path)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
+            cmd.current_dir(&chassis_web_path);
             if !cmd
                 .output()
                 .expect("failed to start process")
                 .status
                 .success()
             {
-                eprintln!(
+                panic!(
                     "failed to build js files running ./build-interface.sh at {:?}",
                     chassis_web_path
                 );
             };
         } else {
-            eprintln!("Warning: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files");
+            panic!(
+                "FATAL: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files"
+            );
         }
     }
 

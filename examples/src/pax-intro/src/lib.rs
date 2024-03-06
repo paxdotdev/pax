@@ -93,9 +93,9 @@ impl DynamicObject {
         }
     }
 
-    pub fn increment(&mut self, _ctx: &NodeContext, _args: ArgsClick) {}
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {}
 
-    pub fn mouse_move(&mut self, _ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn mouse_move(&mut self, _ctx: &NodeContext, args: Event<MouseMove>) {
         self.mouse_x.set(args.mouse.x);
         self.mouse_y.set(args.mouse.y);
     }

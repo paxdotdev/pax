@@ -19,23 +19,23 @@ pub struct Example {
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {}
 
-    pub fn frame1(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn frame1(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         self.hit_outer.set(format!("hit outer: frame {}", 1));
     }
 
-    pub fn frame2(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn frame2(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         self.hit_outer.set(format!("hit outer: frame {}", 2));
     }
 
-    pub fn frame1rect1(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn frame1rect1(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         self.hit_inner.set(format!("hit inner: rect {}", 1));
     }
 
-    pub fn frame1rect2(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn frame1rect2(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         self.hit_inner.set(format!("hit inner: rect {}", 2));
     }
 
-    pub fn frame2rect1(&mut self, ctx: &NodeContext, args: ArgsMouseMove) {
+    pub fn frame2rect1(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         self.hit_inner.set(format!("hit inner: rect {}", 1));
     }
 }

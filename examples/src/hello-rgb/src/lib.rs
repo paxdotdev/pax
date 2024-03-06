@@ -11,7 +11,7 @@ pub struct HelloRGB {
 
 const ROTATION_COEFFICIENT: f64 = 0.005;
 impl HelloRGB {
-    pub fn handle_scroll(&mut self, ctx: &NodeContext, args: ArgsWheel) {
+    pub fn handle_scroll(&mut self, ctx: &NodeContext, args: Event<Wheel>) {
         let old_t = self.rotation.get();
         let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
         self.rotation.set(new_t);

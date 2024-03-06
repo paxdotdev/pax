@@ -15,11 +15,10 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
-    ArgsButtonClick, ArgsCheckboxChange, ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick,
-    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut,
-    ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTextboxChange, ArgsTextboxInput, ArgsTouchEnd,
-    ArgsTouchMove, ArgsTouchStart, ArgsWheel, Axis, CommonProperties, NodeContext, RenderContext,
-    Size, Window,
+    Axis, ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick,
+    Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
+    NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
+    TouchStart, Wheel, Window,
 };
 
 use crate::{
@@ -91,7 +90,8 @@ pub struct ExpandedNode {
 
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {
-        pub fn $fn_name(&self, args: $arg_type, globals: &Globals, ctx: &RuntimeContext) {
+        pub fn $fn_name(&self, args: $arg_type, globals: &Globals, ctx: &RuntimeContext) -> bool {
+            let event = Event::new(args.clone());
             if let Some(registry) = self.instance_node.base().get_handler_registry() {
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
                     Rc::clone(&cc.properties)
@@ -131,7 +131,7 @@ macro_rules! dispatch_event_handler {
                         (handler.function)(
                             Rc::clone(&properties),
                             &context,
-                            Some(Box::new(args.clone()) as Box<dyn Any>),
+                            Some(Box::new(event.clone()) as Box<dyn Any>),
                         );
                     });
                 };
@@ -139,9 +139,11 @@ macro_rules! dispatch_event_handler {
 
             if $recurse {
                 if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
-                    parent.$fn_name(args, globals, ctx);
+                    let parent_prevent_default = parent.$fn_name(args, globals, ctx);
+                    return event.cancelled() || parent_prevent_default;
                 }
             }
+            event.cancelled()
         }
     };
 }
@@ -491,83 +493,58 @@ impl ExpandedNode {
         }
     }
 
-    dispatch_event_handler!(dispatch_scroll, ArgsScroll, SCROLL_HANDLERS, true);
-    dispatch_event_handler!(dispatch_clap, ArgsClap, CLAP_HANDLERS, true);
-    dispatch_event_handler!(
-        dispatch_touch_start,
-        ArgsTouchStart,
-        TOUCH_START_HANDLERS,
-        true
-    );
+    dispatch_event_handler!(dispatch_scroll, Scroll, SCROLL_HANDLERS, true);
+    dispatch_event_handler!(dispatch_clap, Clap, CLAP_HANDLERS, true);
+    dispatch_event_handler!(dispatch_touch_start, TouchStart, TOUCH_START_HANDLERS, true);
 
-    dispatch_event_handler!(
-        dispatch_touch_move,
-        ArgsTouchMove,
-        TOUCH_MOVE_HANDLERS,
-        true
-    );
-    dispatch_event_handler!(dispatch_touch_end, ArgsTouchEnd, TOUCH_END_HANDLERS, true);
-    dispatch_event_handler!(dispatch_key_down, ArgsKeyDown, KEY_DOWN_HANDLERS, false);
-    dispatch_event_handler!(dispatch_key_up, ArgsKeyUp, KEY_UP_HANDLERS, false);
-    dispatch_event_handler!(dispatch_key_press, ArgsKeyPress, KEY_PRESS_HANDLERS, false);
+    dispatch_event_handler!(dispatch_touch_move, TouchMove, TOUCH_MOVE_HANDLERS, true);
+    dispatch_event_handler!(dispatch_touch_end, TouchEnd, TOUCH_END_HANDLERS, true);
+    dispatch_event_handler!(dispatch_key_down, KeyDown, KEY_DOWN_HANDLERS, false);
+    dispatch_event_handler!(dispatch_key_up, KeyUp, KEY_UP_HANDLERS, false);
+    dispatch_event_handler!(dispatch_key_press, KeyPress, KEY_PRESS_HANDLERS, false);
     dispatch_event_handler!(
         dispatch_checkbox_change,
-        ArgsCheckboxChange,
+        CheckboxChange,
         CHECKBOX_CHANGE_HANDLERS,
         true
     );
     dispatch_event_handler!(
         dispatch_textbox_change,
-        ArgsTextboxChange,
+        TextboxChange,
         TEXTBOX_CHANGE_HANDLERS,
         true
     );
     dispatch_event_handler!(
         dispatch_textbox_input,
-        ArgsTextboxInput,
+        TextboxInput,
         TEXTBOX_INPUT_HANDLERS,
         true
     );
     dispatch_event_handler!(
         dispatch_button_click,
-        ArgsButtonClick,
+        ButtonClick,
         BUTTON_CLICK_HANDLERS,
         true
     );
-    dispatch_event_handler!(
-        dispatch_mouse_down,
-        ArgsMouseDown,
-        MOUSE_DOWN_HANDLERS,
-        true
-    );
-    dispatch_event_handler!(dispatch_mouse_up, ArgsMouseUp, MOUSE_UP_HANDLERS, true);
-    dispatch_event_handler!(
-        dispatch_mouse_move,
-        ArgsMouseMove,
-        MOUSE_MOVE_HANDLERS,
-        true
-    );
-    dispatch_event_handler!(
-        dispatch_mouse_over,
-        ArgsMouseOver,
-        MOUSE_OVER_HANDLERS,
-        true
-    );
-    dispatch_event_handler!(dispatch_mouse_out, ArgsMouseOut, MOUSE_OUT_HANDLERS, true);
+    dispatch_event_handler!(dispatch_mouse_down, MouseDown, MOUSE_DOWN_HANDLERS, true);
+    dispatch_event_handler!(dispatch_mouse_up, MouseUp, MOUSE_UP_HANDLERS, true);
+    dispatch_event_handler!(dispatch_mouse_move, MouseMove, MOUSE_MOVE_HANDLERS, true);
+    dispatch_event_handler!(dispatch_mouse_over, MouseOver, MOUSE_OVER_HANDLERS, true);
+    dispatch_event_handler!(dispatch_mouse_out, MouseOut, MOUSE_OUT_HANDLERS, true);
     dispatch_event_handler!(
         dispatch_double_click,
-        ArgsDoubleClick,
+        DoubleClick,
         DOUBLE_CLICK_HANDLERS,
         true
     );
     dispatch_event_handler!(
         dispatch_context_menu,
-        ArgsContextMenu,
+        ContextMenu,
         CONTEXT_MENU_HANDLERS,
         true
     );
-    dispatch_event_handler!(dispatch_click, ArgsClick, CLICK_HANDLERS, true);
-    dispatch_event_handler!(dispatch_wheel, ArgsWheel, WHEEL_HANDLERS, true);
+    dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
+    dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
 }
 
 /// Properties that are currently re-computed each frame before rendering.

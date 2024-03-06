@@ -1,12 +1,12 @@
 #![allow(unused_imports)]
 
-use pax_engine::*;
 use pax_engine::api::*;
-use pax_std::primitives::*;
-use pax_std::types::*;
-use pax_std::types::text::*;
-use pax_std::components::*;
+use pax_engine::*;
 use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
 
 #[pax]
 #[main]
@@ -26,9 +26,10 @@ impl Example {
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick){
+    pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
-        self.message.set(format!("{} clicks", self.num_clicks.get()));
+        self.message
+            .set(format!("{} clicks", self.num_clicks.get()));
     }
 }

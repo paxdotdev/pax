@@ -8,7 +8,7 @@ use std::rc::Rc;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
-    ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, CommonProperties, Interpolatable, Layer, NodeContext,
+    CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
     OcclusionLayerGen, RenderContext, TransitionManager,
 };
 use piet::InterpolationMode;
@@ -418,40 +418,40 @@ impl PaxEngine {
         self.runtime_context.globals_mut().viewport.bounds = new_viewport_size;
     }
 
-    pub fn global_dispatch_key_down(&self, args: ArgsKeyDown) {
+    pub fn global_dispatch_key_down(&self, args: KeyDown) {
         self.root_node.recurse_visit_postorder(
             &|expanded_node, _| {
                 expanded_node.dispatch_key_down(
                     args.clone(),
                     self.runtime_context.globals(),
                     &self.runtime_context,
-                )
+                );
             },
             &mut (),
         );
     }
 
-    pub fn global_dispatch_key_up(&self, args: ArgsKeyUp) {
+    pub fn global_dispatch_key_up(&self, args: KeyUp) {
         self.root_node.recurse_visit_postorder(
             &|expanded_node, _| {
                 expanded_node.dispatch_key_up(
                     args.clone(),
                     self.runtime_context.globals(),
                     &self.runtime_context,
-                )
+                );
             },
             &mut (),
         );
     }
 
-    pub fn global_dispatch_key_press(&self, args: ArgsKeyPress) {
+    pub fn global_dispatch_key_press(&self, args: KeyPress) {
         self.root_node.recurse_visit_postorder(
             &|expanded_node, _| {
                 expanded_node.dispatch_key_press(
                     args.clone(),
                     self.runtime_context.globals(),
                     &self.runtime_context,
-                )
+                );
             },
             &mut (),
         );

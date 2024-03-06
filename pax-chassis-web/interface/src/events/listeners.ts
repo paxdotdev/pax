@@ -159,7 +159,10 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(JSON.stringify(event), []);
+        if (res.prevent_default) {
+            evt.preventDefault();
+        }
     }, true);
     // @ts-ignore
     window.addEventListener('touchstart', (evt) => {

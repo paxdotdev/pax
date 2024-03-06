@@ -29,7 +29,7 @@ impl Example {
         self.ticks.set(old_ticks + 1);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick) {
+    pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
         self.activated.set(!self.activated.get());
         self.not_activated.set(!self.activated.get());
         self.message

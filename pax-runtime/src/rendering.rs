@@ -11,7 +11,7 @@ use crate::node_interface::NodeLocal;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use piet::{Color, StrokeStyle};
 
-use crate::api::{ArgsScroll, Layer, Size};
+use crate::api::{Layer, Scroll, Size};
 
 use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
 
@@ -235,7 +235,7 @@ pub trait InstanceNode {
     }
     /// Invoked by event interrupts to pass scroll information to render node
     #[allow(unused_variables)]
-    fn handle_scroll(&self, args_scroll: ArgsScroll) {
+    fn handle_scroll(&self, args_scroll: Scroll) {
         //no-op default implementation
     }
 }
