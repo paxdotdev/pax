@@ -1,0 +1,6 @@
+<Rectangle fill={Fill::Solid(Color::rgb(1.0, 0.0, 0.0))}/>
+
+@settings {
+    @mount: mount
+    @click: click
+}
