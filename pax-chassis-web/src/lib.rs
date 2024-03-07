@@ -571,6 +571,7 @@ impl PaxChassisWeb {
                 .get_template_node_by_id(USERLAND_PROJECT_ID)
             {
                 let mut engine = self.engine.borrow_mut();
+                engine.replace_instance_node(Rc::clone(&instance_node));
                 engine.replace_by_id(USERLAND_PROJECT_ID, instance_node);
             }
             self.last_manifest_version_rendered = current_manifest_version;

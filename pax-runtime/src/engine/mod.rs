@@ -5,6 +5,7 @@ use std::fmt::{Debug, Formatter};
 use std::iter;
 use std::rc::Rc;
 
+use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
@@ -45,6 +46,7 @@ pub struct Globals {
 pub struct PaxEngine {
     pub runtime_context: RuntimeContext,
     pub root_node: Rc<ExpandedNode>,
+    main_component_instance: Rc<ComponentInstance>,
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -297,11 +299,13 @@ impl PaxEngine {
 
         let mut runtime_context = RuntimeContext::new(expression_table, globals);
 
-        let root_node = ExpandedNode::root(main_component_instance, &mut runtime_context);
+        let root_node =
+            ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
 
         PaxEngine {
             runtime_context,
             root_node,
+            main_component_instance,
         }
     }
 
@@ -324,14 +328,17 @@ impl PaxEngine {
 
         let mut runtime_context = RuntimeContext::new(expression_table, globals);
 
-        let root_node = ExpandedNode::root(main_component_instance, &mut runtime_context);
+        let root_node =
+            ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
 
         PaxEngine {
             runtime_context,
             root_node,
+            main_component_instance,
         }
     }
 
+    // TODO remove after migrating to below method
     pub fn replace_by_id(&mut self, id: &str, new_instance: Rc<dyn InstanceNode>) {
         let found_nodes = self.runtime_context.get_expanded_nodes_by_id(id);
         if found_nodes.len() > 0 {
@@ -347,6 +354,63 @@ impl PaxEngine {
                 return;
             }
         }
+    }
+
+    pub fn replace_instance_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
+        log::debug!(
+            "id of new replaced node: {:?}",
+            new_instance.base().template_node_identifier
+        );
+        for temp in self.main_component_instance.template.borrow().iter() {
+            replace_instance_node_at(&temp, &new_instance);
+        }
+
+        fn replace_instance_node_at(
+            parent: &Rc<dyn InstanceNode>,
+            new_instance: &Rc<dyn InstanceNode>,
+        ) {
+            let mut instance_nodes = parent.base().get_instance_children().borrow_mut();
+            log::debug!("running for loop");
+            for node in instance_nodes.iter_mut() {
+                log::debug!("id of node: {:?}", node.base().template_node_identifier);
+                if node.base().template_node_identifier
+                    == new_instance.base().template_node_identifier
+                {
+                    log::debug!("found instance_node to replace!");
+                    *node = Rc::clone(&new_instance);
+                } else {
+                    replace_instance_node_at(node, new_instance)
+                }
+            }
+        }
+
+        // update the expanded nodes that just got a new instance node
+        let unique_id = new_instance
+            .base()
+            .template_node_identifier
+            .clone()
+            .expect("new instance node has unique identifier");
+        // remount_expanded_nodes(&self.root_node, &unique_id, &mut self.runtime_context);
+        // fn remount_expanded_nodes(
+        //     parent: &Rc<ExpandedNode>,
+        //     id: &UniqueTemplateNodeIdentifier,
+        //     ctx: &mut RuntimeContext,
+        // ) {
+        //     if parent.children.borrow().iter().any(|node| {
+        //         node.instance_node
+        //             .base()
+        //             .template_node_identifier
+        //             .as_ref()
+        //             .is_some_and(|i| i == id)
+        //     }) {
+        //         Rc::clone(parent).recurse_unmount(ctx);
+        //         Rc::clone(parent).recurse_mount(ctx);
+        //     } else {
+        //         for child in parent.children.borrow().iter() {
+        //             remount_expanded_nodes(child, id, ctx);
+        //         }
+        //     }
+        // }
     }
 
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
