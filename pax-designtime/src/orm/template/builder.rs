@@ -38,7 +38,10 @@ impl<'a> NodeBuilder<'a> {
         }
     }
 
-    pub fn retrieve_node(orm: &'a mut PaxManifestORM, uni: UniqueTemplateNodeIdentifier) -> Self {
+    pub fn retrieve_node(
+        orm: &'a mut PaxManifestORM,
+        uni: UniqueTemplateNodeIdentifier,
+    ) -> Option<Self> {
         let resp = orm
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
             .unwrap();
@@ -52,7 +55,7 @@ impl<'a> NodeBuilder<'a> {
                 }
             }
             let location = orm.manifest.get_node_location(&uni);
-            NodeBuilder {
+            Some(NodeBuilder {
                 orm,
                 containing_component_type_id: uni.get_containing_component_type_id(),
                 node_type_id: node.type_id,
@@ -60,9 +63,9 @@ impl<'a> NodeBuilder<'a> {
                 settings: node.settings.clone(),
                 unique_node_identifier: Some(uni),
                 location,
-            }
+            })
         } else {
-            panic!("Node not found");
+            None
         }
     }
 
