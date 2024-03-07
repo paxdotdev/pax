@@ -558,6 +558,7 @@ pub struct CommonProperties {
     pub transform: Box<dyn PropertyInstance<Transform2D>>,
     pub width: Box<dyn PropertyInstance<Size>>,
     pub height: Box<dyn PropertyInstance<Size>>,
+
 }
 
 impl CommonProperties {
@@ -1190,7 +1191,7 @@ pub enum Color {
     ROSE,
     BLACK,
     WHITE,
-
+    TRANSPARENT,
 }
 impl Color {
 
@@ -1250,6 +1251,7 @@ impl Color {
             Self::ROSE => Self::rgb(Numeric::from(0xf4).into(), Numeric::from(0x3f).into(), Numeric::from(0x5e).into()).to_rgba_0_1(),
             Self::BLACK => Self::rgb(Numeric::from(0x00).into(), Numeric::from(0x00).into(), Numeric::from(0x00).into()).to_rgba_0_1(),
             Self::WHITE => Self::rgb(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xff).into()).to_rgba_0_1(),
+            Self::TRANSPARENT => Self::rgba(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xFF).into(), Numeric::from(0x00).into()).to_rgba_0_1(),
 
             _ => {
                 unimplemented!("Unsupported color variant lacks conversion logic to RGB")
