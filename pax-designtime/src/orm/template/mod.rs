@@ -10,13 +10,14 @@ use super::{Command, Request, Response, Undo, UndoRedoCommand};
 
 pub mod builder;
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 pub struct NodeData {
     pub unique_node_identifier: UniqueTemplateNodeIdentifier,
     pub cached_node: TemplateNodeDefinition,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AddTemplateNodeRequest {
     containing_component_type_id: TypeId,
     template_node_type_id: TypeId,
@@ -150,7 +151,7 @@ impl Undo for AddTemplateNodeRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UpdateTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     updated_node: TemplateNodeDefinition,
@@ -259,7 +260,7 @@ impl Undo for UpdateTemplateNodeRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MoveTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     new_location: NodeLocation,
@@ -351,7 +352,7 @@ impl Undo for MoveTemplateNodeRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RemoveTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     // Used for Undo/Redo
@@ -591,4 +592,13 @@ impl Undo for ReplaceTemplateRequest {
         component.template = self._cached_prev_template.clone();
         Ok(())
     }
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum NodeAction {
+    Add(AddTemplateNodeRequest),
+    Update(UpdateTemplateNodeRequest),
+    Remove(RemoveTemplateNodeRequest),
+    Move(MoveTemplateNodeRequest),
 }
