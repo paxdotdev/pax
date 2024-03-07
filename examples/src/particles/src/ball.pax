@@ -12,7 +12,7 @@
             color: WHITE,
             width: 5px,
         }
-        width: { effective_diameter }
-        height: { effective_diameter }
+        width: { (effective_diameter)px }
+        height: { (effective_diameter)px }
     }
 }
