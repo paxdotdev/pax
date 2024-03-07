@@ -15,7 +15,8 @@ pub mod toolbar_item;
 use crate::llm_interface::OpenLLMPrompt;
 use crate::model::action::{Action, ActionContext};
 use crate::model::math::coordinate_spaces::Glass;
-use crate::model::{self, Component, Tool, ToolBehaviour};
+use crate::model::{self, Component, ProjectMode, Tool, ToolBehaviour};
+use crate::ProjectMsg;
 use anyhow::Result;
 use model::action::CanUndo;
 use toolbar_item::ToolbarItemVisual;
@@ -122,7 +123,7 @@ thread_local! {
                         event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt { require_meta: false })))
                     },
                 ]
-            }
+            },
         ]
     );
 }
