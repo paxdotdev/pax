@@ -1,5 +1,5 @@
 
 for i in 1..60 {
-    <Ball magnitude={i} x={(i * 2)%} y={(i * 2)%}  />
+    <Ball index={i} magnitude={i} x={(i * 2)%} y={(i * 2)%}  />
 }
 
