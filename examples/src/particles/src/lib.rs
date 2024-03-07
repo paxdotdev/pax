@@ -30,11 +30,7 @@ impl Example {
             }
         }).collect());
     }
-    pub fn handle_tick(&mut self, ctx: &NodeContext) {
-        self.particles.get_mut().iter().for_each(|mut part| {
-
-        });
-    }
+    pub fn handle_tick(&mut self, ctx: &NodeContext) { }
 }
 
 
