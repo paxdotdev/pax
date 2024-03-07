@@ -17,13 +17,12 @@ use crate::ball::Ball;
 pub struct Example {
     pub ticks: Property<usize>,
     pub num_clicks: Property<usize>,
-    pub message: Property<String>,
     pub particles: Property<Vec<Particle>>,
 }
 
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.message.set("Click me".to_string());
+
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
@@ -33,7 +32,6 @@ impl Example {
     pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick){
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
-        self.message.set(format!("{} clicks", self.num_clicks.get()));
     }
 }
 
