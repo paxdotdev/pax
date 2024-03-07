@@ -6,7 +6,15 @@
         <DesignerContextMenu/>
         <Glass/>
         <Group transform={self.transform2d}>
-            <Example id=userland_project/>
+            // Stage has a fixed size, regardless of window size
+            <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
+                // The example project replaces all of the children of the project_container
+                <Group id=project_container>
+                    <Example id=userland_project/>
+                </Group>
+                // White backing plate for stage
+                <Rectangle fill={Fill::Solid(Color::rgb(1.0, 1.0, 1.0))}/>
+            </Group>
         </Group>
     </Group>
 </Group>
@@ -14,6 +22,8 @@
 
 @settings {
     @pre_render: pre_render,
+    @mount: on_mount,
+
     #global_background {
         fill: {Fill::Solid(Color::rgb(96.0/255.0,96.0/255.0,96.0/255.0))}
     }
