@@ -842,6 +842,9 @@ impl ComponentTemplate {
                     children.retain(|child| *child != node);
                 }
             }
+            self.nodes.remove(&id);
+            self.children.remove(&id);
+            self.root.retain(|child| *child != id);
             node
         } else {
             panic!("Requested node doesn't exist in template");
