@@ -30,9 +30,17 @@ pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
 #[file("lib.pax")]
 pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
+    pub stage: Property<StageInfo>,
 }
 
 impl PaxDesigner {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        self.stage.set(StageInfo {
+            width: 1075,
+            height: 764,
+        });
+    }
+
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             let world_to_glass = app_state.glass_to_world_transform.inverse();
@@ -46,4 +54,10 @@ impl PaxDesigner {
             );
         });
     }
+}
+
+#[pax]
+pub struct StageInfo {
+    pub width: u32,
+    pub height: u32,
 }
