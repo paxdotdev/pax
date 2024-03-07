@@ -115,30 +115,6 @@ async fn test_manifest_serialization_request() {
         .await
         .unwrap();
 
-    if let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection.next().await {
-        let ack: AgentMessage = from_slice(&bin_data).unwrap();
-
-        if let AgentMessage::ManifestSerializationAcknowledgement(ack) = ack {
-            assert_eq!(ack.id, 1, "Request id does not match expected value");
-        } else {
-            panic!("Unexpected response type");
-        }
-    } else {
-        panic!("No response received from server");
-    }
-
-    if let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection.next().await {
-        let ack: AgentMessage = from_slice(&bin_data).unwrap();
-
-        if let AgentMessage::ManifestSerializationCompletedNotification(not) = ack {
-            assert_eq!(not.id, 1, "Request id does not match expected value");
-        } else {
-            panic!("Unexpected response type");
-        }
-    } else {
-        panic!("No response received from server");
-    }
-
     // Check that the output file contains the expected PAX
     let output = std::fs::read_to_string(path_str).expect("Failed to read output file");
     assert_eq!(output, EXPECTED_PAX);
