@@ -20,11 +20,6 @@ impl Fireworks {
         self.rotation.set(f64::max(0.0, new_t));
     }
 
-    pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
-        log::info!("clicked!");
-        args.prevent_default();
-    }
-
     pub fn handle_pre_render(&mut self, _ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
