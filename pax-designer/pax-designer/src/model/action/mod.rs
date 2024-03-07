@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 use super::{math::coordinate_spaces::World, SelectedItem, SelectionState};
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
@@ -9,7 +9,7 @@ use pax_engine::{
     math::{Point2, Space, Transform2},
     NodeInterface,
 };
-use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
 
 use super::math::coordinate_spaces::Glass;
 
@@ -103,26 +103,31 @@ impl ActionContext<'_> {
         None
     }
 
-    pub fn selected_nodes(&self) -> Vec<NodeInterface> {
+    pub fn selected_nodes(&mut self) -> Vec<NodeInterface> {
         let type_id = self.app_state.selected_component_id.clone();
-        self.app_state
-            .selected_template_node_ids
-            .iter()
-            .flat_map(|n_id| {
-                // This is returning the FIRST expanded node matching a template, not all.
-                // In the case of one to many relationships existing (for loops), this needs to be revamped.
-                self.engine_context
-                    .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(
-                        type_id.clone(),
-                        n_id.clone(),
-                    ))
-                    .into_iter()
-                    .next()
-            })
-            .collect()
+        // This is returning the FIRST expanded node matching a template, not all.
+        // In the case of one to many relationships existing (for loops), this needs to be revamped.
+
+        let mut nodes = vec![];
+        self.app_state.selected_template_node_ids.retain(|id| {
+            let Some(node) = self
+                .engine_context
+                .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(
+                    type_id.clone(),
+                    id.clone(),
+                ))
+                .into_iter()
+                .next()
+            else {
+                return false;
+            };
+            nodes.push(node);
+            true
+        });
+        nodes
     }
 
-    pub fn selection_state(&self) -> SelectionState {
+    pub fn selection_state(&mut self) -> SelectionState {
         let to_glass_transform = self.glass_transform();
         let expanded_node = self.selected_nodes();
         let items: Vec<_> = expanded_node

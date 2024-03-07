@@ -13,12 +13,12 @@ use crate::{
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Rotation;
-use pax_engine::NodeInterface;
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
     serde,
 };
+use pax_engine::{log, NodeInterface};
 use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
 
 pub struct CreateComponent {
@@ -97,12 +97,15 @@ impl Action for MoveSelected {
         let selected = ctx.app_state.selected_template_node_ids[0].clone();
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
-        let mut builder = dt
+        let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
                 ctx.app_state.selected_component_id.clone(),
                 selected,
-            ));
+            ))
+        else {
+            return Err(anyhow!("can't move: selected node doesn't exist in orm"));
+        };
 
         builder.set_property("x", &to_pixels(self.point.x))?;
         builder.set_property("y", &to_pixels(self.point.y))?;
@@ -147,12 +150,15 @@ impl Action for ResizeSelected {
             .first()
             .expect("executed action ResizeSelected without a selected object")
             .clone();
-        let mut builder = dt
+        let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
                 ctx.app_state.selected_component_id.clone(),
                 selected,
-            ));
+            ))
+        else {
+            return Err(anyhow!("can't resize: selected node doesn't exist in orm"));
+        };
 
         if self.attachment_point.y.abs() > f64::EPSILON {
             builder.set_property("y", &to_pixels(new_origin_relative.y))?;
@@ -207,12 +213,15 @@ impl Action for RotateSelected {
             .first()
             .expect("executed action ResizeSelected without a selected object")
             .clone();
-        let mut builder = dt
+        let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
                 ctx.app_state.selected_component_id.clone(),
                 selected,
-            ));
+            ))
+        else {
+            return Err(anyhow!("can't rotate: selected node doesn't exist in orm"));
+        };
 
         builder.set_property("rotate", &format!("{}deg", angle_deg))?;
         builder
@@ -226,6 +235,32 @@ impl Action for RotateSelected {
         })))
     }
 }
+
+pub struct DeleteSelected {}
+
+impl Action for DeleteSelected {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let selected = &ctx.app_state.selected_template_node_ids;
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        for s in selected {
+            let uid = UniqueTemplateNodeIdentifier::build(
+                ctx.app_state.selected_component_id.clone(),
+                s.clone(),
+            );
+            dt.get_orm_mut()
+                .remove_node(uid)
+                .map_err(|_| anyhow!("couldn't delete node"))?;
+        }
+        // TODO: this undo doesn't work, need to undo multiple things
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            dt.get_orm_mut()
+                .undo()
+                .map_err(|e| anyhow!("cound't undo: {:?}", e))
+        })))
+    }
+}
+
 fn to_pixels(v: f64) -> String {
     format!("{:?}px", v.round())
 }

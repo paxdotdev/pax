@@ -67,12 +67,11 @@ impl Settings {
             self.snid.set(temp_node_id.clone());
 
             let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
-            let props = ctx
-                .designtime
-                .borrow_mut()
-                .get_orm_mut()
-                .get_node(uni)
-                .get_all_properties();
+            let mut dt = ctx.designtime.borrow_mut();
+            let Some(node) = dt.get_orm_mut().get_node(uni) else {
+                return;
+            };
+            let props = node.get_all_properties();
 
             let mut custom_props = vec![];
             for (propdef, value) in props {

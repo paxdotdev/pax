@@ -37,12 +37,15 @@ impl PropertyEditor {
         self.textbox.set(args.text.to_owned());
         let name = &self.name.get().string;
         let mut dt = ctx.designtime.borrow_mut();
-        let mut node_definition = dt
-            .get_orm_mut()
-            .get_node(UniqueTemplateNodeIdentifier::build(
-                self.stid.get().clone(),
-                self.snid.get().clone(),
-            ));
+        let Some(mut node_definition) =
+            dt.get_orm_mut()
+                .get_node(UniqueTemplateNodeIdentifier::build(
+                    self.stid.get().clone(),
+                    self.snid.get().clone(),
+                ))
+        else {
+            return;
+        };
 
         let variable = name.strip_suffix(':').unwrap_or(&name);
         if let Err(_error) = node_definition.set_property(variable, &args.text) {
