@@ -1,22 +1,28 @@
 <Group>
-    <LLMInterface/>
-    <Controls/>
-    <Group id=designer_glass>
-        //Optionally turned on on right click
-        <DesignerContextMenu/>
-        <Glass/>
-        <Group transform={self.transform2d}>
-            // Stage has a fixed size, regardless of window size
-            <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
-                // The example project replaces all of the children of the project_container
-                <Group id=project_container>
-                    <Example id=userland_project/>
+    <ProjectModeToggle x={100% - 90px} width=90px height=55px/>
+    if self.glass_active {
+        <LLMInterface/>
+        <Controls/>
+        <Group id=designer_glass>
+            //Optionally turned on on right click
+                <DesignerContextMenu/>
+                <Glass/>
+                <Group transform={self.transform2d}>
+                    // Stage has a fixed size, regardless of window size
+                    <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
+                        // The example project replaces all of the children of the project_container
+                        <Group id=project_container>
+                            <Example id=userland_project/>
+                        </Group>
+                        // White backing plate for stage
+                        <Rectangle fill={Fill::Solid(Color::rgb(1.0, 1.0, 1.0))}/>
+                    </Group>
                 </Group>
-                // White backing plate for stage
-                <Rectangle fill={Fill::Solid(Color::rgb(1.0, 1.0, 1.0))}/>
-            </Group>
         </Group>
-    </Group>
+    }
+    if self.interaction_mode {
+        <Example id=userland_project/>
+    }
 </Group>
 <Rectangle id=global_background />
 

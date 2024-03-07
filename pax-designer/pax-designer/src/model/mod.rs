@@ -75,6 +75,9 @@ impl GlobalDesignerState {
 #[deny(missing_docs)]
 pub struct AppState {
     //---------------global-----------------
+    /// The project mode (playing/editing)
+    /// INVALID_IF: no invalid states
+    pub project_mode: ProjectMode,
     /// The component currently being viewed and edited in the glass
     /// INVALID_IF: String doesn't correspond to a component path
     pub selected_component_id: TypeId,
@@ -262,6 +265,13 @@ pub trait ToolBehaviour {
     fn keyboard(&mut self, event: InputEvent, dir: Dir, ctx: &mut ActionContext)
         -> ControlFlow<()>;
     fn visualize(&self, glass: &mut glass::Glass);
+}
+
+#[derive(Default)]
+pub enum ProjectMode {
+    #[default]
+    Edit,
+    Playing,
 }
 
 #[derive(Clone)]
