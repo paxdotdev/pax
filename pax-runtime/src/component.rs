@@ -71,18 +71,15 @@ impl InstanceNode for ComponentInstance {
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         if let Some(containing_component) = expanded_node.containing_component.upgrade() {
             let env = Rc::clone(&expanded_node.stack);
-            let children_with_env = self
-                .base()
-                .get_instance_children()
-                .iter()
-                .cloned()
-                .zip(iter::repeat(env));
+            let children = self.base().get_instance_children().borrow();
+            let children_with_env = children.iter().cloned().zip(iter::repeat(env));
             *expanded_node.expanded_slot_children.borrow_mut() =
                 Some(containing_component.create_children_detached(children_with_env, context));
         }
 
         let new_env = expanded_node.stack.push(&expanded_node.properties);
-        let children_with_envs = self.template.iter().cloned().zip(iter::repeat(new_env));
+        let children = self.template.borrow();
+        let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.set_children(children_with_envs, context);
     }
 

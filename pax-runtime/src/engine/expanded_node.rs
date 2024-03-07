@@ -316,7 +316,7 @@ impl ExpandedNode {
         }
     }
 
-    fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
+    pub fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
         if *self.attached.borrow() == 0 {
             *self.attached.borrow_mut() += 1;
             context

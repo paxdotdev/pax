@@ -58,12 +58,8 @@ impl InstanceNode for ConditionalInstance {
         if should_update {
             if active {
                 let env = Rc::clone(&expanded_node.stack);
-                let children_with_envs = self
-                    .base()
-                    .get_instance_children()
-                    .iter()
-                    .cloned()
-                    .zip(iter::repeat(env));
+                let children = self.base().get_instance_children().borrow();
+                let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
                 expanded_node.set_children(children_with_envs, context);
             } else {
                 expanded_node.set_children(iter::empty(), context);
