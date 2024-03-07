@@ -6,7 +6,7 @@ use pax_std::primitives::*;
 use pax_std::types::*;
 use pax_std::types::text::*;
 use pax_std::components::*;
-use pax_std::components::Stacker;
+use rand::random;
 
 mod ball;
 use crate::ball::Ball;
@@ -15,23 +15,25 @@ use crate::ball::Ball;
 #[main]
 #[file("lib.pax")]
 pub struct Example {
-    pub ticks: Property<usize>,
-    pub num_clicks: Property<usize>,
     pub particles: Property<Vec<Particle>>,
 }
 
+pub const PARTICLE_COUNT : usize = 200;
+pub const LOOP_FRAMES : f64 = 200.0;
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-
+        self.particles.set((0..PARTICLE_COUNT).map(|i|{
+            Particle {
+                x: random::<f64>() * ctx.bounds_parent.0,
+                y: random::<f64>() * ctx.bounds_parent.1,
+                magnitude: random::<f64>(),
+            }
+        }).collect());
     }
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        let old_ticks = self.ticks.get();
-        self.ticks.set(old_ticks + 1);
-    }
+    pub fn handle_tick(&mut self, ctx: &NodeContext) {
+        self.particles.get_mut().iter().for_each(|mut part| {
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: ArgsClick){
-        let old_num_clicks = self.num_clicks.get();
-        self.num_clicks.set(old_num_clicks + 1);
+        });
     }
 }
 
@@ -39,7 +41,7 @@ impl Example {
 #[pax]
 #[custom(Defaults)]
 pub struct Particle {
-    pub x: usize,
-    pub y: usize,
+    pub x: f64,
+    pub y: f64,
     pub magnitude: f64,
 }

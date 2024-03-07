@@ -7,12 +7,9 @@
     .ball {
         anchor_x:50%
         anchor_y:50%
-        fill: { hsl(effective_hue, 75%, 50%) }
-        stroke: {
-            color: WHITE,
-            width: 5px,
-        }
-        width: { (effective_diameter)px }
-        height: { (effective_diameter)px }
+        fill: { hsla(hue, 85%, 50%, 55%) }
+        stroke: WHITE,
+        width: { (diameter)px }
+        height: { (diameter)px }
     }
 }
