@@ -12,6 +12,7 @@ pub mod messages;
 pub mod serde_pax;
 
 mod setup;
+use messages::LLMHelpRequest;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
@@ -30,6 +31,7 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
     priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
+    next_llm_request_id: usize,
 }
 
 #[cfg(debug_assertions)]
@@ -52,6 +54,7 @@ impl DesigntimeManager {
             orm,
             factories,
             priv_agent_connection: priv_agent,
+            next_llm_request_id: 0,
         }
     }
 
@@ -68,7 +71,20 @@ impl DesigntimeManager {
     }
 
     pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
-        log::debug!("sent request: {:?}", request);
+        // eventually I want viewport info an current selected component
+        let manifest = self.orm.get_manifest();
+        let userland_type_id = TypeId::build_singleton("pax_designer::pax_reexports::designer_project::Example",
+         None);
+        let userland_component = manifest.components.get(&userland_type_id).unwrap();
+        let template = userland_component.template.as_ref().unwrap();
+        let request = LLMHelpRequest {
+            request_id: self.next_llm_request_id,
+            request: request.to_string(),
+            component: userland_component.clone(),
+        };
+        self.priv_agent_connection
+            .borrow_mut()
+            .send_llm_request(request)?;
         Ok(())
     }
 
