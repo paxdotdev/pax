@@ -6,7 +6,7 @@ use pax_designtime::DesigntimeManager;
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::{
-    action::{self, meta::ActionSet, world, Action, ActionContext, CanUndo},
+    action::{self, meta::ActionSet, orm::DeleteSelected, world, Action, ActionContext, CanUndo},
     Component, Tool,
 };
 
@@ -32,6 +32,8 @@ impl Default for InputMapper {
                 (RawInput::Meta, InputEvent::Meta),
                 (RawInput::Shift, InputEvent::Shift),
                 (RawInput::K, InputEvent::OpenLLMPrompt),
+                (RawInput::Delete, InputEvent::DeleteSelected),
+                (RawInput::Backspace, InputEvent::DeleteSelected),
             ]),
         }
     }
@@ -52,6 +54,7 @@ impl InputMapper {
             (&InputEvent::OpenLLMPrompt, Dir::Down) => {
                 Some(Box::new(OpenLLMPrompt { require_meta: true }))
             }
+            (&InputEvent::DeleteSelected, Dir::Down) => Some(Box::new(DeleteSelected {})),
             _ => None,
         }
     }
@@ -67,6 +70,8 @@ pub enum Dir {
 // to be rebindable in a settingsview
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RawInput {
+    Delete,
+    Backspace,
     R,
     V,
     Control,
@@ -98,6 +103,8 @@ impl TryFrom<String> for RawInput {
             "Alt" => Self::Alt,
             "Meta" => Self::Meta,
             "Shift" => Self::Shift,
+            "Delete" => Self::Delete,
+            "Backspace" => Self::Backspace,
             _ => return Err(anyhow!("no configured raw input mapping for {:?}", value)),
         })
     }
@@ -117,4 +124,5 @@ pub enum InputEvent {
     Meta,
     Shift,
     OpenLLMPrompt,
+    DeleteSelected,
 }
