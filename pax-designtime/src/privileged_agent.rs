@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
 use crate::{
-    messages::{AgentMessage, ComponentSerializationRequest},
-    orm::PaxManifestORM,
+    messages::{AgentMessage, ComponentSerializationRequest, LLMHelpRequest},
+    orm::{template::NodeAction, PaxManifestORM},
 };
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
@@ -33,6 +33,12 @@ impl PrivilegedAgentConnection {
         Ok(())
     }
 
+    pub fn send_llm_request(&mut self, request: LLMHelpRequest) -> Result<()> {
+        let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMHelpRequest(request))?;
+        self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+        Ok(())
+    }
+
     pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<()> {
         while let Some(event) = self.recver.try_recv() {
             match event {
@@ -44,7 +50,25 @@ impl PrivilegedAgentConnection {
                                 manager
                                     .replace_template(resp.type_id, resp.new_template)
                                     .map_err(|e| anyhow!(e))?;
-                            }
+                            },
+                            AgentMessage::LLMHelpResponse(resp) => {
+                                for action in resp.response {
+                                    match action {
+                                        NodeAction::Add(command) => {
+                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
+                                        },
+                                        NodeAction::Remove(command) => {
+                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
+                                        },
+                                        NodeAction::Update(command) => {
+                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
+                                        },
+                                        NodeAction::Move(command) => {
+                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
+                                        }
+                                    }
+                                }
+                            },
                             _ => {}
                         }
                     }
