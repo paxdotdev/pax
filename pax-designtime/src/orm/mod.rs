@@ -199,11 +199,11 @@ pub trait Undo {
 
 #[derive(Serialize, Deserialize)]
 pub enum UndoRedoCommand {
-    AddTemplateNodeRequest(template::AddTemplateNodeRequest),
-    RemoveTemplateNodeRequest(template::RemoveTemplateNodeRequest),
-    UpdateTemplateNodeRequest(template::UpdateTemplateNodeRequest),
-    MoveTemplateNodeRequest(template::MoveTemplateNodeRequest),
-    ReplaceTemplateRequest(template::ReplaceTemplateRequest),
+    AddTemplateNodeRequest(Box<template::AddTemplateNodeRequest>),
+    RemoveTemplateNodeRequest(Box<template::RemoveTemplateNodeRequest>),
+    UpdateTemplateNodeRequest(Box<template::UpdateTemplateNodeRequest>),
+    MoveTemplateNodeRequest(Box<template::MoveTemplateNodeRequest>),
+    ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
 }
 
 impl UndoRedoCommand {
