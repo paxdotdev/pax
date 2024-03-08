@@ -26,12 +26,9 @@ This function will update a node in the pax template.
 3) remove_a_node
 This function will remove a node from the pax template.
 
-4) change_template_parent
-This function can change the parent of a node to be another node or the root.
-
 These are the only functions you can use. Please follow their parameter schema exactly. 
 
-Please feel free to use as many function calls as possible to respond to the user request in the best possible way. 
+You can use multiple function calls to respond to a request.
 
 Please note the following:
 The only type of node that can accept children are "GROUP" or "OTHER" nodes. Please refrain from adding children to other types of nodes.
