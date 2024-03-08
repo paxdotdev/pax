@@ -46,20 +46,17 @@ pub struct SimpleTemplate {
     pub children: HashMap<usize, Vec<SimpleNodeInformation>>,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SimpleNodeInformation {
     pub id: usize,
     pub node_type: SimpleNodeType,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SimpleWorldInformation {
     pub viewport: ViewportInformation,
     pub template: SimpleTemplate,
 }
-
 
 /// The only possible node types that can be added to the scene. Only Group and Other can have children
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
@@ -71,14 +68,12 @@ pub enum SimpleNodeType {
     Other,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct SimpleNode {
     pub id: usize,
     pub node_type: SimpleNodeType,
     pub properties: Option<SimpleProperties>,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct SimpleColor {
@@ -98,13 +93,11 @@ pub struct SimpleProperties {
     pub text: Option<String>,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub enum SimpleLocation {
     Root,
     Parent(usize),
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub enum SimpleSizeType {

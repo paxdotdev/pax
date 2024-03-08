@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 /// LLM Setup constants
 
-
 pub const GPT_4_TURBO_PREVIEW: &str = "gpt-4-turbo-preview";
 pub const GPT_3_TURBO: &str = "gpt-3.5-turbo-0125";
 
