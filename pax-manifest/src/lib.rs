@@ -1028,6 +1028,10 @@ impl ComponentTemplate {
             }
         }
     }
+
+    pub fn get_all_children_relationships(&self) -> HashMap<TemplateNodeId, VecDeque<TemplateNodeId>> {
+        self.children.clone()
+    }
 }
 
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
@@ -1061,7 +1065,7 @@ impl TemplateNodeDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum NodeType {
     Template(Vec<SettingElement>),
     ControlFlow(Box<ControlFlowSettingsDefinition>),
@@ -1411,10 +1415,10 @@ impl Token {
 
     pub fn new_only_raw(raw_value: String, token_type: TokenType) -> Self {
         Self {
-            token_value: "INVALID TOKEN".to_owned(),
+            token_value: raw_value.to_owned(),
             raw_value,
             token_type,
-            source_line: Some("INVALID SOURCE".to_owned()),
+            source_line: None,
             token_location: None,
         }
     }
