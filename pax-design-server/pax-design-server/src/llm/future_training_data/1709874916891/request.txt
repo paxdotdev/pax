@@ -1,0 +1,1 @@
+add two rectangles rotated 45 degrees and 200 pixels

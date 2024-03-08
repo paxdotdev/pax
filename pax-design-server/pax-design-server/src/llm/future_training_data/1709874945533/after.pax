@@ -1,0 +1,17 @@
+<Rectangle />
+<Rectangle />
+<Rectangle />
+<Rectangle y=50px x=50px rotate=45deg width=200px height=200px/>
+for stop in self.stop_statistics {
+    <Text text={stop.name} x={(stop.lat)px} y={(stop.long)px}/>
+    <Ellipse anchor_x=50% height={(stop.total_activity / 15)px} width={(stop.total_activity / 15)px} 
+        fill={Fill::Solid(Color::hlc((stop.boardings) / 8.0 - 50.0, 75.0, 150.0))} x={(stop.lat)px} y={(stop.long)px} 
+        anchor_y=50%/>
+}
+<Image width=1075px path="assets/images/remix-comp.png" id=comp height=764px/>
+// OBS: here to add it to the project (otherwise not included in manifest)
+<Marker width=0px height=0px/>
+
+@settings {
+    @mount: on_mount,
+}
