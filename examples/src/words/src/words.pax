@@ -10,7 +10,7 @@ fill={Fill::linearGradient(
         style: TextStyle {
             font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
             font_size: 60px,
-            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            fill: BLACK,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Center,
         }
