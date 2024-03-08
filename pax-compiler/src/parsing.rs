@@ -16,7 +16,6 @@ use pest::iterators::{Pair, Pairs};
 use pest::{Parser, Span};
 use pest_derive::Parser;
 
-
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 #[derive(Parser)]
@@ -1558,8 +1557,6 @@ impl Reflectable for pax_runtime::api::Rotation {
         "Rotation".to_string()
     }
     fn get_type_id() -> TypeId {
-
-
         let type_id = TypeId::build_singleton(
             &Self::get_import_path(),
             Some(&Self::get_self_pascal_identifier()),

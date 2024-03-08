@@ -5,8 +5,8 @@ use super::api::math::Point2;
 use std::iter;
 use std::rc::Rc;
 
-use crate::api::{CommonProperties, RenderContext, Window};
 use crate::api::math::Transform2;
+use crate::api::{CommonProperties, RenderContext, Window};
 use crate::node_interface::NodeLocal;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use piet::{Color, StrokeStyle};

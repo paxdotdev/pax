@@ -98,13 +98,13 @@ impl InstanceNode for EllipseInstance {
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke,
-                context.globals()
+                context.globals(),
             );
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.fill,
-                context.globals()
+                context.globals(),
             );
         });
     }

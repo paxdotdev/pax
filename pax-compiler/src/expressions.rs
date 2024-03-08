@@ -1,8 +1,8 @@
 use pax_manifest::{
     escape_identifier, ComponentDefinition, ComponentTemplate,
     ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo,
-    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable,
-    ValueDefinition,
+    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeId,
+    Token, TypeDefinition, TypeId, TypeTable, ValueDefinition,
 };
 use std::any::Any;
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use crate::errors::PaxTemplateError;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
-use pax_manifest::constants::{COMMON_PROPERTIES_TYPE};
+use pax_manifest::constants::COMMON_PROPERTIES_TYPE;
 
 pub fn compile_all_expressions<'a>(
     manifest: &'a mut PaxManifest,
@@ -67,24 +67,30 @@ pub fn compile_all_expressions<'a>(
     Ok(())
 }
 
-
-fn get_output_type_by_property_identifier(_ctx: &ExpressionCompilationContext, prop_defs: &Vec<PropertyDefinition>, property_identifier: &str) -> String {
-
-    let output_type = if let Some(common_match) = COMMON_PROPERTIES_TYPE.iter().find(|cpt|{
-        cpt.0 == property_identifier
-    }) {
+fn get_output_type_by_property_identifier(
+    _ctx: &ExpressionCompilationContext,
+    prop_defs: &Vec<PropertyDefinition>,
+    property_identifier: &str,
+) -> String {
+    let output_type = if let Some(common_match) = COMMON_PROPERTIES_TYPE
+        .iter()
+        .find(|cpt| cpt.0 == property_identifier)
+    {
         (*common_match).1.to_string()
     } else if let Some(local_match) = prop_defs
         .iter()
-        .find(|property_def| property_def.name == property_identifier) {
+        .find(|property_def| property_def.name == property_identifier)
+    {
         local_match.type_id.to_string()
     } else {
-        panic!("Failed to resolve symbol bound to expression: {}", property_identifier);
+        panic!(
+            "Failed to resolve symbol bound to expression: {}",
+            property_identifier
+        );
     };
 
     output_type
 }
-
 
 fn recurse_compile_literal_block<'a>(
     settings_pairs: &mut IterMut<SettingElement>,
@@ -95,9 +101,6 @@ fn recurse_compile_literal_block<'a>(
 ) -> Result<(), eyre::Report> {
     settings_pairs.try_for_each(|e| {
         if let SettingElement::Setting(token, value) = e {
-
-
-
             match value {
                 // LiteralValue:       no need to compile literal values
                 // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
@@ -126,7 +129,11 @@ fn recurse_compile_literal_block<'a>(
                 ValueDefinition::Expression(input, manifest_id) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
 
-                    let output_type = get_output_type_by_property_identifier(ctx,&current_property_definitions,&token.token_value);
+                    let output_type = get_output_type_by_property_identifier(
+                        ctx,
+                        &current_property_definitions,
+                        &token.token_value,
+                    );
 
                     let id = ctx.vtable_uid_gen.next().unwrap();
                     let (output_statement, invocations) =
@@ -166,14 +173,14 @@ fn recurse_compile_literal_block<'a>(
                         let type_def = (current_property_definitions
                             .iter()
                             .find(|property_def| property_def.name == token.token_value))
-                            .ok_or::<eyre::Report>(PaxTemplateError::new(
-                                Some(format!(
-                                    "Property `{}` not found on `{}`",
-                                    &token.token_value, type_id
-                                )),
-                                token.clone(),
-                            ))?
-                            .get_type_definition(ctx.type_table);
+                        .ok_or::<eyre::Report>(PaxTemplateError::new(
+                            Some(format!(
+                                "Property `{}` not found on `{}`",
+                                &token.token_value, type_id
+                            )),
+                            token.clone(),
+                        ))?
+                        .get_type_definition(ctx.type_table);
                         let output_type = type_def.type_id.clone();
 
                         //Write this id back to the manifest, for downstream use by RIL component tree generator
@@ -452,7 +459,6 @@ fn recurse_compile_expressions<'a>(
             let source_map_id = source_map.insert(condition_expression_paxel.clone());
             let input_statement =
                 source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
-
 
             ctx.expression_specs.insert(
                 id,

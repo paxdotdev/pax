@@ -1,5 +1,5 @@
-use crate::api::{Axis, Size, Transform2D};
 use crate::api::math::{Generic, Transform2, Vector2};
+use crate::api::{Axis, Size, Transform2D};
 use crate::node_interface::NodeLocal;
 use crate::{ExpandedNode, TransformAndBounds};
 
@@ -146,16 +146,12 @@ impl ComputableTransform for Transform2D {
                 match anchor[0] {
                     Size::Pixels(pix) => -pix.to_float(),
                     Size::Percent(per) => -node_size.0 * (per / 100.0),
-                    Size::Combined(pix, per) => {
-                        -pix.to_float() + (-node_size.0 * (per / 100.0))
-                    }
+                    Size::Combined(pix, per) => -pix.to_float() + (-node_size.0 * (per / 100.0)),
                 },
                 match anchor[1] {
                     Size::Pixels(pix) => -pix.to_float(),
                     Size::Percent(per) => -node_size.1 * (per / 100.0),
-                    Size::Combined(pix, per) => {
-                        -pix.to_float() + (-node_size.0 * (per / 100.0))
-                    }
+                    Size::Combined(pix, per) => -pix.to_float() + (-node_size.0 * (per / 100.0)),
                 },
             )),
             //No anchor applied: treat as 0,0; identity matrix

@@ -3,8 +3,8 @@ use std::rc::Rc;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 
 use crate::{
-    api::{Rotation, Window},
     api::math::{Point2, Space, Transform2},
+    api::{Rotation, Window},
     ExpandedNode,
 };
 
