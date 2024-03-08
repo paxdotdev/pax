@@ -183,7 +183,7 @@ impl From<SimpleProperties> for HashMap<Token, Option<ValueDefinition>> {
             );
         }
 
-        if let Some(fill) = value.fill {
+        if let Some(_fill) = value.fill {
             // once color is supported
             //settings.insert(Token::new_only_raw("fill".to_string(), pax_manifest::TokenType::SettingKey), fill.into());
         }
