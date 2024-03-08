@@ -5,6 +5,7 @@ use std::fmt::{Debug, Formatter};
 use std::iter;
 use std::rc::Rc;
 
+use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
@@ -45,6 +46,7 @@ pub struct Globals {
 pub struct PaxEngine {
     pub runtime_context: RuntimeContext,
     pub root_node: Rc<ExpandedNode>,
+    main_component_instance: Rc<ComponentInstance>,
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -205,6 +207,10 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
             .unwrap()
             .draw_image(img, rect, InterpolationMode::Bilinear);
     }
+
+    fn layers(&self) -> Vec<&str> {
+        self.backends.keys().map(String::as_str).collect()
+    }
 }
 
 pub struct ExpressionTable {
@@ -297,11 +303,13 @@ impl PaxEngine {
 
         let mut runtime_context = RuntimeContext::new(expression_table, globals);
 
-        let root_node = ExpandedNode::root(main_component_instance, &mut runtime_context);
+        let root_node =
+            ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
 
         PaxEngine {
             runtime_context,
             root_node,
+            main_component_instance,
         }
     }
 
@@ -324,29 +332,71 @@ impl PaxEngine {
 
         let mut runtime_context = RuntimeContext::new(expression_table, globals);
 
-        let root_node = ExpandedNode::root(main_component_instance, &mut runtime_context);
+        let root_node =
+            ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
 
         PaxEngine {
             runtime_context,
             root_node,
+            main_component_instance,
         }
     }
 
-    pub fn replace_by_id(&mut self, id: &str, new_instance: Rc<dyn InstanceNode>) {
-        let found_nodes = self.runtime_context.get_expanded_nodes_by_id(id);
-        if found_nodes.len() > 0 {
-            let node = found_nodes.first().unwrap();
-            let parent = node.parent_expanded_node.borrow().upgrade();
-            if let Some(p) = parent {
-                let env = Rc::clone(&p.stack);
-                let new_templates = vec![new_instance.clone()]
-                    .into_iter()
-                    .zip(iter::repeat(env));
-                p.set_children(new_templates, &mut self.runtime_context);
-                self.root_node.recurse_update(&mut self.runtime_context);
-                return;
+    pub fn replace_instance_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
+        for temp in self.main_component_instance.template.borrow().iter() {
+            replace_instance_node_at(&temp, &new_instance);
+        }
+
+        fn replace_instance_node_at(
+            parent: &Rc<dyn InstanceNode>,
+            new_instance: &Rc<dyn InstanceNode>,
+        ) {
+            let mut instance_nodes = parent.base().get_instance_children().borrow_mut();
+            for node in instance_nodes.iter_mut() {
+                if node.base().template_node_identifier
+                    == new_instance.base().template_node_identifier
+                {
+                    *node = Rc::clone(&new_instance);
+                } else {
+                    replace_instance_node_at(node, new_instance)
+                }
             }
         }
+
+        // update the expanded nodes that just got a new instance node
+        let unique_id = new_instance
+            .base()
+            .template_node_identifier
+            .clone()
+            .expect("new instance node has unique identifier");
+        remount_expanded_nodes(&self.root_node, &unique_id, &mut self.runtime_context);
+        fn remount_expanded_nodes(
+            parent: &Rc<ExpandedNode>,
+            id: &UniqueTemplateNodeIdentifier,
+            ctx: &mut RuntimeContext,
+        ) {
+            if parent.children.borrow().iter().any(|node| {
+                node.instance_node
+                    .base()
+                    .template_node_identifier
+                    .as_ref()
+                    .is_some_and(|i| i == id)
+            }) {
+                // OBS: HACK: this is not general, works for non-for loop/if nodes only
+                // to do more generally, split expanded_node.update into prop updates and
+                // regen of children steps
+                let env = Rc::clone(&parent.stack);
+                let children = parent.instance_node.base().get_instance_children().borrow();
+                let new_templates = children.clone().into_iter().zip(iter::repeat(env));
+                parent.set_children(new_templates, ctx);
+            } else {
+                for child in parent.children.borrow().iter() {
+                    remount_expanded_nodes(child, id, ctx);
+                }
+            }
+        }
+
+        self.root_node.recurse_update(&mut self.runtime_context);
     }
 
     // NOTES: this is the order of different things being computed in recurse-expand-nodes

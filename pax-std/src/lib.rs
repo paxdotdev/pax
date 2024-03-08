@@ -15,7 +15,7 @@ pub mod primitives {
     use crate::types::text::TextStyle;
     use crate::types::Fill;
 
-    use crate::types::PathSegment;
+    use crate::types::PathElement;
     use crate::types::Stroke;
 
     #[pax]
@@ -56,7 +56,7 @@ pub mod primitives {
     #[primitive("pax_std_primitives::path::PathInstance")]
     #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Path {
-        pub segments: Property<Vec<PathSegment>>,
+        pub elements: Property<Vec<PathElement>>,
         pub stroke: Property<Stroke>,
         pub fill: Property<Color>,
     }

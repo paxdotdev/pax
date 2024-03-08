@@ -316,7 +316,7 @@ impl ExpandedNode {
         }
     }
 
-    fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
+    pub fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
         if *self.attached.borrow() == 0 {
             *self.attached.borrow_mut() += 1;
             context
@@ -363,11 +363,13 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_render(&self, context: &mut RuntimeContext, rcs: &mut dyn RenderContext) {
+    pub fn recurse_render(&self, ctx: &mut RuntimeContext, rcs: &mut dyn RenderContext) {
+        self.instance_node.handle_pre_render(&self, ctx, rcs);
         for child in self.children.borrow().iter().rev() {
-            child.recurse_render(context, rcs);
+            child.recurse_render(ctx, rcs);
         }
-        self.instance_node.render(&self, context, rcs);
+        self.instance_node.render(&self, ctx, rcs);
+        self.instance_node.handle_post_render(&self, ctx, rcs);
     }
 
     /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
