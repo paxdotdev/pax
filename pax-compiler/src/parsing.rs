@@ -299,7 +299,7 @@ fn recurse_pratt_parse_to_string<'a>(
                 let exp1 = tuple.next().unwrap();
                 let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                format!("({},{})", exp0, exp1)
+                format!("({}.into(),{}.into())", exp0, exp1)
             },
             Rule::xo_list => {
                 let mut list = primary.into_inner();

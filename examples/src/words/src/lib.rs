@@ -1,10 +1,6 @@
-use pax_engine::api::{
-    ArgsClap, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
-    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, NodeContext, Property, PropertyLiteral,
-};
-use pax_engine::Pax;
-use pax_std::primitives::{Ellipse, Frame, Group, Image, Path, Rectangle, Text};
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::primitives::*;
 use pax_std::types::text::*;
 
 #[pax]
