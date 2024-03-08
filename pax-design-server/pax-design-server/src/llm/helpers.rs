@@ -177,9 +177,12 @@ impl From<SimpleProperties> for HashMap<Token, Option<ValueDefinition>> {
             );
         }
 
-        if let Some(_fill) = value.fill {
-            // once color is supported
-            //settings.insert(Token::new_only_raw("fill".to_string(), pax_manifest::TokenType::SettingKey), fill.into());
+        if let Some(fill) = value.fill {
+            settings.insert(Token::new_only_raw("fill".to_string(), pax_manifest::TokenType::SettingKey), Some(fill.into()));
+        }
+
+        if let Some(stroke) = value.stroke {
+            settings.insert(Token::new_only_raw("stroke".to_string(), pax_manifest::TokenType::SettingKey), Some(stroke.into()));
         }
         if let Some(text) = value.text {
             // Pest grammar expects a literal value to be an escaped string
