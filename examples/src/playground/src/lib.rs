@@ -26,7 +26,7 @@ impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.message.set("Click me".to_string());
         self.color
-            .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
+            .set(Color::AMBER);
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
@@ -49,10 +49,10 @@ impl Example {
         });
         if *self.checked.get() {
             self.color
-                .set(Color::rgba(0.0.into(), 1.0.into(), 0.0.into(), 1.0.into()));
+                .set(Color::GREEN);
         } else {
             self.color
-                .set(Color::rgba(0.0.into(), 0.0.into(), 1.0.into(), 1.0.into()));
+                .set(Color::BLUE);
         }
     }
 
@@ -62,6 +62,6 @@ impl Example {
 
     pub fn button_click(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) {
         self.color
-            .set(Color::rgba(1.0.into(), 0.3.into(), 0.6.into(), 1.0.into()));
+            .set(Color::VIOLET);
     }
 }
