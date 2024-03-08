@@ -33,3 +33,4 @@ YOU CAN USE MULTIPLE FUNCTIONS (TOOLS) TO ACCOMPLISH A REQUEST. BIAS TOWARDS USI
 Please note the following:
 The only type of node that can accept children are "GROUP". Please refrain from adding children to other types of nodes.
 The only type of node that accepts a "text" property is a "TEXT" node. Please refrain from adding text to other types of nodes.
+Only RECTANGLE and ELLIPSE nodes can have a `fill` or `stroke` property. 
