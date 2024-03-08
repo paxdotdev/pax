@@ -1,27 +1,26 @@
 use core::panic;
+use pax_message::serde::Deserialize;
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
-use pax_message::serde::Deserialize;
-
-
 
 pub mod error;
 mod helpers;
 mod tests;
 
-use self::helpers::{PaxEnum, PaxObject, PaxSeq, PaxColor};
+use self::helpers::{PaxColor, PaxEnum, PaxObject, PaxSeq};
 
 pub use error::{Error, Result};
 
 use crate::utils::{PaxParser, Rule};
 
 use crate::constants::{
-    DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE, COLOR
+    COLOR, DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
+    TRUE,
 };
 
-use pax_runtime_api::{Color, IntoableLiteral};
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
+use pax_runtime_api::{Color, IntoableLiteral};
 
 pub struct Deserializer {
     input: String,
@@ -60,7 +59,7 @@ pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
         let unit = ast.clone().next().unwrap().as_str();
         match unit {
             "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
-            _ => Err(Error::UnsupportedMethod)
+            _ => Err(Error::UnsupportedMethod),
         }
     } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
         Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
@@ -80,8 +79,8 @@ where
 }
 
 fn color_visitor<'de, V>(visitor: V) -> V
-    where
-        V: Visitor<'de, Value = Color>,
+where
+    V: Visitor<'de, Value = Color>,
 {
     visitor
 }
@@ -112,33 +111,55 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let what_kind_of_color = inner_pair.clone().into_inner().next().unwrap();
                         match what_kind_of_color.as_rule() {
                             Rule::literal_color_space_func => {
-                                let lcsf_pairs = inner_pair.clone().into_inner().next().unwrap().into_inner();
-                                let func = inner_pair.clone().into_inner().next().unwrap().as_str().to_string().trim().to_string().split("(").next().unwrap().to_string();
+                                let lcsf_pairs =
+                                    inner_pair.clone().into_inner().next().unwrap().into_inner();
+                                let func = inner_pair
+                                    .clone()
+                                    .into_inner()
+                                    .next()
+                                    .unwrap()
+                                    .as_str()
+                                    .to_string()
+                                    .trim()
+                                    .to_string()
+                                    .split("(")
+                                    .next()
+                                    .unwrap()
+                                    .to_string();
 
                                 // pre-process each lcsf_pair and wrap into a ColorChannelDefinition
 
                                 //literal_color_channel = {literal_number_with_unit | literal_number_integer}
-                                let args = lcsf_pairs.into_iter().map(|lcsf| {
-                                    let lcsf = lcsf.into_inner().next().unwrap();
-                                    match lcsf.as_rule() {
-                                        Rule::literal_number_with_unit => {
-                                            let inner = lcsf.clone().into_inner();
-                                            let number = inner.clone().next().unwrap().as_str();
-                                            let unit = inner.clone().nth(1).unwrap().as_str();
-                                            match unit {
-                                                "%" => ColorFuncArg::Percent(number.to_string()),
-                                                "rad" | "deg" => ColorFuncArg::Rotation(lcsf.as_str().to_string()),
-                                                _ => {
-                                                    unreachable!(); //Unsupported unit
+                                let args = lcsf_pairs
+                                    .into_iter()
+                                    .map(|lcsf| {
+                                        let lcsf = lcsf.into_inner().next().unwrap();
+                                        match lcsf.as_rule() {
+                                            Rule::literal_number_with_unit => {
+                                                let inner = lcsf.clone().into_inner();
+                                                let number = inner.clone().next().unwrap().as_str();
+                                                let unit = inner.clone().nth(1).unwrap().as_str();
+                                                match unit {
+                                                    "%" => {
+                                                        ColorFuncArg::Percent(number.to_string())
+                                                    }
+                                                    "rad" | "deg" => ColorFuncArg::Rotation(
+                                                        lcsf.as_str().to_string(),
+                                                    ),
+                                                    _ => {
+                                                        unreachable!(); //Unsupported unit
+                                                    }
                                                 }
                                             }
-                                        },
-                                        Rule::literal_number_integer => {
-                                            ColorFuncArg::Integer(lcsf.as_str().to_string())
-                                        },
-                                        _ => {panic!("{}", lcsf.as_str())}
-                                    }
-                                }).collect();
+                                            Rule::literal_number_integer => {
+                                                ColorFuncArg::Integer(lcsf.as_str().to_string())
+                                            }
+                                            _ => {
+                                                panic!("{}", lcsf.as_str())
+                                            }
+                                        }
+                                    })
+                                    .collect();
 
                                 visitor.visit_enum(PaxColor {
                                     color_func: func,
@@ -150,11 +171,13 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                 let explicit_color = visitor.visit_enum(PaxEnum::new(
                                     Some(COLOR.to_string()),
                                     what_kind_of_color.as_str().to_string(),
-                                    None
+                                    None,
                                 ));
                                 explicit_color
-                            },
-                            _ => {unreachable!()}
+                            }
+                            _ => {
+                                unreachable!()
+                            }
                         }
                     }
                     Rule::literal_number => {
@@ -232,8 +255,6 @@ impl<'de> de::Deserializer<'de> for Deserializer {
             _ => Err(Error::UnsupportedType(ast.as_str().to_string())),
         }?;
 
-
-
         Ok(ret)
     }
 
@@ -253,5 +274,3 @@ impl<'de> de::Deserializer<'de> for Deserializer {
         visitor.visit_str(&self.input)
     }
 }
-
-

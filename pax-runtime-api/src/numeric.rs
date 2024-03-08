@@ -17,10 +17,11 @@ pub enum Numeric {
 
 impl From<IntoableLiteral> for Numeric {
     fn from(value: IntoableLiteral) -> Self {
-
         match value {
             IntoableLiteral::Numeric(n) => n,
-            _ => {unreachable!()}
+            _ => {
+                unreachable!()
+            }
         }
     }
 }

@@ -400,7 +400,6 @@ impl PaxEngine {
             *curr_occlusion_ind = new_occlusion_ind;
         }
 
-
         self.runtime_context.globals_mut().frames_elapsed += 1;
 
         self.runtime_context.take_native_messages()

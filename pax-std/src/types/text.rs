@@ -1,4 +1,4 @@
-use pax_engine::api::{Numeric, Property, PropertyLiteral, Color, Size, StringBox};
+use pax_engine::api::{Color, Numeric, Property, PropertyLiteral, Size, StringBox};
 use pax_engine::*;
 use pax_message::{
     ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,

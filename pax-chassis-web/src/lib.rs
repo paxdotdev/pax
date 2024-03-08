@@ -3,10 +3,10 @@
 use js_sys::Uint8Array;
 use log::Level;
 use pax_message::ImageLoadInterruptArgs;
+use pax_runtime::api::math::Point2;
 use pax_runtime::api::ButtonClick;
 use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::RenderContext;
-use pax_runtime::api::math::Point2;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::TextboxInput;
 use pax_runtime::ExpressionTable;
@@ -24,7 +24,8 @@ use pax_runtime::{PaxEngine, Renderer};
 use pax_message::NativeInterrupt;
 use pax_runtime::api::{
     Clap, Click, ContextMenu, DoubleClick, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
-    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp, Touch, TouchEnd, TouchMove, TouchStart, Wheel,
+    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp,
+    Touch, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 use serde_json;
 

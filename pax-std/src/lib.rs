@@ -9,7 +9,7 @@ pub mod components {
 
 pub mod primitives {
     use pax_engine::pax;
-    use pax_runtime::api::{Property, Size, StringBox, Color};
+    use pax_runtime::api::{Color, Property, Size, StringBox};
     use pax_runtime::numeric::Numeric;
 
     use crate::types::text::TextStyle;

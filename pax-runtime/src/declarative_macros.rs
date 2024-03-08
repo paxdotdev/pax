@@ -1,9 +1,9 @@
-use std::{any::Any, rc::Rc};
 use pax_runtime_api::Interpolatable;
+use std::{any::Any, rc::Rc};
 
 use crate::api::PropertyInstance;
 
-use crate::{ExpressionTable, RuntimePropertiesStackFrame, Globals};
+use crate::{ExpressionTable, Globals, RuntimePropertiesStackFrame};
 
 /// Manages vtable updates (if necessary) for a given `dyn PropertyInstance`.
 /// Is a no-op for `PropertyLiteral`s, and mutates (by calling `.set`) `PropertyExpression` instances.
@@ -22,9 +22,14 @@ pub fn handle_vtable_update<V: Default + Clone + Interpolatable + 'static>(
         if let Ok(downcast_value) = new_value_wrapped.downcast::<V>() {
             property.set(*downcast_value);
         } else {
-            panic!("property has an unexpected type for vtable id {}", vtable_id);
+            panic!(
+                "property has an unexpected type for vtable id {}",
+                vtable_id
+            );
         }
-    } else if let Some(new_value) = table.compute_eased_value(property._get_transition_manager(), globals) {
+    } else if let Some(new_value) =
+        table.compute_eased_value(property._get_transition_manager(), globals)
+    {
         property.set(new_value);
     } else {
     }

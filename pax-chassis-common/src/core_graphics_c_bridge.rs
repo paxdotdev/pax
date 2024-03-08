@@ -2,11 +2,9 @@
 
 extern crate core;
 
-
 use std::ffi::c_void;
 
 use std::mem::{transmute, ManuallyDrop};
-
 
 use core_graphics::context::CGContext;
 use pax_runtime::api::math::Point2;
@@ -37,13 +35,11 @@ pub struct PaxEngineContainer {
 pub extern "C" fn pax_init() -> *mut PaxEngineContainer {
     env_logger::init();
 
-    let mut definition_to_instance_traverser =
-        pax_cartridge::DefinitionToInstanceTraverser::new();
+    let mut definition_to_instance_traverser = pax_cartridge::DefinitionToInstanceTraverser::new();
     let main_component_instance = definition_to_instance_traverser.get_main_component();
     let expression_table = ExpressionTable {
         table: pax_cartridge::instantiate_expression_table(),
     };
-
 
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge

@@ -38,31 +38,31 @@ impl InstanceNode for RectangleInstance {
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke,
-                context.globals()
+                context.globals(),
             );
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke.get_mut().color,
-                context.globals()
+                context.globals(),
             );
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke.get_mut().width,
-                context.globals()
+                context.globals(),
             );
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.fill,
-                context.globals()
+                context.globals(),
             );
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.corner_radii,
-                context.globals()
+                context.globals(),
             );
 
             // TODO: figure out best practice for nested properties struct (perhaps higher-level struct is not Property<> wrapped?)

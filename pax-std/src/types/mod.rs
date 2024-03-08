@@ -2,13 +2,13 @@ pub mod text;
 
 use crate::primitives::Path;
 pub use kurbo::RoundedRectRadii;
-use pax_engine::api::{Numeric, Color};
 use pax_engine::api::PropertyLiteral;
 pub use pax_engine::api::Size;
+use pax_engine::api::{Color, Numeric};
 use pax_engine::*;
 
+use pax_runtime::api::IntoableLiteral;
 use piet::UnitPoint;
-use pax_runtime::api::{IntoableLiteral};
 
 #[pax]
 #[custom(Default)]
@@ -18,18 +18,16 @@ pub struct Stroke {
     pub width: Property<Size>,
 }
 
-
-
 impl From<IntoableLiteral> for Stroke {
     fn from(value: IntoableLiteral) -> Self {
         match value {
-            IntoableLiteral::Color(c) => {
-                Stroke {
-                    color: Box::new(PropertyLiteral::new(c)),
-                    width: Box::new(PropertyLiteral::new(Numeric::from(1).into())),
-                }
+            IntoableLiteral::Color(c) => Stroke {
+                color: Box::new(PropertyLiteral::new(c)),
+                width: Box::new(PropertyLiteral::new(Numeric::from(1).into())),
             },
-            _ => {unreachable!()}
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
@@ -81,12 +79,13 @@ impl Into<Fill> for Color {
     }
 }
 
-
 impl From<IntoableLiteral> for Fill {
     fn from(value: IntoableLiteral) -> Self {
         match value {
             IntoableLiteral::Color(c) => c.into(),
-            _ => {unreachable!()}
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
@@ -173,7 +172,6 @@ impl Fill {
         Fill::LinearGradient(LinearGradient { start, end, stops })
     }
 }
-
 
 #[pax]
 #[cfg_attr(debug_assertions, derive(Debug))]

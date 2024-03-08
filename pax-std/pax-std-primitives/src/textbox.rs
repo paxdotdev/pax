@@ -45,8 +45,18 @@ impl InstanceNode for TextboxInstance {
             handle_vtable_update(tbl, stk, &mut properties.focus_on_mount, context.globals());
             handle_vtable_update(tbl, stk, &mut properties.text, context.globals());
             handle_vtable_update(tbl, stk, &mut properties.stroke, context.globals());
-            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().color, context.globals());
-            handle_vtable_update(tbl, stk, &mut properties.stroke.get_mut().width, context.globals());
+            handle_vtable_update(
+                tbl,
+                stk,
+                &mut properties.stroke.get_mut().color,
+                context.globals(),
+            );
+            handle_vtable_update(
+                tbl,
+                stk,
+                &mut properties.stroke.get_mut().width,
+                context.globals(),
+            );
             handle_vtable_update(tbl, stk, &mut properties.border_radius, context.globals());
             handle_vtable_update(tbl, stk, &mut properties.background, context.globals());
             // Style

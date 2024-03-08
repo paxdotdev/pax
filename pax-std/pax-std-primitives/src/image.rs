@@ -1,4 +1,4 @@
-use pax_runtime::{api::RenderContext, api::math::Point2};
+use pax_runtime::{api::math::Point2, api::RenderContext};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
@@ -41,7 +41,7 @@ impl InstanceNode for ImageInstance {
                 context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.path,
-                context.globals()
+                context.globals(),
             );
         });
     }
