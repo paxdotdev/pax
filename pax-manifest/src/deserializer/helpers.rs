@@ -3,9 +3,9 @@ use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
 };
-use serde::__private::de::EnumDeserializer;
-use pax_runtime_api::ColorChannel;
-use pax_runtime_api::constants::{COLOR, COLOR_CHANNEL, INTEGER, PERCENT, ROTATION};
+
+
+use pax_runtime_api::constants::{COLOR_CHANNEL, INTEGER, PERCENT};
 
 use crate::constants::{NUMERIC, STRING_BOX};
 
@@ -77,7 +77,7 @@ impl<'de> VariantAccess<'de> for crate::deserializer::helpers::PaxColor {
     }
 
     // Color::rgb(only_one_arg)
-    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
+    fn newtype_variant_seed<T>(self, _seed: T) -> Result<T::Value>
         where
             T: DeserializeSeed<'de>,
     {
@@ -85,7 +85,7 @@ impl<'de> VariantAccess<'de> for crate::deserializer::helpers::PaxColor {
     }
 
     // Color::rgb { r: ... } (not supported)
-    fn struct_variant<V>(self, fields: &'static [&'static str], visitor: V) -> std::result::Result<V::Value, Self::Error> where V: Visitor<'de> {
+    fn struct_variant<V>(self, _fields: &'static [&'static str], _visitor: V) -> std::result::Result<V::Value, Self::Error> where V: Visitor<'de> {
         unreachable!(); //Incorrect color syntax
     }
 }
