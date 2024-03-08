@@ -50,23 +50,31 @@ impl PrivilegedAgentConnection {
                                 manager
                                     .replace_template(resp.type_id, resp.new_template)
                                     .map_err(|e| anyhow!(e))?;
-                            },
+                            }
                             AgentMessage::LLMHelpResponse(resp) => {
                                 for action in resp.response {
                                     match action {
                                         NodeAction::Add(command) => {
-                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
-                                        },
+                                            let _ = manager
+                                                .execute_command(command.clone())
+                                                .map_err(|e| anyhow!(e))?;
+                                        }
                                         NodeAction::Remove(command) => {
-                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
-                                        },
+                                            let _ = manager
+                                                .execute_command(command.clone())
+                                                .map_err(|e| anyhow!(e))?;
+                                        }
                                         NodeAction::Update(command) => {
-                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
-                                        },
-                                        _ => {unreachable!("Invalid action performed by llm")}
+                                            let _ = manager
+                                                .execute_command(command.clone())
+                                                .map_err(|e| anyhow!(e))?;
+                                        }
+                                        _ => {
+                                            unreachable!("Invalid action performed by llm")
+                                        }
                                     }
                                 }
-                            },
+                            }
                             _ => {}
                         }
                     }

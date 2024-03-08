@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::orm::template::NodeAction;
 
-
 #[derive(Serialize, Deserialize)]
 pub enum AgentMessage {
     ProjectFileChangedNotification(FileChangedNotification),
@@ -11,7 +10,7 @@ pub enum AgentMessage {
     ComponentSerializationRequest(ComponentSerializationRequest),
     UpdateTemplateRequest(UpdateTemplateRequest),
     LLMHelpRequest(LLMHelpRequest),
-    LLMHelpResponse(LLMHelpResponse)
+    LLMHelpResponse(LLMHelpResponse),
 }
 
 /// A notification indicating that a project file has changed.
