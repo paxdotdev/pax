@@ -881,11 +881,15 @@ impl ComponentTemplate {
         self.nodes.insert(id, tnd);
     }
 
-    pub fn update_node_properties(&mut self, id: &TemplateNodeId, properties: &mut HashMap<Token, Option<ValueDefinition>>){
+    pub fn update_node_properties(
+        &mut self,
+        id: &TemplateNodeId,
+        properties: &mut HashMap<Token, Option<ValueDefinition>>,
+    ) {
         if let Some(node) = self.nodes.get_mut(id) {
             if let Some(settings) = &mut node.settings {
-                let mut indexes_to_remove : Vec<usize> = vec![];
-                for (i, setting) in settings.iter_mut().enumerate(){
+                let mut indexes_to_remove: Vec<usize> = vec![];
+                for (i, setting) in settings.iter_mut().enumerate() {
                     if let SettingElement::Setting(key, v) = setting {
                         if let Some(new_value) = properties.get(key) {
                             if let Some(updated) = new_value {
@@ -898,11 +902,11 @@ impl ComponentTemplate {
                         }
                     }
                 }
-                
-               // Remove propertiest that have been set to None
-               for i in indexes_to_remove.iter().rev(){
-                   settings.remove(*i);
-               }
+
+                // Remove propertiest that have been set to None
+                for i in indexes_to_remove.iter().rev() {
+                    settings.remove(*i);
+                }
             }
         }
         // Add remaining (aka new properties) to settings
@@ -1065,7 +1069,9 @@ impl ComponentTemplate {
         }
     }
 
-    pub fn get_all_children_relationships(&self) -> HashMap<TemplateNodeId, VecDeque<TemplateNodeId>> {
+    pub fn get_all_children_relationships(
+        &self,
+    ) -> HashMap<TemplateNodeId, VecDeque<TemplateNodeId>> {
         self.children.clone()
     }
 }
