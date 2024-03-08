@@ -7,7 +7,7 @@ use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
-use pax_std::types::{Color, Fill};
+use pax_std::types::Fill;
 use serde::Deserialize;
 
 use crate::math::AxisAlignedBox;
@@ -89,7 +89,7 @@ impl ControlPoint {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
                 let behaviour = model::with_action_context(ctx, |ac| {
-                    funcs[self.ind.get().get_as_int() as usize](ac, ac.glass_transform() * pos)
+                    funcs[self.ind.get().to_int() as usize](ac, ac.glass_transform() * pos)
                 });
                 model::perform_action(ActivateControlPoint { behaviour }, ctx);
             } else {

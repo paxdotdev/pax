@@ -15,7 +15,7 @@
                             <Example id=userland_project/>
                         </Group>
                         // White backing plate for stage
-                        <Rectangle fill={Fill::Solid(Color::rgb(1.0, 1.0, 1.0))}/>
+                        <Rectangle fill=WHITE/>
                     </Group>
                 </Group>
         </Group>
@@ -31,7 +31,7 @@
     @mount: on_mount,
 
     #global_background {
-        fill: {Fill::Solid(Color::rgb(96.0/255.0,96.0/255.0,96.0/255.0))}
+        fill: {rgb(96.0,96.0,96.0)}
     }
 
      #designer_glass {

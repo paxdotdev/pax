@@ -70,7 +70,7 @@ if self.is_component_selected {
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
         }
     }
     .h2 {
@@ -82,7 +82,7 @@ if self.is_component_selected {
                 FontWeight::Light
             )},
             font_size: 24px,
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
         }
     }
     .h3 {
@@ -97,7 +97,7 @@ if self.is_component_selected {
                 FontWeight::ExtraLight
             )},
             font_size: 16px,
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
         }

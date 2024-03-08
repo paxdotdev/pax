@@ -18,9 +18,7 @@ for segment in self.bounding_segments {
             PathElement::point((segment.x1)px, (segment.y1)px)
         ]},
         stroke: {
-            color: {
-                Color::rgb(0, 0, 1)
-            }
+            color: BLUE
             width: 1px
         },
     }

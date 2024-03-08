@@ -7,7 +7,7 @@ if self.data.not_dummy {
         <Image class=icon path={self.data.icon} @click=self.on_click/>
         if self.data.background {
             <Rectangle
-                fill={Fill::Solid(Color::rgb(0.0,0.0,0.0))}
+                fill=BLACK
             />
         }
     </Group>

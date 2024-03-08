@@ -11,9 +11,7 @@
             color: {self.data.styling.stroke}
             width: {(self.data.styling.stroke_width_pixels)px}
         }
-        fill: {
-            Fill::Solid(self.data.styling.fill)
-        }
+        fill: { self.data.styling.fill }
         width: {(self.data.styling.size_pixels)px}
         height: {(self.data.styling.size_pixels)px}
         anchor_x: 50%

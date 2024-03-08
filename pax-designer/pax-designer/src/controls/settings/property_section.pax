@@ -1,6 +1,6 @@
 <Text text={self.name + ":"} id=text/>
 <Rectangle x=30% width=70% 
-     fill={Fill::Solid(Color::hlc(20, 100, 10))}
+     fill=rgb(20, 100, 10)
     corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
 />
 
@@ -23,7 +23,7 @@
                 FontWeight::Bold
             )},
             font_size: 12px,
-            fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+            fill: BLACK,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left

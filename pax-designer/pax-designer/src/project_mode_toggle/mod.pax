@@ -5,13 +5,13 @@
     }
     if self.running_mode {
         <Text text="Stop" id=text/>
-        <Rectangle x=70% width=20px height=20px anchor_y=50% y=50% fill={Fill::Solid(Color::rgb(1, 0, 0))}/>
+        <Rectangle x=70% width=20px height=20px anchor_y=50% y=50% fill=RED/>
     }
 </Group>
 <Rectangle
-    fill={Fill::Solid(Color::rgb(0.0, 0.0, 0.0))} 
+    fill=BLACK 
     corner_radii={RectangleCornerRadii::radii(10.0,0.0,0.0,10.0)}
-    stroke={color: {Color::rgb(0.2, 0.2, 0.2)} width: 1px}
+    stroke={color: {rgb(0.2*255, 0.2*255, 0.2*255)} width: 1px}
 />
 
 @settings {
@@ -25,7 +25,7 @@
                 FontWeight::Light
             )},
             font_size: 20px,
-            fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+            fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left
@@ -43,6 +43,6 @@
         stroke: {
             width: 0px
         }
-        fill: {Color::rgb(0, 1, 0)}
+        fill: GREEN
     }
 }

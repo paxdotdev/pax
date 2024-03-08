@@ -22,7 +22,7 @@
         //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
         //exist in order to intercept events from the rendering layer underneath
         //(Note an alternative could be a flag passed to Group which toggles its `is_invisible_to_raycasting`)
-        fill: {Fill::Solid(Color::rgba(0,0,0,0))}
+        fill: TRANSPARENT
     }
 
     #project {
@@ -34,14 +34,10 @@
 
     .control_point {
         stroke: {
-            color: {
-                Color::rgb(0, 0, 1)
-            }
+            color: BLUE
             width: 1px
         }
-        fill: {
-            Fill::Solid(Color::rgb(1,1,1))
-        }
+        fill:  WHITE
         width: 7px
         height: 7px
         anchor_x: 50%
@@ -50,13 +46,9 @@
 
     #rect_tool {
         stroke: {
-            color: {
-                self.rect_tool.stroke
-            }
+            color: {self.rect_tool.stroke}
             width: 1px
         }
-        fill: {
-            Fill::Solid(self.rect_tool.fill)
-        }
+        fill: {self.rect_tool.fill}
     }
 }
