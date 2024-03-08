@@ -62,7 +62,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, msg: WatcherFileChanged, ctx: &mut Self::Context) -> Self::Result {
-        if let Some(_) = &*self.state.active_websocket_client.lock().unwrap() {
+        if self.state.active_websocket_client.lock().unwrap().is_some() {
             if let FileContent::Pax(content) = msg.contents {
                 if let Some(manifest) = &self.state.manifest {
                     let mut template_map: HashMap<String, TypeId> = HashMap::new();
@@ -100,10 +100,11 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                         let mut new_template = tpc.template;
                         new_template.populate_template_with_known_entities(&original_template);
 
-                        let msg = AgentMessage::UpdateTemplateRequest(UpdateTemplateRequest {
-                            type_id: self_type_id,
-                            new_template,
-                        });
+                        let msg =
+                            AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
+                                type_id: self_type_id,
+                                new_template,
+                            }));
                         let serialized_msg = rmp_serde::to_vec(&msg).unwrap();
                         ctx.binary(serialized_msg);
                     }
