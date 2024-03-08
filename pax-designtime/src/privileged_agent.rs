@@ -58,7 +58,6 @@ impl PrivilegedAgentConnection {
                                             let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
                                         },
                                         NodeAction::Remove(command) => {
-                                            log::error!("Removing node: {:?}", command);
                                             let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
                                         },
                                         NodeAction::Update(command) => {
