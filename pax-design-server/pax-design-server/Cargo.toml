@@ -9,7 +9,8 @@ name = "pax-design-server"
 path = "src/main.rs"
 
 [features]
-default = ["serde", "serde_json", "pax-compiler/designtime"]
+default = ["serde", "serde_json", "designtime"]
+designtime = ["pax-compiler/designtime"]
 
 [dependencies]
 actix = "0.13.1"
