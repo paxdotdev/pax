@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
+use std::time::SystemTime;
 
 pub mod cartridge_generation;
 pub mod orm;
@@ -31,7 +32,6 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
     priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
-    next_llm_request_id: usize,
 }
 
 #[cfg(debug_assertions)]
@@ -54,7 +54,6 @@ impl DesigntimeManager {
             orm,
             factories,
             priv_agent_connection: priv_agent,
-            next_llm_request_id: 0,
         }
     }
 
@@ -79,7 +78,6 @@ impl DesigntimeManager {
         );
         let userland_component = manifest.components.get(&userland_type_id).unwrap();
         let request = LLMHelpRequest {
-            request_id: self.next_llm_request_id,
             request: request.to_string(),
             component: userland_component.clone(),
         };

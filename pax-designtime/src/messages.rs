@@ -11,6 +11,7 @@ pub enum AgentMessage {
     UpdateTemplateRequest(Box<UpdateTemplateRequest>),
     LLMHelpRequest(LLMHelpRequest),
     LLMHelpResponse(LLMHelpResponse),
+    LLMUpdatedTemplateNotification(LLMUpdatedTemplateNotification),
 }
 
 /// A notification indicating that a project file has changed.
@@ -44,7 +45,6 @@ pub struct UpdateTemplateRequest {
 /// Sent from `pax-designtime` to `pax-design-server`.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LLMHelpRequest {
-    pub request_id: usize,
     pub request: String,
     pub component: ComponentDefinition,
 }
@@ -53,6 +53,16 @@ pub struct LLMHelpRequest {
 /// Sent from `pax-design-server` to `pax-designtime`.
 #[derive(Serialize, Deserialize)]
 pub struct LLMHelpResponse {
-    pub request_id: usize,
+    pub request_id: String,
+    pub component_type_id: TypeId,
     pub response: Vec<NodeAction>,
+}
+
+/// A notification that the updated template after an llm request
+/// has been applied to the manifest.
+/// This message is sent from `pax-designtime` to `pax-design-server`.
+#[derive(Serialize, Deserialize)]
+pub struct LLMUpdatedTemplateNotification {
+    pub request_id: String,
+    pub component: ComponentDefinition,
 }
