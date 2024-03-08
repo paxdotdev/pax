@@ -14,7 +14,7 @@ fn test_number() {
 
     let num_pax = "10".to_string();
     let expected = Numeric::Integer(10);
-    let v = from_pax(num_pax).unwrap();
+    let v = from_pax(&num_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -33,7 +33,7 @@ fn test_pixels() {
 
     let pixels_pax = "10px".to_string();
     let expected = Size::Pixels(Numeric::Integer(10));
-    let v = from_pax(pixels_pax).unwrap();
+    let v = from_pax(&pixels_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -52,7 +52,7 @@ fn test_percent() {
 
     let percent_pax = "10%".to_string();
     let expected = Size::Percent(Numeric::Integer(10));
-    let v = from_pax(percent_pax).unwrap();
+    let v = from_pax(&percent_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -72,7 +72,7 @@ fn test_degrees() {
 
     let radians_pax = "10deg".to_string();
     let expected = Rotation::Degrees(Numeric::Integer(10));
-    let v = from_pax(radians_pax).unwrap();
+    let v = from_pax(&radians_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -92,7 +92,7 @@ fn test_radians() {
 
     let radians_pax = "10rad".to_string();
     let expected = Rotation::Radians(Numeric::Integer(10));
-    let v = from_pax(radians_pax).unwrap();
+    let v = from_pax(&radians_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -107,7 +107,7 @@ fn test_string_box() {
     let expected = StringBox {
         string: "hello".to_string(),
     };
-    let v = from_pax(string_box_pax).unwrap();
+    let v = from_pax(&string_box_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -130,7 +130,7 @@ fn test_tuple() {
         },
         Numeric::Integer(10),
     );
-    let v = from_pax(tuple_pax).unwrap();
+    let v = from_pax(&tuple_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -153,7 +153,7 @@ fn test_enum() {
         Numeric::Float(1.0),
         Numeric::Float(1.0),
     );
-    let v = from_pax(enum_pax).unwrap();
+    let v = from_pax(&enum_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -161,7 +161,7 @@ fn test_enum() {
 fn test_boolean() {
     let boolean_pax = "true".to_string();
     let expected = true;
-    let v: bool = from_pax(boolean_pax).unwrap();
+    let v: bool = from_pax(&boolean_pax).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -189,6 +189,6 @@ fn test_object() {
         height_px: Numeric::Integer(10),
     };
 
-    let v = from_pax(object_pax).unwrap();
+    let v = from_pax(&object_pax).unwrap();
     assert_eq!(expected, v);
 }
