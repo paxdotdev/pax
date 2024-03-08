@@ -6,7 +6,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_std::primitives::Path;
-use pax_std::types::PathSegment;
+use pax_std::types::{PathElement, Point};
 
 use std::rc::Rc;
 
@@ -44,8 +44,14 @@ impl InstanceNode for PathInstance {
                 &mut properties.stroke.get_mut().color,
                 context.globals(),
             );
+            handle_vtable_update(
+                tbl,
+                stk,
+                &mut properties.stroke.get_mut().width,
+                context.globals(),
+            );
             handle_vtable_update(tbl, stk, &mut properties.fill, context.globals());
-            handle_vtable_update(tbl, stk, &mut properties.segments, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.elements, context.globals());
         });
     }
 
@@ -63,20 +69,43 @@ impl InstanceNode for PathInstance {
             let layout_props = expanded_node.layout_properties.borrow();
             let bounds = layout_props.as_ref().unwrap().computed_tab.bounds;
 
-            for segment in properties.segments.get().iter() {
-                match segment {
-                    PathSegment::Empty => { /* no-op */ }
-                    PathSegment::LineSegment(data) => {
-                        bez_path.move_to(data.start.to_kurbo_point(bounds));
-                        bez_path.line_to(data.end.to_kurbo_point(bounds));
+            let mut itr_elems = properties.elements.get().iter();
+
+            if let Some(elem) = itr_elems.next() {
+                if let &PathElement::Point(x, y) = elem {
+                    bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+                } else {
+                    log::warn!("path must start with point");
+                    return;
+                }
+            }
+
+            while let Some(elem) = itr_elems.next() {
+                match elem {
+                    &PathElement::Point(x, y) => {
+                        bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
                     }
-                    PathSegment::CurveSegment(data) => {
-                        bez_path.move_to(data.start.to_kurbo_point(bounds));
+                    &PathElement::Line => {
+                        let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                            log::warn!("line expects to be followed by a point");
+                            return;
+                        };
+                        bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
+                    }
+                    &PathElement::Curve(h_x, h_y) => {
+                        let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                            log::warn!("curve expects to be followed by a point");
+                            return;
+                        };
                         bez_path.quad_to(
-                            data.handle.to_kurbo_point(bounds),
-                            data.end.to_kurbo_point(bounds),
+                            Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
+                            Point { x, y }.to_kurbo_point(bounds),
                         );
                     }
+                    &PathElement::Close => {
+                        bez_path.close_path();
+                    }
+                    PathElement::Empty => (), //no-op
                 }
             }
 
@@ -88,12 +117,22 @@ impl InstanceNode for PathInstance {
 
             let color = properties.fill.get().to_piet_color();
             rc.fill(&layer_id, transformed_bez_path, &color.into());
-            rc.stroke(
-                &layer_id,
-                duplicate_transformed_bez_path,
-                &properties.stroke.get().color.get().to_piet_color().into(),
-                properties.stroke.get().width.get().expect_pixels().into(),
-            );
+            if properties
+                .stroke
+                .get()
+                .width
+                .get()
+                .expect_pixels()
+                .to_float()
+                > f64::EPSILON
+            {
+                rc.stroke(
+                    &layer_id,
+                    duplicate_transformed_bez_path,
+                    &properties.stroke.get().color.get().to_piet_color().into(),
+                    properties.stroke.get().width.get().expect_pixels().into(),
+                );
+            }
         });
     }
 

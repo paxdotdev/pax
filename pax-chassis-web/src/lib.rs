@@ -34,6 +34,8 @@ use pax_designtime::DesigntimeManager;
 
 #[cfg(feature = "designtime")]
 const USERLAND_PROJECT_ID: &str = "userland_project";
+#[cfg(feature = "designtime")]
+const RUNNING_PROJECT_ID: &str = "running_project";
 
 #[wasm_bindgen]
 pub fn wasm_memory() -> JsValue {
@@ -571,7 +573,14 @@ impl PaxChassisWeb {
                 .get_template_node_by_id(USERLAND_PROJECT_ID)
             {
                 let mut engine = self.engine.borrow_mut();
-                engine.replace_by_id(USERLAND_PROJECT_ID, instance_node);
+                engine.replace_instance_node(Rc::clone(&instance_node));
+            }
+            if let Some(instance_node) = self
+                .definition_to_instance_traverser
+                .get_template_node_by_id(RUNNING_PROJECT_ID)
+            {
+                let mut engine = self.engine.borrow_mut();
+                engine.replace_instance_node(Rc::clone(&instance_node));
             }
             self.last_manifest_version_rendered = current_manifest_version;
         }

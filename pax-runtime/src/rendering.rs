@@ -18,7 +18,7 @@ use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeCont
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
 pub type InstanceNodePtr = Rc<dyn InstanceNode>;
-pub type InstanceNodePtrList = Vec<InstanceNodePtr>;
+pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
 pub struct InstantiationArgs {
     pub prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
@@ -207,7 +207,12 @@ pub trait InstanceNode {
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
     #[allow(unused_variables)]
-    fn handle_post_render(&self, context: &mut RuntimeContext, rcs: &mut dyn RenderContext) {
+    fn handle_post_render(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &mut RuntimeContext,
+        rcs: &mut dyn RenderContext,
+    ) {
         //no-op default implementation
     }
 
@@ -218,12 +223,8 @@ pub trait InstanceNode {
     #[allow(unused_variables)]
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         let env = Rc::clone(&expanded_node.stack);
-        let children_with_envs = self
-            .base()
-            .get_instance_children()
-            .iter()
-            .cloned()
-            .zip(iter::repeat(env));
+        let children = self.base().get_instance_children().borrow();
+        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
         expanded_node.set_children(children_with_envs, context);
     }
 

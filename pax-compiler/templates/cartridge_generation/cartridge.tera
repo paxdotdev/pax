@@ -305,7 +305,7 @@ impl DefinitionToInstanceTraverser {
                     }
                 }
             }
-            component_template = Some(instances);
+            component_template = Some(RefCell::new(instances));
         }
 
         InstantiationArgs {
@@ -348,7 +348,7 @@ impl DefinitionToInstanceTraverser {
                     handler_registry: None,
                     component_template: None,
                     compute_properties_fn: None,
-                    children: Some(children),
+                    children: Some(RefCell::new(children)),
                     template_node_identifier: Some(unique_identifier)
                 })
             },
@@ -370,7 +370,7 @@ impl DefinitionToInstanceTraverser {
                     handler_registry: None,
                     component_template: None,
                     compute_properties_fn: None,
-                    children: Some(children),
+                    children: Some(RefCell::new(children)),
                     template_node_identifier: Some(unique_identifier)
                 })
             },
@@ -405,7 +405,7 @@ impl DefinitionToInstanceTraverser {
                     handler_registry: None,
                     component_template: None,
                     compute_properties_fn: None,
-                    children: Some(children),
+                    children: Some(RefCell::new(children)),
                     template_node_identifier: Some(unique_identifier)
                 })
             },
@@ -470,7 +470,7 @@ impl DefinitionToInstanceTraverser {
         args.prototypical_common_properties_factory = updated_common_properties;
 
        
-        args.children = Some(self.build_children(containing_component_type_id, node_id));
+        args.children = Some(RefCell::new(self.build_children(containing_component_type_id, node_id)));
         args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(containing_component_type_id.clone(), node_id.clone()));
         node_component_factory.build_component(args)
     }

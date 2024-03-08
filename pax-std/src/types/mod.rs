@@ -175,16 +175,27 @@ impl Fill {
 
 #[pax]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub enum PathSegment {
+pub enum PathElement {
     #[default]
     Empty,
-    LineSegment(LineSegmentData),
-    CurveSegment(CurveSegmentData),
+    Point(Size, Size),
+    Line,
+    Curve(Size, Size),
+    Close,
 }
 
-impl PathSegment {
-    pub fn line(line: LineSegmentData) -> Self {
-        Self::LineSegment(line)
+impl PathElement {
+    pub fn line() -> Self {
+        Self::Line
+    }
+    pub fn close() -> Self {
+        Self::Close
+    }
+    pub fn point(x: Size, y: Size) -> Self {
+        Self::Point(x, y)
+    }
+    pub fn curve(x: Size, y: Size) -> Self {
+        Self::Curve(x, y)
     }
 }
 
@@ -230,26 +241,26 @@ impl Point {
 }
 
 impl Path {
-    pub fn start() -> Vec<PathSegment> {
-        let start: Vec<PathSegment> = Vec::new();
+    pub fn start(x: Size, y: Size) -> Vec<PathElement> {
+        let mut start: Vec<PathElement> = Vec::new();
+        start.push(PathElement::Point(x, y));
         start
     }
-    pub fn line_to(mut path: Vec<PathSegment>, start: Point, end: Point) -> Vec<PathSegment> {
-        let line_seg_data: LineSegmentData = LineSegmentData { start, end };
-
-        path.push(PathSegment::LineSegment(line_seg_data));
+    pub fn line_to(mut path: Vec<PathElement>, x: Size, y: Size) -> Vec<PathElement> {
+        path.push(PathElement::Line);
+        path.push(PathElement::Point(x, y));
         path
     }
 
     pub fn curve_to(
-        mut path: Vec<PathSegment>,
-        start: Point,
-        handle: Point,
-        end: Point,
-    ) -> Vec<PathSegment> {
-        let curve_seg_data: CurveSegmentData = CurveSegmentData { start, handle, end };
-
-        path.push(PathSegment::CurveSegment(curve_seg_data));
+        mut path: Vec<PathElement>,
+        h_x: Size,
+        h_y: Size,
+        x: Size,
+        y: Size,
+    ) -> Vec<PathElement> {
+        path.push(PathElement::Curve(h_x, h_y));
+        path.push(PathElement::Point(x, y));
         path
     }
 }
