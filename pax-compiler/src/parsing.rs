@@ -109,29 +109,38 @@ fn recurse_pratt_parse_to_string<'a>(
                 /* xo_enum_or_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_enum_or_function_args_list~")")}
                    xo_enum_or_function_args_list = {expression_body ~ ("," ~ expression_body)*} */
 
-                //prepend identifiers; recurse-pratt-parse `xo_function_args`' `expression_body`s
-                let mut pairs = primary.into_inner();
+                if !primary.as_str().contains("(") {
+                    //If no args, we just want to return this xo_enum_or_function_call exactly,
+                    //such as StackerDirection::Vertical
+                    primary.as_str().to_string()
+                } else {
+                    //prepend identifiers; recurse-pratt-parse `xo_function_args`' `expression_body`s
+                    let mut pairs = primary.into_inner();
 
-                let mut output = "".to_string();
-                let mut next_pair = pairs.next().unwrap();
-                while let Rule::identifier = next_pair.as_rule() {
-                    output = output + next_pair.as_str();
-                    next_pair = pairs.next().unwrap();
-                    if let Rule::identifier = next_pair.as_rule() {
-                        //look-ahead
-                        output = output + "::";
+                    let mut output = "".to_string();
+                    let mut next_pair = pairs.next().unwrap();
+
+                    while let Rule::identifier = next_pair.as_rule() {
+                        output = output + next_pair.as_str();
+                        next_pair = pairs.next().unwrap();
+                        if let Rule::identifier = next_pair.as_rule() {
+                            //look-ahead
+                            output = output + "::";
+                        }
+                    };
+
+                    let mut expression_body_pairs = next_pair.into_inner();
+
+                    output = output + "(";
+                    while let Some(next_pair) = expression_body_pairs.next() {
+                        output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + ").into(),"
                     }
-                };
+                    output = output + ")";
 
-                let mut expression_body_pairs = next_pair.into_inner();
-
-                output = output + "(";
-                while let Some(next_pair) = expression_body_pairs.next() {
-                    output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + ").into(),"
+                    output
                 }
-                output = output + ")";
 
-                output
+
             },
             Rule::xo_range => {
                 /* { op0: (xo_literal | xo_symbol) ~ op1: (xo_range_inclusive | xo_range_exclusive) ~ op2: (xo_literal | xo_symbol)} */
@@ -201,11 +210,47 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::string => {
                         format!("StringBox::from({}).into()",literal_kind.as_str().to_string())
                     },
+                    Rule::literal_color => {
+                        let mut inner = literal_kind.into_inner();
+                        let next_pair = inner.next().unwrap();
+                        if let Rule::literal_color_const = next_pair.as_rule() {
+                            //Return color consts like WHITE underneath the Color enum
+                            format!("Color::{}", next_pair.as_str())
+                        } else {
+                            //Recurse-pratt-parse the args list for color funcs, a la enums
+                            let func = next_pair.as_str().split("(").next().unwrap().to_string();
+                            let mut accum = "".to_string();
+                            let mut inner = next_pair.into_inner();
+                            while let Some(next_pair) = inner.next() {
+                                // literal_color_channel = {literal_number_with_unit | literal_number_integer}
+                                // while this case is trivial, recurse_pratt_parse is used here to manage literal_number_with_unit without duplicating code here
+                                let literal_representation = next_pair.into_inner();
+                                accum = accum + &recurse_pratt_parse_to_string(literal_representation, pratt_parser, Rc::clone(&symbolic_ids)) + ".into(),"
+                            }
+                            format!("Color::{}({})", &func, &accum )
+                        }
+
+                    },
                     _ => {
                         /* {literal_enum_value | literal_tuple_access | literal_tuple | string } */
                         literal_kind.as_str().to_string()
                     }
                 }
+            },
+            Rule::xo_color_space_func => {
+                let mut inner = primary.clone().into_inner();
+
+                //Recurse-pratt-parse the args list for color funcs, a la enums
+                let func = primary.as_str().split("(").next().unwrap().to_string();
+                let mut accum = "".to_string();
+
+                while let Some(next_pair) = inner.next() {
+                    // literal_color_channel = {literal_number_with_unit | literal_number_integer}
+                    // while this case is trivial, recurse_pratt_parse is used here to manage literal_number_with_unit without duplicating code here
+                    let literal_representation = next_pair.into_inner();
+                    accum = accum + &recurse_pratt_parse_to_string(literal_representation, pratt_parser, Rc::clone(&symbolic_ids)) + ".into(),"
+                }
+                format!("Color::{}({})", &func, &accum )
             },
             Rule::xo_object => {
                 let mut output : String = "".to_string();
