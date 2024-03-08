@@ -9,7 +9,7 @@
 		anchor_y=50%
 		width=200px
 		height=200px
-	    fill={Fill::Solid(Color::hlc(50, 75.0, 150.0))}
+	    fill=GREEN
 	/>
 	<Rectangle
 		@mouse_move=self.frame1rect2
@@ -19,8 +19,10 @@
 		anchor_y=50%
 		width=200px
 		height=200px
-	    fill={Fill::Solid(Color::hlc(20, 75.0, 150.0))}
+	    fill=BLUE
 	/>
+	//Backing rectangle to visualize frame
+	<Rectangle fill=EMERALD />
 </Frame>
 <Frame x=50% width=50% @mouse_move=self.frame2>
 	<Rectangle
@@ -31,8 +33,10 @@
 		anchor_y=50%
 		width=200px
 		height=200px
-	    fill={Fill::Solid(Color::hlc(50, 75.0, 150.0))}
+	    fill={PURPLE}
 	/>
+	//Backing rectangle to visualize frame
+    <Rectangle fill=ZINC />
 </Frame>
 
 @settings{
