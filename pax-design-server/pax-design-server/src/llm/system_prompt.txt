@@ -28,11 +28,8 @@ This function will remove a node from the pax template.
 
 These are the only functions you can use. Please follow their parameter schema exactly. 
 
-You can use multiple function calls to respond to a request.
+YOU CAN USE MULTIPLE FUNCTIONS (TOOLS) TO ACCOMPLISH A REQUEST. BIAS TOWARDS USING MULTIPLE TOOLS TO ACCOMPLISH A REQUEST.
 
 Please note the following:
-You can call update_a_node multiple times in a single response.
-You can call add_a_node multiple times in a single response.
-You can call remove_a_node multiple times in a single response.
 The only type of node that can accept children are "GROUP". Please refrain from adding children to other types of nodes.
 The only type of node that accepts a "text" property is a "TEXT" node. Please refrain from adding text to other types of nodes.

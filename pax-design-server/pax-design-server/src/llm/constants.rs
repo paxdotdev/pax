@@ -27,3 +27,6 @@ pub const REMOVE_DESCRIPTION: &str = "Remove a node from the scene";
 /// Other constants
 pub const PREFIX: &str = "pax_designer::pax_reexports::pax_std::primitives";
 pub const TRAINING_DATA_PATH: &str = "src/llm/future_training_data/";
+pub const TRAINING_DATA_BEFORE_REQUEST: &str = "before.pax";
+pub const TRAINING_DATA_AFTER_REQUEST: &str = "after.pax";
+pub const TRAINING_DATA_REQUEST: &str = "request.txt";
