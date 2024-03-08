@@ -1,7 +1,7 @@
 <Frame width=20%>
 	<Text text={self.message} class=centered class=small id=text />
 	<Rectangle class=centered class=small @click=self.increment
-	     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+	     fill={hsl(ticks, 75%, 50%)}
 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 	/>
 </Frame>
@@ -13,7 +13,7 @@ if self.activated {
 			<Frame>
 				<Text text="_R" class=centered width=80% height=80% id=text />
 				<Rectangle class=centered width=50% height=50% @click=self.increment
-				     fill={Fill::Solid(Color::hlc(ticks + 20*i, 75.0 + j*50, 150.0))}
+				     fill={hsl(ticks + 20*i, (50 + j*10)%, 50%)}
 				    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 				/>
 			</Frame>
