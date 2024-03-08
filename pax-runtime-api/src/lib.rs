@@ -1192,6 +1192,7 @@ pub enum Color {
     WHITE,
     TRANSPARENT,
 }
+
 impl Color {
 
     //TODO: build out tint api and consider other color transforms
