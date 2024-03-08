@@ -291,7 +291,7 @@ impl PaxEngine {
         expression_table: ExpressionTable,
         viewport_size: (f64, f64),
     ) -> Self {
-        use crate::api::math::Transform2;
+        use pax_runtime_api::math::Transform2;
 
         let globals = Globals {
             frames_elapsed: 0,
@@ -320,7 +320,7 @@ impl PaxEngine {
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
     ) -> Self {
-        use crate::math::Transform2;
+        use pax_runtime_api::math::Transform2;
         let globals = Globals {
             frames_elapsed: 0,
             viewport: TransformAndBounds {

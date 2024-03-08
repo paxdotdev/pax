@@ -1,5 +1,11 @@
 use crate::RuntimeContext;
 pub use pax_runtime_api::*;
+#[cfg(feature = "designtime")]
+use {
+    crate::api::math::Point2, crate::node_interface::NodeInterface,
+    pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier,
+    std::cell::RefCell, std::rc::Rc,
+};
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
