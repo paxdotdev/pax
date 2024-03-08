@@ -1,8 +1,8 @@
 use core::panic;
+use std::collections::HashMap;
 
 use pax_manifest::{
-    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, TypeId,
-    UniqueTemplateNodeIdentifier,
+    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, Token, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -154,7 +154,7 @@ impl Undo for AddTemplateNodeRequest {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UpdateTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
-    updated_node: TemplateNodeDefinition,
+    updated_properties: HashMap<Token, Option<ValueDefinition>>,
     new_location: Option<NodeLocation>,
     // Used for Undo/Redo
     _cached_node_data: Option<NodeData>,
@@ -164,12 +164,12 @@ pub struct UpdateTemplateNodeRequest {
 impl UpdateTemplateNodeRequest {
     pub fn new(
         uni: UniqueTemplateNodeIdentifier,
-        updated_node: TemplateNodeDefinition,
+        updated_properties: HashMap<Token, Option<ValueDefinition>>,
         new_location: Option<NodeLocation>,
     ) -> Self {
         Self {
             uni,
-            updated_node,
+            updated_properties,
             new_location,
             _cached_node_data: None,
             _cached_move: None,
@@ -220,7 +220,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                     .clone(),
             });
 
-            template.set_node(uni.get_template_node_id(), self.updated_node.clone());
+            template.update_node_properties(&uni.get_template_node_id(), &mut self.updated_properties.clone());
 
             if let Some(location) = &self.new_location {
                 let mut move_request = MoveTemplateNodeRequest::new(uni.clone(), location.clone());

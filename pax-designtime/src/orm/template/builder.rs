@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use pax_manifest::{
-    NodeLocation, PropertyDefinition, SettingElement, TemplateNodeDefinition, Token, TokenType,
+    NodeLocation, PropertyDefinition, SettingElement, Token, TokenType,
     TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde::Serialize;
@@ -15,8 +15,7 @@ pub struct NodeBuilder<'a> {
     orm: &'a mut PaxManifestORM,
     containing_component_type_id: TypeId,
     node_type_id: TypeId,
-    property_map: HashMap<String, usize>,
-    settings: Option<Vec<SettingElement>>,
+    updated_property_map: HashMap<Token, Option<ValueDefinition>>,
     unique_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     location: Option<NodeLocation>,
 }
@@ -31,8 +30,7 @@ impl<'a> NodeBuilder<'a> {
             orm,
             containing_component_type_id,
             node_type_id,
-            property_map: HashMap::new(),
-            settings: None,
+            updated_property_map: HashMap::new(),
             unique_node_identifier: None,
             location: None,
         }
@@ -46,21 +44,12 @@ impl<'a> NodeBuilder<'a> {
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
             .unwrap();
         if let Some(node) = resp.node {
-            let mut property_map = HashMap::new();
-            if let NodeType::Template(settings) = node.get_node_type() {
-                for (index, setting) in settings.iter().enumerate() {
-                    if let SettingElement::Setting(Token { token_value, .. }, _) = setting {
-                        property_map.insert(token_value.clone(), index);
-                    }
-                }
-            }
             let location = orm.manifest.get_node_location(&uni);
             Some(NodeBuilder {
                 orm,
                 containing_component_type_id: uni.get_containing_component_type_id(),
                 node_type_id: node.type_id,
-                property_map,
-                settings: node.settings.clone(),
+                updated_property_map: HashMap::new(),
                 unique_node_identifier: Some(uni),
                 location,
             })
@@ -73,27 +62,39 @@ impl<'a> NodeBuilder<'a> {
         self.unique_node_identifier.clone()
     }
 
-    pub fn get_all_properties(&self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
+    pub fn get_all_properties(&mut self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
         let properties = self
             .orm
             .manifest
             .get_all_component_properties(&self.node_type_id);
-        let values = properties
+
+        let mut full_settings : HashMap<Token, ValueDefinition> = HashMap::new();
+        if let Some(uni) = &self.unique_node_identifier {
+            let resp = self.orm
+                .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
+                .unwrap();
+            if let Some(node) = resp.node {
+                if let Some(settings) = node.settings{
+                    for setting in settings {
+                        if let SettingElement::Setting(token, value) = setting {
+                            full_settings.insert(token, value);
+                        }
+                    }
+                }
+            }
+        }
+
+        let values: Vec<Option<ValueDefinition>> = properties
             .iter()
             .map(|prop| {
-                if let Some(index) = self.property_map.get(&prop.name) {
-                    if let Some(SettingElement::Setting(_, value)) =
-                        self.settings.as_ref().unwrap().get(*index)
-                    {
-                        Some(value.clone())
-                    } else {
-                        None
-                    }
+                let key = &Token::new_only_raw(prop.name.clone(), TokenType::SettingKey);
+                if let Some(value) = full_settings.get(key) {
+                    Some(value.clone())
                 } else {
                     None
                 }
             })
-            .collect::<Vec<Option<ValueDefinition>>>();
+            .collect();
 
         properties.into_iter().zip(values).collect()
     }
@@ -110,39 +111,13 @@ impl<'a> NodeBuilder<'a> {
         }
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
         let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
-        if let Some(index) = self.property_map.get(key) {
-            self.settings.as_mut().unwrap()[*index] = SettingElement::Setting(token, value);
-        } else {
-            if let Some(settings) = &mut self.settings {
-                settings.push(SettingElement::Setting(token, value));
-            } else {
-                self.settings = Some(vec![SettingElement::Setting(token, value)]);
-            }
-            self.property_map
-                .insert(key.to_string(), self.settings.as_ref().unwrap().len() - 1);
-        };
+        self.updated_property_map.insert(token, Some(value));
         Ok(())
     }
 
     pub fn remove_property(&mut self, key: &str) {
-        if let Some(index) = self.property_map.get(key) {
-            self.settings.as_mut().unwrap().remove(*index);
-
-            let keys_to_update: Vec<String> = self
-                .property_map
-                .iter()
-                .filter(|(_, &index_elem)| index_elem > *index)
-                .map(|(key, _)| key.clone())
-                .collect();
-
-            for key in keys_to_update {
-                if let Some(index_elem) = self.property_map.get_mut(&key) {
-                    *index_elem -= 1;
-                }
-            }
-
-            self.property_map.remove(key);
-        }
+        let key = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
+        self.updated_property_map.insert(key, None);
     }
 
     pub fn set_location(&mut self, location: NodeLocation) {
@@ -156,25 +131,26 @@ impl<'a> NodeBuilder<'a> {
                 .location
                 .unwrap_or_else(|| self.orm.manifest.get_node_location(&uni).unwrap());
 
-            let updated_node = TemplateNodeDefinition {
-                type_id: self.node_type_id,
-                control_flow_settings: None,
-                settings: self.settings,
-                raw_comment_string: None,
-            };
-
             let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(
                 uni,
-                updated_node,
+                self.updated_property_map,
                 Some(location),
             ))?;
             resp.command_id
         } else {
             // Node does not exist
+            let settings = self.updated_property_map.iter().filter_map(|(k, v)| {
+                if let Some(value) = v {
+                    Some(SettingElement::Setting(k.clone(), value.clone()))
+                } else {
+                    None
+                }
+            }).collect::<Vec<SettingElement>>().into();
+
             let resp = self.orm.execute_command(AddTemplateNodeRequest::new(
                 self.containing_component_type_id,
                 self.node_type_id,
-                NodeType::Template(self.settings.unwrap_or_default()),
+                NodeType::Template(settings),
                 self.location,
             ))?;
             self.location = self.orm.manifest.get_node_location(&resp.uni);
