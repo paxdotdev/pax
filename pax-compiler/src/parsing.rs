@@ -1562,7 +1562,6 @@ impl Reflectable for pax_runtime::api::Rotation {
             Some(&Self::get_self_pascal_identifier()),
         );
 
-        panic!("{}", type_id);
         type_id
     }
 }
