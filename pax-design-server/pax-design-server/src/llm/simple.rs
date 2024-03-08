@@ -88,6 +88,7 @@ pub struct SimpleProperties {
     pub width: Option<SimpleSize>,
     pub height: Option<SimpleSize>,
     pub fill: Option<SimpleColor>,
+    pub stroke: Option<SimpleColor>,
     pub rotate: Option<SimpleRotation>,
     pub text: Option<String>,
 }
