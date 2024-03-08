@@ -80,8 +80,6 @@ pub async fn web_socket(
 
 #[allow(unused_assignments)]
 pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
-    //env_logger::init_from_env(Env::default().default_filter_or("info"));
-
     std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
     let ctx = RunContext {
         target: pax_compiler::RunTarget::Web,
@@ -203,50 +201,3 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
     watcher.watch(Path::new(path), RecursiveMode::Recursive)?;
     Ok(watcher)
 }
-
-// async fn query_openai_api(prompt: &str) -> Result<Vec<SimpleNodeAction>, String> {
-//     let api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
-//     let system_prompt = fs::read_to_string("../pax-designtime/src/orm/llm/system_prompt.txt").expect("Error reading system prompt");
-//     let client = reqwest::Client::new();
-//     let mut headers = HeaderMap::new();
-//     headers.insert(AUTHORIZATION, format!("Bearer {}", api_key).parse().unwrap());
-//     headers.insert(CONTENT_TYPE, "application/json".parse().unwrap());
-
-//     let response = client.post("https://api.openai.com/v1/chat/completions")
-//         .headers(headers)
-//         .json(&serde_json::json!({
-//             "model": "gpt-4-turbo-preview",
-//             "messages": [
-//                 {
-//                     "role": "system",
-//                     "content": system_prompt
-//                 },
-//                 {
-//                     "role": "user",
-//                     "content": prompt
-//                 }
-//             ]
-//         }))
-//         .send()
-//         .await.map_err(|e| format!("Error querying OpenAI API: {:?}", e))?;
-
-//     let text = response.text().await.unwrap();
-//     let value : Value = serde_json::from_str(&text).unwrap();
-
-//     if let Some(first_choice) = value["choices"].as_array().and_then(|arr| arr.get(0)) {
-//         let content = &first_choice["message"]["content"];
-
-//         // Assuming the content is a string that represents JSON, parse it further if needed
-//         if let Some(content_str) = content.as_str() {
-//             // Further processing here, e.g., trim code block markers if necessary
-//             let trimmed_content = content_str.trim_start_matches("```json\n").trim_end_matches("\n```");
-//             println!("trimmed_content {:?}", trimmed_content);
-//             // Optionally, parse the inner JSON if it's structured
-//             let inner_value: Vec<SimpleNodeAction> = serde_json::from_str(trimmed_content).unwrap();
-//             println!("actions {:?}", inner_value);
-//             return Ok(inner_value)
-//         }
-//     }
-//     Err("Invalid response from OpenAI API".to_string())
-
-// }
