@@ -1,22 +1,20 @@
 <Frame @mouse_move=self.mouse_move>
 	for rect in self.rects {
 		<Rectangle x={rect.x} y={rect.y} width={rect.w} height={rect.h}
-		    fill={Fill::Solid(Color::rgba(0.05, 0.05, 0.05, 1.0))}
+		    fill=SKY
 		    corner_radii={RectangleCornerRadii::radii(4.0,4.0,4.0,4.0)}
 		/>
 	}
-	for rect in self.rects_bellow {
+	for rect in self.rects_below {
 		<Rectangle x={rect.x} y={rect.y} width={rect.w} height={rect.h}
-		    fill={Fill::Solid(Color::rgba(0.1, 0.1, 0.1, 1.0))}
+		    fill=FUCHSIA
 		    corner_radii={RectangleCornerRadii::radii(4.0,4.0,4.0,4.0)}
 		/>
 	}
 	<Text y=15% height=15% x=20% width=30% text="Pax Designer is a collaborative visual builder for apps & websites" id=header />
 	<Text y=35% height=20% x=20% width=60% text="Build native apps & websites through drawing, coding, and natural language.  Build user interfaces as freely as you imagine them. Pax Designer reads & writes code, so everyone on your team can create, together" id=body />
 	<Text y=50% height=10% x=20% width=30% text="Get early access" id=header />
-	<Rectangle
-	     fill={Fill::Solid(Color::rgba(0.1, 0.1, 0.1, 1.0))}
-	/>
+	<Rectangle fill=SLATE />
 </Frame>
 
 @settings {
@@ -26,7 +24,7 @@
         style: {
                 // font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 25px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Left,
                 align_multiline: TextAlignHorizontal::Left
@@ -36,7 +34,7 @@
         style: {
                 // font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 20px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                fill: WHITE,
                 align_vertical: TextAlignVertical::Top,
                 align_horizontal: TextAlignHorizontal::Left,
                 align_multiline: TextAlignHorizontal::Left
