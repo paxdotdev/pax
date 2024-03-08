@@ -16,7 +16,7 @@ pub struct DynamicObject {
     pub mouse_x: Property<f64>,
     pub mouse_y: Property<f64>,
     pub rects: Property<Vec<Rect>>,
-    pub rects_bellow: Property<Vec<Rect>>,
+    pub rects_below: Property<Vec<Rect>>,
 }
 
 #[pax]
@@ -34,7 +34,7 @@ const LEN: usize = N_X as usize * N_Y as usize;
 impl DynamicObject {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
         self.rects.set(vec![Rect::default(); LEN]);
-        self.rects_bellow.set(vec![Rect::default(); LEN]);
+        self.rects_below.set(vec![Rect::default(); LEN]);
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
@@ -75,7 +75,7 @@ impl DynamicObject {
                 rect.y = Size::Pixels(y.into());
                 rect.w = Size::Pixels((r_w).into());
                 rect.h = Size::Pixels((r_h).into());
-                let rect_b = &mut self.rects_bellow.get_mut()[ind];
+                let rect_b = &mut self.rects_below.get_mut()[ind];
                 rect_b.x = Size::Pixels((x - sp).into());
                 rect_b.y = Size::Pixels((y - sp).into());
                 rect_b.w = Size::Pixels((r_w + 2.0 * sp).into());
@@ -86,10 +86,10 @@ impl DynamicObject {
         //hack to make repeat refresh
         if self.rects.get().len() <= LEN {
             self.rects.get_mut().push(Rect::default());
-            self.rects_bellow.get_mut().push(Rect::default());
+            self.rects_below.get_mut().push(Rect::default());
         } else {
             self.rects.get_mut().pop();
-            self.rects_bellow.get_mut().pop();
+            self.rects_below.get_mut().pop();
         }
     }
 
