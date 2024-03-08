@@ -89,11 +89,7 @@ impl<'a> NodeBuilder<'a> {
             .iter()
             .map(|prop| {
                 let key = &Token::new_only_raw(prop.name.clone(), TokenType::SettingKey);
-                if let Some(value) = full_settings.get(key) {
-                    Some(value.clone())
-                } else {
-                    None
-                }
+                full_settings.get(key).cloned()
             })
             .collect();
 
@@ -144,14 +140,10 @@ impl<'a> NodeBuilder<'a> {
                 .updated_property_map
                 .iter()
                 .filter_map(|(k, v)| {
-                    if let Some(value) = v {
-                        Some(SettingElement::Setting(k.clone(), value.clone()))
-                    } else {
-                        None
-                    }
+                    v.as_ref()
+                        .map(|value| SettingElement::Setting(k.clone(), value.clone()))
                 })
-                .collect::<Vec<SettingElement>>()
-                .into();
+                .collect::<Vec<SettingElement>>();
 
             let resp = self.orm.execute_command(AddTemplateNodeRequest::new(
                 self.containing_component_type_id,

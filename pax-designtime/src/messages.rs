@@ -8,7 +8,7 @@ pub enum AgentMessage {
     ProjectFileChangedNotification(FileChangedNotification),
     ManifestSerializationRequest(ManifestSerializationRequest),
     ComponentSerializationRequest(ComponentSerializationRequest),
-    UpdateTemplateRequest(UpdateTemplateRequest),
+    UpdateTemplateRequest(Box<UpdateTemplateRequest>),
     LLMHelpRequest(LLMHelpRequest),
     LLMHelpResponse(LLMHelpResponse),
 }

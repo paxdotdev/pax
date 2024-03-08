@@ -126,7 +126,9 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
-        Some(UndoRedoCommand::AddTemplateNodeRequest(self.clone()))
+        Some(UndoRedoCommand::AddTemplateNodeRequest(Box::new(
+            self.clone(),
+        )))
     }
 }
 
@@ -239,7 +241,9 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
-        Some(UndoRedoCommand::UpdateTemplateNodeRequest(self.clone()))
+        Some(UndoRedoCommand::UpdateTemplateNodeRequest(Box::new(
+            self.clone(),
+        )))
     }
 }
 
@@ -335,7 +339,9 @@ impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
-        Some(UndoRedoCommand::MoveTemplateNodeRequest(self.clone()))
+        Some(UndoRedoCommand::MoveTemplateNodeRequest(Box::new(
+            self.clone(),
+        )))
     }
 }
 
@@ -418,7 +424,9 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
-        Some(UndoRedoCommand::RemoveTemplateNodeRequest(self.clone()))
+        Some(UndoRedoCommand::RemoveTemplateNodeRequest(Box::new(
+            self.clone(),
+        )))
     }
 }
 
@@ -582,7 +590,9 @@ impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
     }
 
     fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
-        Some(UndoRedoCommand::ReplaceTemplateRequest(self.clone()))
+        Some(UndoRedoCommand::ReplaceTemplateRequest(Box::new(
+            self.clone(),
+        )))
     }
 }
 
