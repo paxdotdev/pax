@@ -1151,7 +1151,6 @@ impl ColorChannel {
     }
 }
 
-
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug))]
