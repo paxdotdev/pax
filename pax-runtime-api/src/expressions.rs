@@ -1,8 +1,4 @@
-
-
-use crate::{
-    EasingCurve, PropertyInstance, PropertyType, TransitionManager, TransitionQueueEntry,
-};
+use crate::{EasingCurve, PropertyInstance, PropertyType, TransitionManager, TransitionQueueEntry};
 
 // The `Expression` form of a property — stores a function
 // that evaluates the value itself, as well as a "register" of
@@ -90,4 +86,3 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         PropertyType::Expression
     }
 }
-

@@ -1,3 +1,4 @@
+use crate::api::math::Point2;
 use crate::constants::{
     BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS,
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS,
@@ -6,7 +7,6 @@ use crate::constants::{
     TEXTBOX_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
     WHEEL_HANDLERS,
 };
-use crate::api::math::Point2;
 use crate::Globals;
 #[cfg(debug_assertions)]
 use core::fmt;
@@ -169,9 +169,6 @@ impl ExpandedNode {
             .base()
             .instance_prototypical_common_properties_factory)();
 
-
-
-
         Rc::new(ExpandedNode {
             id_chain: vec![context.gen_uid().0],
             instance_node: Rc::clone(&template),
@@ -325,8 +322,6 @@ impl ExpandedNode {
             context
                 .node_cache
                 .insert(self.id_chain[0], Rc::clone(&self));
-
-
 
             //Note on subtle sequencing here:
             // (1) _primitive_ handle_mounts must fire before updating properties for the first time.

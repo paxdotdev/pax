@@ -2,32 +2,31 @@ use std::any::Any;
 use std::collections::VecDeque;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
+use crate::math::Space;
 use kurbo::BezPath;
 use piet::PaintBrush;
-use crate::math::Space;
-
 
 #[cfg(feature = "designtime")]
 use {
     crate::math::Point2, crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,
-    std::cell::RefCell
+    std::cell::RefCell,
 };
 
 use std::cell::Cell;
 use std::rc::Rc;
 
-pub mod numeric;
-pub mod expressions;
 pub mod constants;
+pub mod expressions;
 pub mod math;
+pub mod numeric;
 
 pub use crate::numeric::Numeric;
 
-use crate::expressions::{PropertyExpression};
 use crate::constants::COMMON_PROPERTIES_TYPE;
+use crate::expressions::PropertyExpression;
 pub use pax_message::serde;
-use serde::{Deserialize, Serialize};
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
+use serde::{Deserialize, Serialize};
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -94,12 +93,12 @@ pub trait PropertyInstance<T: Default + Clone> {
 }
 
 impl<'de, T> Deserialize<'de> for Box<dyn PropertyInstance<T>>
-    where
-        T: Deserialize<'de> + Default + Clone + 'static,
+where
+    T: Deserialize<'de> + Default + Clone + 'static,
 {
     fn deserialize<D>(deserializer: D) -> Result<Box<dyn PropertyInstance<T>>, D::Error>
-        where
-            D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
         Ok(Box::new(PropertyLiteral::new(value)))
@@ -107,12 +106,12 @@ impl<'de, T> Deserialize<'de> for Box<dyn PropertyInstance<T>>
 }
 
 impl<T> Serialize for Box<dyn PropertyInstance<T>>
-    where
-        T: Serialize + Default + Clone + 'static,
+where
+    T: Serialize + Default + Clone + 'static,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         self.get().serialize(serializer)
     }
@@ -120,7 +119,7 @@ impl<T> Serialize for Box<dyn PropertyInstance<T>>
 
 #[cfg(debug_assertions)]
 impl<T: Default + std::fmt::Debug + Clone + 'static> std::fmt::Debug
-for Box<dyn PropertyInstance<T>>
+    for Box<dyn PropertyInstance<T>>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.get().fmt(f)
@@ -151,7 +150,6 @@ pub type Property<T> = Box<dyn PropertyInstance<T>>;
 pub struct Window;
 
 impl Space for Window {}
-
 
 // Unified events
 
@@ -417,9 +415,6 @@ pub enum Size {
     Combined(Numeric, Numeric),
 }
 
-
-
-
 impl Neg for Size {
     type Output = Size;
     fn neg(self) -> Self::Output {
@@ -551,8 +546,7 @@ impl Size {
             Size::Percent(num) => target_bound * (*num / 100.0),
             Size::Combined(pixel_component, percent_component) => {
                 //first calc percent, then add pixel
-                (target_bound * (percent_component.to_float() / 100.0))
-                    + pixel_component.to_float()
+                (target_bound * (percent_component.to_float() / 100.0)) + pixel_component.to_float()
             }
         }
     }
@@ -586,7 +580,6 @@ pub struct CommonProperties {
     pub transform: Box<dyn PropertyInstance<Transform2D>>,
     pub width: Box<dyn PropertyInstance<Size>>,
     pub height: Box<dyn PropertyInstance<Size>>,
-
 }
 
 impl CommonProperties {
@@ -625,7 +618,6 @@ impl CommonProperties {
     }
 }
 
-
 impl<T: Interpolatable> Interpolatable for Option<T> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         match &self {
@@ -637,7 +629,6 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
         }
     }
 }
-
 
 pub struct TransitionManager<T> {
     pub queue: VecDeque<TransitionQueueEntry<T>>,
@@ -680,8 +671,8 @@ impl<T: std::fmt::Debug> std::fmt::Debug for PropertyLiteral<T> {
 }
 
 impl<T> Into<Box<dyn PropertyInstance<T>>> for PropertyLiteral<T>
-    where
-        T: Default + Clone + 'static,
+where
+    T: Default + Clone + 'static,
 {
     fn into(self) -> Box<dyn PropertyInstance<T>> {
         Box::new(self)
@@ -851,8 +842,8 @@ impl EasingCurve {
 }
 
 pub trait Interpolatable
-    where
-        Self: Sized + Clone,
+where
+    Self: Sized + Clone,
 {
     //default implementation acts like a `None` ease — that is,
     //the first value is simply returned.
@@ -1069,8 +1060,6 @@ impl From<StringBox> for String {
     }
 }
 
-
-
 /// Raw Percent type, which we use for serialization and dynamic traversal.  At the time
 /// of authoring, this type is not used directly at runtime, but is intended for `into` coercion
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
@@ -1090,7 +1079,9 @@ impl From<IntoableLiteral> for Rotation {
         match value {
             IntoableLiteral::Percent(p) => p.into(),
             IntoableLiteral::Numeric(n) => n.into(),
-            _ => {unreachable!()}
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
@@ -1099,7 +1090,9 @@ impl From<IntoableLiteral> for ColorChannel {
     fn from(value: IntoableLiteral) -> Self {
         match value {
             IntoableLiteral::Percent(p) => p.into(),
-            _ => {unreachable!()}
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
@@ -1108,7 +1101,9 @@ impl From<IntoableLiteral> for Size {
     fn from(value: IntoableLiteral) -> Self {
         match value {
             IntoableLiteral::Percent(p) => p.into(),
-            _ => {unreachable!()}
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
@@ -1140,14 +1135,11 @@ pub enum ColorChannel {
     Percent(Numeric),
 }
 
-
-
 impl Default for ColorChannel {
     fn default() -> Self {
         Self::Percent(50.0.into())
     }
 }
-
 
 impl From<Numeric> for Rotation {
     fn from(value: Numeric) -> Self {
@@ -1161,18 +1153,23 @@ impl From<Numeric> for ColorChannel {
     }
 }
 
-
 impl ColorChannel {
     ///Normalizes this ColorChannel as a float [0.0, 1.0]
     pub fn to_float_0_1(&self) -> f64 {
         match self {
             Self::Percent(per) => {
-                assert!(per.to_float() >= -0.000001 && per.to_float() <= 100.000001, "");
+                assert!(
+                    per.to_float() >= -0.000001 && per.to_float() <= 100.000001,
+                    ""
+                );
                 (per.to_float() / 100.0).clamp(0_f64, 1_f64)
-            },
+            }
             Self::Integer(zero_to_255) => {
-                assert!(zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255, "Integer color channel values must be between 0 and 255");
-                let f_zero : f64 = (*zero_to_255).to_float();
+                assert!(
+                    zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255,
+                    "Integer color channel values must be between 0 and 255"
+                );
+                let f_zero: f64 = (*zero_to_255).to_float();
                 (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
             }
         }
@@ -1222,7 +1219,6 @@ pub enum Color {
 }
 
 impl Color {
-
     //TODO: build out tint api and consider other color transforms
     //pub fn tint(tint_offset_amount) -> Self {...}
 
@@ -1243,43 +1239,174 @@ impl Color {
     // Returns a slice of four channels, normalized to [0,1]
     pub fn to_rgba_0_1(&self) -> [f64; 4] {
         match self {
-            Self::hsla(h,s,l,a) => {
-                let rgb = hsl_to_rgb(h.to_float_0_1(),s.to_float_0_1(),l.to_float_0_1());
+            Self::hsla(h, s, l, a) => {
+                let rgb = hsl_to_rgb(h.to_float_0_1(), s.to_float_0_1(), l.to_float_0_1());
                 [rgb[0], rgb[1], rgb[2], a.to_float_0_1()]
-            },
-            Self::hsl(h,s,l) => {
-                let rgb = hsl_to_rgb(h.to_float_0_1(),s.to_float_0_1(),l.to_float_0_1());
+            }
+            Self::hsl(h, s, l) => {
+                let rgb = hsl_to_rgb(h.to_float_0_1(), s.to_float_0_1(), l.to_float_0_1());
                 [rgb[0], rgb[1], rgb[2], 1.0]
-            },
-            Self::rgba(r,g,b,a) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),a.to_float_0_1()],
-            Self::rgb(r,g,b) => [r.to_float_0_1(),g.to_float_0_1(),b.to_float_0_1(),1.0],
+            }
+            Self::rgba(r, g, b, a) => [
+                r.to_float_0_1(),
+                g.to_float_0_1(),
+                b.to_float_0_1(),
+                a.to_float_0_1(),
+            ],
+            Self::rgb(r, g, b) => [r.to_float_0_1(), g.to_float_0_1(), b.to_float_0_1(), 1.0],
 
             //Color constants from TailwindCSS
-            Self::SLATE => Self::rgb(Numeric::from(0x64).into(), Numeric::from(0x74).into(), Numeric::from(0x8b).into()).to_rgba_0_1(),
-            Self::GRAY => Self::rgb(Numeric::from(0x6b).into(), Numeric::from(0x72).into(), Numeric::from(0x80).into()).to_rgba_0_1(),
-            Self::ZINC => Self::rgb(Numeric::from(0x71).into(), Numeric::from(0x71).into(), Numeric::from(0x7a).into()).to_rgba_0_1(),
-            Self::NEUTRAL => Self::rgb(Numeric::from(0x73).into(), Numeric::from(0x73).into(), Numeric::from(0x73).into()).to_rgba_0_1(),
-            Self::STONE => Self::rgb(Numeric::from(0x78).into(), Numeric::from(0x71).into(), Numeric::from(0x6c).into()).to_rgba_0_1(),
-            Self::RED => Self::rgb(Numeric::from(0xeF).into(), Numeric::from(0x44).into(), Numeric::from(0x44).into()).to_rgba_0_1(),
-            Self::ORANGE => Self::rgb(Numeric::from(0xf9).into(), Numeric::from(0x73).into(), Numeric::from(0x16).into()).to_rgba_0_1(),
-            Self::AMBER => Self::rgb(Numeric::from(0xf5).into(), Numeric::from(0x9e).into(), Numeric::from(0x0b).into()).to_rgba_0_1(),
-            Self::YELLOW => Self::rgb(Numeric::from(0xea).into(), Numeric::from(0xb3).into(), Numeric::from(0x08).into()).to_rgba_0_1(),
-            Self::LIME => Self::rgb(Numeric::from(0x84).into(), Numeric::from(0xcc).into(), Numeric::from(0x16).into()).to_rgba_0_1(),
-            Self::GREEN => Self::rgb(Numeric::from(0x22).into(), Numeric::from(0xc5).into(), Numeric::from(0x5e).into()).to_rgba_0_1(),
-            Self::EMERALD => Self::rgb(Numeric::from(0x10).into(), Numeric::from(0xb9).into(), Numeric::from(0x81).into()).to_rgba_0_1(),
-            Self::TEAL => Self::rgb(Numeric::from(0x14).into(), Numeric::from(0xb8).into(), Numeric::from(0xa6).into()).to_rgba_0_1(),
-            Self::CYAN => Self::rgb(Numeric::from(0x06).into(), Numeric::from(0xb6).into(), Numeric::from(0xd4).into()).to_rgba_0_1(),
-            Self::SKY => Self::rgb(Numeric::from(0x0e).into(), Numeric::from(0xa5).into(), Numeric::from(0xe9).into()).to_rgba_0_1(),
-            Self::BLUE => Self::rgb(Numeric::from(0x3b).into(), Numeric::from(0x82).into(), Numeric::from(0xf6).into()).to_rgba_0_1(),
-            Self::INDIGO => Self::rgb(Numeric::from(0x63).into(), Numeric::from(0x66).into(), Numeric::from(0xf1).into()).to_rgba_0_1(),
-            Self::VIOLET => Self::rgb(Numeric::from(0x8b).into(), Numeric::from(0x5c).into(), Numeric::from(0xf6).into()).to_rgba_0_1(),
-            Self::PURPLE => Self::rgb(Numeric::from(0xa8).into(), Numeric::from(0x55).into(), Numeric::from(0xf7).into()).to_rgba_0_1(),
-            Self::FUCHSIA => Self::rgb(Numeric::from(0xd9).into(), Numeric::from(0x46).into(), Numeric::from(0xef).into()).to_rgba_0_1(),
-            Self::PINK => Self::rgb(Numeric::from(0xec).into(), Numeric::from(0x48).into(), Numeric::from(0x99).into()).to_rgba_0_1(),
-            Self::ROSE => Self::rgb(Numeric::from(0xf4).into(), Numeric::from(0x3f).into(), Numeric::from(0x5e).into()).to_rgba_0_1(),
-            Self::BLACK => Self::rgb(Numeric::from(0x00).into(), Numeric::from(0x00).into(), Numeric::from(0x00).into()).to_rgba_0_1(),
-            Self::WHITE => Self::rgb(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xff).into()).to_rgba_0_1(),
-            Self::TRANSPARENT => Self::rgba(Numeric::from(0xff).into(), Numeric::from(0xff).into(), Numeric::from(0xFF).into(), Numeric::from(0x00).into()).to_rgba_0_1(),
+            Self::SLATE => Self::rgb(
+                Numeric::from(0x64).into(),
+                Numeric::from(0x74).into(),
+                Numeric::from(0x8b).into(),
+            )
+            .to_rgba_0_1(),
+            Self::GRAY => Self::rgb(
+                Numeric::from(0x6b).into(),
+                Numeric::from(0x72).into(),
+                Numeric::from(0x80).into(),
+            )
+            .to_rgba_0_1(),
+            Self::ZINC => Self::rgb(
+                Numeric::from(0x71).into(),
+                Numeric::from(0x71).into(),
+                Numeric::from(0x7a).into(),
+            )
+            .to_rgba_0_1(),
+            Self::NEUTRAL => Self::rgb(
+                Numeric::from(0x73).into(),
+                Numeric::from(0x73).into(),
+                Numeric::from(0x73).into(),
+            )
+            .to_rgba_0_1(),
+            Self::STONE => Self::rgb(
+                Numeric::from(0x78).into(),
+                Numeric::from(0x71).into(),
+                Numeric::from(0x6c).into(),
+            )
+            .to_rgba_0_1(),
+            Self::RED => Self::rgb(
+                Numeric::from(0xeF).into(),
+                Numeric::from(0x44).into(),
+                Numeric::from(0x44).into(),
+            )
+            .to_rgba_0_1(),
+            Self::ORANGE => Self::rgb(
+                Numeric::from(0xf9).into(),
+                Numeric::from(0x73).into(),
+                Numeric::from(0x16).into(),
+            )
+            .to_rgba_0_1(),
+            Self::AMBER => Self::rgb(
+                Numeric::from(0xf5).into(),
+                Numeric::from(0x9e).into(),
+                Numeric::from(0x0b).into(),
+            )
+            .to_rgba_0_1(),
+            Self::YELLOW => Self::rgb(
+                Numeric::from(0xea).into(),
+                Numeric::from(0xb3).into(),
+                Numeric::from(0x08).into(),
+            )
+            .to_rgba_0_1(),
+            Self::LIME => Self::rgb(
+                Numeric::from(0x84).into(),
+                Numeric::from(0xcc).into(),
+                Numeric::from(0x16).into(),
+            )
+            .to_rgba_0_1(),
+            Self::GREEN => Self::rgb(
+                Numeric::from(0x22).into(),
+                Numeric::from(0xc5).into(),
+                Numeric::from(0x5e).into(),
+            )
+            .to_rgba_0_1(),
+            Self::EMERALD => Self::rgb(
+                Numeric::from(0x10).into(),
+                Numeric::from(0xb9).into(),
+                Numeric::from(0x81).into(),
+            )
+            .to_rgba_0_1(),
+            Self::TEAL => Self::rgb(
+                Numeric::from(0x14).into(),
+                Numeric::from(0xb8).into(),
+                Numeric::from(0xa6).into(),
+            )
+            .to_rgba_0_1(),
+            Self::CYAN => Self::rgb(
+                Numeric::from(0x06).into(),
+                Numeric::from(0xb6).into(),
+                Numeric::from(0xd4).into(),
+            )
+            .to_rgba_0_1(),
+            Self::SKY => Self::rgb(
+                Numeric::from(0x0e).into(),
+                Numeric::from(0xa5).into(),
+                Numeric::from(0xe9).into(),
+            )
+            .to_rgba_0_1(),
+            Self::BLUE => Self::rgb(
+                Numeric::from(0x3b).into(),
+                Numeric::from(0x82).into(),
+                Numeric::from(0xf6).into(),
+            )
+            .to_rgba_0_1(),
+            Self::INDIGO => Self::rgb(
+                Numeric::from(0x63).into(),
+                Numeric::from(0x66).into(),
+                Numeric::from(0xf1).into(),
+            )
+            .to_rgba_0_1(),
+            Self::VIOLET => Self::rgb(
+                Numeric::from(0x8b).into(),
+                Numeric::from(0x5c).into(),
+                Numeric::from(0xf6).into(),
+            )
+            .to_rgba_0_1(),
+            Self::PURPLE => Self::rgb(
+                Numeric::from(0xa8).into(),
+                Numeric::from(0x55).into(),
+                Numeric::from(0xf7).into(),
+            )
+            .to_rgba_0_1(),
+            Self::FUCHSIA => Self::rgb(
+                Numeric::from(0xd9).into(),
+                Numeric::from(0x46).into(),
+                Numeric::from(0xef).into(),
+            )
+            .to_rgba_0_1(),
+            Self::PINK => Self::rgb(
+                Numeric::from(0xec).into(),
+                Numeric::from(0x48).into(),
+                Numeric::from(0x99).into(),
+            )
+            .to_rgba_0_1(),
+            Self::ROSE => Self::rgb(
+                Numeric::from(0xf4).into(),
+                Numeric::from(0x3f).into(),
+                Numeric::from(0x5e).into(),
+            )
+            .to_rgba_0_1(),
+            Self::BLACK => Self::rgb(
+                Numeric::from(0x00).into(),
+                Numeric::from(0x00).into(),
+                Numeric::from(0x00).into(),
+            )
+            .to_rgba_0_1(),
+            Self::WHITE => Self::rgb(
+                Numeric::from(0xff).into(),
+                Numeric::from(0xff).into(),
+                Numeric::from(0xff).into(),
+            )
+            .to_rgba_0_1(),
+            Self::TRANSPARENT => Self::rgba(
+                Numeric::from(0xff).into(),
+                Numeric::from(0xff).into(),
+                Numeric::from(0xFF).into(),
+                Numeric::from(0x00).into(),
+            )
+            .to_rgba_0_1(),
 
             _ => {
                 unimplemented!("Unsupported color variant lacks conversion logic to RGB")
@@ -1288,23 +1415,30 @@ impl Color {
     }
 }
 
-
 //hsl_to_rgb logic borrowed & modified from https://github.com/emgyrz/colorsys.rs, licensed MIT Copyright (c) 2019 mz <emgyrz@gmail.com>
-const RGB_UNIT_MAX : f64 = 255.0;
+const RGB_UNIT_MAX: f64 = 255.0;
 fn hsl_to_rgb(h: f64, s: f64, l: f64) -> [f64; 3] {
     if s == 0.0 {
         let unit = RGB_UNIT_MAX * l;
-        return [unit /  RGB_UNIT_MAX, unit / RGB_UNIT_MAX, unit / RGB_UNIT_MAX];
+        return [
+            unit / RGB_UNIT_MAX,
+            unit / RGB_UNIT_MAX,
+            unit / RGB_UNIT_MAX,
+        ];
     }
 
-    let temp1 = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let temp1 = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
 
     let temp2 = 2.0 * l - temp1;
     let hue = h;
 
-    let temp_r = bound(hue + (1.0/3.0), 1.0);
+    let temp_r = bound(hue + (1.0 / 3.0), 1.0);
     let temp_g = bound(hue, 1.0);
-    let temp_b = bound(hue - (1.0/3.0), 1.0);
+    let temp_b = bound(hue - (1.0 / 3.0), 1.0);
 
     let r = calc_rgb_unit(temp_r, temp1, temp2);
     let g = calc_rgb_unit(temp_g, temp1, temp2);
@@ -1319,7 +1453,7 @@ fn calc_rgb_unit(unit: f64, temp1: f64, temp2: f64) -> f64 {
     } else if 2.0 * unit < 1.0 {
         result = temp1
     } else if 3.0 * unit < 2.0 {
-        result = temp2 + (temp1 - temp2) * ((2.0/3.0) - unit) * 6.0
+        result = temp2 + (temp1 - temp2) * ((2.0 / 3.0) - unit) * 6.0
     }
     result * RGB_UNIT_MAX
 }
@@ -1340,8 +1474,6 @@ pub fn bound(r: f64, entire: f64) -> f64 {
     }
 }
 
-
-
 impl Into<ColorMessage> for &Color {
     fn into(self) -> ColorMessage {
         let rgba = self.to_rgba_0_1();
@@ -1354,17 +1486,17 @@ impl PartialEq<ColorMessage> for Color {
 
         match other {
             ColorMessage::Rgb(other_rgba) => {
-                self_rgba[0] == other_rgba[0] &&
-                    self_rgba[1] == other_rgba[1] &&
-                    self_rgba[2] == other_rgba[2] &&
-                    self_rgba[3] == 1.0
-            },
+                self_rgba[0] == other_rgba[0]
+                    && self_rgba[1] == other_rgba[1]
+                    && self_rgba[2] == other_rgba[2]
+                    && self_rgba[3] == 1.0
+            }
             ColorMessage::Rgba(other_rgba) => {
-                self_rgba[0] == other_rgba[0] &&
-                    self_rgba[1] == other_rgba[1] &&
-                    self_rgba[2] == other_rgba[2] &&
-                    self_rgba[3] == other_rgba[3]
-            },
+                self_rgba[0] == other_rgba[0]
+                    && self_rgba[1] == other_rgba[1]
+                    && self_rgba[2] == other_rgba[2]
+                    && self_rgba[3] == other_rgba[3]
+            }
         }
     }
 }
@@ -1382,9 +1514,6 @@ impl Interpolatable for Color {
     }
 }
 
-
-
-
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Deserialize, Serialize)]
 pub enum Rotation {
@@ -1397,7 +1526,6 @@ impl Default for Rotation {
         Self::Percent(Numeric::from(0.0))
     }
 }
-
 
 impl Interpolatable for Rotation {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
@@ -1415,15 +1543,9 @@ impl Rotation {
     /// For example, 0rad maps to 0.0, 100% maps to 1.0, and 720deg maps to 2.0
     pub fn to_float_0_1(&self) -> f64 {
         match self {
-            Self::Radians(rad) => {
-                rad.to_float() / (std::f64::consts::PI * 2.0)
-            },
-            Self::Degrees(deg) => {
-                *deg / 360.0_f64
-            },
-            Self::Percent(per) => {
-                per.to_float()
-            }
+            Self::Radians(rad) => rad.to_float() / (std::f64::consts::PI * 2.0),
+            Self::Degrees(deg) => *deg / 360.0_f64,
+            Self::Percent(per) => per.to_float(),
         }
     }
 
@@ -1487,9 +1609,7 @@ impl Size {
         match &self {
             Self::Pixels(p) => p.to_float(),
             Self::Percent(p) => parent * (p.to_float() / 100.0),
-            Self::Combined(pix, per) => {
-                (parent * (per.to_float() / 100.0)) + pix.to_float()
-            }
+            Self::Combined(pix, per) => (parent * (per.to_float() / 100.0)) + pix.to_float(),
         }
     }
 }
@@ -1533,8 +1653,6 @@ impl Interpolatable for Size {
         }
     }
 }
-
-
 
 impl Default for Size {
     fn default() -> Self {

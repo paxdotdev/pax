@@ -4,7 +4,6 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-
 use pax_runtime_api::constants::{COLOR_CHANNEL, INTEGER, PERCENT};
 
 use crate::constants::{NUMERIC, STRING_BOX};
@@ -13,7 +12,6 @@ use super::{
     error::{Error, Result},
     Deserializer, PaxParser, Rule,
 };
-
 
 pub struct PaxColor {
     pub color_func: String,
@@ -31,10 +29,12 @@ impl<'de> EnumAccess<'de> for crate::deserializer::helpers::PaxColor {
     type Variant = Self;
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
-        where
-            V: DeserializeSeed<'de>,
+    where
+        V: DeserializeSeed<'de>,
     {
-        let val = seed.deserialize(crate::deserializer::helpers::PrimitiveDeserializer::new(self.color_func.as_str()))?;
+        let val = seed.deserialize(crate::deserializer::helpers::PrimitiveDeserializer::new(
+            self.color_func.as_str(),
+        ))?;
         Ok((val, self))
     }
 }
@@ -49,43 +49,47 @@ impl<'de> VariantAccess<'de> for crate::deserializer::helpers::PaxColor {
 
     // Handle seq args like Color::rgb(255,0,0) or Color::rgb(100%, 0%, 0%)
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
-        let seq = self.args.iter().map(|cc|{
-            match cc {
+        let seq = self
+            .args
+            .iter()
+            .map(|cc| match cc {
                 ColorFuncArg::Rotation(val) => PaxSeqArg::String(val.to_string()),
                 ColorFuncArg::Percent(val) => PaxSeqArg::Enum(PaxEnum {
                     identifier: Some(COLOR_CHANNEL.to_string()),
                     variant: PERCENT.to_string(),
                     args: Some(val.to_string()),
                 }),
-                ColorFuncArg::Integer(val) => {
-
-                    PaxSeqArg::Enum(
-
-                        PaxEnum {
-                            identifier: Some(COLOR_CHANNEL.to_string()),
-                            variant: INTEGER.to_string(),
-                            args: Some(val.to_string())
-                        }
-                    )},
-            }
-        }).collect();
+                ColorFuncArg::Integer(val) => PaxSeqArg::Enum(PaxEnum {
+                    identifier: Some(COLOR_CHANNEL.to_string()),
+                    variant: INTEGER.to_string(),
+                    args: Some(val.to_string()),
+                }),
+            })
+            .collect();
 
         visitor.visit_seq(PaxSeq::new(seq))
     }
 
     // Color::rgb(only_one_arg)
     fn newtype_variant_seed<T>(self, _seed: T) -> Result<T::Value>
-        where
-            T: DeserializeSeed<'de>,
+    where
+        T: DeserializeSeed<'de>,
     {
         unreachable!(); //Incorrect color syntax
     }
 
     // Color::rgb { r: ... } (not supported)
-    fn struct_variant<V>(self, _fields: &'static [&'static str], _visitor: V) -> std::result::Result<V::Value, Self::Error> where V: Visitor<'de> {
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
         unreachable!(); //Incorrect color syntax
     }
 }
@@ -108,13 +112,12 @@ impl<'de> de::Deserializer<'de> for PaxEnum {
     }
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         visitor.visit_enum(self.clone())
     }
 }
-
 
 impl PaxEnum {
     pub fn new(identifier: Option<String>, variant: String, args: Option<String>) -> Self {
@@ -187,7 +190,7 @@ impl<'de> VariantAccess<'de> for PaxEnum {
     where
         T: DeserializeSeed<'de>,
     {
-        if let Some(i) = self.identifier{
+        if let Some(i) = self.identifier {
             if i == NUMERIC {
                 return seed.deserialize(PrimitiveDeserializer::new(&self.args.unwrap()));
             }
@@ -223,7 +226,6 @@ impl<'de> VariantAccess<'de> for PaxEnum {
         visitor.visit_map(&mut map)
     }
 }
-
 
 struct PrimitiveDeserializer {
     input: String,
@@ -291,7 +293,6 @@ impl PaxSeq {
     }
 }
 
-
 impl<'de> SeqAccess<'de> for PaxSeq {
     type Error = Error;
 
@@ -300,13 +301,10 @@ impl<'de> SeqAccess<'de> for PaxSeq {
         T: DeserializeSeed<'de>,
     {
         if self.index < self.elements.len() {
-
             let elem = &self.elements[self.index];
 
             let val = match elem {
-                PaxSeqArg::Enum(pax_enum) => {
-                    seed.deserialize(pax_enum.clone())?
-                },
+                PaxSeqArg::Enum(pax_enum) => seed.deserialize(pax_enum.clone())?,
                 PaxSeqArg::String(str) => {
                     seed.deserialize(Deserializer::from_string(str.to_string()))?
                 }

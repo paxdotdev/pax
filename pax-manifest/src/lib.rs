@@ -331,7 +331,6 @@ pub struct TypeId {
     _type_id_escaped: String,
 }
 
-
 impl Interpolatable for TypeId {}
 impl Interpolatable for TemplateNodeId {}
 
