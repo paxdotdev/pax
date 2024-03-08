@@ -20,7 +20,7 @@ use crate::constants::{
     DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE, COLOR
 };
 
-use pax_runtime_api::{Color, Percent, IntoableLiteral};
+use pax_runtime_api::{Color, IntoableLiteral};
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
 
 pub struct Deserializer {
@@ -52,17 +52,17 @@ impl Deserializer {
 // then package the parsed value into the IntoableLiteral enum, which gives us an interface into
 // the Rust `Into` system, while appeasing its particular demands around codegen.
 pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
-    if let Ok(ast) = PaxParser::parse(Rule::literal_color, str) {
+    if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
         Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
-    } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
+    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
         // let mut ast= ast.next().unwrap().into_inner();
-        let number = ast.clone().next().unwrap().as_str();
+        let _number = ast.clone().next().unwrap().as_str();
         let unit = ast.clone().next().unwrap().as_str();
         match unit {
             "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
             _ => Err(Error::UnsupportedMethod)
         }
-    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number, str) {
+    } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
         Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
     } else {
         Err(Error::UnsupportedMethod) //Not an IntoableLiteral
@@ -112,7 +112,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         let what_kind_of_color = inner_pair.clone().into_inner().next().unwrap();
                         match what_kind_of_color.as_rule() {
                             Rule::literal_color_space_func => {
-                                let mut lcsf_pairs = inner_pair.clone().into_inner().next().unwrap().into_inner();
+                                let lcsf_pairs = inner_pair.clone().into_inner().next().unwrap().into_inner();
                                 let func = inner_pair.clone().into_inner().next().unwrap().as_str().to_string().trim().to_string().split("(").next().unwrap().to_string();
 
                                 // pre-process each lcsf_pair and wrap into a ColorChannelDefinition
