@@ -207,7 +207,12 @@ pub trait InstanceNode {
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
     #[allow(unused_variables)]
-    fn handle_post_render(&self, context: &mut RuntimeContext, rcs: &mut dyn RenderContext) {
+    fn handle_post_render(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &mut RuntimeContext,
+        rcs: &mut dyn RenderContext,
+    ) {
         //no-op default implementation
     }
 

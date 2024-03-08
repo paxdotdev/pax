@@ -3,6 +3,7 @@ use core::option::Option::Some;
 
 use std::rc::Rc;
 
+use kurbo::{Affine, BezPath};
 use pax_runtime::api::{Layer, RenderContext, Size};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
@@ -106,38 +107,49 @@ impl InstanceNode for FrameInstance {
 
     fn handle_pre_render(
         &self,
-        _expanded_node: &ExpandedNode,
+        expanded_node: &ExpandedNode,
         _context: &mut RuntimeContext,
-        _rc: &mut dyn RenderContext,
+        rcs: &mut dyn RenderContext,
     ) {
-        // let tab = &expanded_node.computed_tab.as_ref().unwrap();
+        let comp_props = &expanded_node.layout_properties.borrow();
+        let comp_props = comp_props.as_ref().unwrap();
+        let transform = comp_props.computed_tab.transform;
+        let bounding_dimens = comp_props.computed_tab.bounds;
+        let width = bounding_dimens.0;
+        let height = bounding_dimens.1;
 
-        // let width: f64 = tab.bounds.0;
-        // let height: f64 = tab.bounds.1;
-        // let _properties_wrapped: Rc<RefCell<dyn Any>> =
-        //     rtc.current_expanded_node.borrow().get_properties();
+        let mut bez_path = BezPath::new();
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width, 0.0));
+        bez_path.line_to((width, height));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0, 0.0));
+        bez_path.close_path();
 
-        // let mut bez_path = BezPath::new();
-        // bez_path.move_to((0.0, 0.0));
-        // bez_path.line_to((width, 0.0));
-        // bez_path.line_to((width, height));
-        // bez_path.line_to((0.0, height));
-        // bez_path.line_to((0.0, 0.0));
-        // bez_path.close_path();
+        let transformed_bez_path = <Affine>::from(transform) * bez_path;
 
-        // let transformed_bez_path = tab.transform * bez_path;
+        let layers = rcs.layers();
+        let layers: Vec<String> = layers.iter().map(|s| s.to_string()).collect();
 
-        // for (_key, rc) in rcs.iter_mut() {
-        //     rc.save(); //our "save point" before clipping — restored to in the post_render
-        //     rc.clip(transformed_bez_path.clone());
-        // }
+        for layer in layers {
+            //our "save point" before clipping — restored to in the post_render
+            rcs.save(&layer);
+            rcs.clip(&layer, transformed_bez_path.clone());
+        }
     }
 
-    fn handle_post_render(&self, _context: &mut RuntimeContext, _rcs: &mut dyn RenderContext) {
-        // for (_key, rc) in _rcs.iter_mut() {
-        //     //pop the clipping context from the stack
-        //     rc.restore();
-        // }
+    fn handle_post_render(
+        &self,
+        _expanded_node: &ExpandedNode,
+        _context: &mut RuntimeContext,
+        rcs: &mut dyn RenderContext,
+    ) {
+        let layers = rcs.layers();
+        let layers: Vec<String> = layers.iter().map(|s| s.to_string()).collect();
+        for layer in layers {
+            //pop the clipping context from the stack
+            rcs.restore(&layer);
+        }
     }
 
     // fn handle_mount(&self, _node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {

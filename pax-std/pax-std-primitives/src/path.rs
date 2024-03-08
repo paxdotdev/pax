@@ -51,7 +51,7 @@ impl InstanceNode for PathInstance {
                 context.globals(),
             );
             handle_vtable_update(tbl, stk, &mut properties.fill, context.globals());
-            handle_vtable_update(tbl, stk, &mut properties.segments, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.elements, context.globals());
         });
     }
 
@@ -71,7 +71,6 @@ impl InstanceNode for PathInstance {
 
             let mut itr_elems = properties.elements.get().iter();
 
-            log::info!("data: {:?}", properties.elements);
             if let Some(elem) = itr_elems.next() {
                 if let &PathElement::Point(x, y) = elem {
                     bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
@@ -124,7 +123,7 @@ impl InstanceNode for PathInstance {
                 .width
                 .get()
                 .expect_pixels()
-                .get_as_float()
+                .to_float()
                 > f64::EPSILON
             {
                 rc.stroke(
