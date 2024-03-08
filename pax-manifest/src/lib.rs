@@ -881,6 +881,42 @@ impl ComponentTemplate {
         self.nodes.insert(id, tnd);
     }
 
+    pub fn update_node_properties(&mut self, id: &TemplateNodeId, properties: &mut HashMap<Token, Option<ValueDefinition>>){
+        if let Some(node) = self.nodes.get_mut(id) {
+            if let Some(settings) = &mut node.settings {
+                let mut indexes_to_remove : Vec<usize> = vec![];
+                for (i, setting) in settings.iter_mut().enumerate(){
+                    if let SettingElement::Setting(key, v) = setting {
+                        if let Some(new_value) = properties.get(key) {
+                            if let Some(updated) = new_value {
+                                *v = updated.clone();
+                            } else {
+                                indexes_to_remove.push(i);
+                            }
+                            // remove property once it's been processed
+                            properties.remove_entry(key);
+                        }
+                    }
+                }
+                
+               // Remove propertiest that have been set to None
+               for i in indexes_to_remove.iter().rev(){
+                   settings.remove(*i);
+               }
+            }
+        }
+        // Add remaining (aka new properties) to settings
+        for (k, v) in properties.iter() {
+            if let Some(node) = self.nodes.get_mut(id) {
+                if let Some(settings) = &mut node.settings {
+                    if let Some(value) = v {
+                        settings.push(SettingElement::Setting(k.clone(), value.clone()));
+                    }
+                }
+            }
+        }
+    }
+
     pub fn get_nodes(&self) -> Vec<&TemplateNodeDefinition> {
         self.nodes.values().collect()
     }
