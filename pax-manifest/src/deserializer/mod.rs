@@ -78,13 +78,6 @@ where
     Ok(t)
 }
 
-fn color_visitor<'de, V>(visitor: V) -> V
-where
-    V: Visitor<'de, Value = Color>,
-{
-    visitor
-}
-
 impl<'de> de::Deserializer<'de> for Deserializer {
     type Error = Error;
 
@@ -167,7 +160,6 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                                 })
                             }
                             Rule::literal_color_const => {
-                                // panic!("Color: {}", what_kind_of_color.as_str());
                                 let explicit_color = visitor.visit_enum(PaxEnum::new(
                                     Some(COLOR.to_string()),
                                     what_kind_of_color.as_str().to_string(),
