@@ -23,7 +23,7 @@ use self::{
     },
     simple::{SimpleAdd, SimpleNodeAction, SimpleRemove, SimpleUpdate},
 };
-mod constants;
+pub mod constants;
 pub mod simple;
 
 /// Performs an OpenAI query with our built-in ORM operations and returns the SimpleNodeActions that need to be performed
@@ -51,8 +51,6 @@ pub async fn query_open_ai(request: &str) -> Result<Vec<SimpleNodeAction>, OpenA
         .build()?;
 
     let response = client.chat().create(request).await?;
-
-    println!("{:?}", response);
 
     let completion = response.choices.first().unwrap().message.clone();
 

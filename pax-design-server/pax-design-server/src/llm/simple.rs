@@ -54,7 +54,6 @@ pub struct SimpleNodeInformation {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SimpleWorldInformation {
-    pub viewport: ViewportInformation,
     pub template: SimpleTemplate,
 }
 
