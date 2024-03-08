@@ -7,14 +7,13 @@ use actix_web_actors::ws;
 use async_openai::config::OpenAIConfig;
 use colored::Colorize;
 
-use async_openai::{Client};
+use async_openai::Client;
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::PaxManifest;
-
 
 use std::fs;
 use std::path::Path;
