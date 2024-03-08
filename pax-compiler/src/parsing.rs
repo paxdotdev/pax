@@ -208,7 +208,7 @@ fn recurse_pratt_parse_to_string<'a>(
                         format!("Numeric::from({})", value)
                     },
                     Rule::string => {
-                        format!("StringBox::from({}).into()",literal_kind.as_str().to_string())
+                        format!("StringBox::from({})",literal_kind.as_str().to_string())
                     },
                     Rule::literal_color => {
                         let mut inner = literal_kind.into_inner();
