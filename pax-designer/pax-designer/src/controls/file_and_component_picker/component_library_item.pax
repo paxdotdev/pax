@@ -1,6 +1,6 @@
 <Text x=15px class=component_text text={self.data.name}/>
 <Text x={-15px} class=path_text text={self.data.file_path}/>
-<Rectangle fill={Fill::Solid(Color::rgb(0, 0.0, 0.0))} stroke={color: {Color::rgb(0.1, 0.1, 0.1)}, width: 2px}/>
+<Rectangle fill=BLACK stroke={color: GRAY, width: 2px}/>
 
 @settings {
     @mouse_down: on_down
@@ -12,7 +12,7 @@
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Left,
         }
@@ -26,7 +26,7 @@
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
         }

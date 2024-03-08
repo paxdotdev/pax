@@ -7,7 +7,7 @@ if self.is_not_dummy {
 			@click=self.arrow_clicked
 		/>
 	}
-	<Rectangle fill={Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 0.0))} @click=obj_clicked/>
+	<Rectangle fill=TRANSPARENT @click=obj_clicked/>
 	// Icon
 	<Image
 		x=40px anchor_y=50% y=50% height=30px width=30px
@@ -18,7 +18,7 @@ if self.is_not_dummy {
 
 	// Background fill for selection
 	if self.is_selected {
-	    <Rectangle fill={Fill::Solid(Color::rgb(0.035, 0.145, 0.318))} />
+	    <Rectangle fill={rgb(0.035*255, 0.145*255, 0.318*255)} />
 	}
 }
 
@@ -34,7 +34,7 @@ if self.is_not_dummy {
                 FontWeight::Light
             )},
             font_size: 16px,
-            fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+            fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left

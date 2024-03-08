@@ -7,7 +7,7 @@ if self.library_active {
     for (comp, i) in self.registered_components {
         <ComponentLibraryItem data=comp height=40px y={(80 + i*40)px}/>
     }
-    <Rectangle fill={Fill::Solid(Color::rgb(0.0, 0.0, 0.0))} y=80px height=1000px/>
+    <Rectangle fill=BLACK y=80px height=1000px/>
 }
 
 @settings {
@@ -21,7 +21,7 @@ if self.library_active {
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
         }
     }
     .h2 {
@@ -33,7 +33,7 @@ if self.library_active {
                 FontWeight::Light
             )},
             font_size: 24px,
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
         }
     }
     .h3 {
@@ -47,7 +47,7 @@ if self.library_active {
                 FontWeight::ExtraLight
             )},
             font_size: 14px,
-            fill: {Color::rgb(1, 1, 1)},
+            fill: WHITE,
             align_vertical: TextAlignVertical::Bottom,
             align_horizontal: TextAlignHorizontal::Left,
         }

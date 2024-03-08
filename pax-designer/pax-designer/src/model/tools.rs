@@ -13,12 +13,12 @@ use crate::model::{AppState, ToolBehaviour};
 use crate::USERLAND_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::Color;
 use pax_engine::api::Size;
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::rendering::TransformAndBounds;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
-use pax_std::types::Color;
 
 pub struct CreateComponentTool {
     type_id: TypeId,
