@@ -5,14 +5,14 @@ use std::{
 
 use actix_web::{web::Data, App};
 use awc::Client;
-use futures_util::{SinkExt as _, StreamExt as _};
+use futures_util::{SinkExt as _};
 use pax_design_server::{web_socket, AppState};
 use pax_designtime::messages::{AgentMessage, ManifestSerializationRequest};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
     SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId,
 };
-use rmp_serde::{from_slice, to_vec};
+use rmp_serde::{to_vec};
 
 const EXPECTED_PAX: &str = "// Hello world
 <SpecialComponent />

@@ -7,20 +7,20 @@ use actix_web_actors::ws;
 use async_openai::config::OpenAIConfig;
 use colored::Colorize;
 
-use async_openai::{types::ResponseFormat, Client};
+use async_openai::{Client};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::PaxManifest;
-use reqwest::header::{HeaderMap, AUTHORIZATION, CONTENT_TYPE};
-use std::env;
+
+
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tera::Value;
+
 use websocket::PrivilegedAgentWebSocket;
 
 pub mod code_serialization;
