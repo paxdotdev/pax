@@ -15,6 +15,9 @@ use std::{collections::HashMap, fs, time::SystemTime};
 use crate::{
     code_serialization::{press_code_serialization_template, serialize_component_to_file},
     llm::{
+        constants::{
+            TRAINING_DATA_AFTER_REQUEST, TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST,
+        },
         query_open_ai,
         simple::{SimpleNodeAction, SimpleWorldInformation},
     },
@@ -193,13 +196,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     });
                 }
                 Ok(AgentMessage::LLMUpdatedTemplateNotification(notification)) => {
+                    let folder_path = format!("{}{}", TRAINING_DATA_PATH, notification.request_id);
                     let component = notification.component.clone();
                     serialize_component_to_file(
                         &component,
-                        format!(
-                            "{}/{}_updated.pax",
-                            TRAINING_DATA_PATH, notification.request_id
-                        ),
+                        format!("{}/{}", folder_path, TRAINING_DATA_AFTER_REQUEST),
                     );
                 }
                 Ok(_) => {}
@@ -263,13 +264,15 @@ fn build_llm_request(request: LLMRequestMessage) -> String {
 }
 
 fn record_request_training_data(help_request: &LLMHelpRequest, request_id: &str) {
+    let folder_path = format!("{}{}", TRAINING_DATA_PATH, request_id);
+    fs::create_dir_all(&folder_path).unwrap();
     // get a string for the date today using std
     serialize_component_to_file(
         &help_request.component.clone(),
-        format!("{}/{}_before.pax", TRAINING_DATA_PATH, request_id),
+        format!("{}/{}", &folder_path, TRAINING_DATA_BEFORE_REQUEST),
     );
     fs::write(
-        format!("{}/{}_user_request.text", TRAINING_DATA_PATH, request_id),
+        format!("{}/{}", &folder_path, TRAINING_DATA_REQUEST),
         help_request.request.clone(),
     )
     .unwrap();
