@@ -1097,6 +1097,17 @@ impl From<IntoableLiteral> for ColorChannel {
         }
     }
 }
+impl From<f64> for ColorChannel {
+    fn from(value: f64) -> Self {
+        Numeric::Float(value).into()
+    }
+}
+
+impl From<isize> for ColorChannel {
+    fn from(value: isize) -> Self {
+        Numeric::Integer(value).into()
+    }
+}
 
 impl From<IntoableLiteral> for Size {
     fn from(value: IntoableLiteral) -> Self {
