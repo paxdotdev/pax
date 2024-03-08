@@ -24,12 +24,7 @@ impl Default for TextStyle {
         Self {
             font: Box::new(PropertyLiteral::new(Font::default())),
             font_size: Box::new(PropertyLiteral::new(Size::Pixels(Numeric::Float(20.0)))),
-            fill: Box::new(PropertyLiteral::new(Color::rgba(
-                ColorChannel::Percent(Numeric::Float(0.0)),
-                ColorChannel::Percent(Numeric::Float(0.0)),
-                ColorChannel::Percent(Numeric::Float(0.0)),
-                ColorChannel::Percent(Numeric::Float(0.0)),
-            ))),
+            fill: Box::new(PropertyLiteral::new(Default::default())),
             underline: Box::new(PropertyLiteral::new(false)),
             align_multiline: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
             align_vertical: Box::new(PropertyLiteral::new(TextAlignVertical::Top)),
