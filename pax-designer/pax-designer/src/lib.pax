@@ -21,7 +21,7 @@
         </Group>
     }
     if self.interaction_mode {
-        <Example id=userland_project/>
+        <Example id=running_project/>
     }
 </Group>
 <Rectangle id=global_background />

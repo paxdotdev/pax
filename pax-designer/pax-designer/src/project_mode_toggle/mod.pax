@@ -1,6 +1,48 @@
-<Rectangle fill={Fill::Solid(Color::rgb(1.0, 0.0, 0.0))}/>
+<Group x=10px y=10px width={100% - 20px} height={100% - 20px}>
+    if self.edit_mode {
+        <Text text="Run" id=text/>
+        <Path class=play_triangle/>
+    }
+    if self.running_mode {
+        <Text text="Stop" id=text/>
+        <Rectangle x=70% width=20px height=20px anchor_y=50% y=50% fill={Fill::Solid(Color::rgb(1, 0, 0))}/>
+    }
+</Group>
+<Rectangle
+    fill={Fill::Solid(Color::rgb(0.0, 0.0, 0.0))} 
+    corner_radii={RectangleCornerRadii::radii(10.0,0.0,0.0,10.0)}
+    stroke={color: {Color::rgb(0.2, 0.2, 0.2)} width: 1px}
+/>
 
 @settings {
     @mount: mount
     @click: click
+    #text {
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 20px,
+            fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .play_triangle {
+        elements: {[
+            PathElement::point(70%, 50% - 15px),
+            PathElement::line(),
+            PathElement::point(70% + 20px, 50%),
+            PathElement::line(),
+            PathElement::point(70%, 50% + 15px),
+            PathElement::close()
+        ]},
+        stroke: {
+            width: 0px
+        }
+        fill: {Color::rgb(0, 1, 0)}
+    }
 }
