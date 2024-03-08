@@ -1,8 +1,7 @@
 use pax_manifest::{
     escape_identifier, ComponentDefinition, ComponentTemplate,
     ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo,
-    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement,
-    TemplateNodeDefinition, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable,
+    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable,
     ValueDefinition,
 };
 use std::any::Any;
@@ -15,7 +14,7 @@ use crate::errors::PaxTemplateError;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use lazy_static::lazy_static;
-use pax_manifest::constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE};
+use pax_manifest::constants::{COMMON_PROPERTIES_TYPE};
 
 pub fn compile_all_expressions<'a>(
     manifest: &'a mut PaxManifest,
@@ -69,15 +68,15 @@ pub fn compile_all_expressions<'a>(
 }
 
 
-fn get_output_type_by_property_identifier(ctx: &ExpressionCompilationContext, prop_defs: &Vec<PropertyDefinition>, property_identifier: &str) -> String {
+fn get_output_type_by_property_identifier(_ctx: &ExpressionCompilationContext, prop_defs: &Vec<PropertyDefinition>, property_identifier: &str) -> String {
 
     let output_type = if let Some(common_match) = COMMON_PROPERTIES_TYPE.iter().find(|cpt|{
         cpt.0 == property_identifier
     }) {
         (*common_match).1.to_string()
-    } else if let Some(local_match) = (prop_defs
+    } else if let Some(local_match) = prop_defs
         .iter()
-        .find(|property_def| property_def.name == property_identifier)) {
+        .find(|property_def| property_def.name == property_identifier) {
         local_match.type_id.to_string()
     } else {
         panic!("Failed to resolve symbol bound to expression: {}", property_identifier);

@@ -24,8 +24,7 @@ use pax_runtime::{PaxEngine, Renderer};
 use pax_message::NativeInterrupt;
 use pax_runtime::api::{
     Clap, Click, ContextMenu, DoubleClick, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
-    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp,
-    Scroll, Touch, TouchEnd, TouchMove, TouchStart, Wheel,
+    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp, Touch, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 use serde_json;
 

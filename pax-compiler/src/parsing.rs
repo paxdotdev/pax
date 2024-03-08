@@ -16,7 +16,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{Parser, Span};
 use pest_derive::Parser;
 
-use pax_manifest::ValueDefinition::EventBindingTarget;
+
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 #[derive(Parser)]
@@ -456,7 +456,7 @@ fn recurse_visit_tag_pairs_for_template(
             /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
 
             let any_tag_pair = any_tag_pair.into_inner().next().unwrap();
-            let mut template_node_definition = match any_tag_pair.as_rule() {
+            let _template_node_definition = match any_tag_pair.as_rule() {
                 Rule::statement_if => {
                     let mut statement_if = any_tag_pair.into_inner();
                     let expression_body = statement_if.next().unwrap();
