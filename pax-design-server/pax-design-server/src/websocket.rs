@@ -1,16 +1,27 @@
 use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws;
-use async_openai::Client;
 use pax_compiler::parsing::TemplateNodeParseContext;
-use pax_designtime::{messages::{
-    AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest, LLMHelpResponse, ManifestSerializationRequest, UpdateTemplateRequest
-}, orm::template::NodeAction};
+use pax_designtime::{
+    messages::{
+        AgentMessage, ComponentSerializationRequest, FileChangedNotification,
+        ManifestSerializationRequest, UpdateTemplateRequest,
+    },
+    orm::template::NodeAction,
+};
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::collections::HashMap;
 
 use crate::{
-    code_serialization::{press_code_serialization_template, serialize_component_to_file}, llm::{helpers::SimpleNodeAction, query_open_ai, SimpleSize, SimpleWorldInformation, SizeType, ViewportInformation}, AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged
+    code_serialization::{press_code_serialization_template, serialize_component_to_file},
+    llm::{
+        query_open_ai,
+        simple::{
+            SimpleNodeAction, SimpleSize, SimpleSizeType, SimpleWorldInformation,
+            ViewportInformation,
+        },
+    },
+    AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
 };
 
 pub struct PrivilegedAgentWebSocket {
@@ -42,7 +53,6 @@ impl Handler<LLMHelpResponseMessage> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, msg: LLMHelpResponseMessage, ctx: &mut Self::Context) -> Self::Result {
-        println!("{:?}", msg.actions);
         let serialized_msg = rmp_serde::to_vec(&AgentMessage::LLMHelpResponse(msg.into())).unwrap();
         ctx.binary(serialized_msg);
     }
@@ -126,18 +136,21 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                 }
                 Ok(AgentMessage::LLMHelpRequest(help_request)) => {
                     let component_type_id = help_request.component.type_id.clone();
-                    let serialized_component = press_code_serialization_template(help_request.component.clone());
-                    let formatted_component = pax_compiler::formatting::format_pax_template(serialized_component).unwrap();
+                    let serialized_component =
+                        press_code_serialization_template(help_request.component.clone());
+                    let formatted_component =
+                        pax_compiler::formatting::format_pax_template(serialized_component)
+                            .unwrap();
                     let template = help_request.component.template.as_ref().unwrap();
                     let simple_template = template.clone().into();
-                    let viewport_info = ViewportInformation{
-                        height: SimpleSize{
+                    let viewport_info = ViewportInformation {
+                        height: SimpleSize {
                             value: 1000.0,
-                            size_type: SizeType::Pixel,
+                            size_type: SimpleSizeType::Pixel,
                         },
-                        width: SimpleSize{
+                        width: SimpleSize {
                             value: 1000.0,
-                            size_type: SizeType::Pixel,
+                            size_type: SimpleSizeType::Pixel,
                         },
                     };
                     let simple_world_info = SimpleWorldInformation {
@@ -149,17 +162,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         simple_world_info: serde_json::to_string(&simple_world_info).unwrap(),
                         file_content: formatted_component,
                     };
-
                     let request = build_llm_request(request);
-                    println!("{}", request);
                     let state = self.state.clone();
                     spawn(async move {
-                        //Call your async function here
                         match query_open_ai(&request).await {
                             Ok(response) => {
                                 let mut node_actions: Vec<NodeAction> = vec![];
                                 for simple_action in response {
-                                    if let Some(action) = SimpleNodeAction::build(component_type_id.clone(), simple_action){
+                                    println!("Simple Action: {:?}", simple_action);
+                                    if let Some(action) = SimpleNodeAction::build(
+                                        component_type_id.clone(),
+                                        simple_action,
+                                    ) {
                                         node_actions.push(action);
                                     }
                                 }
@@ -173,8 +187,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                                         request_id: help_request.request_id,
                                         actions: node_actions,
                                     });
-                                
-                            },
+                            }
                             Err(e) => eprintln!("Error querying OpenAI API: {:?}", e),
                         }
                     });
@@ -202,8 +215,8 @@ fn handle_component_serialization_request(request: ComponentSerializationRequest
 
 fn handle_manifest_serialization_request(
     request: ManifestSerializationRequest,
-    id: usize,
-    ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
+    _id: usize,
+    _ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
 ) {
     let manifest: PaxManifest = rmp_serde::from_slice(&request.manifest).unwrap();
 
@@ -215,7 +228,6 @@ fn handle_manifest_serialization_request(
     }
 }
 
-
 struct LLMRequestMessage {
     pub request: String,
     pub simple_world_info: String,
@@ -226,13 +238,16 @@ impl actix::Message for LLMRequestMessage {
     type Result = ();
 }
 
-
 fn build_llm_request(request: LLMRequestMessage) -> String {
     let mut req = format!("User Request:\n {}\n\n", request.request);
-    req.push_str(&format!("Simple World Information:\n {} \n\n", request.simple_world_info));
-    req.push_str(&format!("Full Pax Template:\n {} \n\n",request.file_content));
+    req.push_str(&format!(
+        "Simple World Information:\n {} \n\n",
+        request.simple_world_info
+    ));
+    req.push_str(&format!(
+        "Full Pax Template:\n {} \n\n",
+        request.file_content
+    ));
+    println!("LLM Request: {}", req);
     req
 }
-
-
-

@@ -7,28 +7,25 @@ use actix_web_actors::ws;
 use async_openai::config::OpenAIConfig;
 use colored::Colorize;
 
+use async_openai::{types::ResponseFormat, Client};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::PaxManifest;
-use tera::Value;
+use reqwest::header::{HeaderMap, AUTHORIZATION, CONTENT_TYPE};
+use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tera::Value;
 use websocket::PrivilegedAgentWebSocket;
-use reqwest::header::{HeaderMap, AUTHORIZATION, CONTENT_TYPE};
-use std::env;
-use async_openai::{
-    types::{ResponseFormat},
-    Client,
-};
 
 pub mod code_serialization;
-pub mod websocket;
 mod llm;
+pub mod websocket;
 const PORT: u16 = 8252;
 
 pub struct AppState {
@@ -90,7 +87,6 @@ pub async fn web_socket(
 #[allow(unused_assignments)]
 pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
     //env_logger::init_from_env(Env::default().default_filter_or("info"));
-
 
     std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
     let ctx = RunContext {
@@ -165,7 +161,6 @@ impl From<LLMHelpResponseMessage> for LLMHelpResponse {
     }
 }
 
-
 pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<RecommendedWatcher, Error> {
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, Error>| match res {
@@ -215,8 +210,6 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
     Ok(watcher)
 }
 
-
-
 // async fn query_openai_api(prompt: &str) -> Result<Vec<SimpleNodeAction>, String> {
 //     let api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
 //     let system_prompt = fs::read_to_string("../pax-designtime/src/orm/llm/system_prompt.txt").expect("Error reading system prompt");
@@ -245,7 +238,7 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
 
 //     let text = response.text().await.unwrap();
 //     let value : Value = serde_json::from_str(&text).unwrap();
-    
+
 //     if let Some(first_choice) = value["choices"].as_array().and_then(|arr| arr.get(0)) {
 //         let content = &first_choice["message"]["content"];
 
