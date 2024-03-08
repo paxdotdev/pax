@@ -4,25 +4,24 @@ use actix_web_actors::ws;
 use pax_compiler::parsing::TemplateNodeParseContext;
 use pax_designtime::{
     messages::{
-        AgentMessage, ComponentSerializationRequest, FileChangedNotification,
+        AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
         ManifestSerializationRequest, UpdateTemplateRequest,
     },
     orm::template::NodeAction,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, time::SystemTime};
 
 use crate::{
     code_serialization::{press_code_serialization_template, serialize_component_to_file},
     llm::{
         query_open_ai,
-        simple::{
-            SimpleNodeAction, SimpleSize, SimpleSizeType, SimpleWorldInformation,
-            ViewportInformation,
-        },
+        simple::{SimpleNodeAction, SimpleWorldInformation},
     },
     AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
 };
+
+use crate::llm::constants::TRAINING_DATA_PATH;
 
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
@@ -136,26 +135,25 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     self.state.update_last_written_timestamp();
                 }
                 Ok(AgentMessage::LLMHelpRequest(help_request)) => {
+                    let request_id = format!(
+                        "{}",
+                        SystemTime::now()
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis()
+                    );
+                    record_request_training_data(&help_request, &request_id);
+
                     let component_type_id = help_request.component.type_id.clone();
                     let serialized_component =
                         press_code_serialization_template(help_request.component.clone());
                     let formatted_component =
                         pax_compiler::formatting::format_pax_template(serialized_component)
                             .unwrap();
+
                     let template = help_request.component.template.as_ref().unwrap();
                     let simple_template = template.clone().into();
-                    let viewport_info = ViewportInformation {
-                        height: SimpleSize {
-                            value: 1000.0,
-                            size_type: SimpleSizeType::Pixel,
-                        },
-                        width: SimpleSize {
-                            value: 1000.0,
-                            size_type: SimpleSizeType::Pixel,
-                        },
-                    };
                     let simple_world_info = SimpleWorldInformation {
-                        viewport: viewport_info,
                         template: simple_template,
                     };
                     let request = LLMRequestMessage {
@@ -170,7 +168,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                             Ok(response) => {
                                 let mut node_actions: Vec<NodeAction> = vec![];
                                 for simple_action in response {
-                                    println!("Simple Action: {:?}", simple_action);
+                                    println!("LLM Action: {:?}", simple_action);
                                     if let Some(action) = SimpleNodeAction::build(
                                         component_type_id.clone(),
                                         simple_action,
@@ -185,13 +183,24 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                                     .as_ref()
                                     .unwrap()
                                     .do_send(LLMHelpResponseMessage {
-                                        request_id: help_request.request_id,
+                                        request_id,
+                                        component: component_type_id,
                                         actions: node_actions,
                                     });
                             }
                             Err(e) => eprintln!("Error querying OpenAI API: {:?}", e),
                         }
                     });
+                }
+                Ok(AgentMessage::LLMUpdatedTemplateNotification(notification)) => {
+                    let component = notification.component.clone();
+                    serialize_component_to_file(
+                        &component,
+                        format!(
+                            "{}/{}_updated.pax",
+                            TRAINING_DATA_PATH, notification.request_id
+                        ),
+                    );
                 }
                 Ok(_) => {}
                 Err(e) => {
@@ -251,4 +260,17 @@ fn build_llm_request(request: LLMRequestMessage) -> String {
     ));
     println!("LLM Request: {}", req);
     req
+}
+
+fn record_request_training_data(help_request: &LLMHelpRequest, request_id: &str) {
+    // get a string for the date today using std
+    serialize_component_to_file(
+        &help_request.component.clone(),
+        format!("{}/{}_before.pax", TRAINING_DATA_PATH, request_id),
+    );
+    fs::write(
+        format!("{}/{}_user_request.text", TRAINING_DATA_PATH, request_id),
+        help_request.request.clone(),
+    )
+    .unwrap();
 }

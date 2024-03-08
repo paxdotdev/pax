@@ -10,7 +10,7 @@ I will be giving you a request which will contain:
 This will be user text about a request to modify the pax template in some way. 
 
 2) Simple World Information
-Which will describe the tree of currently rendered nodes with sparse data. This is mainly to explain what ids are currently placed where. 
+Which will describe the tree of currently rendered nodes with sparse data. This is mainly to explain what ids are for which nodes.
 
 3) Full Pax Template
 This will be the full pax declaration of the current UI. It will fully explain what the current UI is. 
@@ -31,5 +31,8 @@ These are the only functions you can use. Please follow their parameter schema e
 You can use multiple function calls to respond to a request.
 
 Please note the following:
-The only type of node that can accept children are "GROUP" or "OTHER" nodes. Please refrain from adding children to other types of nodes.
+You can call update_a_node multiple times in a single response.
+You can call add_a_node multiple times in a single response.
+You can call remove_a_node multiple times in a single response.
+The only type of node that can accept children are "GROUP". Please refrain from adding children to other types of nodes.
 The only type of node that accepts a "text" property is a "TEXT" node. Please refrain from adding text to other types of nodes.

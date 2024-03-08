@@ -11,7 +11,7 @@ use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
-use pax_manifest::PaxManifest;
+use pax_manifest::{PaxManifest, TypeId};
 
 use std::fs;
 use std::path::Path;
@@ -136,7 +136,8 @@ impl actix::Message for WatcherFileChanged {
 }
 
 struct LLMHelpResponseMessage {
-    pub request_id: usize,
+    pub request_id: String,
+    pub component: TypeId,
     pub actions: Vec<NodeAction>,
 }
 
@@ -148,6 +149,7 @@ impl From<LLMHelpResponseMessage> for LLMHelpResponse {
     fn from(value: LLMHelpResponseMessage) -> Self {
         LLMHelpResponse {
             request_id: value.request_id,
+            component_type_id: value.component,
             response: value.actions,
         }
     }
