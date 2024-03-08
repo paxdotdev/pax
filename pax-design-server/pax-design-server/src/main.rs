@@ -5,10 +5,9 @@ use pax_design_server::start_server;
 
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
+    // Load environment variables from .env file
     dotenv().ok();
-    for (key, value) in env::vars() {
-        println!("{}: {}", key, value);
-    }
+
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         eprintln!("Usage: {} <path_to_watch>", args[0]);
