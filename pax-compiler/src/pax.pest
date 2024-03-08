@@ -135,13 +135,11 @@ literal_color_space_func = {
 // Valid units include integers 0-255, 0-100%, and arbitrary numeric deg/rad (for hue, which is expressed as an angle)
 literal_color_channel = {literal_number_with_unit | literal_number_integer}
 
-//Expression-friendly colors
-xo_color = {xo_color_space_func | literal_color_const}
+//Expression-friendly colors.  note that literal variants are covered under the xo_literal tree
 xo_color_space_func = {
-	(("rgb(" | "hsl(") ~  xo_color_channel ~ "," ~ xo_color_channel ~ "," ~ xo_color_channel ~ ","? ~ ")") |
-	(("rgba(" | "hsla(") ~ xo_color_channel ~ "," ~ xo_color_channel ~ "," ~ xo_color_channel ~ "," ~ xo_color_channel ~ ","? ~ ")")
+	(("rgb(" | "hsl(") ~  expression_body ~ "," ~ expression_body ~ "," ~ expression_body ~ ","? ~ ")") |
+	(("rgba(" | "hsla(") ~ expression_body ~ "," ~ expression_body ~ "," ~ expression_body ~ "," ~ expression_body ~ ","? ~ ")")
 }
-xo_color_channel = {literal_color_channel | expression_body}
 
 // Color constants inspired by Tailwind
 literal_color_const = {
@@ -217,7 +215,7 @@ num_clicks % 2 == 0
 //`xo` is short for both "expression operator" and "expression operand", collectively all symbols
 //that can be expressed inside expressions
 
-xo_primary = _{ expression_grouped | xo_enum_or_function_call | xo_object | xo_range | xo_tuple | xo_list | xo_literal | xo_symbol }
+xo_primary = _{ expression_grouped | xo_color_space_func | xo_enum_or_function_call | xo_object | xo_range | xo_tuple | xo_list | xo_literal | xo_symbol }
 
 xo_prefix = _{xo_neg | xo_bool_not}
     xo_neg = {"-"}
@@ -262,7 +260,7 @@ xo_range = { (xo_literal | xo_symbol) ~ (xo_range_exclusive) ~ (xo_literal | xo_
     xo_range_exclusive = @{".."}
 //     xo_range_inclusive = @{"..="}
 
-xo_literal = {literal_enum_value | literal_tuple_access | literal_number_with_unit | literal_number  | string | literal_tuple }
+xo_literal = {literal_color | literal_enum_value | literal_tuple_access | literal_number_with_unit | literal_number  | string | literal_tuple }
 
 //objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
 // `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`
