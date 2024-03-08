@@ -4,10 +4,8 @@ use actix_web::middleware::Logger;
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use actix_web_actors::ws;
-use async_openai::config::OpenAIConfig;
 use colored::Colorize;
 
-use async_openai::Client;
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
@@ -32,7 +30,6 @@ pub struct AppState {
     request_id_counter: Mutex<usize>,
     manifest: Option<PaxManifest>,
     last_written_timestamp: Mutex<SystemTime>,
-    open_ai_client: Client<OpenAIConfig>,
 }
 
 impl Default for AppState {
@@ -48,7 +45,6 @@ impl AppState {
             request_id_counter: Mutex::new(0),
             manifest: None,
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
-            open_ai_client: Client::new(),
         }
     }
 
@@ -58,7 +54,6 @@ impl AppState {
             request_id_counter: Mutex::new(0),
             manifest: Some(manifest),
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
-            open_ai_client: Client::new(),
         }
     }
 

@@ -136,13 +136,7 @@ impl From<SimpleProperties> for NodeType {
         let settings: HashMap<Token, Option<ValueDefinition>> = value.into();
         let template_settings = settings
             .into_iter()
-            .filter_map(|(k, v)| {
-                if let Some(v) = v {
-                    Some(SettingElement::Setting(k, v))
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(k, v)| v.map(|v| SettingElement::Setting(k, v)))
             .collect();
         NodeType::Template(template_settings)
     }
@@ -249,15 +243,13 @@ impl SimpleNodeAction {
                 if let Some(properties) = update.properties {
                     updated_property_map = properties.into();
                 }
-                let new_location = if let Some(new_parent) = update.new_parent {
-                    Some(NodeLocation::new(
+                let new_location = update.new_parent.map(|new_parent| {
+                    NodeLocation::new(
                         containing_component_type_id.clone(),
                         new_parent.into(),
                         TreeIndexPosition::Top,
-                    ))
-                } else {
-                    None
-                };
+                    )
+                });
                 let update =
                     UpdateTemplateNodeRequest::new(uni, updated_property_map, new_location);
                 Some(NodeAction::Update(update))
