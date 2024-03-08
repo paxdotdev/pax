@@ -7,7 +7,7 @@ use pax_engine::math::{Point2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
-use pax_std::types::{Color, Fill};
+use pax_std::types::Fill;
 use serde::Deserialize;
 
 use super::control_point::{ControlPoint, ControlPointBehaviour};
@@ -195,8 +195,8 @@ impl ObjectEditor {
                 ),
             ],
             ControlPointStyling {
-                stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
-                fill: Color::rgb(1.0.into(), 1.0.into(), 1.0.into()),
+                stroke: Color::BLUE,
+                fill: Color::WHITE,
                 stroke_width_pixels: 1.0,
                 size_pixels: 7.0,
             },
@@ -259,8 +259,8 @@ impl ObjectEditor {
                 CPoint::new(p4, rotate_factory()),
             ],
             ControlPointStyling {
-                stroke: Color::rgb(0.0.into(), 0.0.into(), 1.0.into()),
-                fill: Color::rgba(0.0.into(), 0.0.into(), 0.0.into(), 0.0.into()),
+                stroke: Color::TRANSPARENT,
+                fill: Color::TRANSPARENT,
                 stroke_width_pixels: 0.0,
                 size_pixels: 25.0,
             },

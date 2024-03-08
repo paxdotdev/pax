@@ -5,26 +5,26 @@ if self.visible {
             <Text text="Create Component" id=text x=5px/>
             <Rectangle
                 @click=self.create_component
-                fill={Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 0.0))}
-                stroke={color: {Color::rgb(0.4, 0.4, 0.4)}, width: 1px}
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
             />
         </Group>
         <Group y=25px height=25px>
             <Text text="Undo" id=text x=5px/>
             <Rectangle
-                fill={Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 0.0))}
-                stroke={color: {Color::rgb(0.4, 0.4, 0.4)}, width: 1px}
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
             />
         </Group>
         <Group y=50px height=25px>
             <Text text="Redo" id=text x=5px/>
             <Rectangle
-                fill={Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 0.0))}
-                stroke={color: {Color::rgb(0.4, 0.4, 0.4)}, width: 1px}
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
             />
         </Group>
         //Background 
-        <Rectangle  fill={Fill::Solid(Color::rgb(0.0, 0.0, 0.0))}/>
+        <Rectangle  fill=BLACK/>
     </Group>
 }
 
@@ -34,7 +34,7 @@ if self.visible {
         style: {
                 font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
                 font_size: 12px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Left,
                 align_multiline: TextAlignHorizontal::Center

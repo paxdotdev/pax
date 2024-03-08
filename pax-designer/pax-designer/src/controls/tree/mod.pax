@@ -8,7 +8,7 @@ for (obj, i) in self.visible_tree_objects {
 		 name={obj.name}
 		 is_not_leaf={obj.is_not_leaf}
 		 is_collapsed={obj.is_collapsed}
-		 width={100% - (obj.indent_level*6)%}
+		 width={(100.0 - obj.indent_level*6)%}
 		 image_path={obj.image_path}
 		 is_not_dummy={obj.is_not_dummy}
 	/>

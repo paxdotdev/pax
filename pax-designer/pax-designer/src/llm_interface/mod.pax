@@ -5,10 +5,10 @@ if self.visible {
 	    text={self.request}
 	    @textbox_input=self.textbox_input
 	    @textbox_change=self.textbox_change
-	    background={Color::rgba(0.1, 0.1, 0.1, 0.7)}
+	    background=rgba(0, 0, 0, 200)
 		border_radius=10.0
 		stroke={
-			color: {Color::rgba(0.5, 0.5, 0.5, 1.0)}
+			color: GRAY
 			width: 1px
 		}
 		focus_on_mount=true
@@ -27,7 +27,7 @@ if self.visible {
         style: {
                 font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
                 font_size: 25px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Center,
                 align_multiline: TextAlignHorizontal::Center

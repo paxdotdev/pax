@@ -2,7 +2,7 @@ use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
-use pax_std::types::{Color, Fill};
+use pax_std::types::Fill;
 use serde::Deserialize;
 
 use crate::model;

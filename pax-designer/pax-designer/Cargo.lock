@@ -1960,6 +1960,7 @@ dependencies = [
  "pax-manifest",
  "pax-message",
  "pax-runtime",
+ "pax-runtime-api",
  "pest",
  "pest_derive",
  "portpicker",
@@ -2050,6 +2051,7 @@ name = "pax-manifest"
 version = "0.12.3"
 dependencies = [
  "pax-message",
+ "pax-runtime-api",
  "pest",
  "pest_derive",
  "serde",
@@ -2075,8 +2077,21 @@ dependencies = [
  "pax-designtime",
  "pax-manifest",
  "pax-message",
+ "pax-runtime-api",
  "piet",
  "piet-common",
+ "serde",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "pax-runtime-api"
+version = "0.12.3"
+dependencies = [
+ "kurbo",
+ "log",
+ "pax-message",
+ "piet",
  "serde",
  "wasm-bindgen",
 ]

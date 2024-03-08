@@ -14,12 +14,12 @@ use anyhow::Context;
 use anyhow::Result;
 use math::coordinate_spaces::World;
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::Color;
 use pax_engine::api::MouseButton;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_manifest::TemplateNodeId;
 use pax_manifest::TypeId;
-use pax_std::types::Color;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
@@ -264,7 +264,7 @@ pub trait ToolBehaviour {
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
     fn keyboard(&mut self, event: InputEvent, dir: Dir, ctx: &mut ActionContext)
         -> ControlFlow<()>;
-    fn visualize(&self, glass: &mut glass::Glass);
+    fn visualize(&self, glass: &mut crate::glass::Glass);
 }
 
 #[derive(Default)]

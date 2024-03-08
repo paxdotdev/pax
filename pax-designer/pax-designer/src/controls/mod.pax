@@ -47,6 +47,6 @@
     }
 
     .black_bg {
-        fill: {Fill::Solid(Color::rgb(0,0,0))}
+        fill: BLACK
     }
 }
