@@ -1,13 +1,13 @@
 
 <Rectangle width=50%
-     fill={Fill::Solid(Color::hlc(ticks + 100, 75.0, 150.0))}
+     fill={hsl(ticks + 100, 50%, 50%)}
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 />
 if self.activated {
      <Text text="This is some long text" class=centered id=text />
 }
 <Rectangle x=50% width=50%  @click=self.toggle
-     fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))}
+     fill={hsl(ticks, 50%, 50%)}
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 />
 
@@ -27,12 +27,12 @@ if self.activated {
     }
     #text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
-                font_size: 32px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 32px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
         }
     }
 }
