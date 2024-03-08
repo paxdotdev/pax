@@ -17,10 +17,7 @@ impl PrivilegedAgentConnection {
     pub fn new(addr: SocketAddr) -> Result<Self> {
         let (sender, recver) = ewebsock::connect(format!("ws://{}/ws", addr))
             .map_err(|_| anyhow!("couldn't create socket connection"))?;
-        Ok(Self {
-            sender,
-            recver: recver,
-        })
+        Ok(Self { sender, recver })
     }
 
     pub fn send_component_update(&mut self, component: &ComponentDefinition) -> Result<()> {
@@ -41,45 +38,40 @@ impl PrivilegedAgentConnection {
 
     pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<()> {
         while let Some(event) = self.recver.try_recv() {
-            match event {
-                WsEvent::Message(ws_message) => {
-                    if let WsMessage::Binary(msg_bytes) = ws_message {
-                        let msg: AgentMessage = rmp_serde::from_slice(&msg_bytes)?;
-                        match msg {
-                            AgentMessage::UpdateTemplateRequest(resp) => {
-                                manager
-                                    .replace_template(resp.type_id, resp.new_template)
-                                    .map_err(|e| anyhow!(e))?;
-                            }
-                            AgentMessage::LLMHelpResponse(resp) => {
-                                for action in resp.response {
-                                    match action {
-                                        NodeAction::Add(command) => {
-                                            let _ = manager
-                                                .execute_command(command.clone())
-                                                .map_err(|e| anyhow!(e))?;
-                                        }
-                                        NodeAction::Remove(command) => {
-                                            let _ = manager
-                                                .execute_command(command.clone())
-                                                .map_err(|e| anyhow!(e))?;
-                                        }
-                                        NodeAction::Update(command) => {
-                                            let _ = manager
-                                                .execute_command(command.clone())
-                                                .map_err(|e| anyhow!(e))?;
-                                        }
-                                        _ => {
-                                            unreachable!("Invalid action performed by llm")
-                                        }
-                                    }
+            if let WsEvent::Message(WsMessage::Binary(msg_bytes)) = event {
+                let msg: AgentMessage = rmp_serde::from_slice(&msg_bytes)?;
+                match msg {
+                    AgentMessage::UpdateTemplateRequest(resp) => {
+                        manager
+                            .replace_template(resp.type_id, resp.new_template)
+                            .map_err(|e| anyhow!(e))?;
+                    }
+                    AgentMessage::LLMHelpResponse(resp) => {
+                        for action in resp.response {
+                            match action {
+                                NodeAction::Add(command) => {
+                                    let _ = manager
+                                        .execute_command(command.clone())
+                                        .map_err(|e| anyhow!(e))?;
+                                }
+                                NodeAction::Remove(command) => {
+                                    let _ = manager
+                                        .execute_command(command.clone())
+                                        .map_err(|e| anyhow!(e))?;
+                                }
+                                NodeAction::Update(command) => {
+                                    let _ = manager
+                                        .execute_command(command.clone())
+                                        .map_err(|e| anyhow!(e))?;
+                                }
+                                _ => {
+                                    unreachable!("Invalid action performed by llm")
                                 }
                             }
-                            _ => {}
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         Ok(())
