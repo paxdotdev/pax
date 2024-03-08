@@ -68,7 +68,7 @@ impl Settings {
 
             let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
             let mut dt = ctx.designtime.borrow_mut();
-            let Some(node) = dt.get_orm_mut().get_node(uni) else {
+            let Some(mut node) = dt.get_orm_mut().get_node(uni) else {
                 return;
             };
             let props = node.get_all_properties();
