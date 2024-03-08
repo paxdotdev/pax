@@ -207,6 +207,10 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
             .unwrap()
             .draw_image(img, rect, InterpolationMode::Bilinear);
     }
+
+    fn layers(&self) -> Vec<&str> {
+        self.backends.keys().map(String::as_str).collect()
+    }
 }
 
 pub struct ExpressionTable {
