@@ -148,21 +148,14 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                                 if let Some(path) = e.paths.first() {
                                     match fs::read_to_string(path) {
                                         Ok(contents) => {
-                                            let msg = if path.extension().unwrap() == "pax" {
-                                                WatcherFileChanged {
-                                                    contents: FileContent::Pax(contents),
-                                                    path: path.to_str().unwrap().to_string(),
-                                                }
-                                            } else if path.extension().unwrap() == "rs" {
-                                                WatcherFileChanged {
-                                                    contents: FileContent::Rust(contents),
-                                                    path: path.to_str().unwrap().to_string(),
-                                                }
-                                            } else {
-                                                WatcherFileChanged {
-                                                    contents: FileContent::Unknown,
-                                                    path: path.to_str().unwrap().to_string(),
-                                                }
+                                            let extension = path.extension();
+                                            let msg = WatcherFileChanged {
+                                                contents: match extension.and_then(|e| e.to_str()) {
+                                                    Some("pax") => FileContent::Pax(contents),
+                                                    Some("rs") => FileContent::Rust(contents),
+                                                    _ => FileContent::Unknown,
+                                                },
+                                                path: path.to_str().unwrap().to_string(),
                                             };
                                             addr.do_send(msg);
                                         }
