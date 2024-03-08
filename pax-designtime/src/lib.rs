@@ -69,7 +69,6 @@ impl DesigntimeManager {
     }
 
     pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
-        // eventually I want viewport info an current selected component
         let manifest = self.orm.get_manifest();
         let userland_type_id = TypeId::build_singleton(
             "pax_designer::pax_reexports::designer_project::Example",
