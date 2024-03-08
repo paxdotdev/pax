@@ -76,7 +76,6 @@ impl DesigntimeManager {
         let userland_type_id = TypeId::build_singleton("pax_designer::pax_reexports::designer_project::Example",
          None);
         let userland_component = manifest.components.get(&userland_type_id).unwrap();
-        let template = userland_component.template.as_ref().unwrap();
         let request = LLMHelpRequest {
             request_id: self.next_llm_request_id,
             request: request.to_string(),
