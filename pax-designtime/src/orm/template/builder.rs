@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use pax_manifest::{
-    NodeLocation, PropertyDefinition, SettingElement, Token, TokenType,
-    TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    NodeLocation, PropertyDefinition, SettingElement, Token, TokenType, TypeId,
+    UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde::Serialize;
 
@@ -68,13 +68,14 @@ impl<'a> NodeBuilder<'a> {
             .manifest
             .get_all_component_properties(&self.node_type_id);
 
-        let mut full_settings : HashMap<Token, ValueDefinition> = HashMap::new();
+        let mut full_settings: HashMap<Token, ValueDefinition> = HashMap::new();
         if let Some(uni) = &self.unique_node_identifier {
-            let resp = self.orm
+            let resp = self
+                .orm
                 .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
                 .unwrap();
             if let Some(node) = resp.node {
-                if let Some(settings) = node.settings{
+                if let Some(settings) = node.settings {
                     for setting in settings {
                         if let SettingElement::Setting(token, value) = setting {
                             full_settings.insert(token, value);
@@ -139,13 +140,18 @@ impl<'a> NodeBuilder<'a> {
             resp.command_id
         } else {
             // Node does not exist
-            let settings = self.updated_property_map.iter().filter_map(|(k, v)| {
-                if let Some(value) = v {
-                    Some(SettingElement::Setting(k.clone(), value.clone()))
-                } else {
-                    None
-                }
-            }).collect::<Vec<SettingElement>>().into();
+            let settings = self
+                .updated_property_map
+                .iter()
+                .filter_map(|(k, v)| {
+                    if let Some(value) = v {
+                        Some(SettingElement::Setting(k.clone(), value.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<SettingElement>>()
+                .into();
 
             let resp = self.orm.execute_command(AddTemplateNodeRequest::new(
                 self.containing_component_type_id,

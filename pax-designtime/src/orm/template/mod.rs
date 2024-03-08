@@ -2,7 +2,8 @@ use core::panic;
 use std::collections::HashMap;
 
 use pax_manifest::{
-    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, Token, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
+    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, Token, TypeId,
+    UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -15,7 +16,6 @@ pub struct NodeData {
     pub unique_node_identifier: UniqueTemplateNodeIdentifier,
     pub cached_node: TemplateNodeDefinition,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AddTemplateNodeRequest {
@@ -220,7 +220,10 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                     .clone(),
             });
 
-            template.update_node_properties(&uni.get_template_node_id(), &mut self.updated_properties.clone());
+            template.update_node_properties(
+                &uni.get_template_node_id(),
+                &mut self.updated_properties.clone(),
+            );
 
             if let Some(location) = &self.new_location {
                 let mut move_request = MoveTemplateNodeRequest::new(uni.clone(), location.clone());
@@ -593,7 +596,6 @@ impl Undo for ReplaceTemplateRequest {
         Ok(())
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NodeAction {
