@@ -17,3 +17,4 @@ wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 kurbo = "0.9.0"
 piet = "0.6.0"
 pax-message = {version="0.12.3", path="../pax-message"}
+log = "0.4.20"
