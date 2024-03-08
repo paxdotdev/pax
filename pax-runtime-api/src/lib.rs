@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::collections::VecDeque;
-use std::ops::{Add, Deref, Mul, Neg};
+use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use kurbo::BezPath;
 use piet::PaintBrush;
@@ -450,7 +450,35 @@ impl Add for Size {
     }
 }
 
-impl std::ops::Sub for Size {
+impl Add<Percent> for Size {
+    type Output = Size;
+    fn add(self, rhs: Percent) -> Self::Output {
+        self + Size::Percent(rhs.0)
+    }
+}
+
+impl Sub<Percent> for Size {
+    type Output = Size;
+    fn sub(self, rhs: Percent) -> Self::Output {
+        self - Size::Percent(rhs.0)
+    }
+}
+
+impl Add<Size> for Percent {
+    type Output = Size;
+    fn add(self, rhs: Size) -> Self::Output {
+        Size::Percent(self.0) + rhs
+    }
+}
+
+impl Sub<Size> for Percent {
+    type Output = Size;
+    fn sub(self, rhs: Size) -> Self::Output {
+        Size::Percent(self.0) - rhs
+    }
+}
+
+impl Sub for Size {
     type Output = Size;
     fn sub(self, rhs: Self) -> Self::Output {
         let mut pixel_component: Numeric = Default::default();
