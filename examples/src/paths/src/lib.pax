@@ -11,19 +11,15 @@
 	        )
 	    ]},
 		stroke: {
-            color: {
-                Color::rgba(0, 1, 0, 1)
-            }
+            color: GREEN,
             width: 10px
         },
     }
 }
 <Rectangle width=50% height=50%
-	     fill={Fill::Solid(Color::rgba(10, 0.0, 0.0, 0.0))}
-		stroke={
-            color: {
-                Color::rgba(0, 1, 0, 1)
-            }
-            width: 10px
-        }
+    fill=RED
+    stroke={
+        color: GREEN,
+        width: 10px
+    }
  />
