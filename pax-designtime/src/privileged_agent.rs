@@ -58,14 +58,13 @@ impl PrivilegedAgentConnection {
                                             let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
                                         },
                                         NodeAction::Remove(command) => {
+                                            log::error!("Removing node: {:?}", command);
                                             let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
                                         },
                                         NodeAction::Update(command) => {
                                             let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
                                         },
-                                        NodeAction::Move(command) => {
-                                            let _ = manager.execute_command(command.clone()) .map_err(|e| anyhow!(e))?;
-                                        }
+                                        _ => {unreachable!("Invalid action performed by llm")}
                                     }
                                 }
                             },
