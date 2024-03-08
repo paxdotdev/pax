@@ -13,7 +13,8 @@ use pax_manifest::{
 };
 
 use super::simple::{
-    SimpleColor, SimpleLocation, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType, SimpleProperties, SimpleRotation, SimpleSize, SimpleSizeType, SimpleTemplate
+    SimpleColor, SimpleLocation, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType,
+    SimpleProperties, SimpleRotation, SimpleSize, SimpleSizeType, SimpleTemplate,
 };
 
 use super::constants::PREFIX;
@@ -95,7 +96,6 @@ impl Display for SimpleRotation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}deg", self.degrees)
     }
-
 }
 
 impl Display for SimpleColor {
