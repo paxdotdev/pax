@@ -297,6 +297,9 @@ pub enum PaxType {
     Slot,
     Repeat,
     Comment,
+    BlankComponent {
+        pascal_identifier: String,
+    },
     Primitive {
         pascal_identifier: String,
     },
@@ -378,6 +381,19 @@ impl TypeId {
             is_intoable_downstream_type: false,
             _type_id: "Comment".to_string(),
             _type_id_escaped: "Comment".to_string(),
+        }
+    }
+
+    /// Build a typeid for a transient component
+    pub fn build_blank_component(pascal_identifier: &str) -> Self {
+        TypeId {
+            pax_type: PaxType::BlankComponent {
+                pascal_identifier: pascal_identifier.to_owned(),
+            },
+            import_path: None,
+            is_intoable_downstream_type: false,
+            _type_id: pascal_identifier.to_owned(),
+            _type_id_escaped: escape_identifier(pascal_identifier.to_owned()),
         }
     }
 
@@ -548,6 +564,14 @@ impl TypeId {
             self._type_id_escaped = escape_identifier(id);
         }
         self
+    }
+
+    pub fn is_blank_component(&self) -> bool {
+        if let PaxType::BlankComponent { .. } = self.pax_type {
+            true
+        } else {
+            false
+        }
     }
 }
 

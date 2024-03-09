@@ -275,8 +275,13 @@ fn pax_full_component(
 
     let static_property_definitions =
         get_static_property_definitions_from_tokens(&input_parsed.data);
-    let template_dependencies =
+    let mut template_dependencies =
         parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+
+    // Add BlankComponent to template_dependencies so it's guaranteed to be included in the PaxManifest
+    if is_main_component {
+        template_dependencies.push("BlankComponent".to_string());
+    }
 
     // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");

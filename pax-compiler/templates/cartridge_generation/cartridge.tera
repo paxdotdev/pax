@@ -260,6 +260,10 @@ impl DefinitionToInstanceTraverser {
     }
 
     pub fn get_component_factory(type_id: &TypeId) -> Option<Box<dyn ComponentFactory>> {
+        if type_id.is_blank_component() {
+            return Some(Box::new(BlankComponentFactory{}) as Box<dyn ComponentFactory>);
+        }
+
         match type_id.get_unique_identifier().as_str() {
             {% for component in components %}
             "{{component.type_id._type_id}}" => {
