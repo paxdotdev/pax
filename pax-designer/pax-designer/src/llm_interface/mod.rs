@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use pax_engine::api::*;
 use pax_engine::*;
 
-use pax_std::primitives::Textbox;
+use pax_std::primitives::*;
 
 use crate::model::{
     action::{Action, ActionContext, CanUndo},
