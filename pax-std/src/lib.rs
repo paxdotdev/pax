@@ -99,4 +99,8 @@ pub mod primitives {
     pub struct Image {
         pub path: Property<StringBox>,
     }
+
+    #[pax]
+    #[inlined(<Group/>)]
+    pub struct BlankComponent {}
 }

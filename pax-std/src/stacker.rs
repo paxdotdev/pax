@@ -1,4 +1,4 @@
-use crate::primitives::Frame;
+use crate::primitives::*;
 use crate::types::{StackerCell, StackerDirection};
 use pax_engine::api::Numeric;
 use pax_engine::api::{Property, Size, Transform2D};
