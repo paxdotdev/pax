@@ -63,7 +63,7 @@
                     {% for child_id in children[node_id]  %}
                         {{ self::render_template_node(node_map=node_map, children=children, node_id=child_id) }}
                     {% endfor %}
-                    </ {{node_map[node_id].pascal_identifier}} >
+                    </ {{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}} >
             {% else %}
                     />
             {% endif %}
