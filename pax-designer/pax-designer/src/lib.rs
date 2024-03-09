@@ -18,7 +18,7 @@ use crate::controls::Controls;
 use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
 use designer_project::Example;
-use pax_std::primitives::{Group, Rectangle};
+use pax_std::primitives::*;
 use project_mode_toggle::ProjectModeToggle;
 
 pub mod llm_interface;
