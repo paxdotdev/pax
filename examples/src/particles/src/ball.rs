@@ -1,7 +1,7 @@
 use pax_engine::*;
 use pax_engine::api::*;
 
-use pax_std::primitives::Ellipse;
+use pax_std::primitives::*;
 use rand::random;
 
 #[pax]
