@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
+use pax_std::primitives::*;
 
 #[pax]
 #[main]
