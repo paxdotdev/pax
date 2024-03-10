@@ -24,10 +24,10 @@
     <Rectangle class=black_bg  />
 </Group>
 
-<Frame id=top_panel>
+<Group id=top_panel>
     <Toolbar id=toolbar />
     <Rectangle class=black_bg />
-</Frame>
+</Group>
 
 @settings {
     #left_panel {
