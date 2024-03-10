@@ -62,6 +62,42 @@ impl<'a> NodeBuilder<'a> {
         self.unique_node_identifier.clone()
     }
 
+    // pub fn get_property(&self, name: &str) -> Option<(PropertyDefinition, Option<ValueDefinition>) {
+    //     let property = self
+    //         .orm
+    //         .manifest
+    //         .get_component_property(&self.node_type_id, name)?;
+    //     let token = Token::new_only_raw(property.name, TokenType::SettingKey);
+
+    //     if let Some(uni) = &self.unique_node_identifier {
+    //         let resp = self
+    //             .orm
+    //             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
+    //             .unwrap();
+    //         if let Some(node) = resp.node {
+    //             if let Some(settings) = node.settings {
+    //                 for setting in settings {
+    //                     if let SettingElement::Setting(token, value) = setting {
+    //                         token, value
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     return Some(property, None)
+
+    //     let values: Vec<Option<ValueDefinition>> = properties
+    //         .iter()
+    //         .map(|prop| {
+    //             let key = &Token::new_only_raw(prop.name.clone(), TokenType::SettingKey);
+    //             full_settings.get(key).cloned()
+    //         })
+    //         .collect();
+
+    //     properties.into_iter().zip(values).collect()
+    // }
+
     pub fn get_all_properties(&mut self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
         let properties = self
             .orm
