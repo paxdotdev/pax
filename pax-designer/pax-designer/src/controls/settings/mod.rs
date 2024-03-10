@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use pax_engine::api::*;
 use pax_engine::*;
@@ -20,21 +21,9 @@ use crate::model;
 pub struct Settings {
     pub is_component_selected: Property<bool>,
     pub selected_component_name: Property<String>,
-    // common props
-    pub pos_x: Property<StringBox>,
-    pub pos_y: Property<StringBox>,
-    pub size_width: Property<StringBox>,
-    pub size_height: Property<StringBox>,
-    pub rotation_z: Property<StringBox>,
-    pub scale_x: Property<StringBox>,
-    pub scale_y: Property<StringBox>,
-    pub anchor_x: Property<StringBox>,
-    pub anchor_y: Property<StringBox>,
-    pub skew_x: Property<StringBox>,
-    pub skew_y: Property<StringBox>,
-
     // custom props
-    pub custom_props: Property<Vec<PropertyDef>>,
+    pub custom_props: Property<Vec<PropertyArea>>,
+    pub update_timer: Property<i32>,
 
     // selected template type id
     pub stid: Property<TypeId>,
@@ -44,10 +33,21 @@ pub struct Settings {
 
 #[pax]
 #[custom(Imports)]
-pub struct PropertyDef {
+#[derive(Debug)]
+pub struct PropertyArea {
+    pub vertical_space: f64,
+    pub vertical_pos: f64,
     pub name: StringBox,
-    pub definition: StringBox,
 }
+
+#[derive(Debug)]
+pub struct AreaMsg {
+    pub index: usize,
+    pub vertical_space: f64,
+}
+
+const SPACING: f64 = 10.0;
+pub static REQUEST_PROPERTY_AREA_CHANNEL: Mutex<Option<Vec<AreaMsg>>> = Mutex::new(None);
 
 impl Settings {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {}
@@ -58,13 +58,19 @@ impl Settings {
                 self.is_component_selected.set(false);
                 return;
             }
+            self.is_component_selected.set(true);
+
             let temp_node_id = app_state.selected_template_node_ids[0].clone();
             let type_id = app_state.selected_component_id.clone();
 
-            self.is_component_selected.set(true);
+            let update = self.stid.get() != &type_id || self.snid.get() != &temp_node_id;
 
             self.stid.set(type_id.clone());
             self.snid.set(temp_node_id.clone());
+
+            if !update {
+                return;
+            }
 
             let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
             let mut dt = ctx.designtime.borrow_mut();
@@ -74,32 +80,18 @@ impl Settings {
             let props = node.get_all_properties();
 
             let mut custom_props = vec![];
-            for (propdef, value) in props {
-                let str_value: String = value
-                    .map(|v| match v {
-                        ValueDefinition::LiteralValue(Token { raw_value, .. })
-                        | ValueDefinition::Expression(Token { raw_value, .. }, _)
-                        | ValueDefinition::Identifier(Token { raw_value, .. }, _) => raw_value,
-                        _ => "ERROR: UNSUPPORTED BINDING TYPE".to_owned(),
-                    })
-                    .unwrap_or("".to_string());
+            for (propdef, _) in props {
+                //ignore common props
                 match propdef.name.as_str() {
-                    "x" => self.pos_x.set(StringBox::from(str_value)),
-                    "y" => self.pos_y.set(StringBox::from(str_value)),
-                    "width" => self.size_width.set(StringBox::from(str_value)),
-                    "height" => self.size_height.set(StringBox::from(str_value)),
-                    "rotate" => self.rotation_z.set(StringBox::from(str_value)),
-                    "scale_x" => self.scale_x.set(StringBox::from(str_value)),
-                    "scale_y" => self.scale_y.set(StringBox::from(str_value)),
-                    "anchor_x" => self.anchor_x.set(StringBox::from(str_value)),
-                    "anchor_y" => self.anchor_y.set(StringBox::from(str_value)),
-                    "skew_x" => self.skew_x.set(StringBox::from(str_value)),
-                    "skew_y" => self.skew_y.set(StringBox::from(str_value)),
-                    custom => custom_props.push(PropertyDef {
+                    "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
+                    | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" => (),
+                    custom => custom_props.push(PropertyArea {
+                        //these will be overridden by messages being passed to this component
+                        vertical_space: 10.0,
+                        vertical_pos: Default::default(),
                         name: StringBox::from(custom),
-                        definition: StringBox::from(str_value),
                     }),
-                }
+                };
             }
             self.custom_props.set(custom_props);
             self.selected_component_name.set(
@@ -109,6 +101,43 @@ impl Settings {
                     .to_uppercase()
                     .to_owned(),
             );
+
+            // Setup for waiting for children to send updates about their size
+            self.update_timer.set(2);
+            self.custom_props.get_mut().push(PropertyArea {
+                vertical_space: 0.0,
+                vertical_pos: f64::MAX,
+                name: StringBox::from("".to_owned()),
+            });
         });
+
+        let timer = self.update_timer.get_mut();
+        if *timer > 0 {
+            // HACK: pre-double-binding handle messages from children specifying their requested height
+            {
+                let mut msgs = REQUEST_PROPERTY_AREA_CHANNEL.lock().unwrap();
+
+                if let Some(msgs) = msgs.as_mut() {
+                    msgs.retain(|msg| {
+                        if let Some(area) = self.custom_props.get_mut().get_mut(msg.index) {
+                            area.vertical_space = msg.vertical_space;
+                            false
+                        } else {
+                            true
+                        }
+                    })
+                }
+            }
+            let mut running_sum = 0.0;
+            for area in self.custom_props.get_mut() {
+                area.vertical_pos = running_sum;
+                running_sum += area.vertical_space + SPACING;
+            }
+            if *timer == 1 {
+                //trigger for loop refresh
+                self.custom_props.get_mut().pop();
+            }
+            *timer -= 1;
+        }
     }
 }
