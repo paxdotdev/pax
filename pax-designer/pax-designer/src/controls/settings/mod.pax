@@ -2,60 +2,60 @@
 
 if self.is_component_selected {
 	
-	<Frame y=50px height={100% - 50px}>
-		<Frame x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
-			<Frame height=150px>
+	<Group y=50px height={100% - 50px}>
+		<Group x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
+			<Group height=150px>
 				<Text text="Basic" class=h2 />
-				<Frame y=30px height={100% - 30px}>
-					<Frame y=0px height=30px>
+				<Group y=30px height={100% - 30px}>
+					<Group y=0px height=30px>
 						<Text text="Position" x=10px  class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="x" definition={self.pos_x} x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="y" definition={self.pos_y} x=66% width=32%/>
-					</Frame>
-					<Frame y=40px height=30px>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="x" x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="y" x=66% width=32%/>
+					</Group>
+					<Group y=40px height=30px>
 						<Text text="Size" x=10px  class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="width" definition={self.size_width} x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="height" definition={self.size_height} x=66% width=32%/>
-					</Frame>
-				</Frame>
-			</Frame>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="width" x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="height" x=66% width=32%/>
+					</Group>
+				</Group>
+			</Group>
 
-			<Frame y=150px height=300px>
+			<Group y=150px height=300px>
 				<Text text="Transform" class=h2 />
-				<Frame y=30px height={100% - 30px}>
-					<Frame y=0px height=30px>
+				<Group y=30px height={100% - 30px}>
+					<Group y=0px height=30px>
 						<Text text="Rotation" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="rotate" definition={self.rotation_z} x=33% width=32%/>
-					</Frame>
-					<Frame y=40px height=30px>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="rotate" x=33% width=32%/>
+					</Group>
+					<Group y=40px height=30px>
 						<Text text="Scale" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" definition={self.scale_x} x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_y:" definition={self.scale_y} x=66% width=32%/>
-					</Frame>
-					<Frame y=80px height=30px>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_y" x=66% width=32%/>
+					</Group>
+					<Group y=80px height=30px>
 						<Text text="Anchor" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" definition={self.anchor_x} x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" definition={self.anchor_y} x=66% width=32%/>
-					</Frame>
-					<Frame y=120px height=30px>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" x=66% width=32%/>
+					</Group>
+					<Group y=120px height=30px>
 						<Text text="Skew" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" definition={self.skew_x} x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" definition={self.skew_y} x=66% width=32%/>
-					</Frame>
-				</Frame>
-			</Frame>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" x=33% width=32%/>
+						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" x=66% width=32%/>
+					</Group>
+				</Group>
+			</Group>
 
 		
-			<Frame y=380px height=300px>
+			<Group y=380px height=300px>
 				for (property, i) in self.custom_props {
-					<Text text={property.name} class=h2 y={(i*70)px} width=120px />
-					<Frame y={(i*70)px} height=30px>
-						<PropertyEditor name={property.name} stid={self.stid} snid={self.snid} definition={property.definition}/>
-					</Frame>
+					<Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
+						<Text text={property.name} class=h2 width=120px/>
+						<PropertyEditor ind={i} name={property.name} stid={self.stid} snid={self.snid} />
+					</Group>
 				}
-			</Frame>
-		</Frame>
-	</Frame>
+			</Group>
+		</Group>
+	</Group>
 }
 
 @settings {

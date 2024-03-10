@@ -83,8 +83,8 @@ impl ToolBehaviour for CreateComponentTool {
             y: Size::Pixels(self.bounds.top_left().y.into()),
             width: Size::Pixels(self.bounds.width().into()),
             height: Size::Pixels(self.bounds.height().into()),
-            stroke: Color::rgba(0.into(), 0.into(), 1.into(), 0.7.into()),
-            fill: Color::rgba(0.into(), 0.into(), 0.into(), 0.2.into()),
+            stroke: Color::rgba(0.into(), 0.into(), 255.into(), 200.into()),
+            fill: Color::rgba(0.into(), 0.into(), 255.into(), 30.into()),
         });
     }
 }
@@ -186,8 +186,8 @@ impl ToolBehaviour for PointerTool {
                 y: Size::Pixels(p1.y.into()),
                 width: Size::Pixels((p2.x - p1.x).into()),
                 height: Size::Pixels((p2.y - p1.y).into()),
-                stroke: Color::rgba(0.into(), 1.into(), 1.into(), 0.7.into()),
-                fill: Color::rgba(0.into(), 1.into(), 1.into(), 0.1.into()),
+                stroke: Color::rgba(0.into(), 255.into(), 255.into(), 200.into()),
+                fill: Color::rgba(0.into(), 255.into(), 255.into(), 30.into()),
             });
         }
     }

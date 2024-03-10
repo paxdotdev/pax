@@ -1,0 +1,41 @@
+
+<Textbox background=WHITE x=25% width=15% height=30px text={self.red} @textbox_change=self.text_change @textbox_input=self.red_input/>
+<Textbox background=WHITE x=45% width=15% height=30px text={self.green} @textbox_change=self.text_change @textbox_input=self.green_input/>
+<Textbox background=WHITE x=65% width=15% height=30px text={self.blue} @textbox_change=self.text_change @textbox_input=self.blue_input/>
+<Textbox background=WHITE x=85% width=15% height=30px text={self.alpha} @textbox_change=self.text_change @textbox_input=self.alpha_input/>
+
+<Group x=25% y=45px height=20px id=palette>
+    // Intersection rectangles (can be removed when we have "with" clause)
+    // grouped to avoid bug with long compile times for list of primitives
+    <Group>
+        <Group>
+            <Rectangle x=0px width=20px fill=TRANSPARENT @click=self.palette_slot0_clicked/>
+            <Rectangle x=25px width=20px fill=TRANSPARENT @click=self.palette_slot1_clicked/>
+        </Group>
+        <Group>
+            <Rectangle x=50px width=20px fill=TRANSPARENT @click=self.palette_slot2_clicked/>
+            <Rectangle x=75px width=20px fill=TRANSPARENT @click=self.palette_slot3_clicked/>
+        </Group>
+    </Group>
+    <Group>
+        <Group>
+            <Rectangle x=100px width=20px fill=TRANSPARENT @click=self.palette_slot4_clicked/>
+            <Rectangle x=125px width=20px fill=TRANSPARENT @click=self.palette_slot5_clicked/>
+        </Group>
+        <Group>
+            <Rectangle x=150px width=20px fill=TRANSPARENT @click=self.palette_slot6_clicked/>
+            <Rectangle x=175px width=20px fill=TRANSPARENT @click=self.palette_slot7_clicked/>
+        </Group>
+    </Group>
+    <Rectangle x=200px width=20px fill=TRANSPARENT @click=self.palette_slot8_clicked/>
+
+    for (color, i) in self.palette {
+        <Rectangle x={(i*25)px} fill={color} width=20px/>
+    }
+</Group>
+
+
+@settings {
+    @mount: on_mount
+    @pre_render: on_render
+}
