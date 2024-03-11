@@ -18,6 +18,8 @@ pub mod orm;
 pub mod pointer;
 pub mod world;
 
+use pax_engine::rendering::NodeGroup;
+
 type UndoFunc = dyn FnOnce(&mut ActionContext) -> Result<()>;
 
 #[derive(Default)]
@@ -86,7 +88,10 @@ impl ActionContext<'_> {
 
     pub fn raycast_glass(&self, point: Point2<Glass>) -> Option<NodeInterface> {
         let window_point = self.glass_transform().inverse() * point;
-        let all_elements_beneath_ray = self.engine_context.raycast(window_point);
+        let all_elements_beneath_ray = self.engine_context.raycast(
+            window_point,
+            &[NodeGroup::Container, NodeGroup::Solid, NodeGroup::Sparse],
+        );
 
         if let Some(container) = self
             .engine_context
