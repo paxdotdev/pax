@@ -92,7 +92,7 @@ impl FillPropertyEditor {
             self.alpha.set(a.to_string());
             self.data
                 .get()
-                .set_value(ctx, &format!("rgb({}, {}, {})", r, g, b))
+                .set_value(ctx, &format!("rgba({}, {}, {}, {})", r, g, b, a))
                 .unwrap();
         } else {
             unreachable!("colors always valid u8s")
