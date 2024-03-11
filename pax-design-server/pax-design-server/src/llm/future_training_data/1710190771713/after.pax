@@ -1,0 +1,15 @@
+<RouteSelector />
+for stop in self.stop_statistics {
+    <Text y={(stop.long)px} x={(stop.lat)px} text={stop.name}/>
+    <Ellipse anchor_x=50% fill={} y={(stop.long)px} width={(stop.total_activity / 15)px} anchor_y=50% 
+        height={(stop.total_activity / 15)px} x={(stop.lat)px}/>
+}
+<Frame >
+    <Image path="assets/images/map.png" scale_y=50% height=3512px id=comp x=0.0px width=4156px y=-363.0px scale_x=50%/>
+</Frame>
+// OBS: here to add it to the project (otherwise not included in manifest)
+<Marker width=0px height=0px/>
+
+@settings {
+    @pre_render: pre_render,
+}

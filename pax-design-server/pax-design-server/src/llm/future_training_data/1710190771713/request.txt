@@ -1,0 +1,1 @@
+make the map a 10th of the size

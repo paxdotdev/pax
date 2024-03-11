@@ -1,0 +1,18 @@
+<Rectangle y=39.0px x=84.0px width=915.0px height=516.0px fill=rgb(0, 255, 0)>
+    <Text text="Some text" x=100px y=50px/>
+</Rectangle>
+<RouteSelector />
+for stop in self.stop_statistics {
+    <Text text={stop.name} y={(stop.long)px} x={(stop.lat)px}/>
+    <Ellipse y={(stop.long)px} fill={} width={(stop.total_activity / 15)px} anchor_x=50% anchor_y=50% x={(stop.lat)px} 
+        height={(stop.total_activity / 15)px}/>
+}
+<Frame >
+    <Image id=comp scale_y=50% width=4156px path="assets/images/map.png" y=-459.0px x=-198.0px scale_x=50% height=3512px/>
+</Frame>
+// OBS: here to add it to the project (otherwise not included in manifest)
+<Marker width=0px height=0px/>
+
+@settings {
+    @pre_render: pre_render,
+}
