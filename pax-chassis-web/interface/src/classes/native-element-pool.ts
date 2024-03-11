@@ -195,8 +195,6 @@ export class NativeElementPool {
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
-            // @ts-ignore
-            textbox.value = textbox.fixed_text_value;
         });
 
         textbox.addEventListener("change", (_event) => {
@@ -207,8 +205,6 @@ export class NativeElementPool {
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
-            // @ts-ignore
-            textbox.value = textbox.fixed_text_value;
         });
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -261,9 +257,26 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.text != null) {
-            textbox.value = patch.text;
-            // @ts-ignore
-            textbox.fixed_text_value = textbox.value;
+
+            // Check if the input element is focused — we want to maintain the user's cursor position if so
+            if (document.activeElement === textbox) {
+                // Get the current selection range
+                const selectionStart = textbox.selectionStart || 0;
+
+                // Update the content of the input
+                textbox.value = patch.text;
+
+                // Calculate the new cursor position, clamped to the new length of the input value
+                const newCursorPosition = Math.min(selectionStart, patch.text.length);
+
+                // Set the cursor position to the beginning of the former selection range
+                textbox.setSelectionRange(newCursorPosition, newCursorPosition);
+            } else {
+                // If the textbox isn't selected, just update its content
+                textbox.value = patch.text;
+            }
+
+
         }
        
         // Handle size_x and size_y
