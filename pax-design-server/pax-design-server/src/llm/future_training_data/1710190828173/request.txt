@@ -1,0 +1,1 @@
+create 4 rectangles with different colors and align them vertically and horizontally
