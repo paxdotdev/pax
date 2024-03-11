@@ -1,0 +1,1 @@
+make the image a 10th of the size
