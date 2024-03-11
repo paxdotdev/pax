@@ -3,6 +3,7 @@ use core::option::Option;
 use std::rc::Rc;
 
 use crate::api::Layer;
+use crate::NodeGroup;
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
     InstanceNode, InstantiationArgs, RuntimeContext,
@@ -40,7 +41,7 @@ impl InstanceNode for SlotInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: true,
+                    group: NodeGroup::ControlFlow,
                     layer: Layer::DontCare,
                     is_component: false,
                 },

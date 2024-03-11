@@ -6,7 +6,8 @@ use std::rc::Rc;
 use kurbo::{Affine, BezPath};
 use pax_runtime::api::{Layer, RenderContext, Size};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup,
+    RuntimeContext,
 };
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -30,7 +31,7 @@ impl InstanceNode for FrameInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: true,
+                    group: NodeGroup::Container,
                     layer: Layer::Canvas,
                     is_component: false,
                 },

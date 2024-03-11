@@ -2,7 +2,8 @@ use pax_message::{AnyCreatePatch, ButtonPatch};
 use pax_runtime::api::Layer;
 use pax_runtime::declarative_macros::handle_vtable_update;
 use pax_runtime::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup,
+    RuntimeContext,
 };
 use pax_std::primitives::Button;
 use std::cell::RefCell;
@@ -28,7 +29,7 @@ impl InstanceNode for ButtonInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: false,
+                    group: NodeGroup::Solid,
                     layer: Layer::Native,
                     is_component: false,
                 },

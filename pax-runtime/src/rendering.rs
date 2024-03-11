@@ -251,6 +251,18 @@ pub struct BaseInstance {
     flags: InstanceFlags,
 }
 
+#[derive(PartialEq)]
+pub enum NodeGroup {
+    // Group, Frame, Component
+    Container,
+    // If, Repeat
+    ControlFlow,
+    // Rectangles, Ellipse, Image
+    Solid,
+    // Text, Paths
+    Sparse,
+}
+
 pub struct InstanceFlags {
     /// Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
@@ -259,7 +271,7 @@ pub struct InstanceFlags {
     /// Certain elements, such as Groups and Components, are invisible to ray-casting.
     /// Since these container elements are on top of the elements they contain,
     /// this is needed otherwise the containers would intercept rays that should hit their contents.
-    pub invisible_to_raycasting: bool,
+    pub group: NodeGroup,
     /// The layer type (`Layer::Native` or `Layer::Canvas`) for this RenderNode.
     /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
     /// content.

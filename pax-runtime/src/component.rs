@@ -4,7 +4,7 @@ use std::{cell::RefCell, iter};
 use crate::api::{Layer, Timeline};
 use crate::{
     BaseInstance, ExpandedNode, ExpressionTable, Globals, InstanceFlags, InstanceNode,
-    InstanceNodePtrList, InstantiationArgs, RuntimeContext,
+    InstanceNodePtrList, InstantiationArgs, NodeGroup, RuntimeContext,
 };
 
 /// A render node with its own runtime context.  Will push a frame
@@ -35,7 +35,7 @@ impl InstanceNode for ComponentInstance {
             args,
             InstanceFlags {
                 invisible_to_slot: false,
-                invisible_to_raycasting: true,
+                group: NodeGroup::Container,
                 layer: Layer::DontCare,
                 is_component: true,
             },

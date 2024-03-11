@@ -3,7 +3,9 @@ use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
 use pax_std::{primitives::Ellipse, types::Fill};
 
-use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
+use pax_runtime::{
+    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup, RuntimeContext,
+};
 
 use std::rc::Rc;
 
@@ -23,7 +25,7 @@ impl InstanceNode for EllipseInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: false,
+                    group: NodeGroup::Solid,
                     layer: Layer::Canvas,
                     is_component: false,
                 },

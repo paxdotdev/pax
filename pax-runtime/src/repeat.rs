@@ -6,7 +6,8 @@ use std::rc::Rc;
 use crate::api::Layer;
 use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup,
+    RuntimeContext,
 };
 
 /// A special "control-flow" primitive associated with the `for` statement.
@@ -45,7 +46,7 @@ impl InstanceNode for RepeatInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: true,
-                    invisible_to_raycasting: true,
+                    group: NodeGroup::ControlFlow,
                     layer: Layer::DontCare,
                     is_component: false,
                 },

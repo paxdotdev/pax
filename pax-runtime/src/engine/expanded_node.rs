@@ -437,9 +437,6 @@ impl ExpandedNode {
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if self.instance_node.base().flags().invisible_to_raycasting {
-            return false;
-        }
 
         let props = self.layout_properties.borrow();
         let computed_tab = &props.as_ref().unwrap().computed_tab;

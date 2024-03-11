@@ -4,7 +4,8 @@ use pax_message::{AnyCreatePatch, TextboxPatch};
 use pax_runtime::api::Layer;
 use pax_runtime::declarative_macros::handle_vtable_update;
 use pax_runtime::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup,
+    RuntimeContext,
 };
 use pax_std::primitives::Textbox;
 use std::collections::HashMap;
@@ -29,7 +30,7 @@ impl InstanceNode for TextboxInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: false,
+                    group: NodeGroup::Solid,
                     layer: Layer::Native,
                     is_component: false,
                 },

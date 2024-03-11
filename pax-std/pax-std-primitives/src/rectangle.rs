@@ -1,5 +1,5 @@
 use kurbo::{RoundedRect, Shape};
-use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance, NodeGroup};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
@@ -23,7 +23,7 @@ impl InstanceNode for RectangleInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: false,
+                    group: NodeGroup::Solid,
                     layer: Layer::Canvas,
                     is_component: false,
                 },

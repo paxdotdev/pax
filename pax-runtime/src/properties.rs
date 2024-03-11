@@ -4,10 +4,11 @@ use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use std::cell::RefCell;
+use std::collections::{BTreeSet, HashSet};
 use std::rc::Rc;
 use std::{any::Any, collections::HashMap};
 
-use crate::{ExpandedNode, ExpressionTable, Globals};
+use crate::{ExpandedNode, ExpressionTable, Globals, NodeGroup};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -83,6 +84,7 @@ impl RuntimeContext {
         ray: Point2<Window>,
         limit_one: bool,
         mut accum: Vec<Rc<ExpandedNode>>,
+        groups: &[NodeGroup],
     ) -> Vec<Rc<ExpandedNode>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
@@ -90,6 +92,9 @@ impl RuntimeContext {
         //Finally: check whether element itself satisfies hit_test(ray)
 
         for node in self.z_index_node_cache.iter().rev().skip(1) {
+            if !groups.contains(&node.instance_node.base().flags().group) {
+                continue;
+            }
             if node.ray_cast_test(ray) {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
@@ -125,7 +130,7 @@ impl RuntimeContext {
 
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
-        let res = self.get_elements_beneath_ray(ray, true, vec![]);
+        let res = self.get_elements_beneath_ray(ray, true, vec![], &[NodeGroup::Solid]);
         if res.len() == 0 {
             None
         } else if res.len() == 1 {

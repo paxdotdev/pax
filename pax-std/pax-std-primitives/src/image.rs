@@ -1,4 +1,4 @@
-use pax_runtime::{api::math::Point2, api::RenderContext};
+use pax_runtime::{api::math::Point2, api::RenderContext, NodeGroup};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
@@ -25,7 +25,7 @@ impl InstanceNode for ImageInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: false,
+                    group: NodeGroup::Solid,
                     layer: pax_runtime::api::Layer::Canvas,
                     is_component: false,
                 },

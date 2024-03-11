@@ -3,7 +3,8 @@ use pax_runtime::declarative_macros::handle_vtable_update;
 
 use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup,
+    RuntimeContext,
 };
 use pax_std::primitives::Path;
 use pax_std::types::{PathElement, Point};
@@ -25,7 +26,7 @@ impl InstanceNode for PathInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: true,
+                    group: NodeGroup::Sparse,
                     layer: Layer::Canvas,
                     is_component: false,
                 },

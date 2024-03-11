@@ -1,4 +1,4 @@
-use pax_runtime::{BaseInstance, InstanceFlags, InstanceNode, InstantiationArgs};
+use pax_runtime::{BaseInstance, InstanceFlags, InstanceNode, InstantiationArgs, NodeGroup};
 use std::rc::Rc;
 
 use pax_runtime::api::Layer;
@@ -19,7 +19,7 @@ impl InstanceNode for GroupInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: true,
+                    group: NodeGroup::Container,
                     layer: Layer::DontCare,
                     is_component: false,
                 },

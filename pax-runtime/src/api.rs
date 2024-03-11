@@ -1,4 +1,4 @@
-use crate::RuntimeContext;
+use crate::{NodeGroup, RuntimeContext};
 pub use pax_runtime_api::*;
 #[cfg(feature = "designtime")]
 use {
@@ -25,10 +25,10 @@ pub struct NodeContext<'a> {
 
 #[cfg(feature = "designtime")]
 impl NodeContext<'_> {
-    pub fn raycast(&self, point: Point2<Window>) -> Vec<NodeInterface> {
-        let expanded_nodes = self
-            .runtime_context
-            .get_elements_beneath_ray(point, false, vec![]);
+    pub fn raycast(&self, point: Point2<Window>, groups: &[NodeGroup]) -> Vec<NodeInterface> {
+        let expanded_nodes =
+            self.runtime_context
+                .get_elements_beneath_ray(point, false, vec![], groups);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
