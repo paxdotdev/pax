@@ -1,7 +1,7 @@
 use core::panic;
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    fs::{self, File},
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
@@ -10,7 +10,7 @@ use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
-use pax_manifest::{ComponentDefinition, PaxType, TypeId};
+use pax_manifest::{ComponentDefinition, PaxType};
 
 use pax_compiler::{
     formatting::format_pax_template,
