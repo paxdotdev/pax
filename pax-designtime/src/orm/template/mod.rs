@@ -8,7 +8,7 @@ use pax_manifest::{
 };
 use serde_derive::{Deserialize, Serialize};
 
-use super::{Command, Request, Response, Undo, UndoRedoCommand};
+use super::{Command, MoveToComponentEntry, Request, Response, Undo, UndoRedoCommand};
 
 pub mod builder;
 
@@ -611,7 +611,7 @@ impl Undo for ReplaceTemplateRequest {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConvertToComponentRequest {
     // These subtrees (roots) must be at the same TreeLocation
-    subtrees_roots: Vec<UniqueTemplateNodeIdentifier>,
+    subtrees_roots: Vec<MoveToComponentEntry>,
     new_component_number: usize,
     x: f64,
     y: f64,
@@ -626,7 +626,7 @@ pub struct ConvertToComponentRequest {
 
 impl ConvertToComponentRequest {
     pub fn new(
-        subtrees_roots: Vec<UniqueTemplateNodeIdentifier>,
+        subtrees_roots: Vec<MoveToComponentEntry>,
         new_component_number: usize,
         x: f64,
         y: f64,
@@ -709,6 +709,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             .map(|s| s.to_string());
 
         let current_component_type_id = self.subtrees_roots[0]
+            .id
             .get_containing_component_type_id()
             .clone();
         let binding = manifest.components.get_mut(&current_component_type_id);
@@ -728,11 +729,23 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             new_template: &mut ComponentTemplate,
             node_id: TemplateNodeId,
             node_location: NodeLocation,
+            root_bounds: Vec<MoveToComponentEntry>,
         ) {
-            let node = current_template
+            let mut node = current_template
                 .get_node(&node_id)
                 .expect("Node not found")
                 .clone();
+
+            let relevant_bounds = root_bounds
+                .iter()
+                .filter(|entry| entry.id.get_template_node_id() == node_id)
+                .collect::<Vec<_>>();
+
+            if let Some(e) = relevant_bounds.first() {
+                if let Some(settings) = &mut node.settings {
+                    update_position_if_exists(e.x, e.y, settings);
+                }
+            }
 
             let new_node_id = new_template.add_at(node, node_location.clone());
             for child in current_template.get_children(&node_id).unwrap_or(vec![]) {
@@ -741,7 +754,13 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
                     TreeLocation::Parent(new_node_id.get_template_node_id().clone()),
                     TreeIndexPosition::Bottom,
                 );
-                add_subtree_to_new_template(current_template, new_template, child, location);
+                add_subtree_to_new_template(
+                    current_template,
+                    new_template,
+                    child,
+                    location,
+                    root_bounds.clone(),
+                );
             }
         }
 
@@ -749,8 +768,8 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         let mut ids_with_location = self
             .subtrees_roots
             .iter()
-            .map(|id| {
-                let template_node_id = id.get_template_node_id();
+            .map(|entry| {
+                let template_node_id = entry.id.get_template_node_id();
                 let location = current_component_template
                     .get_location(&template_node_id)
                     .expect("Location not found")
@@ -764,6 +783,17 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         let new_component_location = ids_with_location.first().unwrap().1.clone();
 
         let mut processed_ids: Vec<TemplateNodeId> = vec![];
+        let new_bounds = self
+            .subtrees_roots
+            .iter()
+            .map(|e| {
+                let mut new_entry = e.clone();
+                new_entry.x -= self.x;
+                new_entry.y -= self.y;
+                new_entry
+            })
+            .collect::<Vec<_>>();
+
         for (id, nl) in ids_with_location {
             let new_location = NodeLocation::new(
                 new_component_type_id.clone(),
@@ -775,6 +805,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
                 &mut new_template,
                 id.clone(),
                 new_location,
+                new_bounds.clone(),
             );
             current_component_template.remove_node(id.clone());
             processed_ids.push(id);
@@ -867,7 +898,7 @@ impl Undo for ConvertToComponentRequest {
         if let Some(template) = &self._cached_template {
             let binding = manifest
                 .components
-                .get_mut(&self.subtrees_roots[0].get_containing_component_type_id());
+                .get_mut(&self.subtrees_roots[0].id.get_containing_component_type_id());
             let current_component = binding.expect("Component not found");
             current_component.template = Some(template.clone());
         }
@@ -882,4 +913,26 @@ pub enum NodeAction {
     Update(UpdateTemplateNodeRequest),
     Remove(RemoveTemplateNodeRequest),
     Move(MoveTemplateNodeRequest),
+}
+
+pub fn update_position_if_exists(new_x: f64, new_y: f64, settings: &mut Vec<SettingElement>) {
+    for setting in settings.iter_mut() {
+        match setting {
+            SettingElement::Setting(key, value) => {
+                if key.raw_value == "x" {
+                    *value = ValueDefinition::LiteralValue(Token::new_only_raw(
+                        format!("{}px", new_x),
+                        pax_manifest::TokenType::LiteralValue,
+                    ))
+                }
+                if key.raw_value == "y" {
+                    *value = ValueDefinition::LiteralValue(Token::new_only_raw(
+                        format!("{}px", new_y),
+                        pax_manifest::TokenType::LiteralValue,
+                    ))
+                }
+            }
+            _ => {}
+        }
+    }
 }
