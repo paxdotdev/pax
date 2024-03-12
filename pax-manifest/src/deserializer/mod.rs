@@ -92,7 +92,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
         } else if let Ok(_) = PaxParser::parse(Rule::identifier, &self.input) {
             return self.deserialize_identifier(visitor);
         } else {
-            panic!("Failed to parse: {}", &self.input)
+            return Err(Error::UnsupportedType(self.input));
         };
 
         let ret = match ast.as_rule() {
