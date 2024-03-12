@@ -33,16 +33,16 @@ pub struct PaxManifest {
 }
 
 impl PaxManifest {
-    pub fn get_template_node(&self, uni: &UniqueTemplateNodeIdentifier) -> &TemplateNodeDefinition {
+    pub fn get_template_node(
+        &self,
+        uni: &UniqueTemplateNodeIdentifier,
+    ) -> Option<&TemplateNodeDefinition> {
         self.components
-            .get(&uni.component)
-            .unwrap()
+            .get(&uni.component)?
             .template
-            .as_ref()
-            .unwrap()
+            .as_ref()?
             .nodes
             .get(&uni.template_node_id)
-            .unwrap()
     }
 
     pub fn get_all_component_properties(&self, type_id: &TypeId) -> Vec<PropertyDefinition> {
