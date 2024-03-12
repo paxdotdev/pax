@@ -21,7 +21,8 @@
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
+    ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TypeId,
+    UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -125,7 +126,11 @@ impl PaxManifestORM {
             .ok_or(anyhow!("couldn't find component"))
     }
 
-   pub fn get_property(&self, unid: &UniqueTemplateNodeIdentifier, key: &str) -> Option<ValueDefinition> {
+    pub fn get_property(
+        &self,
+        unid: &UniqueTemplateNodeIdentifier,
+        key: &str,
+    ) -> Option<ValueDefinition> {
         let tnd = self.manifest.get_template_node(unid)?;
         if let Some(settings) = &tnd.settings {
             for setting in settings {
@@ -139,10 +144,18 @@ impl PaxManifestORM {
         None
     }
 
-    pub fn get_property_type(&self, unid: &UniqueTemplateNodeIdentifier, key: &str) -> Option<TypeId> {
+    pub fn get_property_type(
+        &self,
+        unid: &UniqueTemplateNodeIdentifier,
+        key: &str,
+    ) -> Option<TypeId> {
         let tnd = self.manifest.get_template_node(unid)?;
         let property_types = self.manifest.type_table.get(&tnd.type_id)?;
-        property_types.property_definitions.iter().find(|v| v.name == key).map(|v| v.type_id.clone())
+        property_types
+            .property_definitions
+            .iter()
+            .find(|v| v.name == key)
+            .map(|v| v.type_id.clone())
     }
 
     pub fn remove_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Result<usize, String> {
