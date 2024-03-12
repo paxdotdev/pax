@@ -99,14 +99,16 @@ impl Action for MoveSelected {
             // TODO support multi-selection movement
             return Ok(CanUndo::No);
         }
-        let selected = ctx.app_state.selected_template_node_ids[0].clone();
+        let Some(selected) = ctx.app_state.selected_template_node_ids.get(0) else {
+            return Err(anyhow!("tried to move selected but no selected object"));
+        };
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
         let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
                 ctx.app_state.selected_component_id.clone(),
-                selected,
+                selected.clone(),
             ))
         else {
             return Err(anyhow!("can't move: selected node doesn't exist in orm"));
