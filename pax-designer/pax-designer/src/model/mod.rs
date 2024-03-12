@@ -20,6 +20,7 @@ use pax_engine::math::{Transform2, Vector2};
 use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
 use pax_manifest::TemplateNodeId;
 use pax_manifest::TypeId;
+use pax_manifest::UniqueTemplateNodeIdentifier;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
@@ -179,6 +180,7 @@ impl SelectionState {
 pub struct SelectedItem {
     bounds: AxisAlignedBox,
     origin: Point2<Glass>,
+    id: UniqueTemplateNodeIdentifier,
 }
 
 // This represents values that can be deterministically produced from the app
