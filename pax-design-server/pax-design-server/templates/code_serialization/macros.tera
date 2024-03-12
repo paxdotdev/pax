@@ -50,7 +50,11 @@
         {% elif node_map[node_id].raw_comment_string %}
             {{node_map[node_id].raw_comment_string}}
         {% else %}
-            <{{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}} 
+            {% if node_map[node_id].type_id.pax_type.Singleton %}
+                <{{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}} 
+            {% else %}
+                <{{node_map[node_id].type_id.pax_type.BlankComponent.pascal_identifier}} 
+            {% endif %}
                 {% if node_map[node_id].settings %}
                     {% for setting in node_map[node_id].settings %}
                         {% if setting.Setting %}
@@ -63,7 +67,11 @@
                     {% for child_id in children[node_id]  %}
                         {{ self::render_template_node(node_map=node_map, children=children, node_id=child_id) }}
                     {% endfor %}
-                    </ {{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}} >
+                    {% if node_map[node_id].type_id.pax_type.Singleton %}
+                        </ {{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}} >
+                    {% else %}
+                        </ {{node_map[node_id].type_id.pax_type.BlankComponent.pascal_identifier}} >
+                    {% endif %}
             {% else %}
                     />
             {% endif %}
