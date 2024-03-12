@@ -37,13 +37,15 @@
     #top_panel {
         height: 65px,
         x: 265px,
-        width: {100% - 700px}
+        width: {100% - 265px}
     }
 
     #right_panel {
         width: 450px,
         anchor_x: 100%,
         x: 100%,
+        y: 65px,
+        height: {100% - 65px}
     }
 
     .black_bg {
