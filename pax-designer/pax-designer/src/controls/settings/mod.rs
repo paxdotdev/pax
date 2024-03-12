@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicI32;
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
 use pax_engine::api::*;

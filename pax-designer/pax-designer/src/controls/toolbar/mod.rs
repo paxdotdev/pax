@@ -5,6 +5,7 @@ use pax_std::components::Stacker;
 use pax_std::primitives::{Group, Image, Rectangle};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::channel;
 
 use pax_std::primitives::Button;
@@ -150,6 +151,8 @@ impl Toolbar {
     }
 
     pub fn update_view(&mut self, ctx: &NodeContext) {
+        //HACK: pre dirty-dag
+        let mut update = false;
         TOOLBAR_CHANNEL.with_borrow_mut(|store| {
             if let Some(event) = store.take() {
                 self.dropdown_active.set(false);
@@ -197,6 +200,13 @@ impl Toolbar {
                         if let ToolbarEvent::SelectTool(toolbar_tool) = item.event {
                             if toolbar_tool == tool {
                                 self.selected_ind.set(Numeric::from(row));
+                                static LAST_TOOL_ROW: AtomicUsize = AtomicUsize::new(0);
+                                static LAST_TOOL_COL: AtomicUsize = AtomicUsize::new(0);
+                                if row != LAST_TOOL_ROW.swap(row, Ordering::Relaxed)
+                                    || col != LAST_TOOL_COL.swap(col, Ordering::Relaxed)
+                                {
+                                    update = true;
+                                }
                                 self.entries.get_mut()[row] = ToolbarItemView {
                                     background: false,
                                     not_dummy: true,
@@ -213,8 +223,8 @@ impl Toolbar {
                     }
                 }
             });
-
-            //HACK: This can be removed once dirty-dag is a thing
+        });
+        if update {
             if self.entries.get().len() <= TOOLBAR_ENTRIES.with_borrow(|entries| entries.len()) {
                 self.entries.get_mut().push(ToolbarItemView {
                     background: false,
@@ -229,6 +239,6 @@ impl Toolbar {
             } else {
                 self.entries.get_mut().pop();
             }
-        });
+        }
     }
 }

@@ -30,7 +30,11 @@ pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub is_project_loaded: Property<bool>,
-    pub visible_len: Property<usize>,
+    pub old_visible_len: Property<usize>,
+    // last-patches update stuff
+    pub old_selected: Property<Vec<TemplateNodeId>>,
+    pub old_type_id: Property<TypeId>,
+    pub old_manifest_ver: Property<usize>,
 }
 
 pub enum TreeMsg {
@@ -200,7 +204,6 @@ impl Tree {
             })
             .collect();
         self.tree_objects.set(flattened.clone());
-        self.visible_len.set(flattened.len());
         self.visible_tree_objects.set(flattened);
     }
 
@@ -220,6 +223,8 @@ impl Tree {
                             break;
                         }
                     }
+                    self.old_visible_len
+                        .set(self.visible_tree_objects.get().len());
                     self.visible_tree_objects.set(
                         self.tree_objects
                             .get()
@@ -228,7 +233,6 @@ impl Tree {
                             .cloned()
                             .collect(),
                     );
-                    self.visible_len.set(self.visible_tree_objects.get().len());
                 }
                 TreeMsg::ObjClicked(sender) => model::perform_action(
                     SelectNode {
@@ -239,22 +243,34 @@ impl Tree {
             }
         }
 
+        //HACK pre dirty-dag
+        let mut update = false;
         model::read_app_state(|app_state| {
             let type_id = &app_state.selected_component_id;
-            self.set_tree(type_id.clone(), ctx);
+            let manifest_ver = {
+                let dt = ctx.designtime.borrow();
+                dt.get_manifest_version()
+            };
+            if self.old_type_id.get() != type_id || self.old_manifest_ver.get() != &manifest_ver {
+                self.set_tree(type_id.clone(), ctx);
+                self.old_type_id.set(type_id.clone());
+                self.old_manifest_ver.set(manifest_ver);
+                update = true;
+            }
 
             //update selected nodes
             let selected = &app_state.selected_template_node_ids;
-            for entry in self.visible_tree_objects.get_mut() {
-                entry.is_selected = selected.contains(&entry.node_id);
+            if self.old_selected.get() != selected {
+                for entry in self.visible_tree_objects.get_mut() {
+                    entry.is_selected = selected.contains(&entry.node_id);
+                }
+                self.old_selected.set(selected.clone());
+                update = true;
             }
         });
 
-        //HACK pre dirty-dag
-        {
-            static ADD_KEEP_TRACK: AtomicBool = AtomicBool::new(false);
-
-            if ADD_KEEP_TRACK.fetch_xor(true, Ordering::Relaxed) {
+        if update {
+            if self.old_visible_len.get() == &self.visible_tree_objects.get().len() {
                 self.visible_tree_objects
                     .get_mut()
                     .push(FlattenedTreeEntry {
