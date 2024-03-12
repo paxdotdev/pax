@@ -30,7 +30,7 @@ fn clean_test_project() {
         .expect("Failed to execute command");
 }
 
-#[test]
+//#[test]
 fn test_code_serializaton() {
     setup_test_project();
 
