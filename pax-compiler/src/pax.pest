@@ -113,7 +113,7 @@ literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
 //Enums like Orientation::Vertical
 //Note that this is parsed separately from expression enums, `xo_enum*`
 literal_enum_value = {identifier ~ ("::" ~ identifier)+ ~ ("("~literal_enum_args_list~")")?}
-literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
+literal_enum_args_list = {literal_value ~ ("," ~ literal_value)* ~ silent_comma?}
 
 ////// ////// //////
 /// BEGIN COLORS
@@ -270,10 +270,10 @@ xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ silent_co
 
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
-xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ "]" }
+xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ silent_comma? ~ "]" }
 
 xo_enum_or_function_call = {identifier ~ (("::") ~ identifier)+ ~ ("("~xo_enum_or_function_args_list~")")?}
-xo_enum_or_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
+xo_enum_or_function_args_list = {(expression_body ~ ("," ~ expression_body)* ~ silent_comma? )?}
 
 ////// ////// //////
 /// BEGIN CONTROL FLOW
