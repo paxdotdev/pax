@@ -250,6 +250,7 @@ impl ObjectEditor {
                     .selected_nodes()
                     .first()
                     .unwrap()
+                    .1
                     .properties()
                     .local_rotation;
                 let start_dir = point - rotation_anchor;

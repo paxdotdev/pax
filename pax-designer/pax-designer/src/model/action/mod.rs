@@ -109,25 +109,23 @@ impl ActionContext<'_> {
         None
     }
 
-    pub fn selected_nodes(&mut self) -> Vec<NodeInterface> {
+    pub fn selected_nodes(&mut self) -> Vec<(UniqueTemplateNodeIdentifier, NodeInterface)> {
         let type_id = self.app_state.selected_component_id.clone();
         // This is returning the FIRST expanded node matching a template, not all.
         // In the case of one to many relationships existing (for loops), this needs to be revamped.
 
         let mut nodes = vec![];
         self.app_state.selected_template_node_ids.retain(|id| {
+            let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
             let Some(node) = self
                 .engine_context
-                .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(
-                    type_id.clone(),
-                    id.clone(),
-                ))
+                .get_nodes_by_global_id(unid.clone())
                 .into_iter()
                 .next()
             else {
                 return false;
             };
-            nodes.push(node);
+            nodes.push((unid, node));
             true
         });
         nodes
@@ -138,12 +136,13 @@ impl ActionContext<'_> {
         let expanded_node = self.selected_nodes();
         let items: Vec<_> = expanded_node
             .into_iter()
-            .flat_map(|n| {
+            .flat_map(|(id, n)| {
                 Some(SelectedItem {
                     bounds: AxisAlignedBox::bound_of_points(
                         n.bounding_points()?.map(|p| to_glass_transform * p),
                     ),
                     origin: to_glass_transform * n.origin()?,
+                    id,
                 })
             })
             .collect();
