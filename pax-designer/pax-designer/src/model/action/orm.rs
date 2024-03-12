@@ -11,6 +11,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Context, Result};
+use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Rotation;
 use pax_engine::{
@@ -53,27 +54,30 @@ pub struct SelectedIntoNewComponent {}
 
 impl Action for SelectedIntoNewComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected = ctx.app_state.selected_template_node_ids.clone();
-        if selected.is_empty() {
+        let selection = ctx.selection_state();
+        if selection.selected_count() == 0 {
             return Err(anyhow!("can't create new embty component"));
         };
-        let bounds = ctx.selection_state().total_bounds;
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
-
-        let unique_ids: Vec<_> = selected
-            .into_iter()
-            .map(|s| {
-                UniqueTemplateNodeIdentifier::build(ctx.app_state.selected_component_id.clone(), s)
+        let entries: Vec<_> = selection
+            .items
+            .iter()
+            .map(|e| MoveToComponentEntry {
+                x: e.bounds.top_left().x,
+                y: e.bounds.top_left().y,
+                width: e.bounds.width(),
+                height: e.bounds.height(),
+                id: e.id.clone(),
             })
             .collect();
         dt.get_orm_mut()
             .move_to_new_component(
-                &unique_ids,
-                bounds.top_left().x,
-                bounds.top_left().y,
-                bounds.width(),
-                bounds.height(),
+                &entries,
+                selection.total_bounds.top_left().x,
+                selection.total_bounds.top_left().y,
+                selection.total_bounds.width(),
+                selection.total_bounds.height(),
             )
             .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
