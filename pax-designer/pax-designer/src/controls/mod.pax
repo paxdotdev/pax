@@ -41,7 +41,7 @@
     }
 
     #right_panel {
-        width: 450px,
+        width: 265px,
         anchor_x: 100%,
         x: 100%,
         y: 65px,

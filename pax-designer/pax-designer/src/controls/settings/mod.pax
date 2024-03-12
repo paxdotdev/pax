@@ -1,60 +1,60 @@
-<Text x=10px y=10px text={self.selected_component_name} class=h1 />
+
 
 if self.is_component_selected {
-	
-	<Group y=50px height={100% - 50px}>
-		<Group x=50% anchor_x=50% y=50% anchor_y=50% width={100% - 20px} height={100% - 20px}>
-			<Group height=150px>
-				<Text text="Basic" class=h2 />
-				<Group y=30px height={100% - 30px}>
-					<Group y=0px height=30px>
-						<Text text="Position" x=10px  class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="x" x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="y" x=66% width=32%/>
-					</Group>
-					<Group y=40px height=30px>
-						<Text text="Size" x=10px  class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="width" x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="height" x=66% width=32%/>
-					</Group>
-				</Group>
-			</Group>
+	<Group x=5px width={100% - 10px} >
+	    <Text text={self.selected_component_name} class=h1 class=col_1 class=span_6 />
+        <Group height=150px y=47px >
+            <Group y=0px height=30px>
+                <Text text="x" class=property_label class=col_1 class=span_1 />
+                <PropertyEditor stid={self.stid} snid={self.snid} name="x" class=col_2 class=span_2 />
+                <Text text="y" class=property_label class=col_4 class=span_1 />
+                <PropertyEditor stid={self.stid} snid={self.snid} name="y" class=col_5 class=span_2 />
+            </Group>
+            <Group y=40px height=30px>
+                <Text text="w" class=property_label class=col_1 class=span_1 />
+                <PropertyEditor stid={self.stid} snid={self.snid} name="width" class=col_2 class=span_2 />
+                <Text text="h" class=property_label class=col_4 class=span_1 />
+                <PropertyEditor stid={self.stid} snid={self.snid} name="height" class=col_5 class=span_2 />
+            </Group>
+        </Group>
 
-			<Group y=150px height=300px>
-				<Text text="Transform" class=h2 />
-				<Group y=30px height={100% - 30px}>
-					<Group y=0px height=30px>
-						<Text text="Rotation" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="rotate" x=33% width=32%/>
-					</Group>
-					<Group y=40px height=30px>
-						<Text text="Scale" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="scale_y" x=66% width=32%/>
-					</Group>
-					<Group y=80px height=30px>
-						<Text text="Anchor" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" x=66% width=32%/>
-					</Group>
-					<Group y=120px height=30px>
-						<Text text="Skew" x=10px class=h3/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" x=33% width=32%/>
-						<PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" x=66% width=32%/>
-					</Group>
-				</Group>
-			</Group>
+        <Group y=135px height=300px>
+            <Text text="TRANSFORM" class=h2 class=col_1 class=span_6 />
+            <Group y=30px height={100% - 30px}>
+                <Group y=0px height=30px>
+                    <Text text="↻z" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="rotate" class=col_2 class=span_2 />
+                </Group>
+                <Group y=40px height=30px>
+                    <Text text="↥x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" class=col_2 class=span_2 />
+                    <Text text="↥y" class=property_label class=col_4 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="scale_y" class=col_5 class=span_2 />
+                </Group>
+                <Group y=80px height=30px>
+                    <Text text="𛲜x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" class=col_2 class=span_2 />
+                    <Text text="𛲜y" class=property_label class=col_4 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" class=col_5 class=span_2 />
+                </Group>
+                <Group y=120px height=30px>
+                    <Text text="▱x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" class=col_2 class=span_2 />
+                    <Text text="▱y" class=property_label class=col_4 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" class=col_5 class=span_2 />
+                </Group>
+            </Group>
+        </Group>
 
-		
-			<Group y=380px height=300px>
-				for (property, i) in self.custom_props {
-					<Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
-						<Text text={property.name} class=h2 width=120px/>
-						<PropertyEditor ind={i} name={property.name} stid={self.stid} snid={self.snid} />
-					</Group>
-				}
-			</Group>
-		</Group>
+        <Group y=380px height=300px>
+            for (property, i) in self.custom_props {
+                <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
+                    <Text text={property.name} class=h2 width=120px/>
+                    <PropertyEditor ind={i} name={property.name} stid={self.stid} snid={self.snid} />
+                </Group>
+            }
+        </Group>
+
 	</Group>
 }
 
@@ -62,9 +62,9 @@ if self.is_component_selected {
     @mount: on_mount
 	@pre_render: pre_render
     .h1 {
-        height: 40px
+        height: 35px
         style: {
-            font_size: 34px,
+            font_size: 30px,
             font: {Font::system(
                 "Real Head Pro",
                 FontStyle::Normal,
@@ -74,32 +74,66 @@ if self.is_component_selected {
         }
     }
     .h2 {
-        height: 30px,
+        height: 20px,
         style: {
             font: {Font::system(
                 "Real Head Pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            font_size: 24px,
+            font_size: 18px,
             fill: WHITE,
         }
     }
-    .h3 {
-        width: 30%,
-        height: 18px,
-        anchor_y: 50%,
+    .property_label {
+        height: 22px,
         y: 50%,
+        anchor_y: 50%,
         style: {
             font: {Font::system(
                 "Real Head Pro",
                 FontStyle::Normal,
                 FontWeight::ExtraLight
             )},
-            font_size: 16px,
-            fill: WHITE,
+            font_size: 20px,
+            fill: rgba(255, 255, 255, 67%),
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
         }
+    }
+
+    //Note that columns account for a left-margin of 1.67%, so
+    // col_k = (k * 100/6) + 1.67%
+    .col_1 {
+        x: 1.67%,
+    }
+    .col_2 {
+        x: 18.33%,
+    }
+    .col_3 {
+        x: 35%,
+    }
+    .col_4 {
+        x: 51.67%,
+    }
+    .col_5 {
+        x: 68%,
+    }
+    .col_6 {
+        x: 85%,
+    }
+    //Note that the spans account for a total margin of 3.33%
+    //so span_k = ((k * 100/6) - 3.33)%
+    .span_1 {
+        width: 13.33%,
+    }
+    .span_2 {
+        width: 30%,
+    }
+    .span_3 {
+        width: 46.6667%,
+    }
+    .span_6 {
+        width: 100%,
     }
 }
