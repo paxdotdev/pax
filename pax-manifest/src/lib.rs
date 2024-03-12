@@ -323,6 +323,32 @@ pub enum PaxType {
     Unknown,
 }
 
+impl Display for PaxType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PaxType::If => write!(f, "If"),
+            PaxType::Slot => write!(f, "Slot"),
+            PaxType::Repeat => write!(f, "Repeat"),
+            PaxType::Comment => write!(f, "Comment"),
+            PaxType::BlankComponent { pascal_identifier } => write!(f, "{}", pascal_identifier),
+            PaxType::Primitive { pascal_identifier } => write!(f, "{}", pascal_identifier),
+            PaxType::Singleton { pascal_identifier } => write!(f, "{}", pascal_identifier),
+            PaxType::Range { identifier } => write!(f, "std::ops::Range<{}>", identifier),
+            PaxType::Option { identifier } => write!(f, "std::option::Option<{}>", identifier),
+            PaxType::Vector { elem_identifier } => write!(f, "std::vec::Vec<{}>", elem_identifier),
+            PaxType::Map {
+                key_identifier,
+                value_identifier,
+            } => write!(
+                f,
+                "std::collections::HashMap<{}><{}>",
+                key_identifier, value_identifier
+            ),
+            PaxType::Unknown => write!(f, "Unknown"),
+        }
+    }
+}
+
 #[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
 pub struct TypeId {
@@ -497,11 +523,11 @@ impl TypeId {
 
     pub fn get_pascal_identifier(&self) -> Option<String> {
         match &self.pax_type {
-            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
-                Some(pascal_identifier.clone())
-            }
+            PaxType::Primitive { pascal_identifier }
+            | PaxType::Singleton { pascal_identifier }
+            | PaxType::BlankComponent { pascal_identifier } => Some(pascal_identifier.clone()),
             PaxType::If | PaxType::Slot | PaxType::Repeat | PaxType::Comment => {
-                Some(self._type_id.clone())
+                Some(self.pax_type.to_string())
             }
             _ => None,
         }
@@ -605,14 +631,14 @@ impl Display for UniqueTemplateNodeIdentifier {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub enum TreeLocation {
     #[default]
     Root,
     Parent(TemplateNodeId),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub enum TreeIndexPosition {
     #[default]
     Top,
@@ -640,7 +666,35 @@ impl TreeIndexPosition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+impl PartialOrd for TreeIndexPosition {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self {
+            TreeIndexPosition::Top => match other {
+                TreeIndexPosition::Top => Some(Ordering::Equal),
+                TreeIndexPosition::Bottom => Some(Ordering::Less),
+                TreeIndexPosition::At(_) => Some(Ordering::Less),
+            },
+            TreeIndexPosition::Bottom => match other {
+                TreeIndexPosition::Top => Some(Ordering::Greater),
+                TreeIndexPosition::Bottom => Some(Ordering::Equal),
+                TreeIndexPosition::At(_) => Some(Ordering::Less),
+            },
+            TreeIndexPosition::At(index) => match other {
+                TreeIndexPosition::Top => Some(Ordering::Greater),
+                TreeIndexPosition::Bottom => Some(Ordering::Greater),
+                TreeIndexPosition::At(other_index) => index.partial_cmp(other_index),
+            },
+        }
+    }
+}
+
+impl Ord for TreeIndexPosition {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct NodeLocation {
     pub type_id: TypeId,
     pub tree_location: TreeLocation,
@@ -685,6 +739,35 @@ impl NodeLocation {
     }
 }
 
+impl PartialOrd for NodeLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self.tree_location {
+            TreeLocation::Root => match other.tree_location {
+                TreeLocation::Root => {
+                    return self.index.partial_cmp(&other.index);
+                }
+                TreeLocation::Parent(_) => {
+                    return Some(Ordering::Less);
+                }
+            },
+            TreeLocation::Parent(_) => match other.tree_location {
+                TreeLocation::Root => {
+                    return Some(Ordering::Greater);
+                }
+                TreeLocation::Parent(_) => {
+                    return self.index.partial_cmp(&other.index);
+                }
+            },
+        }
+    }
+}
+
+impl Ord for NodeLocation {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
@@ -709,6 +792,10 @@ impl ComponentTemplate {
             next_id: 0,
             template_source_file_path,
         }
+    }
+
+    pub fn get_containing_component_type_id(&self) -> TypeId {
+        self.containing_component.clone()
     }
 
     pub fn get_next_id(&self) -> usize {
