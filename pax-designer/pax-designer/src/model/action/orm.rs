@@ -60,12 +60,14 @@ impl Action for SelectedIntoNewComponent {
         let bounds = ctx.selection_state().total_bounds;
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
+
         let unique_ids: Vec<_> = selected
             .into_iter()
             .map(|s| {
                 UniqueTemplateNodeIdentifier::build(ctx.app_state.selected_component_id.clone(), s)
             })
             .collect();
+
         dt.get_orm_mut()
             .move_to_new_component(
                 &unique_ids,
