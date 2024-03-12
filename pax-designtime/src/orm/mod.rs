@@ -54,15 +54,6 @@ pub trait Command<R: Request> {
     }
 }
 
-#[derive(Debug)]
-pub struct MoveToComponentEntry {
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
-    pub id: UniqueTemplateNodeIdentifier,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifestORM {
     manifest: PaxManifest,
@@ -183,7 +174,7 @@ impl PaxManifestORM {
     ) -> Result<(), String> {
         let new_component_number = self.next_new_component_id;
         let command = ConvertToComponentRequest::new(
-            nodes.into_iter().map(|n| n.id.clone()).collect(),
+            nodes.to_vec(),
             new_component_number,
             x,
             y,
@@ -304,4 +295,13 @@ impl UndoRedoCommand {
         }
         Ok(())
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct MoveToComponentEntry {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub id: UniqueTemplateNodeIdentifier,
 }
