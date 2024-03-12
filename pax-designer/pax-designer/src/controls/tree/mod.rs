@@ -30,11 +30,11 @@ pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub is_project_loaded: Property<bool>,
-    pub old_visible_len: Property<usize>,
     // last-patches update stuff
     pub old_selected: Property<Vec<TemplateNodeId>>,
     pub old_type_id: Property<TypeId>,
     pub old_manifest_ver: Property<usize>,
+    pub actual_visible_len: Property<usize>,
 }
 
 pub enum TreeMsg {
@@ -43,7 +43,6 @@ pub enum TreeMsg {
 }
 
 pub static TREE_CLICK_SENDER: Mutex<Option<TreeMsg>> = Mutex::new(None);
-static COLLAPSED_NODES: Mutex<Option<HashSet<UniqueTemplateNodeIdentifier>>> = Mutex::new(None);
 
 struct TreeEntry {
     node_id: TemplateNodeId,
@@ -158,7 +157,7 @@ impl Tree {
 
     fn resolve_tree_type(type_id: TypeId) -> Desc {
         let Some(import_path) = type_id.import_path() else {
-            return Desc::Component(format!("{}", type_id.get_pax_type()));
+            return Desc::Component(format!("{:?}", type_id.get_pax_type()));
         };
         match import_path.trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::") {
             "Group" => Desc::Group,
@@ -176,7 +175,9 @@ impl Tree {
             "Slider" => Desc::Slider,
             "Dropdown" => Desc::Dropdown,
             _ => Desc::Component(
-                format!("{}", type_id.get_pax_type())
+                type_id
+                    .get_pascal_identifier()
+                    .unwrap_or("ERROR: NO PASCAL IDENT".to_string()),
             ),
         }
     }
@@ -203,6 +204,8 @@ impl Tree {
             .collect();
         self.tree_objects.set(flattened.clone());
         self.visible_tree_objects.set(flattened);
+        self.actual_visible_len
+            .set(self.visible_tree_objects.get().len());
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
@@ -221,8 +224,6 @@ impl Tree {
                             break;
                         }
                     }
-                    self.old_visible_len
-                        .set(self.visible_tree_objects.get().len());
                     self.visible_tree_objects.set(
                         self.tree_objects
                             .get()
@@ -250,9 +251,10 @@ impl Tree {
                 dt.get_manifest_version()
             };
             if self.old_type_id.get() != type_id || self.old_manifest_ver.get() != &manifest_ver {
-                self.set_tree(type_id.clone(), ctx);
                 self.old_type_id.set(type_id.clone());
                 self.old_manifest_ver.set(manifest_ver);
+                self.set_tree(type_id.clone(), ctx);
+                self.old_selected.set(vec![]);
                 update = true;
             }
 
@@ -266,15 +268,16 @@ impl Tree {
                 update = true;
             }
         });
-
         if update {
-            if self.old_visible_len.get() == &self.visible_tree_objects.get().len() {
+            if self.actual_visible_len.get() == &self.visible_tree_objects.get().len() {
                 self.visible_tree_objects
                     .get_mut()
                     .push(FlattenedTreeEntry {
                         is_not_dummy: false,
                         ..Default::default()
                     });
+            } else {
+                self.visible_tree_objects.get_mut().pop();
             }
         }
     }
