@@ -76,3 +76,7 @@ html, body, #mount, canvas, .native-overlay{
     margin: 0;
     padding: 0;    
 }
+
+input {
+    padding: 1px 4px 1px 4px;
+}

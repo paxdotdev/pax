@@ -239,6 +239,9 @@ export class NativeElementPool {
 
         applyTextTyle(textbox, textbox, patch.style);
 
+        //We may support styles other than solid in the future; this is a better default than the browser's for now
+        textbox.style["border-style"] = "solid";
+
         if (patch.background) {
             textbox.style.background = toCssColor(patch.background);
         }
@@ -253,6 +256,7 @@ export class NativeElementPool {
 
         if (patch.stroke_width) {
             textbox.style["border-width"] = patch.stroke_width + "px";
+
         }
 
         // Apply the content

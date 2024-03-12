@@ -1228,6 +1228,7 @@ pub enum Color {
     BLACK,
     WHITE,
     TRANSPARENT,
+    NONE,
 }
 
 impl Color {
@@ -1412,7 +1413,7 @@ impl Color {
                 Numeric::from(0xff).into(),
             )
             .to_rgba_0_1(),
-            Self::TRANSPARENT => Self::rgba(
+            Self::TRANSPARENT | Self::NONE => Self::rgba(
                 Numeric::from(0xff).into(),
                 Numeric::from(0xff).into(),
                 Numeric::from(0xFF).into(),
