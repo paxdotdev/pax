@@ -158,7 +158,7 @@ impl Tree {
 
     fn resolve_tree_type(type_id: TypeId) -> Desc {
         let Some(import_path) = type_id.import_path() else {
-            return Desc::Component(format!("{:?}", type_id.get_pax_type()));
+            return Desc::Component(format!("{}", type_id.get_pax_type()));
         };
         match import_path.trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::") {
             "Group" => Desc::Group,
@@ -176,9 +176,7 @@ impl Tree {
             "Slider" => Desc::Slider,
             "Dropdown" => Desc::Dropdown,
             _ => Desc::Component(
-                type_id
-                    .get_pascal_identifier()
-                    .unwrap_or("ERROR: NO PASCAL IDENT".to_string()),
+                format!("{}", type_id.get_pax_type())
             ),
         }
     }
