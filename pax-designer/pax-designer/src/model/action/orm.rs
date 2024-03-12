@@ -67,7 +67,6 @@ impl Action for SelectedIntoNewComponent {
                 UniqueTemplateNodeIdentifier::build(ctx.app_state.selected_component_id.clone(), s)
             })
             .collect();
-
         dt.get_orm_mut()
             .move_to_new_component(
                 &unique_ids,
