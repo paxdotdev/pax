@@ -64,6 +64,13 @@ impl DesigntimeManager {
         self.priv_agent_connection
             .borrow_mut()
             .send_component_update(component)?;
+
+        for c in self.orm.get_new_components() {
+            self.priv_agent_connection
+                .borrow_mut()
+                .send_component_update(&c)?;
+        }
+
         Ok(())
     }
 

@@ -78,6 +78,18 @@ impl PaxManifestORM {
         }
     }
 
+    pub fn get_new_components(&mut self) -> Vec<ComponentDefinition> {
+        let mut new_components_to_process = Vec::new();
+
+        for component_type_id in &self.new_components {
+            if let Some(component) = self.manifest.components.get(component_type_id) {
+                new_components_to_process.push(component.clone());
+            }
+        }
+        self.new_components.clear();
+        new_components_to_process
+    }
+
     pub fn get_manifest(&self) -> &PaxManifest {
         &self.manifest
     }
@@ -150,7 +162,8 @@ impl PaxManifestORM {
         let new_component_number = self.next_new_component_id;
         let command =
             ConvertToComponentRequest::new(ids.to_vec(), new_component_number, x, y, width, height);
-        let _ = self.execute_command(command)?;
+        let resp = self.execute_command(command)?;
+        self.new_components.push(resp.new_component_type_id);
         self.next_new_component_id += 1;
         Ok(())
     }
