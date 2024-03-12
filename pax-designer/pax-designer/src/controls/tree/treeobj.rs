@@ -42,7 +42,6 @@ impl TreeObj {
             Some(super::TreeMsg::ArrowClicked(self.ind.get().clone().into()));
     }
     pub fn obj_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        log::info!("clicked!");
         *super::TREE_CLICK_SENDER.lock().unwrap() =
             Some(super::TreeMsg::ObjClicked(self.ind.get().clone().into()));
     }
