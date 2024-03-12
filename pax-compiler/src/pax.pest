@@ -167,7 +167,8 @@ literal_color_const = {
     "ROSE" |
     "BLACK" |
     "WHITE" |
-    "TRANSPARENT"
+    "TRANSPARENT" |
+    "NONE"
 }
 
 ////// ////// //////
