@@ -20,6 +20,10 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
+use pax_manifest::Token;
+use pax_manifest::SettingElement;
+use pax_manifest::TokenType;
+use pax_manifest::ValueDefinition;
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
 };
@@ -107,6 +111,26 @@ impl PaxManifestORM {
             .components
             .get(type_id)
             .ok_or(anyhow!("couldn't find component"))
+    }
+
+   pub fn get_property(&self, unid: &UniqueTemplateNodeIdentifier, key: &str) -> Option<ValueDefinition> {
+        let tnd = self.manifest.get_template_node(unid)?;
+        if let Some(settings) = &tnd.settings {
+            for setting in settings {
+                if let SettingElement::Setting(token, value) = setting {
+                    if token.raw_value == key {
+                        return Some(value.clone());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_property_type(&self, unid: &UniqueTemplateNodeIdentifier, key: &str) -> Option<TypeId> {
+        let tnd = self.manifest.get_template_node(unid)?;
+        let property_types = self.manifest.type_table.get(&tnd.type_id)?;
+        property_types.property_definitions.iter().find(|v| v.name == key).map(|v| v.type_id.clone())
     }
 
     pub fn remove_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Result<usize, String> {
