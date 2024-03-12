@@ -1113,6 +1113,7 @@ impl From<IntoableLiteral> for Size {
     fn from(value: IntoableLiteral) -> Self {
         match value {
             IntoableLiteral::Percent(p) => p.into(),
+            IntoableLiteral::Numeric(n) => n.into(),
             _ => {
                 unreachable!()
             }

@@ -465,10 +465,9 @@ export class NativeElementPool {
                         let newValue = "";
                         if(linkStyle.fill.Rgba != null) {
                             let p = linkStyle.fill.Rgba;
-                            newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                            newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]!})`; //note that alpha channel expects [0.0, 1.0] in CSS
                         } else {
-                            let p = linkStyle.fill.Hsla!;
-                            newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                            console.warn("Unsupported Color Format");
                         }
                         link.style.color = newValue;
                     }
@@ -633,16 +632,7 @@ export class NativeElementPool {
 function toCssColor(color: ColorGroup): string {
     if (color.Rgba != null) {
         let p = color.Rgba;
-        return `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-    } else if (color.Hsla != null) {
-        let p = color.Hsla;
-        return `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-    } else if (color.Rgb != null) {
-        let p = color.Rgb;
-        return `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
-    } else if (color.Hsl != null) {
-        let p = color.Hsl;
-        return `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+        return `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3]})`; //Note that alpha channel expects [0.0, 1.0] in CSS
     } else {
         throw new TypeError("Unsupported Color Format");
     }        
