@@ -93,12 +93,18 @@ impl ActionContext<'_> {
             .get_nodes_by_id(USERLAND_PROJECT_ID)
             .first()
         {
-            if let Some(target) = all_elements_beneath_ray
+            let mut target = all_elements_beneath_ray
                 .into_iter()
-                .find(|elem| elem.is_descendant_of(&container))
+                .find(|elem| elem.is_descendant_of(&container))?;
+
+            // Find the ancestor that is a direct root element inside container
+            while target
+                .parent()
+                .is_some_and(|p| p.global_id() != container.global_id())
             {
-                return Some(target);
+                target = target.parent().unwrap();
             }
+            return Some(target);
         }
         None
     }
