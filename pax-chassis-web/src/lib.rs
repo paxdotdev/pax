@@ -568,20 +568,21 @@ impl PaxChassisWeb {
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
         if current_manifest_version != self.last_manifest_version_rendered {
+            let mut new_instance_nodes = vec![];
             if let Some(instance_node) = self
                 .definition_to_instance_traverser
                 .get_template_node_by_id(USERLAND_PROJECT_ID)
             {
-                let mut engine = self.engine.borrow_mut();
-                engine.replace_instance_node(Rc::clone(&instance_node));
+                new_instance_nodes.push(instance_node);
             }
             if let Some(instance_node) = self
                 .definition_to_instance_traverser
                 .get_template_node_by_id(RUNNING_PROJECT_ID)
             {
-                let mut engine = self.engine.borrow_mut();
-                engine.replace_instance_node(Rc::clone(&instance_node));
+                new_instance_nodes.push(instance_node);
             }
+            let mut engine = self.engine.borrow_mut();
+            engine.replace_instance_nodes(&new_instance_nodes);
             self.last_manifest_version_rendered = current_manifest_version;
         }
     }

@@ -342,20 +342,20 @@ impl PaxEngine {
         }
     }
 
-    pub fn replace_instance_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
+    pub fn replace_instance_nodes(&mut self, new_instances: &[Rc<dyn InstanceNode>]) {
         for temp in self.main_component_instance.template.borrow().iter() {
-            replace_instance_node_at(&temp, &new_instance);
+            replace_instance_node_at(&temp, new_instances);
         }
 
         fn replace_instance_node_at(
             parent: &Rc<dyn InstanceNode>,
-            new_instance: &Rc<dyn InstanceNode>,
+            new_instance: &[Rc<dyn InstanceNode>],
         ) {
             let mut instance_nodes = parent.base().get_instance_children().borrow_mut();
             for node in instance_nodes.iter_mut() {
-                if node.base().template_node_identifier
-                    == new_instance.base().template_node_identifier
-                {
+                if let Some(new_instance) = new_instance.iter().find(|n| {
+                    n.base().template_node_identifier == node.base().template_node_identifier
+                }) {
                     *node = Rc::clone(&new_instance);
                 } else {
                     replace_instance_node_at(node, new_instance)
@@ -364,15 +364,14 @@ impl PaxEngine {
         }
 
         // update the expanded nodes that just got a new instance node
-        let unique_id = new_instance
-            .base()
-            .template_node_identifier
-            .clone()
-            .expect("new instance node has unique identifier");
-        remount_expanded_nodes(&self.root_node, &unique_id, &mut self.runtime_context);
+        let unique_ids: Vec<_> = new_instances
+            .iter()
+            .map(|n| n.base().template_node_identifier.clone().expect("exists"))
+            .collect();
+        remount_expanded_nodes(&self.root_node, &unique_ids, &mut self.runtime_context);
         fn remount_expanded_nodes(
             parent: &Rc<ExpandedNode>,
-            id: &UniqueTemplateNodeIdentifier,
+            ids: &[UniqueTemplateNodeIdentifier],
             ctx: &mut RuntimeContext,
         ) {
             if parent.children.borrow().iter().any(|node| {
@@ -380,7 +379,7 @@ impl PaxEngine {
                     .base()
                     .template_node_identifier
                     .as_ref()
-                    .is_some_and(|i| i == id)
+                    .is_some_and(|i| ids.contains(i))
             }) {
                 // OBS: HACK: this is not general, works for non-for loop/if nodes only
                 // to do more generally, split expanded_node.update into prop updates and
@@ -391,7 +390,7 @@ impl PaxEngine {
                 parent.set_children(new_templates, ctx);
             } else {
                 for child in parent.children.borrow().iter() {
-                    remount_expanded_nodes(child, id, ctx);
+                    remount_expanded_nodes(child, ids, ctx);
                 }
             }
         }
