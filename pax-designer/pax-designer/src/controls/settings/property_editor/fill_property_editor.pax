@@ -1,8 +1,8 @@
 
-<Textbox background=WHITE x=25% width=15% height=30px text={self.red} @textbox_change=self.text_change @textbox_input=self.red_input/>
-<Textbox background=WHITE x=45% width=15% height=30px text={self.green} @textbox_change=self.text_change @textbox_input=self.green_input/>
-<Textbox background=WHITE x=65% width=15% height=30px text={self.blue} @textbox_change=self.text_change @textbox_input=self.blue_input/>
-<Textbox background=WHITE x=85% width=15% height=30px text={self.alpha} @textbox_change=self.text_change @textbox_input=self.alpha_input/>
+<Textbox class=input x=25% width=15% height=30px text={self.red} @textbox_change=self.text_change @textbox_input=self.red_input/>
+<Textbox class=input x=45% width=15% height=30px text={self.green} @textbox_change=self.text_change @textbox_input=self.green_input/>
+<Textbox class=input x=65% width=15% height=30px text={self.blue} @textbox_change=self.text_change @textbox_input=self.blue_input/>
+<Textbox class=input x=85% width=15% height=30px text={self.alpha} @textbox_change=self.text_change @textbox_input=self.alpha_input/>
 
 <Group x=25% y=45px height=20px id=palette>
     // Intersection rectangles (can be removed when we have "with" clause)
@@ -38,4 +38,22 @@
 @settings {
     @mount: on_mount
     @pre_render: on_render
+
+    .input {
+        background: BLACK,
+        stroke: {
+            color: rgb(40, 48, 54),
+            width: 1px,
+        },
+        border_radius: 5,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 16px,
+            fill: WHITE,
+        }
+    }
 }

@@ -1,4 +1,4 @@
-<Textbox background=WHITE x=30% width=70% height=80% text={self.textbox} @textbox_change=self.text_change @textbox_input=self.text_input/>
+<Textbox class=input x=30% width=70% height=80% text={self.textbox} @textbox_change=self.text_change @textbox_input=self.text_input/>
 <Text y=100% height=30% x=30% width=70% id=text text={self.error}/>
 
 @settings {
@@ -6,25 +6,34 @@
     @pre_render: on_render
     #text {
         style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )},
+            font_size: 10px,
+            fill: {rgba(255, 0.3*255, 0.3*255, 255)},
+            align_vertical: TextAlignVertical::Bottom,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .input {
+            background: BLACK,
+            stroke: {
+                color: rgb(40, 48, 54),
+                width: 1px,
+            },
+            border_radius: 5,
+            style: {
                 font: {Font::system(
                     "Real Head Pro",
                     FontStyle::Normal,
-                    FontWeight::Bold
+                    FontWeight::Light
                 )},
-                font_size: 10px,
-                fill: {rgba(255, 0.3*255, 0.3*255, 255)},
-                align_vertical: TextAlignVertical::Bottom,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
+                font_size: 16px,
+                fill: WHITE,
+            }
         }
-    }
-    #textbox {
-        style: {
-                font_size: 15px,
-                fill: BLACK,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Left,
-                align_multiline: TextAlignHorizontal::Left
-        }
-    }
 }
