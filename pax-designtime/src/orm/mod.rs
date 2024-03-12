@@ -54,6 +54,15 @@ pub trait Command<R: Request> {
     }
 }
 
+#[derive(Debug)]
+pub struct MoveToComponentEntry {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub id: UniqueTemplateNodeIdentifier,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifestORM {
     manifest: PaxManifest,
@@ -166,15 +175,21 @@ impl PaxManifestORM {
 
     pub fn move_to_new_component(
         &mut self,
-        ids: &[UniqueTemplateNodeIdentifier],
+        nodes: &[MoveToComponentEntry],
         x: f64,
         y: f64,
         width: f64,
         height: f64,
     ) -> Result<(), String> {
         let new_component_number = self.next_new_component_id;
-        let command =
-            ConvertToComponentRequest::new(ids.to_vec(), new_component_number, x, y, width, height);
+        let command = ConvertToComponentRequest::new(
+            nodes.into_iter().map(|n| n.id.clone()).collect(),
+            new_component_number,
+            x,
+            y,
+            width,
+            height,
+        );
         let resp = self.execute_command(command)?;
         self.new_components.push(resp.new_component_type_id);
         self.next_new_component_id += 1;
