@@ -9,6 +9,5 @@ Cargo.lock
 ## VScode project configuration files
 .vscode/
 
-**/.pax/
 
 .env
