@@ -657,7 +657,8 @@ impl Request for ConvertToComponentRequest {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ConvertToComponentResponse {
     command_id: Option<usize>,
-    uni: UniqueTemplateNodeIdentifier,
+    pub uni: UniqueTemplateNodeIdentifier,
+    pub new_component_type_id: TypeId,
 }
 
 impl Response for ConvertToComponentResponse {
@@ -682,14 +683,19 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         }
 
         let new_component_identifier = format!("NewComponent{}", self.new_component_number);
+        let new_component_file_name = format!("new_component_{}.pax", self.new_component_number);
         let new_component_type_id = TypeId::build_blank_component(&new_component_identifier);
 
-        let (module_path, mc_path) = {
-            let mc_bind = manifest.components.get(&manifest.main_component_type_id);
-            let mc = mc_bind.expect("Main component not found").clone();
+        let (module_path, ul_path) = {
+            let userland_project_type_id = TypeId::build_singleton(
+                "pax_designer::pax_reexports::designer_project::Example",
+                None,
+            );
+            let ul_bind = manifest.components.get(&userland_project_type_id);
+            let ul = ul_bind.expect("Main component not found").clone();
             (
-                mc.module_path.clone(),
-                mc.template
+                ul.module_path.clone(),
+                ul.template
                     .as_ref()
                     .expect("Main component template not found")
                     .get_file_path()
@@ -698,10 +704,10 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             )
         };
 
-        let new_component_path = PathBuf::from(mc_path)
+        let new_component_path = PathBuf::from(ul_path)
             .parent()
             .expect("Main component path has no parent")
-            .join(new_component_identifier)
+            .join(new_component_file_name)
             .to_str()
             .map(|s| s.to_string());
 
@@ -731,7 +737,6 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
                 .expect("Node not found")
                 .clone();
 
-        
             let new_node_id = new_template.add_at(node, node_location.clone());
             for child in current_template.get_children(&node_id).unwrap_or(vec![]) {
                 let location = NodeLocation::new(
@@ -830,7 +835,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
 
         let mut add_request = AddTemplateNodeRequest::new(
             current_component_type_id.clone(),
-            new_component_type_id,
+            new_component_type_id.clone(),
             NodeType::Template(settings),
             Some(new_component_location),
         );
@@ -841,6 +846,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         Ok(ConvertToComponentResponse {
             command_id: None,
             uni: response.uni,
+            new_component_type_id,
         })
     }
 
