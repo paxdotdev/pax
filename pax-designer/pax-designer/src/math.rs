@@ -15,6 +15,12 @@ pub struct AxisAlignedBox<W = Glass> {
     max: Point2<W>,
 }
 
+impl<W: Space> PartialEq for AxisAlignedBox<W> {
+    fn eq(&self, other: &Self) -> bool {
+        self.min == other.min && self.max == other.max
+    }
+}
+
 impl<W: Space> Clone for AxisAlignedBox<W> {
     fn clone(&self) -> Self {
         Self {
