@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::rc::Rc;
 
-pub mod cartridge_generation;
 pub mod orm;
 pub mod privileged_agent;
 
@@ -17,7 +16,7 @@ pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
 pub use pax_manifest;
-use pax_manifest::{ComponentDefinition, PaxManifest, TypeId};
+use pax_manifest::{ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
 use privileged_agent::PrivilegedAgentConnection;
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
@@ -117,3 +116,9 @@ impl DesigntimeManager {
 }
 
 pub enum Args {}
+
+pub struct NodeWithBounds {
+    pub uni: UniqueTemplateNodeIdentifier,
+    pub x: f64,
+    pub y: f64,
+}

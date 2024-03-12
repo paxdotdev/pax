@@ -1,8 +1,12 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    path::{Component, PathBuf},
+};
 
 use pax_manifest::{
-    ComponentTemplate, NodeLocation, NodeType, PaxManifest, TemplateNodeDefinition, Token, TypeId,
+    ComponentDefinition, ComponentTemplate, NodeLocation, NodeType, PaxManifest, SettingElement,
+    TemplateNodeDefinition, TemplateNodeId, Token, TreeIndexPosition, TreeLocation, TypeId,
     UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -603,6 +607,268 @@ impl Undo for ReplaceTemplateRequest {
             .get_mut(&self.component_type_id)
             .unwrap();
         component.template = self._cached_prev_template.clone();
+        Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ConvertToComponentRequest {
+    // These subtrees (roots) must be at the same TreeLocation
+    subtrees_roots: Vec<UniqueTemplateNodeIdentifier>,
+    new_component_number: usize,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+
+    // Used for Undo/Redo
+    _cached_template: Option<ComponentTemplate>,
+    _cached_add: Option<AddTemplateNodeRequest>,
+    _cached_new_component_type_id: Option<TypeId>,
+}
+
+impl ConvertToComponentRequest {
+    pub fn new(
+        subtrees_roots: Vec<UniqueTemplateNodeIdentifier>,
+        new_component_number: usize,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Self {
+        Self {
+            subtrees_roots,
+            new_component_number,
+            x,
+            y,
+            width,
+            height,
+            _cached_template: None,
+            _cached_add: None,
+            _cached_new_component_type_id: None,
+        }
+    }
+}
+
+impl Request for ConvertToComponentRequest {
+    type Response = ConvertToComponentResponse;
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ConvertToComponentResponse {
+    command_id: Option<usize>,
+    uni: UniqueTemplateNodeIdentifier,
+}
+
+impl Response for ConvertToComponentResponse {
+    fn set_id(&mut self, id: usize) {
+        self.command_id = Some(id);
+    }
+    fn get_id(&self) -> usize {
+        self.command_id.unwrap()
+    }
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        Some(self.uni.get_containing_component_type_id().clone())
+    }
+}
+
+impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
+    fn execute(
+        &mut self,
+        manifest: &mut PaxManifest,
+    ) -> Result<ConvertToComponentResponse, String> {
+        if self.subtrees_roots.len() == 0 {
+            return Err("No subtrees provided".to_string());
+        }
+
+        let new_component_identifier = format!("NewComponent{}", self.new_component_number);
+        let new_component_type_id = TypeId::build_blank_component(&new_component_identifier);
+
+        let (module_path, mc_path) = {
+            let mc_bind = manifest.components.get(&manifest.main_component_type_id);
+            let mc = mc_bind.expect("Main component not found").clone();
+            (
+                mc.module_path.clone(),
+                mc.template
+                    .as_ref()
+                    .expect("Main component template not found")
+                    .get_file_path()
+                    .expect("Main component file path not found")
+                    .clone(),
+            )
+        };
+
+        let new_component_path = PathBuf::from(mc_path)
+            .parent()
+            .expect("Main component path has no parent")
+            .join(new_component_identifier)
+            .to_str()
+            .map(|s| s.to_string());
+
+        let current_component_type_id = self.subtrees_roots[0]
+            .get_containing_component_type_id()
+            .clone();
+        let binding = manifest.components.get_mut(&current_component_type_id);
+        let current_component = binding.expect("Component not found");
+        let current_component_template = current_component
+            .template
+            .as_mut()
+            .expect("Component template not found");
+
+        self._cached_template = Some(current_component_template.clone());
+
+        let mut new_template =
+            ComponentTemplate::new(new_component_type_id.clone(), new_component_path);
+
+        fn add_subtree_to_new_template(
+            current_template: &ComponentTemplate,
+            new_template: &mut ComponentTemplate,
+            node_id: TemplateNodeId,
+            node_location: NodeLocation,
+        ) {
+            let node = current_template
+                .get_node(&node_id)
+                .expect("Node not found")
+                .clone();
+
+        
+            let new_node_id = new_template.add_at(node, node_location.clone());
+            for child in current_template.get_children(&node_id).unwrap_or(vec![]) {
+                let location = NodeLocation::new(
+                    node_location.type_id.clone(),
+                    TreeLocation::Parent(new_node_id.get_template_node_id().clone()),
+                    TreeIndexPosition::Bottom,
+                );
+                add_subtree_to_new_template(current_template, new_template, child, location);
+            }
+        }
+
+        // sort ids by TreeIndexPosition
+        let mut ids_with_location = self
+            .subtrees_roots
+            .iter()
+            .map(|id| {
+                let template_node_id = id.get_template_node_id();
+                let location = current_component_template
+                    .get_location(&template_node_id)
+                    .expect("Location not found")
+                    .clone();
+                (template_node_id, location)
+            })
+            .collect::<Vec<_>>();
+
+        ids_with_location.sort_by(|a, b| a.1.cmp(&b.1));
+
+        let new_component_location = ids_with_location.first().unwrap().1.clone();
+
+        let mut processed_ids: Vec<TemplateNodeId> = vec![];
+        for (id, nl) in ids_with_location {
+            let new_location = NodeLocation::new(
+                new_component_type_id.clone(),
+                nl.tree_location.clone(),
+                TreeIndexPosition::Bottom,
+            );
+            add_subtree_to_new_template(
+                &current_component_template,
+                &mut new_template,
+                id.clone(),
+                new_location,
+            );
+            current_component_template.remove_node(id.clone());
+            processed_ids.push(id);
+        }
+
+        let new_component = ComponentDefinition {
+            type_id: new_component_type_id.clone(),
+            is_main_component: false,
+            is_primitive: false,
+            is_struct_only_component: false,
+            module_path: module_path,
+            primitive_instance_import_path: None,
+            template: Some(new_template),
+            settings: None,
+        };
+
+        manifest
+            .components
+            .insert(new_component_type_id.clone(), new_component);
+
+        self._cached_new_component_type_id = Some(new_component_type_id.clone());
+
+        let settings = {
+            let mut settings: Vec<SettingElement> = Vec::new();
+            settings.push(SettingElement::Setting(
+                Token::new_only_raw("x".to_string(), pax_manifest::TokenType::SettingKey),
+                ValueDefinition::LiteralValue(Token::new_only_raw(
+                    format!("{}px", self.x),
+                    pax_manifest::TokenType::LiteralValue,
+                )),
+            ));
+            settings.push(SettingElement::Setting(
+                Token::new_only_raw("y".to_string(), pax_manifest::TokenType::SettingKey),
+                ValueDefinition::LiteralValue(Token::new_only_raw(
+                    format!("{}px", self.y),
+                    pax_manifest::TokenType::LiteralValue,
+                )),
+            ));
+            settings.push(SettingElement::Setting(
+                Token::new_only_raw("width".to_string(), pax_manifest::TokenType::SettingKey),
+                ValueDefinition::LiteralValue(Token::new_only_raw(
+                    format!("{}px", self.width),
+                    pax_manifest::TokenType::LiteralValue,
+                )),
+            ));
+            settings.push(SettingElement::Setting(
+                Token::new_only_raw("height".to_string(), pax_manifest::TokenType::SettingKey),
+                ValueDefinition::LiteralValue(Token::new_only_raw(
+                    format!("{}px", self.height),
+                    pax_manifest::TokenType::LiteralValue,
+                )),
+            ));
+            settings
+        };
+
+        let mut add_request = AddTemplateNodeRequest::new(
+            current_component_type_id.clone(),
+            new_component_type_id,
+            NodeType::Template(settings),
+            Some(new_component_location),
+        );
+        let response = add_request.execute(manifest)?;
+
+        self._cached_add = Some(add_request);
+
+        Ok(ConvertToComponentResponse {
+            command_id: None,
+            uni: response.uni,
+        })
+    }
+
+    fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
+        Some(UndoRedoCommand::ConvertToComponentRequest(Box::new(
+            self.clone(),
+        )))
+    }
+}
+
+impl Undo for ConvertToComponentRequest {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        if let Some(add_request) = &mut self._cached_add {
+            add_request.undo(manifest).unwrap();
+        }
+
+        if let Some(new_component_type_id) = &self._cached_new_component_type_id {
+            manifest.components.remove(new_component_type_id);
+        }
+
+        if let Some(template) = &self._cached_template {
+            let binding = manifest
+                .components
+                .get_mut(&self.subtrees_roots[0].get_containing_component_type_id());
+            let current_component = binding.expect("Component not found");
+            current_component.template = Some(template.clone());
+        }
+
         Ok(())
     }
 }

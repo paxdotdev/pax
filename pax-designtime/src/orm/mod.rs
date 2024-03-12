@@ -20,18 +20,14 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::Token;
-use pax_manifest::SettingElement;
-use pax_manifest::TokenType;
-use pax_manifest::ValueDefinition;
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
+    ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TemplateNodeDefinition, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
-use self::template::{builder::NodeBuilder, RemoveTemplateNodeRequest};
+use self::template::{builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest};
 
 use anyhow::{anyhow, Result};
 pub mod template;
@@ -65,6 +61,8 @@ pub struct PaxManifestORM {
     next_command_id: usize,
     // This counter increase with each command execution/undo/redo (essentially tracks each unique change to the manifest)
     manifest_version: usize,
+    next_new_component_id: usize,
+    new_components: Vec<TypeId>,
 }
 
 impl PaxManifestORM {
@@ -75,6 +73,8 @@ impl PaxManifestORM {
             redo_stack: Vec::new(),
             next_command_id: 0,
             manifest_version: 0,
+            next_new_component_id: 1,
+            new_components: Vec::new(),
         }
     }
 
@@ -147,14 +147,11 @@ impl PaxManifestORM {
         width: f64,
         height: f64,
     ) -> Result<(), String> {
-        log::debug!(
-            "Moved template nodes {:?} to component at ({:?}, {:?}) with bounds ({:?}, {:?})",
-            ids,
-            x,
-            y,
-            width,
-            height
-        );
+        let new_component_number = self.next_new_component_id;
+        let command =
+            ConvertToComponentRequest::new(ids.to_vec(), new_component_number, x, y, width, height);
+        let _ = self.execute_command(command)?;
+        self.next_new_component_id += 1;
         Ok(())
     }
 
@@ -228,6 +225,7 @@ pub enum UndoRedoCommand {
     UpdateTemplateNodeRequest(Box<template::UpdateTemplateNodeRequest>),
     MoveTemplateNodeRequest(Box<template::MoveTemplateNodeRequest>),
     ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
+    ConvertToComponentRequest(Box<template::ConvertToComponentRequest>),
 }
 
 impl UndoRedoCommand {
@@ -238,6 +236,7 @@ impl UndoRedoCommand {
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::MoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
+            UndoRedoCommand::ConvertToComponentRequest(command) => command.undo(manifest),
         }
     }
 
@@ -256,6 +255,9 @@ impl UndoRedoCommand {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::ReplaceTemplateRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::ConvertToComponentRequest(command) => {
                 let _ = command.execute(manifest);
             }
         }
