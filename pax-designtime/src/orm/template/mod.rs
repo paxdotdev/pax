@@ -1,7 +1,7 @@
 use core::panic;
 use std::{
     collections::HashMap,
-    path::{Component, PathBuf},
+    path::{PathBuf},
 };
 
 use pax_manifest::{

@@ -21,7 +21,7 @@
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TemplateNodeDefinition, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
+    ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
