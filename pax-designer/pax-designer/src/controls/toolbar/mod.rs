@@ -104,7 +104,7 @@ thread_local! {
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Rectangle))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-03-ellipse.png".to_string(),
+                        icon: "assets/icons/toolbar/icon-12-ellipse.png".to_string(),
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Ellipse))
                     }
                 ]
