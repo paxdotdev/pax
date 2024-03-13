@@ -80,8 +80,9 @@ impl StrokePropertyEditor {
         }
     }
     pub fn width_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        // TODO verify number
-        self.stroke_width.set(event.text.clone());
+        if event.text.parse::<u32>().is_ok() {
+            self.stroke_width.set(event.text.clone());
+        }
     }
 
     pub fn text_change(&mut self, ctx: &NodeContext, _event: Event<TextboxChange>) {
