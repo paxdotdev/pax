@@ -47,15 +47,14 @@ impl PaxManifest {
 
     pub fn get_all_component_properties(&self, type_id: &TypeId) -> Vec<PropertyDefinition> {
         if let None = self.components.get(type_id) {
-            panic!("{} is not a valid component", type_id);
+            return Vec::default();
         }
         let mut common_properties = get_common_properties_as_property_definitions();
         common_properties.extend(
             self.type_table
                 .get(type_id)
-                .unwrap()
-                .property_definitions
-                .clone(),
+                .map(|table| table.property_definitions.clone())
+                .unwrap_or_default(),
         );
         common_properties
     }
