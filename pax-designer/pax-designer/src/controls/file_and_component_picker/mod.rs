@@ -36,7 +36,7 @@ pub struct SetLibraryState {
 }
 
 impl Action for SetLibraryState {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
         *LIBRARY_MSG.lock().unwrap() = Some(*self);
         Ok(CanUndo::No)
     }
