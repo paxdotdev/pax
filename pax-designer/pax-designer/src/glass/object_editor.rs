@@ -45,8 +45,8 @@ impl ObjectEditor {
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state_with_derived(ctx, |_app_state, derived_state| {
             // HACK: dirty dag manual check if we need to update
-            let total_bounds = derived_state.selected_bounds.total_bounds();
             static BOUNDS: Mutex<Option<AxisAlignedBox>> = Mutex::new(None);
+            let total_bounds = derived_state.selected_bounds.total_bounds();
             if BOUNDS.lock().unwrap().as_ref() == total_bounds.as_ref() {
                 return;
             }
@@ -114,6 +114,8 @@ impl ObjectEditor {
                 },
                 styling: ControlPointStyling::default(),
             });
+        }
+        if bounding_segments.len() == self.bounding_segments.get().len() {
             bounding_segments.push(BoundingSegment::default());
         }
         self.control_points.set(control_points);

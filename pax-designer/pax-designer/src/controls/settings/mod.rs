@@ -147,16 +147,15 @@ impl Settings {
     }
 
     fn camel_to_title_case(s: &str) -> String {
-        s.char_indices()
-            .fold(String::new(), |mut acc, (i, c)| {
-                if i == 0 || s.chars().nth(i - 1).unwrap() == '_' {
-                    acc.push_str(&c.to_uppercase().to_string());
-                } else if c == '_' {
-                    acc.push_str(" ");
-                } else {
-                    acc.push(c);
-                }
-                acc
-            })
+        s.char_indices().fold(String::new(), |mut acc, (i, c)| {
+            if i == 0 || s.chars().nth(i - 1).unwrap() == '_' {
+                acc.push_str(&c.to_uppercase().to_string());
+            } else if c == '_' {
+                acc.push_str(" ");
+            } else {
+                acc.push(c);
+            }
+            acc
+        })
     }
 }
