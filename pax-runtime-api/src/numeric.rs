@@ -562,7 +562,7 @@ impl Mul<f64> for Numeric {
     type Output = f64;
 
     fn mul(self, rhs: f64) -> Self::Output {
-        self * rhs
+        self.to_float() * rhs
     }
 }
 
@@ -578,7 +578,7 @@ impl Mul<f64> for &Numeric {
     type Output = f64;
 
     fn mul(self, rhs: f64) -> Self::Output {
-        self * rhs
+        self.to_float() * rhs
     }
 }
 
