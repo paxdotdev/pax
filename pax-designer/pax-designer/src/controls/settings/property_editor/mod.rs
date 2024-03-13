@@ -11,9 +11,12 @@ use pax_std::types::text::*;
 use pax_std::types::*;
 
 pub mod fill_property_editor;
+pub mod stroke_property_editor;
 pub mod text_property_editor;
 
 use fill_property_editor::FillPropertyEditor;
+use std::fmt::Write;
+use stroke_property_editor::StrokePropertyEditor;
 use text_property_editor::TextPropertyEditor;
 
 #[pax]
@@ -56,7 +59,7 @@ impl PropertyEditor {
                 "pax_engine::api::Numeric" => 1,
                 "String" => 1,
                 "pax_engine::api::Transform2D" => 1,
-                "pax_designer::pax_reexports::pax_std::types::Stroke" => 1,
+                "pax_designer::pax_reexports::pax_std::types::Stroke" => 3,
                 "pax_designer::pax_reexports::pax_std::types::Fill" => 2,
                 "pax_designer::pax_reexports::pax_std::types::RectangleCornerRadii" => 1,
                 "pax_engine::api::Transform" => 1,
@@ -96,15 +99,32 @@ impl PropertyEditorData {
     }
 
     pub fn get_value_as_str(&self, ctx: &NodeContext) -> String {
-        match self.get_value(ctx) {
-            Some(
+        fn stringify(value: &ValueDefinition) -> String {
+            match value {
                 ValueDefinition::LiteralValue(Token { raw_value, .. })
                 | ValueDefinition::Expression(Token { raw_value, .. }, _)
-                | ValueDefinition::Identifier(Token { raw_value, .. }, _)
-            ) => raw_value,
-            Some(_) => "ERROR: UNSUPPORTED BINDING TYPE".to_owned(),
-            None => "".to_owned(),
+                | ValueDefinition::Identifier(Token { raw_value, .. }, _) => raw_value.to_owned(),
+                ValueDefinition::Block(LiteralBlockDefinition { elements, .. }) => {
+                    let mut block = String::new();
+                    write!(block, "{{").unwrap();
+                    for e in elements {
+                        match e {
+                            SettingElement::Setting(Token { raw_value, .. }, value) => {
+                                write!(block, "{}: {} ", raw_value, stringify(value)).unwrap();
+                            }
+                            SettingElement::Comment(_) => (),
+                        }
+                    }
+                    write!(block, "}}").unwrap();
+                    block
+                }
+                _ => "(UNSUPPORTED BINDING TYPE)".to_owned(),
+            }
         }
+
+        self.get_value(ctx)
+            .map(|v| stringify(&v))
+            .unwrap_or_default()
     }
 
     pub fn set_value(&self, ctx: &NodeContext, val: &str) -> anyhow::Result<()> {
