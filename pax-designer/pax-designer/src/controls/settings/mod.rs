@@ -77,6 +77,23 @@ impl Settings {
 
             let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
             let mut dt = ctx.designtime.borrow_mut();
+            if let Some(node) = dt
+                .get_orm()
+                .get_component(&type_id)
+                .ok()
+                .and_then(|c| c.template.as_ref())
+                .and_then(|t| t.get_node(&temp_node_id))
+            {
+                self.selected_component_name.set(
+                    node.type_id
+                        .get_pascal_identifier()
+                        .unwrap_or_else(|| String::new())
+                        .to_uppercase()
+                        .to_owned(),
+                );
+            } else {
+                self.selected_component_name.set("".to_owned())
+            }
             let Some(mut node) = dt.get_orm_mut().get_node(uni) else {
                 return;
             };
@@ -98,13 +115,6 @@ impl Settings {
                 };
             }
             self.custom_props.set(custom_props);
-            self.selected_component_name.set(
-                type_id
-                    .get_pascal_identifier()
-                    .unwrap_or_else(|| String::from("UNDEFINED"))
-                    .to_uppercase()
-                    .to_owned(),
-            );
 
             // Setup for waiting for children to send updates about their size
             self.update_timer.set(2);
