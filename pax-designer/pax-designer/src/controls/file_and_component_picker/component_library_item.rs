@@ -17,6 +17,8 @@ use crate::model::math::coordinate_spaces::Glass;
 use crate::model::ToolBehaviour;
 use math::Point2;
 
+use super::SetLibraryState;
+
 #[pax]
 #[file("controls/file_and_component_picker/component_library_item.pax")]
 pub struct ComponentLibraryItem {
@@ -55,6 +57,7 @@ impl ToolBehaviour for DropComponent {
             type_id: self.type_id.clone(),
         })
         .unwrap();
+        ctx.execute(SetLibraryState { open: false }).unwrap();
         ControlFlow::Break(())
     }
 
