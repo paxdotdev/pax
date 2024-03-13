@@ -1,8 +1,8 @@
 #![allow(unused_imports)]
 
+use crate::math::coordinate_spaces::{self, World};
 use model::{
     action::{Action, ActionContext, CanUndo},
-    math::coordinate_spaces::{self, World},
     ProjectMode,
 };
 use pax_engine::api::*;
@@ -11,11 +11,9 @@ use pax_engine::*;
 
 pub mod context_menu;
 pub mod controls;
-pub mod designtime_component_viewer;
 pub mod glass;
 use crate::context_menu::DesignerContextMenu;
 use crate::controls::Controls;
-use crate::designtime_component_viewer::DesigntimeComponentViewer;
 use crate::glass::Glass;
 use designer_project::Example;
 use pax_std::primitives::*;

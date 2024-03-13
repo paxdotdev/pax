@@ -15,9 +15,9 @@ use super::control_point::{ControlPoint, ControlPointBehaviour};
 use crate::glass::control_point::{
     ControlPointBehaviourFactory, ControlPointDef, ControlPointStyling,
 };
+use crate::math::coordinate_spaces::Glass;
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::ActionContext;
-use crate::model::math::coordinate_spaces::Glass;
 use crate::model::{self, action, SelectionState};
 
 #[pax]

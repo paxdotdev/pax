@@ -8,12 +8,12 @@ use pax_manifest::TypeId;
 use pax_std::primitives::Rectangle;
 use pax_std::primitives::Text;
 
+use crate::math::coordinate_spaces::Glass;
 use crate::math::AxisAlignedBox;
 use crate::model;
 use crate::model::action::ActionContext;
 use crate::model::input::Dir;
 use crate::model::input::InputEvent;
-use crate::model::math::coordinate_spaces::Glass;
 use crate::model::ToolBehaviour;
 use math::Point2;
 
