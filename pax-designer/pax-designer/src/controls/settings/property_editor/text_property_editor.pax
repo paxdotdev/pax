@@ -20,7 +20,8 @@
     }
 
     .input {
-        width: 95%,
+        width: 96.66%,
+        height: 30px,
         background: BLACK,
         stroke: {
             color: rgb(40, 48, 54),
@@ -33,7 +34,7 @@
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            font_size: 16px,
+            font_size: 14px,
             fill: WHITE,
         }
     }

@@ -5,9 +5,7 @@ use crate::controls::settings::{AreaMsg, REQUEST_PROPERTY_AREA_CHANNEL};
 
 use super::PropertyEditorData;
 
-use pax_std::primitives::Group;
-use pax_std::primitives::Rectangle;
-use pax_std::primitives::Textbox;
+use pax_std::primitives::*;
 
 #[pax]
 #[file("controls/settings/property_editor/fill_property_editor.pax")]
@@ -21,6 +19,8 @@ pub struct FillPropertyEditor {
     pub blue: Property<String>,
     pub alpha: Property<String>,
 
+    pub color: Property<Color>,
+
     pub palette: Property<Vec<Color>>,
 }
 
@@ -31,7 +31,7 @@ impl FillPropertyEditor {
             let channel = channel_guard.get_or_insert_with(Vec::new);
             channel.push(AreaMsg {
                 index,
-                vertical_space: 100.0,
+                vertical_space: 107.0,
             })
         }
         self.set_color(Color::default());
@@ -60,6 +60,9 @@ impl FillPropertyEditor {
             self.red.set(event.text.clone());
         }
     }
+
+
+
     pub fn green_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
         if color_channel(&event.text).is_some() {
             self.green.set(event.text.clone());
@@ -140,6 +143,7 @@ impl FillPropertyEditor {
         self.green.set(ints.next().unwrap().to_string());
         self.blue.set(ints.next().unwrap().to_string());
         self.alpha.set(ints.next().unwrap().to_string());
+        self.color.set(color);
     }
 }
 
