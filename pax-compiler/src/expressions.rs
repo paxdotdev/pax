@@ -574,12 +574,10 @@ fn resolve_symbol_as_invocation(
         let fully_qualified_properties_struct_type =
             ctx.component_def.type_id.import_path().unwrap();
 
-        let fully_qualified_iterable_type = if root_prop_def.flags.is_binding_repeat_elem {
-            root_prop_def.type_id.get_unique_identifier()
-        } else if root_prop_def.flags.is_binding_repeat_i {
+        let fully_qualified_iterable_type = if root_prop_def.flags.is_binding_repeat_i {
             "usize".to_string()
         } else {
-            "".to_string()
+            root_prop_def.type_id.get_unique_identifier()
         };
 
         let mut found_depth: Option<usize> = None;
