@@ -1,0 +1,15 @@
+<RouteSelector width=240px/>
+for stop in self.stop_statistics {
+    <Text y={(stop.long)px} x={(stop.lat)px} text={stop.name}/>
+    <Ellipse height={(stop.total_activity / 15)px} y={(stop.long)px} width={(stop.total_activity / 15)px} anchor_y=50% fill={
+    
+    } 
+        x={(stop.lat)px} anchor_x=50%/>
+}
+<Map location="San Francisco"/>
+// OBS: here to add it to the project (otherwise not included in manifest)
+<Marker width=0px height=0px/>
+
+@settings {
+    @pre_render: pre_render,
+}
