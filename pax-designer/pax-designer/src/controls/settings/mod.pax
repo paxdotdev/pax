@@ -17,18 +17,18 @@ if self.is_component_selected {
                 <PropertyEditor stid={self.stid} snid={self.snid} name="height" class=col_5 class=span_2 />
             </Group>
         </Group>
-
-        <Group y=135px height=300px>
-            <Text text="TRANSFORM" class=h2 class=col_1 class=span_6 />
+        <Path class=hr y=135px class=col_1 class=span_6 />
+        <Group y=145px height=180px>
+            <Text text="Transform" class=h2 class=col_1 class=span_6 />
             <Group y=30px height={100% - 30px}>
                 <Group y=0px height=30px>
-                    <Text text="↻z" class=property_label class=col_1 class=span_1 />
+                    <Text text="⊾z" class=property_label class=col_1 class=span_1 />
                     <PropertyEditor stid={self.stid} snid={self.snid} name="rotate" class=col_2 class=span_2 />
                 </Group>
                 <Group y=40px height=30px>
-                    <Text text="↥x" class=property_label class=col_1 class=span_1 />
+                    <Text text="↔x" class=property_label class=col_1 class=span_1 />
                     <PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" class=col_2 class=span_2 />
-                    <Text text="↥y" class=property_label class=col_4 class=span_1 />
+                    <Text text="↕y" class=property_label class=col_4 class=span_1 />
                     <PropertyEditor stid={self.stid} snid={self.snid} name="scale_y" class=col_5 class=span_2 />
                 </Group>
                 <Group y=80px height=30px>
@@ -46,11 +46,12 @@ if self.is_component_selected {
             </Group>
         </Group>
 
-        <Group y=380px height=300px>
+        <Group y=343px>
             for (property, i) in self.custom_props {
                 <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
-                    <Text text={property.name} class=h2 width=120px/>
-                    <PropertyEditor ind={i} name={property.name} stid={self.stid} snid={self.snid} />
+                    <Path class=hr />
+                    <Text text={property.name_friendly} class=h2 class=col_1 class=span_6 y=10px/>
+                    <PropertyEditor y=40px ind={i} name={property.name} stid={self.stid} snid={self.snid} />
                 </Group>
             }
         </Group>
@@ -85,17 +86,32 @@ if self.is_component_selected {
             fill: WHITE,
         }
     }
+
+    .hr {
+        height: 1px,
+        elements: {[
+            PathElement::point(0%, 0%),
+            PathElement::line(),
+            PathElement::point(100%, 0%),
+        ]},
+        stroke: {
+            color: rgb(40, 48, 54),
+            width: 1px,
+        },
+        fill: NONE
+    }
+
     .property_label {
-        height: 22px,
+        height: 20px,
         y: 50%,
         anchor_y: 50%,
         style: {
             font: {Font::system(
                 "Real Head Pro",
                 FontStyle::Normal,
-                FontWeight::ExtraLight
+                FontWeight::Light
             )},
-            font_size: 20px,
+            font_size: 18px,
             fill: rgba(255, 255, 255, 67%),
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
@@ -134,6 +150,6 @@ if self.is_component_selected {
         width: 46.6667%,
     }
     .span_6 {
-        width: 100%,
+        width: 96.66%,
     }
 }

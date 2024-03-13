@@ -100,7 +100,7 @@ impl PropertyEditorData {
             Some(
                 ValueDefinition::LiteralValue(Token { raw_value, .. })
                 | ValueDefinition::Expression(Token { raw_value, .. }, _)
-                | ValueDefinition::Identifier(Token { raw_value, .. }, _),
+                | ValueDefinition::Identifier(Token { raw_value, .. }, _)
             ) => raw_value,
             Some(_) => "ERROR: UNSUPPORTED BINDING TYPE".to_owned(),
             None => "".to_owned(),
