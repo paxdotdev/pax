@@ -169,6 +169,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::xo_range
         | Rule::literal_color_space_func
         | Rule::xo_color_space_func
+        | Rule::literal_color_const
         | Rule::xo_range_exclusive => vec![Box::new(PrintRule)],
 
         Rule::expression_wrapped
@@ -181,7 +182,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::WHITESPACE
         | Rule::id
         | Rule::silent_comma
-        | Rule::literal_color_const
         | Rule::empty => vec![Box::new(IgnoreRule)],
 
         Rule::string => vec![Box::new(DoNotIndentRule)],
