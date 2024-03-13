@@ -19,8 +19,8 @@ if self.data.not_dummy {
         anchor_y: 50%,
         x: 50%,
         y: 50%,
-        scale_x: 80%,
-        scale_y: 80%,
+        scale_x: 72%,
+        scale_y: 72%,
     }
 
     .arrow {
