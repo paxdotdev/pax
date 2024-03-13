@@ -19,10 +19,10 @@ if self.is_component_selected {
         </Group>
         <Path class=hr y=135px class=col_1 class=span_6 />
         <Group y=145px height=180px>
-            <Text text="Transform" class=h2 class=col_1 class=span_6 />
+            <Text text="▾ Transform" class=h2 class=col_1 class=span_6 />
             <Group y=30px height={100% - 30px}>
                 <Group y=0px height=30px>
-                    <Text text="⊾z" class=property_label class=col_1 class=span_1 />
+                    <Text text="⊾" class=property_label class=col_1 class=span_1 />
                     <PropertyEditor stid={self.stid} snid={self.snid} name="rotate" class=col_2 class=span_2 />
                 </Group>
                 <Group y=40px height=30px>
@@ -75,14 +75,14 @@ if self.is_component_selected {
         }
     }
     .h2 {
-        height: 20px,
+        height: 18px,
         style: {
             font: {Font::system(
                 "Real Head Pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            font_size: 18px,
+            font_size: 16px,
             fill: WHITE,
         }
     }
