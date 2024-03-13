@@ -1,0 +1,25 @@
+<Rectangle y=55px height=50px fill=rgb(0, 128, 128) x=220px width=50px/>
+<Rectangle x=165px y=55px height=50px width=50px fill=rgb(128, 128, 0)/>
+<Rectangle y=55px x=110px fill=rgb(128, 0, 0) width=50px height=50px/>
+<Rectangle fill=rgb(192, 192, 192) width=50px x=55px height=50px y=55px/>
+<Rectangle x=0px y=55px height=50px fill=rgb(255, 0, 255) width=50px/>
+<Rectangle x=220px y=0px width=50px fill=rgb(0, 255, 255) height=50px/>
+<Rectangle x=165px y=0px height=50px fill=rgb(255, 255, 0) width=50px/>
+<Rectangle y=0px height=50px fill=rgb(0, 0, 255) x=110px width=50px/>
+<Rectangle x=55px fill=rgb(0, 255, 0) y=0px height=50px width=50px/>
+<Rectangle width=50px x=0px fill=rgb(255, 0, 0) y=0px height=50px/>
+<RouteSelector width=240px/>
+for stop in self.stop_statistics {
+    <Text y={(stop.long)px} x={(stop.lat)px} text={stop.name}/>
+    <Ellipse height={(stop.total_activity / 15)px} y={(stop.long)px} width={(stop.total_activity / 15)px} anchor_y=50% fill={
+    
+    } 
+        x={(stop.lat)px} anchor_x=50%/>
+}
+<Map location="San Francisco"/>
+// OBS: here to add it to the project (otherwise not included in manifest)
+<Marker width=0px height=0px/>
+
+@settings {
+    @pre_render: pre_render,
+}
