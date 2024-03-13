@@ -117,7 +117,7 @@ impl Settings {
             self.custom_props.set(custom_props);
 
             // Setup for waiting for children to send updates about their size
-            self.update_timer.set(2);
+            self.update_timer.set(3);
             self.custom_props.get_mut().push(PropertyArea {
                 vertical_space: 0.0,
                 vertical_pos: f64::MAX,

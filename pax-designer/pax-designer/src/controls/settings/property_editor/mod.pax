@@ -8,6 +8,10 @@ if self.prop_type_ident_id == 2 {
 	<FillPropertyEditor data={data}/>
 }
 
+if self.prop_type_ident_id == 3 {
+	<StrokePropertyEditor data={data}/>
+}
+
 @settings {
 	@tick: self.tick
 }
