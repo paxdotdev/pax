@@ -105,26 +105,11 @@ pub struct SelectNode {
 
 impl Action for SelectNode {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let dt = ctx.engine_context.designtime.borrow_mut();
-        let type_id = &ctx.app_state.selected_component_id;
-        let component = &dt.get_orm().get_component(type_id).unwrap();
-        let template = component.template.as_ref().unwrap();
-        let pax_type = template
-            .get_node(&self.id)
-            .ok_or(anyhow!("node doesn't exist"))?
-            .type_id
-            .get_pax_type();
-
-        // only select if singleton
-        if let PaxType::Singleton { .. } = pax_type {
-            if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
-                ctx.app_state.selected_template_node_ids.clear();
-            }
-            ctx.app_state.selected_template_node_ids.push(self.id);
-            Ok(CanUndo::No)
-        } else {
-            Err(anyhow!("can only select pax-singletons (for now)"))
+        if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+            ctx.app_state.selected_template_node_ids.clear();
         }
+        ctx.app_state.selected_template_node_ids.push(self.id);
+        Ok(CanUndo::No)
     }
 }
 

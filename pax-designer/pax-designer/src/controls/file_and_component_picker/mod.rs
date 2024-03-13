@@ -3,6 +3,7 @@ use std::sync::Arc;
 use pax_engine::api::*;
 use pax_engine::*;
 
+use pax_manifest::PaxType;
 use pax_std::components::Stacker;
 use pax_std::primitives::Text;
 use pax_std::types::StackerDirection;
@@ -23,6 +24,7 @@ pub struct FileAndComponentPicker {
     pub library_active: Property<bool>,
     pub registered_components: Property<Vec<ComponentLibraryItemData>>,
     pub library_active_toggle_image: Property<StringBox>,
+    pub manifest_ver: Property<usize>,
 }
 
 impl FileAndComponentPicker {
@@ -31,10 +33,23 @@ impl FileAndComponentPicker {
             .set(StringBox::from("assets/icons/chevron-down.png".to_string()));
     }
 
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {}
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
+        let manifest_ver = {
+            let dt = ctx.designtime.borrow();
+            dt.get_manifest_version()
+        };
+        if &manifest_ver != self.manifest_ver.get() {
+            self.set_library(ctx);
+            self.manifest_ver.set(manifest_ver);
+        }
+    }
 
     pub fn library_toggle(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         self.library_active.set(!self.library_active.get());
+        self.set_library(ctx);
+    }
+
+    pub fn set_library(&mut self, ctx: &NodeContext) {
         let curr = self.library_active.get();
         self.library_active_toggle_image.set(StringBox::from(
             match curr {
@@ -50,9 +65,13 @@ impl FileAndComponentPicker {
             .get_components()
             .iter()
             .filter_map(|type_id| {
-                if !type_id.import_path().is_some_and(|p| {
+                let is_userland_component = type_id.import_path().is_some_and(|p| {
                     p.starts_with("pax_designer::pax_reexports::designer_project::")
-                }) {
+                });
+
+                let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+
+                if !is_userland_component && !is_mock {
                     return None;
                 }
 

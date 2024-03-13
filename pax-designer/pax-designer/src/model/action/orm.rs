@@ -60,24 +60,36 @@ impl Action for SelectedIntoNewComponent {
         };
         let mut dt = ctx.engine_context.designtime.borrow_mut();
 
+        let world_transform = ctx.world_transform();
         let entries: Vec<_> = selection
             .items
             .iter()
-            .map(|e| MoveToComponentEntry {
-                x: e.bounds.top_left().x,
-                y: e.bounds.top_left().y,
-                width: e.bounds.width(),
-                height: e.bounds.height(),
-                id: e.id.clone(),
+            .map(|e| {
+                let b = e
+                    .bounds
+                    .try_into_space(world_transform)
+                    .expect("non-valid world transform");
+                MoveToComponentEntry {
+                    x: b.top_left().x,
+                    y: b.top_left().y,
+                    width: b.width(),
+                    height: b.height(),
+                    id: e.id.clone(),
+                }
             })
             .collect();
+
+        let tb = selection
+            .total_bounds
+            .try_into_space(world_transform)
+            .expect("non-valid world transform");
         dt.get_orm_mut()
             .move_to_new_component(
                 &entries,
-                selection.total_bounds.top_left().x,
-                selection.total_bounds.top_left().y,
-                selection.total_bounds.width(),
-                selection.total_bounds.height(),
+                tb.top_left().x,
+                tb.top_left().y,
+                tb.width(),
+                tb.height(),
             )
             .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
