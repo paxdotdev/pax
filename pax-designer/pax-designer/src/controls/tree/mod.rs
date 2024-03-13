@@ -157,7 +157,7 @@ impl Tree {
 
     fn resolve_tree_type(type_id: TypeId) -> Desc {
         let Some(import_path) = type_id.import_path() else {
-            return Desc::Component(format!("{:?}", type_id.get_pax_type()));
+            return Desc::Component(format!("{}", type_id.get_pax_type()));
         };
         match import_path.trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::") {
             "Group" => Desc::Group,
@@ -174,11 +174,7 @@ impl Tree {
             "Image" => Desc::Image,
             "Slider" => Desc::Slider,
             "Dropdown" => Desc::Dropdown,
-            _ => Desc::Component(
-                type_id
-                    .get_pascal_identifier()
-                    .unwrap_or("ERROR: NO PASCAL IDENT".to_string()),
-            ),
+            _ => Desc::Component(format!("{}", type_id.get_pax_type())),
         }
     }
 
@@ -194,7 +190,7 @@ impl Tree {
             return;
         };
         let mut ind = 0;
-        let flattened: Vec<FlattenedTreeEntry> = template
+        let mut flattened: Vec<FlattenedTreeEntry> = template
             .get_root()
             .iter()
             .flat_map(|tnid| {
@@ -203,6 +199,12 @@ impl Tree {
             })
             .collect();
         self.tree_objects.set(flattened.clone());
+        if self.actual_visible_len.get() == &flattened.len() {
+            flattened.push(FlattenedTreeEntry {
+                is_not_dummy: false,
+                ..Default::default()
+            });
+        }
         self.visible_tree_objects.set(flattened);
         self.actual_visible_len
             .set(self.visible_tree_objects.get().len());
@@ -242,10 +244,12 @@ impl Tree {
             }
         }
 
-        //HACK pre dirty-dag
-        let mut update = false;
+        //HACK pre dirty-dag, ulgy but works and can be removed later!
         model::read_app_state(|app_state| {
+            let before_len = self.visible_tree_objects.get().len();
             let type_id = &app_state.selected_component_id;
+
+            let selected = &app_state.selected_template_node_ids;
             let manifest_ver = {
                 let dt = ctx.designtime.borrow();
                 dt.get_manifest_version()
@@ -254,31 +258,25 @@ impl Tree {
                 self.old_type_id.set(type_id.clone());
                 self.old_manifest_ver.set(manifest_ver);
                 self.set_tree(type_id.clone(), ctx);
-                self.old_selected.set(vec![]);
-                update = true;
-            }
-
-            //update selected nodes
-            let selected = &app_state.selected_template_node_ids;
-            if self.old_selected.get() != selected {
                 for entry in self.visible_tree_objects.get_mut() {
                     entry.is_selected = selected.contains(&entry.node_id);
                 }
+            }
+
+            if self.old_selected.get() != selected {
+                if self.visible_tree_objects.get().len() == before_len {
+                    self.visible_tree_objects
+                        .get_mut()
+                        .push(FlattenedTreeEntry {
+                            is_not_dummy: false,
+                            ..Default::default()
+                        });
+                }
                 self.old_selected.set(selected.clone());
-                update = true;
+                for entry in self.visible_tree_objects.get_mut() {
+                    entry.is_selected = selected.contains(&entry.node_id);
+                }
             }
         });
-        if update {
-            if self.actual_visible_len.get() == &self.visible_tree_objects.get().len() {
-                self.visible_tree_objects
-                    .get_mut()
-                    .push(FlattenedTreeEntry {
-                        is_not_dummy: false,
-                        ..Default::default()
-                    });
-            } else {
-                self.visible_tree_objects.get_mut().pop();
-            }
-        }
     }
 }
