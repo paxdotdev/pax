@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use pax_engine::api::*;
 use pax_engine::*;
@@ -17,6 +18,9 @@ use pax_std::primitives::Image;
 use pax_std::primitives::Rectangle;
 
 use crate::model;
+use crate::model::action::Action;
+use crate::model::action::ActionContext;
+use crate::model::action::CanUndo;
 
 #[pax]
 #[file("controls/file_and_component_picker/mod.pax")]
@@ -26,6 +30,19 @@ pub struct FileAndComponentPicker {
     pub library_active_toggle_image: Property<StringBox>,
     pub manifest_ver: Property<usize>,
 }
+
+pub struct SetLibraryState {
+    pub open: bool,
+}
+
+impl Action for SetLibraryState {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+        *LIBRARY_MSG.lock().unwrap() = Some(*self);
+        Ok(CanUndo::No)
+    }
+}
+
+static LIBRARY_MSG: Mutex<Option<SetLibraryState>> = Mutex::new(None);
 
 impl FileAndComponentPicker {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
@@ -41,6 +58,12 @@ impl FileAndComponentPicker {
         if &manifest_ver != self.manifest_ver.get() {
             self.set_library(ctx);
             self.manifest_ver.set(manifest_ver);
+        }
+        if let Some(msg) = LIBRARY_MSG.lock().unwrap().take() {
+            if self.library_active.get() != &msg.open {
+                self.library_active.set(msg.open);
+                self.set_library(ctx);
+            }
         }
     }
 
