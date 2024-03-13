@@ -64,6 +64,7 @@ pub struct PaxManifestORM {
     manifest_version: usize,
     next_new_component_id: usize,
     new_components: Vec<TypeId>,
+    reload_queue: Option<ReloadType>,
 }
 
 impl PaxManifestORM {
@@ -76,6 +77,7 @@ impl PaxManifestORM {
             manifest_version: 0,
             next_new_component_id: 1,
             new_components: Vec::new(),
+            reload_queue: None,
         }
     }
 
@@ -304,4 +306,10 @@ pub struct MoveToComponentEntry {
     pub width: f64,
     pub height: f64,
     pub id: UniqueTemplateNodeIdentifier,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum ReloadType {
+    Full,
+    Partial(Vec<UniqueTemplateNodeIdentifier>),
 }
