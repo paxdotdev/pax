@@ -30,7 +30,7 @@ impl TextPropertyEditor {
             let channel = channel_guard.get_or_insert_with(Vec::new);
             channel.push(AreaMsg {
                 index,
-                vertical_space: 30.0,
+                vertical_space: 75.0,
             })
         }
     }

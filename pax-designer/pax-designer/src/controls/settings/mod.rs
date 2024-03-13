@@ -40,6 +40,7 @@ pub struct PropertyArea {
     pub vertical_space: f64,
     pub vertical_pos: f64,
     pub name: StringBox,
+    pub name_friendly: StringBox,
 }
 
 #[derive(Debug)]
@@ -86,11 +87,12 @@ impl Settings {
                 //ignore common props
                 match propdef.name.as_str() {
                     "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
-                    | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" => (),
+                    | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => (),
                     custom => custom_props.push(PropertyArea {
                         //these will be overridden by messages being passed to this component
                         vertical_space: 10.0,
                         vertical_pos: Default::default(),
+                        name_friendly: StringBox::from(Self::camel_to_title_case(custom)),
                         name: StringBox::from(custom),
                     }),
                 };
@@ -110,6 +112,7 @@ impl Settings {
                 vertical_space: 0.0,
                 vertical_pos: f64::MAX,
                 name: StringBox::from("".to_owned()),
+                name_friendly: StringBox::from("".to_owned()),
             });
         });
 
@@ -141,5 +144,19 @@ impl Settings {
             }
             *timer -= 1;
         }
+    }
+
+    fn camel_to_title_case(s: &str) -> String {
+        s.char_indices()
+            .fold(String::new(), |mut acc, (i, c)| {
+                if i == 0 || s.chars().nth(i - 1).unwrap() == '_' {
+                    acc.push_str(&c.to_uppercase().to_string());
+                } else if c == '_' {
+                    acc.push_str(" ");
+                } else {
+                    acc.push(c);
+                }
+                acc
+            })
     }
 }

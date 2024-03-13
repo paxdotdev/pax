@@ -1,10 +1,13 @@
+<Text class=text_button class=span_1 y=-40px text="+" />
 
-<Textbox class=input x=25% width=15% height=30px text={self.red} @textbox_change=self.text_change @textbox_input=self.red_input/>
-<Textbox class=input x=45% width=15% height=30px text={self.green} @textbox_change=self.text_change @textbox_input=self.green_input/>
-<Textbox class=input x=65% width=15% height=30px text={self.blue} @textbox_change=self.text_change @textbox_input=self.blue_input/>
-<Textbox class=input x=85% width=15% height=30px text={self.alpha} @textbox_change=self.text_change @textbox_input=self.alpha_input/>
+<Rectangle x=3.33% class=rounded fill={self.color} width=26px height=26px y=4px />
+<Textbox class=input class=col_2 class=span_1 text={self.red} @textbox_change=self.text_change @textbox_input=self.red_input/>
+<Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.text_change @textbox_input=self.green_input/>
+<Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.text_change @textbox_input=self.blue_input/>
+<Textbox class=input class=col_5 class=span_1 text={self.alpha} @textbox_change=self.text_change @textbox_input=self.alpha_input/>
+<Text class=text_button class=span_1 y=-5px text="–" />
 
-<Group x=25% y=45px height=20px id=palette>
+<Group class=col_2 y=45px height=20px id=palette>
     // Intersection rectangles (can be removed when we have "with" clause)
     // grouped to avoid bug with long compile times for list of primitives
     <Group>
@@ -30,7 +33,7 @@
     <Rectangle x=200px width=20px fill=TRANSPARENT @click=self.palette_slot8_clicked/>
 
     for (color, i) in self.palette {
-        <Rectangle x={(i*25)px} fill={color} width=20px/>
+        <Rectangle class=rounded x={(i*25)px} fill={color} width=20px/>
     }
 </Group>
 
@@ -39,7 +42,26 @@
     @mount: on_mount
     @pre_render: on_render
 
+    .rounded {
+        corner_radii: {RectangleCornerRadii::radii(2.0,2.0,2.0,2.0)}
+    }
+
+    .text_button {
+        x: 86.5%,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            align_horizontal: TextAlignHorizontal::Center,
+            font_size: 32px,
+            fill: rgba(255, 255, 255, 67%),
+        }
+    }
+
     .input {
+        height: 30px,
         background: BLACK,
         stroke: {
             color: rgb(40, 48, 54),
@@ -55,5 +77,39 @@
             font_size: 16px,
             fill: WHITE,
         }
+    }
+    //Note that columns account for a left-margin of 1.67%, so
+    // col_k = (k * 100/6) + 1.67%
+    .col_1 {
+        x: 1.67%,
+    }
+    .col_2 {
+        x: 18.33%,
+    }
+    .col_3 {
+        x: 35%,
+    }
+    .col_4 {
+        x: 51.67%,
+    }
+    .col_5 {
+        x: 68%,
+    }
+    .col_6 {
+        x: 85%,
+    }
+    //Note that the spans account for a total margin of 3.33%
+    //so span_k = ((k * 100/6) - 3.33)%
+    .span_1 {
+        width: 13.33%,
+    }
+    .span_2 {
+        width: 30%,
+    }
+    .span_3 {
+        width: 46.6667%,
+    }
+    .span_6 {
+        width: 96.66%,
     }
 }
