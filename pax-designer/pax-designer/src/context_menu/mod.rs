@@ -4,10 +4,10 @@ use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
 
+use crate::math::coordinate_spaces::Glass;
 use crate::model;
 use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext, CanUndo};
-use crate::model::math::coordinate_spaces::Glass;
 use pax_std::primitives::*;
 
 pub enum ContextMenuMessage {

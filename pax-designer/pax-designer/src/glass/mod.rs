@@ -8,10 +8,10 @@ use serde::Deserialize;
 use crate::model;
 use crate::model::AppState;
 
+use crate::math;
+use crate::math::coordinate_spaces::{self, World};
 use crate::model::action::pointer::Pointer;
 use crate::model::input::Dir;
-use crate::model::math;
-use crate::model::math::coordinate_spaces::{self, World};
 
 pub mod control_point;
 pub mod object_editor;

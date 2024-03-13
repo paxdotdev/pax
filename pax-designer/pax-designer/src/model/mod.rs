@@ -1,10 +1,10 @@
 pub mod action;
 pub mod input;
-pub mod math;
 pub mod tools;
 
 use crate::glass;
 use crate::glass::control_point::ControlPointBehaviour;
+use crate::math::coordinate_spaces::World;
 use crate::math::AxisAlignedBox;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
@@ -12,7 +12,6 @@ use action::Action;
 use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use math::coordinate_spaces::World;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::MouseButton;
@@ -26,12 +25,11 @@ use std::collections::HashSet;
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use math::coordinate_spaces::Glass;
+use crate::math::coordinate_spaces::{self, Glass};
 
 use self::action::pointer::Pointer;
 use self::action::pointer::PointerAction;
 use self::input::{Dir, InputEvent, InputMapper};
-use self::math::coordinate_spaces;
 
 // Needs to be changed if we use a multithreaded async runtime
 thread_local!(
