@@ -5,19 +5,19 @@
         <Controls/>
         <Group id=designer_glass>
             //Optionally turned on on right click
-                <DesignerContextMenu/>
-                <Glass/>
-                <Group transform={self.transform2d}>
-                    // Stage has a fixed size, regardless of window size
-                    <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
-                        // The example project replaces all of the children of the project_container
-                        <Group id=project_container>
-                            <Example id=userland_project/>
-                        </Group>
-                        // White backing plate for stage
-                        <Rectangle fill=WHITE/>
+            <DesignerContextMenu/>
+            <Glass/>
+            <Group transform={self.transform2d}>
+                // Stage has a fixed size, regardless of window size
+                <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
+                    // The example project replaces all of the children of the project_container
+                    <Group id=project_container>
+                        <Example id=userland_project/>
                     </Group>
+                    // White backing plate for stage
+                    <Rectangle fill=WHITE/>
                 </Group>
+            </Group>
         </Group>
     }
     if self.interaction_mode {
@@ -34,10 +34,10 @@
         fill: {rgb(96.0,96.0,96.0)}
     }
 
-     #designer_glass {
-         x: 265px,
-         y: 65px,
-         width: {100% - 700px},
-         height: {100% - 65px},
-     }
+    #designer_glass {
+        x: 265px,
+        y: 65px,
+        width: {100% - 530px},
+        height: {100% - 65px},
+    }
 }
