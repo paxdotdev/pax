@@ -63,9 +63,9 @@ if self.is_component_selected {
     @mount: on_mount
 	@pre_render: pre_render
     .h1 {
-        height: 35px
+        height: 30px
         style: {
-            font_size: 30px,
+            font_size: 26px,
             font: {Font::system(
                 "Real Head Pro",
                 FontStyle::Normal,
