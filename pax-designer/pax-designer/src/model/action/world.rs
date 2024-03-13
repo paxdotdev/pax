@@ -1,11 +1,8 @@
 use std::ops::ControlFlow;
 
 use super::{pointer::Pointer, Action, ActionContext, CanUndo};
-use crate::model::{
-    input::InputEvent,
-    math::coordinate_spaces::{Glass, World},
-    AppState, ToolBehaviour,
-};
+use crate::math::coordinate_spaces::{Glass, World};
+use crate::model::{input::InputEvent, AppState, ToolBehaviour};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{

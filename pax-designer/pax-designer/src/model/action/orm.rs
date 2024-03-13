@@ -1,15 +1,10 @@
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext, CanUndo};
+use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::input::InputEvent;
-use crate::{
-    math::BoxPoint,
-    model::{
-        math::coordinate_spaces::{Glass, World},
-        AppState,
-    },
-};
+use crate::{math::BoxPoint, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;

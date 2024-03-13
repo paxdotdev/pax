@@ -2,7 +2,20 @@ use std::ops::Mul;
 
 use pax_engine::math::{Point2, Space, Transform2, Vector2};
 
-use crate::model::math::coordinate_spaces::Glass;
+use crate::math::coordinate_spaces::Glass;
+
+pub mod coordinate_spaces {
+
+    use pax_engine::math;
+
+    pub struct Glass;
+
+    impl math::Space for Glass {}
+
+    pub struct World;
+
+    impl math::Space for World {}
+}
 
 // min (-1.0, -1.0) for top left
 // max (1.0, 1.0) for bottom right

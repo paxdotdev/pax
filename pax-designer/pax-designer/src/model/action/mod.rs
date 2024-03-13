@@ -1,6 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
-use super::{math::coordinate_spaces::World, SelectedItem, SelectionState};
+use super::{SelectedItem, SelectionState};
+use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
@@ -11,7 +12,7 @@ use pax_engine::{
 };
 use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
 
-use super::math::coordinate_spaces::Glass;
+use crate::math::coordinate_spaces::Glass;
 
 pub mod meta;
 pub mod orm;

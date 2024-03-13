@@ -14,11 +14,11 @@ use crate::math::AxisAlignedBox;
 use crate::model::{self, action};
 use crate::model::{AppState, ToolBehaviour};
 
+use crate::math;
+use crate::math::coordinate_spaces::{self, Glass, World};
 use crate::model::action::pointer::Pointer;
 use crate::model::action::{Action, ActionContext, CanUndo};
 use crate::model::input::Dir;
-use crate::model::math;
-use crate::model::math::coordinate_spaces::{self, Glass, World};
 
 #[pax]
 #[file("glass/control_point.pax")]
