@@ -675,7 +675,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         &mut self,
         manifest: &mut PaxManifest,
     ) -> Result<ConvertToComponentResponse, String> {
-        if self.subtrees_roots.len() == 0 {
+        if self.subtrees_roots.is_empty() {
             return Err("No subtrees provided".to_string());
         }
 
@@ -748,7 +748,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             }
 
             let new_node_id = new_template.add_at(node, node_location.clone());
-            for child in current_template.get_children(&node_id).unwrap_or(vec![]) {
+            for child in current_template.get_children(&node_id).unwrap_or_default() {
                 let location = NodeLocation::new(
                     node_location.type_id.clone(),
                     TreeLocation::Parent(new_node_id.get_template_node_id().clone()),
@@ -801,7 +801,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
                 TreeIndexPosition::Bottom,
             );
             add_subtree_to_new_template(
-                &current_component_template,
+                current_component_template,
                 &mut new_template,
                 id.clone(),
                 new_location,
@@ -816,7 +816,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             is_main_component: false,
             is_primitive: false,
             is_struct_only_component: false,
-            module_path: module_path,
+            module_path,
             primitive_instance_import_path: None,
             template: Some(new_template),
             settings: None,
@@ -915,24 +915,21 @@ pub enum NodeAction {
     Move(MoveTemplateNodeRequest),
 }
 
-pub fn update_position_if_exists(new_x: f64, new_y: f64, settings: &mut Vec<SettingElement>) {
+pub fn update_position_if_exists(new_x: f64, new_y: f64, settings: &mut [SettingElement]) {
     for setting in settings.iter_mut() {
-        match setting {
-            SettingElement::Setting(key, value) => {
-                if key.raw_value == "x" {
-                    *value = ValueDefinition::LiteralValue(Token::new_only_raw(
-                        format!("{}px", new_x),
-                        pax_manifest::TokenType::LiteralValue,
-                    ))
-                }
-                if key.raw_value == "y" {
-                    *value = ValueDefinition::LiteralValue(Token::new_only_raw(
-                        format!("{}px", new_y),
-                        pax_manifest::TokenType::LiteralValue,
-                    ))
-                }
+        if let SettingElement::Setting(key, value) = setting {
+            if key.raw_value == "x" {
+                *value = ValueDefinition::LiteralValue(Token::new_only_raw(
+                    format!("{}px", new_x),
+                    pax_manifest::TokenType::LiteralValue,
+                ))
             }
-            _ => {}
+            if key.raw_value == "y" {
+                *value = ValueDefinition::LiteralValue(Token::new_only_raw(
+                    format!("{}px", new_y),
+                    pax_manifest::TokenType::LiteralValue,
+                ))
+            }
         }
     }
 }
