@@ -56,8 +56,8 @@ impl PaxDesigner {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         self.glass_active.set(true);
         self.stage.set(StageInfo {
-            width: 1075,
-            height: 764,
+            width: 2561 / 2,
+            height: 1440 / 2,
         });
     }
 
