@@ -45,6 +45,9 @@ pub trait Response {
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         None
     }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        None
+    }
 }
 
 pub trait Command<R: Request> {
@@ -99,6 +102,18 @@ impl PaxManifestORM {
 
     pub fn get_manifest_version(&self) -> usize {
         self.manifest_version
+    }
+
+    pub fn set_reload(&mut self, reload_type: ReloadType) {
+        self.reload_queue = Some(reload_type);
+    }
+
+    pub fn get_reload_queue(&self) -> Option<ReloadType> {
+        self.reload_queue.clone()
+    }
+
+    pub fn increment_manifest_version(&mut self) {
+        self.manifest_version += 1;
     }
 
     pub fn build_new_node(
@@ -205,6 +220,9 @@ impl PaxManifestORM {
         if response.get_affected_component_type_id().is_some() {
             self.manifest_version += 1;
         }
+        if let Some(reload_type) = response.get_reload_type() {
+            self.set_reload(reload_type);
+        }
 
         Ok(response)
     }
@@ -310,6 +328,7 @@ pub struct MoveToComponentEntry {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ReloadType {
-    Full,
-    Partial(Vec<UniqueTemplateNodeIdentifier>),
+    FullEdit,
+    Partial(UniqueTemplateNodeIdentifier),
+    FullPlay,
 }
