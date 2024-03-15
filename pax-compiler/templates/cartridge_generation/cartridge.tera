@@ -19,7 +19,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>> = HashMap::new();
 
     {% for expression_spec in expression_specs %}
-    //{{ expression_spec.input_statement.content}}
+    // {{ expression_spec.input_statement.content}}
     {% if expression_spec.input_statement.source_map_start_marker %}
         {{ expression_spec.input_statement.source_map_start_marker }}
     {% endif %}
