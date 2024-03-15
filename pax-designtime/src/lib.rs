@@ -12,6 +12,7 @@ pub mod serde_pax;
 
 mod setup;
 use messages::LLMHelpRequest;
+use orm::ReloadType;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
@@ -101,6 +102,20 @@ impl DesigntimeManager {
 
     pub fn get_manifest(&self) -> &PaxManifest {
         self.orm.get_manifest()
+    }
+
+    pub fn get_reload_queue(&self) -> Option<ReloadType> {
+        self.orm.get_reload_queue()
+    }
+
+    pub fn reload_play(&mut self) {
+        self.orm.set_reload(ReloadType::FullPlay);
+        self.orm.increment_manifest_version();
+    }
+
+    pub fn reload_edit(&mut self) {
+        self.orm.set_reload(ReloadType::FullEdit);
+        self.orm.increment_manifest_version();
     }
 
     pub fn get_manifest_version(&self) -> usize {
