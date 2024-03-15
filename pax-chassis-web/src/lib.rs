@@ -33,6 +33,9 @@ use serde_json;
 use pax_designtime::DesigntimeManager;
 
 #[cfg(feature = "designtime")]
+use pax_designtime::orm::ReloadType;
+
+#[cfg(feature = "designtime")]
 const USERLAND_PROJECT_ID: &str = "userland_project";
 #[cfg(feature = "designtime")]
 const RUNNING_PROJECT_ID: &str = "running_project";
@@ -567,20 +570,40 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
+        let reload_type = self.designtime_manager.borrow().get_reload_queue();
         if current_manifest_version != self.last_manifest_version_rendered {
-            if let Some(instance_node) = self
-                .definition_to_instance_traverser
-                .get_template_node_by_id(USERLAND_PROJECT_ID)
-            {
-                let mut engine = self.engine.borrow_mut();
-                engine.replace_instance_node(Rc::clone(&instance_node));
-            }
-            if let Some(instance_node) = self
-                .definition_to_instance_traverser
-                .get_template_node_by_id(RUNNING_PROJECT_ID)
-            {
-                let mut engine = self.engine.borrow_mut();
-                engine.replace_instance_node(Rc::clone(&instance_node));
+            if let Some(reload_type) = reload_type {
+                match reload_type {
+                    ReloadType::FullEdit => {
+                        if let Some(instance_node) = self
+                            .definition_to_instance_traverser
+                            .get_template_node_by_id(USERLAND_PROJECT_ID)
+                        {
+                            let mut engine = self.engine.borrow_mut();
+                            engine.replace_main_template_instance_node(Rc::clone(&instance_node));
+                            engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
+                        }
+                    }
+                    ReloadType::FullPlay => {
+                        if let Some(instance_node) = self
+                            .definition_to_instance_traverser
+                            .get_template_node_by_id(RUNNING_PROJECT_ID)
+                        {
+                            let mut engine = self.engine.borrow_mut();
+                            engine.replace_main_template_instance_node(Rc::clone(&instance_node));
+                            engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
+                        }
+                    }
+                    ReloadType::Partial(uni) => {
+                        let instance_node =
+                            self.definition_to_instance_traverser.build_template_node(
+                                &uni.get_containing_component_type_id(),
+                                &uni.get_template_node_id(),
+                            );
+                        let mut engine = self.engine.borrow_mut();
+                        engine.partial_update_expanded_node(Rc::clone(&instance_node));
+                    }
+                }
             }
             self.last_manifest_version_rendered = current_manifest_version;
         }

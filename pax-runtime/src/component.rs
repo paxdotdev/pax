@@ -77,7 +77,7 @@ impl InstanceNode for ComponentInstance {
                 Some(containing_component.create_children_detached(children_with_env, context));
         }
 
-        let new_env = expanded_node.stack.push(&expanded_node.properties);
+        let new_env = expanded_node.stack.push(&expanded_node.properties.borrow());
         let children = self.template.borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.set_children(children_with_envs, context);
@@ -94,5 +94,9 @@ impl InstanceNode for ComponentInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn get_template(&self) -> Option<&InstanceNodePtrList> {
+        Some(&self.template)
     }
 }
