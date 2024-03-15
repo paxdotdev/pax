@@ -140,7 +140,9 @@ impl ToolBehaviour for PointerTool {
         match self {
             &mut PointerTool::Moving { offset } => {
                 let world_point = ctx.world_transform() * (point - offset);
-                ctx.execute(MoveSelected { point: world_point }).unwrap();
+                if let Err(e) = ctx.execute(MoveSelected { point: world_point }) {
+                    pax_engine::log::error!("Error moving selected: {:?}", e);
+                }
             }
             PointerTool::Selecting { ref mut p2, .. } => *p2 = point,
         }

@@ -28,10 +28,18 @@ impl ProjectModeToggle {
         let curr = *self.edit_mode.get();
         self.edit_mode.set(!curr);
         self.running_mode.set(curr);
-
         let mode = match self.edit_mode.get() {
-            true => ProjectMode::Edit,
-            false => ProjectMode::Playing,
+            true => {
+                let mut dt = ctx.designtime.borrow_mut();
+                dt.reload_edit();
+                ProjectMode::Edit
+            }
+                ,
+            false => {
+                let mut dt = ctx.designtime.borrow_mut();
+                dt.reload_play();
+                ProjectMode::Playing
+            },
         };
         model::perform_action(ProjectMsg::SetMode(mode), ctx);
     }

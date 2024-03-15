@@ -60,7 +60,7 @@ impl ActionContext<'_> {
             .undo_stack
             .stack
             .pop()
-            .ok_or(anyhow!("undo stack embty"))?;
+            .ok_or(anyhow!("undo stack empty"))?;
         undo_fn(self)
     }
 
