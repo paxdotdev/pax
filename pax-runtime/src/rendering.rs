@@ -239,6 +239,10 @@ pub trait InstanceNode {
     fn handle_scroll(&self, args_scroll: Scroll) {
         //no-op default implementation
     }
+
+    fn get_template(&self) -> Option<&InstanceNodePtrList> {
+        None
+    }
 }
 
 pub struct BaseInstance {

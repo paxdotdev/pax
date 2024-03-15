@@ -30,7 +30,8 @@ impl Space for NodeLocal {}
 
 impl NodeInterface {
     pub fn global_id(&self) -> Option<UniqueTemplateNodeIdentifier> {
-        let base = self.inner.instance_node.base();
+        let instance_node = self.inner.instance_node.borrow();
+        let base = instance_node.base();
         base.template_node_identifier.clone()
     }
 

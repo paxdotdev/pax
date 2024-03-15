@@ -36,7 +36,7 @@ impl NodeContext<'_> {
     }
 
     pub fn get_nodes_by_global_id(&self, uni: UniqueTemplateNodeIdentifier) -> Vec<NodeInterface> {
-        let expanded_nodes = self.runtime_context.get_expanded_nodes_by_global_ids(uni);
+        let expanded_nodes = self.runtime_context.get_expanded_nodes_by_global_ids(&uni);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)

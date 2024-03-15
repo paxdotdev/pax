@@ -27,6 +27,7 @@ pub struct RuntimeContext {
     expression_table: ExpressionTable,
     pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
     pub node_cache: HashMap<u32, Rc<ExpandedNode>>,
+    pub uni_to_eid: HashMap<UniqueTemplateNodeIdentifier, Vec<u32>>,
 }
 
 impl RuntimeContext {
@@ -38,6 +39,7 @@ impl RuntimeContext {
             expression_table,
             z_index_node_cache: vec![],
             node_cache: HashMap::default(),
+            uni_to_eid: HashMap::default(),
         }
     }
 
@@ -57,21 +59,26 @@ impl RuntimeContext {
             .collect()
     }
 
+    /// Finds all ExpandedNodes with corresponding UniqueTemplateNodeIdentifier
     pub fn get_expanded_nodes_by_global_ids(
         &self,
-        template_node_identifier: UniqueTemplateNodeIdentifier,
+        uni: &UniqueTemplateNodeIdentifier,
     ) -> Vec<Rc<ExpandedNode>> {
-        self.node_cache
-            .values()
-            .filter(|val| {
-                val.instance_node
-                    .base()
-                    .template_node_identifier
-                    .as_ref()
-                    .is_some_and(|id| *id == template_node_identifier)
+        self.uni_to_eid
+            .get(uni)
+            .map(|eids| {
+                let mut nodes = vec![];
+                for e in eids {
+                    nodes.extend(
+                        self.node_cache
+                            .get(e)
+                            .map(|node| vec![Rc::clone(node)])
+                            .unwrap_or_default(),
+                    )
+                }
+                nodes
             })
-            .cloned()
-            .collect()
+            .unwrap_or_default()
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
