@@ -8,7 +8,7 @@ use pax_manifest::{
 };
 use serde_derive::{Deserialize, Serialize};
 
-use super::{Command, MoveToComponentEntry, Request, Response, Undo, UndoRedoCommand};
+use super::{Command, MoveToComponentEntry, ReloadType, Request, Response, Undo, UndoRedoCommand};
 
 pub mod builder;
 
@@ -65,6 +65,9 @@ impl Response for AddTemplateNodeResponse {
     }
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         Some(self.uni.get_containing_component_type_id().clone())
+    }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
     }
 }
 
@@ -183,6 +186,7 @@ impl UpdateTemplateNodeRequest {
 pub struct UpdateTemplateNodeResponse {
     command_id: Option<usize>,
     _affected_component_type_id: TypeId,
+    _affected_unique_node_identifier: UniqueTemplateNodeIdentifier,
 }
 
 impl Request for UpdateTemplateNodeRequest {
@@ -198,6 +202,11 @@ impl Response for UpdateTemplateNodeResponse {
     }
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         Some(self._affected_component_type_id.clone())
+    }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::Partial(
+            self._affected_unique_node_identifier.clone(),
+        ))
     }
 }
 
@@ -238,6 +247,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
         Ok(UpdateTemplateNodeResponse {
             command_id: None,
             _affected_component_type_id: uni.get_containing_component_type_id(),
+            _affected_unique_node_identifier: uni,
         })
     }
 
@@ -304,6 +314,9 @@ impl Response for MoveTemplateNodeResponse {
     }
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         Some(self._affected_component_type_id.clone())
+    }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
     }
 }
 
@@ -396,6 +409,9 @@ impl Response for RemoveTemplateNodeResponse {
     }
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         Some(self._affected_component_type_id.clone())
+    }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
     }
 }
 
