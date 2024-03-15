@@ -97,7 +97,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
     fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>> {
         Some(Box::new(|node, table, globals|{
-            let props = &node.properties;
+            let props = &node.properties.borrow();
             let properties = &mut props.as_ref().borrow_mut();
 
             if let Some(properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
