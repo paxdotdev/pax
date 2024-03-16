@@ -32,6 +32,7 @@ PACKAGES = [
     "pax-cli",
     "pax-compiler",
     "pax-runtime",
+    "pax-runtime-api",
     "pax-engine",
     "pax-language-server",
     "pax-macro",
