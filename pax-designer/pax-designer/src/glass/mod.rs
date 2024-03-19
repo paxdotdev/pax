@@ -53,13 +53,18 @@ impl Action for SetEditingComponent {
             .get_nodes_by_id(USERLAND_PROJECT_ID)
             .into_iter()
             .next()
-            .expect("expanded node exists");
+            .ok_or(anyhow!("couldn't find node with userland id"))?;
         let mut builder = dt
             .get_orm_mut()
-            .get_node(node.global_id().expect("has global id"))
-            .expect("userland proj exists among template nodes");
+            .get_node(
+                node.global_id()
+                    .ok_or(anyhow!("expanded node doesn't have global id"))?,
+            )
+            .ok_or(anyhow!("no such node in manifest"))?;
         builder.set_type_id(&type_id);
-        builder.save().expect("replaced type_id");
+        builder
+            .save()
+            .map_err(|_| anyhow!("builder couldn't save"))?;
         dt.reload_edit();
         ctx.app_state.selected_template_node_ids.clear();
         ctx.app_state.selected_component_id = type_id;
@@ -75,15 +80,20 @@ impl Glass {
 
     pub fn handle_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
         let node_id = model::read_app_state(|app_state| {
+            let Some(selected_node_id) = app_state.selected_template_node_ids.last() else {
+                return None;
+            };
             let uid = UniqueTemplateNodeIdentifier::build(
                 app_state.selected_component_id.clone(),
-                app_state.selected_template_node_ids.last().unwrap().clone(),
+                selected_node_id.clone(),
             );
             let mut dt = ctx.designtime.borrow_mut();
-            let builder = dt.get_orm_mut().get_node(uid).unwrap();
-            builder.get_type_id()
+            let builder = dt.get_orm_mut().get_node(uid)?;
+            Some(builder.get_type_id())
         });
-        model::perform_action(SetEditingComponent(node_id), ctx);
+        if let Some(node_id) = node_id {
+            model::perform_action(SetEditingComponent(node_id), ctx);
+        }
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
