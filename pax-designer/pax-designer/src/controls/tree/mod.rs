@@ -21,6 +21,7 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use treeobj::TreeObj;
 
+use crate::glass::SetEditingComponent;
 use crate::model;
 use crate::model::tools::SelectNode;
 
@@ -40,6 +41,7 @@ pub struct Tree {
 pub enum TreeMsg {
     ArrowClicked(usize),
     ObjClicked(usize),
+    ObjDoubleClicked(usize),
 }
 
 pub static TREE_CLICK_SENDER: Mutex<Option<TreeMsg>> = Mutex::new(None);
@@ -241,6 +243,20 @@ impl Tree {
                     },
                     ctx,
                 ),
+                TreeMsg::ObjDoubleClicked(sender) => {
+                    let node_id = &self.tree_objects.get()[sender].node_id;
+                    let type_id_of_tree_target = model::read_app_state(|app_state| {
+                        let uuid = UniqueTemplateNodeIdentifier::build(
+                            app_state.selected_component_id.clone(),
+                            node_id.clone(),
+                        );
+                        let mut dt = ctx.designtime.borrow_mut();
+                        let builder = dt.get_orm_mut().get_node(uuid).unwrap();
+                        builder.get_type_id()
+                    });
+
+                    model::perform_action(SetEditingComponent(type_id_of_tree_target), ctx)
+                }
             }
         }
 

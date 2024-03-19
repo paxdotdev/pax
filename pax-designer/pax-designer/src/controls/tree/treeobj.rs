@@ -45,4 +45,10 @@ impl TreeObj {
         *super::TREE_CLICK_SENDER.lock().unwrap() =
             Some(super::TreeMsg::ObjClicked(self.ind.get().clone().into()));
     }
+
+    pub fn obj_double_clicked(&mut self, _ctx: &NodeContext, _args: Event<DoubleClick>) {
+        *super::TREE_CLICK_SENDER.lock().unwrap() = Some(super::TreeMsg::ObjDoubleClicked(
+            self.ind.get().clone().into(),
+        ));
+    }
 }

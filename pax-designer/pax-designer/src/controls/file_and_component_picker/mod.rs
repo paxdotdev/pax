@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicI32;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -59,6 +61,7 @@ impl FileAndComponentPicker {
             self.set_library(ctx);
             self.manifest_ver.set(manifest_ver);
         }
+
         if let Some(msg) = LIBRARY_MSG.lock().unwrap().take() {
             if self.library_active.get() != &msg.open {
                 self.library_active.set(msg.open);

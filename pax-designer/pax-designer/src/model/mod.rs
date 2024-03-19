@@ -44,13 +44,13 @@ pub struct GlobalDesignerState {
 
 impl GlobalDesignerState {
     fn new() -> Self {
+        let userland_project_root_type_id = TypeId::build_singleton(
+            "pax_designer::pax_reexports::designer_project::Example",
+            None,
+        );
         Self {
             app_state: AppState {
-                selected_component_id: TypeId::build_singleton(
-                    "pax_designer::pax_reexports::designer_project::Example",
-                    None,
-                )
-                .to_owned(),
+                selected_component_id: userland_project_root_type_id.to_owned(),
                 ..Default::default()
             },
             ..Default::default()
@@ -121,10 +121,8 @@ pub struct AppState {
     pub input_mapper: InputMapper,
 }
 
-pub fn read_app_state(closure: impl FnOnce(&AppState)) {
-    GLOBAL_STATE.with_borrow_mut(|model| {
-        closure(&model.app_state);
-    });
+pub fn read_app_state<T>(closure: impl FnOnce(&AppState) -> T) -> T {
+    GLOBAL_STATE.with_borrow_mut(|model| closure(&model.app_state))
 }
 
 pub fn with_action_context<R: 'static>(
