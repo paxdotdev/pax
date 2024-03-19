@@ -254,10 +254,12 @@ is the corresponding PropertyScope already removed?",
                 let PropType::Expr { ref mut dirty, .. } = dep_data.prop_type else {
                     unreachable!("non-expressions shouldn't depend on other properties")
                 };
+                let ret = dep_data.on_change.clone();
+                if !*dirty {
+                    to_dirty.extend_from_slice(&dep_data.subscribers);
+                }
                 *dirty = true;
-                println!("dirtying: {:?} while setting {:?}", dep_id, id);
-                to_dirty.extend_from_slice(&dep_data.subscribers);
-                dep_data.on_change.clone()
+                ret
             });
             for f in &on_change_handlers {
                 f()
