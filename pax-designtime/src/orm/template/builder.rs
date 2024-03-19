@@ -62,6 +62,14 @@ impl<'a> NodeBuilder<'a> {
         self.unique_node_identifier.clone()
     }
 
+    pub fn set_type_id(&mut self, type_id: &TypeId) {
+        self.node_type_id = type_id.clone();
+    }
+
+    pub fn get_type_id(&self) -> TypeId {
+        self.node_type_id.clone()
+    }
+
     pub fn get_all_properties(&mut self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
         let properties = self
             .orm
@@ -130,6 +138,7 @@ impl<'a> NodeBuilder<'a> {
 
             let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(
                 uni,
+                Some(self.node_type_id),
                 self.updated_property_map,
                 Some(location),
             ))?;

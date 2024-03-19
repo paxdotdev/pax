@@ -161,6 +161,7 @@ impl Undo for AddTemplateNodeRequest {
 pub struct UpdateTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     updated_properties: HashMap<Token, Option<ValueDefinition>>,
+    new_type_id: Option<TypeId>,
     new_location: Option<NodeLocation>,
     // Used for Undo/Redo
     _cached_node_data: Option<NodeData>,
@@ -170,6 +171,7 @@ pub struct UpdateTemplateNodeRequest {
 impl UpdateTemplateNodeRequest {
     pub fn new(
         uni: UniqueTemplateNodeIdentifier,
+        new_type_id: Option<TypeId>,
         updated_properties: HashMap<Token, Option<ValueDefinition>>,
         new_location: Option<NodeLocation>,
     ) -> Self {
@@ -177,6 +179,7 @@ impl UpdateTemplateNodeRequest {
             uni,
             updated_properties,
             new_location,
+            new_type_id,
             _cached_node_data: None,
             _cached_move: None,
         }
@@ -233,6 +236,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
             });
 
             template.update_node_properties(
+                self.new_type_id.as_ref(),
                 &uni.get_template_node_id(),
                 &mut self.updated_properties.clone(),
             );
