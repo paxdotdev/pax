@@ -1,22 +1,26 @@
 use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
+use pax_manifest::{PaxType, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::primitives::{Group, Path, Rectangle};
 use pax_std::types::Fill;
 use serde::Deserialize;
 
-use crate::model;
+use crate::controls::file_and_component_picker::SetLibraryState;
 use crate::model::AppState;
+use crate::{model, USERLAND_PROJECT_ID};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, World};
 use crate::model::action::pointer::Pointer;
+use crate::model::action::{Action, ActionContext, CanUndo};
 use crate::model::input::Dir;
 
 pub mod control_point;
 pub mod object_editor;
 use control_point::ControlPoint;
 
+use anyhow::anyhow;
 use object_editor::ObjectEditor;
 
 #[pax]
@@ -28,9 +32,58 @@ pub struct Glass {
     pub rect_tool: Property<RectTool>,
 }
 
+pub struct SetEditingComponent(pub TypeId);
+
+impl Action for SetEditingComponent {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+        let type_id = self.0;
+        let is_userland_component = type_id
+            .import_path()
+            .is_some_and(|p| p.starts_with("pax_designer::pax_reexports::designer_project::"));
+
+        let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+
+        if !is_userland_component && !is_mock {
+            return Err(anyhow!("tried to edit a non-userland comp"));
+        }
+        ctx.execute(SetLibraryState { open: false })?;
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let node = ctx
+            .engine_context
+            .get_nodes_by_id(USERLAND_PROJECT_ID)
+            .into_iter()
+            .next()
+            .expect("expanded node exists");
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node(node.global_id().expect("has global id"))
+            .expect("userland proj exists among template nodes");
+        builder.set_type_id(&type_id);
+        builder.save().expect("replaced type_id");
+        dt.reload_edit();
+        ctx.app_state.selected_template_node_ids.clear();
+        ctx.app_state.selected_component_id = type_id;
+        *ctx.app_state.tool_behaviour.borrow_mut() = None;
+        Ok(CanUndo::No)
+    }
+}
+
 impl Glass {
-    pub fn context_menu(&mut self, ctx: &NodeContext, args: Event<ContextMenu>) {
+    pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
         args.prevent_default();
+    }
+
+    pub fn handle_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
+        let node_id = model::read_app_state(|app_state| {
+            let uid = UniqueTemplateNodeIdentifier::build(
+                app_state.selected_component_id.clone(),
+                app_state.selected_template_node_ids.last().unwrap().clone(),
+            );
+            let mut dt = ctx.designtime.borrow_mut();
+            let builder = dt.get_orm_mut().get_node(uid).unwrap();
+            builder.get_type_id()
+        });
+        model::perform_action(SetEditingComponent(node_id), ctx);
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {

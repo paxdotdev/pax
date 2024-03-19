@@ -7,7 +7,7 @@ if self.is_not_dummy {
 			@click=self.arrow_clicked
 		/>
 	}
-	<Rectangle fill=TRANSPARENT @click=obj_clicked/>
+	<Rectangle fill=TRANSPARENT @click=obj_clicked @double_click=obj_double_clicked/>
 	// Icon
 	<Image
 		x=40px anchor_y=50% y=50% height=30px width=30px
