@@ -230,6 +230,12 @@ impl Debug for ExpressionTable {
 }
 
 impl ExpressionTable {
+    pub fn new() -> Self {
+        Self {
+            table: HashMap::new(),
+        }
+    }
+
     pub fn compute_vtable_value(
         &self,
         stack: &Rc<RuntimePropertiesStackFrame>,
