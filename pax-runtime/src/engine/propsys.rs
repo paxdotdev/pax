@@ -130,13 +130,17 @@ is the corresponding PropertyScope already removed?",
 
     fn set_value<T: PropVal + 'static>(&self, id: PropId, value: T) {
         let mut to_dirty = vec![];
-        self.with_prop_data(id, |prop_data| {
+        let on_change_handlers = self.with_prop_data(id, |prop_data| {
             prop_data.value = Box::new(value);
             to_dirty.extend_from_slice(&prop_data.subscribers);
+            prop_data.on_change.clone()
         });
+        for f in &on_change_handlers {
+            f()
+        }
 
         while let Some(dep_id) = to_dirty.pop() {
-            self.with_prop_data(dep_id, |dep_data| {
+            let on_change_handlers = self.with_prop_data(dep_id, |dep_data| {
                 if dep_id == id {
                     panic!("property cycle detected");
                 }
@@ -146,7 +150,11 @@ is the corresponding PropertyScope already removed?",
                 *dirty = true;
                 println!("dirtying: {:?} while setting {:?}", dep_id, id);
                 to_dirty.extend_from_slice(&dep_data.subscribers);
+                dep_data.on_change.clone()
             });
+            for f in &on_change_handlers {
+                f()
+            }
         }
     }
 
@@ -187,7 +195,7 @@ is the corresponding PropertyScope already removed?",
 struct PropertyData {
     value: Box<dyn Any>,
     subscribers: Vec<PropId>,
-    on_change: Vec<Box<dyn Fn()>>,
+    on_change: Vec<Rc<dyn Fn()>>,
     prop_type: PropType,
 }
 
@@ -265,7 +273,7 @@ impl<T: PropVal> Property<T> {
 
     pub fn subscribe(&self, f: impl Fn() + 'static) {
         self.ptable.with_prop_data(self.id, |prop_data| {
-            prop_data.on_change.push(Box::new(f));
+            prop_data.on_change.push(Rc::new(f));
         })
     }
 
@@ -314,7 +322,12 @@ impl Drop for PropertyScope {
 
 #[cfg(test)]
 mod tests {
-    use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+    use std::{
+        any::Any,
+        cell::{Cell, RefCell},
+        collections::HashMap,
+        rc::Rc,
+    };
 
     use crate::{
         propsys::PropertyScope, ExpressionContext, ExpressionTable, RuntimePropertiesStackFrame,
@@ -386,6 +399,20 @@ mod tests {
     }
 
     #[test]
+    fn test_subscribe() {
+        let ptable = Rc::new(PropertyTable::new());
+        let (prop, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
+        let triggered = Rc::new(Cell::new(false));
+        let sub_run = triggered.clone();
+        prop.subscribe(move || {
+            sub_run.set(true);
+        });
+        prop.set(3);
+        handle.drop_all();
+        assert!(triggered.get());
+    }
+
+    #[test]
     fn test_larger_network() {
         let ptable = Rc::new(PropertyTable::new());
         let vtable = Rc::new(ExpressionTable {
@@ -422,7 +449,7 @@ mod tests {
             ]),
         });
 
-        let ((prop_1, prop_2, _, prop_4), handle) = PropertyScope::drop_scope(&ptable, || {
+        let ((prop_1, prop_2, prop_3, prop_4), handle) = PropertyScope::drop_scope(&ptable, || {
             let prop_1 = Property::literal(&ptable, 2);
             let prop_2 = Property::literal(&ptable, 6);
 
@@ -442,11 +469,26 @@ mod tests {
             (prop_1, prop_2, prop_3, prop_4)
         });
 
+        let sub_value = Rc::new(Cell::new(0));
+        let sub_value_cl = sub_value.clone();
+        let prop_1_cl = prop_1.clone();
+        let prop_3_cl = prop_3.clone();
+        let prop_4_cl = prop_4.clone();
+
+        prop_4.subscribe(move || {
+            if prop_4_cl.get() > 3 {
+                sub_value_cl.set(prop_1_cl.get());
+            } else {
+                sub_value_cl.set(prop_3_cl.get());
+            }
+        });
         assert_eq!(prop_4.get(), 14);
         prop_1.set(1);
         assert_eq!(prop_4.get(), 7);
-        prop_2.set(1);
-        assert_eq!(prop_4.get(), 2);
+        assert_eq!(sub_value.get(), 1);
+        prop_2.set(2);
+        assert_eq!(prop_4.get(), 3);
+        assert_eq!(sub_value.get(), 2);
         handle.drop_all();
     }
 
