@@ -8,6 +8,7 @@ use self::private::PropId;
 
 pub struct PropertyTable {
     entires: RefCell<SlotMap<PropId, PropertyData>>,
+    creation_trace: RefCell<Option<Vec<PropId>>>,
 }
 
 impl std::fmt::Debug for PropertyTable {
@@ -15,7 +16,12 @@ impl std::fmt::Debug for PropertyTable {
         f.debug_struct("PropertyTable")
             .field(
                 "prop_ids",
-                &self.entires.borrow().keys().collect::<Vec<_>>(),
+                &self
+                    .entires
+                    .borrow()
+                    .iter()
+                    .map(|(k, v)| (k, &v.subscribers))
+                    .collect::<Vec<_>>(),
             )
             .finish_non_exhaustive()
     }
@@ -25,17 +31,24 @@ impl PropertyTable {
     pub fn new() -> Self {
         Self {
             entires: Default::default(),
+            creation_trace: RefCell::new(None),
         }
     }
 
     fn add_literal_entry<T: 'static>(&self, val: T) -> PropId {
         let mut sm = self.entires.borrow_mut();
-        sm.insert(PropertyData {
+        let prop_id = sm.insert(PropertyData {
             value: Box::new(val),
             subscribers: Vec::with_capacity(0),
             on_change: Vec::with_capacity(0),
             prop_type: PropType::Literal(),
-        })
+        });
+        let mut trace = self.creation_trace.borrow_mut();
+        match trace.as_mut() {
+            Some(trace) => trace.push(prop_id),
+            None => panic!("can't create a property outside of a PropertyScopeHandle::drop_scope"),
+        }
+        prop_id
     }
 
     fn add_expr_entry(
@@ -45,19 +58,26 @@ impl PropertyTable {
         vtable_id: usize,
         dependents: &[PropId],
     ) -> PropId {
-        let mut sm = self.entires.borrow_mut();
-        let expr_id = sm.insert(PropertyData {
-            value: Box::new(()),
-            subscribers: Vec::with_capacity(0),
-            on_change: Vec::with_capacity(0),
-            prop_type: PropType::Expr {
-                dirty: true,
-                vtable_id,
-                subscriptions: dependents.to_vec(),
-                stack,
-                vtable,
-            },
-        });
+        let expr_id = {
+            let mut sm = self.entires.borrow_mut();
+            sm.insert(PropertyData {
+                value: Box::new(()),
+                subscribers: Vec::with_capacity(0),
+                on_change: Vec::with_capacity(0),
+                prop_type: PropType::Expr {
+                    dirty: true,
+                    vtable_id,
+                    subscriptions: dependents.to_vec(),
+                    stack,
+                    vtable,
+                },
+            })
+        };
+        let mut trace = self.creation_trace.borrow_mut();
+        match trace.as_mut() {
+            Some(trace) => trace.push(expr_id),
+            None => panic!("can't create a property outside of a PropertyScopeHandle::drop_scope"),
+        }
         for id in dependents {
             self.with_prop_data(*id, |dep_prop| {
                 dep_prop.subscribers.push(expr_id);
@@ -68,12 +88,15 @@ impl PropertyTable {
 
     fn with_prop_data<V>(&self, id: PropId, f: impl FnOnce(&mut PropertyData) -> V) -> V {
         let mut sm = self.entires.borrow_mut();
-        let prop_data = sm.get_mut(id).expect("entry exists");
+        let prop_data = sm.get_mut(id).expect(
+            "tried to access property entry that doesn't exist anymore,\
+is the corresponding PropertyScope already removed?",
+        );
         f(prop_data)
     }
 
     fn get_value<T: PropVal + 'static>(&self, id: PropId) -> T {
-        self.with_prop_data(id, |prop_data| {
+        let expr_update_args = self.with_prop_data(id, |prop_data| {
             if let PropType::Expr {
                 dirty,
                 vtable,
@@ -85,10 +108,21 @@ impl PropertyTable {
                 // This dirty checking should be done automatically by sub-components (dependents)
                 // of the expression during the "get" calls while computing it.
                 if *dirty == true {
-                    prop_data.value = vtable.compute_vtable_value(&stack, *vtable_id);
                     *dirty = false;
+                    return Some((Rc::clone(&vtable), Rc::clone(stack), *vtable_id));
                 }
             }
+            None
+        });
+
+        if let Some((vtable, stack, vtable_id)) = expr_update_args {
+            let new_value = vtable.compute_vtable_value(&stack, vtable_id);
+            self.with_prop_data(id, |prop_data| {
+                prop_data.value = new_value;
+            });
+        }
+
+        self.with_prop_data(id, |prop_data| {
             let value = prop_data.value.downcast_ref::<T>().expect("correct type");
             value.clone()
         })
@@ -107,22 +141,28 @@ impl PropertyTable {
                     panic!("property cycle detected");
                 }
                 let PropType::Expr { ref mut dirty, .. } = dep_data.prop_type else {
-                    panic!("non-expressions shouldn't depend on other properties")
+                    unreachable!("non-expressions shouldn't depend on other properties")
                 };
                 *dirty = true;
+                println!("dirtying: {:?} while setting {:?}", dep_id, id);
                 to_dirty.extend_from_slice(&dep_data.subscribers);
             });
         }
     }
 
-    fn remove(&self, id: PropId) {
-        // TODO make this decrease ref count
-        // instead of directly removing
+    fn remove_entry(&self, id: PropId) {
         let prop_data = {
             let mut sm = self.entires.borrow_mut();
             let prop_data = sm.remove(id).expect("tried to remove non-existent prop");
             prop_data
         };
+        for sub in prop_data.subscribers {
+            self.with_prop_data(sub, |s| {
+                if let PropType::Expr { subscriptions, .. } = &mut s.prop_type {
+                    subscriptions.retain(|s| s != &id);
+                }
+            });
+        }
         if let PropType::Expr { subscriptions, .. } = prop_data.prop_type {
             for subscription in subscriptions {
                 self.with_prop_data(subscription, |sub| {
@@ -131,11 +171,22 @@ impl PropertyTable {
             }
         }
     }
+
+    fn trace_creation_start(&self) -> Option<Vec<PropId>> {
+        let mut trace = self.creation_trace.borrow_mut();
+        std::mem::replace(&mut trace, Some(vec![]))
+    }
+
+    fn trace_creation_end(&self, mut old_values: Option<Vec<PropId>>) -> Option<Vec<PropId>> {
+        let mut trace = self.creation_trace.borrow_mut();
+        std::mem::swap(&mut *trace, &mut old_values);
+        old_values
+    }
 }
 
 struct PropertyData {
-    subscribers: Vec<PropId>,
     value: Box<dyn Any>,
+    subscribers: Vec<PropId>,
     on_change: Vec<Box<dyn Fn()>>,
     prop_type: PropType,
 }
@@ -154,9 +205,10 @@ enum PropType {
     },
 }
 
+#[derive(Clone)]
 pub struct Property<T> {
     id: PropId,
-    table: Rc<PropertyTable>,
+    ptable: Rc<PropertyTable>,
     _phantom: PhantomData<T>,
 }
 
@@ -185,20 +237,20 @@ impl<T: PropVal> Property<T> {
         let id = table.add_literal_entry(val);
         Self {
             id,
-            table: Rc::clone(table),
+            ptable: Rc::clone(table),
             _phantom: PhantomData {},
         }
     }
 
     pub fn expression(
-        table: &Rc<PropertyTable>,
+        ptable: &Rc<PropertyTable>,
         vtable: &Rc<ExpressionTable>,
         stack: &Rc<RuntimePropertiesStackFrame>,
         vtable_id: usize,
         dependents: &[&dyn private::HasPropId],
     ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
-        let id = table.add_expr_entry(
+        let id = ptable.add_expr_entry(
             Rc::clone(stack),
             Rc::clone(vtable),
             vtable_id,
@@ -206,28 +258,230 @@ impl<T: PropVal> Property<T> {
         );
         Self {
             id,
-            table: Rc::clone(table),
+            ptable: Rc::clone(ptable),
             _phantom: PhantomData {},
         }
     }
 
     pub fn subscribe(&self, f: impl Fn() + 'static) {
-        self.table.with_prop_data(self.id, |prop_data| {
+        self.ptable.with_prop_data(self.id, |prop_data| {
             prop_data.on_change.push(Box::new(f));
         })
     }
 
     pub fn get(&self) -> T {
-        self.table.get_value(self.id)
+        self.ptable.get_value(self.id)
     }
 
     pub fn set(&self, val: T) {
-        self.table.set_value(self.id, val);
+        self.ptable.set_value(self.id, val);
     }
 }
 
-impl<T> Drop for Property<T> {
+pub struct PropertyScope {
+    ptable: Rc<PropertyTable>,
+    ids: Vec<PropId>,
+}
+
+impl PropertyScope {
+    pub fn drop_scope<V>(ptable: &Rc<PropertyTable>, f: impl FnOnce() -> V) -> (V, Self) {
+        let before = ptable.trace_creation_start();
+        let res = f();
+        let created_prpoperty_ids = ptable.trace_creation_end(before).expect("was started");
+        (
+            res,
+            Self {
+                ptable: Rc::clone(ptable),
+                ids: created_prpoperty_ids,
+            },
+        )
+    }
+
+    pub fn drop_all(mut self) {
+        for id in self.ids.drain(0..) {
+            self.ptable.remove_entry(id);
+        }
+    }
+}
+
+impl Drop for PropertyScope {
     fn drop(&mut self) {
-        self.table.remove(self.id);
+        if !self.ids.is_empty() {
+            panic!("PropertyScopeHandle .drop_all() must be called manually before being dropped to clean up associated properties")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+
+    use crate::{
+        propsys::PropertyScope, ExpressionContext, ExpressionTable, RuntimePropertiesStackFrame,
+    };
+
+    use super::{Property, PropertyTable};
+
+    #[test]
+    fn test_literal_set_get() {
+        let ptable = Rc::new(PropertyTable::new());
+
+        let (prop, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
+        assert_eq!(prop.get(), 5);
+        prop.set(2);
+        assert_eq!(prop.get(), 2);
+        handle.drop_all();
+    }
+
+    #[test]
+    fn test_expression_get() {
+        let ptable = Rc::new(PropertyTable::new());
+        let vtable = Rc::new(ExpressionTable {
+            table: HashMap::from([(
+                0,
+                Box::new(|_ec| Box::new(42) as Box<dyn Any>)
+                    as Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>,
+            )]),
+        });
+        let stack = Rc::new(RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(()))));
+
+        let (prop, handle) = PropertyScope::drop_scope(&ptable, || {
+            Property::<i32>::expression(&ptable, &vtable, &stack, 0, &[])
+        });
+        assert_eq!(prop.get(), 42);
+        handle.drop_all();
+    }
+
+    #[test]
+    fn test_expression_dependent_on_literal() {
+        let ptable = Rc::new(PropertyTable::new());
+        let vtable = Rc::new(ExpressionTable {
+            table: HashMap::from([(
+                0,
+                Box::new(|ec: ExpressionContext| {
+                    let scope = ec.stack_frame.peek_nth(0).expect("stack frame exists");
+                    let scope = scope.borrow();
+                    let val: &Property<i32> =
+                        scope.downcast_ref().expect("it has a property stored");
+                    Box::new(val.get() * 5) as Box<dyn Any>
+                }) as Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>,
+            )]),
+        });
+
+        let ((prop_1, prop_2), handle) = PropertyScope::drop_scope(&ptable, || {
+            let prop_1 = Property::literal(&ptable, 2);
+
+            let stack = Rc::new(RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(
+                prop_1.clone(),
+            ))));
+
+            let prop_2 = Property::<i32>::expression(&ptable, &vtable, &stack, 0, &[&prop_1]);
+            (prop_1, prop_2)
+        });
+
+        assert_eq!(prop_2.get(), 10);
+        prop_1.set(3);
+        assert_eq!(prop_2.get(), 15);
+        handle.drop_all();
+    }
+
+    #[test]
+    fn test_larger_network() {
+        let ptable = Rc::new(PropertyTable::new());
+        let vtable = Rc::new(ExpressionTable {
+            table: HashMap::from([
+                (
+                    0,
+                    Box::new(|ec: ExpressionContext| {
+                        // TODO replace these with variable name lookups later on
+                        let prop_1 = ec.stack_frame.peek_nth(1).expect("stack frame exists");
+                        let prop_1 = prop_1.borrow();
+                        let prop_1: &Property<i32> =
+                            prop_1.downcast_ref().expect("it has a property stored");
+                        let prop_2 = ec.stack_frame.peek_nth(0).expect("stack frame exists");
+                        let prop_2 = prop_2.borrow();
+                        let prop_2: &Property<i32> =
+                            prop_2.downcast_ref().expect("it has a property stored");
+                        Box::new(prop_1.get() * prop_2.get()) as Box<dyn Any>
+                    }) as Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>,
+                ),
+                (
+                    1,
+                    Box::new(|ec: ExpressionContext| {
+                        let prop_1 = ec.stack_frame.peek_nth(2).expect("stack frame exists");
+                        let prop_1 = prop_1.borrow();
+                        let prop_1: &Property<i32> =
+                            prop_1.downcast_ref().expect("it has a property stored");
+                        let prop_3 = ec.stack_frame.peek_nth(0).expect("stack frame exists");
+                        let prop_3 = prop_3.borrow();
+                        let prop_3: &Property<i32> =
+                            prop_3.downcast_ref().expect("it has a property stored");
+                        Box::new(prop_1.get() + prop_3.get()) as Box<dyn Any>
+                    }) as Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>,
+                ),
+            ]),
+        });
+
+        let ((prop_1, prop_2, _, prop_4), handle) = PropertyScope::drop_scope(&ptable, || {
+            let prop_1 = Property::literal(&ptable, 2);
+            let prop_2 = Property::literal(&ptable, 6);
+
+            let stack = Rc::new(RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(
+                prop_1.clone(),
+            ))));
+            let context = Rc::new(RefCell::new(prop_2.clone())) as Rc<RefCell<dyn Any>>;
+            let stack = stack.push(&context);
+
+            let prop_3 =
+                Property::<i32>::expression(&ptable, &vtable, &stack, 0, &[&prop_1, &prop_2]);
+
+            let context = Rc::new(RefCell::new(prop_3.clone())) as Rc<RefCell<dyn Any>>;
+            let stack = stack.push(&context);
+            let prop_4 =
+                Property::<i32>::expression(&ptable, &vtable, &stack, 1, &[&prop_1, &prop_3]);
+            (prop_1, prop_2, prop_3, prop_4)
+        });
+
+        assert_eq!(prop_4.get(), 14);
+        prop_1.set(1);
+        assert_eq!(prop_4.get(), 7);
+        prop_2.set(1);
+        assert_eq!(prop_4.get(), 2);
+        handle.drop_all();
+    }
+
+    #[test]
+    fn test_cleanup() {
+        let ptable = Rc::new(PropertyTable::new());
+        assert!(ptable.entires.borrow().is_empty());
+        let (_, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
+        assert_eq!(ptable.entires.borrow().len(), 1);
+        handle.drop_all();
+        assert!(ptable.entires.borrow().is_empty());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_use_property_after_scope_dropped() {
+        let ptable = Rc::new(PropertyTable::new());
+        assert!(ptable.entires.borrow().is_empty());
+        let (prop, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
+        assert_eq!(ptable.entires.borrow().len(), 1);
+        handle.drop_all();
+        prop.get();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_no_prop_creation_outside_of_scope() {
+        let ptable = Rc::new(PropertyTable::new());
+        Property::literal(&ptable, 5);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_scope_handle_not_call_drop_all() {
+        let ptable = Rc::new(PropertyTable::new());
+        let (_, _handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
     }
 }
