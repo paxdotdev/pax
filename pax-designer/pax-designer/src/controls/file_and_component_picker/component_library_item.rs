@@ -8,6 +8,7 @@ use pax_manifest::TypeId;
 use pax_std::primitives::Rectangle;
 use pax_std::primitives::Text;
 
+use crate::glass::SetEditingComponent;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::AxisAlignedBox;
 use crate::model;
@@ -74,6 +75,9 @@ impl ToolBehaviour for DropComponent {
 }
 
 impl ComponentLibraryItem {
+    pub fn on_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
+        model::perform_action(SetEditingComponent(self.data.get().type_id.clone()), ctx);
+    }
     pub fn on_down(&mut self, ctx: &NodeContext, _args: Event<MouseDown>) {
         model::with_action_context(ctx, |ctx| {
             let data = self.data.get();
