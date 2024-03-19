@@ -23,6 +23,9 @@ use crate::{
 };
 
 pub mod node_interface;
+pub mod propsys;
+
+use propsys::PropertyTable;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
@@ -40,6 +43,7 @@ use pax_designtime::DesigntimeManager;
 pub struct Globals {
     pub frames_elapsed: usize,
     pub viewport: TransformAndBounds,
+    pub property_table: Rc<RefCell<PropertyTable>>,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
@@ -301,6 +305,7 @@ impl PaxEngine {
 
         let globals = Globals {
             frames_elapsed: 0,
+            property_table: Rc::new(RefCell::new(PropertyTable::new())),
             viewport: TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
@@ -329,6 +334,7 @@ impl PaxEngine {
         use pax_runtime_api::math::Transform2;
         let globals = Globals {
             frames_elapsed: 0,
+            property_table: Rc::new(RefCell::new(PropertyTable::new())),
             viewport: TransformAndBounds {
                 transform: Transform2::default(),
                 bounds: viewport_size,
