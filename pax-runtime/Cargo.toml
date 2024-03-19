@@ -21,3 +21,4 @@ pax-message = {path = "../pax-message", version="0.12.8"}
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 pax-manifest = {version="0.12.8", path = "../pax-manifest"}
 pax-runtime-api = {version="0.12.8", path = "../pax-runtime-api"}
+slotmap = "1.0.7"
