@@ -1013,10 +1013,14 @@ impl ComponentTemplate {
 
     pub fn update_node_properties(
         &mut self,
+        new_type: Option<&TypeId>,
         id: &TemplateNodeId,
         properties: &mut HashMap<Token, Option<ValueDefinition>>,
     ) {
         if let Some(node) = self.nodes.get_mut(id) {
+            if let Some(new_type) = new_type {
+                node.type_id = new_type.clone();
+            }
             if let Some(settings) = &mut node.settings {
                 let mut indexes_to_remove: Vec<usize> = vec![];
                 for (i, setting) in settings.iter_mut().enumerate() {
