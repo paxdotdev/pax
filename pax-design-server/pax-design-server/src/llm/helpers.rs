@@ -259,8 +259,12 @@ impl SimpleNodeAction {
                         TreeIndexPosition::Top,
                     )
                 });
-                let update =
-                    UpdateTemplateNodeRequest::new(uni, updated_property_map, new_location);
+                let update = UpdateTemplateNodeRequest::new(
+                    uni,
+                    None,
+                    updated_property_map,
+                    new_location,
+                );
                 Some(NodeAction::Update(update))
             }
             SimpleNodeAction::Remove(remove) => {
