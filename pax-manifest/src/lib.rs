@@ -1055,6 +1055,10 @@ impl ComponentTemplate {
         self.nodes.values().collect()
     }
 
+    pub fn get_nodes_mut(&mut self) -> Vec<&mut TemplateNodeDefinition> {
+        self.nodes.values_mut().collect()
+    }
+
     pub fn get_nodes_owned(&self) -> Vec<TemplateNodeDefinition> {
         self.nodes.values().map(|x| x.clone()).collect()
     }
@@ -1148,6 +1152,9 @@ impl ComponentTemplate {
                         if let ValueDefinition::Expression(t, id) = v {
                             ret.insert(t.raw_value.clone(), id.unwrap());
                         }
+                        if let ValueDefinition::Block(b) = v {
+                            Self::recurse_get_known_expressions(b, &mut ret);
+                        }
                     }
                 }
             }
@@ -1155,18 +1162,55 @@ impl ComponentTemplate {
         ret
     }
 
+    fn recurse_get_known_expressions(
+        block: &LiteralBlockDefinition,
+        known_expressions: &mut HashMap<String, usize>,
+    ) {
+        for s in block.elements.iter() {
+            if let SettingElement::Setting(_, v) = s {
+                if let ValueDefinition::Expression(t, id) = v {
+                    known_expressions.insert(t.raw_value.clone(), id.unwrap());
+                }
+                if let ValueDefinition::Block(b) = v {
+                    Self::recurse_get_known_expressions(b, known_expressions);
+                }
+            }
+        }
+    }
+
     /// Given a list of known expressions, this function will update the expression ids in the template
     pub fn update_expression_ids(&mut self, known_expressions: &HashMap<String, usize>) {
         for (_, tnd) in self.nodes.iter_mut() {
             if let Some(settings) = &mut tnd.settings {
                 for setting in settings {
-                    if let SettingElement::Setting(_, v) = setting {
+                    if let SettingElement::Setting(k, v) = setting {
                         if let ValueDefinition::Expression(t, id) = v {
                             if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
                                 *id = Some(*new_id);
                             }
                         }
+                        if let ValueDefinition::Block(b) = v {
+                            Self::recurse_update_block(b, known_expressions);
+                        }
                     }
+                }
+            }
+        }
+    }
+
+    fn recurse_update_block(
+        block: &mut LiteralBlockDefinition,
+        known_expressions: &HashMap<String, usize>,
+    ) {
+        for s in block.elements.iter_mut() {
+            if let SettingElement::Setting(k, v) = s {
+                if let ValueDefinition::Expression(t, id) = v {
+                    if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
+                        *id = Some(*new_id);
+                    }
+                }
+                if let ValueDefinition::Block(b) = v {
+                    Self::recurse_update_block(b, known_expressions);
                 }
             }
         }
@@ -1203,6 +1247,15 @@ impl ComponentTemplate {
         &self,
     ) -> HashMap<TemplateNodeId, VecDeque<TemplateNodeId>> {
         self.children.clone()
+    }
+
+    pub fn merge_with_settings(&mut self, settings_block: &Option<Vec<SettingsBlockElement>>) {
+        for node in self.get_nodes_mut() {
+            node.settings = PaxManifest::merge_inline_settings_with_settings_block(
+                &mut node.settings,
+                settings_block,
+            );
+        }
     }
 }
 
@@ -1387,7 +1440,7 @@ impl TypeDefinition {
 }
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
 #[serde(crate = "pax_message::serde")]
 pub enum ValueDefinition {
     #[default]
@@ -1399,6 +1452,80 @@ pub enum ValueDefinition {
     /// (Expression contents, vtable id binding)
     Identifier(Token, Option<usize>),
     EventBindingTarget(Token),
+}
+
+impl Hash for ValueDefinition {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            ValueDefinition::Undefined => {
+                "Undefined".hash(state);
+            }
+            ValueDefinition::LiteralValue(t) => {
+                t.hash(state);
+            }
+            ValueDefinition::Block(lbd) => {
+                lbd.hash(state);
+            }
+            ValueDefinition::Expression(t, _) => {
+                t.hash(state);
+            }
+            ValueDefinition::Identifier(t, _) => {
+                t.hash(state);
+            }
+            ValueDefinition::EventBindingTarget(t) => {
+                t.hash(state);
+            }
+        }
+    }
+}
+
+impl PartialEq for ValueDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            ValueDefinition::Undefined => {
+                if let ValueDefinition::Undefined = other {
+                    true
+                } else {
+                    false
+                }
+            }
+            ValueDefinition::LiteralValue(t) => {
+                if let ValueDefinition::LiteralValue(ot) = other {
+                    t == ot
+                } else {
+                    false
+                }
+            }
+            ValueDefinition::Block(lbd) => {
+                if let ValueDefinition::Block(olbd) = other {
+                    lbd == olbd
+                } else {
+                    false
+                }
+            }
+            ValueDefinition::Expression(t, _) => {
+                if let ValueDefinition::Expression(ot, _) = other {
+                    t == ot
+                } else {
+                    false
+                }
+            }
+            ValueDefinition::Identifier(t, _) => {
+                if let ValueDefinition::Identifier(ot, _) = other {
+                    t == ot
+                } else {
+                    false
+                }
+            }
+            ValueDefinition::EventBindingTarget(t) => {
+                if let ValueDefinition::EventBindingTarget(ot) = other {
+                    t == ot
+                } else {
+                    false
+                }
+            }
+        }
+    }
 }
 
 /// Container for holding metadata about original Location in Pax Template
@@ -1495,7 +1622,13 @@ impl LiteralBlockDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+impl Hash for LiteralBlockDefinition {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.elements.hash(state);
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(crate = "pax_message::serde")]
 pub enum SettingElement {
     Setting(Token, ValueDefinition),

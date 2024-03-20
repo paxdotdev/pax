@@ -926,7 +926,7 @@ fn derive_value_definition_from_literal_object_pair(
     }
 }
 
-fn parse_settings_from_component_definition_string(pax: &str) -> Vec<SettingsBlockElement> {
+pub fn parse_settings_from_component_definition_string(pax: &str) -> Vec<SettingsBlockElement> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
