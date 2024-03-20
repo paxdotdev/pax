@@ -1,0 +1,1 @@
+create 5 different colored rectangles
