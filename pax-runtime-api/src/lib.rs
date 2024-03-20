@@ -22,6 +22,7 @@ pub mod properties;
 
 pub use crate::numeric::Numeric;
 pub use properties::Property;
+pub use properties::PropertyScopeHandle;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
@@ -1220,10 +1221,6 @@ impl Color {
                 Numeric::from(0x00).into(),
             )
             .to_rgba_0_1(),
-
-            _ => {
-                unimplemented!("Unsupported color variant lacks conversion logic to RGB")
-            }
         }
     }
 }

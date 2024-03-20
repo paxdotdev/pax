@@ -35,14 +35,14 @@ pub const COMMON_PROPERTIES: [&str; 13] = [
 ];
 
 pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
-    blessed_intoable_downstream_types
+    BLESSED_INTOABLE_DOWNSTREAM_TYPES
         .iter()
         .any(|bidt| type_to_check.contains(*bidt))
 }
 
 // Only when parsing values for one of the types in this slice
 // will we look ahead and parse for an IntoableLiteral value.
-const blessed_intoable_downstream_types: [&'static str; 5] = [
+const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 5] = [
     "pax_engine::api::Size",
     "pax_engine::api::Rotation",
     "pax_engine::api::ColorChannel",
