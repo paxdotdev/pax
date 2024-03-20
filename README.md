@@ -2,7 +2,7 @@
 
 Pax is a user interface engine for native apps & websites.
 
-Write application logic in Rust while declaring content & behavior in Pax's JSX-inspired user interface description language.
+Write application logic in TypeScript or Rust while declaring content & behavior in Pax's JSX-inspired user interface description language.
 
 Pax compiles into native desktop/mobile apps and WebAssembly-driven web apps. It's very fast and very lightweight.
 
@@ -23,6 +23,7 @@ Pax compiles into native desktop/mobile apps and WebAssembly-driven web apps. It
 
 We do not yet recommend building any production workloads with Pax. Targeting Beta in Q3 2024.
 
+TypeScript bindings are experimental and not yet publicly available.  Currently, writing Pax requires writing Rust.
 
 ## Examples
 
