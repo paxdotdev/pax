@@ -1,16 +1,14 @@
 use core::panic;
 use std::{
-    fs::{self, File},
-    io::{self, Write},
-    path::{Path, PathBuf},
+    collections::{HashMap, HashSet}, fs::{self, File}, io::{self, Write}, path::{Path, PathBuf}
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{de::value, Deserialize, Serialize};
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
-use pax_manifest::{ComponentDefinition, PaxType};
+use pax_manifest::{ComponentDefinition, PaxType, SettingElement, SettingsBlockElement, TemplateNodeDefinition, Token, ValueDefinition};
 
 use pax_compiler::{
     formatting::format_pax_template,
@@ -27,9 +25,11 @@ static MACROS_TEMPLATE: &str = "macros.tera";
 static RUST_FILE_SERIALIZATION_TEMPLATE: &str = "rust-file-serialization.tera";
 
 /// Serialize a component to a string
-pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
-    let mut tera = Tera::default();
+pub fn press_code_serialization_template(mut args: ComponentDefinition) -> String {
+    // Unmerge inline settings and settings block
+    unmerge_settings(&mut args);
 
+    let mut tera = Tera::default();
     tera.add_raw_template(
         MACROS_TEMPLATE,
         TEMPLATE_DIR
@@ -218,4 +218,57 @@ fn insert_at_line(s: &mut String, line_number: usize, content_to_insert: &str) {
 
     // Rejoin the lines and update the original string
     *s = lines.join("\n");
+}
+
+pub fn get_settings_map(settings: &Option<Vec<SettingsBlockElement>>) -> HashMap<String, HashSet<SettingElement>> {
+    if let Some(settings) = settings {
+        let mut settings_map: HashMap<String, HashSet<SettingElement>> = HashMap::new();
+        for setting in settings.iter() {
+            if let SettingsBlockElement::SelectorBlock(selector, selector_settings ) = setting {
+                let mut settings : HashSet<SettingElement> = HashSet::new();
+                for setting in &selector_settings.elements {
+                    if let SettingElement::Setting(_,_)  = setting {
+                        settings.insert(setting.clone());
+                    }
+                }
+                let mut raw_selector = selector.raw_value.clone();
+                raw_selector.remove(0);
+                settings_map.insert(raw_selector, settings);
+            }
+        }
+        settings_map
+    } else {
+        HashMap::new()
+    }   
+}
+
+
+pub fn unmerge_settings(component: &mut ComponentDefinition){
+    let settings_map = get_settings_map(&component.settings);
+    if let Some(template_nodes) = &mut component.template {
+        for template_node in template_nodes.get_nodes_mut() {
+            unmerge_tnd_settings(template_node, &settings_map);
+        }
+    }
+}
+
+
+pub fn unmerge_tnd_settings(tnd: &mut TemplateNodeDefinition, settings: &HashMap<String, HashSet<SettingElement>>){
+    let mut settings_to_remove: HashSet<SettingElement> = HashSet::new();
+    if let Some(inline_settings) = &mut tnd.settings {
+        inline_settings.iter().for_each(|setting| {
+            if let SettingElement::Setting(_, value) = setting {
+                if let ValueDefinition::Identifier(v, _) = value {
+                    if let Some(selector_settings) = settings.get(v.raw_value.as_str()) {
+                        settings_to_remove.extend(selector_settings.clone());
+                    }
+                }
+            }
+        });
+        if !settings_to_remove.is_empty() {
+            inline_settings.retain(|setting| {
+                !settings_to_remove.contains(setting)});
+        }
+    }
+   
 }

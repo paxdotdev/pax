@@ -1,0 +1,76 @@
+<MenuBar />
+<Group height=50% width=470px x=50px y=45% anchor_y=50%>
+    <Image anchor_y=100% width=128px path="assets/netflix/originals.png" height=32px/>
+    <Image height=145px width=450px path="assets/netflix/background_title.png"/>
+    <Image path="assets/netflix/top10.png" y=45% width=20px height=20px anchor_y=50%/>
+    <Text style={
+        font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+        font_size: 24px
+        fill: WHITE
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Left
+        align_multiline: TextAlignHorizontal::Left
+    } 
+        anchor_y=50% height=50px text="Number 1 in TV Shows Today" y=45% class=header x=30px/>
+    <Text text="Determined to protect a young patient who escaped a mysterious cult, a psychiatrist takes the girl in, putting her own family — and life — in danger." 
+        style={
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Light)}
+            font_size: 16px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        } 
+        class=body y=52%/>
+    <MainButton text_fill=BLACK icon="assets/netflix/play.png" width=110px y=74% fill=WHITE height=35px text="Play"/>
+    <MainButton text="More Info" fill=rgb(20, 20, 20) x=130px height=35px width=130px text_fill=WHITE icon="assets/netflix/info.png" 
+        y=74%/>
+</Group>
+<Text x=20px class=header2 y={100% - 170px} style={
+    font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+    font_size: 20px
+    fill: WHITE
+    align_vertical: TextAlignVertical::Center
+    align_horizontal: TextAlignHorizontal::Left
+    align_multiline: TextAlignHorizontal::Left
+} 
+    text="Popular on Netflix" anchor_y=100% height=30px width=300px/>
+<Group height=160px y={100% - 170px}>
+    <MovieSelector />
+</Group>
+<Image width={(self.computed_width)px} path="assets/netflix/background.png" x=50% anchor_x=50%/>
+<Rectangle fill=BLACK/>
+
+@settings {
+    @pre_render: pre_render,
+    .header {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 24px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .header2 {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 20px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .body {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Light)}
+            font_size: 16px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

@@ -1,0 +1,1 @@
+create 3 red circles at the root

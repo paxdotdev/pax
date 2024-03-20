@@ -99,7 +99,11 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             &mut tpc, &content,
                         );
 
+                        let settings = Some(pax_compiler::parsing::parse_settings_from_component_definition_string(&content));
+
                         let mut new_template = tpc.template;
+
+                        new_template.merge_with_settings(&settings);
                         new_template.populate_template_with_known_entities(&original_template);
 
                         let msg =

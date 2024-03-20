@@ -1,0 +1,83 @@
+<Rectangle width=100px x=0px height=100px y=200px fill=rgb(255, 0, 255)/>
+<Rectangle y=200px height=100px fill=rgb(255, 255, 0) x=100px width=100px/>
+<Rectangle x=200px width=100px height=100px y=200px fill=rgb(0, 0, 255)/>
+<Rectangle fill=rgb(0, 255, 0) width=100px x=300px y=200px height=100px/>
+<Rectangle width=100px y=200px x=400px height=100px fill=rgb(255, 0, 0)/>
+<MenuBar >
+    <Ellipse x=300px height=100px width=100px y=150px fill=rgb(255, 0, 0)/>
+</MenuBar>
+<Group x=50px height=50% anchor_y=50% width=470px y=45%>
+    <Image width=128px path="assets/netflix/originals.png" anchor_y=100% height=32px/>
+    <Image path="assets/netflix/background_title.png" height=145px width=450px/>
+    <Image y=45% width=20px height=20px path="assets/netflix/top10.png" anchor_y=50%/>
+    <Text style={
+        font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+        font_size: 24px
+        fill: WHITE
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Left
+        align_multiline: TextAlignHorizontal::Left
+    } 
+        anchor_y=50% height=50px class=header text="Number 1 in TV Shows Today" x=30px y=45%/>
+    <Text text="Determined to protect a young patient who escaped a mysterious cult, a psychiatrist takes the girl in, putting her own family — and life — in danger." 
+        y=52% style={
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Light)}
+            font_size: 16px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        } 
+        class=body/>
+    <MainButton text="Play" icon="assets/netflix/play.png" text_fill=BLACK width=110px fill=WHITE height=35px y=74%/>
+    <MainButton fill=rgb(20, 20, 20) text="More Info" x=130px icon="assets/netflix/info.png" width=130px y=74% text_fill=WHITE 
+        height=35px/>
+</Group>
+<Text width=300px class=header2 anchor_y=100% x=20px text="Popular on Netflix" height=30px style={
+    font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+    font_size: 20px
+    fill: WHITE
+    align_vertical: TextAlignVertical::Center
+    align_horizontal: TextAlignHorizontal::Left
+    align_multiline: TextAlignHorizontal::Left
+} 
+    y={100% - 170px}/>
+<Group height=160px y={100% - 170px}>
+    <MovieSelector />
+</Group>
+<Image anchor_x=50% y=0.0px x=640.0px width={(self.computed_width)px} path="assets/netflix/background.png"/>
+<Rectangle fill=BLACK/>
+
+@settings {
+    @pre_render: pre_render,
+    .header {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 24px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .header2 {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 20px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .body {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Light)}
+            font_size: 16px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}
