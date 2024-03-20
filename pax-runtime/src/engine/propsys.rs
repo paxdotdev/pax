@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 use slotmap::SlotMap;
 
@@ -9,7 +9,6 @@ use self::private::PropId;
 #[derive(Clone, Copy)]
 pub struct Property<T> {
     id: PropId,
-    ptable: &'static PropertyTable,
     _phantom: PhantomData<T>,
 }
 
@@ -34,65 +33,69 @@ impl<T> private::HasPropId for Property<T> {
 }
 
 impl<T: PropVal> Property<T> {
-    pub fn literal(ptable: &'static PropertyTable, val: T) -> Self {
-        let id = ptable.add_literal_entry(val);
+    pub fn new(val: T) -> Self {
+        Self::literal(val)
+    }
+
+    pub(crate) fn literal(val: T) -> Self {
+        let id = glob_prop_table(|t| t.add_literal_entry(val));
         Self {
             id,
-            ptable,
             _phantom: PhantomData {},
         }
     }
 
-    pub fn expression(
-        ptable: &'static PropertyTable,
+    pub(crate) fn expression(
         vtable: &Rc<ExpressionTable>,
         stack: &Rc<RuntimePropertiesStackFrame>,
         vtable_id: usize,
         dependents: &[&dyn private::HasPropId],
     ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
-        let id = ptable.add_expr_entry(
-            Rc::clone(stack),
-            Rc::clone(vtable),
-            vtable_id,
-            &dependent_property_ids,
-        );
+        let id = glob_prop_table(|t| {
+            t.add_expr_entry(
+                Rc::clone(stack),
+                Rc::clone(vtable),
+                vtable_id,
+                &dependent_property_ids,
+            )
+        });
         Self {
             id,
-            ptable,
             _phantom: PhantomData {},
         }
     }
 
     pub fn subscribe(&self, f: impl Fn() + 'static) {
-        self.ptable.with_prop_data(self.id, |prop_data| {
-            prop_data.on_change.push(Rc::new(f));
+        glob_prop_table(|t| {
+            t.with_prop_data(self.id, |prop_data| {
+                prop_data.on_change.push(Rc::new(f));
+            })
         })
     }
 
     pub fn get(&self) -> T {
-        self.ptable.get_value(self.id)
+        glob_prop_table(|t| t.get_value(self.id))
     }
 
     pub fn set(&self, val: T) {
-        self.ptable.set_value(self.id, val);
+        glob_prop_table(|t| t.set_value(self.id, val));
     }
 }
 
 pub struct PropertyScope {
-    ptable: &'static PropertyTable,
     ids: Vec<PropId>,
 }
 
 impl PropertyScope {
-    pub fn drop_scope<V>(ptable: &'static PropertyTable, f: impl FnOnce() -> V) -> (V, Self) {
-        let before = ptable.trace_creation_start();
+    pub fn drop_scope<V>(f: impl FnOnce() -> V) -> (V, Self) {
+        let before = glob_prop_table(|t| t.trace_creation_start());
         let res = f();
-        let created_prpoperty_ids = ptable.trace_creation_end(before).expect("was started");
+        let created_prpoperty_ids =
+            glob_prop_table(|t| t.trace_creation_end(before)).expect("was started");
         (
             res,
             Self {
-                ptable,
                 ids: created_prpoperty_ids,
             },
         )
@@ -100,7 +103,7 @@ impl PropertyScope {
 
     pub fn drop_all(mut self) {
         for id in self.ids.drain(0..) {
-            self.ptable.remove_entry(id);
+            glob_prop_table(|t| t.remove_entry(id));
         }
     }
 }
@@ -111,6 +114,13 @@ impl Drop for PropertyScope {
             panic!("PropertyScopeHandle .drop_all() must be called manually before being dropped to clean up associated properties")
         }
     }
+}
+
+fn glob_prop_table<V>(f: impl FnOnce(&PropertyTable) -> V) -> V {
+    thread_local! {
+        static PROPERTY_TABLE: PropertyTable = PropertyTable::new();
+    };
+    PROPERTY_TABLE.with(|table| f(table))
 }
 
 pub struct PropertyTable {
@@ -333,16 +343,15 @@ mod tests {
     };
 
     use crate::{
-        propsys::PropertyScope, ExpressionContext, ExpressionTable, RuntimePropertiesStackFrame,
+        propsys::{glob_prop_table, PropertyScope},
+        ExpressionContext, ExpressionTable, RuntimePropertiesStackFrame,
     };
 
-    use super::{Property, PropertyTable};
+    use super::Property;
 
     #[test]
     fn test_literal_set_get() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
-
-        let (prop, handle) = PropertyScope::drop_scope(ptable, || Property::literal(&ptable, 5));
+        let (prop, handle) = PropertyScope::drop_scope(|| Property::literal(5));
         assert_eq!(prop.get(), 5);
         prop.set(2);
         assert_eq!(prop.get(), 2);
@@ -351,7 +360,6 @@ mod tests {
 
     #[test]
     fn test_expression_get() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
         let vtable = Rc::new(ExpressionTable {
             table: HashMap::from([(
                 0,
@@ -361,16 +369,14 @@ mod tests {
         });
         let stack = Rc::new(RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(()))));
 
-        let (prop, handle) = PropertyScope::drop_scope(&ptable, || {
-            Property::<i32>::expression(&ptable, &vtable, &stack, 0, &[])
-        });
+        let (prop, handle) =
+            PropertyScope::drop_scope(|| Property::<i32>::expression(&vtable, &stack, 0, &[]));
         assert_eq!(prop.get(), 42);
         handle.drop_all();
     }
 
     #[test]
     fn test_expression_dependent_on_literal() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
         let vtable = Rc::new(ExpressionTable {
             table: HashMap::from([(
                 0,
@@ -384,14 +390,14 @@ mod tests {
             )]),
         });
 
-        let ((prop_1, prop_2), handle) = PropertyScope::drop_scope(&ptable, || {
-            let prop_1 = Property::literal(&ptable, 2);
+        let ((prop_1, prop_2), handle) = PropertyScope::drop_scope(|| {
+            let prop_1 = Property::literal(2);
 
             let stack = Rc::new(RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(
                 prop_1.clone(),
             ))));
 
-            let prop_2 = Property::<i32>::expression(&ptable, &vtable, &stack, 0, &[&prop_1]);
+            let prop_2 = Property::<i32>::expression(&vtable, &stack, 0, &[&prop_1]);
             (prop_1, prop_2)
         });
 
@@ -403,8 +409,7 @@ mod tests {
 
     #[test]
     fn test_subscribe() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
-        let (prop, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
+        let (prop, handle) = PropertyScope::drop_scope(|| Property::literal(5));
         let triggered = Rc::new(Cell::new(false));
         let sub_run = triggered.clone();
         prop.subscribe(move || {
@@ -417,7 +422,6 @@ mod tests {
 
     #[test]
     fn test_larger_network() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
         let vtable = Rc::new(ExpressionTable {
             table: HashMap::from([
                 (
@@ -452,9 +456,9 @@ mod tests {
             ]),
         });
 
-        let ((prop_1, prop_2, prop_3, prop_4), handle) = PropertyScope::drop_scope(&ptable, || {
-            let prop_1 = Property::literal(&ptable, 2);
-            let prop_2 = Property::literal(&ptable, 6);
+        let ((prop_1, prop_2, prop_3, prop_4), handle) = PropertyScope::drop_scope(|| {
+            let prop_1 = Property::literal(2);
+            let prop_2 = Property::literal(6);
 
             let stack = Rc::new(RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(
                 prop_1.clone(),
@@ -462,13 +466,11 @@ mod tests {
             let context = Rc::new(RefCell::new(prop_2.clone())) as Rc<RefCell<dyn Any>>;
             let stack = stack.push(&context);
 
-            let prop_3 =
-                Property::<i32>::expression(&ptable, &vtable, &stack, 0, &[&prop_1, &prop_2]);
+            let prop_3 = Property::<i32>::expression(&vtable, &stack, 0, &[&prop_1, &prop_2]);
 
             let context = Rc::new(RefCell::new(prop_3.clone())) as Rc<RefCell<dyn Any>>;
             let stack = stack.push(&context);
-            let prop_4 =
-                Property::<i32>::expression(&ptable, &vtable, &stack, 1, &[&prop_1, &prop_3]);
+            let prop_4 = Property::<i32>::expression(&vtable, &stack, 1, &[&prop_1, &prop_3]);
             (prop_1, prop_2, prop_3, prop_4)
         });
 
@@ -493,21 +495,17 @@ mod tests {
 
     #[test]
     fn test_cleanup() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
-        assert!(ptable.entires.borrow().is_empty());
-        let (_, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
-        assert_eq!(ptable.entires.borrow().len(), 1);
+        assert!(glob_prop_table(|t| t.entires.borrow().is_empty()));
+        let (_, handle) = PropertyScope::drop_scope(|| Property::literal(5));
+        assert_eq!(glob_prop_table(|t| t.entires.borrow().len()), 1);
         handle.drop_all();
-        assert!(ptable.entires.borrow().is_empty());
+        assert!(glob_prop_table(|t| t.entires.borrow().is_empty()));
     }
 
     #[test]
     #[should_panic]
     fn test_use_property_after_scope_dropped() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
-        assert!(ptable.entires.borrow().is_empty());
-        let (prop, handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
-        assert_eq!(ptable.entires.borrow().len(), 1);
+        let (prop, handle) = PropertyScope::drop_scope(|| Property::literal(5));
         handle.drop_all();
         prop.get();
     }
@@ -515,14 +513,12 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_no_prop_creation_outside_of_scope() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
-        Property::literal(&ptable, 5);
+        Property::literal(5);
     }
 
     #[test]
     #[should_panic]
     fn test_scope_handle_not_call_drop_all() {
-        let ptable: &PropertyTable = Box::leak(Box::new(PropertyTable::new()));
-        let (_, _handle) = PropertyScope::drop_scope(&ptable, || Property::literal(&ptable, 5));
+        let (_, _handle) = PropertyScope::drop_scope(|| Property::literal(5));
     }
 }
