@@ -41,13 +41,13 @@ impl InstanceNode for PathInstance {
             handle_vtable_update(
                 tbl,
                 stk,
-                &mut properties.stroke.get_mut().color,
+                &mut properties.stroke.get().color,
                 context.globals(),
             );
             handle_vtable_update(
                 tbl,
                 stk,
-                &mut properties.stroke.get_mut().width,
+                &mut properties.stroke.get().width,
                 context.globals(),
             );
             handle_vtable_update(tbl, stk, &mut properties.fill, context.globals());
@@ -69,7 +69,8 @@ impl InstanceNode for PathInstance {
             let layout_props = expanded_node.layout_properties.borrow();
             let bounds = layout_props.as_ref().unwrap().computed_tab.bounds;
 
-            let mut itr_elems = properties.elements.get().iter();
+            let elems = properties.elements.get();
+            let mut itr_elems = elems.iter();
 
             if let Some(elem) = itr_elems.next() {
                 if let &PathElement::Point(x, y) = elem {

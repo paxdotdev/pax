@@ -3,7 +3,7 @@ use crate::types::{StackerCell, StackerDirection};
 use pax_engine::api::Numeric;
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
-use pax_runtime::api::{NodeContext, PropertyLiteral};
+use pax_runtime::api::NodeContext;
 
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
@@ -41,11 +41,11 @@ pub struct Stacker {
 impl Default for Stacker {
     fn default() -> Self {
         Self {
-            cells: Box::new(PropertyLiteral::new(1.into())),
-            direction: Box::new(PropertyLiteral::new(StackerDirection::Horizontal)),
-            _cell_specs: Box::new(PropertyLiteral::new(vec![])),
-            gutter: Box::new(PropertyLiteral::new(Size::Pixels(Numeric::Integer(0)))),
-            sizes: Box::new(PropertyLiteral::new(vec![])),
+            cells: Property::new(1.into()),
+            direction: Property::new(StackerDirection::Horizontal),
+            _cell_specs: Property::new(vec![]),
+            gutter: Property::new(Size::Pixels(Numeric::Integer(0))),
+            sizes: Property::new(vec![]),
         }
     }
 }
@@ -55,12 +55,12 @@ impl Stacker {
         let cells = self.cells.get().to_float();
         let bounds = ctx.bounds_self;
 
-        let active_bound = match *self.direction.get() {
+        let active_bound = match self.direction.get() {
             StackerDirection::Horizontal => bounds.0,
             StackerDirection::Vertical => bounds.1,
         };
 
-        let gutter_calc = match *self.gutter.get() {
+        let gutter_calc = match self.gutter.get() {
             Size::Pixels(pix) => pix,
             Size::Percent(per) => Numeric::from(active_bound) * (per / Numeric::from(100.0)),
             Size::Combined(pix, per) => {

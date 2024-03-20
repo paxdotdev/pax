@@ -43,13 +43,13 @@ impl InstanceNode for RectangleInstance {
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
-                &mut properties.stroke.get_mut().color,
+                &mut properties.stroke.get().color,
                 context.globals(),
             );
             handle_vtable_update(
                 context.expression_table(),
                 &expanded_node.stack,
-                &mut properties.stroke.get_mut().width,
+                &mut properties.stroke.get().width,
                 context.globals(),
             );
             handle_vtable_update(
@@ -92,7 +92,7 @@ impl InstanceNode for RectangleInstance {
         let height: f64 = tab.bounds.1;
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+            let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
             let bez_path = rect.to_path(0.1);
 
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
@@ -147,7 +147,7 @@ impl InstanceNode for RectangleInstance {
         match expanded_node {
             Some(expanded_node) => expanded_node.with_properties_unwrapped(|r: &mut Rectangle| {
                 f.debug_struct("Rectangle")
-                    .field("fill", r.fill.get())
+                    .field("fill", &r.fill.get())
                     .finish()
             }),
             None => f.debug_struct("Rectangle").finish_non_exhaustive(),

@@ -3,6 +3,8 @@ use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
 
+use pax_runtime_api::Property;
+
 use crate::api::Layer;
 use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
@@ -22,10 +24,8 @@ pub struct RepeatInstance {
 ///is encoded as a Vec<T> (where T is a `dyn Any` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression_vec:
-        Option<Box<dyn crate::api::PropertyInstance<Vec<Rc<RefCell<dyn Any>>>>>>,
-    pub source_expression_range:
-        Option<Box<dyn crate::api::PropertyInstance<std::ops::Range<isize>>>>,
+    pub source_expression_vec: Option<Property<Vec<Rc<RefCell<dyn Any>>>>>,
+    pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
     last_len: usize,
     last_bounds: (f64, f64),
 }
@@ -72,13 +72,13 @@ impl InstanceNode for RepeatInstance {
                 handle_vtable_update_optional(
                     context.expression_table(),
                     &expanded_node.stack,
-                    properties.source_expression_range.as_mut(),
+                    properties.source_expression_range.as_ref(),
                     context.globals(),
                 );
                 handle_vtable_update_optional(
                     context.expression_table(),
                     &expanded_node.stack,
-                    properties.source_expression_vec.as_mut(),
+                    properties.source_expression_vec.as_ref(),
                     context.globals(),
                 );
 

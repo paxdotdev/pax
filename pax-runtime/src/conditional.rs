@@ -1,5 +1,7 @@
 use std::{iter, rc::Rc};
 
+use pax_runtime_api::Property;
+
 use crate::api::Layer;
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
@@ -18,7 +20,7 @@ pub struct ConditionalInstance {
 ///Contains the expression of a conditional, evaluated as an expression.
 #[derive(Default)]
 pub struct ConditionalProperties {
-    pub boolean_expression: Box<dyn crate::api::PropertyInstance<bool>>,
+    pub boolean_expression: Property<bool>,
     last_boolean_expression: Option<bool>,
 }
 
@@ -49,10 +51,10 @@ impl InstanceNode for ConditionalInstance {
                     &mut properties.boolean_expression,
                     context.globals(),
                 );
-                let val = Some(*properties.boolean_expression.get());
+                let val = Some(properties.boolean_expression.get());
                 let update_children = properties.last_boolean_expression != val;
                 properties.last_boolean_expression = val;
-                (update_children, *properties.boolean_expression.get())
+                (update_children, properties.boolean_expression.get())
             });
 
         if should_update {
