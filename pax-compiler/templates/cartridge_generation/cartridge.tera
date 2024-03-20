@@ -131,22 +131,23 @@ pub trait ComponentFactory {
             match key.as_str() {
                 {% for common_property in common_properties %}
                 "{{common_property.name}}" => {
-                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type._type_id}}>> = match value.clone() {
+                    let resolved_property: Property<{{common_property.property_type._type_id}}> = match value.clone() {
                         ValueDefinition::LiteralValue(lv) => {
                             {% if common_property.property_type.is_intoable_downstream_type %}
                                 let mi = from_pax_try_intoable_literal(&lv.raw_value);
                                 if let Ok(intoable_literal) = mi {
-                                    Box::new(PropertyLiteral::new(intoable_literal.into()))
+                                    Property::new(intoable_literal.into())
                                 } else {
-                                    Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into()))
+                                    Property::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into())
                                 }
                             {% else %}
-                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into()))
+                                Property::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into())
                             {% endif %}
                         },
                         ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                         {
-                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                            // Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
+                            Property::new(Default::default())
                         },
                         _ => unreachable!("Invalid value definition for {{common_property.name}}")
                     };
@@ -343,7 +344,8 @@ impl DefinitionToInstanceTraverser {
                     .unwrap();
                 let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
                         let mut properties = ConditionalProperties::default();
-                        properties.boolean_expression = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        // properties.boolean_expression = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        properties.boolean_expression = Property::new(true);
                         properties
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -365,7 +367,8 @@ impl DefinitionToInstanceTraverser {
                     .unwrap();
                 let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
                         let mut properties = SlotProperties::default();
-                        properties.index = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        // properties.index = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        properties.index = Property::new(Default::default());
                         properties
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -391,13 +394,15 @@ impl DefinitionToInstanceTraverser {
                         let mut properties = RepeatProperties::default();
                         properties.source_expression_vec = 
                             if let Some(t) = &rsd.symbolic_binding {
-                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                                // Some(Box::new(PropertyExpression::new(vtable_id)))
+                                Some(Property::new(Default::default()))
                             } else {
                                 None
                             };
                         properties.source_expression_range =
                             if let Some(t) = &rsd.range_expression_paxel {
-                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                                // Some(Box::new(PropertyExpression::new(vtable_id)))
+                                Some(Property::new(Default::default()))
                             } else {
                                 None
                             };

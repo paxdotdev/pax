@@ -2,6 +2,8 @@ use core::option::Option;
 
 use std::rc::Rc;
 
+use pax_runtime_api::{Numeric, Property};
+
 use crate::api::Layer;
 use crate::{
     declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
@@ -25,7 +27,7 @@ pub struct SlotInstance {
 ///Contains the index value for slot, either a literal or an expression.
 #[derive(Default)]
 pub struct SlotProperties {
-    pub index: Box<dyn crate::api::PropertyInstance<crate::api::Numeric>>,
+    pub index: Property<Numeric>,
     last_index: usize,
     last_node_id: Option<u32>,
 }

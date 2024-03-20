@@ -12,7 +12,7 @@ use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
     CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
-    OcclusionLayerGen, RenderContext, TransitionManager,
+    OcclusionLayerGen, Property, RenderContext, TransitionManager,
 };
 use piet::InterpolationMode;
 
@@ -23,9 +23,6 @@ use crate::{
 };
 
 pub mod node_interface;
-pub mod propsys;
-
-use propsys::PropertyTable;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
@@ -43,7 +40,6 @@ use pax_designtime::DesigntimeManager;
 pub struct Globals {
     pub frames_elapsed: usize,
     pub viewport: TransformAndBounds,
-    pub property_table: Rc<RefCell<PropertyTable>>,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
@@ -77,15 +73,15 @@ impl PropertiesComputable for CommonProperties {
         handle_vtable_update(table, stack, &mut self.width, globals);
         handle_vtable_update(table, stack, &mut self.height, globals);
         handle_vtable_update(table, stack, &mut self.transform, globals);
-        handle_vtable_update_optional(table, stack, self.rotate.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.scale_x.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.scale_y.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.skew_x.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.skew_y.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.anchor_x.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.anchor_y.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.x.as_mut(), globals);
-        handle_vtable_update_optional(table, stack, self.y.as_mut(), globals);
+        handle_vtable_update_optional(table, stack, self.rotate.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.scale_x.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.scale_y.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.skew_x.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.skew_y.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.anchor_x.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.anchor_y.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.x.as_ref(), globals);
+        handle_vtable_update_optional(table, stack, self.y.as_ref(), globals);
     }
 }
 
@@ -311,7 +307,6 @@ impl PaxEngine {
 
         let globals = Globals {
             frames_elapsed: 0,
-            property_table: Rc::new(RefCell::new(PropertyTable::new())),
             viewport: TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
@@ -340,7 +335,6 @@ impl PaxEngine {
         use pax_runtime_api::math::Transform2;
         let globals = Globals {
             frames_elapsed: 0,
-            property_table: Rc::new(RefCell::new(PropertyTable::new())),
             viewport: TransformAndBounds {
                 transform: Transform2::default(),
                 bounds: viewport_size,
