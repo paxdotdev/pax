@@ -7,14 +7,12 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
+use pax_message::{AnyCreatePatch, ScrollerPatch};
+use pax_runtime::api::{ArgsScroll, CommonProperties, EasingCurve, Layer, Property, Size};
 use pax_runtime::{
     recurse_expand_nodes, ExpandedNode, HandlerRegistry, InstanceNode, InstanceNodePtr,
     InstanceNodePtrList, InstantiationArgs, PropertiesComputable, PropertiesTreeContext,
     RenderTreeContext,
-};
-use pax_message::{AnyCreatePatch, ScrollerPatch};
-use pax_runtime::api::{
-    ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
 };
 use pax_std::primitives::Scroller;
 
@@ -28,8 +26,8 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     base: BaseInstance,
     pub scroll_x: f64,
     pub scroll_y: f64,
-    pub scroll_x_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
-    pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
+    pub scroll_x_offset: Property<f64>,
+    pub scroll_y_offset: Property<f64>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
 }
 
@@ -46,8 +44,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             last_patches: HashMap::new(),
             scroll_x: 0.0,
             scroll_y: 0.0,
-            scroll_x_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
-            scroll_y_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
+            scroll_x_offset: Property::new(0.0),
+            scroll_y_offset: Property::new(0.0),
             base: BaseInstance::new(args),
         }))
     }

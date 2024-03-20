@@ -30,14 +30,11 @@ impl Property<f64> for PropertyTimeline {
     }
 }
 
-
 pub struct TimelineSegment {
     pub curve_in: Box<dyn Tweenable>,
     pub ending_value: Box<dyn Property<f64>>,
     pub ending_frame_inclusive: usize,
 }
-
-
 
 //
 // pub struct PropertyTimeline {

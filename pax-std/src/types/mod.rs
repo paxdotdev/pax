@@ -2,7 +2,6 @@ pub mod text;
 
 use crate::primitives::Path;
 pub use kurbo::RoundedRectRadii;
-use pax_engine::api::PropertyLiteral;
 pub use pax_engine::api::Size;
 use pax_engine::api::{Color, Numeric};
 use pax_engine::*;
@@ -22,8 +21,8 @@ impl From<IntoableLiteral> for Stroke {
     fn from(value: IntoableLiteral) -> Self {
         match value {
             IntoableLiteral::Color(c) => Stroke {
-                color: Box::new(PropertyLiteral::new(c)),
-                width: Box::new(PropertyLiteral::new(Numeric::from(1).into())),
+                color: Property::new(c),
+                width: Property::new(Numeric::from(1).into()),
             },
             _ => {
                 unreachable!()
@@ -36,7 +35,7 @@ impl Default for Stroke {
     fn default() -> Self {
         Self {
             color: Default::default(),
-            width: Box::new(PropertyLiteral::new(Size::Pixels(0.0.into()))),
+            width: Property::new(Size::Pixels(0.0.into())),
         }
     }
 }
