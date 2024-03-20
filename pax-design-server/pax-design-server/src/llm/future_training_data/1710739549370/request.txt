@@ -1,0 +1,1 @@
+create 10 different colored rectangles with each one spaced apart equally
