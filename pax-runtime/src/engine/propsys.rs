@@ -1,5 +1,6 @@
 use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
+use serde::{Deserialize, Serialize};
 use slotmap::SlotMap;
 
 use crate::{ExpressionTable, RuntimePropertiesStackFrame};
@@ -12,8 +13,8 @@ pub struct Property<T> {
     _phantom: PhantomData<T>,
 }
 
-pub trait PropVal: Clone + 'static {}
-impl<T: Clone + 'static> PropVal for T {}
+pub trait PropVal<'de>: Clone + Deserialize<'de> + Serialize + 'static {}
+impl<'de, T: Clone + Deserialize<'de> + Serialize + 'static> PropVal<'de> for T {}
 
 // Don't expose these outside this module
 mod private {
@@ -32,7 +33,26 @@ impl<T> private::HasPropId for Property<T> {
     }
 }
 
-impl<T: PropVal> Property<T> {
+impl<'de, T: PropVal<'de>> Deserialize<'de> for Property<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Property<T>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = T::deserialize(deserializer)?;
+        Ok(Property::new(value))
+    }
+}
+
+impl<'de, T: PropVal<'de>> Serialize for Property<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.get().serialize(serializer)
+    }
+}
+
+impl<'de, T: PropVal<'de>> Property<T> {
     pub fn new(val: T) -> Self {
         Self::literal(val)
     }
@@ -152,7 +172,7 @@ impl PropertyTable {
         }
     }
 
-    fn add_literal_entry<T: 'static>(&self, val: T) -> PropId {
+    fn add_literal_entry<'de, T: PropVal<'de>>(&self, val: T) -> PropId {
         let mut sm = self.entires.borrow_mut();
         let prop_id = sm.insert(PropertyData {
             value: Box::new(val),
@@ -212,7 +232,7 @@ is the corresponding PropertyScope already removed?",
         f(prop_data)
     }
 
-    fn get_value<T: PropVal + 'static>(&self, id: PropId) -> T {
+    fn get_value<'de, T: PropVal<'de>>(&self, id: PropId) -> T {
         let expr_update_args = self.with_prop_data(id, |prop_data| {
             if let PropType::Expr {
                 dirty,
@@ -245,7 +265,7 @@ is the corresponding PropertyScope already removed?",
         })
     }
 
-    fn set_value<T: PropVal + 'static>(&self, id: PropId, value: T) {
+    fn set_value<'de, T: PropVal<'de>>(&self, id: PropId, value: T) {
         let mut to_dirty = vec![];
         let on_change_handlers = self.with_prop_data(id, |prop_data| {
             prop_data.value = Box::new(value);
