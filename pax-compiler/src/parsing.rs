@@ -434,14 +434,15 @@ fn recurse_visit_tag_pairs_for_template(
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
 
+            let type_id = if let Some(type_id) =
+                ctx.pascal_identifier_to_type_id_map.get(pascal_identifier)
+            {
+                type_id.clone()
+            } else {
+                TypeId::build_blank_component(pascal_identifier)
+            };
             let template_node = TemplateNodeDefinition {
-                type_id: TypeId::build_singleton(
-                    &ctx.pascal_identifier_to_type_id_map
-                        .get(pascal_identifier)
-                        .expect(&format!("Template key not found {}", &pascal_identifier))
-                        .to_string(),
-                    Some(&pascal_identifier.to_string()),
-                ),
+                type_id,
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
                 raw_comment_string: None,
                 control_flow_settings: None,
