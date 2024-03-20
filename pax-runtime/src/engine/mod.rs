@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -11,7 +10,7 @@ use pax_message::{NativeMessage, OcclusionPatch};
 
 use crate::api::{
     CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
-    OcclusionLayerGen, Property, RenderContext, TransitionManager,
+    OcclusionLayerGen, RenderContext, TransitionManager,
 };
 use piet::InterpolationMode;
 

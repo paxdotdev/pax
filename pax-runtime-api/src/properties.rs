@@ -69,7 +69,7 @@ impl<T: PropVal> Property<T> {
         }
     }
 
-    pub(crate) fn expression(
+    pub fn expression(
         evaluator: impl Fn() -> Box<dyn Any> + 'static,
         dependents: &[&dyn private::HasPropId],
     ) -> Self {
@@ -98,11 +98,11 @@ impl<T: PropVal> Property<T> {
     }
 }
 
-pub struct PropScopeHandle {
+pub struct PropertyScopeHandle {
     ids: Vec<PropId>,
 }
 
-impl PropScopeHandle {
+impl PropertyScopeHandle {
     pub fn new<V>(f: impl FnOnce() -> V) -> (V, Self) {
         let before = glob_prop_table(|t| t.trace_creation_start());
         let res = f();
@@ -123,7 +123,7 @@ impl PropScopeHandle {
     }
 }
 
-impl Drop for PropScopeHandle {
+impl Drop for PropertyScopeHandle {
     fn drop(&mut self) {
         if !self.ids.is_empty() {
             panic!("PropertyScopeHandle .drop_all() must be called manually before being dropped to clean up associated properties")
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_literal_set_get() {
-        let (prop, handle) = PropScopeHandle::new(|| Property::literal(5));
+        let (prop, handle) = PropertyScopeHandle::new(|| Property::literal(5));
         assert_eq!(prop.get(), 5);
         prop.set(2);
         assert_eq!(prop.get(), 2);
@@ -356,14 +356,14 @@ mod tests {
     #[test]
     fn test_expression_get() {
         let (prop, handle) =
-            PropScopeHandle::new(|| Property::<i32>::expression(|| Box::new(42), &[]));
+            PropertyScopeHandle::new(|| Property::<i32>::expression(|| Box::new(42), &[]));
         assert_eq!(prop.get(), 42);
         handle.drop_all();
     }
 
     #[test]
     fn test_expression_dependent_on_literal() {
-        let ((prop_1, prop_2), handle) = PropScopeHandle::new(|| {
+        let ((prop_1, prop_2), handle) = PropertyScopeHandle::new(|| {
             let prop_1 = Property::literal(2);
             let prop_2 =
                 Property::<i32>::expression(move || Box::new(prop_1.get() * 5), &[&prop_1]);
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_subscribe() {
-        let (prop, handle) = PropScopeHandle::new(|| Property::literal(5));
+        let (prop, handle) = PropertyScopeHandle::new(|| Property::literal(5));
         let triggered = Rc::new(Cell::new(false));
         let sub_run = triggered.clone();
         prop.subscribe(move || {
@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_larger_network() {
-        let ((prop_1, prop_2, prop_3, prop_4), handle) = PropScopeHandle::new(|| {
+        let ((prop_1, prop_2, prop_3, prop_4), handle) = PropertyScopeHandle::new(|| {
             let prop_1 = Property::literal(2);
             let prop_2 = Property::literal(6);
             let prop_3 = Property::<i32>::expression(
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn test_cleanup() {
         assert!(glob_prop_table(|t| t.entires.borrow().is_empty()));
-        let (_, handle) = PropScopeHandle::new(|| Property::literal(5));
+        let (_, handle) = PropertyScopeHandle::new(|| Property::literal(5));
         assert_eq!(glob_prop_table(|t| t.entires.borrow().len()), 1);
         handle.drop_all();
         assert!(glob_prop_table(|t| t.entires.borrow().is_empty()));
@@ -436,7 +436,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_use_property_after_scope_dropped() {
-        let (prop, handle) = PropScopeHandle::new(|| Property::literal(5));
+        let (prop, handle) = PropertyScopeHandle::new(|| Property::literal(5));
         handle.drop_all();
         prop.get();
     }
@@ -450,6 +450,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_scope_handle_not_call_drop_all() {
-        let (_, _handle) = PropScopeHandle::new(|| Property::literal(5));
+        let (_, _handle) = PropertyScopeHandle::new(|| Property::literal(5));
     }
 }
