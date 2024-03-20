@@ -1,5 +1,4 @@
 use core::panic;
-use pax_message::serde::Deserialize;
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
@@ -20,7 +19,7 @@ use crate::constants::{
 };
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
-use pax_runtime_api::{Color, IntoableLiteral};
+use pax_runtime_api::IntoableLiteral;
 
 pub struct Deserializer {
     input: String,
