@@ -583,6 +583,9 @@ impl Response for ReplaceTemplateResponse {
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         Some(self._affected_component_type_id.clone())
     }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
+    }
 }
 
 impl Request for ReplaceTemplateRequest {
@@ -683,6 +686,9 @@ impl Response for ConvertToComponentResponse {
     }
     fn get_affected_component_type_id(&self) -> Option<TypeId> {
         Some(self.uni.get_containing_component_type_id().clone())
+    }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
     }
 }
 
