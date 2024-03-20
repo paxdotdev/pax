@@ -4,7 +4,6 @@ use pax_manifest::{
     PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeId,
     Token, TypeDefinition, TypeId, TypeTable, ValueDefinition,
 };
-use std::any::Any;
 use std::collections::HashMap;
 use std::ops::RangeFrom;
 use std::slice::IterMut;
