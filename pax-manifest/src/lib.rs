@@ -563,7 +563,7 @@ impl TypeId {
         let ret = id.replace("crate::", "").to_string();
         #[allow(non_snake_case)]
         let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
+        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.iter().cloned().collect();
 
         if primitives_set.contains(id.as_str()) || id.contains("pax_reexports") {
             Some(ret.to_string())
@@ -1845,7 +1845,7 @@ pub struct HostCrateInfo {
 }
 
 //Effectively our `Prelude` types
-pub const IMPORTS_BUILTINS: [&str; 29] = [
+pub const IMPORTS_BUILTINS: &[&str] = &[
     "std::any::Any",
     "std::cell::RefCell",
     "std::collections::HashMap",
@@ -1857,13 +1857,11 @@ pub const IMPORTS_BUILTINS: [&str; 29] = [
     "pax_runtime::ConditionalProperties",
     "pax_runtime::SlotProperties",
     "pax_runtime::get_numeric_from_wrapped_properties",
-    "pax_runtime::api::PropertyInstance",
-    "pax_runtime::api::PropertyLiteral",
+    "pax_runtime::api::Property",
     "pax_runtime::api::CommonProperties",
     "pax_runtime::api::Color::*",
     "pax_runtime::ComponentInstance",
     "pax_runtime::InstanceNodePtr",
-    "pax_runtime::api::expressions::PropertyExpression",
     "pax_runtime::InstanceNodePtrList",
     "pax_runtime::ExpressionContext",
     "pax_runtime::PaxEngine",

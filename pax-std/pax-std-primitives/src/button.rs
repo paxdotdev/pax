@@ -45,14 +45,14 @@ impl InstanceNode for ButtonInstance {
 
             // Style
             handle_vtable_update(tbl, stk, &mut properties.style, context.globals());
-            let stl = properties.style.get_mut();
-            handle_vtable_update(tbl, stk, &mut stl.fill, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.font, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.font_size, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.underline, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.align_vertical, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.align_horizontal, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.align_multiline, context.globals());
+            let stl = properties.style.get();
+            handle_vtable_update(tbl, stk, &stl.fill, context.globals());
+            handle_vtable_update(tbl, stk, &stl.font, context.globals());
+            handle_vtable_update(tbl, stk, &stl.font_size, context.globals());
+            handle_vtable_update(tbl, stk, &stl.underline, context.globals());
+            handle_vtable_update(tbl, stk, &stl.align_vertical, context.globals());
+            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.globals());
+            handle_vtable_update(tbl, stk, &stl.align_multiline, context.globals());
         });
     }
 
@@ -80,7 +80,7 @@ impl InstanceNode for ButtonInstance {
                 patch_if_needed(
                     &mut old_state.style,
                     &mut patch.style,
-                    properties.style.get().into(),
+                    (&properties.style.get()).into(),
                 ),
                 patch_if_needed(
                     &mut old_state.size_x,

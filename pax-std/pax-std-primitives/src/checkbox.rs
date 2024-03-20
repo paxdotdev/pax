@@ -69,7 +69,7 @@ impl InstanceNode for CheckboxInstance {
                 patch_if_needed(
                     &mut old_state.checked,
                     &mut patch.checked,
-                    *properties.checked.get(),
+                    properties.checked.get(),
                 ),
                 patch_if_needed(
                     &mut old_state.size_x,

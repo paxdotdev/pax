@@ -48,27 +48,27 @@ impl InstanceNode for TextboxInstance {
             handle_vtable_update(
                 tbl,
                 stk,
-                &mut properties.stroke.get_mut().color,
+                &mut properties.stroke.get().color,
                 context.globals(),
             );
             handle_vtable_update(
                 tbl,
                 stk,
-                &mut properties.stroke.get_mut().width,
+                &mut properties.stroke.get().width,
                 context.globals(),
             );
             handle_vtable_update(tbl, stk, &mut properties.border_radius, context.globals());
             handle_vtable_update(tbl, stk, &mut properties.background, context.globals());
             // Style
             handle_vtable_update(tbl, stk, &mut properties.style, context.globals());
-            let stl = properties.style.get_mut();
-            handle_vtable_update(tbl, stk, &mut stl.fill, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.font, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.font_size, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.underline, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.align_vertical, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.align_horizontal, context.globals());
-            handle_vtable_update(tbl, stk, &mut stl.align_multiline, context.globals());
+            let stl = properties.style.get();
+            handle_vtable_update(tbl, stk, &stl.fill, context.globals());
+            handle_vtable_update(tbl, stk, &stl.font, context.globals());
+            handle_vtable_update(tbl, stk, &stl.font_size, context.globals());
+            handle_vtable_update(tbl, stk, &stl.underline, context.globals());
+            handle_vtable_update(tbl, stk, &stl.align_vertical, context.globals());
+            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.globals());
+            handle_vtable_update(tbl, stk, &stl.align_multiline, context.globals());
         });
     }
 
@@ -110,12 +110,12 @@ impl InstanceNode for TextboxInstance {
                 patch_if_needed(
                     &mut old_state.style,
                     &mut patch.style,
-                    properties.style.get().into(),
+                    (&properties.style.get()).into(),
                 ),
                 patch_if_needed(
                     &mut old_state.stroke_color,
                     &mut patch.stroke_color,
-                    properties.stroke.get().color.get().into(),
+                    (&properties.stroke.get().color.get()).into(),
                 ),
                 patch_if_needed(
                     &mut old_state.stroke_width,
@@ -130,7 +130,7 @@ impl InstanceNode for TextboxInstance {
                 patch_if_needed(
                     &mut old_state.background,
                     &mut patch.background,
-                    properties.background.get().into(),
+                    (&properties.background.get()).into(),
                 ),
                 patch_if_needed(
                     &mut old_state.border_radius,
@@ -140,7 +140,7 @@ impl InstanceNode for TextboxInstance {
                 patch_if_needed(
                     &mut old_state.focus_on_mount,
                     &mut patch.focus_on_mount,
-                    *properties.focus_on_mount.get(),
+                    properties.focus_on_mount.get(),
                 ),
             ];
             if updates.into_iter().any(|v| v == true) {
