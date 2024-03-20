@@ -6,14 +6,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::{de::value, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
 use pax_manifest::{
     ComponentDefinition, PaxType, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    Token, ValueDefinition,
+    ValueDefinition,
 };
 
 use pax_compiler::{
@@ -119,10 +119,10 @@ pub fn serialize_new_component_rust_file(comp_def: &ComponentDefinition, pax_fil
         };
         let rust_file_serialization =
             press_rust_file_serialization_template(rust_file_serialization);
-        fs::write(&rust_file_path, rust_file_serialization).expect("Failed to write to file");
+        fs::write(rust_file_path, rust_file_serialization).expect("Failed to write to file");
         add_mod_and_use_if_missing(
             Path::new(&entry_point),
-            &pascal_identifier,
+            pascal_identifier,
             &pax_file_name.replace(".pax", ""),
         )
         .expect("Failed to add mod and use");
@@ -158,9 +158,8 @@ fn add_mod_and_use_if_missing(
     }
 
     let insertion_content = format!(
-        "{}\n{}",
-        format!("pub mod {};", rust_file_name),
-        format!("use {}::{};", rust_file_name, pascal_identifier)
+        "pub mod {};\nuse {}::{};",
+        rust_file_name, rust_file_name, pascal_identifier
     );
 
     // Insert the mod and use statements after the last use statement if found, or prepend if no use statements.
@@ -201,11 +200,8 @@ pub fn press_rust_file_serialization_template(args: RustFileSerialization) -> St
     let context = Context::from_serialize(args).unwrap();
 
     // Serialize rust
-    let template = tera
-        .render(RUST_FILE_SERIALIZATION_TEMPLATE, &context)
-        .expect("Failed to render template");
-
-    template
+    tera.render(RUST_FILE_SERIALIZATION_TEMPLATE, &context)
+        .expect("Failed to render template")
 }
 
 fn insert_at_line(s: &mut String, line_number: usize, content_to_insert: &str) {
@@ -268,11 +264,9 @@ fn unmerge_tnd_settings(
     let mut settings_to_remove: HashSet<SettingElement> = HashSet::new();
     if let Some(inline_settings) = &mut tnd.settings {
         inline_settings.iter().for_each(|setting| {
-            if let SettingElement::Setting(_, value) = setting {
-                if let ValueDefinition::Identifier(v, _) = value {
-                    if let Some(selector_settings) = settings.get(v.raw_value.as_str()) {
-                        settings_to_remove.extend(selector_settings.clone());
-                    }
+            if let SettingElement::Setting(_, ValueDefinition::Identifier(v, _)) = setting {
+                if let Some(selector_settings) = settings.get(v.raw_value.as_str()) {
+                    settings_to_remove.extend(selector_settings.clone());
                 }
             }
         });

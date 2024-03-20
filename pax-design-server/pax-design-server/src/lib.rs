@@ -169,27 +169,24 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                         .as_millis()
                         > 100
                     {
-                        match e.kind {
-                            EventKind::Modify(_) => {
-                                if let Some(path) = e.paths.first() {
-                                    match fs::read_to_string(path) {
-                                        Ok(contents) => {
-                                            let extension = path.extension();
-                                            let msg = WatcherFileChanged {
-                                                contents: match extension.and_then(|e| e.to_str()) {
-                                                    Some("pax") => FileContent::Pax(contents),
-                                                    Some("rs") => FileContent::Rust(contents),
-                                                    _ => FileContent::Unknown,
-                                                },
-                                                path: path.to_str().unwrap().to_string(),
-                                            };
-                                            addr.do_send(msg);
-                                        }
-                                        Err(e) => println!("Error reading file: {:?}", e),
+                        if let EventKind::Modify(_) = e.kind {
+                            if let Some(path) = e.paths.first() {
+                                match fs::read_to_string(path) {
+                                    Ok(contents) => {
+                                        let extension = path.extension();
+                                        let msg = WatcherFileChanged {
+                                            contents: match extension.and_then(|e| e.to_str()) {
+                                                Some("pax") => FileContent::Pax(contents),
+                                                Some("rs") => FileContent::Rust(contents),
+                                                _ => FileContent::Unknown,
+                                            },
+                                            path: path.to_str().unwrap().to_string(),
+                                        };
+                                        addr.do_send(msg);
                                     }
+                                    Err(e) => println!("Error reading file: {:?}", e),
                                 }
                             }
-                            _ => {}
                         }
                     }
                 }
