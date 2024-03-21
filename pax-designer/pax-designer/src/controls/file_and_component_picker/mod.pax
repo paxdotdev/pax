@@ -15,6 +15,7 @@ if self.library_active {
     @pre_render: pre_render
     .h1 {
         height: 32px
+        width: {100% - 30px}
         style: {
             font_size: 23px,
             font: {Font::system(

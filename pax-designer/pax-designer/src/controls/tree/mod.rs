@@ -240,6 +240,7 @@ impl Tree {
                 TreeMsg::ObjClicked(sender) => model::perform_action(
                     SelectNode {
                         id: self.tree_objects.get()[sender].node_id.clone(),
+                        overwrite: false,
                     },
                     ctx,
                 ),
