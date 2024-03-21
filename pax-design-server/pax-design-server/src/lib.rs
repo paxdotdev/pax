@@ -167,7 +167,7 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                         .duration_since(last_written)
                         .unwrap_or_default()
                         .as_millis()
-                        > 100
+                        > 1000
                     {
                         if let EventKind::Modify(_) = e.kind {
                             if let Some(path) = e.paths.first() {
@@ -183,6 +183,7 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                                             path: path.to_str().unwrap().to_string(),
                                         };
                                         addr.do_send(msg);
+                                        state.update_last_written_timestamp();
                                     }
                                     Err(e) => println!("Error reading file: {:?}", e),
                                 }

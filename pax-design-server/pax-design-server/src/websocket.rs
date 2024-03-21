@@ -64,6 +64,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, msg: WatcherFileChanged, ctx: &mut Self::Context) -> Self::Result {
+        println!("File changed: {:?}", msg.path);
         if self.state.active_websocket_client.lock().unwrap().is_some() {
             if let FileContent::Pax(content) = msg.contents {
                 if let Some(manifest) = &self.state.manifest {
@@ -109,7 +110,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
 
                         new_template.merge_with_settings(&settings);
                         new_template.populate_template_with_known_entities(&original_template);
-
+                        println!("Rendering update!");
                         let msg =
                             AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
                                 type_id: self_type_id,
