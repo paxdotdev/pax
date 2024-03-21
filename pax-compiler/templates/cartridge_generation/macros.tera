@@ -103,6 +103,10 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
             if let Some(properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
 
                 {% for prop in component.properties %}
+                    // TODODAG: this entire method can be removed?
+                    // possible backup plan could be to make this the function that actually connects up the properties,
+                    // and before that leave them in a dummy state (in this method we clearly have what we need: expr table, stack, etc)
+
                     // if let Some(new_value) = table.compute_eased_value(properties.{{prop.name}}._get_transition_manager(), globals) {
                     //     properties.{{ prop.name }}.set(new_value);
                     // } else if let Some(vtable_id) = properties.{{ prop.name }}._get_vtable_id() {
