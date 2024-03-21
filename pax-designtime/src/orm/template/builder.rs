@@ -20,6 +20,11 @@ pub struct NodeBuilder<'a> {
     location: Option<NodeLocation>,
 }
 
+pub struct SaveData {
+    pub undo_id: Option<usize>,
+    pub unique_id: UniqueTemplateNodeIdentifier,
+}
+
 impl<'a> NodeBuilder<'a> {
     pub fn new(
         orm: &'a mut PaxManifestORM,
@@ -129,15 +134,15 @@ impl<'a> NodeBuilder<'a> {
         self.location = Some(location);
     }
 
-    pub fn save(mut self) -> Result<usize, String> {
-        let id = if let Some(uni) = self.unique_node_identifier {
+    pub fn save(mut self) -> Result<SaveData, String> {
+        let id = if let Some(uni) = &self.unique_node_identifier {
             // Node already exists
             let location = self
                 .location
                 .unwrap_or_else(|| self.orm.manifest.get_node_location(&uni).unwrap());
 
             let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(
-                uni,
+                uni.clone(),
                 Some(self.node_type_id),
                 self.updated_property_map,
                 Some(location),
@@ -165,6 +170,9 @@ impl<'a> NodeBuilder<'a> {
             resp.command_id
         };
 
-        Ok(id.unwrap())
+        Ok(SaveData {
+            undo_id: id,
+            unique_id: self.unique_node_identifier.expect("exists after save"),
+        })
     }
 }
