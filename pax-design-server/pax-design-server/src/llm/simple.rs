@@ -14,7 +14,6 @@ pub enum SimpleNodeAction {
 /// A node with the specified properties will be added to the scene at the specified location.
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct SimpleAdd {
-    pub parent_id: SimpleLocation,
     pub node_type: SimpleNodeType,
     pub properties: Option<SimpleProperties>,
 }
@@ -24,7 +23,6 @@ pub struct SimpleAdd {
 pub struct SimpleUpdate {
     pub id: usize,
     pub properties: Option<SimpleProperties>,
-    pub new_parent: Option<SimpleLocation>,
 }
 
 /// The node specified by id will be removed from the scene
@@ -91,12 +89,6 @@ pub struct SimpleProperties {
     pub stroke: Option<SimpleColor>,
     pub rotate: Option<SimpleRotation>,
     pub text: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub enum SimpleLocation {
-    Root,
-    Parent(usize),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
