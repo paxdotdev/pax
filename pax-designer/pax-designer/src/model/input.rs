@@ -4,6 +4,7 @@ use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
+use crate::model::action::orm::UndoRequested;
 
 use super::{
     action::{self, meta::ActionSet, orm::DeleteSelected, world, Action, ActionContext, CanUndo},
@@ -34,6 +35,7 @@ impl Default for InputMapper {
                 (RawInput::K, InputEvent::OpenLLMPrompt),
                 (RawInput::Delete, InputEvent::DeleteSelected),
                 (RawInput::Backspace, InputEvent::DeleteSelected),
+                (RawInput::Z, InputEvent::Undo),
             ]),
         }
     }
@@ -55,6 +57,7 @@ impl InputMapper {
                 Some(Box::new(OpenLLMPrompt { require_meta: true }))
             }
             (&InputEvent::DeleteSelected, Dir::Down) => Some(Box::new(DeleteSelected {})),
+            (&InputEvent::Undo, Dir::Down) => Some(Box::new(UndoRequested {})),
             _ => None,
         }
     }
@@ -125,4 +128,5 @@ pub enum InputEvent {
     Shift,
     OpenLLMPrompt,
     DeleteSelected,
+    Undo,
 }

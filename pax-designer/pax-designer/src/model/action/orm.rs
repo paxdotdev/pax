@@ -252,6 +252,18 @@ impl Action for RotateSelected {
 
 pub struct DeleteSelected {}
 
+pub struct UndoRequested {}
+
+impl Action for UndoRequested {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        dt.get_orm_mut()
+            .undo()
+            .map_err(|e| anyhow!("undo failed: {:?}", e))?;
+        Ok(CanUndo::No)
+    }
+}
+
 impl Action for DeleteSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let selected = &ctx.app_state.selected_template_node_ids;
