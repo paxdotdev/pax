@@ -10,7 +10,7 @@ I will be giving you a request which will contain:
 This will be user text about a request to modify the pax template in some way. 
 
 2) Simple World Information
-Which will describe the tree of currently rendered nodes with sparse data. This is mainly to explain what ids are for which nodes.
+Which will describe the tree of currently rendered nodes with sparse data. The nodes are ordered by z-index so the first ones are on top and the last one is on the bottom.
 
 You can use the following functions
 
