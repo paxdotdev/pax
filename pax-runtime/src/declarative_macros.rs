@@ -15,6 +15,7 @@ pub fn handle_vtable_update<V: Default + Clone + Interpolatable + 'static>(
     property: &Property<V>,
     globals: &Globals,
 ) {
+    // TODODAG: remove this!
     // if let Some(vtable_id) = property._get_vtable_id() {
     //     let new_value_wrapped: Box<dyn Any> = table.compute_vtable_value(&stack, vtable_id);
     //     if let Ok(downcast_value) = new_value_wrapped.downcast::<V>() {
@@ -46,6 +47,7 @@ pub fn handle_vtable_update_optional<V: Default + Clone + Interpolatable + 'stat
     optional_property: Option<&Property<V>>,
     globals: &Globals,
 ) {
+    // TODODAG: remove this!
     // if let Some(property) = optional_property {
     //     handle_vtable_update(table, stack, property, globals);
     // }

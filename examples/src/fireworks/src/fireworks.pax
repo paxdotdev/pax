@@ -3,7 +3,6 @@
         <Rectangle class=rect width=300px height=300px />
     }
 </Group>
-<Rectangle fill=RED/>
 
 @settings {
     @tick: handle_tick
