@@ -146,7 +146,7 @@ pub trait ComponentFactory {
                         },
                         ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                         {
-                            Property::expression(|| Box::new(0), &[]) // to use id
+                            Property::expression(|| Default::default(), &[]) // TODODAG insert actual logic (using vtable, stack, vtable_id)
                         },
                         _ => unreachable!("Invalid value definition for {{common_property.name}}")
                     };
@@ -343,7 +343,7 @@ impl DefinitionToInstanceTraverser {
                     .unwrap();
                 let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
                         let mut properties = ConditionalProperties::default();
-                        properties.boolean_expression = Property::expression(|| Box::new(true), &[]);
+                        properties.boolean_expression = Property::expression(|| true, &[]); // TODODAG insert actual logic
                         properties
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -365,7 +365,7 @@ impl DefinitionToInstanceTraverser {
                     .unwrap();
                 let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
                         let mut properties = SlotProperties::default();
-                        properties.index = Property::expression(|| Box::new(Numeric::from(0)), &[]); // to use vtable_id
+                        properties.index = Property::expression(|| Default::default(), &[]); // TODODAG insert actual logic (using vtable, stack, vtable_id)
                         properties
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -391,13 +391,13 @@ impl DefinitionToInstanceTraverser {
                         let mut properties = RepeatProperties::default();
                         properties.source_expression_vec = 
                             if let Some(t) = &rsd.symbolic_binding {
-                                Some(Property::expression(|| Box::new(0), &[])) // to use vtable_id
+                                Some(Property::expression(|| Default::default(), &[])) // TODODAG
                             } else {
                                 None
                             };
                         properties.source_expression_range =
                             if let Some(t) = &rsd.range_expression_paxel {
-                                Some(Property::expression(|| Box::new(0), &[])) // to use vtable_id
+                                Some(Property::expression(|| Default::default(), &[])) // TODODAG
                             } else {
                                 None
                             };

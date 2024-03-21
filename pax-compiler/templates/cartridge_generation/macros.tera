@@ -27,7 +27,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                         },
                         ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
                         {
-                            Property::expression(|| Box::new(0), &[]) // to use id
+                            Property::expression(|| Default::default(), &[]) // TODODAG insert actual logic (using vtable, stack, vtable_id)
                         },
                         ValueDefinition::Block(block) => {
                             Property::new({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block))
