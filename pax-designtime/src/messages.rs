@@ -43,7 +43,7 @@ pub struct UpdateTemplateRequest {
 
 /// A request for help from the LLM.
 /// Sent from `pax-designtime` to `pax-design-server`.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct LLMHelpRequest {
     pub request: String,
     pub component: ComponentDefinition,
