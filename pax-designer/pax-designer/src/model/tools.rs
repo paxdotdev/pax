@@ -101,11 +101,13 @@ pub enum PointerTool {
 
 pub struct SelectNode {
     pub id: TemplateNodeId,
+    //if true, deselects all other objects first
+    pub overwrite: bool,
 }
 
 impl Action for SelectNode {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        if !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+        if self.overwrite || !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
             ctx.app_state.selected_template_node_ids.clear();
         }
         ctx.app_state.selected_template_node_ids.push(self.id);
@@ -117,7 +119,10 @@ impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
         if let Some(hit) = ctx.raycast_glass(point) {
             let node_id = hit.global_id().unwrap().get_template_node_id();
-            let _ = ctx.execute(SelectNode { id: node_id });
+            let _ = ctx.execute(SelectNode {
+                id: node_id,
+                overwrite: false,
+            });
             let origin_window = hit.origin().unwrap();
             let object_origin_glass = ctx.glass_transform() * origin_window;
             let offset = point - object_origin_glass;

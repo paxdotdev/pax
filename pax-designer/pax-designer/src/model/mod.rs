@@ -254,6 +254,7 @@ pub enum Component {
     #[default]
     Rectangle,
     Ellipse,
+    Text,
 }
 
 pub trait ToolBehaviour {
