@@ -1,10 +1,13 @@
+use kurbo::{Rect, RoundedRect, Shape};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::declarative_macros::handle_vtable_update;
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    DEBUG_TEXT_GREEN_BACKGROUND,
 };
 use pax_std::primitives::Text;
+use piet::Color;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -30,7 +33,7 @@ impl InstanceNode for TextInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: true, //TODO make this optional?
+                    invisible_to_raycasting: false,
                     layer: Layer::Native,
                     is_component: false,
                 },
@@ -117,11 +120,28 @@ impl InstanceNode for TextInstance {
 
     fn render(
         &self,
-        _expanded_node: &ExpandedNode,
+        expanded_node: &ExpandedNode,
         _context: &mut RuntimeContext,
-        _rc: &mut dyn RenderContext,
+        rc: &mut dyn RenderContext,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
+
+        #[cfg(feature = "designtime")]
+        if DEBUG_TEXT_GREEN_BACKGROUND {
+            let computed_props = expanded_node.layout_properties.borrow();
+            let tab = &computed_props.as_ref().unwrap().computed_tab;
+            let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+            let width: f64 = tab.bounds.0;
+            let height: f64 = tab.bounds.1;
+            let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);
+            let bez_path = rect.to_path(0.1);
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
+            rc.fill(
+                &layer_id,
+                transformed_bez_path,
+                &piet::PaintBrush::Color(Color::rgba8(0, 255, 0, 100)),
+            );
+        }
     }
 
     fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
