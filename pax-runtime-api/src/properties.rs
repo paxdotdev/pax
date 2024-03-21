@@ -123,13 +123,38 @@ impl<T: PropVal> Property<T> {
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
     pub fn get(&self) -> T {
-        glob_prop_table(|t| t.get_value(self.id))
+        glob_prop_table(|t| t.get_value_ref(self.id, |v: &T| v.clone()))
     }
 
     /// Sets this properties value, and sets the drity bit of all of
     /// it's dependencies if not already set
     pub fn set(&self, val: T) {
-        glob_prop_table(|t| t.set_value(self.id, val));
+        glob_prop_table(|t| t.get_value_mut(self.id, |v| *v = val));
+    }
+
+    // Get mutable access to the underlying property value
+    // NOTE: this always assumes the value was modifed and triggers
+    // dirtying of it's dependencies, no matter if it actually was
+    // or not
+    pub fn update<V>(&self, f: impl FnOnce(&mut T) -> V) -> V {
+        glob_prop_table(|t| {
+            // needs to first evaluate if dirty (people can access the value in
+            // the closure), see update_with_stale_value for one that does not
+            t.update_value(self.id);
+            t.get_value_mut(self.id, f)
+        })
+    }
+
+    /// WARNING: do NOT use this function to read the
+    /// value of a property.
+    /// Updates value without first making sure that the
+    /// surfaced mutable reference is up to date.
+    pub fn update_with_stale_value<V>(&self, f: impl FnOnce(&mut T) -> V) -> V {
+        glob_prop_table(|t| t.get_value_mut(self.id, f))
+    }
+
+    pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
+        glob_prop_table(|t| t.get_value_ref(self.id, f))
     }
 }
 
@@ -234,7 +259,8 @@ impl PropertyTable {
         res
     }
 
-    fn get_value<T: PropVal>(&self, id: PropId) -> T {
+    // re-computes the value and all of it's dependencies if dirty
+    fn update_value(&self, id: PropId) {
         let evaluator = self.with_prop_data_mut(id, |prop_data| {
             if let PropType::Expr {
                 dirty, evaluator, ..
@@ -255,19 +281,30 @@ impl PropertyTable {
                 prop_data.value = new_value;
             });
         }
-
-        let ret = self.with_prop_data(id, |prop_data| {
-            let value = prop_data.value.downcast_ref::<T>().expect("correct type");
-            value.clone()
-        });
-        ret
     }
 
-    fn set_value<T: PropVal>(&self, id: PropId, value: T) {
+    /// Main function to get access to a reference inside of a property.
+    /// Makes sure the value is up to date before calling the provided closure
+    fn get_value_ref<T: PropVal, V>(&self, id: PropId, f: impl FnOnce(&T) -> V) -> V {
+        self.update_value(id);
+        self.with_prop_data(id, |prop_data| {
+            let value = prop_data.value.downcast_ref::<T>().expect("correct type");
+            f(value)
+        })
+    }
+
+    // WARNING: read the below before using this function
+    // NOTE: This NEVER updates the value before access, do that before if needed
+    // by calling self.update_value(..)
+    // NOTE: This always assumes the underlying data was changed, and marks
+    // it and it's dependents as dirty irrespective of actual modification
+    fn get_value_mut<T: PropVal, V>(&self, id: PropId, f: impl FnOnce(&mut T) -> V) -> V {
         let mut to_dirty = vec![];
-        self.with_prop_data_mut(id, |prop_data| {
-            prop_data.value = Box::new(value);
+        let ret_value = self.with_prop_data_mut(id, |prop_data| {
+            let value = prop_data.value.downcast_mut().expect("correct type");
+            let ret = f(value);
             to_dirty.extend_from_slice(&prop_data.subscribers);
+            ret
         });
         while let Some(dep_id) = to_dirty.pop() {
             self.with_prop_data_mut(dep_id, |dep_data| {
@@ -285,6 +322,7 @@ impl PropertyTable {
                 }
             });
         }
+        ret_value
     }
 
     fn remove_entry(&self, id: PropId) {
@@ -356,6 +394,42 @@ mod tests {
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
         assert_eq!(prop_2.get(), 15);
+    }
+
+    #[test]
+    fn test_read() {
+        let prop_1 = Property::literal(2);
+        let p1 = prop_1.clone();
+        let prop_2 = Property::<i32>::expression(move || p1.get() * 5, &[&prop_1]);
+
+        assert_eq!(prop_2.get(), 10);
+        prop_1.set(3);
+        prop_2.read(|p2| {
+            // make sure prop_2 recomputes if needed before
+            // exposing access to user
+            assert_eq!(*p2, 15);
+        });
+    }
+
+    #[test]
+    fn test_update() {
+        let prop_1 = Property::literal(2);
+        let p1 = prop_1.clone();
+        let prop_2 = Property::<i32>::expression(move || p1.get() * 5, &[&prop_1]);
+
+        assert_eq!(prop_2.get(), 10);
+        prop_1.set(3);
+        prop_2.update(|p2| {
+            // make sure prop_2 recomputes if needed before
+            // exposing access to user
+            assert_eq!(*p2, 15);
+        });
+        prop_1.update(|p1| {
+            *p1 = 4;
+        });
+        // make sure the above update
+        // marked prop_2 as dirty
+        assert_eq!(prop_2.get(), 20);
     }
 
     #[test]
