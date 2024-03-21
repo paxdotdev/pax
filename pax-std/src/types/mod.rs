@@ -268,19 +268,19 @@ impl Path {
 #[pax]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RectangleCornerRadii {
-    pub top_left: Property<f64>,
-    pub top_right: Property<f64>,
-    pub bottom_right: Property<f64>,
-    pub bottom_left: Property<f64>,
+    pub top_left: Property<Numeric>,
+    pub top_right: Property<Numeric>,
+    pub bottom_right: Property<Numeric>,
+    pub bottom_left: Property<Numeric>,
 }
 
 impl Into<RoundedRectRadii> for &RectangleCornerRadii {
     fn into(self) -> RoundedRectRadii {
         RoundedRectRadii::new(
-            *self.top_left.get(),
-            *self.top_right.get(),
-            *self.bottom_right.get(),
-            *self.bottom_left.get(),
+            self.top_left.get().to_float(),
+            self.top_right.get().to_float(),
+            self.bottom_right.get().to_float(),
+            self.bottom_left.get().to_float(),
         )
     }
 }
@@ -293,10 +293,10 @@ impl RectangleCornerRadii {
         bottom_left: Numeric,
     ) -> Self {
         RectangleCornerRadii {
-            top_left: Box::new(PropertyLiteral::new(top_left.to_float())),
-            top_right: Box::new(PropertyLiteral::new(top_right.to_float())),
-            bottom_right: Box::new(PropertyLiteral::new(bottom_right.to_float())),
-            bottom_left: Box::new(PropertyLiteral::new(bottom_left.to_float())),
+            top_left: Box::new(PropertyLiteral::new(top_left)),
+            top_right: Box::new(PropertyLiteral::new(top_right)),
+            bottom_right: Box::new(PropertyLiteral::new(bottom_right)),
+            bottom_left: Box::new(PropertyLiteral::new(bottom_left)),
         }
     }
 }
