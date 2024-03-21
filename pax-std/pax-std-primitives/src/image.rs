@@ -85,19 +85,17 @@ impl InstanceNode for ImageInstance {
         let comp_props = comp_props.as_ref().unwrap();
         let transform = comp_props.computed_tab.transform;
         let bounding_dimens = comp_props.computed_tab.bounds;
-        let width = bounding_dimens.0;
-        let height = bounding_dimens.1;
 
-        let bounds = kurbo::Rect::new(0.0, 0.0, width, height);
-        let top_left = transform * Point2::new(bounds.min_x(), bounds.min_y());
-        let bottom_right = transform * Point2::new(bounds.max_x(), bounds.max_y());
         let transformed_bounds =
-            kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
+            kurbo::Rect::new(0.0, 0.0, bounding_dimens.0, bounding_dimens.1);
 
         let path =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+        rc.save(&layer_id);
+        rc.transform(&layer_id, transform.into());
         rc.draw_image(&layer_id, &path.string, transformed_bounds);
+        rc.restore(&layer_id);
     }
 
     fn base(&self) -> &BaseInstance {
