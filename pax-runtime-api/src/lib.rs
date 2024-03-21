@@ -22,7 +22,6 @@ pub mod properties;
 
 pub use crate::numeric::Numeric;
 pub use properties::Property;
-pub use properties::PropertyScopeHandle;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
