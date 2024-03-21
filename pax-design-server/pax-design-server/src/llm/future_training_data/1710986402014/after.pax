@@ -1,0 +1,69 @@
+<MenuBar />
+<Group height=50% width=470px y=308.0px anchor_y=50% x=53.0px>
+    <Image path="assets/netflix/originals.png" height=32px anchor_y=100% width=128px/>
+    <Image height=145px path="assets/netflix/background_title.png" width=450px/>
+    <Image path="assets/netflix/top10.png" y=45% height=20px width=20px anchor_y=50%/>
+    <Text y=45% anchor_y=50% class=header x=30px style={
+        font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+        font_size: 24px
+        fill: WHITE
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Left
+        align_multiline: TextAlignHorizontal::Left
+    } 
+        text="Number 1 in TV Shows Today" height=50px/>
+    <Text y=52% 
+        text="Determined to protect a young patient who escaped a mysterious cult, a psychiatrist takes the girl in, putting her own family — and life — in danger." 
+        class=body/>
+    <MainButton fill=WHITE text_fill=BLACK width=110px text="Play" height=35px icon="assets/netflix/play.png" y=74%/>
+    <MainButton x=130px text="More Info" width=130px height=35px fill=rgb(20, 20, 20) icon="assets/netflix/info.png" y=74% 
+        text_fill=WHITE/>
+</Group>
+<Text height=30px width=300px y={100% - 170px} x=20px text="Popular on Netflix" style={
+    font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+    font_size: 20px
+    fill: WHITE
+    align_vertical: TextAlignVertical::Center
+    align_horizontal: TextAlignHorizontal::Left
+    align_multiline: TextAlignHorizontal::Left
+} 
+    anchor_y=100% class=header2/>
+<Group height=160px y={100% - 170px}>
+    <MovieSelector />
+</Group>
+<Image x=50% anchor_x=50% width={(self.computed_width)px} path="assets/netflix/background.png"/>
+<Rectangle fill=BLACK/>
+
+@settings {
+    @pre_render: pre_render,
+    .header {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 24px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .header2 {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 20px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .body {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Light)}
+            font_size: 16px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

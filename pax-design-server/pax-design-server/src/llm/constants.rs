@@ -6,7 +6,7 @@ pub const GPT_3_TURBO: &str = "gpt-3.5-turbo-0125";
 
 pub const SEED: i64 = 1234i64;
 pub const MAX_TOKENS: u16 = 4096u16;
-pub const MODEL: &str = GPT_4_TURBO_PREVIEW;
+pub const MODEL: &str = GPT_3_TURBO;
 pub const SYSTEM_PROMPT: &str = "src/llm/system_prompt.txt";
 pub const TEMPERATURE: f32 = 1.0f32;
 

@@ -13,7 +13,7 @@ use pax_manifest::{
 };
 
 use super::simple::{
-    SimpleColor, SimpleLocation, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType,
+    SimpleColor, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType,
     SimpleProperties, SimpleRotation, SimpleSize, SimpleSizeType, SimpleTemplate,
 };
 
@@ -205,15 +205,6 @@ impl From<SimpleProperties> for HashMap<Token, Option<ValueDefinition>> {
     }
 }
 
-impl From<SimpleLocation> for TreeLocation {
-    fn from(value: SimpleLocation) -> Self {
-        match value {
-            SimpleLocation::Root => TreeLocation::Root,
-            SimpleLocation::Parent(parent) => TreeLocation::Parent(TemplateNodeId::build(parent)),
-        }
-    }
-}
-
 impl SimpleNodeAction {
     pub fn build(
         containing_component_type_id: TypeId,
@@ -227,7 +218,7 @@ impl SimpleNodeAction {
                 } else {
                     NodeType::Template(vec![])
                 };
-                let tree_location: TreeLocation = add.parent_id.into();
+                let tree_location: TreeLocation =  TreeLocation::Root;
                 let node_location = NodeLocation::new(
                     containing_component_type_id.clone(),
                     tree_location,
@@ -252,18 +243,16 @@ impl SimpleNodeAction {
                 if let Some(properties) = update.properties {
                     updated_property_map = properties.into();
                 }
-                let new_location = update.new_parent.map(|new_parent| {
-                    NodeLocation::new(
+                let new_location = NodeLocation::new(
                         containing_component_type_id.clone(),
-                        new_parent.into(),
+                        TreeLocation::Root,
                         TreeIndexPosition::Top,
-                    )
-                });
+                    );
                 let update = UpdateTemplateNodeRequest::new(
                     uni,
                     None,
                     updated_property_map,
-                    new_location,
+                    Some(new_location),
                 );
                 Some(NodeAction::Update(update))
             }

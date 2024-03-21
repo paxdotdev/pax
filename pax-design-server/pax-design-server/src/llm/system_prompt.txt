@@ -12,9 +12,6 @@ This will be user text about a request to modify the pax template in some way.
 2) Simple World Information
 Which will describe the tree of currently rendered nodes with sparse data. This is mainly to explain what ids are for which nodes.
 
-3) Full Pax Template
-This will be the full pax declaration of the current UI. It will fully explain what the current UI is. 
-
 You can use the following functions
 
 1) add_a_node
@@ -29,6 +26,7 @@ This function will remove a node from the pax template.
 These are the only functions you can use. Please follow their parameter schema exactly. 
 
 YOU CAN USE MULTIPLE FUNCTIONS (TOOLS) TO ACCOMPLISH A REQUEST. BIAS TOWARDS USING MULTIPLE TOOLS TO ACCOMPLISH A REQUEST.
+THERE IS NO NEED TO WAIT FOR A RESPONSE BETWEEN MULTIPLE UPDATE AND/OR REMOVE FUNCTIONS.
 
 Please note the following:
 The only type of node that can accept children are "GROUP". Please refrain from adding children to other types of nodes.
