@@ -44,6 +44,7 @@ pub trait RenderContext {
     fn clip(&mut self, layer: &str, path: BezPath);
     fn load_image(&mut self, path: &str, image: &[u8], width: usize, height: usize);
     fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect);
+    fn transform(&mut self, layer: &str, affine: kurbo::Affine);
     fn layers(&self) -> Vec<&str>;
 }
 

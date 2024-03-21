@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::iter;
 use std::rc::Rc;
+use kurbo::Affine;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
@@ -176,6 +177,13 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
             .unwrap()
             .save()
             .expect("failed to save piet state");
+    }
+
+    fn transform(&mut self, layer: &str, affine: Affine) {
+        self.backends
+            .get_mut(layer)
+            .unwrap()
+            .transform(affine);
     }
 
     fn clip(&mut self, layer: &str, path: kurbo::BezPath) {
