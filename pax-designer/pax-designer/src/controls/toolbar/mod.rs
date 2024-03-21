@@ -112,6 +112,14 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
+                        icon: "assets/icons/toolbar/icon-14-text.png".to_string(),
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Text))
+                    },
+                ]
+            },
+            ToolbarEntry {
+                items: vec![
+                    ToolbarItem {
                         icon: "assets/icons/toolbar/icon-15-checkbox.png".to_string(),
                         event: ToolbarEvent::SelectTool(Tool::TodoTool)
                     },

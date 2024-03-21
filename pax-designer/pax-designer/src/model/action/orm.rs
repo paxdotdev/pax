@@ -4,6 +4,7 @@ use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::input::InputEvent;
+use crate::model::tools::SelectNode;
 use crate::{math::BoxPoint, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
@@ -32,9 +33,13 @@ impl Action for CreateComponent {
         builder.set_property("width", &to_pixels(self.bounds.width()))?;
         builder.set_property("height", &to_pixels(self.bounds.height()))?;
 
-        builder
+        let save_data = builder
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
+        ctx.execute(SelectNode {
+            id: save_data.unique_id.get_template_node_id(),
+            overwrite: true,
+        })?;
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = ctx.engine_context.designtime.borrow_mut();

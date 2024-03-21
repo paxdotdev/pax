@@ -62,6 +62,7 @@ impl Action for PointerAction {
                         let primitive_name = match component {
                             Component::Rectangle => "Rectangle",
                             Component::Ellipse => "Ellipse",
+                            Component::Text => "Text",
                         };
                         *tool_behaviour = Some(Box::new(CreateComponentTool::new(
                             ctx,
