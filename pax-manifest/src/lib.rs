@@ -1858,7 +1858,6 @@ pub const IMPORTS_BUILTINS: &[&str] = &[
     "pax_runtime::SlotProperties",
     "pax_runtime::get_numeric_from_wrapped_properties",
     "pax_runtime::api::Property",
-    "pax_runtime::api::PropertyScopeHandle",
     "pax_runtime::api::CommonProperties",
     "pax_runtime::api::Color::*",
     "pax_runtime::ComponentInstance",
