@@ -33,6 +33,7 @@ impl PrivilegedAgentConnection {
     }
 
     pub fn send_llm_request(&mut self, request: LLMHelpRequest) -> Result<()> {
+        println!("Sending LLM request: {:?}", request);
         let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMHelpRequest(request))?;
         self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
         Ok(())
