@@ -35,7 +35,7 @@ pub struct Settings {
 
 #[pax]
 #[custom(Imports)]
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct PropertyArea {
     pub vertical_space: f64,
     pub vertical_pos: f64,
@@ -43,7 +43,7 @@ pub struct PropertyArea {
     pub name_friendly: StringBox,
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct AreaMsg {
     pub index: usize,
     pub vertical_space: f64,
