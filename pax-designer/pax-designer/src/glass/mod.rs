@@ -160,7 +160,7 @@ impl Default for Glass {
 }
 
 #[pax]
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct RectTool {
     pub x: Size,
     pub y: Size,
