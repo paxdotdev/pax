@@ -154,14 +154,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                             .unwrap()
                             .as_millis()
                     );
-                    record_request_training_data(&help_request, &request_id);
+                    //record_request_training_data(&help_request, &request_id);
 
-                    let component_type_id = help_request.component.type_id.clone();
-                    let serialized_component =
-                        press_code_serialization_template(help_request.component.clone());
-                    let formatted_component =
-                        pax_compiler::formatting::format_pax_template(serialized_component)
-                            .unwrap();
+                     let component_type_id = help_request.component.type_id.clone();
+                    // let serialized_component =
+                    //     press_code_serialization_template(help_request.component.clone());
 
                     let template = help_request.component.template.as_ref().unwrap();
                     let simple_template = template.clone().into();
@@ -171,7 +168,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     let request = LLMRequestMessage {
                         request: help_request.request,
                         simple_world_info: serde_json::to_string(&simple_world_info).unwrap(),
-                        file_content: formatted_component,
+                        file_content: String::new(),
                     };
                     let request = build_llm_request(request);
                     let state = self.state.clone();
@@ -205,12 +202,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     });
                 }
                 Ok(AgentMessage::LLMUpdatedTemplateNotification(notification)) => {
-                    let folder_path = format!("{}{}", TRAINING_DATA_PATH, notification.request_id);
-                    let component = notification.component.clone();
-                    serialize_component_to_file(
-                        &component,
-                        format!("{}/{}", folder_path, TRAINING_DATA_AFTER_REQUEST),
-                    );
+                    // let folder_path = format!("{}{}", TRAINING_DATA_PATH, notification.request_id);
+                    // let component = notification.component.clone();
+                    // serialize_component_to_file(
+                    //     &component,
+                    //     format!("{}/{}", folder_path, TRAINING_DATA_AFTER_REQUEST),
+                    // );
                 }
                 Ok(_) => {}
                 Err(e) => {
@@ -222,6 +219,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
 }
 
 fn handle_component_serialization_request(request: ComponentSerializationRequest) {
+    println!("Serializing to code...");
     let component: ComponentDefinition = rmp_serde::from_slice(&request.component_bytes).unwrap();
     let file_path = component
         .template
@@ -231,6 +229,7 @@ fn handle_component_serialization_request(request: ComponentSerializationRequest
         .unwrap()
         .to_owned();
     serialize_component_to_file(&component, file_path);
+    println!("Serialization complete!");
 }
 
 fn handle_manifest_serialization_request(
@@ -268,7 +267,6 @@ fn build_llm_request(request: LLMRequestMessage) -> String {
         "Full Pax Template:\n {} \n\n",
         request.file_content
     ));
-    println!("LLM Request: {}", req);
     req
 }
 

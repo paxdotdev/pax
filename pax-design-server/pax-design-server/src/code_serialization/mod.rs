@@ -32,7 +32,6 @@ static RUST_FILE_SERIALIZATION_TEMPLATE: &str = "rust-file-serialization.tera";
 
 /// Serialize a component to a string
 pub fn press_code_serialization_template(mut args: ComponentDefinition) -> String {
-    println!("Serializing to code...");
     unmerge_settings(&mut args);
 
     let mut tera = Tera::default();
