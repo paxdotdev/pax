@@ -27,7 +27,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} =
             {
-                let properties = if let Some(sf) = ec.stack_frame.peek_nth({{ invocation.stack_offset }}) {
+                let properties = if let Some(sf) = ec.stack_frame.resolve_symbol("{{ invocation.root_identifier }}") {
                     Rc::clone(&sf)
                 } else {
                     panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
@@ -275,8 +275,8 @@ impl DefinitionToInstanceTraverser {
     }
 
     pub fn build_component_args(&self, type_id: &TypeId) -> InstantiationArgs {
-
         let manifest = self.get_manifest();
+        let property_names = manifest.get_all_property_names(type_id);
         if let None = manifest.components.get(type_id) {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
@@ -320,6 +320,7 @@ impl DefinitionToInstanceTraverser {
             compute_properties_fn,
             children: None,
             template_node_identifier: None,
+            property_names: Some(property_names),
         }
     }
 
@@ -353,7 +354,8 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
-                    template_node_identifier: Some(unique_identifier)
+                    template_node_identifier: Some(unique_identifier),
+                    property_names: None,
                 })
             },
             PaxType::Slot => {
@@ -375,7 +377,8 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
-                    template_node_identifier: Some(unique_identifier)
+                    template_node_identifier: Some(unique_identifier),
+                    property_names: None,
                 })
             },
             PaxType::Repeat => {
@@ -386,6 +389,14 @@ impl DefinitionToInstanceTraverser {
                     .repeat_source_definition
                     .clone()
                     .unwrap();
+                let rpd = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .repeat_predicate_definition
+                    .clone()
+                    .unwrap();
+                let symbols = rpd.get_symbols();
                 let vtable_id = rsd.vtable_id.unwrap();
                 let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
                         let mut properties = RepeatProperties::default();
@@ -410,7 +421,8 @@ impl DefinitionToInstanceTraverser {
                     component_template: None,
                     compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
-                    template_node_identifier: Some(unique_identifier)
+                    template_node_identifier: Some(unique_identifier),
+                    property_names: Some(symbols)
                 })
             },
             _ => {  

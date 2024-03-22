@@ -4,6 +4,7 @@ use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::{any::Any, collections::HashMap};
 
@@ -24,7 +25,7 @@ pub struct RuntimeContext {
     next_uid: Uid,
     messages: Vec<NativeMessage>,
     globals: Globals,
-    expression_table: ExpressionTable,
+    expression_table: Rc<ExpressionTable>,
     pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
     pub node_cache: HashMap<u32, Rc<ExpandedNode>>,
     pub uni_to_eid: HashMap<UniqueTemplateNodeIdentifier, Vec<u32>>,
@@ -36,7 +37,7 @@ impl RuntimeContext {
             next_uid: Uid(0),
             messages: Vec::new(),
             globals,
-            expression_table,
+            expression_table: Rc::new(expression_table),
             z_index_node_cache: vec![],
             node_cache: HashMap::default(),
             uni_to_eid: HashMap::default(),
@@ -177,20 +178,23 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimePropertiesStackFrame {
+    symbols_within_frame: HashSet<String>,
     properties: Rc<RefCell<dyn Any>>,
     parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
 impl RuntimePropertiesStackFrame {
-    pub fn new(properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn new(symbols_within_frame: HashSet<String>, properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
         Rc::new(Self {
+            symbols_within_frame,
             properties,
             parent: None,
         })
     }
 
-    pub fn push(self: &Rc<Self>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn push(self: &Rc<Self>, symbols_within_frame: HashSet<String>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
+            symbols_within_frame,
             parent: Some(Rc::clone(&self)),
             properties: Rc::clone(properties),
         })
@@ -209,6 +213,14 @@ impl RuntimePropertiesStackFrame {
             curr = Rc::clone(curr.parent.as_ref()?);
         }
         Some(Rc::clone(&curr.properties))
+    }
+
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<dyn Any>>> {
+        if self.symbols_within_frame.contains(symbol) {
+            Some(Rc::clone(&self.properties))
+        } else {
+            self.parent.as_ref()?.resolve_symbol(symbol)
+        }
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {

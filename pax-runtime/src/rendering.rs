@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashSet;
 
 use super::api::math::Point2;
 use std::iter;
@@ -32,6 +33,9 @@ pub struct InstantiationArgs {
     pub compute_properties_fn: Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>,
 
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+
+    // Used by RuntimePropertyStackFrame to determine whether request property is within a properties struct (dyn Any)
+    pub property_names: Option<HashSet<String>>,
 }
 
 /// Stores the computed transform and the pre-transform bounding box (where the
@@ -251,6 +255,7 @@ pub struct BaseInstance {
     pub instance_prototypical_common_properties_factory:
         Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    pub property_names: Option<HashSet<String>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -283,6 +288,7 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
+            property_names: args.property_names,
         }
     }
 
