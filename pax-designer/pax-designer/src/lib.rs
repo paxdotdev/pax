@@ -1,5 +1,7 @@
 #![allow(unused_imports)]
 
+use std::sync::Mutex;
+
 use crate::math::coordinate_spaces::{self, World};
 use model::{
     action::{Action, ActionContext, CanUndo},
@@ -28,6 +30,18 @@ use llm_interface::LLMInterface;
 
 pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
 pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
+pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "pax_designer::pax_reexports::designer_project";
+pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
+pub struct SetStage(pub StageInfo);
+
+impl Action for SetStage {
+    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+        *SET_STAGE_MSG.lock().unwrap() = Some(self.0);
+        Ok(CanUndo::No)
+    }
+}
+
+static SET_STAGE_MSG: Mutex<Option<StageInfo>> = Mutex::new(None);
 
 #[pax]
 #[main]
@@ -58,10 +72,14 @@ impl PaxDesigner {
         self.stage.set(StageInfo {
             width: 2561 / 2,
             height: 1440 / 2,
+            color: Color::WHITE,
         });
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        if let Some(msg) = SET_STAGE_MSG.lock().unwrap().take() {
+            self.stage.set(msg);
+        }
         model::read_app_state(|app_state| {
             // set transform to world transform
             let world_to_glass = app_state.glass_to_world_transform.inverse();
@@ -89,4 +107,5 @@ impl PaxDesigner {
 pub struct StageInfo {
     pub width: u32,
     pub height: u32,
+    pub color: Color,
 }

@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
 use crate::model::AppState;
-use crate::{model, USERLAND_PROJECT_ID};
+use crate::{model, SetStage, StageInfo, USERLAND_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, World};
@@ -37,9 +37,11 @@ pub struct SetEditingComponent(pub TypeId);
 impl Action for SetEditingComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
         let type_id = self.0;
+
+        let user_import_prefix = format!("{}::", USER_PROJ_ROOT_IMPORT_PATH);
         let is_userland_component = type_id
             .import_path()
-            .is_some_and(|p| p.starts_with("pax_designer::pax_reexports::designer_project::"));
+            .is_some_and(|p| p.starts_with(&user_import_prefix));
 
         let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
 
@@ -47,6 +49,46 @@ impl Action for SetEditingComponent {
             return Err(anyhow!("tried to edit a non-userland comp"));
         }
         ctx.execute(SetLibraryState { open: false })?;
+
+        let stage = match type_id
+            .import_path()
+            .unwrap()
+            .trim_start_matches(&user_import_prefix)
+        {
+            // TODO make these hard coded stages
+            // queriable from the ORM (default values)
+            "Example" => StageInfo {
+                width: 2561 / 2,
+                height: 1440 / 2,
+                color: Color::WHITE,
+            },
+            "menu_bar::MenuBar" => StageInfo {
+                width: 2561 / 2,
+                height: 60,
+                color: Color::BLACK,
+            },
+            "movie_selector::MovieSelector" => StageInfo {
+                width: 2561 / 2,
+                height: 160,
+                color: Color::WHITE,
+            },
+            "main_button::MainButton" => StageInfo {
+                width: 110,
+                height: 35,
+                color: Color::WHITE,
+            },
+            name => {
+                log::warn!("component with import path: {:?} didn't have a specified stage size, using fallback", name);
+                StageInfo {
+                    width: 2561 / 2,
+                    height: 1440 / 2,
+                    color: Color::WHITE,
+                }
+            }
+        };
+
+        ctx.execute(SetStage(stage))?;
+
         let mut dt = ctx.engine_context.designtime.borrow_mut();
         let node = ctx
             .engine_context

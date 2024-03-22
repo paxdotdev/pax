@@ -14,8 +14,7 @@
                     <Group id=project_container>
                         <Example id=userland_project/>
                     </Group>
-                    // White backing plate for stage
-                    <Rectangle fill=WHITE/>
+                    <Rectangle fill={self.stage.color}/>
                 </Group>
             </Group>
         </Group>
