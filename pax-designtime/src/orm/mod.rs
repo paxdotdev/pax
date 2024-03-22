@@ -232,6 +232,7 @@ impl PaxManifestORM {
             command.undo(&mut self.manifest)?;
             self.redo_stack.push((id, command));
             self.manifest_version += 1;
+            self.set_reload(ReloadType::FullEdit);
         }
         Ok(())
     }
