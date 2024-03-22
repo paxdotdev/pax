@@ -26,6 +26,13 @@ pub struct ObjectEditor {
     pub control_points: Property<Vec<ControlPointDef>>,
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
+    pub editor_id: Property<Numeric>,
+
+    //editor bounds
+    pub x: Property<f64>,
+    pub y: Property<f64>,
+    pub width: Property<f64>,
+    pub height: Property<f64>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -52,8 +59,35 @@ impl ObjectEditor {
             }
             *BOUNDS.lock().unwrap() = total_bounds;
 
-            if let Some((bounds, _origin)) = &derived_state.selected_bounds.get_single() {
-                self.set_generic_object_editor(bounds);
+            //reset state
+            self.editor_id.set(0.into());
+            // set state that isn't determined by selection type and object
+            if let Some(bounds) = &derived_state.selected_bounds.total_bounds() {
+                self.x.set(bounds.top_left().x);
+                self.y.set(bounds.top_left().y);
+                self.width.set(bounds.width());
+                self.height.set(bounds.height());
+            }
+
+            if let Some(item) = &derived_state.selected_bounds.get_single() {
+                let mut dt = ctx.designtime.borrow_mut();
+                let node = dt
+                    .get_orm_mut()
+                    .get_node(item.id.clone())
+                    .expect("node exists")
+                    .get_type_id()
+                    .import_path();
+
+                match node.as_ref().map(|v| v.as_str()) {
+                    Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
+                        self.set_generic_object_editor(&item.bounds);
+                        self.editor_id.set(1.into());
+                    }
+                    path => {
+                        pax_engine::log::debug!("using generic editor for: {:?}", path);
+                        self.set_generic_object_editor(&item.bounds);
+                    }
+                };
             } else if let Some(total_bounds) = derived_state.selected_bounds.total_bounds() {
                 let mut editor = Editor::new();
                 let [p1, p2, p3, p4] = total_bounds.corners();
@@ -147,14 +181,15 @@ impl ObjectEditor {
         impl ControlPointBehaviour for ResizeBehaviour {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 let world_point = ctx.world_transform() * point;
-                let Some((ref axis_box, origin)) = self.initial_selection_state.get_single() else {
+                let Some(item) = self.initial_selection_state.get_single() else {
                     // TODO handle multi-selection
                     return;
                 };
-                let axis_box_world = axis_box
+                let axis_box_world = item
+                    .bounds
                     .try_into_space(ctx.world_transform())
                     .expect("tried to transform axis aligned box to non-axis aligned space");
-                let origin_world = ctx.world_transform() * origin;
+                let origin_world = ctx.world_transform() * item.origin;
                 if let Err(e) = ctx.execute(action::orm::ResizeSelected {
                     attachment_point: self.attachment_point,
                     original_bounds: (axis_box_world, origin_world),
@@ -247,7 +282,7 @@ impl ObjectEditor {
                     .selection_state()
                     .get_single()
                     .expect("an object is selected")
-                    .1;
+                    .origin;
                 let start_angle = ctx
                     .selected_nodes()
                     .first()

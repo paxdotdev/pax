@@ -152,9 +152,9 @@ impl SelectionState {
     // Temporary way to get the signle selected object, or none.
     // This will be superseded once all operations on selectionstate
     // accept multiple objects
-    pub fn get_single(&self) -> Option<(AxisAlignedBox, Point2<Glass>)> {
+    pub fn get_single(&self) -> Option<&SelectedItem> {
         if self.items.len() == 1 {
-            Some((self.items[0].bounds.clone(), self.items[0].origin))
+            Some(&self.items[0])
         } else {
             None
         }
@@ -174,9 +174,9 @@ impl SelectionState {
 }
 
 pub struct SelectedItem {
-    bounds: AxisAlignedBox,
-    origin: Point2<Glass>,
-    id: UniqueTemplateNodeIdentifier,
+    pub bounds: AxisAlignedBox,
+    pub origin: Point2<Glass>,
+    pub id: UniqueTemplateNodeIdentifier,
 }
 
 // This represents values that can be deterministically produced from the app
