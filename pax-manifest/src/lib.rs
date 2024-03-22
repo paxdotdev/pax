@@ -68,6 +68,17 @@ impl PaxManifest {
             .unwrap()
             .get_location(&uni.template_node_id)
     }
+
+    pub fn get_all_property_names(&self, type_id: &TypeId) -> HashSet<String> {
+        let mut ret = HashSet::new();
+        self.get_all_component_properties(type_id)
+            .iter()
+            .for_each(|prop| {
+                ret.insert(prop.name.clone());
+            });
+        ret
+    }    
+
 }
 
 pub fn get_common_properties_type_ids() -> Vec<TypeId> {
@@ -105,6 +116,7 @@ pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition
     }
     ret
 }
+
 
 impl Eq for ExpressionSpec {}
 
@@ -1149,14 +1161,14 @@ impl ComponentTemplate {
 
     /// Returns a map from string to expression id.
     /// This is used for live reloading without compilation
-    pub fn get_known_expressions(&self) -> HashMap<String, usize> {
+    pub fn get_known_expressions(&self) -> HashMap<String, ExpressionCompilationInfo> {
         let mut ret = HashMap::new();
         for (_, tnd) in self.nodes.iter() {
             if let Some(settings) = &tnd.settings {
                 for setting in settings {
                     if let SettingElement::Setting(_, v) = setting {
                         if let ValueDefinition::Expression(t, id) = v {
-                            ret.insert(t.raw_value.clone(), id.unwrap());
+                            ret.insert(t.raw_value.clone(), id.clone().unwrap());
                         }
                         if let ValueDefinition::Block(b) = v {
                             Self::recurse_get_known_expressions(b, &mut ret);
@@ -1170,12 +1182,12 @@ impl ComponentTemplate {
 
     fn recurse_get_known_expressions(
         block: &LiteralBlockDefinition,
-        known_expressions: &mut HashMap<String, usize>,
+        known_expressions: &mut HashMap<String, ExpressionCompilationInfo>,
     ) {
         for s in block.elements.iter() {
             if let SettingElement::Setting(_, v) = s {
-                if let ValueDefinition::Expression(t, id) = v {
-                    known_expressions.insert(t.raw_value.clone(), id.unwrap());
+                if let ValueDefinition::Expression(t, e) = v {
+                    known_expressions.insert(t.raw_value.clone(), e.clone().unwrap());
                 }
                 if let ValueDefinition::Block(b) = v {
                     Self::recurse_get_known_expressions(b, known_expressions);
@@ -1185,14 +1197,14 @@ impl ComponentTemplate {
     }
 
     /// Given a list of known expressions, this function will update the expression ids in the template
-    pub fn update_expression_ids(&mut self, known_expressions: &HashMap<String, usize>) {
+    pub fn update_expression_ids(&mut self, known_expressions: &HashMap<String, ExpressionCompilationInfo>) {
         for (_, tnd) in self.nodes.iter_mut() {
             if let Some(settings) = &mut tnd.settings {
                 for setting in settings {
                     if let SettingElement::Setting(k, v) = setting {
-                        if let ValueDefinition::Expression(t, id) = v {
-                            if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
-                                *id = Some(*new_id);
+                        if let ValueDefinition::Expression(t, ec) = v {
+                            if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
+                                *ec = Some(new_ec.clone());
                             }
                         }
                         if let ValueDefinition::Block(b) = v {
@@ -1206,13 +1218,13 @@ impl ComponentTemplate {
 
     fn recurse_update_block(
         block: &mut LiteralBlockDefinition,
-        known_expressions: &HashMap<String, usize>,
+        known_expressions: &HashMap<String, ExpressionCompilationInfo>,
     ) {
         for s in block.elements.iter_mut() {
             if let SettingElement::Setting(k, v) = s {
-                if let ValueDefinition::Expression(t, id) = v {
-                    if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
-                        *id = Some(*new_id);
+                if let ValueDefinition::Expression(t, ec) = v {
+                    if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
+                        *ec = Some(new_ec.clone());
                     }
                 }
                 if let ValueDefinition::Block(b) = v {
@@ -1444,6 +1456,16 @@ impl TypeDefinition {
         }
     }
 }
+
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct ExpressionCompilationInfo {
+    pub vtable_id: usize,
+    /// symbols used in the expression
+    pub dependencies: Vec<String>,
+}
+
+
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
@@ -1454,9 +1476,9 @@ pub enum ValueDefinition {
     LiteralValue(Token),
     Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
-    Expression(Token, Option<usize>),
+    Expression(Token, Option<ExpressionCompilationInfo>),
     /// (Expression contents, vtable id binding)
-    Identifier(Token, Option<usize>),
+    Identifier(Token, Option<ExpressionCompilationInfo>),
     EventBindingTarget(Token),
 }
 
@@ -1553,6 +1575,19 @@ pub enum ControlFlowRepeatPredicateDefinition {
     ElemIdIndexId(Token, Token),
 }
 
+impl ControlFlowRepeatPredicateDefinition {
+    pub fn get_symbols(&self) -> HashSet<String>{
+        match self {
+            ControlFlowRepeatPredicateDefinition::ElemId(t) => {
+                vec![t.raw_value.clone()].into_iter().collect()
+            }
+            ControlFlowRepeatPredicateDefinition::ElemIdIndexId(t1, t2) => {
+                vec![t1.raw_value.clone(), t2.raw_value.clone()].into_iter().collect()
+            }
+        }
+    }
+}
+
 /// Container for storing parsed control flow information, for
 /// example the string (PAXEL) representations of condition / slot / repeat
 /// expressions and the related vtable ids (for "punching" during expression compilation)
@@ -1566,6 +1601,7 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
 }
+
 
 impl PartialEq for ControlFlowRepeatSourceDefinition {
     fn eq(&self, other: &Self) -> bool {

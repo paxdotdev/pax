@@ -122,7 +122,8 @@ impl InstanceNode for RepeatInstance {
                         i,
                         elem: Rc::clone(&elem),
                     })) as Rc<RefCell<dyn Any>>;
-                    let new_env = expanded_node.stack.push(&new_repeat_item);
+                    let property_names = expanded_node.instance_node.borrow().base().property_names.clone().unwrap_or_default();
+                    let new_env = expanded_node.stack.push(property_names, &new_repeat_item);
                     children
                         .borrow()
                         .clone()
