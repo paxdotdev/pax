@@ -9,6 +9,17 @@ for segment in self.bounding_segments {
     <Path class=bounding_segment/>
 }
 
+// Text editor
+if self.editor_id == 1 {
+    <Rectangle
+        x={self.x} 
+        y={self.y} 
+        width={self.width} 
+        height={self.height} 
+        fill=rgba(0, 255, 0, 100)
+    />
+}
+
 @settings {
     @pre_render: pre_render,
     .bounding_segment {
