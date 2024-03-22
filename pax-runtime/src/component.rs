@@ -76,8 +76,8 @@ impl InstanceNode for ComponentInstance {
             *expanded_node.expanded_slot_children.borrow_mut() =
                 Some(containing_component.create_children_detached(children_with_env, context));
         }
-
-        let new_env = expanded_node.stack.push(&expanded_node.properties.borrow());
+        let property_names = expanded_node.instance_node.borrow().base().property_names.clone().unwrap_or_default();
+        let new_env = expanded_node.stack.push(property_names, &expanded_node.properties.borrow());
         let children = self.template.borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.set_children(children_with_envs, context);

@@ -150,8 +150,9 @@ macro_rules! dispatch_event_handler {
 
 impl ExpandedNode {
     pub fn root(template: Rc<ComponentInstance>, context: &mut RuntimeContext) -> Rc<Self> {
+        let property_names = template.base().property_names.clone().unwrap_or_default();
         let root_env =
-            RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
+            RuntimePropertiesStackFrame::new(property_names, Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
         root_node
