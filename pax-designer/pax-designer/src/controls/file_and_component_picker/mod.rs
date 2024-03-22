@@ -23,6 +23,7 @@ use crate::model;
 use crate::model::action::Action;
 use crate::model::action::ActionContext;
 use crate::model::action::CanUndo;
+use crate::USER_PROJ_ROOT_IMPORT_PATH;
 
 #[pax]
 #[file("controls/file_and_component_picker/mod.pax")]
@@ -91,9 +92,9 @@ impl FileAndComponentPicker {
             .get_components()
             .iter()
             .filter_map(|type_id| {
-                let is_userland_component = type_id.import_path().is_some_and(|p| {
-                    p.starts_with("pax_designer::pax_reexports::designer_project::")
-                });
+                let is_userland_component = type_id
+                    .import_path()
+                    .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH));
 
                 let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
 
