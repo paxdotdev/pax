@@ -8,6 +8,8 @@ use crate::math::coordinate_spaces::World;
 use crate::math::AxisAlignedBox;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
+use crate::USER_PROJ_ROOT_COMPONENT;
+use crate::USER_PROJ_ROOT_IMPORT_PATH;
 use action::Action;
 use anyhow::anyhow;
 use anyhow::Context;
@@ -45,7 +47,10 @@ pub struct GlobalDesignerState {
 impl GlobalDesignerState {
     fn new() -> Self {
         let userland_project_root_type_id = TypeId::build_singleton(
-            "pax_designer::pax_reexports::designer_project::Example",
+            &format!(
+                "{}::{}",
+                USER_PROJ_ROOT_IMPORT_PATH, USER_PROJ_ROOT_COMPONENT
+            ),
             None,
         );
         Self {
