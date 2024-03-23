@@ -7,6 +7,7 @@ use pax_runtime::api::math::Point2;
 use pax_runtime::api::ButtonClick;
 use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::RenderContext;
+use pax_runtime::api::TextInput;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::TextboxInput;
 use pax_runtime::ExpressionTable;
@@ -191,6 +192,16 @@ impl PaxChassisWeb {
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_input(
                     TextboxInput { text: args.text },
+                    globals,
+                    &engine.runtime_context,
+                )
+            }
+            NativeInterrupt::TextInput(args) => {
+                let node = engine
+                    .get_expanded_node(args.id_chain[0])
+                    .expect("text node exists in engine");
+                node.dispatch_text_input(
+                    TextInput { text: args.text },
                     globals,
                     &engine.runtime_context,
                 )

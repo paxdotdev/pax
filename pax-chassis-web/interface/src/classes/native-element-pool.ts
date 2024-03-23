@@ -403,6 +403,16 @@ export class NativeElementPool {
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textChild.addEventListener("input", (_event) => {
+            let message = {
+              "TextInput": {
+                "id_chain": patch.idChain!,
+                "text": textChild.textContent ?? '',
+              }
+            };
+
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+        });
         runningChain.appendChild(textChild);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
@@ -441,9 +451,26 @@ export class NativeElementPool {
             leaf.style.height = patch.size_y + "px";
         }
 
+
         // Handle transform
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+
+        if (patch.editable != null) {
+            textChild.setAttribute("contenteditable", patch.editable.toString());
+            textChild.style.outline = "none";
+            // focus on entry
+            setTimeout(() => { textChild.focus(); }, 10);
+            // when element is focused, jump cursor to end of text
+            textChild.addEventListener('focus', () => {
+              const range = document.createRange();
+              range.selectNodeContents(textChild);
+              range.collapse(false);
+              const selection = window.getSelection();
+              selection?.removeAllRanges();
+              selection?.addRange(range);
+            });            
         }
 
         applyTextTyle(leaf, textChild, patch.style);
@@ -451,6 +478,7 @@ export class NativeElementPool {
         // Apply the content
         if (patch.content != null) {
             // @ts-ignore
+            
             textChild.innerHTML = snarkdown(patch.content);
 
             // Apply the link styles if they exist

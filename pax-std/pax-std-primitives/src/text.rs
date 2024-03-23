@@ -1,4 +1,4 @@
-use kurbo::{Rect, RoundedRect, Shape};
+use kurbo::{RoundedRect, Shape};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::declarative_macros::handle_vtable_update;
@@ -47,6 +47,7 @@ impl InstanceNode for TextInstance {
             let tbl = context.expression_table();
             let stk = &expanded_node.stack;
             handle_vtable_update(tbl, stk, &mut properties.text, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.editable, context.globals());
 
             // Style
             handle_vtable_update(tbl, stk, &mut properties.style, context.globals());
@@ -82,6 +83,11 @@ impl InstanceNode for TextInstance {
                     &mut old_state.content,
                     &mut patch.content,
                     properties.text.get().string.clone(),
+                ),
+                patch_if_needed(
+                    &mut old_state.editable,
+                    &mut patch.editable,
+                    *properties.editable.get(),
                 ),
                 // Styles
                 patch_if_needed(

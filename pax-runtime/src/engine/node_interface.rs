@@ -35,7 +35,7 @@ impl NodeInterface {
         base.template_node_identifier.clone()
     }
 
-    pub fn properties(&self) -> Properties {
+    pub fn common_properties(&self) -> Properties {
         let cp = self.inner.get_common_properties();
         let rot = cp
             .borrow()
@@ -46,6 +46,10 @@ impl NodeInterface {
         Properties {
             local_rotation: rot,
         }
+    }
+
+    pub fn with_properties<T: 'static>(&self, f: impl FnOnce(&mut T)) {
+        self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
     pub fn origin(&self) -> Option<Point2<Window>> {
