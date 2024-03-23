@@ -7,7 +7,9 @@ use pax_engine::api::*;
 use pax_engine::math::{Point2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
-use pax_std::primitives::{Group, Path, Rectangle};
+use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
+use pax_std::primitives::{Group, Path, Rectangle, Text, Textbox};
+use pax_std::types::text::TextStyle;
 use pax_std::types::Fill;
 use serde::Deserialize;
 
@@ -23,16 +25,19 @@ use crate::model::{self, action, SelectionState};
 #[pax]
 #[file("glass/object_editor.pax")]
 pub struct ObjectEditor {
+    pub ids: Property<Vec<TemplateNodeId>>,
     pub control_points: Property<Vec<ControlPointDef>>,
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
     pub editor_id: Property<Numeric>,
-
     //editor bounds
     pub x: Property<f64>,
     pub y: Property<f64>,
     pub width: Property<f64>,
     pub height: Property<f64>,
+
+    pub textbox_editor_style: Property<TextStyle>,
+    pub textbox_editor_text: Property<StringBox>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -50,7 +55,8 @@ impl ObjectEditor {
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
-        model::read_app_state_with_derived(ctx, |_app_state, derived_state| {
+        model::read_app_state_with_derived(ctx, |app_state, derived_state| {
+            self.ids.set(app_state.selected_template_node_ids.clone());
             // HACK: dirty dag manual check if we need to update
             static BOUNDS: Mutex<Option<AxisAlignedBox>> = Mutex::new(None);
             let total_bounds = derived_state.selected_bounds.total_bounds();
@@ -71,6 +77,8 @@ impl ObjectEditor {
 
             if let Some(item) = &derived_state.selected_bounds.get_single() {
                 let mut dt = ctx.designtime.borrow_mut();
+
+                // figure out type from template_node (can be changed if we expose this on expanded node)
                 let node = dt
                     .get_orm_mut()
                     .get_node(item.id.clone())
@@ -82,6 +90,17 @@ impl ObjectEditor {
                     Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
                         self.set_generic_object_editor(&item.bounds);
                         self.editor_id.set(1.into());
+                        let node = ctx
+                            .get_nodes_by_global_id(item.id.clone())
+                            .into_iter()
+                            .next()
+                            .unwrap();
+
+                        node.with_properties(|text: &mut Text| {
+                            //copy over styles
+                            self.textbox_editor_style.set(text.style.get().clone());
+                            self.textbox_editor_text.set(text.text.get().clone());
+                        });
                     }
                     path => {
                         pax_engine::log::debug!("using generic editor for: {:?}", path);
@@ -288,7 +307,7 @@ impl ObjectEditor {
                     .first()
                     .unwrap()
                     .1
-                    .properties()
+                    .common_properties()
                     .local_rotation;
                 let start_dir = point - rotation_anchor;
                 Box::new(RotationBehaviour {
@@ -314,6 +333,22 @@ impl ObjectEditor {
         );
 
         self.set_editor(editor);
+    }
+
+    pub fn text_editor_input(&mut self, ctx: &NodeContext, event: Event<TextInput>) {
+        let mut dt = ctx.designtime.borrow_mut();
+        let type_id = model::read_app_state(|app_state| app_state.selected_component_id.clone());
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node(UniqueTemplateNodeIdentifier::build(
+                type_id,
+                self.ids.get().first().unwrap().clone(),
+            ))
+            .unwrap();
+        builder
+            .set_typed_property("text", StringBox::from(event.text.clone()))
+            .unwrap();
+        builder.save().unwrap();
     }
 }
 
