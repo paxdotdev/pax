@@ -362,6 +362,11 @@ pub struct CheckboxChange {
 }
 
 #[derive(Clone)]
+pub struct TextInput {
+    pub text: String,
+}
+
+#[derive(Clone)]
 pub struct TextboxChange {
     pub text: String,
 }
