@@ -1,11 +1,13 @@
+use pax_runtime_api::TextInput;
+
 use crate::api::math::Point2;
 use crate::constants::{
     BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS,
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS,
     KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS,
     MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
-    TEXTBOX_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
-    WHEEL_HANDLERS,
+    TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
+    TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use crate::{properties, Globals};
 #[cfg(debug_assertions)]
@@ -575,6 +577,7 @@ impl ExpandedNode {
         TEXTBOX_CHANGE_HANDLERS,
         true
     );
+    dispatch_event_handler!(dispatch_text_input, TextInput, TEXT_INPUT_HANDLERS, true);
     dispatch_event_handler!(
         dispatch_textbox_input,
         TextboxInput,

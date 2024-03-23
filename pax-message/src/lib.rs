@@ -55,6 +55,7 @@ pub enum NativeInterrupt {
     ContextMenu(ContextMenuInterruptArgs),
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
+    TextInput(TextInputArgs),
     FormCheckboxToggle(FormCheckboxToggleArgs),
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
@@ -71,6 +72,13 @@ pub struct FormCheckboxToggleArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormTextboxChangeArgs {
+    pub text: String,
+    pub id_chain: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct TextInputArgs {
     pub text: String,
     pub id_chain: Vec<u32>,
 }
@@ -373,6 +381,7 @@ pub struct OcclusionPatch {
 pub struct TextPatch {
     pub id_chain: Vec<u32>,
     pub content: Option<String>,
+    pub editable: Option<bool>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,

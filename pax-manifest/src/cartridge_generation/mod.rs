@@ -65,6 +65,7 @@ impl PaxManifest {
         add("checkbox_change", "CheckboxChange");
         add("button_click", "ButtonClick");
         add("textbox_change", "TextboxChange");
+        add("text_input", "TextInput");
         add("textbox_input", "TextboxInput");
         add("click", "Click");
         add("mouse_down", "MouseDown");
