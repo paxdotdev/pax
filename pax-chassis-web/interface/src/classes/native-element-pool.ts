@@ -407,7 +407,12 @@ export class NativeElementPool {
             let message = {
               "TextInput": {
                 "id_chain": patch.idChain!,
-                "text": textChild.textContent ?? '',
+                // why all the replaces?
+                // see: https://stackoverflow.com/questions/13762863/contenteditable-field-to-maintain-newlines-upon-database-entry
+                "text": textChild.innerHTML
+                        .replace(/<br\s*\/*>/ig, '\n') 
+                        .replace(/(<(p|div))/ig, '\n$1') 
+                        .replace(/(<([^>]+)>)/ig, "")?? '',
               }
             };
 
@@ -459,12 +464,13 @@ export class NativeElementPool {
 
         if (patch.editable != null) {
             textChild.setAttribute("contenteditable", patch.editable.toString());
-            textChild.style.outline = "none";
-
-            // without these the editable div doesn't register
-            // clicks in the entire outside div as a request to edit
-            textChild.style.width = "inherit";
-            textChild.style.height = "inherit";
+            if (patch.editable == true) {
+                textChild.style.outline = "none";
+                // without these the editable div doesn't register
+                // clicks in the entire outside div as a request to edit
+                textChild.style.width = "inherit";
+                textChild.style.height = "inherit";
+            }
         }
 
         applyTextTyle(leaf, textChild, patch.style);
