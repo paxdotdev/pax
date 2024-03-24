@@ -356,13 +356,15 @@ impl ObjectEditor {
         let Some(templ_id) = self.ids.get().first() else {
             return;
         };
-        let mut builder = dt
+        let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
                 type_id,
                 templ_id.clone(),
             ))
-            .unwrap();
+        else {
+            return;
+        };
         builder
             .set_typed_property("text", self.textbox_editor_text.get().clone())
             .unwrap();
