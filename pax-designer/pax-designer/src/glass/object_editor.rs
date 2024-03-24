@@ -120,7 +120,6 @@ impl ObjectEditor {
                         });
                     }
                     path => {
-                        pax_engine::log::debug!("using generic editor for: {:?}", path);
                         self.set_generic_object_editor(&item.bounds);
                     }
                 };
