@@ -7,7 +7,7 @@ use pax_engine::api::*;
 use pax_engine::math::{Point2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
-use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::primitives::{Group, Path, Rectangle, Text, Textbox};
 use pax_std::types::text::TextStyle;
 use pax_std::types::Fill;
@@ -38,6 +38,7 @@ pub struct ObjectEditor {
 
     pub textbox_editor_style: Property<TextStyle>,
     pub textbox_editor_text: Property<StringBox>,
+    pub textbox_editor_original_text: Property<StringBox>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -56,6 +57,14 @@ impl ObjectEditor {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state_with_derived(ctx, |app_state, derived_state| {
+            // HACK: if we were editing text, and the selection has changed,
+            // commit the text changes to the old selection before
+            // selecting this new object
+            if &app_state.selected_template_node_ids != self.ids.get() {
+                if *self.editor_id.get() == 1 {
+                    self.commit_changes(ctx, app_state.selected_component_id.clone());
+                }
+            }
             self.ids.set(app_state.selected_template_node_ids.clone());
             // HACK: dirty dag manual check if we need to update
             static BOUNDS: Mutex<Option<AxisAlignedBox>> = Mutex::new(None);
@@ -97,9 +106,17 @@ impl ObjectEditor {
                             .unwrap();
 
                         node.with_properties(|text: &mut Text| {
-                            //copy over styles
-                            self.textbox_editor_style.set(text.style.get().clone());
-                            self.textbox_editor_text.set(text.text.get().clone());
+                            // HACK: if this textbox isn't already in "editing state, copy over style and content,
+                            // and replace content by invisible character to mark as "taken".
+                            // NOTE: if we need to hide the underlying object in more places than text,
+                            // create a common property "visible" that temporarily hides a template-node
+                            if &text.text.get().string != "\u{2800}" {
+                                self.textbox_editor_style.set(text.style.get().clone());
+                                self.textbox_editor_text.set(text.text.get().clone());
+                                self.textbox_editor_original_text
+                                    .set(text.text.get().clone());
+                                text.text.set(StringBox::from("\u{2800}".to_string()));
+                            }
                         });
                     }
                     path => {
@@ -335,20 +352,27 @@ impl ObjectEditor {
         self.set_editor(editor);
     }
 
-    pub fn text_editor_input(&mut self, ctx: &NodeContext, event: Event<TextInput>) {
+    pub fn commit_changes(&mut self, ctx: &NodeContext, type_id: TypeId) {
         let mut dt = ctx.designtime.borrow_mut();
-        let type_id = model::read_app_state(|app_state| app_state.selected_component_id.clone());
+        let Some(templ_id) = self.ids.get().first() else {
+            return;
+        };
         let mut builder = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
                 type_id,
-                self.ids.get().first().unwrap().clone(),
+                templ_id.clone(),
             ))
             .unwrap();
         builder
-            .set_typed_property("text", StringBox::from(event.text.clone()))
+            .set_typed_property("text", self.textbox_editor_text.get().clone())
             .unwrap();
         builder.save().unwrap();
+    }
+
+    pub fn text_editor_input(&mut self, _ctx: &NodeContext, event: Event<TextInput>) {
+        self.textbox_editor_text
+            .set(StringBox::from(event.text.clone()));
     }
 }
 

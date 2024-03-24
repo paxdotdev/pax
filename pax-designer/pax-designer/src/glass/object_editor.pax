@@ -13,7 +13,7 @@ if self.editor_id == 1 {
     // Text editor
     <Text
         editable=true
-        text={self.textbox_editor_text}
+        text={self.textbox_editor_original_text}
         x={self.x} 
         y={self.y} 
         width={self.width} 
