@@ -460,9 +460,15 @@ export class NativeElementPool {
         if (patch.editable != null) {
             textChild.setAttribute("contenteditable", patch.editable.toString());
             textChild.style.outline = "none";
+
+            // without these the editable div doesn't register
+            // clicks in the entire outside div as a request to edit
+            textChild.style.width = "inherit";
+            textChild.style.height = "inherit";
+
             // focus on entry
             setTimeout(() => { textChild.focus(); }, 10);
-            // when element is focused, jump cursor to end of text
+            // make sure cursor position on focus is set to end of text
             textChild.addEventListener('focus', () => {
               const range = document.createRange();
               range.selectNodeContents(textChild);
