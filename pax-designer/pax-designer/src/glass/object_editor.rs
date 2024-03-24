@@ -109,7 +109,7 @@ impl ObjectEditor {
                             // HACK: if this textbox isn't already in "editing state, copy over style and content,
                             // and replace content by invisible character to mark as "taken".
                             // NOTE: if we need to hide the underlying object in more places than text,
-                            // create a common property "visible" that temporarily hides a template-node
+                            // create a common property "visible" that temporarily hides an expanded node
                             if &text.text.get().string != "\u{2800}" {
                                 self.textbox_editor_style.set(text.style.get().clone());
                                 self.textbox_editor_text.set(text.text.get().clone());
