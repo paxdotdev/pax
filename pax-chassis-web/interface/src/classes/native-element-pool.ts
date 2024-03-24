@@ -465,18 +465,6 @@ export class NativeElementPool {
             // clicks in the entire outside div as a request to edit
             textChild.style.width = "inherit";
             textChild.style.height = "inherit";
-
-            // focus on entry
-            setTimeout(() => { textChild.focus(); }, 10);
-            // make sure cursor position on focus is set to end of text
-            textChild.addEventListener('focus', () => {
-              const range = document.createRange();
-              range.selectNodeContents(textChild);
-              range.collapse(false);
-              const selection = window.getSelection();
-              selection?.removeAllRanges();
-              selection?.addRange(range);
-            });            
         }
 
         applyTextTyle(leaf, textChild, patch.style);
