@@ -7,7 +7,9 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         Box::new(|| Rc::new(RefCell::new({{component.pascal_identifier}}::default())))
     }
 
-    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
+    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> {
+        Box::new(|stackframe , expression_table | Rc::new(RefCell::new(
+            {
         let mut properties = {{component.pascal_identifier}}::default();
         {% for property in component.properties %}
             if let Some(vd) = defined_properties.get("{{property.name}}") {
@@ -36,9 +38,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                     };
             }
         {% endfor %}
-        Box::new(move || Rc::new(RefCell::new(
-        {
-            properties.clone()
+        properties
         })))
     }
 

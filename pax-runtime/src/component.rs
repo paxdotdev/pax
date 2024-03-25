@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::rc::Rc;
 use std::{cell::RefCell, iter};
 
@@ -53,7 +54,7 @@ impl InstanceNode for ComponentInstance {
         // Compute properties
         (*self.compute_properties_fn)(
             &expanded_node,
-            context.expression_table(),
+            context.expression_table().borrow(),
             context.globals(),
         );
 
