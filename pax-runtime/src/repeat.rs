@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
@@ -70,13 +71,13 @@ impl InstanceNode for RepeatInstance {
         let new_vec =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 handle_vtable_update_optional(
-                    context.expression_table(),
+                    context.expression_table().borrow(),
                     &expanded_node.stack,
                     properties.source_expression_range.as_ref(),
                     context.globals(),
                 );
                 handle_vtable_update_optional(
-                    context.expression_table(),
+                    context.expression_table().borrow(),
                     &expanded_node.stack,
                     properties.source_expression_vec.as_ref(),
                     context.globals(),

@@ -14,7 +14,7 @@ use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll, Size};
 
-use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
+use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -22,8 +22,8 @@ pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
 pub struct InstantiationArgs {
-    pub prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
-    pub prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    pub prototypical_common_properties_factory: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>,
+    pub prototypical_properties_factory: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
@@ -251,9 +251,9 @@ pub trait InstanceNode {
 
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    pub instance_prototypical_properties_factory: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
     pub instance_prototypical_common_properties_factory:
-        Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub property_names: Option<HashSet<String>>,
     instance_children: InstanceNodePtrList,

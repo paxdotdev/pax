@@ -10,7 +10,7 @@ use crate::{ExpressionTable, Globals, RuntimePropertiesStackFrame};
 /// handle_vtable_update!(ptc, self.height, Size);
 /// ```
 pub fn handle_vtable_update<V: Default + Clone + Interpolatable + 'static>(
-    table: &ExpressionTable,
+    table: &Rc<ExpressionTable>,
     stack: &Rc<RuntimePropertiesStackFrame>,
     property: &Property<V>,
     globals: &Globals,
@@ -42,7 +42,7 @@ pub fn handle_vtable_update<V: Default + Clone + Interpolatable + 'static>(
 /// handle_vtable_update_optional!(ptc, self.scale_x, Size);
 /// ```
 pub fn handle_vtable_update_optional<V: Default + Clone + Interpolatable + 'static>(
-    table: &ExpressionTable,
+    table: &Rc<ExpressionTable>,
     stack: &Rc<RuntimePropertiesStackFrame>,
     optional_property: Option<&Property<V>>,
     globals: &Globals,
