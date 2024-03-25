@@ -119,6 +119,28 @@ impl<T: PropVal> Property<T> {
         }
     }
 
+    /// WARNING: this method can introduce circular dependencies if one is not careful.
+    /// Using it wrongly can introduce memory leaks and inconsistent property behaviour.
+    /// This method can be used to replace an inner value from for example a literal to
+    /// a computed expression, while keeping the link to it's dependents
+    pub fn replace_with(&self, prop: Property<T>) {
+        glob_prop_table(|t| {
+            t.with_prop_data_mut(self.id, |prop_data| {
+                t.with_prop_data(prop.id, |other| {
+                    prop_data.prop_type = other.prop_type.clone();
+                    prop_data.value = if let Some(v) = other.value.downcast_ref::<T>() {
+                        Box::new(v.clone())
+                    } else {
+                        Box::new(())
+                    };
+                });
+            });
+            // make sure dependencies of self
+            // know that something has changed
+            t.get_value_mut(self.id, |_: &mut T| {});
+        })
+    }
+
     /// Gets the currently stored value. Might be computationally
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
@@ -356,6 +378,7 @@ struct PropertyData {
     prop_type: PropType,
 }
 
+#[derive(Clone)]
 enum PropType {
     Literal,
     Expr {
@@ -430,6 +453,22 @@ mod tests {
         // make sure the above update
         // marked prop_2 as dirty
         assert_eq!(prop_2.get(), 20);
+    }
+
+    #[test]
+    fn test_property_replacement() {
+        let prop_1 = Property::literal(2);
+        let p1 = prop_1.clone();
+        let prop_2 = Property::expression(move || p1.get(), &[&prop_1]);
+
+        let prop_3 = Property::literal(6);
+        let p3 = prop_3.clone();
+        let prop_4 = Property::expression(move || p3.get(), &[&prop_3]);
+
+        assert_eq!(prop_2.get(), 2);
+        assert_eq!(prop_4.get(), 6);
+        prop_3.replace_with(prop_2);
+        assert_eq!(prop_4.get(), 2);
     }
 
     #[test]

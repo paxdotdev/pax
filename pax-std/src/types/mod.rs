@@ -292,10 +292,10 @@ impl RectangleCornerRadii {
         bottom_left: Numeric,
     ) -> Self {
         RectangleCornerRadii {
-            top_left: Box::new(PropertyLiteral::new(top_left)),
-            top_right: Box::new(PropertyLiteral::new(top_right)),
-            bottom_right: Box::new(PropertyLiteral::new(bottom_right)),
-            bottom_left: Box::new(PropertyLiteral::new(bottom_left)),
+            top_left: Property::new(top_left),
+            top_right: Property::new(top_right),
+            bottom_right: Property::new(bottom_right),
+            bottom_left: Property::new(bottom_left),
         }
     }
 }
