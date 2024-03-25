@@ -9,11 +9,13 @@ use crate::constants::{
     TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
-use crate::Globals;
+use crate::{ExpressionTable, Globals};
 #[cfg(debug_assertions)]
 use core::fmt;
 use std::any::Any;
+use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
@@ -166,10 +168,10 @@ impl ExpandedNode {
         context: &mut RuntimeContext,
         containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let properties = (&template.base().instance_prototypical_properties_factory)();
+        let properties = (&template.base().instance_prototypical_properties_factory)(env.clone(), context.expression_table());
         let common_properties = (&template
             .base()
-            .instance_prototypical_common_properties_factory)();
+            .instance_prototypical_common_properties_factory)(env.clone(), context.expression_table());
 
         Rc::new(ExpandedNode {
             id_chain: vec![context.gen_uid().0],
@@ -189,15 +191,15 @@ impl ExpandedNode {
         })
     }
 
-    pub fn recreate_with_new_data(self: &Rc<Self>, template: Rc<dyn InstanceNode>) {
+    pub fn recreate_with_new_data(self: &Rc<Self>, template: Rc<dyn InstanceNode>,
+        expression_table: Rc<ExpressionTable>) {
         *self.instance_node.borrow_mut() = Rc::clone(&template);
 
         *self.properties.borrow_mut() =
-            (&template.base().instance_prototypical_properties_factory)();
+            (&template.base().instance_prototypical_properties_factory)(self.stack.clone(), expression_table.clone());
         *self.common_properties.borrow_mut() = (template
             .base()
-            .instance_prototypical_common_properties_factory)(
-        );
+            .instance_prototypical_common_properties_factory)(self.stack.clone(), expression_table.clone());
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id_chain)
@@ -275,7 +277,7 @@ impl ExpandedNode {
     pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
         self.get_common_properties()
             .borrow_mut()
-            .compute_properties(&self.stack, context.expression_table(), context.globals());
+            .compute_properties(&self.stack, context.expression_table().borrow(), context.globals());
 
         let viewport = self
             .parent_expanded_node
@@ -293,6 +295,7 @@ impl ExpandedNode {
 
         if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
             for handler in registry
+                .deref()
                 .borrow()
                 .handlers
                 .get("tick")
@@ -314,6 +317,7 @@ impl ExpandedNode {
         }
         if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
             for handler in registry
+                .deref()
                 .borrow()
                 .handlers
                 .get("pre_render")
@@ -363,6 +367,7 @@ impl ExpandedNode {
             Rc::clone(&self.instance_node.borrow()).update(&self, context);
             if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
                 for handler in registry
+                    .deref()
                     .borrow()
                     .handlers
                     .get("mount")

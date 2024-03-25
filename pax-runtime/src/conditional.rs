@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::{iter, rc::Rc};
 
 use pax_runtime_api::Property;
@@ -46,7 +47,7 @@ impl InstanceNode for ConditionalInstance {
         let (should_update, active) =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
                 handle_vtable_update(
-                    context.expression_table(),
+                    context.expression_table().borrow(),
                     &expanded_node.stack,
                     &mut properties.boolean_expression,
                     context.globals(),

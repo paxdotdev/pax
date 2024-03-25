@@ -164,8 +164,8 @@ impl RuntimeContext {
         &mut self.globals
     }
 
-    pub fn expression_table(&self) -> &ExpressionTable {
-        &self.expression_table
+    pub fn expression_table(&self) -> Rc<ExpressionTable> {
+        self.expression_table.clone()
     }
 }
 
