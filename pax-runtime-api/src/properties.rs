@@ -85,7 +85,7 @@ impl<T: PropVal + Serialize> Serialize for Property<T> {
     where
         S: serde::Serializer,
     {
-        // TODO check if literal or expression, error on expression?
+        // TODO check if literal or computed, error on computed?
         self.get().serialize(serializer)
     }
 }
@@ -105,7 +105,7 @@ impl<T: PropVal> Property<T> {
 
     /// Used by engine to create dependency chains, the evaluator fires and
     /// re-computes a property each time it's dependencies change.
-    pub fn expression(evaluator: impl Fn() -> T + 'static, dependents: &[&dyn HasPropId]) -> Self {
+    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[&dyn HasPropId]) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let id = glob_prop_table(|t| {
             t.add_expr_entry(
@@ -122,7 +122,7 @@ impl<T: PropVal> Property<T> {
     /// WARNING: this method can introduce circular dependencies if one is not careful.
     /// Using it wrongly can introduce memory leaks and inconsistent property behaviour.
     /// This method can be used to replace an inner value from for example a literal to
-    /// a computed expression, while keeping the link to it's dependents
+    /// a computed computed, while keeping the link to it's dependents
     pub fn replace_with(&self, prop: Property<T>) {
         glob_prop_table(|t| {
             t.with_prop_data_mut(self.id, |prop_data| {
@@ -289,7 +289,7 @@ impl PropertyTable {
             } = &mut prop_data.prop_type
             {
                 // This dirty checking should be done automatically by sub-components (dependents)
-                // of the expression during the "get" calls while computing it.
+                // of the computed during the "get" calls while computing it.
                 if *dirty == true {
                     *dirty = false;
                     return Some(evaluator.clone());
@@ -332,11 +332,11 @@ impl PropertyTable {
             self.with_prop_data_mut(dep_id, |dep_data| {
                 if dep_id == id {
                     unreachable!(
-                        "property cycles should never happen with literals/expressions being a DAG"
+                        "property cycles should never happen with literals/computeds being a DAG"
                     );
                 }
                 let PropType::Expr { ref mut dirty, .. } = dep_data.prop_type else {
-                    unreachable!("non-expressions shouldn't depend on other properties")
+                    unreachable!("non-computeds shouldn't depend on other properties")
                 };
                 if !*dirty {
                     *dirty = true;
@@ -403,16 +403,16 @@ mod tests {
     }
 
     #[test]
-    fn test_expression_get() {
-        let prop = Property::<i32>::expression(|| 42, &[]);
+    fn test_computed_get() {
+        let prop = Property::<i32>::computed(|| 42, &[]);
         assert_eq!(prop.get(), 42);
     }
 
     #[test]
-    fn test_expression_dependent_on_literal() {
+    fn test_computed_dependent_on_literal() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::expression(move || p1.get() * 5, &[&prop_1]);
+        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &[&prop_1]);
 
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
@@ -423,7 +423,7 @@ mod tests {
     fn test_read() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::expression(move || p1.get() * 5, &[&prop_1]);
+        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &[&prop_1]);
 
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
@@ -438,7 +438,7 @@ mod tests {
     fn test_update() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::expression(move || p1.get() * 5, &[&prop_1]);
+        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &[&prop_1]);
 
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
@@ -459,11 +459,11 @@ mod tests {
     fn test_property_replacement() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::expression(move || p1.get(), &[&prop_1]);
+        let prop_2 = Property::computed(move || p1.get(), &[&prop_1]);
 
         let prop_3 = Property::literal(6);
         let p3 = prop_3.clone();
-        let prop_4 = Property::expression(move || p3.get(), &[&prop_3]);
+        let prop_4 = Property::computed(move || p3.get(), &[&prop_3]);
 
         assert_eq!(prop_2.get(), 2);
         assert_eq!(prop_4.get(), 6);
@@ -478,10 +478,10 @@ mod tests {
 
         let p1 = prop_1.clone();
         let p2 = prop_2.clone();
-        let prop_3 = Property::expression(move || p1.get() * p2.get(), &[&prop_1, &prop_2]);
+        let prop_3 = Property::computed(move || p1.get() * p2.get(), &[&prop_1, &prop_2]);
         let p1 = prop_1.clone();
         let p3 = prop_3.clone();
-        let prop_4 = Property::expression(move || p1.get() + p3.get(), &[&prop_1, &prop_3]);
+        let prop_4 = Property::computed(move || p1.get() + p3.get(), &[&prop_1, &prop_3]);
 
         assert_eq!(prop_4.get(), 14);
         prop_1.set(1);
