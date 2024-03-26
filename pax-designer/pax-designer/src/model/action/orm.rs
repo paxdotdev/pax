@@ -5,7 +5,7 @@ use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
-use crate::{math::BoxPoint, model::AppState};
+use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
@@ -258,6 +258,18 @@ impl Action for RotateSelected {
 pub struct DeleteSelected {}
 
 pub struct UndoRequested {}
+
+pub struct SerializeRequested {}
+
+impl Action for SerializeRequested {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        if let Err(e) = dt.send_component_update(&ctx.app_state.selected_component_id) {
+            pax_engine::log::error!("failed to save component to file: {:?}", e);
+        }
+        Ok(CanUndo::No)
+    }
+}
 
 impl Action for UndoRequested {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {

@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
-use crate::model::action::orm::UndoRequested;
+use crate::model::action::orm::{UndoRequested, SerializeRequested};
 
 use super::{
     action::{self, meta::ActionSet, orm::DeleteSelected, world, Action, ActionContext, CanUndo},
@@ -36,6 +36,7 @@ impl Default for InputMapper {
                 (RawInput::Delete, InputEvent::DeleteSelected),
                 (RawInput::Backspace, InputEvent::DeleteSelected),
                 (RawInput::Z, InputEvent::Undo),
+                (RawInput::S, InputEvent::Serialize),
             ]),
         }
     }
@@ -58,6 +59,7 @@ impl InputMapper {
             }
             (&InputEvent::DeleteSelected, Dir::Down) => Some(Box::new(DeleteSelected {})),
             (&InputEvent::Undo, Dir::Down) => Some(Box::new(UndoRequested {})),
+            (&InputEvent::Serialize, Dir::Down) => Some(Box::new(SerializeRequested {})),
             _ => None,
         }
     }
@@ -86,6 +88,7 @@ pub enum RawInput {
     Meta,
     Shift,
     K,
+    S,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -99,6 +102,7 @@ impl TryFrom<String> for RawInput {
             "v" => Self::V,
             "z" => Self::Z,
             "k" => Self::K,
+            "s" => Self::S,
             " " => Self::Space,
             "Control" => Self::Control,
             "=" => Self::Plus,
@@ -129,4 +133,5 @@ pub enum InputEvent {
     OpenLLMPrompt,
     DeleteSelected,
     Undo,
+    Serialize,
 }
