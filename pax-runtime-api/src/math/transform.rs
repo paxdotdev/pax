@@ -63,7 +63,11 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
     }
 
     pub fn scale(s: f64) -> Self {
-        Self::new([s, 0.0, 0.0, s, 0.0, 0.0])
+        Self::scale_sep(Vector2::new(s, s))
+    }
+
+    pub fn scale_sep(s: Vector2<WTo>) -> Self {
+        Self::new([s.x, 0.0, 0.0, s.y, 0.0, 0.0])
     }
 
     pub fn rotate(th: f64) -> Self {
@@ -106,6 +110,57 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
             inv_det * (self.m[2] * self.m[5] - self.m[3] * self.m[4]),
             inv_det * (self.m[1] * self.m[4] - self.m[0] * self.m[5]),
         ])
+    }
+
+    // Decomposes the transform into translation point + unit vector transforms
+    // (ie. where (0, 1) and (1, 0) end up)
+    pub fn decompose(&self) -> (Point2<WTo>, Vector2<WTo>, Vector2<WTo>) {
+        let [v1x, v1y, v2x, v2y, px, py] = self.m;
+        (
+            Point2::new(px, py),
+            Vector2::new(v1x, v1y),
+            Vector2::new(v2x, v2y),
+        )
+    }
+
+    pub fn parts(&self) -> Parts<WTo> {
+        let [a, b, c, d, e, f] = self.m;
+        let angle = f64::atan2(b, a);
+        let denom = a.powi(2) + b.powi(2);
+        let scale_x = f64::sqrt(denom);
+        let scale_y = (a * d - c * b) / scale_x;
+        let skew_x = f64::atan2(a * c + b * d, denom);
+
+        Parts {
+            origin: Vector2::new(e, f),
+            vx: Vector2::new(a, b),
+            vy: Vector2::new(c, d),
+            scale: Vector2::new(scale_x, scale_y),
+            skew: Vector2::new(skew_x, 0.0),
+            rotation: angle,
+        }
+    }
+}
+
+pub struct Parts<W> {
+    pub origin: Vector2<W>,
+    pub vx: Vector2<W>,
+    pub vy: Vector2<W>,
+    pub scale: Vector2<W>,
+    pub skew: Vector2<W>,
+    pub rotation: f64,
+}
+
+impl<W: Space> std::fmt::Debug for Parts<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Parts")
+            .field("origin", &self.origin)
+            .field("vx", &self.vx)
+            .field("vy", &self.vy)
+            .field("scale", &self.scale)
+            .field("skew", &self.skew)
+            .field("rotation", &self.rotation)
+            .finish()
     }
 }
 

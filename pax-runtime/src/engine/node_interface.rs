@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_runtime_api::math::Vector2;
 
 use crate::{
     api::math::{Point2, Space, Transform2},
@@ -69,6 +70,27 @@ impl NodeInterface {
         Some(origin_window)
     }
 
+    pub fn local_origin(&self) -> Option<Point2<NodeLocal>> {
+        let common_props = self.inner.get_common_properties();
+        let common_props = common_props.borrow();
+        let lp = self.inner.layout_properties.borrow();
+        let tab = &lp.as_ref()?.computed_tab;
+        let p_anchor = Point2::new(
+            common_props
+                .anchor_x
+                .as_ref()
+                // map 0.0 to 1.0
+                .map(|x| x.get().get_pixels(tab.bounds.0) / tab.bounds.0)
+                .unwrap_or(0.0),
+            common_props
+                .anchor_y
+                .as_ref()
+                .map(|y| y.get().get_pixels(tab.bounds.1) / tab.bounds.1)
+                .unwrap_or(0.0),
+        );
+        Some(p_anchor)
+    }
+
     pub fn transform(&self) -> Option<Transform2<Window, NodeLocal>> {
         let up_lp = self.inner.layout_properties.borrow_mut();
         if let Some(lp) = up_lp.as_ref() {
@@ -78,10 +100,11 @@ impl NodeInterface {
         }
     }
 
-    pub fn bounding_points(&self) -> Option<[Point2<Window>; 4]> {
-        let lp = self.inner.layout_properties.borrow();
-        if let Some(layout) = lp.as_ref() {
-            Some(layout.computed_tab.corners())
+    pub fn bounds(&self) -> Option<Transform2<NodeLocal, Window>> {
+        let up_lp = self.inner.layout_properties.borrow_mut();
+        if let Some(lp) = up_lp.as_ref() {
+            let (w, h) = lp.computed_tab.bounds;
+            Some(lp.computed_tab.transform * Transform2::scale_sep(Vector2::new(w, h)))
         } else {
             None
         }
