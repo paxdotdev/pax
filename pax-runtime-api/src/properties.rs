@@ -3,7 +3,7 @@ use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 use serde::{Deserialize, Serialize};
 use slotmap::SlotMap;
 
-use self::private::{HasPropId, PropId};
+use self::private::PropId;
 
 /// Reactive property type. Shallow clones can be cheaply made.
 #[derive(Debug)]
@@ -56,17 +56,6 @@ mod private {
         /// Sealed PropId (should be internal impl detail)
         pub struct PropId;
     );
-
-    /// Used to restrict dependencies to properties
-    pub trait HasPropId {
-        fn get_id(&self) -> PropId;
-    }
-}
-
-impl<T> HasPropId for Property<T> {
-    fn get_id(&self) -> PropId {
-        self.id
-    }
 }
 
 /// Note that serialization and deserialization fully disconnects properties,
@@ -105,7 +94,7 @@ impl<T: PropVal> Property<T> {
 
     /// Used by engine to create dependency chains, the evaluator fires and
     /// re-computes a property each time it's dependencies change.
-    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[&dyn HasPropId]) -> Self {
+    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &Vec<&ErasedProperty>) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let id = glob_prop_table(|t| {
             t.add_expr_entry(
@@ -388,6 +377,36 @@ enum PropType {
         subscriptions: Vec<PropId>,
     },
 }
+
+
+#[derive(Debug, Clone)]
+pub struct ErasedProperty {
+    id: PropId,
+}
+
+impl ErasedProperty {
+    pub fn get<T: PropVal>(&self) -> Property<T> {
+        Property {
+            id: self.id,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn get_id(&self) -> PropId {
+        self.id
+    }
+}
+
+pub trait Erasable {
+    fn erase(&self) -> ErasedProperty;
+}
+
+impl<T> Erasable for Property<T> {
+    fn erase(&self) -> ErasedProperty {
+        ErasedProperty { id: self.id }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

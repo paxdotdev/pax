@@ -39,7 +39,7 @@ impl InstanceNode for ButtonInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Button| {
-            let tbl = context.expression_table();
+            let tbl = &context.expression_table();
             let stk = &expanded_node.stack;
             handle_vtable_update(tbl, stk, &mut properties.label, context.globals());
 

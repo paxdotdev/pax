@@ -3,6 +3,7 @@ use crate::api::Window;
 use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
+use pax_runtime_api::properties::ErasedProperty;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -178,13 +179,13 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimePropertiesStackFrame {
-    symbols_within_frame: HashSet<String>,
+    symbols_within_frame: HashMap<String, ErasedProperty>,
     properties: Rc<RefCell<dyn Any>>,
     parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
 impl RuntimePropertiesStackFrame {
-    pub fn new(symbols_within_frame: HashSet<String>, properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn new(symbols_within_frame: HashMap<String, ErasedProperty>, properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
             properties,
@@ -192,7 +193,7 @@ impl RuntimePropertiesStackFrame {
         })
     }
 
-    pub fn push(self: &Rc<Self>, symbols_within_frame: HashSet<String>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn push(self: &Rc<Self>, symbols_within_frame: HashMap<String, ErasedProperty>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
             parent: Some(Rc::clone(&self)),
@@ -216,10 +217,18 @@ impl RuntimePropertiesStackFrame {
     }
 
     pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<dyn Any>>> {
-        if self.symbols_within_frame.contains(symbol) {
+        if let Some(_) = self.symbols_within_frame.get(symbol) {
             Some(Rc::clone(&self.properties))
         } else {
             self.parent.as_ref()?.resolve_symbol(symbol)
+        }
+    }
+
+    pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<&ErasedProperty> {
+        if let Some(e) = self.symbols_within_frame.get(symbol) {
+            Some(e)
+        } else {
+            self.parent.as_ref()?.resolve_symbol_as_erased_property(symbol)
         }
     }
 
