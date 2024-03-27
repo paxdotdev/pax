@@ -185,7 +185,10 @@ pub struct RuntimePropertiesStackFrame {
 }
 
 impl RuntimePropertiesStackFrame {
-    pub fn new(symbols_within_frame: HashMap<String, ErasedProperty>, properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn new(
+        symbols_within_frame: HashMap<String, ErasedProperty>,
+        properties: Rc<RefCell<dyn Any>>,
+    ) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
             properties,
@@ -193,7 +196,11 @@ impl RuntimePropertiesStackFrame {
         })
     }
 
-    pub fn push(self: &Rc<Self>, symbols_within_frame: HashMap<String, ErasedProperty>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn push(
+        self: &Rc<Self>,
+        symbols_within_frame: HashMap<String, ErasedProperty>,
+        properties: &Rc<RefCell<dyn Any>>,
+    ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
             parent: Some(Rc::clone(&self)),
@@ -228,7 +235,9 @@ impl RuntimePropertiesStackFrame {
         if let Some(e) = self.symbols_within_frame.get(symbol) {
             Some(e)
         } else {
-            self.parent.as_ref()?.resolve_symbol_as_erased_property(symbol)
+            self.parent
+                .as_ref()?
+                .resolve_symbol_as_erased_property(symbol)
         }
     }
 

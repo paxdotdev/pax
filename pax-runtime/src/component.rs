@@ -78,7 +78,9 @@ impl InstanceNode for ComponentInstance {
                 Some(containing_component.create_children_detached(children_with_env, context));
         }
         let properties_scope = expanded_node.properties_scope.borrow();
-        let new_env = expanded_node.stack.push(properties_scope.clone(), &expanded_node.properties.borrow());
+        let new_env = expanded_node
+            .stack
+            .push(properties_scope.clone(), &expanded_node.properties.borrow());
         let children = self.template.borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.set_children(children_with_envs, context);

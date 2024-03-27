@@ -15,7 +15,10 @@ use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll, Size};
 
-use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame};
+use crate::{
+    ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext,
+    RuntimePropertiesStackFrame,
+};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -23,8 +26,14 @@ pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
 pub struct InstantiationArgs {
-    pub prototypical_common_properties_factory: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>,
-    pub prototypical_properties_factory: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
+    pub prototypical_common_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Rc<ExpressionTable>,
+        ) -> Rc<RefCell<CommonProperties>>,
+    >,
+    pub prototypical_properties_factory:
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
@@ -36,7 +45,8 @@ pub struct InstantiationArgs {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
 
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
-    pub properties_scope_factory: Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>
+    pub properties_scope_factory:
+        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
 }
 
 /// Stores the computed transform and the pre-transform bounding box (where the
@@ -252,11 +262,17 @@ pub trait InstanceNode {
 
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_prototypical_properties_factory: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
-    pub instance_prototypical_common_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>,
+    pub instance_prototypical_properties_factory:
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
+    pub instance_prototypical_common_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Rc<ExpressionTable>,
+        ) -> Rc<RefCell<CommonProperties>>,
+    >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
-    pub properties_scope_factory: Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
+    pub properties_scope_factory:
+        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
