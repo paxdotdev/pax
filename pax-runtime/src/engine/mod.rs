@@ -431,7 +431,10 @@ impl PaxEngine {
             .runtime_context
             .get_expanded_nodes_by_global_ids(&unique_id);
         for node in nodes {
-            node.recreate_with_new_data(new_instance.clone(), self.runtime_context.expression_table());
+            node.recreate_with_new_data(
+                new_instance.clone(),
+                self.runtime_context.expression_table(),
+            );
         }
     }
 

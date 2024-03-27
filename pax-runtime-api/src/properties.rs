@@ -94,7 +94,10 @@ impl<T: PropVal> Property<T> {
 
     /// Used by engine to create dependency chains, the evaluator fires and
     /// re-computes a property each time it's dependencies change.
-    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &Vec<&ErasedProperty>) -> Self {
+    pub fn computed(
+        evaluator: impl Fn() -> T + 'static,
+        dependents: &Vec<&ErasedProperty>,
+    ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let id = glob_prop_table(|t| {
             t.add_expr_entry(
@@ -378,7 +381,6 @@ enum PropType {
     },
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ErasedProperty {
     id: PropId,
@@ -406,7 +408,6 @@ impl<T> Erasable for Property<T> {
         ErasedProperty { id: self.id }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

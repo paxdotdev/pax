@@ -159,8 +159,10 @@ macro_rules! dispatch_event_handler {
 
 impl ExpandedNode {
     pub fn root(template: Rc<ComponentInstance>, context: &mut RuntimeContext) -> Rc<Self> {
-        let root_env =
-            RuntimePropertiesStackFrame::new(HashMap::new(), Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
+        let root_env = RuntimePropertiesStackFrame::new(
+            HashMap::new(),
+            Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>,
+        );
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
         root_node
@@ -172,10 +174,16 @@ impl ExpandedNode {
         context: &mut RuntimeContext,
         containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let properties = (&template.base().instance_prototypical_properties_factory)(env.clone(), context.expression_table());
+        let properties = (&template.base().instance_prototypical_properties_factory)(
+            env.clone(),
+            context.expression_table(),
+        );
         let common_properties = (&template
             .base()
-            .instance_prototypical_common_properties_factory)(env.clone(), context.expression_table());
+            .instance_prototypical_common_properties_factory)(
+            env.clone(),
+            context.expression_table(),
+        );
 
         let mut property_scope = (*common_properties).borrow().retrieve_property_scope();
 
@@ -202,15 +210,23 @@ impl ExpandedNode {
         })
     }
 
-    pub fn recreate_with_new_data(self: &Rc<Self>, template: Rc<dyn InstanceNode>,
-        expression_table: Rc<ExpressionTable>) {
+    pub fn recreate_with_new_data(
+        self: &Rc<Self>,
+        template: Rc<dyn InstanceNode>,
+        expression_table: Rc<ExpressionTable>,
+    ) {
         *self.instance_node.borrow_mut() = Rc::clone(&template);
 
-        *self.properties.borrow_mut() =
-            (&template.base().instance_prototypical_properties_factory)(self.stack.clone(), expression_table.clone());
+        *self.properties.borrow_mut() = (&template.base().instance_prototypical_properties_factory)(
+            self.stack.clone(),
+            expression_table.clone(),
+        );
         *self.common_properties.borrow_mut() = (template
             .base()
-            .instance_prototypical_common_properties_factory)(self.stack.clone(), expression_table.clone());
+            .instance_prototypical_common_properties_factory)(
+            self.stack.clone(),
+            expression_table.clone(),
+        );
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id_chain)
@@ -288,7 +304,11 @@ impl ExpandedNode {
     pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
         self.get_common_properties()
             .borrow_mut()
-            .compute_properties(&self.stack, context.expression_table().borrow(), context.globals());
+            .compute_properties(
+                &self.stack,
+                context.expression_table().borrow(),
+                context.globals(),
+            );
 
         let viewport = self
             .parent_expanded_node
@@ -575,7 +595,7 @@ impl ExpandedNode {
 
     fn retrieve_common_property_scopes(&self) -> HashMap<String, ErasedProperty> {
         let mut scopes = HashMap::new();
-        
+
         scopes
     }
 
