@@ -1,3 +1,5 @@
+use pax_runtime_api::math::Parts;
+
 use crate::api::math::{Generic, Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
 use crate::node_interface::NodeLocal;
@@ -166,6 +168,9 @@ impl ComputableTransform for Transform2D {
         };
 
         let (skew_x, skew_y) = if let Some(skew) = self.skew {
+            if skew[0] > 0.01 {
+                log::debug!("skew_x component: {:?}", skew[0]);
+            }
             (skew[0], skew[1])
         } else {
             (0.0, 0.0)
@@ -186,21 +191,13 @@ impl ComputableTransform for Transform2D {
             0.0
         };
 
-        let cos_theta = rotate_rads.cos();
-        let sin_theta = rotate_rads.sin();
-
-        // Elements for a combined scale and rotation
-        let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
-        let b = scale_x * sin_theta + scale_y * skew_x * cos_theta;
-        let c = -scale_y * sin_theta + scale_x * skew_y * cos_theta;
-        let d = scale_y * cos_theta + scale_x * skew_y * sin_theta;
-
-        // Translation
-        let e = translate_x;
-        let f = translate_y;
-
-        let coeffs = [a, b, c, d, e, f];
-        let transform = Transform2::new(coeffs);
+        let transform: Transform2<Generic> = Parts {
+            origin: Vector2::new(translate_x, translate_y),
+            scale: Vector2::new(scale_x, scale_y),
+            rotation: rotate_rads,
+            skew: Vector2::new(skew_x, skew_y),
+        }
+        .into();
 
         // Compute and combine previous_transform
         let previous_transform = match &self.previous {

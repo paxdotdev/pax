@@ -104,7 +104,8 @@ impl NodeInterface {
         let up_lp = self.inner.layout_properties.borrow_mut();
         if let Some(lp) = up_lp.as_ref() {
             let (w, h) = lp.computed_tab.bounds;
-            Some(lp.computed_tab.transform * Transform2::scale_sep(Vector2::new(w, h)))
+            let res = lp.computed_tab.transform * Transform2::scale_sep(Vector2::new(w, h));
+            Some(res)
         } else {
             None
         }
