@@ -43,7 +43,7 @@ impl InstanceNode for CheckboxInstance {
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
             handle_vtable_update(
-                context.expression_table(),
+                &context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.checked,
                 context.globals(),

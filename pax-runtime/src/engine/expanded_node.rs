@@ -1,4 +1,4 @@
-use pax_runtime_api::TextInput;
+use pax_runtime_api::properties::ErasedProperty;
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -15,6 +15,7 @@ use core::fmt;
 use std::any::Any;
 use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
@@ -90,6 +91,10 @@ pub struct ExpandedNode {
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
     pub occlusion_id: RefCell<u32>,
+
+    /// A map of all properties available on this expanded node.
+    /// Used by the RuntimePropertiesStackFrame to resolve symbols.
+    pub properties_scope: RefCell<HashMap<String, ErasedProperty>>,
 }
 
 macro_rules! dispatch_event_handler {
@@ -154,9 +159,8 @@ macro_rules! dispatch_event_handler {
 
 impl ExpandedNode {
     pub fn root(template: Rc<ComponentInstance>, context: &mut RuntimeContext) -> Rc<Self> {
-        let property_names = template.base().property_names.clone().unwrap_or_default();
         let root_env =
-            RuntimePropertiesStackFrame::new(property_names, Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
+            RuntimePropertiesStackFrame::new(HashMap::new(), Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
         root_node
@@ -173,6 +177,12 @@ impl ExpandedNode {
             .base()
             .instance_prototypical_common_properties_factory)(env.clone(), context.expression_table());
 
+        let mut property_scope = (*common_properties).borrow().retrieve_property_scope();
+
+        if let Some(scope) = &template.base().properties_scope_factory {
+            property_scope.extend(scope(properties.clone()));
+        }
+
         Rc::new(ExpandedNode {
             id_chain: vec![context.gen_uid().0],
             instance_node: RefCell::new(Rc::clone(&template)),
@@ -188,6 +198,7 @@ impl ExpandedNode {
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             occlusion_id: RefCell::new(0),
+            properties_scope: RefCell::new(property_scope),
         })
     }
 
@@ -560,6 +571,12 @@ impl ExpandedNode {
             *self.expanded_and_flattened_slot_children.borrow_mut() =
                 Some(flatten_expanded_nodes_for_slot(&slot_children));
         }
+    }
+
+    fn retrieve_common_property_scopes(&self) -> HashMap<String, ErasedProperty> {
+        let mut scopes = HashMap::new();
+        
+        scopes
     }
 
     dispatch_event_handler!(dispatch_scroll, Scroll, SCROLL_HANDLERS, true);

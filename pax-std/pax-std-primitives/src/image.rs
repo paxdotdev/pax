@@ -38,7 +38,7 @@ impl InstanceNode for ImageInstance {
         //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Image| {
             handle_vtable_update(
-                context.expression_table(),
+                &context.expression_table(),
                 &expanded_node.stack,
                 &mut properties.path,
                 context.globals(),

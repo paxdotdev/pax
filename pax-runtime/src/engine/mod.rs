@@ -57,7 +57,7 @@ pub trait PropertiesComputable {
     fn compute_properties(
         &mut self,
         stack: &Rc<RuntimePropertiesStackFrame>,
-        table: &ExpressionTable,
+        table: &Rc<ExpressionTable>,
         globals: &Globals,
     );
 }
@@ -66,7 +66,7 @@ impl PropertiesComputable for CommonProperties {
     fn compute_properties(
         &mut self,
         stack: &Rc<RuntimePropertiesStackFrame>,
-        table: &ExpressionTable,
+        table: &Rc<ExpressionTable>,
         globals: &Globals,
     ) {
         handle_vtable_update(table, stack, &mut self.width, globals);

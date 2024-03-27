@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::api::math::Point2;
 use std::iter;
@@ -10,6 +10,7 @@ use crate::api::math::Transform2;
 use crate::api::{CommonProperties, RenderContext, Window};
 use crate::node_interface::NodeLocal;
 use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_runtime_api::properties::ErasedProperty;
 use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll, Size};
@@ -34,8 +35,8 @@ pub struct InstantiationArgs {
 
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
 
-    // Used by RuntimePropertyStackFrame to determine whether request property is within a properties struct (dyn Any)
-    pub property_names: Option<HashSet<String>>,
+    // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
+    pub properties_scope_factory: Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>
 }
 
 /// Stores the computed transform and the pre-transform bounding box (where the
@@ -255,7 +256,7 @@ pub struct BaseInstance {
     pub instance_prototypical_common_properties_factory:
         Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
-    pub property_names: Option<HashSet<String>>,
+    pub properties_scope_factory: Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -288,7 +289,7 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
-            property_names: args.property_names,
+            properties_scope_factory: args.properties_scope_factory,
         }
     }
 
