@@ -3,12 +3,12 @@ struct {{component.pascal_identifier}}Factory{}
 
 impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
-    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>> {
-        Box::new(|| Rc::new(RefCell::new({{component.pascal_identifier}}::default())))
+    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> {
+        Box::new(|_,_| Rc::new(RefCell::new({{component.pascal_identifier}}::default())))
     }
 
-    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> {
-        Box::new(|stackframe , expression_table | Rc::new(RefCell::new(
+    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> {
+        Box::new(move |stack_frame , table | Rc::new(RefCell::new(
             {
         let mut properties = {{component.pascal_identifier}}::default();
         {% for property in component.properties %}
@@ -27,12 +27,37 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 Property::new(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into())
                             {% endif %}
                         },
-                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                        ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                         {
-                            Property::computed(|| Default::default(), &[]) // TODODAG insert actual logic (using vtable, stack, vtable_id)
+                            if let Some(info) = info {
+                                let mut dependents = vec![];
+                                for dependency in &info.dependencies {
+                                    if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                        dependents.push(p);
+                                    } else {
+                                        panic!("Failed to resolve symbol {}", dependency);
+                                    }
+                                }
+                                let cloned_stack = stack_frame.clone();
+                                let cloned_table = table.clone();
+                                Property::computed(move || {
+                                    let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                    if let Ok(downcast_value) = new_value_wrapped.downcast::<{{property.property_type.type_id._type_id}}>() {
+                                        *downcast_value
+                                    } else {
+                                        panic!(
+                                            "property has an unexpected type for vtable id {}",
+                                            info.vtable_id
+                                        );
+                                    }
+                                
+                                }, &dependents)
+                            } else {
+                                unreachable!("No info for expression")
+                            }
                         },
                         ValueDefinition::Block(block) => {
-                            Property::new({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block))
+                            Property::new({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
                         }
                         _ => unreachable!("Invalid value definition for {{property.name}}")
                     };
@@ -134,6 +159,22 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         ComponentInstance::instantiate(args)
         {% endif %}    
     }
+
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>  {
+        Box::new(|props| {
+            let properties = &mut props.as_ref().borrow_mut();
+            if let Some(properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
+                let mut scope = HashMap::new();
+                {% for prop in component.properties %}
+                    scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.erase());
+                {% endfor %}
+                scope
+            } else {
+                panic!("Failed to downcast properties to {{component.pascal_identifier}}");
+            }
+        })
+    }
+
 }
 {%- endmacro -%}
 
@@ -145,7 +186,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
 
     type Output={{active_type.type_id._type_id}};
 
-    fn build_type(&self, args: &LiteralBlockDefinition) -> Self::Output {
+    fn build_type(&self, args: &LiteralBlockDefinition, stack_frame: Rc<RuntimePropertiesStackFrame>, table: Rc<ExpressionTable>) -> Self::Output {
         let mut properties: {{active_type.type_id._type_id}} = Default::default();
         for setting in &args.elements {
             if let SettingElement::Setting(k, vd) = setting {
@@ -173,13 +214,38 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             Property::new(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap())
                                         {% endif %}
                                     },
-                                    ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
+                                    ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token, info ) =>
                                     {
-                                        //Property::new(id.expect("Tried to use expression but it wasn't compiled"))
-                                        Property::new(Default::default())
+                                        if let Some(info) = info {
+                                            let mut dependents = vec![];
+                                            for dependency in &info.dependencies {
+                                                if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                    dependents.push(p);
+                                                } else {
+                                                    panic!("Failed to resolve symbol {}", dependency);
+                                                }
+                                            }
+                                            let cloned_stack = stack_frame.clone();
+                                            let cloned_table = table.clone();
+                                            let cloned_info = info.clone();
+                                            Property::computed(move || {
+                                                let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
+                                                if let Ok(downcast_value) = new_value_wrapped.downcast::<{{prop.type_id._type_id}}>() {
+                                                    *downcast_value
+                                                } else {
+                                                    panic!(
+                                                        "property has an unexpected type for vtable id {}",
+                                                        cloned_info.vtable_id
+                                                    );
+                                                }
+                                            
+                                            }, &dependents)
+                                        } else {
+                                            unreachable!("No info for expression")
+                                        }
                                     },
                                     ValueDefinition::Block(block) => {
-                                        Property::new({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block))
+                                        Property::new({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
@@ -199,7 +265,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         {% endif %}
                                     },
                                     ValueDefinition::Block(block) => {
-                                        {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args)
+                                        {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone(), table.clone())
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
