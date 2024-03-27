@@ -532,7 +532,7 @@ impl CommonProperties {
 
     pub fn retrieve_property_scope(&self) -> HashMap<String, ErasedProperty> {
         let mut scope = HashMap::new();
-    
+
         if let Some(id) = &self.id {
             scope.insert("id".to_string(), id.erase());
         }

@@ -77,8 +77,7 @@ impl PaxManifest {
                 ret.insert(prop.name.clone());
             });
         ret
-    }    
-
+    }
 }
 
 pub fn get_common_properties_type_ids() -> Vec<TypeId> {
@@ -116,7 +115,6 @@ pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition
     }
     ret
 }
-
 
 impl Eq for ExpressionSpec {}
 
@@ -1197,7 +1195,10 @@ impl ComponentTemplate {
     }
 
     /// Given a list of known expressions, this function will update the expression ids in the template
-    pub fn update_expression_ids(&mut self, known_expressions: &HashMap<String, ExpressionCompilationInfo>) {
+    pub fn update_expression_ids(
+        &mut self,
+        known_expressions: &HashMap<String, ExpressionCompilationInfo>,
+    ) {
         for (_, tnd) in self.nodes.iter_mut() {
             if let Some(settings) = &mut tnd.settings {
                 for setting in settings {
@@ -1457,14 +1458,12 @@ impl TypeDefinition {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionCompilationInfo {
     pub vtable_id: usize,
     /// symbols used in the expression
     pub dependencies: Vec<String>,
 }
-
 
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
@@ -1576,13 +1575,15 @@ pub enum ControlFlowRepeatPredicateDefinition {
 }
 
 impl ControlFlowRepeatPredicateDefinition {
-    pub fn get_symbols(&self) -> HashSet<String>{
+    pub fn get_symbols(&self) -> HashSet<String> {
         match self {
             ControlFlowRepeatPredicateDefinition::ElemId(t) => {
                 vec![t.raw_value.clone()].into_iter().collect()
             }
             ControlFlowRepeatPredicateDefinition::ElemIdIndexId(t1, t2) => {
-                vec![t1.raw_value.clone(), t2.raw_value.clone()].into_iter().collect()
+                vec![t1.raw_value.clone(), t2.raw_value.clone()]
+                    .into_iter()
+                    .collect()
             }
         }
     }
@@ -1601,7 +1602,6 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
 }
-
 
 impl PartialEq for ControlFlowRepeatSourceDefinition {
     fn eq(&self, other: &Self) -> bool {

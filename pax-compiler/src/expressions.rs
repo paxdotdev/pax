@@ -1,5 +1,9 @@
 use pax_manifest::{
-    escape_identifier, ComponentDefinition, ComponentTemplate, ControlFlowRepeatPredicateDefinition, ExpressionCompilationInfo, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeId, Token, TypeDefinition, TypeId, TypeTable, ValueDefinition
+    escape_identifier, ComponentDefinition, ComponentTemplate,
+    ControlFlowRepeatPredicateDefinition, ExpressionCompilationInfo, ExpressionSpec,
+    ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition,
+    PropertyDefinitionFlags, SettingElement, TemplateNodeId, Token, TypeDefinition, TypeId,
+    TypeTable, ValueDefinition,
 };
 use std::collections::HashMap;
 use std::ops::RangeFrom;
@@ -154,12 +158,18 @@ fn recurse_compile_literal_block<'a>(
                     );
 
                     //Write this expression compilation info back to the manifest, for downstream use by RIL component tree generator
-                    let dependencies = invocations.iter().map(|i| i.root_identifier.clone()).collect::<Vec<String>>();
-                    let mut expression_compilation_insert = Some(ExpressionCompilationInfo{
+                    let dependencies = invocations
+                        .iter()
+                        .map(|i| i.root_identifier.clone())
+                        .collect::<Vec<String>>();
+                    let mut expression_compilation_insert = Some(ExpressionCompilationInfo {
                         vtable_id: id,
                         dependencies,
                     });
-                    std::mem::swap(expression_compilation_info, &mut expression_compilation_insert);
+                    std::mem::swap(
+                        expression_compilation_info,
+                        &mut expression_compilation_insert,
+                    );
                 }
                 ValueDefinition::Identifier(identifier, expression_compilation_info) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
@@ -189,12 +199,18 @@ fn recurse_compile_literal_block<'a>(
                             compile_paxel_to_ril(identifier.clone(), &ctx)?;
 
                         //Write this expression compilation info back to the manifest, for downstream use by RIL component tree generator
-                        let dependencies = invocations.iter().map(|i| i.root_identifier.clone()).collect::<Vec<String>>();
-                        let mut expression_compilation_insert = Some(ExpressionCompilationInfo{
+                        let dependencies = invocations
+                            .iter()
+                            .map(|i| i.root_identifier.clone())
+                            .collect::<Vec<String>>();
+                        let mut expression_compilation_insert = Some(ExpressionCompilationInfo {
                             vtable_id: id,
                             dependencies,
                         });
-                        std::mem::swap(expression_compilation_info, &mut expression_compilation_insert);
+                        std::mem::swap(
+                            expression_compilation_info,
+                            &mut expression_compilation_insert,
+                        );
 
                         let source_map_id = source_map.insert(identifier.clone());
                         let input_statement = source_map
