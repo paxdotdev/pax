@@ -1,4 +1,5 @@
 use pax_runtime_api::properties::ErasedProperty;
+use pax_runtime_api::Property;
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -302,13 +303,13 @@ impl ExpandedNode {
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
-        self.get_common_properties()
-            .borrow_mut()
-            .compute_properties(
-                &self.stack,
-                context.expression_table().borrow(),
-                context.globals(),
-            );
+        // self.get_common_properties()
+        //     .borrow_mut()
+        //     .compute_properties(
+        //         &self.stack,
+        //         context.expression_table().borrow(),
+        //         context.globals(),
+        //     );
 
         let viewport = self
             .parent_expanded_node
