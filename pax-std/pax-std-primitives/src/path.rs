@@ -35,7 +35,7 @@ impl InstanceNode for PathInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let tbl = context.expression_table();
+            let tbl = &context.expression_table();
             let stk = &expanded_node.stack;
             handle_vtable_update(tbl, stk, &mut properties.stroke, context.globals());
             handle_vtable_update(

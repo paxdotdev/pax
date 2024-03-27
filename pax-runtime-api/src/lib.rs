@@ -1,10 +1,11 @@
 use std::any::Any;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
 use kurbo::BezPath;
 use piet::PaintBrush;
+use properties::{Erasable, ErasedProperty};
 
 #[cfg(feature = "designtime")]
 use {
@@ -527,6 +528,46 @@ impl CommonProperties {
                 optional: (id.0 == "transform" || id.0 == "width" || id.0 == "height"),
             })
             .collect()
+    }
+
+    pub fn retrieve_property_scope(&self) -> HashMap<String, ErasedProperty> {
+        let mut scope = HashMap::new();
+    
+        if let Some(id) = &self.id {
+            scope.insert("id".to_string(), id.erase());
+        }
+        if let Some(x) = &self.x {
+            scope.insert("x".to_string(), x.erase());
+        }
+        if let Some(y) = &self.y {
+            scope.insert("y".to_string(), y.erase());
+        }
+        if let Some(scale_x) = &self.scale_x {
+            scope.insert("scale_x".to_string(), scale_x.erase());
+        }
+        if let Some(scale_y) = &self.scale_y {
+            scope.insert("scale_y".to_string(), scale_y.erase());
+        }
+        if let Some(skew_x) = &self.skew_x {
+            scope.insert("skew_x".to_string(), skew_x.erase());
+        }
+        if let Some(skew_y) = &self.skew_y {
+            scope.insert("skew_y".to_string(), skew_y.erase());
+        }
+        if let Some(rotate) = &self.rotate {
+            scope.insert("rotate".to_string(), rotate.erase());
+        }
+        if let Some(anchor_x) = &self.anchor_x {
+            scope.insert("anchor_x".to_string(), anchor_x.erase());
+        }
+        if let Some(anchor_y) = &self.anchor_y {
+            scope.insert("anchor_y".to_string(), anchor_y.erase());
+        }
+        scope.insert("transform".to_string(), self.transform.erase());
+        scope.insert("width".to_string(), self.width.erase());
+        scope.insert("height".to_string(), self.height.erase());
+
+        scope
     }
 }
 

@@ -40,7 +40,7 @@ impl InstanceNode for TextboxInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
         expanded_node.with_properties_unwrapped(|properties: &mut Textbox| {
-            let tbl = context.expression_table();
+            let tbl = &context.expression_table();
             let stk = &expanded_node.stack;
             handle_vtable_update(tbl, stk, &mut properties.focus_on_mount, context.globals());
             handle_vtable_update(tbl, stk, &mut properties.text, context.globals());
