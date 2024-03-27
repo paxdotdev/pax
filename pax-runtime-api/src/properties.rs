@@ -48,8 +48,8 @@ impl<T: Default + PropVal> Default for Property<T> {
 /// PropVal represents a restriction on valid generic types that a property can
 /// contain. All T need to be Clone (to enable .get()) + 'static (no references/
 /// lifetimes)
-pub trait PropVal: Clone + 'static {}
-impl<T: Clone + 'static> PropVal for T {}
+pub trait PropVal: Default + Clone + 'static {}
+impl<T: Default + Clone + 'static> PropVal for T {}
 
 mod private {
     slotmap::new_key_type!(
@@ -100,7 +100,7 @@ impl<T: PropVal> Property<T> {
     ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let id = glob_prop_table(|t| {
-            t.add_expr_entry(
+            t.add_expr_entry::<T>(
                 Rc::new(move || Box::new(evaluator())),
                 &dependent_property_ids,
             )
@@ -115,16 +115,35 @@ impl<T: PropVal> Property<T> {
     /// Using it wrongly can introduce memory leaks and inconsistent property behaviour.
     /// This method can be used to replace an inner value from for example a literal to
     /// a computed computed, while keeping the link to it's dependents
-    pub fn replace_with(&self, prop: Property<T>) {
+    pub fn replace_with(&self, target: Property<T>) {
+        // We want the target's value to be dropped after the mutable table access (glob_prop_table) to avoid borrowing issues
+        let mut value_to_drop: Box<dyn Any> = Box::new({});
+
         glob_prop_table(|t| {
-            t.with_prop_data_mut(self.id, |prop_data| {
-                t.with_prop_data(prop.id, |other| {
-                    prop_data.prop_type = other.prop_type.clone();
-                    prop_data.value = if let Some(v) = other.value.downcast_ref::<T>() {
-                        Box::new(v.clone())
-                    } else {
-                        Box::new(())
-                    };
+            t.with_prop_data_mut(self.id, |original_prop_data: &mut PropertyData| {
+                t.with_prop_data(target.id, |target_prop_data| {
+                    original_prop_data.prop_type = target_prop_data.prop_type.clone();
+
+                    let target_value = target_prop_data
+                        .value
+                        .downcast_ref::<T>()
+                        .expect("value should contain correct type");
+                    value_to_drop = std::mem::replace(
+                        &mut original_prop_data.value,
+                        Box::new(target_value.clone()),
+                    );
+
+                    original_prop_data
+                        .subscribers
+                        .extend(target_prop_data.subscribers.iter());
+
+                    if let PropType::Expr { subscriptions, .. } = &target_prop_data.prop_type {
+                        for id in subscriptions {
+                            t.with_prop_data_mut(*id, |dep_prop| {
+                                dep_prop.subscribers.push(self.id);
+                            });
+                        }
+                    }
                 });
             });
             // make sure dependencies of self
@@ -219,7 +238,7 @@ impl PropertyTable {
         prop_id
     }
 
-    fn add_expr_entry(
+    fn add_expr_entry<T: PropVal>(
         &self,
         evaluator: Rc<dyn Fn() -> Box<dyn Any>>,
         dependents: &[PropId],
@@ -228,7 +247,7 @@ impl PropertyTable {
             let mut sm = self.entries.borrow_mut();
             sm.insert(RefCell::new(PropertyData {
                 ref_count: 1,
-                value: Box::new(()),
+                value: Box::new(T::default()),
                 subscribers: Vec::with_capacity(0),
                 prop_type: PropType::Expr {
                     dirty: true,
@@ -302,7 +321,10 @@ impl PropertyTable {
     fn get_value_ref<T: PropVal, V>(&self, id: PropId, f: impl FnOnce(&T) -> V) -> V {
         self.update_value(id);
         self.with_prop_data(id, |prop_data| {
-            let value = prop_data.value.downcast_ref::<T>().expect("correct type");
+            let value = prop_data
+                .value
+                .downcast_ref::<T>()
+                .expect("value should contain correct type");
             f(value)
         })
     }
@@ -314,8 +336,11 @@ impl PropertyTable {
     // it and it's dependents as dirty irrespective of actual modification
     fn get_value_mut<T: PropVal, V>(&self, id: PropId, f: impl FnOnce(&mut T) -> V) -> V {
         let mut to_dirty = vec![];
-        let ret_value = self.with_prop_data_mut(id, |prop_data| {
-            let value = prop_data.value.downcast_mut().expect("correct type");
+        let ret_value = self.with_prop_data_mut(id, |prop_data: &mut PropertyData| {
+            let value = prop_data
+                .value
+                .downcast_mut()
+                .expect("value should contain correct type");
             let ret = f(value);
             to_dirty.extend_from_slice(&prop_data.subscribers);
             ret
