@@ -181,12 +181,21 @@ pub trait InstanceNode {
     /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
     #[allow(unused_variables)]
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_native_patches(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         //no-op default implementation
     }
 
     /// Updates the expanded node, recomputing it's properties and possibly updating it's children
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
+    fn update(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+    }
 
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
@@ -197,7 +206,7 @@ pub trait InstanceNode {
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         //no-op default implementation
@@ -211,7 +220,7 @@ pub trait InstanceNode {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
     }
@@ -225,7 +234,7 @@ pub trait InstanceNode {
     fn handle_post_render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         //no-op default implementation
@@ -236,7 +245,11 @@ pub trait InstanceNode {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let env = Rc::clone(&expanded_node.stack);
         let children = self.base().get_instance_children().borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
@@ -246,7 +259,11 @@ pub trait InstanceNode {
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node

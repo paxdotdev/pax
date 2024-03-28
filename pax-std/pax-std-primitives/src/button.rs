@@ -37,26 +37,34 @@ impl InstanceNode for ButtonInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         expanded_node.with_properties_unwrapped(|properties: &mut Button| {
-            let tbl = &context.expression_table();
+            let tbl = &context.borrow().expression_table();
             let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.label, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.label, context.borrow().globals());
 
             // Style
-            handle_vtable_update(tbl, stk, &mut properties.style, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.style, context.borrow().globals());
             let stl = properties.style.get();
-            handle_vtable_update(tbl, stk, &stl.fill, context.globals());
-            handle_vtable_update(tbl, stk, &stl.font, context.globals());
-            handle_vtable_update(tbl, stk, &stl.font_size, context.globals());
-            handle_vtable_update(tbl, stk, &stl.underline, context.globals());
-            handle_vtable_update(tbl, stk, &stl.align_vertical, context.globals());
-            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.globals());
-            handle_vtable_update(tbl, stk, &stl.align_multiline, context.globals());
+            handle_vtable_update(tbl, stk, &stl.fill, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.font, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.font_size, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.underline, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.align_vertical, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.align_multiline, context.borrow().globals());
         });
     }
 
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_native_patches(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let id_chain = expanded_node.id_chain.clone();
         let mut patch = ButtonPatch {
             id_chain: id_chain.clone(),
@@ -99,23 +107,37 @@ impl InstanceNode for ButtonInstance {
                 ),
             ];
             if updates.into_iter().any(|v| v == true) {
-                context.enqueue_native_message(pax_message::NativeMessage::ButtonUpdate(patch));
+                context
+                    .borrow_mut()
+                    .enqueue_native_message(pax_message::NativeMessage::ButtonUpdate(patch));
             }
         });
     }
 
-    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
-            id_chain: expanded_node.id_chain.clone(),
-            clipping_ids: vec![],
-            scroller_ids: vec![],
-            z_index: 0,
-        }));
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        context
+            .borrow_mut()
+            .enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
+                id_chain: expanded_node.id_chain.clone(),
+                clipping_ids: vec![],
+                scroller_ids: vec![],
+                z_index: 0,
+            }));
     }
 
-    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let id_chain = expanded_node.id_chain.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::ButtonDelete(id_chain));
+        context
+            .borrow_mut()
+            .enqueue_native_message(pax_message::NativeMessage::ButtonDelete(id_chain));
     }
 
     fn base(&self) -> &BaseInstance {

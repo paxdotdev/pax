@@ -50,12 +50,16 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         // Compute properties
         (*self.compute_properties_fn)(
             &expanded_node,
-            context.expression_table().borrow(),
-            context.globals(),
+            (**context).borrow().expression_table().borrow(),
+            (**context).borrow().globals(),
         );
 
         // Update slot children. Needs to be done since a change in
@@ -69,7 +73,11 @@ impl InstanceNode for ComponentInstance {
         expanded_node.compute_flattened_slot_children();
     }
 
-    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         if let Some(containing_component) = expanded_node.containing_component.upgrade() {
             let env = Rc::clone(&expanded_node.stack);
             let children = self.base().get_instance_children().borrow();
