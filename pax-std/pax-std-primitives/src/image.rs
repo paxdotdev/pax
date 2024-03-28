@@ -34,19 +34,27 @@ impl InstanceNode for ImageInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Image| {
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.path,
-                context.globals(),
+                context.borrow().globals(),
             );
         });
     }
 
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, rtc: &mut RuntimeContext) {
+    fn handle_native_patches(
+        &self,
+        expanded_node: &ExpandedNode,
+        rtc: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let val =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
         let mut new_message: ImagePatch = Default::default();
@@ -71,14 +79,15 @@ impl InstanceNode for ImageInstance {
         }
 
         if has_any_updates {
-            rtc.enqueue_native_message(pax_message::NativeMessage::ImageLoad(new_message));
+            rtc.borrow_mut()
+                .enqueue_native_message(pax_message::NativeMessage::ImageLoad(new_message));
         }
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &mut RuntimeContext,
+        _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
         let comp_props = &expanded_node.layout_properties.borrow();

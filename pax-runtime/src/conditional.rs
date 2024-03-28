@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::{iter, rc::Rc};
 
 use pax_runtime_api::Property;
@@ -43,14 +44,18 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let (should_update, active) =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
                 handle_vtable_update(
-                    context.expression_table().borrow(),
+                    (**context).borrow().expression_table().borrow(),
                     &expanded_node.stack,
                     &mut properties.boolean_expression,
-                    context.globals(),
+                    (**context).borrow().globals(),
                 );
                 let val = Some(properties.boolean_expression.get());
                 let update_children = properties.last_boolean_expression != val;
@@ -70,7 +75,11 @@ impl InstanceNode for ConditionalInstance {
         }
     }
 
-    fn handle_mount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
+    fn handle_mount(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         // No-op: wait with creating child-nodes until update tick, since the
         // condition has then been evaluated
     }

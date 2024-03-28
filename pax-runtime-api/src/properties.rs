@@ -118,7 +118,7 @@ impl<T: PropVal> Property<T> {
     pub fn replace_with(&self, target: Property<T>) {
         // We want the target's value to be dropped after the mutable table access (glob_prop_table) to avoid borrowing issues
         let mut value_to_drop: Box<dyn Any> = Box::new({});
-
+        log::debug!("Replacing property");
         glob_prop_table(|t| {
             t.with_prop_data_mut(self.id, |original_prop_data: &mut PropertyData| {
                 t.with_prop_data(target.id, |target_prop_data| {

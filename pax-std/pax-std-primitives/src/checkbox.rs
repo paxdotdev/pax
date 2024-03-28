@@ -40,18 +40,26 @@ impl InstanceNode for CheckboxInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.checked,
-                context.globals(),
+                context.borrow().globals(),
             );
         });
     }
 
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_native_patches(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let id_chain = expanded_node.id_chain.clone();
         let mut patch = CheckboxPatch {
             id_chain: id_chain.clone(),
@@ -88,25 +96,37 @@ impl InstanceNode for CheckboxInstance {
                 ),
             ];
             if updates.into_iter().any(|v| v == true) {
-                context.enqueue_native_message(pax_message::NativeMessage::CheckboxUpdate(patch));
+                context
+                    .borrow_mut()
+                    .enqueue_native_message(pax_message::NativeMessage::CheckboxUpdate(patch));
             }
         });
     }
 
-    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
-            AnyCreatePatch {
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        context
+            .borrow_mut()
+            .enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(AnyCreatePatch {
                 id_chain: expanded_node.id_chain.clone(),
                 clipping_ids: vec![],
                 scroller_ids: vec![],
                 z_index: 0,
-            },
-        ));
+            }));
     }
 
-    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let id_chain = expanded_node.id_chain.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
+        context
+            .borrow_mut()
+            .enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
     }
 
     fn base(&self) -> &BaseInstance {
