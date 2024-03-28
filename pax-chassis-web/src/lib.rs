@@ -165,7 +165,8 @@ impl PaxChassisWeb {
         let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
 
         let engine = self.engine.borrow_mut();
-        let globals = engine.runtime_context.globals();
+        let ctx = engine.runtime_context.borrow();
+        let globals = ctx.globals();
         let prevent_default = match x {
             NativeInterrupt::Image(args) => match args {
                 ImageLoadInterruptArgs::Reference(_ref_args) => false,
@@ -233,6 +234,7 @@ impl PaxChassisWeb {
             NativeInterrupt::Click(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_click = Click {
@@ -256,6 +258,7 @@ impl PaxChassisWeb {
             NativeInterrupt::Clap(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_clap = Clap {
@@ -271,6 +274,7 @@ impl PaxChassisWeb {
                 let first_touch = args.touches.get(0).unwrap();
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
@@ -288,6 +292,7 @@ impl PaxChassisWeb {
                 let first_touch = args.touches.get(0).unwrap();
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
@@ -305,6 +310,7 @@ impl PaxChassisWeb {
                 let first_touch = args.touches.get(0).unwrap();
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
@@ -369,6 +375,7 @@ impl PaxChassisWeb {
             NativeInterrupt::DoubleClick(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_double_click = DoubleClick {
@@ -395,6 +402,7 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseMove(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_move = MouseMove {
@@ -421,6 +429,7 @@ impl PaxChassisWeb {
             NativeInterrupt::Wheel(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let modifiers = args
@@ -443,6 +452,7 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseDown(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_down = MouseDown {
@@ -469,6 +479,7 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseUp(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_up = MouseUp {
@@ -491,6 +502,7 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseOver(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_over = MouseOver {
@@ -517,6 +529,7 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseOut(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_out = MouseOut {
@@ -543,6 +556,7 @@ impl PaxChassisWeb {
             NativeInterrupt::ContextMenu(args) => {
                 let prospective_hit = engine
                     .runtime_context
+                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_context_menu = ContextMenu {

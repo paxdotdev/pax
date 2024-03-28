@@ -8,6 +8,7 @@ use pax_runtime::{
 use pax_std::primitives::Path;
 use pax_std::types::{PathElement, Point};
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
@@ -33,32 +34,41 @@ impl InstanceNode for PathInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let tbl = &context.expression_table();
+            let tbl = &context.borrow().expression_table();
             let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.stroke, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.stroke, context.borrow().globals());
             handle_vtable_update(
                 tbl,
                 stk,
                 &mut properties.stroke.get().color,
-                context.globals(),
+                context.borrow().globals(),
             );
             handle_vtable_update(
                 tbl,
                 stk,
                 &mut properties.stroke.get().width,
-                context.globals(),
+                context.borrow().globals(),
             );
-            handle_vtable_update(tbl, stk, &mut properties.fill, context.globals());
-            handle_vtable_update(tbl, stk, &mut properties.elements, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.fill, context.borrow().globals());
+            handle_vtable_update(
+                tbl,
+                stk,
+                &mut properties.elements,
+                context.borrow().globals(),
+            );
         });
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &mut RuntimeContext,
+        _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());

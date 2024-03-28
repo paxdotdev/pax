@@ -1,6 +1,7 @@
 use core::option::Option;
 use core::option::Option::Some;
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use kurbo::{Affine, BezPath};
@@ -108,7 +109,7 @@ impl InstanceNode for FrameInstance {
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
+        _context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         let comp_props = &expanded_node.layout_properties.borrow();
@@ -141,7 +142,7 @@ impl InstanceNode for FrameInstance {
     fn handle_post_render(
         &self,
         _expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
+        _context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         let layers = rcs.layers();
@@ -170,7 +171,12 @@ impl InstanceNode for FrameInstance {
     //     }));
     // }
 
-    fn handle_unmount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
+    fn handle_unmount(
+        &self,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+    }
 
     #[cfg(debug_assertions)]
     fn resolve_debug(
