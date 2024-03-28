@@ -38,8 +38,8 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
                     if let Some(unwrapped_repeat_item) = borrowed.downcast_ref::<RepeatItem>() {
-                        let i = unwrapped_repeat_item.i;
-                        let elem = Rc::clone(&unwrapped_repeat_item.elem);
+                        let i = unwrapped_repeat_item.i.get();
+                        let elem = Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
@@ -70,7 +70,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
                     let mut unwrapped_repeat_item = if let Some(val) = borrowed.downcast_mut::<RepeatItem>() {val} else {panic!()}; // Failed to downcast
-                    let i = unwrapped_repeat_item.i;
+                    let i = unwrapped_repeat_item.i.get();
                     Numeric::from(i)
                 {% else %}
 

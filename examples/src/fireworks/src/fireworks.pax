@@ -1,8 +1,7 @@
-<Group @wheel=self.handle_wheel >
+
     for i in 1..60 {
         <Rectangle class=rect width=300px height=300px />
     }
-</Group>
 
 @settings {
     @tick: handle_tick

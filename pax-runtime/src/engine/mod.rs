@@ -45,7 +45,7 @@ pub struct Globals {
 
 /// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine {
-    pub runtime_context: RuntimeContext,
+    pub runtime_context: Rc<RefCell<RuntimeContext>>,
     pub root_node: Rc<ExpandedNode>,
     main_component_instance: Rc<ComponentInstance>,
 }
@@ -312,10 +312,9 @@ impl PaxEngine {
             },
         };
 
-        let mut runtime_context = RuntimeContext::new(expression_table, globals);
+        let runtime_context = Rc::new(RefCell::new(RuntimeContext::new(expression_table, globals)));
 
-        let root_node =
-            ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
+        let root_node = ExpandedNode::root(Rc::clone(&main_component_instance), &runtime_context);
 
         PaxEngine {
             runtime_context,
@@ -393,9 +392,9 @@ impl PaxEngine {
     pub fn recurse_remount_main_template_expanded_node(
         parent: &Rc<ExpandedNode>,
         id: &UniqueTemplateNodeIdentifier,
-        ctx: &mut RuntimeContext,
+        ctx: &Rc<RefCell<RuntimeContext>>,
     ) {
-        if parent.children.borrow().iter().any(|node| {
+        if parent.children.get().iter().any(|node| {
             node.instance_node
                 .borrow()
                 .base()
@@ -413,7 +412,7 @@ impl PaxEngine {
             parent.set_children(new_templates, ctx);
             parent.recurse_update(ctx);
         } else {
-            for child in parent.children.borrow().iter() {
+            for child in parent.children.get().iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
             }
         }
@@ -429,11 +428,12 @@ impl PaxEngine {
 
         let nodes = self
             .runtime_context
+            .borrow()
             .get_expanded_nodes_by_global_ids(&unique_id);
         for node in nodes {
             node.recreate_with_new_data(
                 new_instance.clone(),
-                self.runtime_context.expression_table(),
+                self.runtime_context.borrow().expression_table(),
             );
         }
     }
@@ -460,26 +460,32 @@ impl PaxEngine {
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
         // frame. Nothing intensive is to be done here.
         {
-            self.runtime_context.z_index_node_cache.clear();
+            self.runtime_context.borrow_mut().z_index_node_cache.clear();
             fn assign_z_indicies(n: &Rc<ExpandedNode>, state: &mut Vec<Rc<ExpandedNode>>) {
                 state.push(Rc::clone(&n));
             }
 
             self.root_node.recurse_visit_postorder(
                 &assign_z_indicies,
-                &mut self.runtime_context.z_index_node_cache,
+                &mut self.runtime_context.borrow_mut().z_index_node_cache,
             );
         }
 
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
-        for node in self.runtime_context.z_index_node_cache.clone().iter() {
+        for node in self
+            .runtime_context
+            .borrow()
+            .z_index_node_cache
+            .clone()
+            .iter()
+        {
             let layer = node.instance_node.borrow().base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();
             let mut curr_occlusion_ind = node.occlusion_id.borrow_mut();
             if layer == Layer::Native && *curr_occlusion_ind != new_occlusion_ind {
-                self.runtime_context.enqueue_native_message(
+                self.runtime_context.borrow_mut().enqueue_native_message(
                     pax_message::NativeMessage::OcclusionUpdate(OcclusionPatch {
                         id_chain: node.id_chain.clone(),
                         z_index: new_occlusion_ind,
@@ -489,9 +495,12 @@ impl PaxEngine {
             *curr_occlusion_ind = new_occlusion_ind;
         }
 
-        self.runtime_context.globals_mut().frames_elapsed += 1;
+        self.runtime_context
+            .borrow_mut()
+            .globals_mut()
+            .frames_elapsed += 1;
 
-        self.runtime_context.take_native_messages()
+        self.runtime_context.borrow_mut().take_native_messages()
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
@@ -502,13 +511,19 @@ impl PaxEngine {
             .recurse_render(&mut self.runtime_context, rcs);
     }
 
-    pub fn get_expanded_node(&self, id: u32) -> Option<&Rc<ExpandedNode>> {
-        self.runtime_context.node_cache.get(&id)
+    pub fn get_expanded_node(&self, id: u32) -> Option<Rc<ExpandedNode>> {
+        let binding = self.runtime_context.borrow();
+        let val = binding.node_cache.get(&id).clone();
+        val.map(|v| (v.clone()))
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
-        self.runtime_context.globals_mut().viewport.bounds = new_viewport_size;
+        self.runtime_context
+            .borrow_mut()
+            .globals_mut()
+            .viewport
+            .bounds = new_viewport_size;
     }
 
     pub fn global_dispatch_key_down(&self, args: KeyDown) {
@@ -516,7 +531,7 @@ impl PaxEngine {
             &|expanded_node, _| {
                 expanded_node.dispatch_key_down(
                     args.clone(),
-                    self.runtime_context.globals(),
+                    self.runtime_context.borrow().globals(),
                     &self.runtime_context,
                 );
             },
@@ -529,7 +544,7 @@ impl PaxEngine {
             &|expanded_node, _| {
                 expanded_node.dispatch_key_up(
                     args.clone(),
-                    self.runtime_context.globals(),
+                    self.runtime_context.borrow().globals(),
                     &self.runtime_context,
                 );
             },
@@ -542,7 +557,7 @@ impl PaxEngine {
             &|expanded_node, _| {
                 expanded_node.dispatch_key_press(
                     args.clone(),
-                    self.runtime_context.globals(),
+                    self.runtime_context.borrow().globals(),
                     &self.runtime_context,
                 );
             },

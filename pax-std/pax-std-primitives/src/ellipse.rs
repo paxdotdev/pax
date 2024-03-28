@@ -5,6 +5,7 @@ use pax_std::{primitives::Ellipse, types::Fill};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// A basic 2D vector ellipse, drawn to fill the bounds specified
@@ -34,7 +35,7 @@ impl InstanceNode for EllipseInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
+        _context: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
         let computed_props = expanded_node.layout_properties.borrow();
@@ -91,20 +92,24 @@ impl InstanceNode for EllipseInstance {
         &self.base
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke,
-                context.globals(),
+                context.borrow().globals(),
             );
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.fill,
-                context.globals(),
+                context.borrow().globals(),
             );
         });
     }

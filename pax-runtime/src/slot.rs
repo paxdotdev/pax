@@ -1,5 +1,6 @@
 use core::option::Option;
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_runtime_api::{Numeric, Property};
@@ -50,13 +51,17 @@ impl InstanceNode for SlotInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
             handle_vtable_update(
-                &context.expression_table(),
+                &(**context).borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.index,
-                &context.globals(),
+                (**context).borrow().globals(),
             );
             let index: usize = properties
                 .index

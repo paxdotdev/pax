@@ -8,7 +8,7 @@ use pax_std::types::Fill;
 
 use pax_runtime::api::{Layer, RenderContext, Size};
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -31,38 +31,42 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         //Doesn't need to expand any children
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke,
-                context.globals(),
+                context.borrow().globals(),
             );
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke.get().color,
-                context.globals(),
+                context.borrow().globals(),
             );
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.stroke.get().width,
-                context.globals(),
+                context.borrow().globals(),
             );
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.fill,
-                context.globals(),
+                context.borrow().globals(),
             );
             handle_vtable_update(
-                &context.expression_table(),
+                &context.borrow().expression_table(),
                 &expanded_node.stack,
                 &mut properties.corner_radii,
-                context.globals(),
+                context.borrow().globals(),
             );
 
             // TODO: figure out best practice for nested properties struct (perhaps higher-level struct is not Property<> wrapped?)
@@ -80,7 +84,7 @@ impl InstanceNode for RectangleInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &mut RuntimeContext,
+        _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
         let computed_props = expanded_node.layout_properties.borrow();

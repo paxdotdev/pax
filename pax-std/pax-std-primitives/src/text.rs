@@ -42,27 +42,35 @@ impl InstanceNode for TextInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-            let tbl = &context.expression_table();
+            let tbl = &context.borrow().expression_table();
             let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.text, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.text, context.borrow().globals());
             handle_vtable_update(tbl, stk, &mut properties.editable, context.globals());
 
             // Style
-            handle_vtable_update(tbl, stk, &mut properties.style, context.globals());
+            handle_vtable_update(tbl, stk, &mut properties.style, context.borrow().globals());
             let stl = properties.style.get();
-            handle_vtable_update(tbl, stk, &stl.fill, context.globals());
-            handle_vtable_update(tbl, stk, &stl.font, context.globals());
-            handle_vtable_update(tbl, stk, &stl.font_size, context.globals());
-            handle_vtable_update(tbl, stk, &stl.underline, context.globals());
-            handle_vtable_update(tbl, stk, &stl.align_vertical, context.globals());
-            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.globals());
-            handle_vtable_update(tbl, stk, &stl.align_multiline, context.globals());
+            handle_vtable_update(tbl, stk, &stl.fill, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.font, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.font_size, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.underline, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.align_vertical, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.borrow().globals());
+            handle_vtable_update(tbl, stk, &stl.align_multiline, context.borrow().globals());
         });
     }
 
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
+    fn handle_native_patches(
+        &self,
+        expanded_node: &ExpandedNode,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let id_chain = expanded_node.id_chain.clone();
         let mut patch = TextPatch {
             id_chain: id_chain.clone(),
@@ -119,16 +127,18 @@ impl InstanceNode for TextInstance {
             ];
 
             if updates.into_iter().any(|v| v == true) {
-                context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
+                context
+                    .borrow_mut()
+                    .enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
             }
         });
     }
 
     fn render(
         &self,
-        expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
-        rc: &mut dyn RenderContext,
+        _expanded_node: &ExpandedNode,
+        _context: &Rc<RefCell<RuntimeContext>>,
+        _rc: &mut dyn RenderContext,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
 
@@ -150,24 +160,36 @@ impl InstanceNode for TextInstance {
         }
     }
 
-    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         // though macOS and iOS don't need this ancestry chain for clipping, Web does
         // let clipping_ids = ptc.get_current_clipping_ids();
 
         // let scroller_ids = ptc.get_current_scroller_ids();
 
         let id_chain = expanded_node.id_chain.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
-            id_chain,
-            clipping_ids: vec![],
-            scroller_ids: vec![],
-            z_index: 0,
-        }));
+        context
+            .borrow_mut()
+            .enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
+                id_chain,
+                clipping_ids: vec![],
+                scroller_ids: vec![],
+                z_index: 0,
+            }));
     }
 
-    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let id_chain = expanded_node.id_chain.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
+        context
+            .borrow_mut()
+            .enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
     }
 
     #[cfg(debug_assertions)]
