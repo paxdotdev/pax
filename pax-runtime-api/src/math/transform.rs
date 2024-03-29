@@ -116,6 +116,10 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         ])
     }
 
+    pub fn compose(p: Point2<WTo>, vx: Vector2<WTo>, vy: Vector2<WTo>) -> Self {
+        Self::new([vx.x, vx.y, vy.x, vy.y, p.x, p.y])
+    }
+
     // Decomposes the transform into translation point + unit vector transforms
     // (ie. where (0, 1) and (1, 0) end up)
     pub fn decompose(&self) -> (Point2<WTo>, Vector2<WTo>, Vector2<WTo>) {

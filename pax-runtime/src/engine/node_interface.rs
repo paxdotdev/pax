@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::math::Vector2;
+use pax_runtime_api::math::{Parts, Vector2};
 
 use crate::{
     api::math::{Point2, Space, Transform2},
@@ -104,8 +104,7 @@ impl NodeInterface {
         let up_lp = self.inner.layout_properties.borrow_mut();
         if let Some(lp) = up_lp.as_ref() {
             let (w, h) = lp.computed_tab.bounds;
-            let res = lp.computed_tab.transform * Transform2::scale_sep(Vector2::new(w, h));
-            Some(res)
+            Some(lp.computed_tab.transform * Transform2::scale_sep(Vector2::new(w, h)))
         } else {
             None
         }
