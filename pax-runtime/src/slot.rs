@@ -3,6 +3,7 @@ use core::option::Option;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use pax_runtime_api::properties::Erasable;
 use pax_runtime_api::{Numeric, Property};
 
 use crate::api::Layer;
@@ -51,49 +52,62 @@ impl InstanceNode for SlotInstance {
         })
     }
 
-    fn update(
+    fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            handle_vtable_update(
-                &(**context).borrow().expression_table(),
-                &expanded_node.stack,
-                &mut properties.index,
-                (**context).borrow().globals(),
-            );
-            let index: usize = properties
-                .index
-                .get()
-                .to_int()
-                .try_into()
-                .expect("Slot index must be non-negative");
+        let cloned_expanded_node = Rc::clone(expanded_node);
+        let cloned_context = Rc::clone(context);
 
-            let node = expanded_node
-                .containing_component
-                .upgrade()
-                .as_ref()
-                .expect("slot has containing component during create")
-                .expanded_and_flattened_slot_children
-                .borrow()
-                .as_ref()
-                .and_then(|v| v.get(index))
-                .map(|v| Rc::clone(&v));
+        let dep = expanded_node
+            .with_properties_unwrapped(|properties: &mut SlotProperties| properties.index.erase());
+        log::debug!("Slot handle_mount");
+        expanded_node
+            .update_children
+            .replace_with(Property::computed(
+                move || {
+                    log::debug!("RECOMPUTING SLOT");
+                    cloned_expanded_node.with_properties_unwrapped(
+                        |properties: &mut SlotProperties| {
+                            let index: usize = properties
+                                .index
+                                .get()
+                                .to_int()
+                                .try_into()
+                                .expect("Slot index must be non-negative");
 
-            let node_id = node.as_ref().map(|n| n.id_chain[0]);
-            let update_child = properties.last_index != index || node_id != properties.last_node_id;
-            properties.last_node_id = node_id;
-            properties.last_index = index;
+                            let node = cloned_expanded_node
+                                .containing_component
+                                .upgrade()
+                                .as_ref()
+                                .expect("slot has containing component during create")
+                                .expanded_and_flattened_slot_children
+                                .borrow()
+                                .as_ref()
+                                .and_then(|v| v.get(index))
+                                .map(|v| Rc::clone(&v));
 
-            if update_child {
-                if let Some(node) = node {
-                    expanded_node.attach_children(vec![Rc::clone(&node)], context);
-                } else {
-                    expanded_node.set_children(vec![], context);
-                }
-            }
-        });
+                            let node_id = node.as_ref().map(|n| n.id_chain[0]);
+                            let update_child = properties.last_index != index
+                                || node_id != properties.last_node_id;
+                            properties.last_node_id = node_id;
+                            properties.last_index = index;
+                            if update_child {
+                                if let Some(node) = node {
+                                    cloned_expanded_node
+                                        .attach_children(vec![Rc::clone(&node)], &cloned_context);
+                                } else {
+                                    cloned_expanded_node.set_children(vec![], &cloned_context);
+                                }
+                            }
+                        },
+                    );
+                    true
+                },
+                &vec![&dep],
+            ));
+        expanded_node.update_children.get();
     }
 
     #[cfg(debug_assertions)]

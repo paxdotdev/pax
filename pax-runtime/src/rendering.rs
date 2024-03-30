@@ -192,9 +192,10 @@ pub trait InstanceNode {
     /// Updates the expanded node, recomputing it's properties and possibly updating it's children
     fn update(
         self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
+        expanded_node.update_children.get();
     }
 
     /// Second lifecycle method during each render loop, occurs after

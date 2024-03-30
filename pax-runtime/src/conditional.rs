@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::{iter, rc::Rc};
 
+use pax_runtime_api::properties::Erasable;
 use pax_runtime_api::Property;
 
 use crate::api::Layer;
@@ -44,44 +45,49 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn update(
+    fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let (should_update, active) =
+        let cloned_expanded_node = Rc::clone(expanded_node);
+        let cloned_self = Rc::clone(&self);
+        let cloned_context = Rc::clone(context);
+
+        let dep =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
-                handle_vtable_update(
-                    (**context).borrow().expression_table().borrow(),
-                    &expanded_node.stack,
-                    &mut properties.boolean_expression,
-                    (**context).borrow().globals(),
-                );
-                let val = Some(properties.boolean_expression.get());
-                let update_children = properties.last_boolean_expression != val;
-                properties.last_boolean_expression = val;
-                (update_children, properties.boolean_expression.get())
+                properties.boolean_expression.erase()
             });
+        expanded_node
+            .update_children
+            .replace_with(Property::computed(
+                move || {
+                    let (should_update, active) = cloned_expanded_node.with_properties_unwrapped(
+                        |properties: &mut ConditionalProperties| {
+                            let val = Some(properties.boolean_expression.get());
+                            let update_children = properties.last_boolean_expression != val;
+                            properties.last_boolean_expression = val;
+                            (update_children, properties.boolean_expression.get())
+                        },
+                    );
 
-        if should_update {
-            if active {
-                let env = Rc::clone(&expanded_node.stack);
-                let children = self.base().get_instance_children().borrow();
-                let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                expanded_node.set_children(children_with_envs, context);
-            } else {
-                expanded_node.set_children(iter::empty(), context);
-            }
-        }
-    }
+                    if should_update {
+                        if active {
+                            let env = Rc::clone(&cloned_expanded_node.stack);
+                            let children = cloned_self.base().get_instance_children().borrow();
+                            let children_with_envs =
+                                children.iter().cloned().zip(iter::repeat(env));
+                            cloned_expanded_node.set_children(children_with_envs, &cloned_context);
+                        } else {
+                            cloned_expanded_node.set_children(iter::empty(), &cloned_context);
+                        }
+                    }
 
-    fn handle_mount(
-        self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-        // No-op: wait with creating child-nodes until update tick, since the
-        // condition has then been evaluated
+                    true
+                },
+                &vec![&dep],
+            ));
+        expanded_node.update_children.get();
     }
 
     #[cfg(debug_assertions)]
