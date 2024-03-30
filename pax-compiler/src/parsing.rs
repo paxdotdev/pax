@@ -472,9 +472,9 @@ fn recurse_visit_tag_pairs_for_template(
                     let template_node = TemplateNodeDefinition {
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: Some(expression_body_token),
-                            condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
+                            condition_expression_info: None, //This will be written back to this data structure later, during expression compilation
                             slot_index_expression_paxel: None,
-                            slot_index_expression_vtable_id: None,
+                            slot_index_expression_info: None,
                             repeat_predicate_definition: None,
                             repeat_source_definition: None,
                         }),
@@ -561,7 +561,7 @@ fn recurse_visit_tag_pairs_for_template(
                         Rule::xo_range => {
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: Some(inner_source_token),
-                                vtable_id: None, //This will be written back to this data structure later, during expression compilation
+                                expression_info: None, //This will be written back to this data structure later, during expression compilation
                                 symbolic_binding: None,
                             }
                         }
@@ -570,7 +570,7 @@ fn recurse_visit_tag_pairs_for_template(
                                 convert_symbolic_binding_from_paxel_to_ril(inner_source);
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: None,
-                                vtable_id: None,
+                                expression_info: None,
                                 symbolic_binding: Some(inner_source_token),
                             }
                         }
@@ -620,9 +620,9 @@ fn recurse_visit_tag_pairs_for_template(
                     let template_node = TemplateNodeDefinition {
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
-                            condition_expression_vtable_id: None,
+                            condition_expression_info: None,
                             slot_index_expression_paxel: Some(expression_body_token),
-                            slot_index_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
+                            slot_index_expression_info: None, //This will be written back to this data structure later, during expression compilation
                             repeat_predicate_definition: None,
                             repeat_source_definition: None,
                         }),

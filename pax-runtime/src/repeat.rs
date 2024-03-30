@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter;
@@ -9,7 +8,6 @@ use pax_runtime_api::properties::{Erasable, ErasedProperty};
 use pax_runtime_api::Property;
 
 use crate::api::Layer;
-use crate::declarative_macros::handle_vtable_update_optional;
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -29,8 +27,8 @@ pub struct RepeatInstance {
 pub struct RepeatProperties {
     pub source_expression_vec: Option<Property<Vec<Rc<RefCell<dyn Any>>>>>,
     pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
-    last_len: usize,
-    last_bounds: (f64, f64),
+    pub iterator_i_symbol: Option<String>,
+    pub iterator_elem_symbol: Option<String>,
 }
 
 pub struct RepeatItem {
@@ -69,13 +67,6 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-    }
-
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
@@ -94,6 +85,16 @@ impl InstanceNode for RepeatInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 properties.source_expression_vec.clone()
             });
+
+        let i_symbol =
+            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
+                properties.iterator_i_symbol.clone()
+            });
+        let elem_symbol =
+            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
+                properties.iterator_elem_symbol.clone()
+            });
+
         let mut dependents = vec![];
         if let Some(ref source) = source_expression_range {
             dependents.push(source.erase());
@@ -102,65 +103,71 @@ impl InstanceNode for RepeatInstance {
             dependents.push(source.erase());
         }
         let dependents = dependents.iter().map(|x| x).collect();
+        log::debug!("repeat handle_mount");
+        expanded_node
+            .update_children
+            .replace_with(Property::computed(
+                move || {
+                    log::debug!("recomputing repeat");
+                    let new_vec = cloned_expanded_node
+                        .with_properties_unwrapped(|properties: &mut RepeatProperties| {
+                            let vec = if let Some(ref source) = properties.source_expression_range {
+                                Box::new(
+                                    source
+                                        .get()
+                                        .clone()
+                                        .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>),
+                                )
+                                    as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
+                            } else if let Some(ref source) = properties.source_expression_vec {
+                                Box::new(source.get().clone().into_iter())
+                                    as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
+                            } else {
+                                //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
+                                unreachable!();
+                            };
+                            Some(vec)
+                        })
+                        .expect("Repeat source expression must be present");
+                    let template_children = cloned_self.base().get_instance_children();
+                    let children_with_envs = iter::repeat(template_children)
+                        .zip(new_vec.into_iter())
+                        .enumerate()
+                        .flat_map(|(i, (children, elem))| {
+                            let property_i = Property::new(i);
+                            let property_elem = Property::new(Some(Rc::clone(&elem)));
+                            let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
+                                i: property_i.clone(),
+                                elem: property_elem.clone(),
+                            }))
+                                as Rc<RefCell<dyn Any>>;
 
-        log::debug!("Repeat handle_mount");
-        expanded_node.children.replace_with(Property::computed(
-            move || {
-                log::debug!("Repeat handle_mount computed");
-                let new_vec = cloned_expanded_node
-                    .with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                        let vec = if let Some(ref source) = properties.source_expression_range {
-                            Box::new(
-                                source
-                                    .get()
-                                    .clone()
-                                    .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>),
-                            )
-                                as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
-                        } else if let Some(ref source) = properties.source_expression_vec {
-                            Box::new(source.get().clone().into_iter())
-                                as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
-                        } else {
-                            //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
-                            unreachable!();
-                        };
-                        Some(vec)
-                    })
-                    .expect("Repeat source expression must be present");
-                log::debug!("new_vec computed");
-                log::debug!("new_vec: {:?}", new_vec.len());
-                let template_children = cloned_self.base().get_instance_children();
-                let children_with_envs = iter::repeat(template_children)
-                    .zip(new_vec.into_iter())
-                    .enumerate()
-                    .flat_map(|(i, (children, elem))| {
-                        let property_i = Property::new(i);
-                        let property_elem = Property::new(Some(Rc::clone(&elem)));
-                        let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
-                            i: property_i.clone(),
-                            elem: property_elem.clone(),
-                        })) as Rc<RefCell<dyn Any>>;
+                            let mut scope: HashMap<String, ErasedProperty> = HashMap::new();
 
-                        let mut scope: HashMap<String, ErasedProperty> = HashMap::new();
-                        scope.insert("i".to_string(), property_i.erase());
-                        scope.insert("elem".to_string(), property_elem.erase());
+                            if let Some(ref i_symbol) = i_symbol {
+                                log::debug!("Inserting i_symbol: {}", i_symbol);
+                                scope.insert(i_symbol.clone(), property_i.erase());
+                            }
+                            if let Some(ref elem_symbol) = elem_symbol {
+                                log::debug!("Inserting elem_symbol: {}", elem_symbol);
+                                scope.insert(elem_symbol.clone(), property_elem.erase());
+                            }
 
-                        let new_env = cloned_expanded_node
-                            .stack
-                            .push(scope.clone(), &new_repeat_item);
-                        children
-                            .borrow()
-                            .clone()
-                            .into_iter()
-                            .zip(iter::repeat(new_env))
-                    });
-                let c = cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
-                log::debug!("Repeat children: {:?}", c.len());
-                c
-            },
-            &dependents,
-        ));
-
+                            let new_env = cloned_expanded_node
+                                .stack
+                                .push(scope.clone(), &new_repeat_item);
+                            children
+                                .borrow()
+                                .clone()
+                                .into_iter()
+                                .zip(iter::repeat(new_env))
+                        });
+                    cloned_expanded_node.set_children(children_with_envs, &cloned_context);
+                    true
+                },
+                &dependents,
+            ));
+        expanded_node.update_children.get();
         log::debug!("Repeat handle_mount done");
     }
 }
