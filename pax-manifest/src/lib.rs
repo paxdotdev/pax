@@ -1596,9 +1596,9 @@ impl ControlFlowRepeatPredicateDefinition {
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression_paxel: Option<Token>,
-    pub condition_expression_vtable_id: Option<usize>,
+    pub condition_expression_info: Option<ExpressionCompilationInfo>,
     pub slot_index_expression_paxel: Option<Token>,
-    pub slot_index_expression_vtable_id: Option<usize>,
+    pub slot_index_expression_info: Option<ExpressionCompilationInfo>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
 }
@@ -1643,7 +1643,7 @@ impl Hash for ControlFlowSettingsDefinition {
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<Token>,
-    pub vtable_id: Option<usize>,
+    pub expression_info: Option<ExpressionCompilationInfo>,
     pub symbolic_binding: Option<Token>,
 }
 

@@ -389,7 +389,7 @@ impl PaxEngine {
         id: &UniqueTemplateNodeIdentifier,
         ctx: &Rc<RefCell<RuntimeContext>>,
     ) {
-        if parent.children.get().iter().any(|node| {
+        if parent.children.borrow().iter().any(|node| {
             node.instance_node
                 .borrow()
                 .base()
@@ -407,7 +407,7 @@ impl PaxEngine {
             parent.set_children(new_templates, ctx);
             parent.recurse_update(ctx);
         } else {
-            for child in parent.children.get().iter() {
+            for child in parent.children.borrow().iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
             }
         }
@@ -468,13 +468,8 @@ impl PaxEngine {
 
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
-        for node in self
-            .runtime_context
-            .borrow()
-            .z_index_node_cache
-            .clone()
-            .iter()
-        {
+        let cache = self.runtime_context.borrow().z_index_node_cache.clone();
+        for node in cache.iter() {
             let layer = node.instance_node.borrow().base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();

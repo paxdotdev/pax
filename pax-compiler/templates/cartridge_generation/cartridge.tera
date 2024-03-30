@@ -8,6 +8,8 @@ use pax_manifest::deserializer::{from_pax, from_pax_try_intoable_literal};
 use std::cell::Ref;
 use pax_runtime::api::properties::ErasedProperty;
 use pax_runtime::api::properties::Erasable;
+use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
+use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
@@ -371,14 +373,40 @@ impl DefinitionToInstanceTraverser {
         let children = self.build_children(containing_component_type_id, &node_id);
         match tnd.type_id.get_pax_type(){
             PaxType::If => {
-                let vtable_id = tnd.control_flow_settings
+                let expression_info = tnd
+                    .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .condition_expression_vtable_id
+                    .condition_expression_info
+                    .as_ref()
                     .unwrap();
-                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> = Box::new(move |_,_| Rc::new(RefCell::new( {
+                let vtable_id = expression_info.vtable_id;
+                let dep_symbols = expression_info.dependencies.clone();
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
                         let mut properties = ConditionalProperties::default();
-                        properties.boolean_expression = Property::computed(|| true, &Vec::new()); // TODODAG insert actual logic
+                        let cloned_table = table.clone();
+                        let cloned_stack = stack_frame.clone();
+
+                        let mut dependencies = Vec::new();
+                        for dependency in &dep_symbols {
+                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
+                            }
+                        }
+
+                        properties.boolean_expression =  Property::computed(move || {
+                            let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                            if let Ok(downcast_value) = new_value_wrapped.downcast::<bool>() {
+                                *downcast_value
+                            } else {
+                                panic!(
+                                    "property has an unexpected type for vtable id {}",
+                                    vtable_id
+                                );
+                            }
+                        }, &dependencies);
                         properties
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -393,15 +421,41 @@ impl DefinitionToInstanceTraverser {
                 })
             },
             PaxType::Slot => {
-                let vtable_id = tnd
+                let expression_info = tnd
                     .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .slot_index_expression_vtable_id
+                    .slot_index_expression_info
+                    .as_ref()
                     .unwrap();
-                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>  = Box::new(move |_,_| Rc::new(RefCell::new( {
+                
+                let vtable_id = expression_info.vtable_id;
+                let dep_symbols = expression_info.dependencies.clone();
+
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>  = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
                         let mut properties = SlotProperties::default();
-                        properties.index = Property::computed(|| Default::default(), &Vec::new()); // TODODAG insert actual logic (using vtable, stack, vtable_id)
+                        let cloned_table = table.clone();
+                        let cloned_stack = stack_frame.clone();
+
+                        let mut dependencies = Vec::new();
+                        for dependency in &dep_symbols {
+                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
+                            }
+                        }
+                        properties.index = Property::computed(move || {
+                            let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                            if let Ok(downcast_value) = new_value_wrapped.downcast::<Numeric>() {
+                                *downcast_value
+                            } else {
+                                panic!(
+                                    "property has an unexpected type for vtable id {}",
+                                    vtable_id
+                                );
+                            }
+                        }, &dependencies);
                         properties
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -430,21 +484,74 @@ impl DefinitionToInstanceTraverser {
                     .repeat_predicate_definition
                     .clone()
                     .unwrap();
-                let vtable_id = rsd.vtable_id.unwrap();
-                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> = Box::new(move |_,_| Rc::new(RefCell::new( {
+                let expression_info = rsd.expression_info.as_ref().unwrap();
+                let vtable_id = expression_info.vtable_id.clone();
+                let dep_symbols = expression_info.dependencies.clone();
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> = Box::new(move |stack_frame,table| Rc::new(RefCell::new( {
                         let mut properties = RepeatProperties::default();
+
+                        let mut dependencies = Vec::new();
+                        for dependency in &dep_symbols {
+                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
+                            }
+                        }
+
                         properties.source_expression_vec = 
                             if let Some(t) = &rsd.symbolic_binding {
-                                Some(Property::computed(|| Default::default(),  &Vec::new())) // TODODAG
+                                let cloned_table = table.clone();
+                                let cloned_stack = stack_frame.clone();
+                                Some(
+                                    Property::computed(move || {
+                                        let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                                        if let Ok(downcast_value) = new_value_wrapped.downcast::<Vec<Rc<RefCell<dyn Any>>>>() {
+                                            *downcast_value
+                                        } else {
+                                            panic!(
+                                                "property has an unexpected type for vtable id {}",
+                                                vtable_id
+                                            );
+                                        }
+                                    }, &dependencies)
+                                    ) 
                             } else {
                                 None
                             };
+                            
                         properties.source_expression_range =
                             if let Some(t) = &rsd.range_expression_paxel {
-                                Some(Property::computed(|| Default::default(),  &Vec::new())) // TODODAG
+                                let cloned_table = table.clone();
+                                let cloned_stack = stack_frame.clone();
+                                Some(
+                                    Property::computed(move || {
+                                        let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                                        if let Ok(downcast_value) = new_value_wrapped.downcast::<std::ops::Range<isize>>() {
+                                            *downcast_value
+                                        } else {
+                                            panic!(
+                                                "property has an unexpected type for vtable id {}",
+                                                vtable_id
+                                            );
+                                        }
+                                    }, &dependencies)
+                                )
                             } else {
                                 None
                             };
+
+                        let (elem, index) = match &rpd {
+                            ElemId(token) => {
+                                (Some(token.raw_value.clone()), None)
+                            },
+                            ElemIdIndexId(t1,t2) => {
+                                (Some(t1.raw_value.clone()), Some(t2.raw_value.clone()))
+                            }
+                        };
+                        properties.iterator_i_symbol = index;
+                        properties.iterator_elem_symbol = elem;
+                    
                         properties
                     })));
                 RepeatInstance::instantiate(InstantiationArgs {

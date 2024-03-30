@@ -297,7 +297,15 @@ fn recurse_compile_expressions<'a>(
             //  - must use an exclusive (..) range operator (inclusive could be supported; effort required)
 
             let id = ctx.vtable_uid_gen.next().unwrap();
-            repeat_source_definition.vtable_id = Some(id);
+            let deps = repeat_source_definition
+                .symbolic_binding
+                .as_ref()
+                .map_or_else(|| vec![], |sb| vec![sb.token_value.clone()]);
+
+            repeat_source_definition.expression_info = Some(ExpressionCompilationInfo {
+                vtable_id: id,
+                dependencies: deps,
+            });
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
@@ -471,7 +479,15 @@ fn recurse_compile_expressions<'a>(
                 compile_paxel_to_ril(condition_expression_paxel.clone(), &ctx)?;
             let id = ctx.vtable_uid_gen.next().unwrap();
 
-            cfa.condition_expression_vtable_id = Some(id);
+            let deps = invocations
+                .iter()
+                .map(|i| i.root_identifier.clone())
+                .collect::<Vec<String>>();
+
+            cfa.condition_expression_info = Some(ExpressionCompilationInfo {
+                vtable_id: id,
+                dependencies: deps,
+            });
 
             let mut whitespace_removed_input = condition_expression_paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());
@@ -497,7 +513,15 @@ fn recurse_compile_expressions<'a>(
                 compile_paxel_to_ril(slot_index_expression_paxel.clone(), &ctx)?;
             let id = ctx.vtable_uid_gen.next().unwrap();
 
-            cfa.slot_index_expression_vtable_id = Some(id);
+            let deps = invocations
+                .iter()
+                .map(|i| i.root_identifier.clone())
+                .collect::<Vec<String>>();
+
+            cfa.slot_index_expression_info = Some(ExpressionCompilationInfo {
+                vtable_id: id,
+                dependencies: deps,
+            });
 
             let mut whitespace_removed_input = slot_index_expression_paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());
