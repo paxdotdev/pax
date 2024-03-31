@@ -11,6 +11,7 @@ use crate::api::{CommonProperties, RenderContext, Window};
 use crate::node_interface::NodeLocal;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::properties::ErasedProperty;
+use pax_runtime_api::Property;
 use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll, Size};
@@ -192,10 +193,9 @@ pub trait InstanceNode {
     /// Updates the expanded node, recomputing it's properties and possibly updating it's children
     fn update(
         self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
+        _expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        expanded_node.update_children.get();
     }
 
     /// Second lifecycle method during each render loop, occurs after
@@ -254,7 +254,7 @@ pub trait InstanceNode {
         let env = Rc::clone(&expanded_node.stack);
         let children = self.base().get_instance_children().borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-        expanded_node.set_children(children_with_envs, context);
+        expanded_node.children.set(expanded_node.generate_children(children_with_envs, context));
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
