@@ -60,42 +60,38 @@ impl InstanceNode for SlotInstance {
 
         let dep = expanded_node
             .with_properties_unwrapped(|properties: &mut SlotProperties| properties.index.erase());
-        expanded_node
-            .children
-            .replace_with(Property::computed(
-                move || {
-                    cloned_expanded_node.with_properties_unwrapped(
-                        |properties: &mut SlotProperties| {
-                            let index: usize = properties
-                                .index
-                                .get()
-                                .to_int()
-                                .try_into()
-                                .expect("Slot index must be non-negative");
+        expanded_node.children.replace_with(Property::computed(
+            move || {
+                cloned_expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+                    let index: usize = properties
+                        .index
+                        .get()
+                        .to_int()
+                        .try_into()
+                        .expect("Slot index must be non-negative");
 
-                            let node = cloned_expanded_node
-                                .containing_component
-                                .upgrade()
-                                .as_ref()
-                                .expect("slot has containing component during create")
-                                .expanded_and_flattened_slot_children
-                                .borrow()
-                                .as_ref()
-                                .and_then(|v| v.get(index))
-                                .map(|v| Rc::clone(&v));
+                    let node = cloned_expanded_node
+                        .containing_component
+                        .upgrade()
+                        .as_ref()
+                        .expect("slot has containing component during create")
+                        .expanded_and_flattened_slot_children
+                        .borrow()
+                        .as_ref()
+                        .and_then(|v| v.get(index))
+                        .map(|v| Rc::clone(&v));
 
-                            let ret = if let Some(node) = node {
-                                cloned_expanded_node
-                                    .attach_children(vec![Rc::clone(&node)], &cloned_context)
-                            } else {
-                                cloned_expanded_node.generate_children(vec![], &cloned_context)
-                            };
-                            ret
-                        },
-                    )
-                },
-                &vec![&dep],
-            ));
+                    let ret = if let Some(node) = node {
+                        cloned_expanded_node
+                            .attach_children(vec![Rc::clone(&node)], &cloned_context)
+                    } else {
+                        cloned_expanded_node.generate_children(vec![], &cloned_context)
+                    };
+                    ret
+                })
+            },
+            &vec![&dep],
+        ));
     }
 
     #[cfg(debug_assertions)]

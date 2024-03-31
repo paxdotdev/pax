@@ -720,10 +720,7 @@ impl std::fmt::Debug for ExpandedNode {
             //     "computed_expanded_properties",
             //     &self.computed_expanded_properties.try_borrow(),
             // )
-            .field(
-                "children",
-                &self.children.get().iter().collect::<Vec<_>>(),
-            )
+            .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field(
                 "parent",
                 &self
