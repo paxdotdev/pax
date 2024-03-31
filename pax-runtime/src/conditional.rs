@@ -58,30 +58,27 @@ impl InstanceNode for ConditionalInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
                 properties.boolean_expression.erase()
             });
-        expanded_node
-            .children
-            .replace_with(Property::computed(
-                move || {
-                    let (should_update, active) = cloned_expanded_node.with_properties_unwrapped(
-                        |properties: &mut ConditionalProperties| {
-                            let val = Some(properties.boolean_expression.get());
-                            let update_children = properties.last_boolean_expression != val;
-                            properties.last_boolean_expression = val;
-                            (update_children, properties.boolean_expression.get())
-                        },
-                    );
-                    if active {
-                        let env = Rc::clone(&cloned_expanded_node.stack);
-                        let children = cloned_self.base().get_instance_children().borrow();
-                        let children_with_envs =
-                            children.iter().cloned().zip(iter::repeat(env));
-                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context)
-                    } else {
-                        cloned_expanded_node.generate_children(iter::empty(), &cloned_context)
-                    }
-                },
-                &vec![&dep],
-            ));
+        expanded_node.children.replace_with(Property::computed(
+            move || {
+                let (should_update, active) = cloned_expanded_node.with_properties_unwrapped(
+                    |properties: &mut ConditionalProperties| {
+                        let val = Some(properties.boolean_expression.get());
+                        let update_children = properties.last_boolean_expression != val;
+                        properties.last_boolean_expression = val;
+                        (update_children, properties.boolean_expression.get())
+                    },
+                );
+                if active {
+                    let env = Rc::clone(&cloned_expanded_node.stack);
+                    let children = cloned_self.base().get_instance_children().borrow();
+                    let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+                    cloned_expanded_node.generate_children(children_with_envs, &cloned_context)
+                } else {
+                    cloned_expanded_node.generate_children(iter::empty(), &cloned_context)
+                }
+            },
+            &vec![&dep],
+        ));
     }
 
     #[cfg(debug_assertions)]
