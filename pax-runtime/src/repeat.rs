@@ -67,6 +67,13 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
+    fn update(
+            self: Rc<Self>,
+            expanded_node: &Rc<ExpandedNode>,
+            _context: &Rc<RefCell<RuntimeContext>>,
+        ) {
+    }
+
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
@@ -103,12 +110,10 @@ impl InstanceNode for RepeatInstance {
             dependents.push(source.erase());
         }
         let dependents = dependents.iter().map(|x| x).collect();
-        log::debug!("repeat handle_mount");
         expanded_node
-            .update_children
+            .children
             .replace_with(Property::computed(
                 move || {
-                    log::debug!("recomputing repeat");
                     let new_vec = cloned_expanded_node
                         .with_properties_unwrapped(|properties: &mut RepeatProperties| {
                             let vec = if let Some(ref source) = properties.source_expression_range {
@@ -143,13 +148,10 @@ impl InstanceNode for RepeatInstance {
                                 as Rc<RefCell<dyn Any>>;
 
                             let mut scope: HashMap<String, ErasedProperty> = HashMap::new();
-
                             if let Some(ref i_symbol) = i_symbol {
-                                log::debug!("Inserting i_symbol: {}", i_symbol);
                                 scope.insert(i_symbol.clone(), property_i.erase());
                             }
                             if let Some(ref elem_symbol) = elem_symbol {
-                                log::debug!("Inserting elem_symbol: {}", elem_symbol);
                                 scope.insert(elem_symbol.clone(), property_elem.erase());
                             }
 
@@ -162,12 +164,10 @@ impl InstanceNode for RepeatInstance {
                                 .into_iter()
                                 .zip(iter::repeat(new_env))
                         });
-                    cloned_expanded_node.set_children(children_with_envs, &cloned_context);
-                    true
+                    let ret = cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
+                    ret
                 },
                 &dependents,
             ));
-        expanded_node.update_children.get();
-        log::debug!("Repeat handle_mount done");
     }
 }
