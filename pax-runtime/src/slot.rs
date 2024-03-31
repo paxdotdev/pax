@@ -30,8 +30,6 @@ pub struct SlotInstance {
 #[derive(Default)]
 pub struct SlotProperties {
     pub index: Property<Numeric>,
-    last_index: usize,
-    last_node_id: Option<u32>,
 }
 
 impl InstanceNode for SlotInstance {
@@ -62,12 +60,10 @@ impl InstanceNode for SlotInstance {
 
         let dep = expanded_node
             .with_properties_unwrapped(|properties: &mut SlotProperties| properties.index.erase());
-        log::debug!("Slot handle_mount");
         expanded_node
-            .update_children
+            .children
             .replace_with(Property::computed(
                 move || {
-                    log::debug!("RECOMPUTING SLOT");
                     cloned_expanded_node.with_properties_unwrapped(
                         |properties: &mut SlotProperties| {
                             let index: usize = properties
@@ -88,26 +84,18 @@ impl InstanceNode for SlotInstance {
                                 .and_then(|v| v.get(index))
                                 .map(|v| Rc::clone(&v));
 
-                            let node_id = node.as_ref().map(|n| n.id_chain[0]);
-                            let update_child = properties.last_index != index
-                                || node_id != properties.last_node_id;
-                            properties.last_node_id = node_id;
-                            properties.last_index = index;
-                            if update_child {
-                                if let Some(node) = node {
-                                    cloned_expanded_node
-                                        .attach_children(vec![Rc::clone(&node)], &cloned_context);
-                                } else {
-                                    cloned_expanded_node.set_children(vec![], &cloned_context);
-                                }
-                            }
+                            let ret = if let Some(node) = node {
+                                cloned_expanded_node
+                                    .attach_children(vec![Rc::clone(&node)], &cloned_context)
+                            } else {
+                                cloned_expanded_node.generate_children(vec![], &cloned_context)
+                            };
+                            ret
                         },
-                    );
-                    true
+                    )
                 },
                 &vec![&dep],
             ));
-        expanded_node.update_children.get();
     }
 
     #[cfg(debug_assertions)]

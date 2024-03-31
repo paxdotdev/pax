@@ -389,7 +389,7 @@ impl PaxEngine {
         id: &UniqueTemplateNodeIdentifier,
         ctx: &Rc<RefCell<RuntimeContext>>,
     ) {
-        if parent.children.borrow().iter().any(|node| {
+        if parent.children.get().iter().any(|node| {
             node.instance_node
                 .borrow()
                 .base()
@@ -404,10 +404,10 @@ impl PaxEngine {
             let parent_template = parent.instance_node.borrow();
             let children = parent_template.base().get_instance_children().borrow();
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
-            parent.set_children(new_templates, ctx);
+            parent.generate_children(new_templates, ctx);
             parent.recurse_update(ctx);
         } else {
-            for child in parent.children.borrow().iter() {
+            for child in parent.children.get().iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
             }
         }
