@@ -522,10 +522,16 @@ mod tests {
 
         let p1 = prop_1.clone();
         let p2 = prop_2.clone();
-        let prop_3 = Property::computed(move || p1.get() * p2.get(), &vec![&prop_1.erase(), &prop_2.erase()]);
+        let prop_3 = Property::computed(
+            move || p1.get() * p2.get(),
+            &vec![&prop_1.erase(), &prop_2.erase()],
+        );
         let p1 = prop_1.clone();
         let p3 = prop_3.clone();
-        let prop_4 = Property::computed(move || p1.get() + p3.get(), &vec![&prop_1.erase(), &prop_3.erase()]);
+        let prop_4 = Property::computed(
+            move || p1.get() + p3.get(),
+            &vec![&prop_1.erase(), &prop_3.erase()],
+        );
 
         assert_eq!(prop_4.get(), 14);
         prop_1.set(1);
