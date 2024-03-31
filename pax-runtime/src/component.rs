@@ -2,6 +2,8 @@ use std::borrow::Borrow;
 use std::rc::Rc;
 use std::{cell::RefCell, iter};
 
+use pax_runtime_api::Property;
+
 use crate::api::{Layer, Timeline};
 use crate::{
     BaseInstance, ExpandedNode, ExpressionTable, Globals, InstanceFlags, InstanceNode,
@@ -50,29 +52,6 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-        // Compute properties
-        (*self.compute_properties_fn)(
-            &expanded_node,
-            (**context).borrow().expression_table().borrow(),
-            (**context).borrow().globals(),
-        );
-
-        // Update slot children. Needs to be done since a change in
-        // a repeat can trigger changes in slot references.
-        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
-            for slot_child in slot_children {
-                slot_child.recurse_update(context);
-            }
-        }
-
-        expanded_node.compute_flattened_slot_children();
-    }
-
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
@@ -84,6 +63,15 @@ impl InstanceNode for ComponentInstance {
             let children_with_env = children.iter().cloned().zip(iter::repeat(env));
             *expanded_node.expanded_slot_children.borrow_mut() =
                 Some(containing_component.create_children_detached(children_with_env, context));
+                    
+            // Mounts slot children so repeat can create expression for children 
+            if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+                for slot_child in slot_children {
+                    slot_child.recurse_mount(context);
+                }
+            }
+
+            expanded_node.compute_flattened_slot_children();
         }
         let properties_scope = expanded_node.properties_scope.borrow();
         let new_env = expanded_node
@@ -91,7 +79,7 @@ impl InstanceNode for ComponentInstance {
             .push(properties_scope.clone(), &expanded_node.properties.borrow());
         let children = self.template.borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
-        expanded_node.set_children(children_with_envs, context);
+        expanded_node.children.replace_with(Property::new(expanded_node.generate_children(children_with_envs, context)));
     }
 
     #[cfg(debug_assertions)]

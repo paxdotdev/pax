@@ -118,7 +118,6 @@ impl<T: PropVal> Property<T> {
     pub fn replace_with(&self, target: Property<T>) {
         // We want the target's value to be dropped after the mutable table access (glob_prop_table) to avoid borrowing issues
         let mut value_to_drop: Box<dyn Any> = Box::new({});
-        log::debug!("Replacing property");
         glob_prop_table(|t| {
             t.with_prop_data_mut(self.id, |original_prop_data: &mut PropertyData| {
                 t.with_prop_data(target.id, |target_prop_data| {
@@ -449,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_computed_get() {
-        let prop = Property::<i32>::computed(|| 42, &[]);
+        let prop = Property::<i32>::computed(|| 42, &vec![]);
         assert_eq!(prop.get(), 42);
     }
 
@@ -457,7 +456,7 @@ mod tests {
     fn test_computed_dependent_on_literal() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &[&prop_1]);
+        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &vec![&prop_1.erase()]);
 
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
@@ -468,7 +467,7 @@ mod tests {
     fn test_read() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &[&prop_1]);
+        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &vec![&prop_1.erase()]);
 
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
@@ -483,7 +482,7 @@ mod tests {
     fn test_update() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &[&prop_1]);
+        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &vec![&prop_1.erase()]);
 
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
@@ -504,11 +503,11 @@ mod tests {
     fn test_property_replacement() {
         let prop_1 = Property::literal(2);
         let p1 = prop_1.clone();
-        let prop_2 = Property::computed(move || p1.get(), &[&prop_1]);
+        let prop_2 = Property::computed(move || p1.get(), &vec![&prop_1.erase()]);
 
         let prop_3 = Property::literal(6);
         let p3 = prop_3.clone();
-        let prop_4 = Property::computed(move || p3.get(), &[&prop_3]);
+        let prop_4 = Property::computed(move || p3.get(), &vec![&prop_3.erase()]);
 
         assert_eq!(prop_2.get(), 2);
         assert_eq!(prop_4.get(), 6);
@@ -523,10 +522,10 @@ mod tests {
 
         let p1 = prop_1.clone();
         let p2 = prop_2.clone();
-        let prop_3 = Property::computed(move || p1.get() * p2.get(), &[&prop_1, &prop_2]);
+        let prop_3 = Property::computed(move || p1.get() * p2.get(), &vec![&prop_1.erase(), &prop_2.erase()]);
         let p1 = prop_1.clone();
         let p3 = prop_3.clone();
-        let prop_4 = Property::computed(move || p1.get() + p3.get(), &[&prop_1, &prop_3]);
+        let prop_4 = Property::computed(move || p1.get() + p3.get(), &vec![&prop_1.erase(), &prop_3.erase()]);
 
         assert_eq!(prop_4.get(), 14);
         prop_1.set(1);
