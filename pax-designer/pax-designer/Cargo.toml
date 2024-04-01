@@ -10,7 +10,7 @@ pax-engine = { version = "0.12.3" , path = ".pax/pkg/pax-engine" }
 pax-manifest = { version = "0.12.3"  , path = ".pax/pkg/pax-manifest" }
 pax-std = { version = "0.12.3" , path = ".pax/pkg/pax-std" }
 serde_json = {version = "1.0.95", optional = true}
-designer_project = { version = "0.12.3", path = "../designer-project" }
+designer_project = { version = "0.12.3", path = "../website" }
 pax-designtime = {version = "0.12.3", path = ".pax/pkg/pax-designtime" }
 anyhow = "1.0.79"
 
