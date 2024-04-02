@@ -89,9 +89,7 @@ impl<W: Space> Vector2<W> {
     pub fn angle_to(self, other: Self) -> Rotation {
         let dot = (self.normalize() * other.normalize()).clamp(0.0, 1.0);
         let s = self.cross(other).signum();
-        Rotation::Radians(Numeric::from(
-            s * dot.acos()
-        ))
+        Rotation::Radians(Numeric::from(s * dot.acos()))
     }
 
     /// Returns the magnitude of the cross product as if both vectors had z value 0.0

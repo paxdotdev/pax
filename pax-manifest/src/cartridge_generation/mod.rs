@@ -327,14 +327,18 @@ impl PaxManifest {
             }
         }
 
+        let mut merged = Vec::new();
         if let Some(inline) = inline_settings.clone() {
-            for e in inline.into_iter() {
+            for e in inline.iter() {
                 if let SettingElement::Setting(key, _) = e.clone() {
-                    map.insert(key, e);
+                    map.remove(&key);
                 }
             }
+            let unique_setting_block_settings: Vec<SettingElement> =
+                map.values().cloned().collect();
+            merged.extend(inline);
+            merged.extend(unique_setting_block_settings);
         }
-        let merged: Vec<SettingElement> = map.values().cloned().collect();
 
         if merged.len() > 0 {
             Some(merged)
