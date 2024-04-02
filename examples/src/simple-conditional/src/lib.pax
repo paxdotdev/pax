@@ -1,28 +1,49 @@
-<Rectangle
-    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-/>
+<Frame width=20%>
+	<Text text={self.message} class=centered class=small id=text />
+	<Rectangle class=centered class=small @click=self.increment
+	     fill={hsl(ticks, 75%, 50%)}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Frame>
+if self.activated {
+	<Stacker cells=5>
+	for i in 0..5 {
+		<Stacker cells=5 direction=StackerDirection::Vertical>
+		for j in 0..5 {
+			<Frame>
+				<Text text="_R" class=centered width=80% height=80% id=text />
+				<Rectangle class=centered width=50% height=50% @click=self.increment
+				     fill={hsl(ticks + 20*i, (50 + j*10)%, 50%)}
+				    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+				/>
+			</Frame>
+		}
+		</Stacker>
+	}
+	</Stacker>
+}
 
-// @settings {
-//      @mount: handle_mount,
-//      @pre_render: handle_pre_render,
-//      .centered {
-//         x: 50%
-//         y: 50%
-//         anchor_x: 50%
-//         anchor_y: 50%
-//     }
-//     .small {
-//         width: 120px
-//         height: 120px
-//     }
-//     // #text {
-//     //     style: {
-//     //             font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
-//     //             font_size: 32px,
-//     //             fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
-//     //             align_vertical: TextAlignVertical::Center,
-//     //             align_horizontal: TextAlignHorizontal::Center,
-//     //             align_multiline: TextAlignHorizontal::Center
-//     //     }
-//     // }
-// }
+@settings {
+     @mount: handle_mount,
+     @pre_render: handle_pre_render,
+     .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    }
+    .small {
+        width: 120px
+        height: 120px
+    }
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 32px,
+                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
