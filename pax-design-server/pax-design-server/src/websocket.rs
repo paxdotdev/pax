@@ -156,7 +156,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     );
                     //record_request_training_data(&help_request, &request_id);
 
-                     let component_type_id = help_request.component.type_id.clone();
+                    let component_type_id = help_request.component.type_id.clone();
                     // let serialized_component =
                     //     press_code_serialization_template(help_request.component.clone());
 
