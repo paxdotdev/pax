@@ -181,6 +181,16 @@ impl ExpandedNode {
         );
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
+        let ctx = (**context).borrow();
+        let globals = ctx.globals();
+        let parent_bounds = globals.viewport.bounds.clone();
+        let parent_transform = globals.viewport.transform.clone();
+        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
+        root_node.layout_properties.bounds.replace_with(bounds);
+        root_node
+            .layout_properties
+            .transform
+            .replace_with(transform);
         root_node
     }
 
@@ -308,17 +318,10 @@ impl ExpandedNode {
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
             *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
-            let parent_viewport = self
-                .parent_expanded_node
-                .borrow()
-                .upgrade()
-                .map(|p| p.layout_properties.clone())
-                .unwrap_or((*(*context)).borrow().globals().viewport.clone());
 
-            let parent_bounds = parent_viewport.bounds.clone();
-            let parent_transform = parent_viewport.transform.clone();
-
-            let (transform, bounds) = compute_tab(&self, parent_transform, parent_bounds);
+            let parent_bounds = self.layout_properties.bounds.clone();
+            let parent_transform = self.layout_properties.transform.clone();
+            let (transform, bounds) = compute_tab(&child, parent_transform, parent_bounds);
             child.layout_properties.bounds.replace_with(bounds);
             child.layout_properties.transform.replace_with(transform);
         }
@@ -467,7 +470,6 @@ impl ExpandedNode {
         for child in self.children.get().iter().rev() {
             child.recurse_render(ctx, rcs);
         }
-        let tab = &self.layout_properties;
         self.instance_node.borrow().render(&self, ctx, rcs);
         self.instance_node
             .borrow()
