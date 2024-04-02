@@ -20,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 
 use crate::api::{
@@ -30,8 +31,8 @@ use crate::api::{
 };
 
 use crate::{
-    compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr,
-    PropertiesComputable, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+    compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext,
+    RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 pub struct ExpandedNode {
@@ -205,8 +206,9 @@ impl ExpandedNode {
             property_scope.extend(scope(properties.clone()));
         }
 
-        Rc::new(ExpandedNode {
-            id_chain: vec![(**context).borrow_mut().gen_uid().0],
+        let id = (**context).borrow_mut().gen_uid().0;
+        let res = Rc::new(ExpandedNode {
+            id_chain: vec![id],
             instance_node: RefCell::new(Rc::clone(&template)),
             attached: RefCell::new(0),
             properties: RefCell::new(properties),
@@ -214,14 +216,18 @@ impl ExpandedNode {
             stack: env,
             parent_expanded_node: Default::default(),
             containing_component,
-            children: Property::new(Vec::new()),
+            children: Property::new_with_name(
+                Vec::new(),
+                &format!("node children (node id: {})", id),
+            ),
             mounted_children: RefCell::new(Vec::new()),
             layout_properties: RefCell::new(None),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
-        })
+        });
+        res
     }
 
     pub fn recreate_with_new_data(
@@ -288,20 +294,27 @@ impl ExpandedNode {
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) -> Vec<Rc<ExpandedNode>> {
+        log::debug!("attach children enter (parent: {:?})", self);
         let mut curr_children = self.mounted_children.borrow_mut();
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         if *self.attached.borrow() > 0 {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
-            for child in new_children.iter() {
+            log::debug!("unmounted, now mounting (parent: {:?})", self);
+            for (i, child) in new_children.iter().enumerate() {
+                log::debug!("mounting {:?} ind: {}", child, i);
                 Rc::clone(child).recurse_mount(context);
+                log::debug!("finished mounting {:?} ind: {}", child, i);
             }
         }
+        log::debug!("BEFORE SET PARENTS");
         for child in new_children.iter() {
             *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
         }
+        log::debug!("AFTER SET PARENTS");
         *curr_children = new_children.clone();
+        log::debug!("attach children exit (parent: {:?})", self);
         new_children
     }
 

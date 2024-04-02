@@ -19,12 +19,12 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                             {% if property.property_type.type_id.is_intoable_downstream_type %}
                                 let mi = from_pax_try_intoable_literal(&lv.raw_value);
                                 if let Ok(intoable_literal) = mi {
-                                    Property::new(intoable_literal.into())
+                                    Property::new_with_name(intoable_literal.into(), &lv.raw_value)
                                 } else {
-                                    Property::new(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into())
+                                    Property::new_with_name(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
                                 }
                             {% else %}
-                                Property::new(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into())
+                                Property::new_with_name(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
                             {% endif %}
                         },
                         ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
@@ -40,7 +40,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 }
                                 let cloned_stack = stack_frame.clone();
                                 let cloned_table = table.clone();
-                                Property::computed(move || {
+                                Property::computed_with_name(move || {
                                     let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                     if let Ok(downcast_value) = new_value_wrapped.downcast::<{{property.property_type.type_id._type_id}}>() {
                                         *downcast_value
@@ -51,13 +51,13 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                         );
                                     }
                                 
-                                }, &dependents)
+                                }, &dependents, &token.raw_value)
                             } else {
                                 unreachable!("No info for expression")
                             }
                         },
                         ValueDefinition::Block(block) => {
-                            Property::new({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
+                            Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
                         }
                         _ => unreachable!("Invalid value definition for {{property.name}}")
                     });
@@ -203,15 +203,15 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         {% if prop.property_type.type_id.is_intoable_downstream_type %}
                                             let mi = from_pax_try_intoable_literal(&lv.raw_value);
                                             if let Ok(intoable_literal) = mi {
-                                                Property::new(intoable_literal.into())
+                                                Property::new_with_name(intoable_literal.into(), &lv.raw_value)
                                             } else {
                                                 if let Err(e) = from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value) {
-                                                    panic!("Failed to parse value for {} with error {}",&lv.raw_value,e);
+                                                    panic!("Failed to parse value for {} with error {}", &lv.raw_value, e);
                                                 }
-                                                Property::new(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap())
+                                                Property::new_with_name(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap(), &lv.raw_value)
                                             }
                                         {% else %}
-                                            Property::new(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap())
+                                            Property::new_with_name(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap(), &lv.raw_value)
                                         {% endif %}
                                     },
                                     ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token, info ) =>
@@ -228,7 +228,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             let cloned_stack = stack_frame.clone();
                                             let cloned_table = table.clone();
                                             let cloned_info = info.clone();
-                                            Property::computed(move || {
+                                            Property::computed_with_name(move || {
                                                 let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
                                                 if let Ok(downcast_value) = new_value_wrapped.downcast::<{{prop.type_id._type_id}}>() {
                                                     *downcast_value
@@ -239,13 +239,13 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                                     );
                                                 }
                                             
-                                            }, &dependents)
+                                            }, &dependents, &token.raw_value)
                                         } else {
                                             unreachable!("No info for expression")
                                         }
                                     },
                                     ValueDefinition::Block(block) => {
-                                        Property::new({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
+                                        Property::new_with_name({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
@@ -256,7 +256,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         {% if prop.property_type.type_id.is_intoable_downstream_type %}
                                             let mi = from_pax_try_intoable_literal(&lv.raw_value);
                                             if let Ok(intoable_literal) = mi {
-                                                Property::new(intoable_literal.into())
+                                                Property::new_with_name(intoable_literal.into(), &lv.raw_value)
                                             } else {
                                                 from_pax(&lv.raw_value).unwrap()
                                             }

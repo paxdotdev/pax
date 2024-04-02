@@ -1,7 +1,7 @@
 use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 use serde::{Deserialize, Serialize};
-use slotmap::SlotMap;
+use slotmap::{SlotMap, SparseSecondaryMap};
 
 use self::private::PropId;
 
@@ -41,7 +41,10 @@ impl<T> Drop for Property<T> {
 }
 impl<T: Default + PropVal> Default for Property<T> {
     fn default() -> Self {
-        Property::new(T::default())
+        Property::new_with_name(
+            T::default(),
+            &format!("from default ({})", std::any::type_name::<T>()),
+        )
     }
 }
 
@@ -66,7 +69,10 @@ impl<'de, T: PropVal + Deserialize<'de>> Deserialize<'de> for Property<T> {
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Ok(Property::new(value))
+        Ok(Property::new_with_name(
+            value,
+            &format!("from deserialized ({})", std::any::type_name::<T>()),
+        ))
     }
 }
 impl<T: PropVal + Serialize> Serialize for Property<T> {
@@ -84,26 +90,68 @@ impl<T: PropVal> Property<T> {
         Self::literal(val)
     }
 
+    pub fn new_with_name(val: T, name: &str) -> Self {
+        Self::literal_optional_name(val, Some(name))
+    }
+
     pub(crate) fn literal(val: T) -> Self {
-        let id = glob_prop_table(|t| t.add_literal_entry(val));
+        Self::literal_optional_name(val, None)
+    }
+
+    fn literal_optional_name(val: T, name: Option<&str>) -> Self {
+        let id = glob_prop_table(|t| {
+            let Some(id) = t.add_literal_entry(val) else {
+                panic!(
+                    "couldn't create literal \"{}\" - table already borrowed",
+                    name.unwrap_or("<no name>")
+                );
+            };
+            id
+        });
         Self {
             id,
             _phantom: PhantomData {},
         }
     }
 
-    /// Used by engine to create dependency chains, the evaluator fires and
-    /// re-computes a property each time it's dependencies change.
     pub fn computed(
         evaluator: impl Fn() -> T + 'static,
         dependents: &Vec<&ErasedProperty>,
     ) -> Self {
+        Self::computed_optional_name(evaluator, dependents, None)
+    }
+    /// Used by engine to create dependency chains, the evaluator fires and
+    /// re-computes a property each time it's dependencies change.
+    pub fn computed_with_name(
+        evaluator: impl Fn() -> T + 'static,
+        dependents: &Vec<&ErasedProperty>,
+        name: &str,
+    ) -> Self {
+        Self::computed_optional_name(evaluator, dependents, Some(name))
+    }
+
+    fn computed_optional_name(
+        evaluator: impl Fn() -> T + 'static,
+        dependents: &Vec<&ErasedProperty>,
+        name: Option<&str>,
+    ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
+        let start_val = T::default();
         let id = glob_prop_table(|t| {
-            t.add_expr_entry::<T>(
+            let Some(id) = t.add_expr_entry::<T>(
+                start_val,
                 Rc::new(move || Box::new(evaluator())),
                 &dependent_property_ids,
-            )
+            ) else {
+                panic!(
+                    "couldn't create literal \"{}\" - table already borrowed",
+                    name.unwrap_or("<no name>")
+                );
+            };
+            if let Some(name) = name {
+                t.debug_names.borrow_mut().insert(id, name.to_owned());
+            }
+            id
         });
         Self {
             id,
@@ -148,7 +196,14 @@ impl<T: PropVal> Property<T> {
             // make sure dependencies of self
             // know that something has changed
             t.get_value_mut(self.id, |_: &mut T| {});
-        })
+
+            let mut names = t.debug_names.borrow_mut();
+            if let Some(target_name) = names.get(target.id) {
+                let curr_name = names.get(self.id).map(String::as_str).unwrap_or("un-named");
+                let new_name = format!("{} <repl_with> {}", curr_name, target_name.to_owned());
+                names.insert(self.id, new_name);
+            };
+        });
     }
 
     /// Gets the currently stored value. Might be computationally
@@ -161,32 +216,10 @@ impl<T: PropVal> Property<T> {
     /// Sets this properties value, and sets the drity bit of all of
     /// it's dependencies if not already set
     pub fn set(&self, val: T) {
-        glob_prop_table(|t| t.get_value_mut(self.id, |v| *v = val));
-    }
-
-    // Get mutable access to the underlying property value
-    // NOTE: this always assumes the value was modifed and triggers
-    // dirtying of it's dependencies, no matter if it actually was
-    // or not
-    pub fn update<V>(&self, f: impl FnOnce(&mut T) -> V) -> V {
-        glob_prop_table(|t| {
-            // needs to first evaluate if dirty (people can access the value in
-            // the closure), see update_with_stale_value for one that does not
-            t.update_value(self.id);
-            t.get_value_mut(self.id, f)
-        })
-    }
-
-    /// WARNING: do NOT use this function to read the
-    /// value of a property.
-    /// Updates value without first making sure that the
-    /// surfaced mutable reference is up to date.
-    pub fn update_with_stale_value<V>(&self, f: impl FnOnce(&mut T) -> V) -> V {
-        glob_prop_table(|t| t.get_value_mut(self.id, f))
-    }
-
-    pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
-        glob_prop_table(|t| t.get_value_ref(self.id, f))
+        glob_prop_table(
+            // WARNING: do not remove std::mem::replace
+            |t| t.get_value_mut(self.id, |v| std::mem::replace(v, val)),
+        );
     }
 }
 
@@ -199,7 +232,7 @@ fn glob_prop_table<V>(f: impl FnOnce(&PropertyTable) -> V) -> V {
 
 pub struct PropertyTable {
     entries: RefCell<SlotMap<PropId, RefCell<PropertyData>>>,
-    // creation_trace: RefCell<Option<Vec<PropId>>>,
+    debug_names: RefCell<SparseSecondaryMap<PropId, String>>,
 }
 
 impl std::fmt::Debug for PropertyTable {
@@ -222,31 +255,32 @@ impl PropertyTable {
     pub fn new() -> Self {
         Self {
             entries: Default::default(),
-            // creation_trace: RefCell::new(None),
+            debug_names: Default::default(),
         }
     }
 
-    fn add_literal_entry<T: PropVal>(&self, val: T) -> PropId {
-        let mut sm = self.entries.borrow_mut();
+    fn add_literal_entry<T: PropVal>(&self, val: T) -> Option<PropId> {
+        let mut sm = self.entries.try_borrow_mut().ok()?;
         let prop_id = sm.insert(RefCell::new(PropertyData {
             ref_count: 1,
             value: Box::new(val),
             subscribers: Vec::with_capacity(0),
             prop_type: PropType::Literal,
         }));
-        prop_id
+        Some(prop_id)
     }
 
     fn add_expr_entry<T: PropVal>(
         &self,
+        start_val: T,
         evaluator: Rc<dyn Fn() -> Box<dyn Any>>,
         dependents: &[PropId],
-    ) -> PropId {
+    ) -> Option<PropId> {
         let expr_id = {
-            let mut sm = self.entries.borrow_mut();
+            let mut sm = self.entries.try_borrow_mut().ok()?;
             sm.insert(RefCell::new(PropertyData {
                 ref_count: 1,
-                value: Box::new(T::default()),
+                value: Box::new(start_val),
                 subscribers: Vec::with_capacity(0),
                 prop_type: PropType::Expr {
                     dirty: true,
@@ -260,35 +294,50 @@ impl PropertyTable {
                 dep_prop.subscribers.push(expr_id);
             });
         }
-        expr_id
+        Some(expr_id)
     }
 
     fn with_prop_data_mut<V>(&self, id: PropId, f: impl FnOnce(&mut PropertyData) -> V) -> V {
-        let sm = self.entries.borrow();
-        let mut prop_data = sm
+        let Ok(sm) = self.entries.try_borrow() else {
+            panic!(
+                "failed to borrow table for use by property \"{}\" - already mutably borrowed",
+                self.debug_name(id),
+            );
+        };
+        let Ok(mut prop_data) = sm
             .get(id)
-            .expect(
-                "tried to access property entry that doesn't exist anymore,\
- is it's PropertyScope already cleaned up?",
-            )
+            .expect("tried to access property entry that doesn't exist anymore")
             .try_borrow_mut()
-            .expect("tried to access same property internals recursively");
-        let res = f(&mut *prop_data);
-        res
+        else {
+            panic!(
+                "failed to borrow prop_data of property \"{}\" mutably - already borrowed",
+                self.debug_name(id)
+            );
+        };
+        f(&mut *prop_data)
     }
 
     fn with_prop_data<V>(&self, id: PropId, f: impl FnOnce(&PropertyData) -> V) -> V {
-        let sm = self.entries.borrow();
-        let prop_data = sm
+        let Ok(sm) = self.entries.try_borrow() else {
+            panic!(
+                "failed to borrow table for use by property \"{}\" - already mutably borrowed",
+                self.debug_name(id),
+            );
+        };
+        let Ok(prop_data) = sm
             .get(id)
             .expect(
                 "tried to access property entry that doesn't exist anymore,\
  is it's PropertyScope already cleaned up?",
             )
             .try_borrow()
-            .expect("tried to access same property interals recursively while mutably borrowed");
-        let res = f(&*prop_data);
-        res
+        else {
+            panic!(
+                "failed to borrow prop_data of property \"{}\" - already borrowed mutably",
+                self.debug_name(id),
+            );
+        };
+        f(&*prop_data)
     }
 
     // re-computes the value and all of it's dependencies if dirty
@@ -310,7 +359,8 @@ impl PropertyTable {
         if let Some(evaluator) = evaluator {
             let new_value = evaluator();
             self.with_prop_data_mut(id, |prop_data| {
-                prop_data.value = new_value;
+                // WARNING: don't remove this. old value needs to be returned outside of this prop_data mut before being dropped
+                std::mem::replace(&mut prop_data.value, new_value)
             });
         }
     }
@@ -365,7 +415,12 @@ impl PropertyTable {
 
     fn remove_entry(&self, id: PropId) {
         let prop_data = {
-            let mut sm = self.entries.borrow_mut();
+            let Ok(mut sm) = self.entries.try_borrow_mut() else {
+                panic!(
+                    "failed to remove property \"{}\" - propertytable already borrowed",
+                    self.debug_name(id),
+                );
+            };
             let prop_data = sm.remove(id).expect("tried to remove non-existent prop");
             prop_data
         }
@@ -384,6 +439,16 @@ impl PropertyTable {
                 });
             }
         }
+    }
+
+    fn debug_name(&self, id: PropId) -> String {
+        self.debug_names
+            .borrow()
+            .get(id)
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("<NO DEBUG NAME>")
+            .to_owned()
     }
 }
 
@@ -461,42 +526,6 @@ mod tests {
         assert_eq!(prop_2.get(), 10);
         prop_1.set(3);
         assert_eq!(prop_2.get(), 15);
-    }
-
-    #[test]
-    fn test_read() {
-        let prop_1 = Property::literal(2);
-        let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &vec![&prop_1.erase()]);
-
-        assert_eq!(prop_2.get(), 10);
-        prop_1.set(3);
-        prop_2.read(|p2| {
-            // make sure prop_2 recomputes if needed before
-            // exposing access to user
-            assert_eq!(*p2, 15);
-        });
-    }
-
-    #[test]
-    fn test_update() {
-        let prop_1 = Property::literal(2);
-        let p1 = prop_1.clone();
-        let prop_2 = Property::<i32>::computed(move || p1.get() * 5, &vec![&prop_1.erase()]);
-
-        assert_eq!(prop_2.get(), 10);
-        prop_1.set(3);
-        prop_2.update(|p2| {
-            // make sure prop_2 recomputes if needed before
-            // exposing access to user
-            assert_eq!(*p2, 15);
-        });
-        prop_1.update(|p1| {
-            *p1 = 4;
-        });
-        // make sure the above update
-        // marked prop_2 as dirty
-        assert_eq!(prop_2.get(), 20);
     }
 
     #[test]

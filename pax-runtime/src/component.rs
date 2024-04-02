@@ -79,8 +79,9 @@ impl InstanceNode for ComponentInstance {
             .push(properties_scope.clone(), &expanded_node.properties.borrow());
         let children = self.template.borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
-        expanded_node.children.replace_with(Property::new(
+        expanded_node.children.replace_with(Property::new_with_name(
             expanded_node.generate_children(children_with_envs, context),
+            &format!("component (node id: {})", expanded_node.id_chain[0]),
         ));
     }
 

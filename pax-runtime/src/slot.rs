@@ -8,8 +8,7 @@ use pax_runtime_api::{Numeric, Property};
 
 use crate::api::Layer;
 use crate::{
-    declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
@@ -60,38 +59,58 @@ impl InstanceNode for SlotInstance {
 
         let dep = expanded_node
             .with_properties_unwrapped(|properties: &mut SlotProperties| properties.index.erase());
-        expanded_node.children.replace_with(Property::computed(
-            move || {
-                cloned_expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-                    let index: usize = properties
-                        .index
-                        .get()
-                        .to_int()
-                        .try_into()
-                        .expect("Slot index must be non-negative");
+        expanded_node
+            .children
+            .replace_with(Property::computed_with_name(
+                move || {
+                    cloned_expanded_node.with_properties_unwrapped(
+                        |properties: &mut SlotProperties| {
+                            // log::debug!(
+                            //     "SLOT >{}start slot eval",
+                            //     "   ".repeat(COUNT.load(Ordering::Relaxed) as usize),
+                            // );
+                            // COUNT.fetch_add(1, Ordering::Relaxed);
+                            let index: usize = properties
+                                .index
+                                .get()
+                                .to_int()
+                                .try_into()
+                                .expect("Slot index must be non-negative");
 
-                    let node = cloned_expanded_node
-                        .containing_component
-                        .upgrade()
-                        .as_ref()
-                        .expect("slot has containing component during create")
-                        .expanded_and_flattened_slot_children
-                        .borrow()
-                        .as_ref()
-                        .and_then(|v| v.get(index))
-                        .map(|v| Rc::clone(&v));
+                            // TODO DAG: expanded_and_flattened_slot_children also need to be a property dependency
+                            let node = cloned_expanded_node
+                                .containing_component
+                                .upgrade()
+                                .as_ref()
+                                .expect("slot has containing component during create")
+                                .expanded_and_flattened_slot_children
+                                .borrow()
+                                .as_ref()
+                                .and_then(|v| v.get(index))
+                                .map(|v| Rc::clone(&v));
+                            log::debug!("SLOT > node created");
 
-                    let ret = if let Some(node) = node {
-                        cloned_expanded_node
-                            .attach_children(vec![Rc::clone(&node)], &cloned_context)
-                    } else {
-                        cloned_expanded_node.generate_children(vec![], &cloned_context)
-                    };
-                    ret
-                })
-            },
-            &vec![&dep],
-        ));
+                            let ret = if let Some(node) = node {
+                                log::debug!("SLOT > before attach children");
+                                let res = cloned_expanded_node
+                                    .attach_children(vec![Rc::clone(&node)], &cloned_context);
+                                log::debug!("SLOT > after attach children");
+                                res
+                            } else {
+                                cloned_expanded_node.generate_children(vec![], &cloned_context)
+                            };
+                            // COUNT.fetch_sub(1, Ordering::Relaxed);
+                            // log::debug!(
+                            //     "SLOT >{}finished slot eval",
+                            //     "   ".repeat(COUNT.load(Ordering::Relaxed) as usize),
+                            // );
+                            ret
+                        },
+                    )
+                },
+                &vec![&dep],
+                &format!("slot_children (node id: {})", expanded_node.id_chain[0]),
+            ));
     }
 
     #[cfg(debug_assertions)]
