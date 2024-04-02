@@ -3,6 +3,7 @@ use crate::types::{StackerCell, StackerDirection};
 use pax_engine::api::Numeric;
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
+use pax_runtime::api::properties::Erasable;
 use pax_runtime::api::{NodeContext, StringBox};
 
 /// Stacker lays out a series of nodes either
@@ -57,7 +58,17 @@ impl Stacker {
         let bound = ctx.bounds_self.clone();
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
-        self._cell_specs = Property::computed_with_name(
+
+        let deps = vec![
+            cells.erase(),
+            bound.erase(),
+            direction.erase(),
+            sizes.erase(),
+            gutter.erase(),
+        ];
+
+        //NOTE: replace with is needed since the for loop already has a connection to the prop
+        self._cell_specs.replace_with(Property::computed_with_name(
             move || {
                 let cells: f64 = cells.get().to_float();
                 let bounds = bound.get();
@@ -153,8 +164,8 @@ impl Stacker {
                     .collect();
                 new_cell_specs
             },
-            &vec![],
+            &deps.iter().collect(),
             "stacker _cell_specs",
-        );
+        ));
     }
 }
