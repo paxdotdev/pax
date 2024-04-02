@@ -83,13 +83,10 @@ impl InstanceNode for SlotInstance {
                                 .as_ref()
                                 .and_then(|v| v.get(index))
                                 .map(|v| Rc::clone(&v));
-                            log::debug!("SLOT > node created");
 
                             let ret = if let Some(node) = node {
-                                log::debug!("SLOT > before attach children");
                                 let res = cloned_expanded_node
                                     .attach_children(vec![Rc::clone(&node)], &cloned_context);
-                                log::debug!("SLOT > after attach children");
                                 res
                             } else {
                                 cloned_expanded_node.generate_children(vec![], &cloned_context)
