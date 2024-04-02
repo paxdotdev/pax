@@ -240,10 +240,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                 &mut self.updated_properties.clone(),
             );
             if let Some(new_type) = &self.new_type_id {
-                template.update_node_type_id(
-                    &uni.get_template_node_id(),
-                    new_type,
-                );
+                template.update_node_type_id(&uni.get_template_node_id(), new_type);
             }
 
             if let Some(location) = &self.new_location {
