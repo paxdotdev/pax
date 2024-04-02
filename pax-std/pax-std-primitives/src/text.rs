@@ -82,8 +82,8 @@ impl InstanceNode for TextInstance {
             .or_insert(patch.clone());
 
         expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-            let layout_properties = expanded_node.layout_properties.borrow();
-            let computed_tab = &layout_properties.as_ref().unwrap().computed_tab;
+            let computed_tab = &expanded_node.layout_properties;
+            let (width, height) = computed_tab.bounds.get();
 
             let updates = [
                 // Content
@@ -109,20 +109,12 @@ impl InstanceNode for TextInstance {
                     (&properties.style_link.get()).into(),
                 ),
                 // Transform and bounds
-                patch_if_needed(
-                    &mut old_state.size_x,
-                    &mut patch.size_x,
-                    computed_tab.bounds.0,
-                ),
-                patch_if_needed(
-                    &mut old_state.size_y,
-                    &mut patch.size_y,
-                    computed_tab.bounds.1,
-                ),
+                patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
                 patch_if_needed(
                     &mut old_state.transform,
                     &mut patch.transform,
-                    computed_tab.transform.coeffs().to_vec(),
+                    computed_tab.transform.get().coeffs().to_vec(),
                 ),
             ];
 

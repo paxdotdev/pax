@@ -39,10 +39,6 @@ impl InstanceNode for FrameInstance {
         })
     }
 
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
-        Some(self.get_size(expanded_node))
-    }
-
     // fn handle_native_patches(
     //     &mut self,
     //     rtc: &mut RenderTreeContext<R>,
@@ -112,12 +108,8 @@ impl InstanceNode for FrameInstance {
         _context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
-        let comp_props = &expanded_node.layout_properties.borrow();
-        let comp_props = comp_props.as_ref().unwrap();
-        let transform = comp_props.computed_tab.transform;
-        let bounding_dimens = comp_props.computed_tab.bounds;
-        let width = bounding_dimens.0;
-        let height = bounding_dimens.1;
+        let transform = expanded_node.layout_properties.transform.get();
+        let (width, height) = expanded_node.layout_properties.bounds.get();
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));

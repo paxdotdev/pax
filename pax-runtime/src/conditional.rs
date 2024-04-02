@@ -99,11 +99,4 @@ impl InstanceNode for ConditionalInstance {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
-
-    fn get_clipping_size(
-        &self,
-        _expanded_node: &ExpandedNode,
-    ) -> Option<(crate::api::Size, crate::api::Size)> {
-        None
-    }
 }

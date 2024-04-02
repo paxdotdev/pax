@@ -1,8 +1,10 @@
 <Group>
-	<Text text="Hejhej" class=centered class=small id=text />
-    <Rectangle class=one_rect
-         fill={hsl(ticks + 100, 75%, 50%)}
-    />
+    <Group width=50%>
+    	<Text text="Hejhej" class=centered class=small id=text />
+        <Rectangle class=one_rect
+             fill={hsl(ticks + 100, 75%, 50%)}
+        />
+    </Group>
 </Group>
 
 @settings {

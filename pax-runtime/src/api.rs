@@ -15,9 +15,9 @@ pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's immediate container (parent) in px
-    pub bounds_parent: (f64, f64),
+    pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px
-    pub bounds_self: (f64, f64),
+    pub bounds_self: Property<(f64, f64)>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     pub(crate) runtime_context: Rc<RefCell<RuntimeContext>>,
 
