@@ -77,29 +77,22 @@ impl InstanceNode for RectangleInstance {
         });
     }
 
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
-        Some(self.get_size(expanded_node))
-    }
-
     fn render(
         &self,
         expanded_node: &ExpandedNode,
         _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
-        let computed_props = expanded_node.layout_properties.borrow();
-        let tab = &computed_props.as_ref().unwrap().computed_tab;
+        let tab = &expanded_node.layout_properties;
+        let (width, height) = tab.bounds.get();
 
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
-
-        let width: f64 = tab.bounds.0;
-        let height: f64 = tab.bounds.1;
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
             let bez_path = rect.to_path(0.1);
 
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform.get()) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             match properties.fill.get() {

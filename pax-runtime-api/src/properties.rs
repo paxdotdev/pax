@@ -7,38 +7,40 @@ use self::private::PropId;
 
 /// Reactive property type. Shallow clones can be cheaply made.
 #[derive(Debug)]
-pub struct Property<T> {
+pub struct ErasedProperty {
     id: PropId,
-    _phantom: PhantomData<T>,
 }
 
-impl<T> Clone for Property<T> {
+impl Clone for ErasedProperty {
     fn clone(&self) -> Self {
         glob_prop_table(|t| {
             t.with_prop_data_mut(self.id, |prop_data| {
                 prop_data.ref_count += 1;
-            });
+            })
+            .map_err(|e| format!("couldn't increase ref count: {}", e))
+            .unwrap();
         });
-        Property {
-            id: self.id,
-            _phantom: PhantomData,
-        }
+        ErasedProperty { id: self.id }
     }
 }
 
-impl<T> Drop for Property<T> {
+impl Drop for ErasedProperty {
     fn drop(&mut self) {
         glob_prop_table(|t| {
-            let ref_count = t.with_prop_data_mut(self.id, |prop_data| {
-                prop_data.ref_count -= 1;
-                prop_data.ref_count
-            });
+            let ref_count = t
+                .with_prop_data_mut(self.id, |prop_data| {
+                    prop_data.ref_count -= 1;
+                    prop_data.ref_count
+                })
+                .map_err(|e| format!("coun't decrease ref count: {}", e))
+                .unwrap();
             if ref_count == 0 {
                 t.remove_entry(self.id);
             }
         });
     }
 }
+
 impl<T: Default + PropVal> Default for Property<T> {
     fn default() -> Self {
         Property::new_with_name(
@@ -85,6 +87,14 @@ impl<T: PropVal + Serialize> Serialize for Property<T> {
     }
 }
 
+impl ErasedProperty {
+    fn new(val: Box<dyn Any>, data: PropType, debug_name: Option<&str>) -> Self {
+        ErasedProperty {
+            id: glob_prop_table(|t| t.add_entry(val, data, debug_name)),
+        }
+    }
+}
+
 impl<T: PropVal> Property<T> {
     pub fn new(val: T) -> Self {
         Self::literal(val)
@@ -99,17 +109,8 @@ impl<T: PropVal> Property<T> {
     }
 
     fn literal_optional_name(val: T, name: Option<&str>) -> Self {
-        let id = glob_prop_table(|t| {
-            let Some(id) = t.add_literal_entry(val) else {
-                panic!(
-                    "couldn't create literal \"{}\" - table already borrowed",
-                    name.unwrap_or("<no name>")
-                );
-            };
-            id
-        });
         Self {
-            id,
+            erased: ErasedProperty::new(Box::new(val), PropType::Literal, name),
             _phantom: PhantomData {},
         }
     }
@@ -137,24 +138,17 @@ impl<T: PropVal> Property<T> {
     ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
-        let id = glob_prop_table(|t| {
-            let Some(id) = t.add_expr_entry::<T>(
-                start_val,
-                Rc::new(move || Box::new(evaluator())),
-                &dependent_property_ids,
-            ) else {
-                panic!(
-                    "couldn't create literal \"{}\" - table already borrowed",
-                    name.unwrap_or("<no name>")
-                );
-            };
-            if let Some(name) = name {
-                t.debug_names.borrow_mut().insert(id, name.to_owned());
-            }
-            id
-        });
+        let evaluator = Rc::new(move || Box::new(evaluator()) as Box<dyn Any>);
         Self {
-            id,
+            erased: ErasedProperty::new(
+                Box::new(start_val),
+                PropType::Expr {
+                    evaluator,
+                    dirty: true,
+                    subscriptions: dependent_property_ids,
+                },
+                name,
+            ),
             _phantom: PhantomData {},
         }
     }
@@ -165,11 +159,50 @@ impl<T: PropVal> Property<T> {
     /// a computed computed, while keeping the link to it's dependents
     pub fn replace_with(&self, target: Property<T>) {
         // We want the target's value to be dropped after the mutable table access (glob_prop_table) to avoid borrowing issues
+        let mut to_drop_later: Option<Box<dyn Any>> = None;
         let mut value_to_drop: Box<dyn Any> = Box::new({});
         glob_prop_table(|t| {
-            t.with_prop_data_mut(self.id, |original_prop_data: &mut PropertyData| {
-                t.with_prop_data(target.id, |target_prop_data| {
-                    original_prop_data.prop_type = target_prop_data.prop_type.clone();
+            t.with_prop_data_mut(self.erased.id, |original_prop_data: &mut PropertyData| {
+                t.with_prop_data(target.erased.id, |target_prop_data| {
+                    // remove self from all subscriber lists (we are soon overwriting)
+                    if let PropType::Expr { subscriptions, .. } = &original_prop_data.prop_type {
+                        for id in subscriptions {
+                            t.with_prop_data_mut(*id, |dep_prop| {
+                                dep_prop.subscribers.retain(|v| *v != self.erased.id);
+                            })
+                            .map_err(|e| {
+                                format!(
+                                    "coudn't find subscription of \"{}\" to remove: {}",
+                                    t.debug_name(self.erased.id),
+                                    e,
+                                )
+                            })
+                            .unwrap();
+                        }
+                    }
+                    // push source (self) as a subscriber of the values target subscribes to
+                    if let PropType::Expr { subscriptions, .. } = &target_prop_data.prop_type {
+                        for id in subscriptions {
+                            t.with_prop_data_mut(*id, |dep_prop| {
+                                dep_prop.subscribers.push(self.erased.id);
+                            })
+                            .map_err(|e| {
+                                format!(
+                                    "coudn't find subscription of \"{}\" to add: {}",
+                                    t.debug_name(target.erased.id),
+                                    e,
+                                )
+                            })
+                            .unwrap();
+                        }
+                    }
+
+                    // NOTE: original_prop_data.prop_type is holding onto a closure that can capture
+                    // properties that could be dropped here
+                    to_drop_later = Some(Box::new(std::mem::replace(
+                        &mut original_prop_data.prop_type,
+                        target_prop_data.prop_type.clone(),
+                    )));
 
                     let target_value = target_prop_data
                         .value
@@ -179,29 +212,24 @@ impl<T: PropVal> Property<T> {
                         &mut original_prop_data.value,
                         Box::new(target_value.clone()),
                     );
-
-                    original_prop_data
-                        .subscribers
-                        .extend(target_prop_data.subscribers.iter());
-
-                    if let PropType::Expr { subscriptions, .. } = &target_prop_data.prop_type {
-                        for id in subscriptions {
-                            t.with_prop_data_mut(*id, |dep_prop| {
-                                dep_prop.subscribers.push(self.id);
-                            });
-                        }
-                    }
-                });
-            });
+                })
+                .map_err(|e| format!("replace_with target prop err: {}", e))
+                .unwrap();
+            })
+            .map_err(|e| format!("replace_with source prop err: {}", e))
+            .unwrap();
             // make sure dependencies of self
             // know that something has changed
-            t.get_value_mut(self.id, |_: &mut T| {});
+            t.get_value_mut(self.erased.id, |_: &mut T| {});
 
             let mut names = t.debug_names.borrow_mut();
-            if let Some(target_name) = names.get(target.id) {
-                let curr_name = names.get(self.id).map(String::as_str).unwrap_or("un-named");
+            if let Some(target_name) = names.get(target.erased.id) {
+                let curr_name = names
+                    .get(self.erased.id)
+                    .map(String::as_str)
+                    .unwrap_or("un-named");
                 let new_name = format!("{} <repl_with> {}", curr_name, target_name.to_owned());
-                names.insert(self.id, new_name);
+                names.insert(self.erased.id, new_name);
             };
         });
     }
@@ -210,7 +238,7 @@ impl<T: PropVal> Property<T> {
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
     pub fn get(&self) -> T {
-        glob_prop_table(|t| t.get_value_ref(self.id, |v: &T| v.clone()))
+        glob_prop_table(|t| t.get_value_ref(self.erased.id, |v: &T| v.clone()))
     }
 
     /// Sets this properties value, and sets the drity bit of all of
@@ -218,7 +246,7 @@ impl<T: PropVal> Property<T> {
     pub fn set(&self, val: T) {
         glob_prop_table(
             // WARNING: do not remove std::mem::replace
-            |t| t.get_value_mut(self.id, |v| std::mem::replace(v, val)),
+            |t| t.get_value_mut(self.erased.id, |v| std::mem::replace(v, val)),
         );
     }
 }
@@ -259,109 +287,125 @@ impl PropertyTable {
         }
     }
 
-    fn add_literal_entry<T: PropVal>(&self, val: T) -> Option<PropId> {
-        let mut sm = self.entries.try_borrow_mut().ok()?;
-        let prop_id = sm.insert(RefCell::new(PropertyData {
-            ref_count: 1,
-            value: Box::new(val),
-            subscribers: Vec::with_capacity(0),
-            prop_type: PropType::Literal,
-        }));
-        Some(prop_id)
-    }
-
-    fn add_expr_entry<T: PropVal>(
+    fn add_entry(
         &self,
-        start_val: T,
-        evaluator: Rc<dyn Fn() -> Box<dyn Any>>,
-        dependents: &[PropId],
-    ) -> Option<PropId> {
-        let expr_id = {
-            let mut sm = self.entries.try_borrow_mut().ok()?;
+        start_val: Box<dyn Any>,
+        data: PropType,
+        debug_name: Option<&str>,
+    ) -> PropId {
+        let id = {
+            let Ok(mut sm) = self.entries.try_borrow_mut() else {
+                panic!(
+                    "couldn't create new property \"{}\"- table already borrowed",
+                    debug_name.unwrap_or("<no name>")
+                );
+            };
             sm.insert(RefCell::new(PropertyData {
                 ref_count: 1,
-                value: Box::new(start_val),
+                value: start_val,
                 subscribers: Vec::with_capacity(0),
-                prop_type: PropType::Expr {
-                    dirty: true,
-                    evaluator,
-                    subscriptions: dependents.to_vec(),
-                },
+                prop_type: data,
             }))
         };
-        for id in dependents {
-            self.with_prop_data_mut(*id, |dep_prop| {
-                dep_prop.subscribers.push(expr_id);
-            });
+        if let Some(name) = debug_name {
+            self.debug_names.borrow_mut().insert(id, name.to_owned());
         }
-        Some(expr_id)
+        self.with_prop_data(id, |prop_data| {
+            if let PropType::Expr { subscriptions, .. } = &prop_data.prop_type {
+                for dep_id in subscriptions {
+                    self.with_prop_data_mut(*dep_id, |dep_prop| {
+                        dep_prop.subscribers.push(id);
+                    })
+                    .map_err(|e| {
+                        format!(
+                            "couldn't push depdendent of \"{}\": {}",
+                            self.debug_name(id),
+                            e
+                        )
+                    })
+                    .unwrap();
+                }
+            }
+        })
+        .expect("recently added entry can be mutated");
+        id
     }
 
-    fn with_prop_data_mut<V>(&self, id: PropId, f: impl FnOnce(&mut PropertyData) -> V) -> V {
-        let Ok(sm) = self.entries.try_borrow() else {
-            panic!(
+    fn with_prop_data_mut<V>(
+        &self,
+        id: PropId,
+        f: impl FnOnce(&mut PropertyData) -> V,
+    ) -> Result<V, String> {
+        let sm = self.entries.try_borrow().map_err(|_| {
+            format!(
                 "failed to borrow table for use by property \"{}\" - already mutably borrowed",
                 self.debug_name(id),
-            );
-        };
-        let Ok(mut prop_data) = sm
-            .get(id)
-            .expect("tried to access property entry that doesn't exist anymore")
-            .try_borrow_mut()
-        else {
-            panic!(
-                "failed to borrow prop_data of property \"{}\" mutably - already borrowed",
-                self.debug_name(id)
-            );
-        };
-        f(&mut *prop_data)
-    }
-
-    fn with_prop_data<V>(&self, id: PropId, f: impl FnOnce(&PropertyData) -> V) -> V {
-        let Ok(sm) = self.entries.try_borrow() else {
-            panic!(
-                "failed to borrow table for use by property \"{}\" - already mutably borrowed",
-                self.debug_name(id),
-            );
-        };
-        let Ok(prop_data) = sm
-            .get(id)
-            .expect(
-                "tried to access property entry that doesn't exist anymore,\
- is it's PropertyScope already cleaned up?",
             )
-            .try_borrow()
-        else {
-            panic!(
+        })?;
+        let prop_data = sm.get(id).ok_or(&format!(
+            "tried to get prop_data for property \"{}\" that doesn't exist anymore",
+            self.debug_name(id)
+        ))?;
+        let mut prop_data = prop_data.try_borrow_mut().map_err(|_| {
+            format!(
+                "failed to borrow prop_data mutably of property \"{}\" mutably - already borrowed",
+                self.debug_name(id)
+            )
+        })?;
+        Ok(f(&mut *prop_data))
+    }
+
+    fn with_prop_data<V>(
+        &self,
+        id: PropId,
+        f: impl FnOnce(&PropertyData) -> V,
+    ) -> Result<V, String> {
+        let sm = self.entries.try_borrow().map_err(|_| {
+            format!(
+                "failed to borrow table for use by property \"{}\" - already mutably borrowed",
+                self.debug_name(id),
+            )
+        })?;
+        let prop_data = sm.get(id).ok_or(&format!(
+            "tried to get prop_data for property \"{}\" that doesn't exist anymore",
+            self.debug_name(id)
+        ))?;
+        let prop_data = prop_data.try_borrow().map_err(|_| {
+            format!(
                 "failed to borrow prop_data of property \"{}\" - already borrowed mutably",
                 self.debug_name(id),
-            );
-        };
-        f(&*prop_data)
+            )
+        })?;
+        Ok(f(&*prop_data))
     }
 
     // re-computes the value and all of it's dependencies if dirty
     fn update_value(&self, id: PropId) {
-        let evaluator = self.with_prop_data_mut(id, |prop_data| {
-            if let PropType::Expr {
-                dirty, evaluator, ..
-            } = &mut prop_data.prop_type
-            {
-                // This dirty checking should be done automatically by sub-components (dependents)
-                // of the computed during the "get" calls while computing it.
-                if *dirty == true {
-                    *dirty = false;
-                    return Some(evaluator.clone());
+        let evaluator = self
+            .with_prop_data_mut(id, |prop_data| {
+                if let PropType::Expr {
+                    dirty, evaluator, ..
+                } = &mut prop_data.prop_type
+                {
+                    // This dirty checking should be done automatically by sub-components (dependents)
+                    // of the computed during the "get" calls while computing it.
+                    if *dirty == true {
+                        *dirty = false;
+                        return Some(evaluator.clone());
+                    }
                 }
-            }
-            None
-        });
+                None
+            })
+            .map_err(|e| format!("can't update value: {}", e))
+            .unwrap();
         if let Some(evaluator) = evaluator {
             let new_value = evaluator();
             self.with_prop_data_mut(id, |prop_data| {
                 // WARNING: don't remove this. old value needs to be returned outside of this prop_data mut before being dropped
                 std::mem::replace(&mut prop_data.value, new_value)
-            });
+            })
+            .map_err(|e| format!("update_value error: {}", e))
+            .unwrap();
         }
     }
 
@@ -376,6 +420,8 @@ impl PropertyTable {
                 .expect("value should contain correct type");
             f(value)
         })
+        .map_err(|e| format!("get_value_ref error: {}", e))
+        .unwrap()
     }
 
     // WARNING: read the below before using this function
@@ -385,15 +431,18 @@ impl PropertyTable {
     // it and it's dependents as dirty irrespective of actual modification
     fn get_value_mut<T: PropVal, V>(&self, id: PropId, f: impl FnOnce(&mut T) -> V) -> V {
         let mut to_dirty = vec![];
-        let ret_value = self.with_prop_data_mut(id, |prop_data: &mut PropertyData| {
-            let value = prop_data
-                .value
-                .downcast_mut()
-                .expect("value should contain correct type");
-            let ret = f(value);
-            to_dirty.extend_from_slice(&prop_data.subscribers);
-            ret
-        });
+        let ret_value = self
+            .with_prop_data_mut(id, |prop_data: &mut PropertyData| {
+                let value = prop_data
+                    .value
+                    .downcast_mut()
+                    .expect("value should contain correct type");
+                let ret = f(value);
+                to_dirty.extend_from_slice(&prop_data.subscribers);
+                ret
+            })
+            .map_err(|e| format!("coudn't modify value of \"{}\": {}", self.debug_name(id), e))
+            .unwrap();
         while let Some(dep_id) = to_dirty.pop() {
             self.with_prop_data_mut(dep_id, |dep_data| {
                 if dep_id == id {
@@ -408,7 +457,15 @@ impl PropertyTable {
                     *dirty = true;
                     to_dirty.extend_from_slice(&dep_data.subscribers);
                 }
-            });
+            })
+            .map_err(|e| {
+                format!(
+                    "couldn't update dependency with name \"{}\": {}",
+                    self.debug_name(dep_id),
+                    e
+                )
+            })
+            .unwrap();
         }
         ret_value
     }
@@ -430,13 +487,29 @@ impl PropertyTable {
                 if let PropType::Expr { subscriptions, .. } = &mut s.prop_type {
                     subscriptions.retain(|s| s != &id);
                 }
-            });
+            })
+            .map_err(|e| {
+                format!(
+                    "coudln't remove subscription to \"{}\": {}",
+                    self.debug_name(id),
+                    e
+                )
+            })
+            .unwrap();
         }
         if let PropType::Expr { subscriptions, .. } = prop_data.prop_type {
             for subscription in subscriptions {
                 self.with_prop_data_mut(subscription, |sub| {
                     sub.subscribers.retain(|v| v != &id);
-                });
+                })
+                .map_err(|e| {
+                    format!(
+                        "couldn't remove subscription from \"{}\": {}",
+                        self.debug_name(id),
+                        e
+                    )
+                })
+                .unwrap();
             }
         }
     }
@@ -471,14 +544,15 @@ enum PropType {
 }
 
 #[derive(Debug, Clone)]
-pub struct ErasedProperty {
-    id: PropId,
+pub struct Property<T> {
+    erased: ErasedProperty,
+    _phantom: PhantomData<T>,
 }
 
 impl ErasedProperty {
     pub fn get<T: PropVal>(&self) -> Property<T> {
         Property {
-            id: self.id,
+            erased: self.clone(),
             _phantom: PhantomData,
         }
     }
@@ -494,7 +568,7 @@ pub trait Erasable {
 
 impl<T> Erasable for Property<T> {
     fn erase(&self) -> ErasedProperty {
-        ErasedProperty { id: self.id }
+        self.erased.clone()
     }
 }
 
