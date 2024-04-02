@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::rc::Rc;
 use std::{cell::RefCell, iter};
 
@@ -6,8 +5,8 @@ use pax_runtime_api::Property;
 
 use crate::api::{Layer, Timeline};
 use crate::{
-    BaseInstance, ExpandedNode, ExpressionTable, Globals, InstanceFlags, InstanceNode,
-    InstanceNodePtrList, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstanceNodePtrList,
+    InstantiationArgs, RuntimeContext,
 };
 
 /// A render node with its own runtime context.  Will push a frame
@@ -19,7 +18,6 @@ use crate::{
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>,
     base: BaseInstance,
 }
 
@@ -32,8 +30,6 @@ impl InstanceNode for ComponentInstance {
     fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
         let component_template = args.component_template.take();
         let template = component_template.unwrap_or_default();
-
-        let compute_properties_fn = args.compute_properties_fn.take();
         let base = BaseInstance::new(
             args,
             InstanceFlags {
@@ -46,8 +42,6 @@ impl InstanceNode for ComponentInstance {
         Rc::new(ComponentInstance {
             base,
             template,
-            compute_properties_fn: compute_properties_fn
-                .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
         })
     }
@@ -70,8 +64,6 @@ impl InstanceNode for ComponentInstance {
                     slot_child.recurse_mount(context);
                 }
             }
-
-            expanded_node.compute_flattened_slot_children();
         }
         let properties_scope = expanded_node.properties_scope.borrow();
         let new_env = expanded_node
@@ -83,6 +75,19 @@ impl InstanceNode for ComponentInstance {
             expanded_node.generate_children(children_with_envs, context),
             &format!("component (node id: {})", expanded_node.id_chain[0]),
         ));
+    }
+
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+            for slot_child in slot_children {
+                slot_child.recurse_update(context);
+            }
+        }
+        expanded_node.compute_flattened_slot_children();
     }
 
     #[cfg(debug_assertions)]
