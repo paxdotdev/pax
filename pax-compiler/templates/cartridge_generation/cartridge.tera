@@ -142,12 +142,12 @@ pub trait ComponentFactory {
                                 {% if common_property.property_type.is_intoable_downstream_type %}
                                     let mi = from_pax_try_intoable_literal(&lv.raw_value);
                                     if let Ok(intoable_literal) = mi {
-                                        Property::new(intoable_literal.into())
+                                        Property::new_with_name(intoable_literal.into(), &lv.raw_value)
                                     } else {
-                                        Property::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into())
+                                        Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
                                     }
                                 {% else %}
-                                    Property::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into())
+                                    Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
                                 {% endif %}
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
@@ -163,7 +163,7 @@ pub trait ComponentFactory {
                                     }
                                     let cloned_stack = stack_frame.clone();
                                     let cloned_table = table.clone();
-                                    Property::computed(move || {
+                                    Property::computed_with_name(move || {
                                         let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                         if let Ok(downcast_value) = new_value_wrapped.downcast::<{{common_property.property_type._type_id}}>() {
                                             *downcast_value
@@ -174,7 +174,7 @@ pub trait ComponentFactory {
                                             );
                                         }
                                     
-                                    }, &dependents)
+                                    }, &dependents, &token.raw_value)
                                 } else {
                                     unreachable!("No info for expression")
                                 }
@@ -396,7 +396,7 @@ impl DefinitionToInstanceTraverser {
                             }
                         }
 
-                        properties.boolean_expression =  Property::computed(move || {
+                        properties.boolean_expression =  Property::computed_with_name(move || {
                             let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             if let Ok(downcast_value) = new_value_wrapped.downcast::<bool>() {
                                 *downcast_value
@@ -406,7 +406,7 @@ impl DefinitionToInstanceTraverser {
                                     vtable_id
                                 );
                             }
-                        }, &dependencies);
+                        }, &dependencies, "conditional (if) expr");
                         properties
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -445,7 +445,7 @@ impl DefinitionToInstanceTraverser {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
-                        properties.index = Property::computed(move || {
+                        properties.index = Property::computed_with_name(move || {
                             let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             if let Ok(downcast_value) = new_value_wrapped.downcast::<Numeric>() {
                                 *downcast_value
@@ -455,7 +455,7 @@ impl DefinitionToInstanceTraverser {
                                     vtable_id
                                 );
                             }
-                        }, &dependencies);
+                        }, &dependencies, "slot index");
                         properties
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -504,7 +504,7 @@ impl DefinitionToInstanceTraverser {
                                 let cloned_table = table.clone();
                                 let cloned_stack = stack_frame.clone();
                                 Some(
-                                    Property::computed(move || {
+                                    Property::computed_with_name(move || {
                                         let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         if let Ok(downcast_value) = new_value_wrapped.downcast::<Vec<Rc<RefCell<dyn Any>>>>() {
                                             *downcast_value
@@ -514,7 +514,7 @@ impl DefinitionToInstanceTraverser {
                                                 vtable_id
                                             );
                                         }
-                                    }, &dependencies)
+                                    }, &dependencies, "repeat source vec")
                                     ) 
                             } else {
                                 None
@@ -525,7 +525,7 @@ impl DefinitionToInstanceTraverser {
                                 let cloned_table = table.clone();
                                 let cloned_stack = stack_frame.clone();
                                 Some(
-                                    Property::computed(move || {
+                                    Property::computed_with_name(move || {
                                         let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         if let Ok(downcast_value) = new_value_wrapped.downcast::<std::ops::Range<isize>>() {
                                             *downcast_value
@@ -535,7 +535,7 @@ impl DefinitionToInstanceTraverser {
                                                 vtable_id
                                             );
                                         }
-                                    }, &dependencies)
+                                    }, &dependencies, "repeat source range")
                                 )
                             } else {
                                 None

@@ -254,9 +254,9 @@ pub trait InstanceNode {
         let env = Rc::clone(&expanded_node.stack);
         let children = self.base().get_instance_children().borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-        expanded_node
-            .children
-            .set(expanded_node.generate_children(children_with_envs, context));
+
+        let new_children = expanded_node.generate_children(children_with_envs, context);
+        expanded_node.children.set(new_children);
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
