@@ -50,71 +50,6 @@ pub struct InstantiationArgs {
         Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
 }
 
-/// Stores the computed transform and the pre-transform bounding box (where the
-/// other corner is the origin).  Useful for ray-casting, along with
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, PartialEq)]
-pub struct TransformAndBounds {
-    pub transform: Transform2<NodeLocal, Window>,
-    pub bounds: (f64, f64),
-    // pub clipping_bounds: Option<(f64, f64)>,
-}
-
-impl TransformAndBounds {
-    pub fn corners(&self) -> [Point2<Window>; 4] {
-        let width = self.bounds.0;
-        let height = self.bounds.1;
-
-        let top_left = self.transform * Point2::new(0.0, 0.0);
-        let top_right = self.transform * Point2::new(width, 0.0);
-        let bottom_left = self.transform * Point2::new(0.0, height);
-        let bottom_right = self.transform * Point2::new(width, height);
-
-        [top_left, top_right, bottom_right, bottom_left]
-    }
-
-    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
-    pub fn intersects(&self, other: &Self) -> bool {
-        let corners_self = self.corners();
-        let corners_other = other.corners();
-
-        for i in 0..2 {
-            let axis = (corners_self[i] - corners_self[(i + 1) % 4]).normal();
-
-            let self_projections: Vec<_> = corners_self
-                .iter()
-                .map(|&p| p.to_vector().project_onto(axis).length())
-                .collect();
-            let other_projections: Vec<_> = corners_other
-                .iter()
-                .map(|&p| p.to_vector().project_onto(axis).length())
-                .collect();
-
-            let (min_self, max_self) = min_max_projections(&self_projections);
-            let (min_other, max_other) = min_max_projections(&other_projections);
-
-            // Check for non-overlapping projections
-            if max_self < min_other || max_other < min_self {
-                // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
-                return false;
-            }
-        }
-        true
-    }
-}
-
-fn min_max_projections(projections: &[f64]) -> (f64, f64) {
-    let min_projection = *projections
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    let max_projection = *projections
-        .iter()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    (min_projection, max_projection)
-}
-
 #[derive(Clone)]
 pub enum NodeType {
     Component,
@@ -149,24 +84,6 @@ pub trait InstanceNode {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized;
-
-    /// Returns the bounds of an InstanceNode.  This computation requires a stateful [`ExpandedNode`], yet requires
-    /// customization at the trait-implementor level (dyn InstanceNode), thus this method accepts an expanded_node
-    /// parameter.
-    /// The default implementation retrieves the expanded_node's [`crate::api::CommonProperties#width`] and [`crate::api::CommonProperties#height`]
-    fn get_size(&self, expanded_node: &ExpandedNode) -> (Size, Size) {
-        let common_properties = expanded_node.get_common_properties();
-        let common_properties_borrowed = common_properties.borrow();
-        (
-            common_properties_borrowed.width.get().clone(),
-            common_properties_borrowed.height.get().clone(),
-        )
-    }
-
-    #[allow(unused_variables)]
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
-        None
-    }
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

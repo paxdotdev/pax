@@ -90,10 +90,8 @@ impl InstanceNode for ImageInstance {
         _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
-        let comp_props = &expanded_node.layout_properties.borrow();
-        let comp_props = comp_props.as_ref().unwrap();
-        let transform = comp_props.computed_tab.transform;
-        let bounding_dimens = comp_props.computed_tab.bounds;
+        let transform = expanded_node.layout_properties.transform.get();
+        let bounding_dimens = expanded_node.layout_properties.bounds.get();
         let width = bounding_dimens.0;
         let height = bounding_dimens.1;
 
