@@ -65,11 +65,6 @@ impl InstanceNode for SlotInstance {
                 move || {
                     cloned_expanded_node.with_properties_unwrapped(
                         |properties: &mut SlotProperties| {
-                            // log::debug!(
-                            //     "SLOT >{}start slot eval",
-                            //     "   ".repeat(COUNT.load(Ordering::Relaxed) as usize),
-                            // );
-                            // COUNT.fetch_add(1, Ordering::Relaxed);
                             let index: usize = properties
                                 .index
                                 .get()
@@ -99,11 +94,6 @@ impl InstanceNode for SlotInstance {
                             } else {
                                 cloned_expanded_node.generate_children(vec![], &cloned_context)
                             };
-                            // COUNT.fetch_sub(1, Ordering::Relaxed);
-                            // log::debug!(
-                            //     "SLOT >{}finished slot eval",
-                            //     "   ".repeat(COUNT.load(Ordering::Relaxed) as usize),
-                            // );
                             ret
                         },
                     )
