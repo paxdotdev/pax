@@ -13,8 +13,8 @@ use pax_manifest::{
 };
 
 use super::simple::{
-    SimpleColor, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType,
-    SimpleProperties, SimpleRotation, SimpleSize, SimpleSizeType, SimpleTemplate,
+    SimpleColor, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType, SimpleProperties,
+    SimpleRotation, SimpleSize, SimpleSizeType, SimpleTemplate,
 };
 
 use super::constants::PREFIX;
@@ -218,7 +218,7 @@ impl SimpleNodeAction {
                 } else {
                     NodeType::Template(vec![])
                 };
-                let tree_location: TreeLocation =  TreeLocation::Root;
+                let tree_location: TreeLocation = TreeLocation::Root;
                 let node_location = NodeLocation::new(
                     containing_component_type_id.clone(),
                     tree_location,
@@ -244,10 +244,10 @@ impl SimpleNodeAction {
                     updated_property_map = properties.into();
                 }
                 let new_location = NodeLocation::new(
-                        containing_component_type_id.clone(),
-                        TreeLocation::Root,
-                        TreeIndexPosition::Top,
-                    );
+                    containing_component_type_id.clone(),
+                    TreeLocation::Root,
+                    TreeIndexPosition::Top,
+                );
                 let update = UpdateTemplateNodeRequest::new(
                     uni,
                     None,
