@@ -260,7 +260,7 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path)
         .arg("run")
-        .arg("--release")// --release speeds up Pest parsing substantially
+        .arg("--release") // --release speeds up Pest parsing substantially
         .arg("--bin")
         .arg("parser")
         .arg("--features")

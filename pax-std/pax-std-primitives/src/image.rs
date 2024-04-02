@@ -86,8 +86,7 @@ impl InstanceNode for ImageInstance {
         let transform = comp_props.computed_tab.transform;
         let bounding_dimens = comp_props.computed_tab.bounds;
 
-        let transformed_bounds =
-            kurbo::Rect::new(0.0, 0.0, bounding_dimens.0, bounding_dimens.1);
+        let transformed_bounds = kurbo::Rect::new(0.0, 0.0, bounding_dimens.0, bounding_dimens.1);
 
         let path =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
