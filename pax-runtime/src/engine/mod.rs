@@ -8,6 +8,8 @@ use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
+use pax_runtime_api::math::Transform2;
+use pax_runtime_api::{Property, Window};
 
 use crate::api::{
     CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
@@ -17,8 +19,7 @@ use piet::InterpolationMode;
 
 use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
-    ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext,
-    RuntimePropertiesStackFrame, TransformAndBounds,
+    ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 pub mod node_interface;
@@ -35,10 +36,13 @@ pub use expanded_node::ExpandedNode;
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
 
+use self::expanded_node::LayoutProperties;
+use self::node_interface::NodeLocal;
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Globals {
     pub frames_elapsed: usize,
-    pub viewport: TransformAndBounds,
+    pub viewport: LayoutProperties,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
@@ -302,13 +306,11 @@ impl PaxEngine {
         expression_table: ExpressionTable,
         viewport_size: (f64, f64),
     ) -> Self {
-        use pax_runtime_api::math::Transform2;
-
         let globals = Globals {
             frames_elapsed: 0,
-            viewport: TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: viewport_size,
+            viewport: LayoutProperties {
+                transform: Property::new(Transform2::identity()),
+                bounds: Property::new(viewport_size),
             },
         };
 
@@ -518,7 +520,8 @@ impl PaxEngine {
             .borrow_mut()
             .globals_mut()
             .viewport
-            .bounds = new_viewport_size;
+            .bounds
+            .set(new_viewport_size);
     }
 
     pub fn global_dispatch_key_down(&self, args: KeyDown) {

@@ -1,4 +1,5 @@
-use pax_runtime_api::properties::ErasedProperty;
+use pax_runtime_api::math::Transform2;
+use pax_runtime_api::properties::{Erasable, ErasedProperty};
 use pax_runtime_api::Property;
 
 use crate::api::math::Point2;
@@ -10,6 +11,7 @@ use crate::constants::{
     TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
+use crate::node_interface::NodeLocal;
 use crate::{ExpressionTable, Globals};
 #[cfg(debug_assertions)]
 use core::fmt;
@@ -20,7 +22,6 @@ use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
-use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 
 use crate::api::{
@@ -32,7 +33,7 @@ use crate::api::{
 
 use crate::{
     compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext,
-    RuntimePropertiesStackFrame, TransformAndBounds,
+    RuntimePropertiesStackFrame,
 };
 
 pub struct ExpandedNode {
@@ -74,7 +75,7 @@ pub struct ExpandedNode {
     /// Properties that are currently re-computed each frame before rendering.
     /// Only contains computed_tab atm. Might be possible to retire if tab comp
     /// would be part of render pass?
-    pub layout_properties: RefCell<Option<LayoutProperties>>,
+    pub layout_properties: LayoutProperties,
 
     /// For component instances only, tracks the expanded slot_children in it's
     /// non-collapsed form (repeat and conditionals still present). This allows
@@ -121,17 +122,17 @@ macro_rules! dispatch_event_handler {
                 };
 
                 let comp_props = self.layout_properties.borrow();
-                let bounds_self = comp_props.as_ref().unwrap().computed_tab.bounds;
+                let bounds_self = comp_props.bounds.clone();
                 let bounds_parent = self
                     .parent_expanded_node
                     .borrow()
                     .upgrade()
                     .map(|parent| {
                         let comp_props = parent.layout_properties.borrow();
-                        let bounds_parent = comp_props.as_ref().unwrap().computed_tab.bounds;
+                        let bounds_parent = comp_props.bounds.clone();
                         bounds_parent
                     })
-                    .unwrap_or(globals.viewport.bounds);
+                    .unwrap_or(globals.viewport.bounds.clone());
                 let context = NodeContext {
                     bounds_self,
                     bounds_parent,
@@ -221,7 +222,7 @@ impl ExpandedNode {
                 &format!("node children (node id: {})", id),
             ),
             mounted_children: RefCell::new(Vec::new()),
-            layout_properties: RefCell::new(None),
+            layout_properties: LayoutProperties::default(),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             occlusion_id: RefCell::new(0),
@@ -294,27 +295,34 @@ impl ExpandedNode {
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) -> Vec<Rc<ExpandedNode>> {
-        log::debug!("attach children enter (parent: {:?})", self);
         let mut curr_children = self.mounted_children.borrow_mut();
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         if *self.attached.borrow() > 0 {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
-            log::debug!("unmounted, now mounting (parent: {:?})", self);
-            for (i, child) in new_children.iter().enumerate() {
-                log::debug!("mounting {:?} ind: {}", child, i);
+            for child in new_children.iter() {
                 Rc::clone(child).recurse_mount(context);
-                log::debug!("finished mounting {:?} ind: {}", child, i);
             }
         }
-        log::debug!("BEFORE SET PARENTS");
         for child in new_children.iter() {
+            // set parent and connect up viewport bounds to new parent
             *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
+            let parent_viewport = self
+                .parent_expanded_node
+                .borrow()
+                .upgrade()
+                .map(|p| p.layout_properties.clone())
+                .unwrap_or((*(*context)).borrow().globals().viewport.clone());
+
+            let parent_bounds = parent_viewport.bounds.clone();
+            let parent_transform = parent_viewport.transform.clone();
+
+            let (transform, bounds) = compute_tab(&self, parent_transform, parent_bounds);
+            child.layout_properties.bounds.replace_with(bounds);
+            child.layout_properties.transform.replace_with(transform);
         }
-        log::debug!("AFTER SET PARENTS");
         *curr_children = new_children.clone();
-        log::debug!("attach children exit (parent: {:?})", self);
         new_children
     }
 
@@ -330,20 +338,6 @@ impl ExpandedNode {
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
-        let viewport = self
-            .parent_expanded_node
-            .borrow()
-            .upgrade()
-            .and_then(|p| {
-                let props = p.layout_properties.borrow();
-                props.as_ref().map(|c| c.computed_tab.clone())
-            })
-            .unwrap_or((*(*context)).borrow().globals().viewport.clone());
-
-        *self.layout_properties.borrow_mut() = Some(LayoutProperties {
-            computed_tab: compute_tab(self, &viewport),
-        });
-
         if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
             for handler in registry
                 .deref()
@@ -436,7 +430,7 @@ impl ExpandedNode {
                 }
             }
         }
-        for (i, child) in self.children.get().iter().enumerate() {
+        for child in self.children.get().iter() {
             Rc::clone(child).recurse_mount(context);
         }
     }
@@ -473,6 +467,7 @@ impl ExpandedNode {
         for child in self.children.get().iter().rev() {
             child.recurse_render(ctx, rcs);
         }
+        let tab = &self.layout_properties;
         self.instance_node.borrow().render(&self, ctx, rcs);
         self.instance_node
             .borrow()
@@ -515,19 +510,12 @@ impl ExpandedNode {
     pub fn get_node_context<'a>(&'a self, context: &Rc<RefCell<RuntimeContext>>) -> NodeContext {
         let ctx = (**context).borrow();
         let globals = ctx.globals();
-        let computed_props = self.layout_properties.borrow();
-        let bounds_self = computed_props
-            .as_ref()
-            .map(|v| v.computed_tab.bounds)
-            .unwrap_or(globals.viewport.bounds);
-        let parent = self.parent_expanded_node.borrow().upgrade();
-        let bounds_parent = parent
-            .as_ref()
-            .and_then(|p| {
-                let props = p.layout_properties.borrow();
-                props.as_ref().map(|v| v.computed_tab.bounds)
-            })
-            .unwrap_or(globals.viewport.bounds);
+        let bounds_self = self.layout_properties.bounds.clone();
+        let bounds_parent = if let Some(parent) = self.parent_expanded_node.borrow().upgrade() {
+            parent.layout_properties.bounds.clone()
+        } else {
+            globals.viewport.bounds.clone()
+        };
 
         NodeContext {
             frames_elapsed: globals.frames_elapsed,
@@ -557,37 +545,16 @@ impl ExpandedNode {
             return false;
         }
 
-        let props = self.layout_properties.borrow();
-        let computed_tab = &props.as_ref().unwrap().computed_tab;
-
-        let inverted_transform = computed_tab.transform.inverse();
+        let inverted_transform = self.layout_properties.transform.get().inverse();
         let transformed_ray = inverted_transform * ray;
 
-        let relevant_bounds = computed_tab.bounds;
-
+        let (width, height) = self.layout_properties.bounds.get();
         //Default implementation: rectilinear bounding hull
         let res = transformed_ray.x > 0.0
             && transformed_ray.y > 0.0
-            && transformed_ray.x < relevant_bounds.0
-            && transformed_ray.y < relevant_bounds.1;
-
+            && transformed_ray.x < width
+            && transformed_ray.y < height;
         res
-    }
-
-    /// Returns the size of this node, or `None` if this node
-    /// doesn't have a size (e.g. `Group`)
-    pub fn get_size(&self) -> (Size, Size) {
-        self.instance_node.borrow().get_size(self)
-    }
-
-    /// Returns the size of this node in pixels, requiring this node's containing bounds
-    /// for calculation of `Percent` values
-    pub fn get_size_computed(&self, bounds: (f64, f64)) -> (f64, f64) {
-        let size = self.get_size();
-        (
-            size.0.evaluate(bounds, Axis::X),
-            size.1.evaluate(bounds, Axis::Y),
-        )
     }
 
     /// Used at least by ray-casting; only nodes that clip content (and thus should
@@ -679,9 +646,64 @@ impl ExpandedNode {
 
 /// Properties that are currently re-computed each frame before rendering.
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Clone)]
 pub struct LayoutProperties {
-    /// Computed transform and size of this ExpandedNode
-    pub computed_tab: TransformAndBounds,
+    pub transform: Property<Transform2<NodeLocal, Window>>,
+    pub bounds: Property<(f64, f64)>,
+}
+
+impl LayoutProperties {
+    pub fn corners(&self) -> [Point2<Window>; 4] {
+        let (width, height) = self.bounds.get();
+
+        let top_left = self.transform.get() * Point2::new(0.0, 0.0);
+        let top_right = self.transform.get() * Point2::new(width, 0.0);
+        let bottom_left = self.transform.get() * Point2::new(0.0, height);
+        let bottom_right = self.transform.get() * Point2::new(width, height);
+
+        [top_left, top_right, bottom_right, bottom_left]
+    }
+
+    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
+    pub fn intersects(&self, other: &Self) -> bool {
+        let corners_self = self.corners();
+        let corners_other = other.corners();
+
+        for i in 0..2 {
+            let axis = (corners_self[i] - corners_self[(i + 1) % 4]).normal();
+
+            let self_projections: Vec<_> = corners_self
+                .iter()
+                .map(|&p| p.to_vector().project_onto(axis).length())
+                .collect();
+            let other_projections: Vec<_> = corners_other
+                .iter()
+                .map(|&p| p.to_vector().project_onto(axis).length())
+                .collect();
+
+            let (min_self, max_self) = min_max_projections(&self_projections);
+            let (min_other, max_other) = min_max_projections(&other_projections);
+
+            // Check for non-overlapping projections
+            if max_self < min_other || max_other < min_self {
+                // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
+                return false;
+            }
+        }
+        true
+    }
+}
+
+fn min_max_projections(projections: &[f64]) -> (f64, f64) {
+    let min_projection = *projections
+        .iter()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    let max_projection = *projections
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    (min_projection, max_projection)
 }
 
 /// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
