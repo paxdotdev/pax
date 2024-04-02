@@ -117,6 +117,18 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
     //necessary manual cleanup
     chassis.deallocate(memorySliceSpec);
 
+    let jsonS = JSON.stringify(objectManager);
+    let sizeInBytes = new TextEncoder().encode(jsonS).length;
+    console.log("Object manager", sizeInBytes);
+
+    jsonS = JSON.stringify(messages);
+    sizeInBytes = new TextEncoder().encode(jsonS).length;
+    console.log("messages size", sizeInBytes);
+
+    jsonS = JSON.stringify(nativePool);
+    sizeInBytes = new TextEncoder().encode(jsonS).length;
+    console.log("nativePool size", sizeInBytes);
+
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
 }
 
@@ -127,89 +139,22 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);
             nativePool.occlusionUpdate(patch);
-        } else if(unwrapped_msg["ButtonCreate"]) {
-            let msg = unwrapped_msg["ButtonCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.buttonCreate(patch);
-        } else if (unwrapped_msg["ButtonUpdate"]){
-            let msg = unwrapped_msg["ButtonUpdate"]
-            let patch: ButtonUpdatePatch = objectManager.getFromPool(BUTTON_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.buttonUpdate(patch);
-        }else if (unwrapped_msg["ButtonDelete"]) {
-            let msg = unwrapped_msg["ButtonDelete"];
-            nativePool.buttonDelete(msg)
-        } else if(unwrapped_msg["CheckboxCreate"]) {
-            let msg = unwrapped_msg["CheckboxCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.checkboxCreate(patch);
-        } else if (unwrapped_msg["CheckboxUpdate"]){
-            let msg = unwrapped_msg["CheckboxUpdate"]
-            let patch: CheckboxUpdatePatch = objectManager.getFromPool(CHECKBOX_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.checkboxUpdate(patch);
-        }else if (unwrapped_msg["CheckboxDelete"]) {
-            let msg = unwrapped_msg["CheckboxDelete"];
-            nativePool.checkboxDelete(msg)
-        } else if(unwrapped_msg["TextboxCreate"]) {
-            let msg = unwrapped_msg["TextboxCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.textboxCreate(patch);
-        } else if (unwrapped_msg["TextboxUpdate"]){
-            let msg = unwrapped_msg["TextboxUpdate"]
-            let patch: TextboxUpdatePatch = objectManager.getFromPool(TEXTBOX_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.textboxUpdate(patch);
-        }else if (unwrapped_msg["TextboxDelete"]) {
-            let msg = unwrapped_msg["TextboxDelete"];
-            nativePool.textboxDelete(msg)
+            objectManager.returnToPool(OCCLUSION_UPDATE_PATCH, patch);
         } else if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
             nativePool.textCreate(patch);
+            objectManager.returnToPool(ANY_CREATE_PATCH, patch);
         } else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
             let patch: TextUpdatePatch = objectManager.getFromPool(TEXT_UPDATE_PATCH, objectManager);
             patch.fromPatch(msg, nativePool.registeredFontFaces);
             nativePool.textUpdate(patch);
+            objectManager.returnToPool(TEXT_UPDATE_PATCH, patch);
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
             nativePool.textDelete(msg)
-        } else if(unwrapped_msg["FrameCreate"]) {
-            let msg = unwrapped_msg["FrameCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.frameCreate(patch);
-        }else if (unwrapped_msg["FrameUpdate"]){
-            let msg = unwrapped_msg["FrameUpdate"]
-            let patch: FrameUpdatePatch = objectManager.getFromPool(FRAME_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.frameUpdate(patch);
-        }else if (unwrapped_msg["FrameDelete"]) {
-            let msg = unwrapped_msg["FrameDelete"];
-            nativePool.frameDelete(msg["id_chain"])
-        }else if (unwrapped_msg["ImageLoad"]){
-            let msg = unwrapped_msg["ImageLoad"];
-            let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
-            patch.fromPatch(msg);
-            nativePool.imageLoad(patch, chassis)
-        }else if(unwrapped_msg["ScrollerCreate"]) {
-            let msg = unwrapped_msg["ScrollerCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerCreate(patch);
-        }else if (unwrapped_msg["ScrollerUpdate"]){
-            let msg = unwrapped_msg["ScrollerUpdate"]
-            let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerUpdate(patch);
-        }else if (unwrapped_msg["ScrollerDelete"]) {
-            let msg = unwrapped_msg["ScrollerDelete"];
-            nativePool.scrollerDelete(msg)
         }
     })
 }

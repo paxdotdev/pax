@@ -97,15 +97,14 @@ impl InstanceNode for RepeatInstance {
                     unreachable!();
                 };
 
-                let current_len = vec.len();
+                let current_len: usize = vec.len();
 
                 let exp_props = expanded_node.layout_properties.borrow();
                 let current_bounds = exp_props
                     .as_ref()
                     .map(|t| t.computed_tab.bounds)
                     .unwrap_or_default();
-                let update_children =
-                    current_len != properties.last_len || current_bounds != properties.last_bounds;
+                let update_children = true;
 
                 properties.last_len = current_len;
                 properties.last_bounds = current_bounds;

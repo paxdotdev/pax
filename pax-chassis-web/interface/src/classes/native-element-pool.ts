@@ -19,11 +19,12 @@ import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 
+let count = 0;
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
     private scrollers: Map<string, Scroller>;
     baseOcclusionContext: OcclusionContext;
-    private textNodes = {};
+    private nativeNodes = {};
     private chassis? : PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
@@ -98,7 +99,7 @@ export class NativeElementPool {
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         // @ts-ignore
-        let node = this.textNodes[patch.idChain];
+        let node = this.nativeNodes[patch.idChain];
         if (node){
             let parent = node.parentElement;
             parent.removeChild(node);
@@ -147,16 +148,14 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nativeNodes[patch.idChain] = runningChain;
 
     }
 
     
     checkboxUpdate(patch: CheckboxUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nativeNodes[patch.id_chain];
         console.assert(leaf !== undefined);
         let checkbox = leaf.firstChild;
         if (patch.checked !== null) {
@@ -177,10 +176,12 @@ export class NativeElementPool {
 
     checkboxDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nativeNodes[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
+            // @ts-ignore
+            delete this.nativeNodes[id_chain];
         }
     }
 
@@ -224,16 +225,14 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nativeNodes[patch.idChain] = runningChain;
 
     }
 
     
     textboxUpdate(patch: TextboxUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nativeNodes[patch.id_chain];
         console.assert(leaf !== undefined);
         let textbox = leaf.firstChild;
 
@@ -302,10 +301,12 @@ export class NativeElementPool {
 
     textboxDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nativeNodes[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
+            // @ts-ignore
+            delete this.nativeNodes[id_chain];
         }
     }
 
@@ -348,16 +349,14 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nativeNodes[patch.idChain] = runningChain;
 
     }
 
     
     buttonUpdate(patch: ButtonUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nativeNodes[patch.id_chain];
         console.assert(leaf !== undefined);
         let button = leaf.firstChild;
         let textContainer = button.firstChild;
@@ -388,10 +387,12 @@ export class NativeElementPool {
 
     buttonDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nativeNodes[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
+            // @ts-ignore
+            delete this.nativeNodes[id_chain];
         }
     }
 
@@ -437,14 +438,12 @@ export class NativeElementPool {
         }
 
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nativeNodes[patch.idChain] = runningChain;
     }
 
     textUpdate(patch: TextUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nativeNodes[patch.id_chain];
         console.assert(leaf !== undefined);
 
         let textChild = leaf.firstChild;
@@ -523,10 +522,12 @@ export class NativeElementPool {
 
     textDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nativeNodes[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
+             // @ts-ignore
+            delete this.nativeNodes[id_chain];
         }
     }
 
