@@ -5,7 +5,7 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 use piet::PaintBrush;
-use properties::{Erasable, ErasedProperty};
+use properties::ErasedProperty;
 
 #[cfg(feature = "designtime")]
 use {
