@@ -1,16 +1,26 @@
-<Rectangle
-    class=control_point
-    x={(self.data.point.x)px}
-    y={(self.data.point.y)px}
-    @mouse_down=self.mouse_down
-/>
+<Group id=invisible_hit_box @mouse_down=self.mouse_down>
+    <Rectangle
+        class=control_point
+    />
+</Group>
 
 @settings {
+    #invisible_hit_box {
+        anchor_x: 50%,
+        anchor_y: 50%,
+        x: {(self.data.point.x)px},
+        y: {(self.data.point.y)px},
+        fill: NONE,
+        width: {(self.data.styling.size_pixels + 3)px}
+        height: {(self.data.styling.size_pixels + 3)px}
+    }
     .control_point {
         stroke: {
             color: {self.data.styling.stroke}
             width: {(self.data.styling.stroke_width_pixels)px}
         }
+        x: 50%,
+        y: 50%,
         fill: { self.data.styling.fill }
         width: {(self.data.styling.size_pixels)px}
         height: {(self.data.styling.size_pixels)px}
