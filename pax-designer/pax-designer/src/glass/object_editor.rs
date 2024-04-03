@@ -344,7 +344,7 @@ impl ObjectEditor {
                 stroke: Color::TRANSPARENT,
                 fill: Color::TRANSPARENT,
                 stroke_width_pixels: 0.0,
-                size_pixels: 25.0,
+                size_pixels: 27.0,
             },
         );
 
