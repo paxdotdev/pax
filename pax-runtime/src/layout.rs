@@ -28,9 +28,9 @@ pub fn compute_tab(
     let cp_height = common_props.height.clone();
 
     let deps = vec![
-        container_bounds.as_untyped(),
-        cp_width.as_untyped(),
-        cp_height.as_untyped(),
+        container_bounds.untyped(),
+        cp_width.untyped(),
+        cp_height.untyped(),
     ];
 
     let bounds = Property::computed_with_name(
@@ -65,13 +65,13 @@ pub fn compute_tab(
         &cp_scale_x,
         &cp_scale_y,
     ]
-    .map(|v| v.as_ref().map(|p| p.as_untyped()))
+    .map(|v| v.as_ref().map(|p| p.untyped()))
     .into_iter()
     .flatten();
     let other_props = [
-        cp_skew_x.as_ref().map(|p| p.as_untyped()),
-        cp_skew_y.as_ref().map(|p| p.as_untyped()),
-        cp_rotate.as_ref().map(|p| p.as_untyped()),
+        cp_skew_x.as_ref().map(|p| p.untyped()),
+        cp_skew_y.as_ref().map(|p| p.untyped()),
+        cp_rotate.as_ref().map(|p| p.untyped()),
     ]
     .into_iter()
     .flatten();
@@ -80,9 +80,9 @@ pub fn compute_tab(
         .chain(other_props)
         .chain(
             [
-                cp_transform.as_untyped(),
-                cp_bounds.as_untyped(),
-                cp_container_bounds.as_untyped(),
+                cp_transform.untyped(),
+                cp_bounds.untyped(),
+                cp_container_bounds.untyped(),
             ]
             .into_iter(),
         )

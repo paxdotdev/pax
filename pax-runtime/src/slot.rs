@@ -65,7 +65,7 @@ impl InstanceNode for SlotInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
                 properties.showing_node.clone()
             });
-        let deps = vec![showing_node.as_untyped()];
+        let deps = vec![showing_node.untyped()];
 
         expanded_node
             .children

@@ -55,7 +55,7 @@ impl InstanceNode for ConditionalInstance {
 
         let dep =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
-                properties.boolean_expression.as_untyped()
+                properties.boolean_expression.untyped()
             });
         expanded_node
             .children
