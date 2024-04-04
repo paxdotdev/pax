@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::properties::{Erasable, ErasedProperty};
+use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::Property;
 
 use crate::api::Layer;
@@ -104,10 +104,10 @@ impl InstanceNode for RepeatInstance {
 
         let mut dependents = vec![];
         if let Some(ref source) = source_expression_range {
-            dependents.push(source.erase());
+            dependents.push(source.as_untyped());
         }
         if let Some(ref source) = source_expression_vec {
-            dependents.push(source.erase());
+            dependents.push(source.as_untyped());
         }
         let dependents = dependents.iter().map(|x| x).collect();
         expanded_node
@@ -147,12 +147,12 @@ impl InstanceNode for RepeatInstance {
                             }))
                                 as Rc<RefCell<dyn Any>>;
 
-                            let mut scope: HashMap<String, ErasedProperty> = HashMap::new();
+                            let mut scope: HashMap<String, UntypedProperty> = HashMap::new();
                             if let Some(ref i_symbol) = i_symbol {
-                                scope.insert(i_symbol.clone(), property_i.erase());
+                                scope.insert(i_symbol.clone(), property_i.as_untyped());
                             }
                             if let Some(ref elem_symbol) = elem_symbol {
-                                scope.insert(elem_symbol.clone(), property_elem.erase());
+                                scope.insert(elem_symbol.clone(), property_elem.as_untyped());
                             }
 
                             let new_env = cloned_expanded_node

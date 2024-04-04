@@ -9,9 +9,8 @@ thread_local! {
 }
 
 pub struct PropertyData {
-    pub value: Option<Box<dyn Any>>,
-    pub subscribers: Vec<PropertyId>,
-    pub ref_count: usize,
+    pub value: Box<dyn Any>,
+    pub outbound: Vec<PropertyId>,
     pub prop_type: PropertyType,
 }
 
@@ -24,10 +23,9 @@ pub enum PropertyType {
         // Information needed to recompute on change
         evaluator: Rc<dyn Fn() -> Box<dyn Any>>,
         dirty: bool,
-        subscriptions: Vec<PropertyId>,
+        inbound: Vec<PropertyId>,
     },
 }
-
 
 pub struct PropertyTable {
     pub entries: RefCell<SlotMap<PropertyId, (ReferenceCount, Option<PropertyData>)>>,
@@ -43,7 +41,7 @@ impl std::fmt::Debug for PropertyTable {
                     .entries
                     .borrow()
                     .iter()
-                    .map(|(k, v)| (k, v.borrow().subscribers.to_owned()))
+                    .map(|(k, (_, v))| (k, v.as_ref().map(|v| v.outbound.to_owned())))
                     .collect::<Vec<_>>(),
             )
             .finish_non_exhaustive()
@@ -71,149 +69,103 @@ impl PropertyTable {
                     debug_name.unwrap_or("<no name>")
                 );
             };
-            sm.insert(RefCell::new(PropertyData {
-                ref_count: 1,
-                value: start_val,
-                subscribers: Vec::with_capacity(0),
-                prop_type: data,
-            }))
+            sm.insert((
+                ReferenceCount(1),
+                Some(PropertyData {
+                    value: start_val,
+                    outbound: Vec::with_capacity(0),
+                    prop_type: data,
+                }),
+            ))
         };
         if let Some(name) = debug_name {
             self.debug_names.borrow_mut().insert(id, name.to_owned());
         }
-        self.with_prop_data(id, |prop_data| {
-            if let PropertyType::Expr { subscriptions, .. } = &prop_data.prop_type {
-                for dep_id in subscriptions {
-                    self.with_property_value_mut(*dep_id, |dep_prop| {
-                        dep_prop.subscribers.push(id);
-                    })
-                    .map_err(|e| {
-                        format!(
-                            "couldn't push depdendent of \"{}\": {}",
-                            self.debug_name(id),
-                            e
-                        )
-                    })
-                    .unwrap();
-                }
-            }
-        })
-        .expect("recently added entry can be mutated");
+        self.connect_dependents(id);
         id
     }
 
-    /// You cannot use .get() or .set() on the mutably borrowed property
-    pub fn with_property_value_mut<V>(
+    /// WARNING this function is dangerous, f can not drop, create, set, get
+    /// or in any other way modify the global table or this will panic with multiple mutable borrows
+    fn with_entry_mut<V>(
         &self,
         id: PropertyId,
-        f: impl FnOnce(&mut Box<dyn Any>) -> V,
-    ) -> Result<V, String> {
-        let mut requested_data = {
-            let sm = self.entries.try_borrow().map_err(|_| {
-                format!(
-                    "failed to borrow table for use by property \"{}\" - already mutably borrowed",
-                    self.debug_name(id),
-                )
-            })?;
-            let prop_data = sm.get(id).ok_or(&format!(
-                "tried to get prop_data for property \"{}\" that doesn't exist anymore",
-                self.debug_name(id)
-            ))?;
-            let mut prop_data = prop_data.try_borrow_mut().map_err(|_| {
-                format!(
-                    "failed to borrow prop_data mutably of property \"{}\" mutably - already borrowed",
-                    self.debug_name(id)
-                )
-            })?;
-            prop_data.value.take()
-        }.expect("value should always be present");
+        f: impl FnOnce(&mut (ReferenceCount, Option<PropertyData>)) -> V,
+    ) -> V {
+        let mut sm = self.entries.borrow_mut();
+        let mut data = sm.get_mut(id).unwrap();
 
-        let return_value = f(&mut requested_data);
-    
-        // Refactor to another method
-        {
-            let mut sm = self.entries.try_borrow_mut().map_err(|_| {
-                format!(
-                    "failed to borrow table for use by property \"{}\" - already mutably borrowed",
-                    self.debug_name(id),
-                )
-            })?;
-            let mut prop_data = sm.get_mut(id).ok_or(&format!(
-                "tried to get prop_data for property \"{}\" that doesn't exist anymore",
-                self.debug_name(id)
-            ))?;
-            prop_data.borrow_mut().value = Some(requested_data);
-        }
-        Ok(ret)
+        let return_value = f(&mut data);
+        return_value
     }
 
-    pub fn with_prop_data<V>(
+    /// WARNING You cannot use .get() or .set() on the mutably borrowed property
+    /// or this will panic
+    pub fn with_property_data_mut<V>(
         &self,
         id: PropertyId,
-        f: impl FnOnce(&PropertyData) -> V,
-    ) -> Result<V, String> {
-        let sm = self.entries.try_borrow().map_err(|_| {
-            format!(
-                "failed to borrow table for use by property \"{}\" - already mutably borrowed",
-                self.debug_name(id),
-            )
-        })?;
-        let prop_data = sm.get(id).ok_or(&format!(
-            "tried to get prop_data for property \"{}\" that doesn't exist anymore",
-            self.debug_name(id)
-        ))?;
-        let prop_data = prop_data.try_borrow().map_err(|_| {
-            format!(
-                "failed to borrow prop_data of property \"{}\" - already borrowed mutably",
-                self.debug_name(id),
-            )
-        })?;
-        Ok(f(&*prop_data))
+        f: impl FnOnce(&mut PropertyData) -> V,
+    ) -> V {
+        let mut property_data = self.with_entry_mut(id, |(_, existing_property_data)| {
+            existing_property_data
+                .take()
+                .expect("property data has not been taken")
+        });
+        let res = f(&mut property_data);
+        self.with_entry_mut(id, |(_, existing_property_data)| {
+            *existing_property_data = Some(property_data);
+        });
+        res
+    }
+
+    pub fn with_property_data<V>(&self, id: PropertyId, f: impl FnOnce(&PropertyData) -> V) -> V {
+        self.with_property_data_mut(id, |prop_data| f(&*prop_data))
+    }
+
+    //WARNING borrows entire table
+    pub fn with_ref_count_mut<V>(&self, id: PropertyId, f: impl FnOnce(&mut usize) -> V) -> V {
+        let res = self.with_entry_mut(id, |(ref_count, _)| f(&mut ref_count.0));
+        res
     }
 
     // re-computes the value and all of it's dependencies if dirty
     pub fn update_value(&self, id: PropertyId) {
-        let evaluator = self
-            .with_property_value_mut(id, |prop_data| {
-                if let PropertyType::Expr {
-                    dirty: true, evaluator, ..
-                } = &mut prop_data.prop_type
-                {
-                    // This dirty checking should be done automatically by sub-components (dependents)
-                    // of the computed during the "get" calls while computing it.
-                    if *dirty == true {
-                        *dirty = false;
-                        return Some(evaluator.clone());
-                    }
+        let evaluator =
+            self.with_property_data_mut(id, |prop_data| match &mut prop_data.prop_type {
+                PropertyType::Expr {
+                    evaluator,
+                    dirty: ref mut is_dirty @ true,
+                    ..
+                } => {
+                    log::debug!("dirty!!");
+                    *is_dirty = false;
+                    Some(Rc::clone(&evaluator))
                 }
-                None
-            })
-            .map_err(|e| format!("can't update value: {}", e))
-            .unwrap();
+                _ => None,
+            });
         if let Some(evaluator) = evaluator {
+            // WARNING: the evaluator should not be run inside of a
+            // with_property_data closure, as this function is provided by the user
+            // and can do arbitrary sets/gets/drops etc (that need the prop data)
             let new_value = evaluator();
-            self.with_property_value_mut(id, |prop_data| {
-                // WARNING: don't remove this. old value needs to be returned outside of this prop_data mut before being dropped
-                std::mem::replace(&mut prop_data.value, new_value)
+            self.with_property_data_mut(id, |prop_data| {
+                // drops old value
+                prop_data.value = new_value;
             })
-            .map_err(|e| format!("update_value error: {}", e))
-            .unwrap();
         }
     }
 
     /// Main function to get access to a reference inside of a property.
     /// Makes sure the value is up to date before calling the provided closure
-    pub fn get_value_ref<T: PropertyValue, V>(&self, id: PropertyId, f: impl FnOnce(&T) -> V) -> V {
+    pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value(id);
-        self.with_prop_data(id, |prop_data| {
-            let value = prop_data
+        self.with_property_data(id, |prop_data| {
+            prop_data
                 .value
                 .downcast_ref::<T>()
-                .expect("value should contain correct type");
-            f(value)
+                .expect("value should contain correct type")
+                .clone()
         })
-        .map_err(|e| format!("get_value_ref error: {}", e))
-        .unwrap()
     }
 
     // WARNING: read the below before using this function
@@ -221,91 +173,27 @@ impl PropertyTable {
     // by calling self.update_value(..)
     // NOTE: This always assumes the underlying data was changed, and marks
     // it and it's dependents as dirty irrespective of actual modification
-    /// TODO Change this to set with value : T 
-    pub fn get_value_mut<T: PropertyValue, V>(&self, id: PropertyId, f: impl FnOnce(&mut T) -> V) -> V {
-        let mut to_dirty = vec![];
-        let ret_value = self
-            .with_property_value_mut(id, |prop_data: &mut PropertyData| {
-                let value = prop_data
-                    .value
-                    .downcast_mut()
-                    .expect("value should contain correct type");
-                let ret = f(value);
-                to_dirty.extend_from_slice(&prop_data.subscribers);
-                ret
-            })
-            .map_err(|e| format!("coudn't modify value of \"{}\": {}", self.debug_name(id), e))
-            .unwrap();
-        // put 
-        while let Some(dep_id) = to_dirty.pop() {
-            self.with_property_value_mut(dep_id, |dep_data| {
-                if dep_id == id {
-                    unreachable!(
-                        "property cycles should never happen with literals/computeds being a DAG"
-                    );
-                }
-                let PropertyType::Expr { ref mut dirty, .. } = dep_data.prop_type else {
-                    unreachable!("non-computeds shouldn't depend on other properties")
-                };
-                if !*dirty {
-                    *dirty = true;
-                    to_dirty.extend_from_slice(&dep_data.subscribers);
-                }
-            })
-            .map_err(|e| {
-                format!(
-                    "couldn't update dependency with name \"{}\": {}",
-                    self.debug_name(dep_id),
-                    e
-                )
-            })
-            .unwrap();
-        }
-        ret_value
+    pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
+        self.with_property_data_mut(id, |prop_data: &mut PropertyData| {
+            // drops old value
+            prop_data.value = Box::new(new_val);
+        });
+        self.dirtify_dependencies(id);
     }
 
     pub fn remove_entry(&self, id: PropertyId) {
-        let prop_data = {
+        let res = {
+            self.disconnect_dependencies(id);
+            self.disconnect_dependents(id);
             let Ok(mut sm) = self.entries.try_borrow_mut() else {
                 panic!(
                     "failed to remove property \"{}\" - propertytable already borrowed",
                     self.debug_name(id),
                 );
             };
-            let prop_data = sm.remove(id).expect("tried to remove non-existent prop");
-            prop_data
-        }
-        .into_inner();
-        for sub in prop_data.subscribers {
-            self.with_property_value_mut(sub, |s| {
-                if let PropertyType::Expr { subscriptions, .. } = &mut s.prop_type {
-                    subscriptions.retain(|s| s != &id);
-                }
-            })
-            .map_err(|e| {
-                format!(
-                    "coudln't remove subscription to \"{}\": {}",
-                    self.debug_name(id),
-                    e
-                )
-            })
-            .unwrap();
-        }
-        if let PropertyType::Expr { subscriptions, .. } = prop_data.prop_type {
-            for subscription in subscriptions {
-                self.with_property_value_mut(subscription, |sub| {
-                    sub.subscribers.retain(|v| v != &id);
-                })
-                .map_err(|e| {
-                    format!(
-                        "couldn't remove subscription from \"{}\": {}",
-                        self.debug_name(id),
-                        e
-                    )
-                })
-                .unwrap();
-            }
-        }
+            sm.remove(id).expect("tried to remove non-existent prop")
+        };
+        drop(res);
     }
 
     pub fn debug_name(&self, id: PropertyId) -> String {

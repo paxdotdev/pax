@@ -1,5 +1,5 @@
 use pax_runtime_api::math::Transform2;
-use pax_runtime_api::properties::{Erasable, ErasedProperty};
+use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::Property;
 
 use crate::api::math::Point2;
@@ -102,7 +102,7 @@ pub struct ExpandedNode {
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
-    pub properties_scope: RefCell<HashMap<String, ErasedProperty>>,
+    pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 }
 
 macro_rules! dispatch_event_handler {
