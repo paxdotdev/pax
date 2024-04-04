@@ -6,12 +6,16 @@ mod private {
 }
 
 mod erased_property;
+mod graph_operations;
+pub use erased_property::UntypedProperty;
+
 use std::{any::Any, marker::PhantomData, rc::Rc};
 
-pub use erased_property::ErasedProperty;
 use serde::{Deserialize, Serialize};
 
 mod properties_table;
+#[cfg(test)]
+mod tests;
 use properties_table::PROPERTY_TABLE;
 
 use self::properties_table::{PropertyData, PropertyType};
@@ -24,7 +28,7 @@ impl<T: Default + Clone + 'static> PropertyValue for T {}
 
 #[derive(Debug, Clone)]
 pub struct Property<T> {
-    erased: ErasedProperty,
+    untyped: UntypedProperty,
     _phantom: PhantomData<T>,
 }
 
@@ -76,14 +80,14 @@ impl<T: PropertyValue> Property<T> {
 
     fn literal_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            erased: ErasedProperty::new(Box::new(val), PropertyType::Literal, name),
+            untyped: UntypedProperty::new(Box::new(val), PropertyType::Literal, name),
             _phantom: PhantomData {},
         }
     }
 
     pub fn computed(
         evaluator: impl Fn() -> T + 'static,
-        dependents: &Vec<&ErasedProperty>,
+        dependents: &Vec<&UntypedProperty>,
     ) -> Self {
         Self::computed_optional_name(evaluator, dependents, None)
     }
@@ -91,7 +95,7 @@ impl<T: PropertyValue> Property<T> {
     /// re-computes a property each time it's dependencies change.
     pub fn computed_with_name(
         evaluator: impl Fn() -> T + 'static,
-        dependents: &Vec<&ErasedProperty>,
+        dependents: &Vec<&UntypedProperty>,
         name: &str,
     ) -> Self {
         Self::computed_optional_name(evaluator, dependents, Some(name))
@@ -99,19 +103,19 @@ impl<T: PropertyValue> Property<T> {
 
     fn computed_optional_name(
         evaluator: impl Fn() -> T + 'static,
-        dependents: &Vec<&ErasedProperty>,
+        dependents: &Vec<&UntypedProperty>,
         name: Option<&str>,
     ) -> Self {
         let dependent_property_ids: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
         let evaluator = Rc::new(move || Box::new(evaluator()) as Box<dyn Any>);
         Self {
-            erased: ErasedProperty::new(
+            untyped: UntypedProperty::new(
                 Box::new(start_val),
                 PropertyType::Expr {
                     evaluator,
                     dirty: true,
-                    subscriptions: dependent_property_ids,
+                    inbound: dependent_property_ids,
                 },
                 name,
             ),
@@ -125,77 +129,34 @@ impl<T: PropertyValue> Property<T> {
     /// a computed computed, while keeping the link to it's dependents
     pub fn replace_with(&self, target: Property<T>) {
         // We want the target's value to be dropped after the mutable table access (PROPERTY_TABLE.with) to avoid borrowing issues
-        let mut to_drop_later: Option<Box<dyn Any>> = None;
-        let mut value_to_drop: Box<dyn Any> = Box::new({});
         PROPERTY_TABLE.with(|t| {
-            t.with_prop_data_mut(self.erased.id, |original_prop_data: &mut PropertyData| {
-                t.with_prop_data(target.erased.id, |target_prop_data| {
-                    // remove self from all subscriber lists (we are soon overwriting)
-                    if let PropertyType::Expr { subscriptions, .. } = &original_prop_data.prop_type {
-                        for id in subscriptions {
-                            t.with_prop_data_mut(*id, |dep_prop| {
-                                dep_prop.subscribers.retain(|v| *v != self.erased.id);
-                            })
-                            .map_err(|e| {
-                                format!(
-                                    "coudn't find subscription of \"{}\" to remove: {}",
-                                    t.debug_name(self.erased.id),
-                                    e,
-                                )
-                            })
-                            .unwrap();
-                        }
-                    }
-                    // push source (self) as a subscriber of the values target subscribes to
-                    if let PropertyType::Expr { subscriptions, .. } = &target_prop_data.prop_type {
-                        for id in subscriptions {
-                            t.with_prop_data_mut(*id, |dep_prop| {
-                                dep_prop.subscribers.push(self.erased.id);
-                            })
-                            .map_err(|e| {
-                                format!(
-                                    "coudn't find subscription of \"{}\" to add: {}",
-                                    t.debug_name(target.erased.id),
-                                    e,
-                                )
-                            })
-                            .unwrap();
-                        }
-                    }
-
-                    // NOTE: original_prop_data.prop_type is holding onto a closure that can capture
-                    // properties that could be dropped here
-                    to_drop_later = Some(Box::new(std::mem::replace(
-                        &mut original_prop_data.prop_type,
-                        target_prop_data.prop_type.clone(),
-                    )));
+            t.disconnect_dependents(self.untyped.id);
+            t.with_property_data_mut(self.untyped.id, |original_prop_data: &mut PropertyData| {
+                t.with_property_data(target.untyped.id, |target_prop_data| {
+                    // drops old value
+                    original_prop_data.prop_type = target_prop_data.prop_type.clone();
 
                     let target_value = target_prop_data
                         .value
                         .downcast_ref::<T>()
                         .expect("value should contain correct type");
-                    value_to_drop = std::mem::replace(
-                        &mut original_prop_data.value,
-                        Box::new(target_value.clone()),
-                    );
-                })
-                .map_err(|e| format!("replace_with target prop err: {}", e))
-                .unwrap();
-            })
-            .map_err(|e| format!("replace_with source prop err: {}", e))
-            .unwrap();
+                    // drops old value
+                    original_prop_data.value = Box::new(target_value.clone());
+                });
+            });
+            t.connect_dependents(self.untyped.id);
             // make sure dependencies of self
             // know that something has changed
-            t.get_value_mut(self.erased.id, |_: &mut T| {});
+            t.dirtify_dependencies(self.untyped.id);
 
             let mut names = t.debug_names.borrow_mut();
-            if let Some(target_name) = names.get(target.erased.id) {
+            if let Some(target_name) = names.get(target.untyped.id) {
                 let curr_name = names
-                    .get(self.erased.id)
+                    .get(self.untyped.id)
                     .map(String::as_str)
                     .unwrap_or("un-named");
                 let new_name = format!("{} <repl_with> {}", curr_name, target_name.to_owned());
-                names.insert(self.erased.id, new_name);
+                names.insert(self.untyped.id, new_name);
             };
         });
     }
@@ -204,19 +165,16 @@ impl<T: PropertyValue> Property<T> {
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
     pub fn get(&self) -> T {
-        PROPERTY_TABLE.with(|t| t.get_value_ref(self.erased.id, |v: &T| v.clone()))
+        PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
     }
 
     /// Sets this properties value, and sets the drity bit of all of
     /// it's dependencies if not already set
     pub fn set(&self, val: T) {
-        PROPERTY_TABLE.with(
-            // WARNING: do not remove std::mem::replace
-            |t| t.get_value_mut(self.erased.id, |v| std::mem::replace(v, val)),
-        );
+        PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
 
-    pub fn erase(&self) -> ErasedProperty {
-        self.erased.clone()
+    pub fn as_untyped(&self) -> UntypedProperty {
+        self.untyped.clone()
     }
 }

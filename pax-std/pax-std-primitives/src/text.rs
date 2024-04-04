@@ -44,22 +44,22 @@ impl InstanceNode for TextInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-            let tbl = &context.borrow().expression_table();
-            let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.text, context.borrow().globals());
+        // expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+        //     let tbl = &context.borrow().expression_table();
+        //     let stk = &expanded_node.stack;
+        //     handle_vtable_update(tbl, stk, &mut properties.text, context.borrow().globals());
 
-            // Style
-            handle_vtable_update(tbl, stk, &mut properties.style, context.borrow().globals());
-            let stl = properties.style.get();
-            handle_vtable_update(tbl, stk, &stl.fill, context.borrow().globals());
-            handle_vtable_update(tbl, stk, &stl.font, context.borrow().globals());
-            handle_vtable_update(tbl, stk, &stl.font_size, context.borrow().globals());
-            handle_vtable_update(tbl, stk, &stl.underline, context.borrow().globals());
-            handle_vtable_update(tbl, stk, &stl.align_vertical, context.borrow().globals());
-            handle_vtable_update(tbl, stk, &stl.align_horizontal, context.borrow().globals());
-            handle_vtable_update(tbl, stk, &stl.align_multiline, context.borrow().globals());
-        });
+        //     // Style
+        //     handle_vtable_update(tbl, stk, &mut properties.style, context.borrow().globals());
+        //     let stl = properties.style.get();
+        //     handle_vtable_update(tbl, stk, &stl.fill, context.borrow().globals());
+        //     handle_vtable_update(tbl, stk, &stl.font, context.borrow().globals());
+        //     handle_vtable_update(tbl, stk, &stl.font_size, context.borrow().globals());
+        //     handle_vtable_update(tbl, stk, &stl.underline, context.borrow().globals());
+        //     handle_vtable_update(tbl, stk, &stl.align_vertical, context.borrow().globals());
+        //     handle_vtable_update(tbl, stk, &stl.align_horizontal, context.borrow().globals());
+        //     handle_vtable_update(tbl, stk, &stl.align_multiline, context.borrow().globals());
+        // });
     }
 
     fn handle_native_patches(
@@ -67,54 +67,54 @@ impl InstanceNode for TextInstance {
         expanded_node: &ExpandedNode,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
-        let mut patch = TextPatch {
-            id_chain: id_chain.clone(),
-            ..Default::default()
-        };
-        let mut last_patches = self.last_patches.borrow_mut();
-        let old_state = last_patches
-            .entry(id_chain.clone())
-            .or_insert(patch.clone());
+        // let id_chain = expanded_node.id_chain.clone();
+        // let mut patch = TextPatch {
+        //     id_chain: id_chain.clone(),
+        //     ..Default::default()
+        // };
+        // let mut last_patches = self.last_patches.borrow_mut();
+        // let old_state = last_patches
+        //     .entry(id_chain.clone())
+        //     .or_insert(patch.clone());
 
-        expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-            let computed_tab = &expanded_node.layout_properties;
-            let (width, height) = computed_tab.bounds.get();
+        // expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+        //     let computed_tab = &expanded_node.layout_properties;
+        //     let (width, height) = computed_tab.bounds.get();
 
-            let updates = [
-                // Content
-                patch_if_needed(
-                    &mut old_state.content,
-                    &mut patch.content,
-                    properties.text.get().string.clone(),
-                ),
-                // Styles
-                patch_if_needed(
-                    &mut old_state.style,
-                    &mut patch.style,
-                    (&properties.style.get()).into(),
-                ),
-                patch_if_needed(
-                    &mut old_state.style_link,
-                    &mut patch.style_link,
-                    (&properties.style_link.get()).into(),
-                ),
-                // Transform and bounds
-                patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
-                patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
-                patch_if_needed(
-                    &mut old_state.transform,
-                    &mut patch.transform,
-                    computed_tab.transform.get().coeffs().to_vec(),
-                ),
-            ];
+        //     let updates = [
+        //         // Content
+        //         patch_if_needed(
+        //             &mut old_state.content,
+        //             &mut patch.content,
+        //             properties.text.get().string.clone(),
+        //         ),
+        //         // Styles
+        //         patch_if_needed(
+        //             &mut old_state.style,
+        //             &mut patch.style,
+        //             (&properties.style.get()).into(),
+        //         ),
+        //         patch_if_needed(
+        //             &mut old_state.style_link,
+        //             &mut patch.style_link,
+        //             (&properties.style_link.get()).into(),
+        //         ),
+        //         // Transform and bounds
+        //         patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+        //         patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+        //         patch_if_needed(
+        //             &mut old_state.transform,
+        //             &mut patch.transform,
+        //             computed_tab.transform.get().coeffs().to_vec(),
+        //         ),
+        //     ];
 
-            if updates.into_iter().any(|v| v == true) {
-                context
-                    .borrow_mut()
-                    .enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
-            }
-        });
+        //     if updates.into_iter().any(|v| v == true) {
+        //         context
+        //             .borrow_mut()
+        //             .enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
+        //     }
+        // });
     }
 
     fn render(

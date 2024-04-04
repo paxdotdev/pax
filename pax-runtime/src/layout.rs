@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use pax_runtime_api::properties::Erasable;
 use pax_runtime_api::{Property, Window};
 
 use crate::api::math::{Generic, Transform2, Vector2};
@@ -29,9 +28,9 @@ pub fn compute_tab(
     let cp_height = common_props.height.clone();
 
     let deps = vec![
-        container_bounds.erase(),
-        cp_width.erase(),
-        cp_height.erase(),
+        container_bounds.as_untyped(),
+        cp_width.as_untyped(),
+        cp_height.as_untyped(),
     ];
 
     let bounds = Property::computed_with_name(
@@ -66,13 +65,13 @@ pub fn compute_tab(
         &cp_scale_x,
         &cp_scale_y,
     ]
-    .map(|v| v.as_ref().map(|p| p.erase()))
+    .map(|v| v.as_ref().map(|p| p.as_untyped()))
     .into_iter()
     .flatten();
     let other_props = [
-        cp_skew_x.as_ref().map(|p| p.erase()),
-        cp_skew_y.as_ref().map(|p| p.erase()),
-        cp_rotate.as_ref().map(|p| p.erase()),
+        cp_skew_x.as_ref().map(|p| p.as_untyped()),
+        cp_skew_y.as_ref().map(|p| p.as_untyped()),
+        cp_rotate.as_ref().map(|p| p.as_untyped()),
     ]
     .into_iter()
     .flatten();
@@ -81,9 +80,9 @@ pub fn compute_tab(
         .chain(other_props)
         .chain(
             [
-                cp_transform.erase(),
-                cp_bounds.erase(),
-                cp_container_bounds.erase(),
+                cp_transform.as_untyped(),
+                cp_bounds.as_untyped(),
+                cp_container_bounds.as_untyped(),
             ]
             .into_iter(),
         )

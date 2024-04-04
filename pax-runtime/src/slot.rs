@@ -3,7 +3,6 @@ use core::option::Option;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-use pax_runtime_api::properties::Erasable;
 use pax_runtime_api::{Numeric, Property};
 
 use crate::api::Layer;
@@ -66,7 +65,7 @@ impl InstanceNode for SlotInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
                 properties.showing_node.clone()
             });
-        let deps = vec![showing_node.erase()];
+        let deps = vec![showing_node.as_untyped()];
 
         expanded_node
             .children
