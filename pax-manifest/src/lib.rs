@@ -24,7 +24,7 @@ pub mod deserializer;
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
-    components: HashMap<TypeId, ComponentDefinition>,
+    pub components: HashMap<TypeId, ComponentDefinition>,
     pub main_component_type_id: TypeId,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]

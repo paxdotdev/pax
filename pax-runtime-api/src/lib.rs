@@ -5,7 +5,7 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 use piet::PaintBrush;
-use properties::ErasedProperty;
+use properties::UntypedProperty;
 
 #[cfg(feature = "designtime")]
 use {
@@ -536,42 +536,42 @@ impl CommonProperties {
             .collect()
     }
 
-    pub fn retrieve_property_scope(&self) -> HashMap<String, ErasedProperty> {
+    pub fn retrieve_property_scope(&self) -> HashMap<String, UntypedProperty> {
         let mut scope = HashMap::new();
 
         if let Some(id) = &self.id {
-            scope.insert("id".to_string(), id.erase());
+            scope.insert("id".to_string(), id.as_untyped());
         }
         if let Some(x) = &self.x {
-            scope.insert("x".to_string(), x.erase());
+            scope.insert("x".to_string(), x.as_untyped());
         }
         if let Some(y) = &self.y {
-            scope.insert("y".to_string(), y.erase());
+            scope.insert("y".to_string(), y.as_untyped());
         }
         if let Some(scale_x) = &self.scale_x {
-            scope.insert("scale_x".to_string(), scale_x.erase());
+            scope.insert("scale_x".to_string(), scale_x.as_untyped());
         }
         if let Some(scale_y) = &self.scale_y {
-            scope.insert("scale_y".to_string(), scale_y.erase());
+            scope.insert("scale_y".to_string(), scale_y.as_untyped());
         }
         if let Some(skew_x) = &self.skew_x {
-            scope.insert("skew_x".to_string(), skew_x.erase());
+            scope.insert("skew_x".to_string(), skew_x.as_untyped());
         }
         if let Some(skew_y) = &self.skew_y {
-            scope.insert("skew_y".to_string(), skew_y.erase());
+            scope.insert("skew_y".to_string(), skew_y.as_untyped());
         }
         if let Some(rotate) = &self.rotate {
-            scope.insert("rotate".to_string(), rotate.erase());
+            scope.insert("rotate".to_string(), rotate.as_untyped());
         }
         if let Some(anchor_x) = &self.anchor_x {
-            scope.insert("anchor_x".to_string(), anchor_x.erase());
+            scope.insert("anchor_x".to_string(), anchor_x.as_untyped());
         }
         if let Some(anchor_y) = &self.anchor_y {
-            scope.insert("anchor_y".to_string(), anchor_y.erase());
+            scope.insert("anchor_y".to_string(), anchor_y.as_untyped());
         }
-        scope.insert("transform".to_string(), self.transform.erase());
-        scope.insert("width".to_string(), self.width.erase());
-        scope.insert("height".to_string(), self.height.erase());
+        scope.insert("transform".to_string(), self.transform.as_untyped());
+        scope.insert("width".to_string(), self.width.as_untyped());
+        scope.insert("height".to_string(), self.height.as_untyped());
 
         scope
     }

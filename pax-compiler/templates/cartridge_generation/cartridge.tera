@@ -6,8 +6,7 @@ use pax_runtime::api::*;
 use pax_runtime::*;
 use pax_manifest::deserializer::{from_pax, from_pax_try_intoable_literal};
 use std::cell::Ref;
-use pax_runtime::api::properties::ErasedProperty;
-use pax_runtime::api::properties::Erasable;
+use pax_runtime::api::properties::UntypedProperty;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 
@@ -216,7 +215,7 @@ pub trait ComponentFactory {
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
     // Returns the property scope for the component
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>> {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>> {
         Box::new(|_| HashMap::new())
     }
 }
