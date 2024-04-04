@@ -10,7 +10,7 @@ use crate::api::math::Transform2;
 use crate::api::{CommonProperties, RenderContext, Window};
 use crate::node_interface::NodeLocal;
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::properties::ErasedProperty;
+use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::Property;
 use piet::{Color, StrokeStyle};
 
@@ -47,7 +47,7 @@ pub struct InstantiationArgs {
 
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>>>,
 }
 
 #[derive(Clone)]
@@ -209,7 +209,7 @@ pub struct BaseInstance {
     >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, ErasedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }

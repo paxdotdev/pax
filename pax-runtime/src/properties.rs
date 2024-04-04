@@ -3,7 +3,7 @@ use crate::api::Window;
 use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
-use pax_runtime_api::properties::ErasedProperty;
+use pax_runtime_api::properties::UntypedProperty;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -179,14 +179,14 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimePropertiesStackFrame {
-    symbols_within_frame: HashMap<String, ErasedProperty>,
+    symbols_within_frame: HashMap<String, UntypedProperty>,
     properties: Rc<RefCell<dyn Any>>,
     parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
-        symbols_within_frame: HashMap<String, ErasedProperty>,
+        symbols_within_frame: HashMap<String, UntypedProperty>,
         properties: Rc<RefCell<dyn Any>>,
     ) -> Rc<Self> {
         Rc::new(Self {
@@ -198,7 +198,7 @@ impl RuntimePropertiesStackFrame {
 
     pub fn push(
         self: &Rc<Self>,
-        symbols_within_frame: HashMap<String, ErasedProperty>,
+        symbols_within_frame: HashMap<String, UntypedProperty>,
         properties: &Rc<RefCell<dyn Any>>,
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
@@ -231,7 +231,7 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
-    pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<&ErasedProperty> {
+    pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<&UntypedProperty> {
         if let Some(e) = self.symbols_within_frame.get(symbol) {
             Some(e)
         } else {

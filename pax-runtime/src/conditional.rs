@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::{iter, rc::Rc};
 
-use pax_runtime_api::properties::Erasable;
 use pax_runtime_api::Property;
 
 use crate::api::Layer;
@@ -56,7 +55,7 @@ impl InstanceNode for ConditionalInstance {
 
         let dep =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
-                properties.boolean_expression.erase()
+                properties.boolean_expression.as_untyped()
             });
         expanded_node
             .children
