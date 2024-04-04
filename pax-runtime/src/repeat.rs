@@ -104,10 +104,10 @@ impl InstanceNode for RepeatInstance {
 
         let mut dependents = vec![];
         if let Some(ref source) = source_expression_range {
-            dependents.push(source.as_untyped());
+            dependents.push(source.untyped());
         }
         if let Some(ref source) = source_expression_vec {
-            dependents.push(source.as_untyped());
+            dependents.push(source.untyped());
         }
         let dependents = dependents.iter().map(|x| x).collect();
         expanded_node
@@ -149,10 +149,10 @@ impl InstanceNode for RepeatInstance {
 
                             let mut scope: HashMap<String, UntypedProperty> = HashMap::new();
                             if let Some(ref i_symbol) = i_symbol {
-                                scope.insert(i_symbol.clone(), property_i.as_untyped());
+                                scope.insert(i_symbol.clone(), property_i.untyped());
                             }
                             if let Some(ref elem_symbol) = elem_symbol {
-                                scope.insert(elem_symbol.clone(), property_elem.as_untyped());
+                                scope.insert(elem_symbol.clone(), property_elem.untyped());
                             }
 
                             let new_env = cloned_expanded_node

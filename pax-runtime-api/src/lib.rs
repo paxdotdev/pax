@@ -534,38 +534,38 @@ impl CommonProperties {
         let mut scope = HashMap::new();
 
         if let Some(id) = &self.id {
-            scope.insert("id".to_string(), id.as_untyped());
+            scope.insert("id".to_string(), id.untyped());
         }
         if let Some(x) = &self.x {
-            scope.insert("x".to_string(), x.as_untyped());
+            scope.insert("x".to_string(), x.untyped());
         }
         if let Some(y) = &self.y {
-            scope.insert("y".to_string(), y.as_untyped());
+            scope.insert("y".to_string(), y.untyped());
         }
         if let Some(scale_x) = &self.scale_x {
-            scope.insert("scale_x".to_string(), scale_x.as_untyped());
+            scope.insert("scale_x".to_string(), scale_x.untyped());
         }
         if let Some(scale_y) = &self.scale_y {
-            scope.insert("scale_y".to_string(), scale_y.as_untyped());
+            scope.insert("scale_y".to_string(), scale_y.untyped());
         }
         if let Some(skew_x) = &self.skew_x {
-            scope.insert("skew_x".to_string(), skew_x.as_untyped());
+            scope.insert("skew_x".to_string(), skew_x.untyped());
         }
         if let Some(skew_y) = &self.skew_y {
-            scope.insert("skew_y".to_string(), skew_y.as_untyped());
+            scope.insert("skew_y".to_string(), skew_y.untyped());
         }
         if let Some(rotate) = &self.rotate {
-            scope.insert("rotate".to_string(), rotate.as_untyped());
+            scope.insert("rotate".to_string(), rotate.untyped());
         }
         if let Some(anchor_x) = &self.anchor_x {
-            scope.insert("anchor_x".to_string(), anchor_x.as_untyped());
+            scope.insert("anchor_x".to_string(), anchor_x.untyped());
         }
         if let Some(anchor_y) = &self.anchor_y {
-            scope.insert("anchor_y".to_string(), anchor_y.as_untyped());
+            scope.insert("anchor_y".to_string(), anchor_y.untyped());
         }
-        scope.insert("transform".to_string(), self.transform.as_untyped());
-        scope.insert("width".to_string(), self.width.as_untyped());
-        scope.insert("height".to_string(), self.height.as_untyped());
+        scope.insert("transform".to_string(), self.transform.untyped());
+        scope.insert("width".to_string(), self.width.untyped());
+        scope.insert("height".to_string(), self.height.untyped());
 
         scope
     }

@@ -166,7 +166,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
             if let Some(properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
                 let mut scope = HashMap::new();
                 {% for prop in component.properties %}
-                    scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.as_untyped());
+                    scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.untyped());
                 {% endfor %}
                 scope
             } else {
