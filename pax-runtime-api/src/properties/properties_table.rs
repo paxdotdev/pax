@@ -137,7 +137,6 @@ impl PropertyTable {
                     dirty: ref mut is_dirty @ true,
                     ..
                 } => {
-                    log::debug!("dirty!!");
                     *is_dirty = false;
                     Some(Rc::clone(&evaluator))
                 }
