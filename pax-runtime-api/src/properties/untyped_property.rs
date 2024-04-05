@@ -7,7 +7,7 @@ use crate::Property;
 
 use super::{
     private::PropertyId,
-    properties_table::{DirtificationFilter, PropertyType, PROPERTY_TABLE},
+    properties_table::{PropertyType, PROPERTY_TABLE},
     PropertyValue,
 };
 
@@ -40,14 +40,9 @@ impl Drop for UntypedProperty {
 }
 
 impl UntypedProperty {
-    pub(crate) fn new(
-        val: Box<dyn Any>,
-        data: PropertyType,
-        filter: impl DirtificationFilter + 'static,
-        debug_name: Option<&str>,
-    ) -> Self {
+    pub(crate) fn new(val: Box<dyn Any>, data: PropertyType, debug_name: Option<&str>) -> Self {
         UntypedProperty {
-            id: PROPERTY_TABLE.with(|t| t.add_entry(val, data, filter, debug_name)),
+            id: PROPERTY_TABLE.with(|t| t.add_entry(val, data, debug_name)),
         }
     }
 
