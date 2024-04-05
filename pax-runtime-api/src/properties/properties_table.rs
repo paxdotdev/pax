@@ -9,6 +9,19 @@ thread_local! {
     pub static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
 }
 
+pub trait DirtificationFilter {
+    fn should_dirtify(&self, old_value: &dyn Any, new_value: &dyn Any) -> bool;
+}
+
+impl<T> DirtificationFilter for T
+where
+    T: for<'a> Fn(&'a dyn Any, &'a dyn Any) -> bool,
+{
+    fn should_dirtify(&self, old_value: &dyn Any, new_value: &dyn Any) -> bool {
+        self(old_value, new_value)
+    }
+}
+
 /// The main collection of data associated with a specific property id
 pub struct PropertyData {
     // The cached value of this property
@@ -17,6 +30,9 @@ pub struct PropertyData {
     pub outbound: Vec<PropertyId>,
     // Specialization data (computed/literal etc)
     pub property_type: PropertyType,
+    // filter used for for example not firing a property if old and new value
+    // are equal
+    pub dirtify_filter: Box<dyn DirtificationFilter>,
 }
 
 /// Specialization data only needed for different kinds of properties
@@ -63,11 +79,19 @@ impl PropertyTable {
     // NOTE: This always assumes the underlying data was changed, and marks
     // it and it's dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
-        self.with_property_data_mut(id, |prop_data: &mut PropertyData| {
+        let dirtify = self.with_property_data_mut(id, |prop_data: &mut PropertyData| {
+            let new_val = Box::new(new_val);
+            // check if this new value should fire dirtification
+            let dirtify = prop_data
+                .dirtify_filter
+                .should_dirtify(prop_data.value.as_ref(), new_val.as_ref());
             // drops old value
             prop_data.value = Box::new(new_val);
+            dirtify
         });
-        self.dirtify_outbound(id);
+        if dirtify {
+            self.dirtify_outbound(id);
+        }
     }
 
     /// Adds a new untyped property entry
@@ -75,6 +99,7 @@ impl PropertyTable {
         &self,
         start_val: Box<dyn Any>,
         data: PropertyType,
+        filter: impl DirtificationFilter + 'static,
         debug_name: Option<&str>,
     ) -> PropertyId {
         let id = {
@@ -90,6 +115,7 @@ impl PropertyTable {
                     value: start_val,
                     outbound: Vec::with_capacity(0),
                     property_type: data,
+                    dirtify_filter: Box::new(filter),
                 }),
             ))
         };

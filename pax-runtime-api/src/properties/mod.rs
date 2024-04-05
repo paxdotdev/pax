@@ -7,7 +7,7 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use self::properties_table::PropertyType;
+use self::properties_table::{DirtificationFilter, PropertyType};
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
 
@@ -41,7 +41,7 @@ impl<T: PropertyValue> Property<T> {
         evaluator: impl Fn() -> T + 'static,
         dependents: &Vec<&UntypedProperty>,
     ) -> Self {
-        Self::computed_optional_name(evaluator, dependents, None)
+        Self::computed_with_config(evaluator, dependents, |_, _| false, None)
     }
 
     pub fn new_with_name(val: T, name: &str) -> Self {
@@ -53,19 +53,25 @@ impl<T: PropertyValue> Property<T> {
         dependents: &Vec<&UntypedProperty>,
         name: &str,
     ) -> Self {
-        Self::computed_optional_name(evaluator, dependents, Some(name))
+        Self::computed_with_config(evaluator, dependents, |_, _| true, Some(name))
     }
 
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            untyped: UntypedProperty::new(Box::new(val), PropertyType::Literal, name),
+            untyped: UntypedProperty::new(
+                Box::new(val),
+                PropertyType::Literal,
+                |_: &_, _: &_| true,
+                name,
+            ),
             _phantom: PhantomData {},
         }
     }
 
-    fn computed_optional_name(
+    fn computed_with_config(
         evaluator: impl Fn() -> T + 'static,
         dependents: &Vec<&UntypedProperty>,
+        filter: impl Fn(&T, &T) -> bool + 'static,
         name: Option<&str>,
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
@@ -78,6 +84,9 @@ impl<T: PropertyValue> Property<T> {
                     evaluator,
                     dirty: true,
                     inbound,
+                },
+                move |a: &dyn Any, b: &dyn Any| {
+                    filter(a.downcast_ref().unwrap(), b.downcast_ref().unwrap())
                 },
                 name,
             ),
@@ -116,6 +125,18 @@ impl<T: PropertyValue> Property<T> {
     /// Casts this property to it's untyped version
     pub fn untyped(&self) -> UntypedProperty {
         self.untyped.clone()
+    }
+}
+
+impl<T: PropertyValue + PartialEq> Property<T> {
+    pub fn silent_if_equal(&self) -> Self {
+        let cp_self = self.clone();
+        Self::computed_with_config(
+            move || cp_self.get(),
+            &vec![&self.untyped()],
+            |a, b| a == b,
+            None,
+        )
     }
 }
 
