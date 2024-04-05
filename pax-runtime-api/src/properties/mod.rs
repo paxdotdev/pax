@@ -7,7 +7,7 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use self::properties_table::{DirtificationFilter, PropertyType};
+use self::properties_table::PropertyType;
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
 
@@ -41,7 +41,7 @@ impl<T: PropertyValue> Property<T> {
         evaluator: impl Fn() -> T + 'static,
         dependents: &Vec<&UntypedProperty>,
     ) -> Self {
-        Self::computed_with_config(evaluator, dependents, |_, _| false, None)
+        Self::computed_with_config(evaluator, dependents, None)
     }
 
     pub fn new_with_name(val: T, name: &str) -> Self {
@@ -53,17 +53,12 @@ impl<T: PropertyValue> Property<T> {
         dependents: &Vec<&UntypedProperty>,
         name: &str,
     ) -> Self {
-        Self::computed_with_config(evaluator, dependents, |_, _| true, Some(name))
+        Self::computed_with_config(evaluator, dependents, Some(name))
     }
 
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            untyped: UntypedProperty::new(
-                Box::new(val),
-                PropertyType::Literal,
-                |_: &_, _: &_| true,
-                name,
-            ),
+            untyped: UntypedProperty::new(Box::new(val), PropertyType::Literal, name),
             _phantom: PhantomData {},
         }
     }
@@ -71,7 +66,6 @@ impl<T: PropertyValue> Property<T> {
     fn computed_with_config(
         evaluator: impl Fn() -> T + 'static,
         dependents: &Vec<&UntypedProperty>,
-        filter: impl Fn(&T, &T) -> bool + 'static,
         name: Option<&str>,
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
@@ -84,9 +78,6 @@ impl<T: PropertyValue> Property<T> {
                     evaluator,
                     dirty: true,
                     inbound,
-                },
-                move |a: &dyn Any, b: &dyn Any| {
-                    filter(a.downcast_ref().unwrap(), b.downcast_ref().unwrap())
                 },
                 name,
             ),
@@ -128,18 +119,6 @@ impl<T: PropertyValue> Property<T> {
     }
 }
 
-impl<T: PropertyValue + PartialEq> Property<T> {
-    pub fn silent_if_equal(&self) -> Self {
-        let cp_self = self.clone();
-        Self::computed_with_config(
-            move || cp_self.get(),
-            &vec![&self.untyped()],
-            |a, b| a == b,
-            None,
-        )
-    }
-}
-
 impl<T: PropertyValue> Default for Property<T> {
     fn default() -> Self {
         Property::new(T::default())
@@ -166,4 +145,9 @@ impl<T: PropertyValue + Serialize> Serialize for Property<T> {
         // TODO check if literal or computed, error on computed?
         self.get().serialize(serializer)
     }
+}
+
+/// Utility method to inspect total entry count in property table
+pub fn property_table_total_properties_count() -> usize {
+    PROPERTY_TABLE.with(|t| t.total_properties_count())
 }
