@@ -9,7 +9,7 @@ use std::rc::Rc;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::math::Transform2;
-use pax_runtime_api::{Property, Window};
+use pax_runtime_api::{properties, Property, Window};
 
 use crate::api::{
     CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
@@ -457,6 +457,10 @@ impl PaxEngine {
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
         //
+        log::debug!(
+            "prop_count: {}",
+            properties::property_table_total_properties_count()
+        );
         self.root_node.recurse_update(&mut self.runtime_context);
 
         // 2. LAYER-IDS, z-index list creation Will always be recomputed each
