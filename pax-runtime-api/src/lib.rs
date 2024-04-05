@@ -1604,6 +1604,7 @@ impl Transform2D {
 
 // Represents literal types from the deserializer that may need to be `into()` downstream types.
 // For example, 5% might need to be `.into()`d a Rotation, a ColorChannel, or a Size.  Color might need to be `.into()`d a Fill or a Stroke.
+#[derive(Clone)]
 pub enum IntoableLiteral {
     Color(Color),
     Percent(Percent),
