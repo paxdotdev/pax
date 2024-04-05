@@ -81,7 +81,7 @@ impl InstanceNode for RepeatInstance {
     ) {
         // No-op: wait with creating child-nodes until update tick, since the
         // condition has then been evaluated
-        let cloned_expanded_node = Rc::clone(expanded_node);
+        let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_self = Rc::clone(&self);
         let cloned_context = Rc::clone(context);
         let source_expression =
@@ -116,17 +116,35 @@ impl InstanceNode for RepeatInstance {
             });
 
         let deps = vec![source_expression.untyped()];
+
+        let last_length = Rc::new(RefCell::new(0));
+
         expanded_node
             .children
             .replace_with(Property::computed_with_name(
                 move || {
+                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                        panic!("ran evaluator after expanded node dropped")
+                    };
+                    let source = source_expression.get();
+                    let source_len = source.len();
+                    if source_len == *last_length.borrow() {
+                        return cloned_expanded_node.children.get();
+                    }
+                    *last_length.borrow_mut() = source_len;
+                    log::debug!("children regenerated, len: {}", source_len);
                     let template_children = cloned_self.base().get_instance_children();
                     let children_with_envs = iter::repeat(template_children)
-                        .zip(source_expression.get().into_iter())
+                        .take(source_len)
                         .enumerate()
-                        .flat_map(|(i, (children, elem))| {
+                        .flat_map(|(i, children)| {
                             let property_i = Property::new(i);
-                            let property_elem = Property::new(Some(Rc::clone(&elem)));
+                            let cp_source_expression = source_expression.clone();
+                            let property_elem = Property::computed_with_name(
+                                move || Some(Rc::clone(&cp_source_expression.get()[i])),
+                                &vec![&source_expression.untyped()],
+                                "repeat elem",
+                            );
                             let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
                                 i: property_i.clone(),
                                 elem: property_elem.clone(),
