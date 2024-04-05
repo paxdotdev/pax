@@ -89,7 +89,9 @@ impl<T: PropertyValue> Property<T> {
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
     pub fn get(&self) -> T {
-        PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
+        PROPERTY_TABLE.with(|t| {
+            t.get_value(self.untyped.id)
+        })
     }
 
     /// Sets this properties value and sets the drity bit recursively of all of
