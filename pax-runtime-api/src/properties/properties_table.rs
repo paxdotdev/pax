@@ -216,7 +216,7 @@ impl PropertyTable {
         let mut names = self.debug_names.borrow_mut();
         names.insert(
             source_id,
-            format!("{} <repl_with> {}", curr_name, target_name),
+            format!("{}", target_name),
         );
     }
 
