@@ -84,13 +84,26 @@ impl InstanceNode for RepeatInstance {
         let cloned_expanded_node = Rc::clone(expanded_node);
         let cloned_self = Rc::clone(&self);
         let cloned_context = Rc::clone(context);
-        let source_expression_range =
+        let source_expression =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                properties.source_expression_range.clone()
-            });
-        let source_expression_vec =
-            expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                properties.source_expression_vec.clone()
+                let source = if let Some(range) = &properties.source_expression_range {
+                    let cp_range = range.clone();
+                    let dep = vec![range.untyped()];
+                    Property::computed(
+                        move || {
+                            cp_range
+                                .get()
+                                .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>)
+                                .collect::<Vec<_>>()
+                        },
+                        &dep.iter().collect(),
+                    )
+                } else if let Some(vec) = &properties.source_expression_vec {
+                    vec.clone()
+                } else {
+                    unreachable!("range or vec source must exist")
+                };
+                source
             });
 
         let i_symbol =
@@ -102,41 +115,14 @@ impl InstanceNode for RepeatInstance {
                 properties.iterator_elem_symbol.clone()
             });
 
-        let mut dependents = vec![];
-        if let Some(ref source) = source_expression_range {
-            dependents.push(source.untyped());
-        }
-        if let Some(ref source) = source_expression_vec {
-            dependents.push(source.untyped());
-        }
-        let dependents = dependents.iter().map(|x| x).collect();
+        let deps = vec![source_expression.untyped()];
         expanded_node
             .children
             .replace_with(Property::computed_with_name(
                 move || {
-                    let new_vec = cloned_expanded_node
-                        .with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                            let vec = if let Some(ref source) = properties.source_expression_range {
-                                Box::new(
-                                    source
-                                        .get()
-                                        .clone()
-                                        .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>),
-                                )
-                                    as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
-                            } else if let Some(ref source) = properties.source_expression_vec {
-                                Box::new(source.get().clone().into_iter())
-                                    as Box<dyn ExactSizeIterator<Item = Rc<RefCell<dyn Any>>>>
-                            } else {
-                                //A valid Repeat must have a repeat source; presumably this has been gated by the parser / compiler
-                                unreachable!();
-                            };
-                            Some(vec)
-                        })
-                        .expect("Repeat source expression must be present");
                     let template_children = cloned_self.base().get_instance_children();
                     let children_with_envs = iter::repeat(template_children)
-                        .zip(new_vec.into_iter())
+                        .zip(source_expression.get().into_iter())
                         .enumerate()
                         .flat_map(|(i, (children, elem))| {
                             let property_i = Property::new(i);
@@ -168,7 +154,7 @@ impl InstanceNode for RepeatInstance {
                         cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
                     ret
                 },
-                &dependents,
+                &deps.iter().collect(),
                 &format!("repeat_children (node id: {})", expanded_node.id_chain[0]),
             ));
     }
