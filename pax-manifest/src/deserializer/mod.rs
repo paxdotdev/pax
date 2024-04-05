@@ -20,6 +20,9 @@ use crate::constants::{
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
 use pax_runtime_api::IntoableLiteral;
+use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 pub struct Deserializer {
     input: String,
@@ -29,6 +32,12 @@ impl Deserializer {
     pub fn from_string(input: String) -> Self {
         Deserializer { input }
     }
+}
+thread_local! {
+    static CACHED_VALUES : RefCell<HashMap<String, Box<dyn Any>>> = RefCell::new(HashMap::new());
+}
+thread_local! {
+    static CACHED_VALUES_INTO : RefCell<HashMap<String, Result<IntoableLiteral>>> = RefCell::new(HashMap::new());
 }
 
 // Literal Intoable Graph, as of initial impl:
@@ -50,7 +59,11 @@ impl Deserializer {
 // then package the parsed value into the IntoableLiteral enum, which gives us an interface into
 // the Rust `Into` system, while appeasing its particular demands around codegen.
 pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
-    if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
+    if let Some(cached) = CACHED_VALUES_INTO.with(|cache| cache.borrow().get(str).cloned()) {
+        return cached.clone();
+    }
+
+    let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
         Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
     } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
         // let mut ast= ast.next().unwrap().into_inner();
@@ -64,16 +77,44 @@ pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
         Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
     } else {
         Err(Error::UnsupportedMethod) //Not an IntoableLiteral
-    }
+    };
+
+    CACHED_VALUES_INTO.with(|cache| {
+        cache.borrow_mut().insert(str.to_string(), ret.clone());
+    });
+
+    ret
 }
 
 /// Main entry-point for deserializing a type from Pax.
-pub fn from_pax<T>(str: &str) -> Result<T>
+pub fn from_pax<T: Clone + 'static>(str: &str) -> Result<T>
 where
     T: DeserializeOwned,
 {
+    if let Some(cached) = CACHED_VALUES.with(|cache| {
+        let cache = cache.borrow();
+        let option_cached_dyn_any = cache.get(str);
+        // down cast val to T
+        if let Some(cached_dyn_any) = &option_cached_dyn_any {
+            let option_t_value: Option<&T> = cached_dyn_any.downcast_ref::<T>();
+            if let Some(data) = option_t_value {
+                return Some(data.clone());
+            }
+        }
+        None
+    }) {
+        return Ok(cached.clone());
+    }
+
     let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
     let t = T::deserialize(deserializer)?;
+
+    CACHED_VALUES.with(|cache| {
+        cache
+            .borrow_mut()
+            .insert(str.to_string(), Box::new(t.clone()));
+    });
+
     Ok(t)
 }
 
