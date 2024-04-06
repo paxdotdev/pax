@@ -13,13 +13,13 @@ use pax_runtime::api::{NodeContext, StringBox};
 #[custom(Default)]
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
-        <Frame
+        <Group
             transform={Transform2D::translate((cell_spec.x_px)px, (cell_spec.y_px)px)}
             width={(cell_spec.width_px)px}
             height={(cell_spec.height_px)px}
         >
             slot(i)
-        </Frame>
+        </Group>
     }
 
     @settings {
@@ -58,7 +58,7 @@ impl Stacker {
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
 
-        let deps = vec![
+        let deps = [
             cells.untyped(),
             bound.untyped(),
             direction.untyped(),
@@ -163,7 +163,7 @@ impl Stacker {
                     .collect();
                 new_cell_specs
             },
-            &deps.iter().collect(),
+            &deps,
             "stacker _cell_specs",
         ));
     }

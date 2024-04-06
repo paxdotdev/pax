@@ -77,6 +77,18 @@ impl InstanceNode for ComponentInstance {
         ));
     }
 
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow_mut().take() {
+            for slot_child in slot_children {
+                slot_child.recurse_unmount(context);
+            }
+        }
+    }
+
     fn update(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,

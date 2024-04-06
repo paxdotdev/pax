@@ -40,7 +40,7 @@ pub fn compute_tab(
             let height = cp_height.get().evaluate(p_bounds, Axis::Y);
             (width, height)
         },
-        &deps.iter().collect(),
+        &deps,
         &format!("bounds of node {}", node.id_chain[0]),
     );
 
@@ -170,7 +170,7 @@ pub fn compute_tab(
             };
             container_transform.get() * desugared_transform * node_transform_property_computed
         },
-        &all_transform_deps.iter().collect(),
+        &all_transform_deps,
         &format!("transform of node {}", node.id_chain[0]),
     );
 
