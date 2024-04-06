@@ -384,7 +384,6 @@ impl ExpandedNode {
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
         if *self.attached.borrow() == 0 {
-            log::debug!("mounting!!! {:?}", self);
             *self.attached.borrow_mut() += 1;
             (*(*context))
                 .borrow_mut()
@@ -440,7 +439,6 @@ impl ExpandedNode {
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
-        log::debug!("dissmounting!!! {:?}", self);
         for child in self.children.get().iter() {
             Rc::clone(child).recurse_unmount(context);
         }
