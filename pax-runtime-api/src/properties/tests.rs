@@ -10,7 +10,7 @@ fn test_literal_set_get() {
 
 #[test]
 fn test_computed_get() {
-    let prop = Property::<i32>::computed(|| 42, &vec![]);
+    let prop = Property::<i32>::computed(|| 42, &[]);
     assert_eq!(prop.get(), 42);
 }
 
@@ -19,7 +19,7 @@ fn test_computed_dependent_on_literal() {
     let prop_1 = Property::new_with_name(2, "p1");
     let p1 = prop_1.clone();
     let prop_2 =
-        Property::<i32>::computed_with_name(move || p1.get() * 5, &vec![&prop_1.untyped()], "p2");
+        Property::<i32>::computed_with_name(move || p1.get() * 5, &[prop_1.untyped()], "p2");
     assert_eq!(prop_2.get(), 10);
     prop_1.set(3);
     assert_eq!(prop_2.get(), 15);
@@ -29,11 +29,11 @@ fn test_computed_dependent_on_literal() {
 fn test_property_replacement() {
     let prop_1 = Property::new(2);
     let p1 = prop_1.clone();
-    let prop_2 = Property::computed(move || p1.get(), &vec![&prop_1.untyped()]);
+    let prop_2 = Property::computed(move || p1.get(), &[prop_1.untyped()]);
 
     let prop_3 = Property::new(6);
     let p3 = prop_3.clone();
-    let prop_4 = Property::computed(move || p3.get(), &vec![&prop_3.untyped()]);
+    let prop_4 = Property::computed(move || p3.get(), &[prop_3.untyped()]);
 
     assert_eq!(prop_2.get(), 2);
     assert_eq!(prop_4.get(), 6);
@@ -50,13 +50,13 @@ fn test_larger_network() {
     let p2 = prop_2.clone();
     let prop_3 = Property::computed(
         move || p1.get() * p2.get(),
-        &vec![&prop_1.untyped(), &prop_2.untyped()],
+        &[prop_1.untyped(), prop_2.untyped()],
     );
     let p1 = prop_1.clone();
     let p3 = prop_3.clone();
     let prop_4 = Property::computed(
         move || p1.get() + p3.get(),
-        &vec![&prop_1.untyped(), &prop_3.untyped()],
+        &[prop_1.untyped(), prop_3.untyped()],
     );
 
     assert_eq!(prop_4.get(), 14);

@@ -5,8 +5,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::properties::UntypedProperty;
 use std::cell::RefCell;
-use std::collections::HashSet;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::{any::Any, collections::HashMap};
 
 use crate::{ExpandedNode, ExpressionTable, Globals};
@@ -181,7 +180,7 @@ impl RuntimeContext {
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, UntypedProperty>,
     properties: Rc<RefCell<dyn Any>>,
-    parent: Option<Rc<RuntimePropertiesStackFrame>>,
+    parent: Weak<RuntimePropertiesStackFrame>,
 }
 
 impl RuntimePropertiesStackFrame {
@@ -192,7 +191,7 @@ impl RuntimePropertiesStackFrame {
         Rc::new(Self {
             symbols_within_frame,
             properties,
-            parent: None,
+            parent: Weak::new(),
         })
     }
 
@@ -203,13 +202,13 @@ impl RuntimePropertiesStackFrame {
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
-            parent: Some(Rc::clone(&self)),
+            parent: Rc::downgrade(&self),
             properties: Rc::clone(properties),
         })
     }
 
     pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
-        self.parent.clone()
+        self.parent.upgrade()
     }
 
     /// Traverses stack recursively `n` times to retrieve ancestor;
@@ -218,7 +217,7 @@ impl RuntimePropertiesStackFrame {
     pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<dyn Any>>> {
         let mut curr = Rc::clone(self);
         for _ in 0..n {
-            curr = Rc::clone(curr.parent.as_ref()?);
+            curr = curr.parent.upgrade()?;
         }
         Some(Rc::clone(&curr.properties))
     }
@@ -227,16 +226,16 @@ impl RuntimePropertiesStackFrame {
         if let Some(_) = self.symbols_within_frame.get(symbol) {
             Some(Rc::clone(&self.properties))
         } else {
-            self.parent.as_ref()?.resolve_symbol(symbol)
+            self.parent.upgrade()?.resolve_symbol(symbol)
         }
     }
 
-    pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<&UntypedProperty> {
+    pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {
         if let Some(e) = self.symbols_within_frame.get(symbol) {
-            Some(e)
+            Some(e.clone())
         } else {
             self.parent
-                .as_ref()?
+                .upgrade()?
                 .resolve_symbol_as_erased_property(symbol)
         }
     }
