@@ -57,7 +57,7 @@ impl InstanceNode for SlotInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let cloned_expanded_node = Rc::clone(expanded_node);
+        let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_context = Rc::clone(context);
 
         // index should be renamed slot_node_id
@@ -71,7 +71,9 @@ impl InstanceNode for SlotInstance {
             .children
             .replace_with(Property::computed_with_name(
                 move || {
-                    // TODO DAG: expanded_and_flattened_slot_children also need to be a property dependency
+                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                        panic!("ran evaluator after expanded node dropped (repeat elem)")
+                    };
 
                     let ret = if let Some(node) = showing_node.get().upgrade() {
                         let res = cloned_expanded_node
@@ -82,7 +84,7 @@ impl InstanceNode for SlotInstance {
                     };
                     ret
                 },
-                &deps.iter().collect(),
+                &deps,
                 &format!("slot_children (node id: {})", expanded_node.id_chain[0]),
             ));
     }

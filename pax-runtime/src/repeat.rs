@@ -69,7 +69,7 @@ impl InstanceNode for RepeatInstance {
 
     fn update(
         self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
+        _expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
     }
@@ -88,7 +88,7 @@ impl InstanceNode for RepeatInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 let source = if let Some(range) = &properties.source_expression_range {
                     let cp_range = range.clone();
-                    let dep = vec![range.untyped()];
+                    let dep = [range.untyped()];
                     Property::computed(
                         move || {
                             cp_range
@@ -96,7 +96,7 @@ impl InstanceNode for RepeatInstance {
                                 .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>)
                                 .collect::<Vec<_>>()
                         },
-                        &dep.iter().collect(),
+                        &dep,
                     )
                 } else if let Some(vec) = &properties.source_expression_vec {
                     vec.clone()
@@ -115,7 +115,7 @@ impl InstanceNode for RepeatInstance {
                 properties.iterator_elem_symbol.clone()
             });
 
-        let deps = vec![source_expression.untyped()];
+        let deps = [source_expression.untyped()];
 
         let last_length = Rc::new(RefCell::new(0));
 
@@ -124,7 +124,7 @@ impl InstanceNode for RepeatInstance {
             .replace_with(Property::computed_with_name(
                 move || {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                        panic!("ran evaluator after expanded node dropped")
+                        panic!("ran evaluator after expanded node dropped (repeat elem)")
                     };
                     let source = source_expression.get();
                     let source_len = source.len();
@@ -132,7 +132,6 @@ impl InstanceNode for RepeatInstance {
                         return cloned_expanded_node.children.get();
                     }
                     *last_length.borrow_mut() = source_len;
-                    log::debug!("children regenerated, len: {}", source_len);
                     let template_children = cloned_self.base().get_instance_children();
                     let children_with_envs = iter::repeat(template_children)
                         .take(source_len)
@@ -142,7 +141,7 @@ impl InstanceNode for RepeatInstance {
                             let cp_source_expression = source_expression.clone();
                             let property_elem = Property::computed_with_name(
                                 move || Some(Rc::clone(&cp_source_expression.get()[i])),
-                                &vec![&source_expression.untyped()],
+                                &[source_expression.untyped()],
                                 "repeat elem",
                             );
                             let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
@@ -172,7 +171,7 @@ impl InstanceNode for RepeatInstance {
                         cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
                     ret
                 },
-                &deps.iter().collect(),
+                &deps,
                 &format!("repeat_children (node id: {})", expanded_node.id_chain[0]),
             ));
     }
