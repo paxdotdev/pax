@@ -37,10 +37,7 @@ impl<T: PropertyValue> Property<T> {
         Self::new_optional_name(val, None)
     }
 
-    pub fn computed(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &Vec<&UntypedProperty>,
-    ) -> Self {
+    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
         Self::computed_with_config(evaluator, dependents, None)
     }
 
@@ -50,7 +47,7 @@ impl<T: PropertyValue> Property<T> {
 
     pub fn computed_with_name(
         evaluator: impl Fn() -> T + 'static,
-        dependents: &Vec<&UntypedProperty>,
+        dependents: &[UntypedProperty],
         name: &str,
     ) -> Self {
         Self::computed_with_config(evaluator, dependents, Some(name))
@@ -65,7 +62,7 @@ impl<T: PropertyValue> Property<T> {
 
     fn computed_with_config(
         evaluator: impl Fn() -> T + 'static,
-        dependents: &Vec<&UntypedProperty>,
+        dependents: &[UntypedProperty],
         name: Option<&str>,
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
