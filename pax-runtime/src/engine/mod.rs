@@ -1,3 +1,4 @@
+use crate::api::Property;
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -8,7 +9,6 @@ use std::rc::Rc;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::math::Transform2;
-use pax_runtime_api::{properties, Property, Window};
 
 use crate::api::{
     CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
@@ -16,7 +16,6 @@ use crate::api::{
 };
 use piet::InterpolationMode;
 
-use crate::declarative_macros::{handle_vtable_update, handle_vtable_update_optional};
 use crate::{
     ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
@@ -33,10 +32,13 @@ mod expanded_node;
 pub use expanded_node::ExpandedNode;
 
 #[cfg(feature = "designtime")]
-use pax_designtime::DesigntimeManager;
+use {
+    self::node_interface::NodeLocal,
+    pax_designtime::DesigntimeManager,
+    pax_runtime_api::{properties, Property, Window},
+};
 
 use self::expanded_node::LayoutProperties;
-use self::node_interface::NodeLocal;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Globals {
@@ -51,40 +53,6 @@ pub struct PaxEngine {
     pub runtime_context: Rc<RefCell<RuntimeContext>>,
     pub root_node: Rc<ExpandedNode>,
     main_component_instance: Rc<ComponentInstance>,
-}
-
-//This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
-//so that it can use the type RenderTreeContext (defined in pax_runtime, which depends on crate::api, which
-//defines CommonProperties, and which can thus not depend on pax_runtime due to a would-be circular dependency.)
-pub trait PropertiesComputable {
-    fn compute_properties(
-        &mut self,
-        stack: &Rc<RuntimePropertiesStackFrame>,
-        table: &Rc<ExpressionTable>,
-        globals: &Globals,
-    );
-}
-
-impl PropertiesComputable for CommonProperties {
-    fn compute_properties(
-        &mut self,
-        stack: &Rc<RuntimePropertiesStackFrame>,
-        table: &Rc<ExpressionTable>,
-        globals: &Globals,
-    ) {
-        handle_vtable_update(table, stack, &mut self.width, globals);
-        handle_vtable_update(table, stack, &mut self.height, globals);
-        handle_vtable_update(table, stack, &mut self.transform, globals);
-        handle_vtable_update_optional(table, stack, self.rotate.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.scale_x.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.scale_y.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.skew_x.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.skew_y.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.anchor_x.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.anchor_y.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.x.as_ref(), globals);
-        handle_vtable_update_optional(table, stack, self.y.as_ref(), globals);
-    }
 }
 
 pub enum HandlerLocation {
@@ -492,7 +460,8 @@ impl PaxEngine {
             .globals_mut()
             .frames_elapsed += 1;
 
-        self.runtime_context.borrow_mut().take_native_messages()
+        let res = self.runtime_context.borrow_mut().take_native_messages();
+        res
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {

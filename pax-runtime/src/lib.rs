@@ -4,7 +4,6 @@ pub mod api;
 pub mod component;
 pub mod conditional;
 pub mod constants;
-pub mod declarative_macros;
 pub mod engine;
 pub mod form_event;
 pub mod layout;

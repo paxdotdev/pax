@@ -1,6 +1,5 @@
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime::api::{Layer, RenderContext};
-use pax_runtime::declarative_macros::handle_vtable_update;
+use pax_runtime::api::{Layer, Property, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -13,11 +12,11 @@ use crate::patch_if_needed;
 
 pub struct TextInstance {
     base: BaseInstance,
-    //Used as a cache of last-sent values, for crude dirty-checking.
-    //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
-    //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
-    //      shares this last_patches cache
-    last_patches: RefCell<HashMap<Vec<u32>, pax_message::TextPatch>>,
+    // Properties that listen to Text property changes, and computes
+    // a patch in the case that they have changed + sends it as a native
+    // message to the chassi. Since InstanceNode -> ExpandedNode has a one
+    // to many relationship, needs to be a hashmap
+    native_message_props: RefCell<HashMap<u32, Property<()>>>,
 }
 
 impl InstanceNode for TextInstance {
@@ -35,86 +34,19 @@ impl InstanceNode for TextInstance {
                     is_component: false,
                 },
             ),
-            last_patches: Default::default(),
+            native_message_props: Default::default(),
         })
     }
 
     fn update(
         self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        // expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-        //     let tbl = &context.borrow().expression_table();
-        //     let stk = &expanded_node.stack;
-        //     handle_vtable_update(tbl, stk, &mut properties.text, context.borrow().globals());
-
-        //     // Style
-        //     handle_vtable_update(tbl, stk, &mut properties.style, context.borrow().globals());
-        //     let stl = properties.style.get();
-        //     handle_vtable_update(tbl, stk, &stl.fill, context.borrow().globals());
-        //     handle_vtable_update(tbl, stk, &stl.font, context.borrow().globals());
-        //     handle_vtable_update(tbl, stk, &stl.font_size, context.borrow().globals());
-        //     handle_vtable_update(tbl, stk, &stl.underline, context.borrow().globals());
-        //     handle_vtable_update(tbl, stk, &stl.align_vertical, context.borrow().globals());
-        //     handle_vtable_update(tbl, stk, &stl.align_horizontal, context.borrow().globals());
-        //     handle_vtable_update(tbl, stk, &stl.align_multiline, context.borrow().globals());
-        // });
-    }
-
-    fn handle_native_patches(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-        // let id_chain = expanded_node.id_chain.clone();
-        // let mut patch = TextPatch {
-        //     id_chain: id_chain.clone(),
-        //     ..Default::default()
-        // };
-        // let mut last_patches = self.last_patches.borrow_mut();
-        // let old_state = last_patches
-        //     .entry(id_chain.clone())
-        //     .or_insert(patch.clone());
-
-        // expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-        //     let computed_tab = &expanded_node.layout_properties;
-        //     let (width, height) = computed_tab.bounds.get();
-
-        //     let updates = [
-        //         // Content
-        //         patch_if_needed(
-        //             &mut old_state.content,
-        //             &mut patch.content,
-        //             properties.text.get().string.clone(),
-        //         ),
-        //         // Styles
-        //         patch_if_needed(
-        //             &mut old_state.style,
-        //             &mut patch.style,
-        //             (&properties.style.get()).into(),
-        //         ),
-        //         patch_if_needed(
-        //             &mut old_state.style_link,
-        //             &mut patch.style_link,
-        //             (&properties.style_link.get()).into(),
-        //         ),
-        //         // Transform and bounds
-        //         patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
-        //         patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
-        //         patch_if_needed(
-        //             &mut old_state.transform,
-        //             &mut patch.transform,
-        //             computed_tab.transform.get().coeffs().to_vec(),
-        //         ),
-        //     ];
-
-        //     if updates.into_iter().any(|v| v == true) {
-        //         context
-        //             .borrow_mut()
-        //             .enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
-        //     }
-        // });
+        //trigger computation of and sending update message if needed
+        for native_message_prop in self.native_message_props.borrow().values() {
+            native_message_prop.get();
+        }
     }
 
     fn render(
@@ -131,20 +63,92 @@ impl InstanceNode for TextInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        // though macOS and iOS don't need this ancestry chain for clipping, Web does
-        // let clipping_ids = ptc.get_current_clipping_ids();
-
-        // let scroller_ids = ptc.get_current_scroller_ids();
-
+        // Send creation message
         let id_chain = expanded_node.id_chain.clone();
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
-                id_chain,
+                id_chain: id_chain.clone(),
                 clipping_ids: vec![],
                 scroller_ids: vec![],
                 z_index: 0,
             }));
+
+        // send update message when relevant properties change
+        let weak_self_ref = Rc::downgrade(&expanded_node);
+        let context = Rc::clone(context);
+        let last_patch = Rc::new(RefCell::new(TextPatch {
+            id_chain: id_chain.clone(),
+            ..Default::default()
+        }));
+
+        let deps: Vec<_> = expanded_node
+            .properties_scope
+            .borrow()
+            .values()
+            .cloned()
+            .chain([
+                expanded_node.layout_properties.transform.untyped(),
+                expanded_node.layout_properties.bounds.untyped(),
+            ])
+            .collect();
+        self.native_message_props.borrow_mut().insert(
+            id_chain[0],
+            Property::computed(
+                move || {
+                    let Some(expanded_node) = weak_self_ref.upgrade() else {
+                        unreachable!()
+                    };
+                    let id_chain = expanded_node.id_chain.clone();
+                    let mut old_state = last_patch.borrow_mut();
+
+                    let mut patch = TextPatch {
+                        id_chain: id_chain.clone(),
+                        ..Default::default()
+                    };
+                    expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+                        let computed_tab = &expanded_node.layout_properties;
+                        let (width, height) = computed_tab.bounds.get();
+
+                        let updates = [
+                            // Content
+                            patch_if_needed(
+                                &mut old_state.content,
+                                &mut patch.content,
+                                properties.text.get().string.clone(),
+                            ),
+                            // Styles
+                            patch_if_needed(
+                                &mut old_state.style,
+                                &mut patch.style,
+                                (&properties.style.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.style_link,
+                                &mut patch.style_link,
+                                (&properties.style_link.get()).into(),
+                            ),
+                            // Transform and bounds
+                            patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                            patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                            patch_if_needed(
+                                &mut old_state.transform,
+                                &mut patch.transform,
+                                computed_tab.transform.get().coeffs().to_vec(),
+                            ),
+                        ];
+
+                        if updates.into_iter().any(|v| v == true) {
+                            context.borrow_mut().enqueue_native_message(
+                                pax_message::NativeMessage::TextUpdate(patch),
+                            );
+                        }
+                    });
+                    ()
+                },
+                &deps,
+            ),
+        );
     }
 
     fn handle_unmount(
@@ -153,9 +157,12 @@ impl InstanceNode for TextInstance {
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
         let id_chain = expanded_node.id_chain.clone();
+        let id = id_chain[0];
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
+        // Reset so that native_message sending updates while unmounted
+        self.native_message_props.borrow_mut().remove(&id);
     }
 
     #[cfg(debug_assertions)]

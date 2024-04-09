@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::{iter, rc::Rc};
 
@@ -6,8 +5,7 @@ use pax_runtime_api::Property;
 
 use crate::api::Layer;
 use crate::{
-    declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a

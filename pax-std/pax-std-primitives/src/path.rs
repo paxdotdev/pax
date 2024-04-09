@@ -1,5 +1,4 @@
 use kurbo::BezPath;
-use pax_runtime::declarative_macros::handle_vtable_update;
 
 use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
@@ -39,30 +38,6 @@ impl InstanceNode for PathInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let tbl = &context.borrow().expression_table();
-            let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.stroke, context.borrow().globals());
-            handle_vtable_update(
-                tbl,
-                stk,
-                &mut properties.stroke.get().color,
-                context.borrow().globals(),
-            );
-            handle_vtable_update(
-                tbl,
-                stk,
-                &mut properties.stroke.get().width,
-                context.borrow().globals(),
-            );
-            handle_vtable_update(tbl, stk, &mut properties.fill, context.borrow().globals());
-            handle_vtable_update(
-                tbl,
-                stk,
-                &mut properties.elements,
-                context.borrow().globals(),
-            );
-        });
     }
 
     fn render(

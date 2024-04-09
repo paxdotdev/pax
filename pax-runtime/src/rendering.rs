@@ -92,21 +92,6 @@ pub trait InstanceNode {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result;
 
-    /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
-    /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
-    /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
-    ///
-    /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
-    /// (e.g. by keeping a local patch object as a cache of last known values.)
-    #[allow(unused_variables)]
-    fn handle_native_patches(
-        &self,
-        expanded_node: &ExpandedNode,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-        //no-op default implementation
-    }
-
     /// Updates the expanded node, recomputing it's properties and possibly updating it's children
     fn update(
         self: Rc<Self>,
