@@ -1,6 +1,6 @@
 use kurbo::{Rect, Shape};
 use pax_runtime::api::{Layer, RenderContext};
-use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::BaseInstance;
 use pax_std::{primitives::Ellipse, types::Fill};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
@@ -94,20 +94,5 @@ impl InstanceNode for EllipseInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        //Doesn't need to expand any children
-        expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-            handle_vtable_update(
-                &context.borrow().expression_table(),
-                &expanded_node.stack,
-                &mut properties.stroke,
-                context.borrow().globals(),
-            );
-            handle_vtable_update(
-                &context.borrow().expression_table(),
-                &expanded_node.stack,
-                &mut properties.fill,
-                context.borrow().globals(),
-            );
-        });
     }
 }
