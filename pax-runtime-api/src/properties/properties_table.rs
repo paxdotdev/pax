@@ -213,12 +213,8 @@ impl PropertyTable {
 
         // overwrite with more descriptive name
         let target_name = self.debug_name(target_id);
-        let curr_name = self.debug_name(source_id);
         let mut names = self.debug_names.borrow_mut();
-        names.insert(
-            source_id,
-            format!("{}", target_name),
-        );
+        names.insert(source_id, format!("{}", target_name));
     }
 
     // re-computes the value if dirty

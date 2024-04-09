@@ -35,8 +35,8 @@ impl InstanceNode for PathInstance {
 
     fn update(
         self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
     ) {
     }
 

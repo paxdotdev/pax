@@ -11,8 +11,8 @@ use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::math::Transform2;
 
 use crate::api::{
-    CommonProperties, Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext,
-    OcclusionLayerGen, RenderContext, TransitionManager,
+    Interpolatable, KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext,
+    TransitionManager,
 };
 use piet::InterpolationMode;
 
