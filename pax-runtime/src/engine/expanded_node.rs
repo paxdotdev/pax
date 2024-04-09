@@ -357,11 +357,6 @@ impl ExpandedNode {
             }
         }
         Rc::clone(&self.instance_node.borrow()).update(&self, context);
-        if *self.attached.borrow() > 0 {
-            self.instance_node
-                .borrow()
-                .handle_native_patches(self, context);
-        }
         if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
             for handler in registry
                 .deref()

@@ -1,12 +1,12 @@
 use kurbo::{RoundedRect, Shape};
-use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::BaseInstance;
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
 
-use pax_runtime::api::{Layer, RenderContext, Size};
+use pax_runtime::api::{Layer, RenderContext};
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -36,45 +36,6 @@ impl InstanceNode for RectangleInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        // //Doesn't need to expand any children
-        // expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-        //     handle_vtable_update(
-        //         &context.borrow().expression_table(),
-        //         &expanded_node.stack,
-        //         &mut properties.stroke,
-        //         context.borrow().globals(),
-        //     );
-        //     handle_vtable_update(
-        //         &context.borrow().expression_table(),
-        //         &expanded_node.stack,
-        //         &mut properties.stroke.get().color,
-        //         context.borrow().globals(),
-        //     );
-        //     handle_vtable_update(
-        //         &context.borrow().expression_table(),
-        //         &expanded_node.stack,
-        //         &mut properties.stroke.get().width,
-        //         context.borrow().globals(),
-        //     );
-        //     handle_vtable_update(
-        //         &context.borrow().expression_table(),
-        //         &expanded_node.stack,
-        //         &mut properties.fill,
-        //         context.borrow().globals(),
-        //     );
-        //     handle_vtable_update(
-        //         &context.borrow().expression_table(),
-        //         &expanded_node.stack,
-        //         &mut properties.corner_radii,
-        //         context.borrow().globals(),
-        //     );
-
-        //     // TODO: figure out best practice for nested properties struct (perhaps higher-level struct is not Property<> wrapped?)
-        //     // handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
-        //     // handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
-        //     // handle_vtable_update!(ptc, corner_radii.top_left, f64);
-        //     // handle_vtable_update!(ptc, corner_radii.top_right, f64);
-        // });
     }
 
     fn render(
