@@ -18,11 +18,9 @@ use core::fmt;
 use std::any::Any;
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::marker::PhantomData;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
-use std::sync::mpsc::Receiver;
 
 use crate::api::{
     Axis, ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick,

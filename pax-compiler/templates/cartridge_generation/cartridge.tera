@@ -207,10 +207,7 @@ pub trait ComponentFactory {
 
     // Takes a hander registry and adds the given inline handlers to it
     fn add_inline_handlers(&self, handlers: Vec<(String, String)>, registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>>;
-    
-    /// Returns the compute properties function for the component
-    fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>;
-    
+   
     // Calls the instantion function for the component
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
@@ -324,9 +321,6 @@ impl DefinitionToInstanceTraverser {
         let handlers = manifest.get_component_handlers(type_id);
         let handler_registry = Some(factory.build_component_handlers(handlers));
 
-
-        let compute_properties_fn = factory.build_compute_properties_fn();
-
         let mut component_template = None;
         if let Some(template) = &component.template {
 
@@ -352,7 +346,6 @@ impl DefinitionToInstanceTraverser {
             prototypical_properties_factory,
             handler_registry,
             component_template,
-            compute_properties_fn,
             children: None,
             template_node_identifier: None,
             properties_scope_factory: Some(factory.get_properties_scope_factory()),
@@ -413,7 +406,6 @@ impl DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
                     template_node_identifier: Some(unique_identifier),
                     properties_scope_factory: None,
@@ -462,7 +454,6 @@ impl DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
                     template_node_identifier: Some(unique_identifier),
                     properties_scope_factory: None,
@@ -558,7 +549,6 @@ impl DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
                     template_node_identifier: Some(unique_identifier),
                     properties_scope_factory: None

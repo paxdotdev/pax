@@ -1202,7 +1202,7 @@ impl ComponentTemplate {
         for (_, tnd) in self.nodes.iter_mut() {
             if let Some(settings) = &mut tnd.settings {
                 for setting in settings {
-                    if let SettingElement::Setting(k, v) = setting {
+                    if let SettingElement::Setting(_k, v) = setting {
                         if let ValueDefinition::Expression(t, ec) = v {
                             if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
                                 *ec = Some(new_ec.clone());
@@ -1222,7 +1222,7 @@ impl ComponentTemplate {
         known_expressions: &HashMap<String, ExpressionCompilationInfo>,
     ) {
         for s in block.elements.iter_mut() {
-            if let SettingElement::Setting(k, v) = s {
+            if let SettingElement::Setting(_k, v) = s {
                 if let ValueDefinition::Expression(t, ec) = v {
                     if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
                         *ec = Some(new_ec.clone());
