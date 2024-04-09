@@ -88,11 +88,4 @@ impl InstanceNode for EllipseInstance {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
-
-    fn update(
-        self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-    }
 }

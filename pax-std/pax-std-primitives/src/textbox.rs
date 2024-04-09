@@ -41,13 +41,15 @@ impl InstanceNode for TextboxInstance {
 
     fn update(
         self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        //trigger computation of and sending update message if needed
-        for native_message_prop in self.native_message_props.borrow().values() {
-            native_message_prop.get();
-        }
+        //trigger computation of property that computes + sends native message update
+        self.native_message_props
+            .borrow()
+            .get(&expanded_node.id_chain[0])
+            .unwrap()
+            .get();
     }
 
     fn handle_mount(
