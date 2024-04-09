@@ -1,24 +1,19 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use super::api::math::Point2;
 use std::iter;
 use std::rc::Rc;
 
-use crate::api::math::Transform2;
-use crate::api::{CommonProperties, RenderContext, Window};
-use crate::node_interface::NodeLocal;
+use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::Property;
 use piet::{Color, StrokeStyle};
 
-use crate::api::{Layer, Scroll, Size};
+use crate::api::{Layer, Scroll};
 
 use crate::{
-    ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext,
-    RuntimePropertiesStackFrame,
+    ExpandedNode, ExpressionTable, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 /// Type aliases to make it easier to work with nested Rcs and
@@ -39,12 +34,7 @@ pub struct InstantiationArgs {
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
 
-    ///used by Component instances, specifically to unwrap dyn Any properties
-    ///and recurse into descendant property computation
-    pub compute_properties_fn: Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>,
-
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
-
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
         Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>>>,
