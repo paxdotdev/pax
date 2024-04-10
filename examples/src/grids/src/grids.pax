@@ -1,3 +1,8 @@
+
+
+<Rectangle x={(self.eased_value)%} width=10%/>
+
+
 <Stacker cells=5 width=100% height=100% gutter=5px>
     <Stacker cells=10 height=100% width=100% direction=StackerDirection::Vertical gutter=5px >
         for i in 0..10 {
@@ -14,3 +19,9 @@
         </Group>
     }
 </Stacker>
+
+
+@settings {
+    @mount: on_mount
+    @tick: tick
+}

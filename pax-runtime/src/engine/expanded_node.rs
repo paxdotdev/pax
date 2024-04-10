@@ -137,7 +137,7 @@ macro_rules! dispatch_event_handler {
                 let context = NodeContext {
                     bounds_self,
                     bounds_parent,
-                    frames_elapsed: globals.frames_elapsed,
+                    frames_elapsed: globals.frames_elapsed.clone(),
                     runtime_context: ctx.clone(),
                     #[cfg(feature = "designtime")]
                     designtime: globals.designtime.clone(),
@@ -516,7 +516,7 @@ impl ExpandedNode {
         };
 
         NodeContext {
-            frames_elapsed: globals.frames_elapsed,
+            frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
             runtime_context: context.clone(),

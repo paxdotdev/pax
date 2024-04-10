@@ -39,7 +39,7 @@ use self::expanded_node::LayoutProperties;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Globals {
-    pub frames_elapsed: usize,
+    pub frames_elapsed: Property<u64>,
     pub viewport: LayoutProperties,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
@@ -229,8 +229,12 @@ impl PaxEngine {
         expression_table: ExpressionTable,
         viewport_size: (f64, f64),
     ) -> Self {
+        use pax_runtime_api::properties;
+
+        let frames_elapsed = Property::new(0);
+        properties::register_time(&frames_elapsed);
         let globals = Globals {
-            frames_elapsed: 0,
+            frames_elapsed,
             viewport: LayoutProperties {
                 transform: Property::new(Transform2::identity()),
                 bounds: Property::new(viewport_size),
@@ -256,8 +260,10 @@ impl PaxEngine {
         designtime: Rc<RefCell<DesigntimeManager>>,
     ) -> Self {
         use pax_runtime_api::math::Transform2;
+        let frames_elapsed = Property::new(0);
+        properties::register_time(&frames_elapsed);
         let globals = Globals {
-            frames_elapsed: 0,
+            frames_elapsed,
             viewport: TransformAndBounds {
                 transform: Transform2::default(),
                 bounds: viewport_size,
@@ -415,12 +421,12 @@ impl PaxEngine {
             *curr_occlusion_ind = new_occlusion_ind;
         }
 
-        self.runtime_context
-            .borrow_mut()
-            .globals_mut()
-            .frames_elapsed += 1;
+        let mut ctx = self.runtime_context.borrow_mut();
+        let time = &ctx.globals().frames_elapsed;
 
-        let res = self.runtime_context.borrow_mut().take_native_messages();
+        time.set(time.get() + 1);
+
+        let res = ctx.take_native_messages();
         res
     }
 

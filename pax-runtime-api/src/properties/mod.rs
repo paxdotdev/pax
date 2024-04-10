@@ -7,9 +7,9 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use crate::Interpolatable;
+use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
 
-use self::properties_table::PropertyType;
+use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
 
@@ -94,6 +94,28 @@ impl<T: PropertyValue> Property<T> {
         }
     }
 
+    pub fn ease_to(&self, end_val: T, time: u64, curve: EasingCurve) {
+        self.ease_to_value(end_val, time, curve, true);
+    }
+
+    pub fn ease_to_later(&self, end_val: T, time: u64, curve: EasingCurve) {
+        self.ease_to_value(end_val, time, curve, false);
+    }
+
+    fn ease_to_value(&self, end_val: T, time: u64, curve: EasingCurve, overwrite: bool) {
+        PROPERTY_TABLE.with(|t| {
+            t.transition(
+                self.untyped.id,
+                TransitionQueueEntry {
+                    duration_frames: time,
+                    curve,
+                    ending_value: end_val,
+                },
+                overwrite,
+            )
+        })
+    }
+
     /// Gets the currently stored value. Might be computationally
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
@@ -157,4 +179,8 @@ impl<T: PropertyValue + Serialize> Serialize for Property<T> {
 /// Utility method to inspect total entry count in property table
 pub fn property_table_total_properties_count() -> usize {
     PROPERTY_TABLE.with(|t| t.total_properties_count())
+}
+
+pub fn register_time(prop: &Property<u64>) {
+    PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
 }
