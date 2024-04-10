@@ -30,10 +30,8 @@ use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMes
 use serde::{Deserialize, Serialize};
 
 pub struct TransitionQueueEntry<T> {
-    pub global_frame_started: u64,
     pub duration_frames: u64,
     pub curve: EasingCurve,
-    pub starting_value: T,
     pub ending_value: T,
 }
 
@@ -53,9 +51,7 @@ pub trait RenderContext {
 impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionQueueEntry")
-            .field("global_frame_started", &self.global_frame_started)
             .field("duration_frames", &self.duration_frames)
-            .field("starting_value", &self.starting_value)
             .field("ending_value", &self.ending_value)
             .finish()
     }
@@ -590,8 +586,11 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
 }
 
 pub struct TransitionManager<T> {
-    pub queue: VecDeque<TransitionQueueEntry<T>>,
-    pub value: Option<T>,
+    queue: VecDeque<TransitionQueueEntry<T>>,
+    // what value are we transitioning from
+    transition_checkpoint_value: T,
+    // how far along the current top transition are we along
+    origin_frames_elapsed: u64,
 }
 
 #[cfg(debug_assertions)]
@@ -599,48 +598,48 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionManager")
             .field("queue", &self.queue)
-            .field("value", &self.value)
+            .field("value", &self.transition_checkpoint_value)
             .finish()
     }
 }
 
 impl<T: Clone + Interpolatable> TransitionManager<T> {
-    pub fn new() -> Self {
+    pub fn new(value: T) -> Self {
         Self {
             queue: VecDeque::new(),
-            value: None,
+            transition_checkpoint_value: value,
+            origin_frames_elapsed: 0,
         }
     }
 
-    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
-        if self.queue.len() > 0 {
-            let current_transition = self.queue.get_mut(0).unwrap();
-            let progress = (1.0 + frames_elapsed as f64
-                - current_transition.global_frame_started as f64)
-                / (current_transition.duration_frames as f64);
-            return if progress >= 1.0 {
-                //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
-                let new_value = current_transition.curve.interpolate(
-                    &current_transition.starting_value,
-                    &current_transition.ending_value,
-                    progress,
-                );
-                self.value = Some(new_value.clone());
+    pub fn push_transition(&mut self, transition: TransitionQueueEntry<T>) {
+        self.queue.push_back(transition);
+    }
 
-                self.queue.pop_front();
-                self.compute_eased_value(frames_elapsed)
-            } else {
-                let new_value = current_transition.curve.interpolate(
-                    &current_transition.starting_value,
-                    &current_transition.ending_value,
-                    progress,
-                );
-                self.value = Some(new_value.clone());
-                self.value.clone()
-            };
-        } else {
-            return self.value.clone();
+    pub fn clear_transitions(&mut self, current_time: u64) {
+        // update current value as to ease from this position
+        self.compute_eased_value(current_time);
+        self.queue.clear();
+        self.origin_frames_elapsed = current_time;
+    }
+
+    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
+        let global_fe = frames_elapsed;
+        let origin_fe = &mut self.origin_frames_elapsed;
+        while global_fe - *origin_fe > self.queue.front()?.duration_frames {
+            let curr = self.queue.pop_front()?;
+            *origin_fe += curr.duration_frames;
+            self.transition_checkpoint_value = curr.ending_value;
         }
+        let current_transition = self.queue.front()?;
+        let local_fe = global_fe - *origin_fe;
+        let progress = local_fe as f64 / current_transition.duration_frames as f64;
+        let val = current_transition.curve.interpolate(
+            &self.transition_checkpoint_value,
+            &current_transition.ending_value,
+            progress,
+        );
+        Some(val)
     }
 }
 

@@ -13,7 +13,7 @@ use {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeContext {
     /// The current global engine tick count
-    pub frames_elapsed: usize,
+    pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
     pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px
