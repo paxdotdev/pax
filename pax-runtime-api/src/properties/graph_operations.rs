@@ -1,14 +1,13 @@
 use super::{
     private::PropertyId,
-    properties_table::{PropertyData, PropertyTable, PropertyType},
+    properties_table::{PropertyTable, PropertyType},
 };
 
 impl PropertyTable {
     /// marks dependencies of self dirty recursively
     pub fn dirtify_outbound(&self, id: PropertyId) {
-        let mut to_dirtify = self.with_property_data_mut(id, |prop_data: &mut PropertyData| {
-            prop_data.outbound.clone()
-        });
+        let mut to_dirtify =
+            self.with_property_data_mut(id, |prop_data| prop_data.outbound.clone());
 
         while let Some(dep_id) = to_dirtify.pop() {
             self.with_property_data_mut(dep_id, |dep_data| {

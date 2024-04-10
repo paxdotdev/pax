@@ -13,8 +13,8 @@ use {
     std::cell::RefCell,
 };
 
-use std::cell::Cell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+use std::rc::{Rc, Weak};
 
 pub mod constants;
 pub mod math;
@@ -30,7 +30,7 @@ use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMes
 use serde::{Deserialize, Serialize};
 
 pub struct TransitionQueueEntry<T> {
-    pub global_frame_started: Option<usize>,
+    pub global_frame_started: u64,
     pub duration_frames: u64,
     pub curve: EasingCurve,
     pub starting_value: T,
@@ -598,11 +598,42 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
     }
 }
 
-impl<T> TransitionManager<T> {
+impl<T: Clone + Interpolatable> TransitionManager<T> {
     pub fn new() -> Self {
         Self {
             queue: VecDeque::new(),
             value: None,
+        }
+    }
+
+    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
+        if self.queue.len() > 0 {
+            let current_transition = self.queue.get_mut(0).unwrap();
+            let progress = (1.0 + frames_elapsed as f64
+                - current_transition.global_frame_started as f64)
+                / (current_transition.duration_frames as f64);
+            return if progress >= 1.0 {
+                //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
+                let new_value = current_transition.curve.interpolate(
+                    &current_transition.starting_value,
+                    &current_transition.ending_value,
+                    progress,
+                );
+                self.value = Some(new_value.clone());
+
+                self.queue.pop_front();
+                self.compute_eased_value(frames_elapsed)
+            } else {
+                let new_value = current_transition.curve.interpolate(
+                    &current_transition.starting_value,
+                    &current_transition.ending_value,
+                    progress,
+                );
+                self.value = Some(new_value.clone());
+                self.value.clone()
+            };
+        } else {
+            return self.value.clone();
         }
     }
 }
@@ -692,7 +723,12 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
         self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
     }
 }
-impl Interpolatable for std::rc::Rc<std::cell::RefCell<(dyn Any + 'static)>> {}
+impl Interpolatable for Rc<RefCell<(dyn Any + 'static)>> {}
+impl Interpolatable for () {}
+impl<T: Interpolatable> Interpolatable for Rc<T> {}
+impl<T: Interpolatable> Interpolatable for Weak<T> {}
+impl<T: Interpolatable> Interpolatable for RefCell<T> {}
+impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}
 
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {

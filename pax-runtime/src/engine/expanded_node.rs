@@ -1,6 +1,6 @@
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::Property;
+use pax_runtime_api::{Interpolatable, Property};
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -34,6 +34,7 @@ use crate::{
     RuntimePropertiesStackFrame,
 };
 
+#[derive(Clone)]
 pub struct ExpandedNode {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
@@ -102,6 +103,8 @@ pub struct ExpandedNode {
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 }
+
+impl Interpolatable for ExpandedNode {}
 
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {

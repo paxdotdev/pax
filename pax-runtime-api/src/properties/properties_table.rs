@@ -2,21 +2,32 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 
+use crate::{Property, TransitionManager};
+
 use super::{private::PropertyId, PropertyValue};
 
 thread_local! {
     /// Global property table used to store data backing dirty-dag
     pub static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
+    /// Property time variable, to be used by
+    pub static PROPERTY_TIME: Property<u64> = Property::new(0);
 }
 
 /// The main collection of data associated with a specific property id
 pub struct PropertyData {
-    // The cached value of this property
-    pub value: Box<dyn Any>,
+    // typed data for this property,
+    // can always be downcast to TypedPropertyData<T>
+    // where T matches the property type
+    pub typed_data: Box<dyn Any>,
     // List of properties that depend on this value
     pub outbound: Vec<PropertyId>,
     // Specialization data (computed/literal etc)
     pub property_type: PropertyType,
+}
+
+pub struct TypedPropertyData<T> {
+    value: T,
+    transition_manager: TransitionManager<T>,
 }
 
 /// Specialization data only needed for different kinds of properties
@@ -38,24 +49,39 @@ pub(crate) enum PropertyType {
 #[derive(Default)]
 pub(crate) struct PropertyTable {
     // Main property table containing property data
-    pub(crate) property_map: RefCell<SlotMap<PropertyId, (ReferenceCount, Option<PropertyData>)>>,
+    // Box<dyn Any> is of type Box<Entry<T>> where T is the proptype
+    pub(crate) property_map: RefCell<SlotMap<PropertyId, Entry>>,
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
 }
 
-pub struct ReferenceCount(usize);
+pub struct Entry {
+    ref_count: usize,
+    data: Option<PropertyData>,
+}
 
 impl PropertyTable {
     /// Main function to get access to a value inside of a property.
     /// Makes sure the value is up to date before returning in the case
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
-        self.update_value(id);
-        self.with_property_data(id, |prop_data| {
-            prop_data
-                .value
-                .downcast_ref::<T>()
-                .expect("value should contain correct type")
-                .clone()
+        self.update_value::<T>(id);
+        let time = PROPERTY_TIME.with(|time| {
+            // we can't use time to evaluate time! (infinite loop) Just return 0
+            if time.untyped.id == id {
+                0
+            } else {
+                time.get()
+            }
+        });
+        self.with_property_data_mut(id, |property_data| {
+            let typed_data = property_data
+                .typed_data
+                .downcast_mut::<TypedPropertyData<T>>()
+                .expect("TypedPropertyData<T> correct type");
+            if let Some(v) = typed_data.transition_manager.compute_eased_value(time) {
+                typed_data.value = v;
+            };
+            typed_data.value.clone()
         })
     }
 
@@ -63,18 +89,21 @@ impl PropertyTable {
     // NOTE: This always assumes the underlying data was changed, and marks
     // it and it's dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
-        self.with_property_data_mut(id, |prop_data: &mut PropertyData| {
+        self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let new_val = Box::new(new_val);
-            // drops old value
-            prop_data.value = new_val;
+            let typed_data = property_data
+                .typed_data
+                .downcast_mut::<TypedPropertyData<T>>()
+                .expect("TypedPropertyData<T> correct type");
+            typed_data.value = *new_val;
         });
         self.dirtify_outbound(id);
     }
 
     /// Adds a new untyped property entry
-    pub fn add_entry(
+    pub fn add_entry<T: PropertyValue>(
         &self,
-        start_val: Box<dyn Any>,
+        start_val: T,
         data: PropertyType,
         debug_name: Option<&str>,
     ) -> PropertyId {
@@ -85,14 +114,18 @@ impl PropertyTable {
                     debug_name.unwrap_or("<no name>")
                 );
             };
-            sm.insert((
-                ReferenceCount(1),
-                Some(PropertyData {
-                    value: start_val,
+            let entry = Entry {
+                ref_count: 1,
+                data: Some(PropertyData {
+                    typed_data: Box::new(TypedPropertyData {
+                        value: start_val,
+                        transition_manager: TransitionManager::new(),
+                    }),
                     outbound: Vec::with_capacity(0),
                     property_type: data,
                 }),
-            ))
+            };
+            sm.insert(entry)
         };
         if let Some(name) = debug_name {
             self.debug_names.borrow_mut().insert(id, name.to_owned());
@@ -106,14 +139,10 @@ impl PropertyTable {
     /// or in any other way modify the global property table or this will panic
     /// with multiple mutable borrows. Letting f contain any form of userland
     /// code is NOT a good idea.
-    fn with_entry_mut<V>(
-        &self,
-        id: PropertyId,
-        f: impl FnOnce(&mut (ReferenceCount, Option<PropertyData>)) -> V,
-    ) -> V {
+    fn with_entry_mut<V>(&self, id: PropertyId, f: impl FnOnce(&mut Entry) -> V) -> V {
         let mut sm = self.property_map.borrow_mut();
-        let mut data = sm.get_mut(id).unwrap();
-        let return_value = f(&mut data);
+        let data = sm.get_mut(id).unwrap();
+        let return_value = f(data);
         return_value
     }
 
@@ -127,8 +156,9 @@ impl PropertyTable {
         f: impl FnOnce(&mut PropertyData) -> V,
     ) -> V {
         // take the value out of the table
-        let mut property_data = self.with_entry_mut(id, |(_, existing_property_data)| {
-            existing_property_data
+        let mut property_data = self.with_entry_mut(id, |entry| {
+            entry
+                .data
                 .take()
                 .expect("property data should not have already been taken")
         });
@@ -139,8 +169,8 @@ impl PropertyTable {
         let res = f(&mut property_data);
 
         // return value to the table that was taken
-        self.with_entry_mut(id, |(_, existing_property_data)| {
-            *existing_property_data = Some(property_data);
+        self.with_entry_mut(id, |entry| {
+            entry.data = Some(property_data);
         });
 
         res
@@ -156,17 +186,17 @@ impl PropertyTable {
 
     /// Increase the ref count of a property
     pub fn increase_ref_count(&self, id: PropertyId) -> usize {
-        self.with_entry_mut(id, |(ReferenceCount(ref_count), _)| {
-            *ref_count += 1;
-            *ref_count
+        self.with_entry_mut(id, |entry| {
+            entry.ref_count += 1;
+            entry.ref_count
         })
     }
 
     /// Decrease the ref count of a property
     pub fn decrease_ref_count(&self, id: PropertyId) -> usize {
-        self.with_entry_mut(id, |(ReferenceCount(ref_count), _)| {
-            *ref_count -= 1;
-            *ref_count
+        self.with_entry_mut(id, |entry| {
+            entry.ref_count -= 1;
+            entry.ref_count
         })
     }
 
@@ -186,20 +216,16 @@ impl PropertyTable {
         // copy nessesary internal state from target to source
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data(target_id, |target_property_data| {
-                // make sure source is correct type
-                source_property_data
-                    .value
-                    .downcast_ref::<T>()
-                    .expect("source type should be T");
-
-                source_property_data.value = Box::new(
-                    target_property_data
-                        .value
-                        .downcast_ref::<T>()
-                        .expect("target type should be T ")
-                        .clone(),
-                );
                 source_property_data.property_type = target_property_data.property_type.clone();
+                let source_typed = source_property_data
+                    .typed_data
+                    .downcast_mut::<TypedPropertyData<T>>()
+                    .expect("source type expected");
+                let target_typed = target_property_data
+                    .typed_data
+                    .downcast_ref::<TypedPropertyData<T>>()
+                    .expect("target type expected");
+                source_typed.value = target_typed.value.clone();
             });
         });
 
@@ -218,7 +244,7 @@ impl PropertyTable {
     }
 
     // re-computes the value if dirty
-    pub fn update_value(&self, id: PropertyId) {
+    pub fn update_value<T: 'static>(&self, id: PropertyId) {
         let evaluator =
             self.with_property_data_mut(id, |prop_data| match &mut prop_data.property_type {
                 PropertyType::Computed {
@@ -238,10 +264,12 @@ impl PropertyTable {
             // as this function is provided by a user of the property system and
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
             let new_value = evaluator();
-            self.with_property_data_mut(id, |prop_data| {
-                // NOTE: drops old value, potentially containing
-                // properties.
-                prop_data.value = new_value;
+            self.with_property_data_mut(id, |property_data| {
+                let typed_data = property_data
+                    .typed_data
+                    .downcast_mut::<TypedPropertyData<T>>()
+                    .expect("source type expected");
+                typed_data.value = *new_value.downcast::<T>().expect("update val expected type");
             })
         }
     }
