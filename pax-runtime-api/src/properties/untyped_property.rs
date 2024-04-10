@@ -40,26 +40,14 @@ impl Drop for UntypedProperty {
 }
 
 impl UntypedProperty {
-    pub(crate) fn new(val: Box<dyn Any>, data: PropertyType, debug_name: Option<&str>) -> Self {
+    pub(crate) fn new<T: PropertyValue>(
+        val: T,
+        data: PropertyType,
+        debug_name: Option<&str>,
+    ) -> Self {
         UntypedProperty {
             id: PROPERTY_TABLE.with(|t| t.add_entry(val, data, debug_name)),
         }
-    }
-
-    pub fn cast_to_typed<T: PropertyValue>(&self) -> Option<Property<T>> {
-        // make sure contained value is of type T
-        if PROPERTY_TABLE.with(|t| {
-            t.with_property_data(self.id, |property_data| {
-                property_data.value.type_id() != TypeId::of::<Box<T>>()
-            })
-        }) {
-            return None;
-        };
-
-        Some(Property {
-            untyped: self.clone(),
-            _phantom: PhantomData,
-        })
     }
 
     pub fn get_id(&self) -> PropertyId {

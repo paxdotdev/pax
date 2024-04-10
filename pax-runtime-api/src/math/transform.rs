@@ -1,3 +1,5 @@
+use crate::Interpolatable;
+
 use super::{Generic, Point2, Space, Vector2};
 use std::{marker::PhantomData, ops::Mul};
 
@@ -15,6 +17,9 @@ pub struct Transform2<WFrom = Generic, WTo = WFrom> {
     _panthom_to: PhantomData<WTo>,
 }
 
+impl<F: Space, T: Space> Interpolatable for Transform2<F, T> {
+    // TODO custom
+}
 // Implement Clone, Copy, PartialEq, etc manually, as
 // to not require the Space to implement these.
 

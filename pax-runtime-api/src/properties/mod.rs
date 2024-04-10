@@ -7,6 +7,8 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
+use crate::Interpolatable;
+
 use self::properties_table::PropertyType;
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
@@ -21,9 +23,19 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: Default + Clone + 'static {}
-impl<T: Default + Clone + 'static> PropertyValue for T {}
+pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
+impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
 
+impl<T: PropertyValue> Interpolatable for Property<T> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        let cp_self = self.clone();
+        let cp_other = other.clone();
+        Property::computed(
+            move || cp_self.get().interpolate(&cp_other.get(), t),
+            &[self.untyped(), other.untyped()],
+        )
+    }
+}
 /// A typed wrapper over a UntypedProperty that casts to/from an untyped
 /// property on get/set
 #[derive(Debug, Clone)]
@@ -55,7 +67,7 @@ impl<T: PropertyValue> Property<T> {
 
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            untyped: UntypedProperty::new(Box::new(val), PropertyType::Literal, name),
+            untyped: UntypedProperty::new(val, PropertyType::Literal, name),
             _phantom: PhantomData {},
         }
     }
@@ -70,7 +82,7 @@ impl<T: PropertyValue> Property<T> {
         let evaluator = Rc::new(move || Box::new(evaluator()) as Box<dyn Any>);
         Self {
             untyped: UntypedProperty::new(
-                Box::new(start_val),
+                start_val,
                 PropertyType::Computed {
                     evaluator,
                     dirty: true,
@@ -86,9 +98,7 @@ impl<T: PropertyValue> Property<T> {
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains
     pub fn get(&self) -> T {
-        PROPERTY_TABLE.with(|t| {
-            t.get_value(self.untyped.id)
-        })
+        PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
     }
 
     /// Sets this properties value and sets the drity bit recursively of all of
