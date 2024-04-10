@@ -273,8 +273,8 @@ pub trait ToolBehaviour {
 
 #[derive(Default)]
 pub enum ProjectMode {
-    #[default]
     Edit,
+    #[default]
     Playing,
 }
 

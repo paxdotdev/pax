@@ -20,8 +20,8 @@ pub struct ProjectModeToggle {
 
 impl ProjectModeToggle {
     pub fn mount(&mut self, _ctx: &NodeContext) {
-        self.running_mode.set(false);
-        self.edit_mode.set(true);
+        self.running_mode.set(true);
+        self.edit_mode.set(false);
     }
 
     pub fn click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
