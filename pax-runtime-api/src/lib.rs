@@ -587,9 +587,9 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
 
 pub struct TransitionManager<T> {
     queue: VecDeque<TransitionQueueEntry<T>>,
-    // what value are we transitioning from
+    /// The value we are currently transitioning from
     transition_checkpoint_value: T,
-    // how far along the current top transition are we along
+    /// The time the current transition started
     origin_frames_elapsed: u64,
 }
 
@@ -626,6 +626,8 @@ impl<T: Clone + Interpolatable> TransitionManager<T> {
     pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
         let global_fe = frames_elapsed;
         let origin_fe = &mut self.origin_frames_elapsed;
+
+        // Fast-forward transitions that have already passed
         while global_fe - *origin_fe > self.queue.front()?.duration_frames {
             let curr = self.queue.pop_front()?;
             *origin_fe += curr.duration_frames;
@@ -634,12 +636,12 @@ impl<T: Clone + Interpolatable> TransitionManager<T> {
         let current_transition = self.queue.front()?;
         let local_fe = global_fe - *origin_fe;
         let progress = local_fe as f64 / current_transition.duration_frames as f64;
-        let val = current_transition.curve.interpolate(
+        let interpolated_val = current_transition.curve.interpolate(
             &self.transition_checkpoint_value,
             &current_transition.ending_value,
             progress,
         );
-        Some(val)
+        Some(interpolated_val)
     }
 }
 
