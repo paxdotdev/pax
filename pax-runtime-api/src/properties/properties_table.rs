@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 
-use crate::{Property, TransitionManager};
+use crate::{Property, TransitionManager, TransitionQueueEntry};
 
 use super::{private::PropertyId, PropertyValue};
 
@@ -10,7 +10,7 @@ thread_local! {
     /// Global property table used to store data backing dirty-dag
     pub static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
     /// Property time variable, to be used by
-    pub static PROPERTY_TIME: Property<u64> = Property::new(0);
+    pub static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
 }
 
 /// The main collection of data associated with a specific property id
@@ -27,7 +27,7 @@ pub struct PropertyData {
 
 pub struct TypedPropertyData<T> {
     value: T,
-    transition_manager: TransitionManager<T>,
+    transition_manager: Option<TransitionManager<T>>,
 }
 
 /// Specialization data only needed for different kinds of properties
@@ -65,24 +65,39 @@ impl PropertyTable {
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
-        let time = PROPERTY_TIME.with(|time| {
-            // we can't use time to evaluate time! (infinite loop) Just return 0
-            if time.untyped.id == id {
-                0
-            } else {
-                time.get()
-            }
-        });
-        self.with_property_data_mut(id, |property_data| {
+        let mut should_dirtify = false;
+        let ret = self.with_property_data_mut(id, |property_data| {
             let typed_data = property_data
                 .typed_data
                 .downcast_mut::<TypedPropertyData<T>>()
                 .expect("TypedPropertyData<T> correct type");
-            if let Some(v) = typed_data.transition_manager.compute_eased_value(time) {
-                typed_data.value = v;
-            };
+            if typed_data.transition_manager.is_some() {
+                let time = PROPERTY_TIME.with_borrow(|time| {
+                    // we can't use time to evaluate time. (infinite loop) Just return 0 in that case
+                    if time.untyped.id == id {
+                        0
+                    } else {
+                        time.get()
+                    }
+                });
+                if let Some(v) = typed_data
+                    .transition_manager
+                    .as_mut()
+                    .unwrap()
+                    .compute_eased_value(time)
+                {
+                    typed_data.value = v;
+                    should_dirtify = true;
+                } else {
+                    typed_data.transition_manager = None;
+                }
+            }
             typed_data.value.clone()
-        })
+        });
+        if should_dirtify {
+            self.dirtify_outbound(id);
+        }
+        ret
     }
 
     // Main function to set a value of a property.
@@ -119,7 +134,7 @@ impl PropertyTable {
                 data: Some(PropertyData {
                     typed_data: Box::new(TypedPropertyData {
                         value: start_val,
-                        transition_manager: TransitionManager::new(),
+                        transition_manager: None,
                     }),
                     outbound: Vec::with_capacity(0),
                     property_type: data,
@@ -132,6 +147,27 @@ impl PropertyTable {
         }
         self.connect_inbound(id);
         id
+    }
+
+    pub fn transition<T: PropertyValue>(
+        &self,
+        id: PropertyId,
+        transition: TransitionQueueEntry<T>,
+        overwrite: bool,
+    ) {
+        self.with_property_data_mut(id, |property_data: &mut PropertyData| {
+            let typed_data = property_data
+                .typed_data
+                .downcast_mut::<TypedPropertyData<T>>()
+                .expect("TypedPropertyData<T> correct type");
+            let transition_manager = typed_data
+                .transition_manager
+                .get_or_insert_with(|| TransitionManager::new(typed_data.value.clone()));
+            if overwrite {
+                transition_manager.clear_transitions(PROPERTY_TIME.with_borrow(|time| time.get()));
+            }
+            transition_manager.push_transition(transition);
+        });
     }
 
     /// Gives mutable access to a entry in the property table
