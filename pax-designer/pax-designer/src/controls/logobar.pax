@@ -6,7 +6,6 @@
         width: 75px,
         height: 75px,
         x: 16px,
-        y: 4px,
     }
 
     #face {
