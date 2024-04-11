@@ -4,10 +4,10 @@
 <Rectangle fill=hsl(150deg, 75%, 50%) width=100px height=100px x=5% anchor_y=50% y=80% @click=self.click2/>
 
 <Stacker cells=5>
-    for i in 0..self.num {
+    for i in self.num {
         <Rectangle fill={hsl((i*10)deg, 75%, 50%)}/>
     }
-    <Rectangle fill=hsl(10deg, 20%, 20.0%) />
+    <Rectangle fill=hsl(10deg, 20%, 20.0%)/>
 </Stacker>
 
 @settings{
