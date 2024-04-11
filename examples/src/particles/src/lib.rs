@@ -38,7 +38,6 @@ impl Example {
 
 #[pax]
 #[custom(Defaults)]
-#[derive(Debug)]
 pub struct Particle {
     pub x: f64,
     pub y: f64,

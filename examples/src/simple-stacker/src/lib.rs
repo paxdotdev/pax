@@ -32,7 +32,7 @@ impl Example {
     }
 
     pub fn click2(&mut self, ctx: &NodeContext, args: Event<Click>) {
-        self.num.set(4);
+        self.num.set(5);
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {}
 }

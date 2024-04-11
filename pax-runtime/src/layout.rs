@@ -81,9 +81,9 @@ pub fn compute_tab(
         .chain(other_props)
         .chain(
             [
-                cp_transform.untyped(),        //-
-                cp_bounds.untyped(),           //-
-                cp_container_bounds.untyped(), //-
+                cp_transform.untyped(),
+                cp_bounds.untyped(),
+                cp_container_bounds.untyped(),
                 container_transform.untyped(),
             ]
             .into_iter(),
