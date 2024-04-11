@@ -76,9 +76,10 @@ impl PropertyTable {
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
-        self.with_property_data_mut(id, |property_data| {
+        let ret = self.with_property_data_mut(id, |property_data| {
             property_data.typed_data::<T>().value.clone()
-        })
+        });
+        ret
     }
 
     // Main function to set a value of a property.
@@ -243,6 +244,7 @@ impl PropertyTable {
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data_mut(target_id, |target_property_data| {
                 source_property_data.inbound = target_property_data.inbound.clone();
+                source_property_data.dirty = target_property_data.dirty;
                 let source_typed = source_property_data.typed_data::<T>();
                 let target_typed = target_property_data.typed_data::<T>();
                 source_typed.value = target_typed.value.clone();

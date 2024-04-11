@@ -559,8 +559,35 @@ fn recurse_visit_tag_pairs_for_template(
                     /* statement_for_source = { xo_range | xo_symbol } */
                     let repeat_source_definition = match inner_source.as_rule() {
                         Rule::xo_range => {
+                            let mut inner = inner_source.into_inner();
+                            let left = inner.next().unwrap();
+                            //skip middle
+                            inner.next();
+                            let right = inner.next().unwrap();
+                            let mut range_symbolic_bindings = vec![];
+                            if matches!(left.as_rule(), Rule::xo_symbol) {
+                                let inner_source_location = span_to_location(&left.as_span());
+                                let left_range_token = Token::new(
+                                    convert_symbolic_binding_from_paxel_to_ril(left),
+                                    TokenType::ForSource,
+                                    inner_source_location,
+                                    pax,
+                                );
+                                range_symbolic_bindings.push(left_range_token);
+                            }
+                            if matches!(right.as_rule(), Rule::xo_symbol) {
+                                let inner_source_location = span_to_location(&right.as_span());
+                                let left_range_token = Token::new(
+                                    convert_symbolic_binding_from_paxel_to_ril(right),
+                                    TokenType::ForSource,
+                                    inner_source_location,
+                                    pax,
+                                );
+                                range_symbolic_bindings.push(left_range_token);
+                            }
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: Some(inner_source_token),
+                                range_symbolic_bindings,
                                 expression_info: None, //This will be written back to this data structure later, during expression compilation
                                 symbolic_binding: None,
                             }
@@ -570,6 +597,7 @@ fn recurse_visit_tag_pairs_for_template(
                                 convert_symbolic_binding_from_paxel_to_ril(inner_source);
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: None,
+                                range_symbolic_bindings: vec![],
                                 expression_info: None,
                                 symbolic_binding: Some(inner_source_token),
                             }
