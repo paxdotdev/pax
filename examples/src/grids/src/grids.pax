@@ -14,9 +14,3 @@
         </Group>
     }
 </Stacker>
-
-
-@settings {
-    @mount: on_mount
-    @tick: tick
-}
