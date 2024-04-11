@@ -422,8 +422,7 @@ impl PaxEngine {
 
         time.set(time.get() + 1);
 
-        let res = ctx.take_native_messages();
-        res
+        ctx.take_native_messages()
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
