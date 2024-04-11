@@ -1,5 +1,5 @@
-use pax_engine::*;
 use pax_engine::api::*;
+use pax_engine::*;
 
 use pax_std::primitives::*;
 use rand::random;
@@ -14,16 +14,13 @@ pub struct Ball {
     pub index: Property<Numeric>,
 }
 
-
-
 impl Ball {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.update(ctx);
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
-        if ctx.frames_elapsed % (crate::LOOP_FRAMES as usize) == 0 {
-
+        if ctx.frames_elapsed.get() % (crate::LOOP_FRAMES as u64) == 0 {
             let magnitude = self.magnitude.get().to_float();
             self.magnitude.set(random::<f64>().into());
 
@@ -39,14 +36,20 @@ impl Ball {
 
             let seq_progress_0_1 = self.index.get().to_float() / (crate::PARTICLE_COUNT as f64);
 
-            let delay_frames: u64 = ((1.0 - seq_progress_0_1) * (random::<f64>() * crate::LOOP_FRAMES)) as u64;
+            let delay_frames: u64 =
+                ((1.0 - seq_progress_0_1) * (random::<f64>() * crate::LOOP_FRAMES)) as u64;
 
-            self.diameter.ease_to(0.into(), delay_frames, EasingCurve::Linear);
-            self.diameter.ease_to_later(d_lower, 20, EasingCurve::OutQuad);
-            self.diameter.ease_to_later(d_upper, 40, EasingCurve::OutQuad);
-            self.diameter.ease_to_later(d_steady, 40, EasingCurve::InQuad);
+            self.diameter
+                .ease_to(0.into(), delay_frames, EasingCurve::Linear);
+            self.diameter
+                .ease_to_later(d_lower, 20, EasingCurve::OutQuad);
+            self.diameter
+                .ease_to_later(d_upper, 40, EasingCurve::OutQuad);
+            self.diameter
+                .ease_to_later(d_steady, 40, EasingCurve::InQuad);
 
-            self.hue.ease_to(h_lower, delay_frames, EasingCurve::OutQuad);
+            self.hue
+                .ease_to(h_lower, delay_frames, EasingCurve::OutQuad);
             self.hue.ease_to_later(h_upper, 40, EasingCurve::OutQuad);
             self.hue.ease_to_later(h_steady, 40, EasingCurve::InQuad);
         }
