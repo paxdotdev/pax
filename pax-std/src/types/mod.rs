@@ -50,7 +50,6 @@ pub struct StackerCell {
 }
 
 #[pax]
-#[derive(Debug)]
 pub enum StackerDirection {
     Vertical,
     #[default]

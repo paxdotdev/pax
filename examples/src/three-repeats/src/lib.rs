@@ -31,7 +31,6 @@ impl Default for ThreeRepeats {
 }
 
 #[pax]
-#[derive(Debug)]
 pub struct CustomStruct {
     pub x: isize,
 }

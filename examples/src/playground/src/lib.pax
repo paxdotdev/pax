@@ -1,15 +1,13 @@
-if self.checked {
-    <Text width=50% height=50% text={self.textbox_text}
-        style = {
-            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
-            fill: {self.color},
-            font_size: 50px,
-            align_vertical: {self.align_vertical},
-            align_horizontal: TextAlignHorizontal::Center,
-            align_multiline: TextAlignHorizontal::Center
-        }
-    />
-}
+<Text width=50% height=50% text={self.textbox_text}
+    style = {
+        font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+        fill: {self.color},
+        font_size: 50px,
+        align_vertical: {self.align_vertical},
+        align_horizontal: TextAlignHorizontal::Center,
+        align_multiline: TextAlignHorizontal::Center
+    }
+/>
 
 if self.checked {
     <Textbox id=text
@@ -21,7 +19,6 @@ if self.checked {
         }
         y=70% anchor_y=50% x=100px width=50% height=30px text={self.textbox_text} @textbox_input=self.textbox_input/>
 }
-
 <Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
 
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>

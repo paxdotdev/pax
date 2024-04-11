@@ -23,8 +23,8 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: std::fmt::Debug + Default + Clone + Interpolatable + 'static {}
-impl<T: std::fmt::Debug + Default + Clone + Interpolatable + 'static> PropertyValue for T {}
+pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
+impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
 
 impl<T: PropertyValue> Interpolatable for Property<T> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {

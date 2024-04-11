@@ -76,10 +76,9 @@ impl PropertyTable {
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
-        let ret = self.with_property_data_mut(id, |property_data| {
+        self.with_property_data_mut(id, |property_data| {
             property_data.typed_data::<T>().value.clone()
-        });
-        ret
+        })
     }
 
     // Main function to set a value of a property.
@@ -208,7 +207,7 @@ impl PropertyTable {
     /// is not present in the table, and methods such as .get(), .set(), and
     /// possibly others on the property with the id parameter bellow will panic.
     pub fn with_property_data<V>(&self, id: PropertyId, f: impl FnOnce(&PropertyData) -> V) -> V {
-        self.with_property_data_mut(id, |prop_data| f(&*prop_data))
+        self.with_property_data_mut(id, |property_data| f(&*property_data))
     }
 
     /// Increase the ref count of a property
@@ -269,12 +268,12 @@ impl PropertyTable {
     // re-computes the value if dirty
     pub fn update_value<T: PropertyValue>(&self, id: PropertyId) {
         let mut remove_dep_from_literal = false;
-        let evaluator = self.with_property_data_mut(id, |prop_data| {
-            if prop_data.dirty == false {
+        let evaluator = self.with_property_data_mut(id, |property_data| {
+            if property_data.dirty == false {
                 return None;
             }
-            prop_data.dirty = false;
-            let typed_data = prop_data.typed_data::<T>();
+            property_data.dirty = false;
+            let typed_data = property_data.typed_data::<T>();
             match &mut typed_data.property_type {
                 PropertyType::Computed { evaluator, .. } => Some(Rc::clone(&evaluator)),
                 PropertyType::Literal => {
@@ -295,8 +294,8 @@ impl PropertyTable {
 
         if remove_dep_from_literal {
             self.disconnect_inbound(id);
-            self.with_property_data_mut(id, |prop_data| {
-                prop_data.inbound.clear();
+            self.with_property_data_mut(id, |property_data| {
+                property_data.inbound.clear();
             });
         }
 
