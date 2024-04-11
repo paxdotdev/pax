@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{any::Any, marker::PhantomData, rc::Rc};
+use std::{marker::PhantomData, rc::Rc};
 
 mod graph_operations;
 mod properties_table;
@@ -79,15 +79,12 @@ impl<T: PropertyValue> Property<T> {
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
-        let evaluator = Rc::new(move || Box::new(evaluator()) as Box<dyn Any>);
+        let evaluator = Rc::new(evaluator);
         Self {
             untyped: UntypedProperty::new(
                 start_val,
                 inbound,
-                PropertyType::Computed {
-                    evaluator,
-                    dirty: true,
-                },
+                PropertyType::Computed { evaluator },
                 name,
             ),
             _phantom: PhantomData {},

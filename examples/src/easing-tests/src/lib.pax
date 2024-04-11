@@ -1,0 +1,31 @@
+<Rectangle width=20% height=20% anchor_x=50% y=10% fill=BLACK x={(self.easing_value)%}/>
+<Rectangle x=20% class=centered class=small @click=self.left
+     fill=rgb(200, 75, 150)
+/>
+<Rectangle x=80% class=centered class=small @click=self.right
+     fill=rgb(20, 75, 250)
+/>
+
+@settings {
+     @mount: handle_mount,
+     @pre_render: handle_pre_render,
+     .centered {
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    }
+    .small {
+        width: 120px
+        height: 120px
+    }
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 32px,
+                fill: rgba(255, 255, 255, 255),
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

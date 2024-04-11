@@ -15,6 +15,7 @@ pub struct Camera {
 }
 
 #[pax]
+#[derive(Debug)]
 pub struct TypeExample {
     pub foo: Property<usize>,
 }

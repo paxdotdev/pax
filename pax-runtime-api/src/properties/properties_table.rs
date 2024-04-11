@@ -23,25 +23,26 @@ pub struct PropertyData {
     pub inbound: Vec<PropertyId>,
     // List of properties that depend on this value
     pub outbound: Vec<PropertyId>,
-    // Specialization data (computed/literal etc)
-    pub property_type: PropertyType,
+    // Dirty bit set if a depency further up in the dirty-dag tree
+    // has been changed. For computed this can be any other props,
+    // for literals, only time variable
+    pub dirty: bool,
 }
 
 pub struct TypedPropertyData<T> {
     value: T,
     transition_manager: Option<TransitionManager<T>>,
+    // Specialization data (computed/literal etc)
+    property_type: PropertyType<T>,
 }
 
 /// Specialization data only needed for different kinds of properties
 #[derive(Clone)]
-pub(crate) enum PropertyType {
+pub(crate) enum PropertyType<T> {
     Literal,
     Computed {
         // Information needed to recompute on change
-        evaluator: Rc<dyn Fn() -> Box<dyn Any>>,
-        // Dirty bit set if a depency further up in the dirty-dag tree
-        // has been changed
-        dirty: bool,
+        evaluator: Rc<dyn Fn() -> T>,
     },
 }
 
@@ -65,43 +66,13 @@ impl PropertyTable {
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
-        let mut should_dirtify = false;
-        let ret = self.with_property_data_mut(id, |property_data| {
+        self.with_property_data_mut(id, |property_data| {
             let typed_data = property_data
                 .typed_data
                 .downcast_mut::<TypedPropertyData<T>>()
                 .expect("TypedPropertyData<T> correct type");
-
-            // if the current property has a transition manager, use it to
-            // update the current value
-            if typed_data.transition_manager.is_some() {
-                let time = PROPERTY_TIME.with_borrow(|time| {
-                    // we can't use time to evaluate time. (infinite loop) Just return 0 in that case
-                    if time.untyped.id == id {
-                        0
-                    } else {
-                        time.get()
-                    }
-                });
-                if let Some(v) = typed_data
-                    .transition_manager
-                    .as_mut()
-                    .unwrap()
-                    .compute_eased_value(time)
-                {
-                    log::debug!("prop {:?} set to {:?}", id, v);
-                    typed_data.value = v;
-                    should_dirtify = true;
-                } else {
-                    typed_data.transition_manager = None;
-                }
-            }
             typed_data.value.clone()
-        });
-        if should_dirtify {
-            self.dirtify_outbound(id);
-        }
-        ret
+        })
     }
 
     // Main function to set a value of a property.
@@ -124,7 +95,7 @@ impl PropertyTable {
         &self,
         start_val: T,
         inbound: Vec<PropertyId>,
-        data: PropertyType,
+        data: PropertyType<T>,
         debug_name: Option<&str>,
     ) -> PropertyId {
         let id = {
@@ -138,12 +109,13 @@ impl PropertyTable {
                 ref_count: 1,
                 data: Some(PropertyData {
                     inbound,
+                    dirty: true,
                     typed_data: Box::new(TypedPropertyData {
                         value: start_val,
+                        property_type: data,
                         transition_manager: None,
                     }),
                     outbound: Vec::with_capacity(0),
-                    property_type: data,
                 }),
             };
             sm.insert(entry)
@@ -151,7 +123,6 @@ impl PropertyTable {
         if let Some(name) = debug_name {
             self.debug_names.borrow_mut().insert(id, name.to_owned());
         }
-        log::debug!("calling from add_entry");
         self.connect_inbound(id);
         id
     }
@@ -165,6 +136,7 @@ impl PropertyTable {
         transition: TransitionQueueEntry<T>,
         overwrite: bool,
     ) {
+        let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data
                 .typed_data
@@ -177,10 +149,12 @@ impl PropertyTable {
                 )
             });
             if overwrite {
-                transition_manager.clear_transitions(PROPERTY_TIME.with_borrow(|time| time.get()));
+                transition_manager.reset_transitions(curr_time);
             }
             transition_manager.push_transition(transition);
+            property_data.inbound.push(time_id);
         });
+        self.connect_inbound(id);
     }
 
     /// Gives mutable access to a entry in the property table
@@ -265,7 +239,6 @@ impl PropertyTable {
         // copy nessesary internal state from target to source
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data(target_id, |target_property_data| {
-                source_property_data.property_type = target_property_data.property_type.clone();
                 source_property_data.inbound = target_property_data.inbound.clone();
                 let source_typed = source_property_data
                     .typed_data
@@ -276,6 +249,7 @@ impl PropertyTable {
                     .downcast_ref::<TypedPropertyData<T>>()
                     .expect("target type expected");
                 source_typed.value = target_typed.value.clone();
+                source_typed.property_type = target_typed.property_type.clone();
             });
         });
 
@@ -294,19 +268,41 @@ impl PropertyTable {
     }
 
     // re-computes the value if dirty
-    pub fn update_value<T: 'static>(&self, id: PropertyId) {
-        let evaluator =
-            self.with_property_data_mut(id, |prop_data| match &mut prop_data.property_type {
-                PropertyType::Computed {
-                    evaluator,
-                    dirty: ref mut is_dirty @ true,
-                    ..
-                } => {
-                    *is_dirty = false;
-                    Some(Rc::clone(&evaluator))
+    pub fn update_value<T: PropertyValue>(&self, id: PropertyId) {
+        let mut remove_dep_from_literal = false;
+        let evaluator = self.with_property_data_mut(id, |prop_data| {
+            if prop_data.dirty == false {
+                return None;
+            }
+            prop_data.dirty = false;
+            let typed_data = prop_data
+                .typed_data
+                .downcast_mut::<TypedPropertyData<T>>()
+                .expect("source type expected");
+            match &mut typed_data.property_type {
+                PropertyType::Computed { evaluator, .. } => Some(Rc::clone(&evaluator)),
+                PropertyType::Literal => {
+                    let tm = typed_data.transition_manager.as_mut()?;
+                    let curr_time = PROPERTY_TIME.with_borrow(|time| time.get());
+                    let value = tm.compute_eased_value(curr_time);
+                    if let Some(interp_value) = value {
+                        Some(Rc::new(move || interp_value.clone()))
+                    } else {
+                        //transition must be over, let's remove dependencies
+                        remove_dep_from_literal = true;
+                        typed_data.transition_manager = None;
+                        None
+                    }
                 }
-                _ => None,
+            }
+        });
+
+        if remove_dep_from_literal {
+            self.disconnect_inbound(id);
+            self.with_property_data_mut(id, |prop_data| {
+                prop_data.inbound.clear();
             });
+        }
 
         if let Some(evaluator) = evaluator {
             // WARNING: the evaluator should not be run while the table is in
@@ -319,7 +315,7 @@ impl PropertyTable {
                     .typed_data
                     .downcast_mut::<TypedPropertyData<T>>()
                     .expect("source type expected");
-                typed_data.value = *new_value.downcast::<T>().expect("update val expected type");
+                typed_data.value = new_value;
             })
         }
     }

@@ -610,7 +610,7 @@ impl<T: Clone + Interpolatable> TransitionManager<T> {
         self.queue.push_back(transition);
     }
 
-    pub fn clear_transitions(&mut self, current_time: u64) {
+    pub fn reset_transitions(&mut self, current_time: u64) {
         // update current value as to ease from this position
         self.compute_eased_value(current_time);
         self.queue.clear();
