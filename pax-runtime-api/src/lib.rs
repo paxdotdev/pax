@@ -604,11 +604,11 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
 }
 
 impl<T: Clone + Interpolatable> TransitionManager<T> {
-    pub fn new(value: T) -> Self {
+    pub fn new(value: T, current_time: u64) -> Self {
         Self {
             queue: VecDeque::new(),
             transition_checkpoint_value: value,
-            origin_frames_elapsed: 0,
+            origin_frames_elapsed: current_time,
         }
     }
 

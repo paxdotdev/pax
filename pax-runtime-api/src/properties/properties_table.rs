@@ -89,6 +89,7 @@ impl PropertyTable {
                     .unwrap()
                     .compute_eased_value(time)
                 {
+                    log::debug!("prop {:?} set to {:?}", id, v);
                     typed_data.value = v;
                     should_dirtify = true;
                 } else {
@@ -166,9 +167,12 @@ impl PropertyTable {
                 .typed_data
                 .downcast_mut::<TypedPropertyData<T>>()
                 .expect("TypedPropertyData<T> correct type");
-            let transition_manager = typed_data
-                .transition_manager
-                .get_or_insert_with(|| TransitionManager::new(typed_data.value.clone()));
+            let transition_manager = typed_data.transition_manager.get_or_insert_with(|| {
+                TransitionManager::new(
+                    typed_data.value.clone(),
+                    PROPERTY_TIME.with_borrow(|time| time.get()),
+                )
+            });
             if overwrite {
                 transition_manager.clear_transitions(PROPERTY_TIME.with_borrow(|time| time.get()));
             }
