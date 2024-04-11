@@ -18,7 +18,7 @@ pub struct PropertyData {
     // typed data for this property,
     // can always be downcast to TypedPropertyData<T>
     // where T matches the property type
-    pub typed_data: Box<dyn Any>,
+    typed_data: Box<dyn Any>,
     // List of properties that this property depends on
     pub inbound: Vec<PropertyId>,
     // List of properties that depend on this value
@@ -27,6 +27,16 @@ pub struct PropertyData {
     // has been changed. For computed this can be any other props,
     // for literals, only time variable
     pub dirty: bool,
+}
+
+impl PropertyData {
+    fn typed_data<T: 'static>(&mut self) -> &mut TypedPropertyData<T> {
+        let typed_data = self
+            .typed_data
+            .downcast_mut::<TypedPropertyData<T>>()
+            .expect("TypedPropertyData<T> should have correct type T during downcast");
+        typed_data
+    }
 }
 
 pub struct TypedPropertyData<T> {
@@ -67,11 +77,7 @@ impl PropertyTable {
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
-            let typed_data = property_data
-                .typed_data
-                .downcast_mut::<TypedPropertyData<T>>()
-                .expect("TypedPropertyData<T> correct type");
-            typed_data.value.clone()
+            property_data.typed_data::<T>().value.clone()
         })
     }
 
@@ -81,10 +87,7 @@ impl PropertyTable {
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let new_val = Box::new(new_val);
-            let typed_data = property_data
-                .typed_data
-                .downcast_mut::<TypedPropertyData<T>>()
-                .expect("TypedPropertyData<T> correct type");
+            let typed_data = property_data.typed_data();
             typed_data.value = *new_val;
         });
         self.dirtify_outbound(id);
@@ -136,25 +139,25 @@ impl PropertyTable {
         transition: TransitionQueueEntry<T>,
         overwrite: bool,
     ) {
+        let mut should_connect_to_time = false;
         let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
-            let typed_data = property_data
-                .typed_data
-                .downcast_mut::<TypedPropertyData<T>>()
-                .expect("TypedPropertyData<T> correct type");
-            let transition_manager = typed_data.transition_manager.get_or_insert_with(|| {
-                TransitionManager::new(
-                    typed_data.value.clone(),
-                    PROPERTY_TIME.with_borrow(|time| time.get()),
-                )
-            });
+            let typed_data = property_data.typed_data::<T>();
+            let transition_manager = typed_data
+                .transition_manager
+                .get_or_insert_with(|| TransitionManager::new(typed_data.value.clone(), curr_time));
             if overwrite {
                 transition_manager.reset_transitions(curr_time);
             }
             transition_manager.push_transition(transition);
-            property_data.inbound.push(time_id);
+            if !property_data.inbound.contains(&time_id) {
+                should_connect_to_time = true;
+                property_data.inbound.push(time_id);
+            }
         });
-        self.connect_inbound(id);
+        if should_connect_to_time {
+            self.connect_inbound(id);
+        }
     }
 
     /// Gives mutable access to a entry in the property table
@@ -238,16 +241,10 @@ impl PropertyTable {
 
         // copy nessesary internal state from target to source
         self.with_property_data_mut(source_id, |source_property_data| {
-            self.with_property_data(target_id, |target_property_data| {
+            self.with_property_data_mut(target_id, |target_property_data| {
                 source_property_data.inbound = target_property_data.inbound.clone();
-                let source_typed = source_property_data
-                    .typed_data
-                    .downcast_mut::<TypedPropertyData<T>>()
-                    .expect("source type expected");
-                let target_typed = target_property_data
-                    .typed_data
-                    .downcast_ref::<TypedPropertyData<T>>()
-                    .expect("target type expected");
+                let source_typed = source_property_data.typed_data::<T>();
+                let target_typed = target_property_data.typed_data::<T>();
                 source_typed.value = target_typed.value.clone();
                 source_typed.property_type = target_typed.property_type.clone();
             });
@@ -275,10 +272,7 @@ impl PropertyTable {
                 return None;
             }
             prop_data.dirty = false;
-            let typed_data = prop_data
-                .typed_data
-                .downcast_mut::<TypedPropertyData<T>>()
-                .expect("source type expected");
+            let typed_data = prop_data.typed_data::<T>();
             match &mut typed_data.property_type {
                 PropertyType::Computed { evaluator, .. } => Some(Rc::clone(&evaluator)),
                 PropertyType::Literal => {
@@ -311,10 +305,7 @@ impl PropertyTable {
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
             let new_value = evaluator();
             self.with_property_data_mut(id, |property_data| {
-                let typed_data = property_data
-                    .typed_data
-                    .downcast_mut::<TypedPropertyData<T>>()
-                    .expect("source type expected");
+                let typed_data = property_data.typed_data();
                 typed_data.value = new_value;
             })
         }
