@@ -1,6 +1,6 @@
 use super::{
     private::PropertyId,
-    properties_table::{PropertyTable, PropertyType},
+    properties_table::{PropertyTable, PROPERTY_TIME},
 };
 
 impl PropertyTable {
@@ -14,11 +14,8 @@ impl PropertyTable {
                 if dep_id == id {
                     unreachable!("property cycle");
                 }
-                let PropertyType::Computed { ref mut dirty, .. } = dep_data.property_type else {
-                    unreachable!("literal depends on property")
-                };
-                if !*dirty {
-                    *dirty = true;
+                if !dep_data.dirty {
+                    dep_data.dirty = true;
                     to_dirtify.extend_from_slice(&dep_data.outbound);
                 }
             });
@@ -29,25 +26,21 @@ impl PropertyTable {
     /// NOTE: does NOT modify the inbound list
     pub fn disconnect_inbound(&self, id: PropertyId) {
         self.with_property_data_mut(id, |property_data| {
-            if let PropertyType::Computed { .. } = &mut property_data.property_type {
-                for subscription in &property_data.inbound {
-                    self.with_property_data_mut(*subscription, |sub| {
-                        sub.outbound.retain(|s| s != &id);
-                    });
-                }
+            for subscription in &property_data.inbound {
+                self.with_property_data_mut(*subscription, |sub| {
+                    sub.outbound.retain(|s| s != &id);
+                });
             }
         });
     }
 
-    /// Removes id from it's dependencies
+    /// Removes id from it's dependents
     /// NOTE: does NOT modify the outbound list
     pub fn disconnect_outbound(&self, id: PropertyId) {
         self.with_property_data(id, |property_data| {
             for sub_id in &property_data.outbound {
                 self.with_property_data_mut(*sub_id, |subscriber| {
-                    if let PropertyType::Computed { .. } = &mut subscriber.property_type {
-                        subscriber.inbound.retain(|s| s != &id);
-                    }
+                    subscriber.inbound.retain(|s| s != &id);
                 });
             }
         });
@@ -60,12 +53,10 @@ impl PropertyTable {
     /// uses it to hook up dependencies
     pub fn connect_inbound(&self, id: PropertyId) {
         self.with_property_data(id, |prop_data| {
-            if let PropertyType::Computed { .. } = &prop_data.property_type {
-                for dep_id in &prop_data.inbound {
-                    self.with_property_data_mut(*dep_id, |dep_prop| {
-                        dep_prop.outbound.push(id);
-                    });
-                }
+            for dep_id in &prop_data.inbound {
+                self.with_property_data_mut(*dep_id, |dep_prop| {
+                    dep_prop.outbound.push(id);
+                });
             }
         });
     }
