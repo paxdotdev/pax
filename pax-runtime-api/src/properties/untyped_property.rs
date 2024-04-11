@@ -43,7 +43,7 @@ impl UntypedProperty {
     pub(crate) fn new<T: PropertyValue>(
         val: T,
         inbound: Vec<PropertyId>,
-        data: PropertyType,
+        data: PropertyType<T>,
         debug_name: Option<&str>,
     ) -> Self {
         UntypedProperty {

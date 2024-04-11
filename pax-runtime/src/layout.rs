@@ -68,6 +68,7 @@ pub fn compute_tab(
     .map(|v| v.as_ref().map(|p| p.untyped()))
     .into_iter()
     .flatten();
+
     let other_props = [
         cp_skew_x.as_ref().map(|p| p.untyped()),
         cp_skew_y.as_ref().map(|p| p.untyped()),
@@ -80,9 +81,10 @@ pub fn compute_tab(
         .chain(other_props)
         .chain(
             [
-                cp_transform.untyped(),
-                cp_bounds.untyped(),
-                cp_container_bounds.untyped(),
+                cp_transform.untyped(),        //-
+                cp_bounds.untyped(),           //-
+                cp_container_bounds.untyped(), //-
+                container_transform.untyped(),
             ]
             .into_iter(),
         )
