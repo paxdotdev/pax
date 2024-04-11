@@ -20,6 +20,7 @@ pub struct DynamicObject {
 }
 
 #[pax]
+#[derive(Debug)]
 pub struct Rect {
     pub x: Size,
     pub y: Size,
@@ -40,9 +41,13 @@ impl DynamicObject {
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let offsets = [0.1, 0.5, 1.0, 0.2, 0.3, 0.9, 0.3, 0.8, 0.7, 0.6];
         let div_line = [-4, -1, -2, 0, 1, -1, 0, 3, 2, 4];
-        let t = *self.ticks.get();
+        let t = self.ticks.get();
         self.ticks.set(t + 0.01);
-        let (b_x, b_y) = ctx.bounds_self;
+
+        let mut rects = self.rects.get();
+        let mut rects_below = self.rects_below.get();
+
+        let (b_x, b_y) = ctx.bounds_self.get();
         let sp_ratio = 0.1;
         let sp = b_x * sp_ratio / (N_X + 1.0);
         let r_w = (b_x * (1.0 - sp_ratio)) / N_X;
@@ -70,12 +75,12 @@ impl DynamicObject {
                 let delay = -cent_offset_x.abs() * 0.02 - (1.0 - cent_offset_y.abs() * 0.2) * 0.5;
                 x += dir * smoothstep(2.0 + delay, 2.8 + delay, t) * 5.0 * r_w;
                 let ind = i_int + j_int * N_X as usize;
-                let rect = &mut self.rects.get_mut()[ind];
+                let rect = &mut rects[ind];
                 rect.x = Size::Pixels(x.into());
                 rect.y = Size::Pixels(y.into());
                 rect.w = Size::Pixels((r_w).into());
                 rect.h = Size::Pixels((r_h).into());
-                let rect_b = &mut self.rects_below.get_mut()[ind];
+                let rect_b = &mut rects_below[ind];
                 rect_b.x = Size::Pixels((x - sp).into());
                 rect_b.y = Size::Pixels((y - sp).into());
                 rect_b.w = Size::Pixels((r_w + 2.0 * sp).into());
@@ -83,14 +88,8 @@ impl DynamicObject {
             }
         }
 
-        //hack to make repeat refresh
-        if self.rects.get().len() <= LEN {
-            self.rects.get_mut().push(Rect::default());
-            self.rects_below.get_mut().push(Rect::default());
-        } else {
-            self.rects.get_mut().pop();
-            self.rects_below.get_mut().pop();
-        }
+        self.rects.set(rects);
+        self.rects_below.set(rects_below);
     }
 
     pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {}
