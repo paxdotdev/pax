@@ -76,11 +76,9 @@ impl InstanceNode for SlotInstance {
                     };
 
                     let ret = if let Some(node) = showing_node.get().upgrade() {
-                        let res = cloned_expanded_node
-                            .attach_children(vec![Rc::clone(&node)], &cloned_context);
-                        res
+                        cloned_expanded_node.attach_children(vec![node], &cloned_context)
                     } else {
-                        cloned_expanded_node.generate_children(vec![], &cloned_context)
+                        vec![]
                     };
                     ret
                 },
@@ -101,11 +99,11 @@ impl InstanceNode for SlotInstance {
             .expanded_and_flattened_slot_children
             .borrow();
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            let node = nodes
+            let node_rc = nodes
                 .as_ref()
                 .and_then(|l| l.get(properties.index.get().to_int() as usize).cloned());
-            let node = match node {
-                Some(rc) => Rc::downgrade(&rc),
+            let node = match &node_rc {
+                Some(rc) => Rc::downgrade(rc),
                 None => Weak::new(),
             };
             if properties

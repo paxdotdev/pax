@@ -40,7 +40,7 @@ if self.activated {
         style: {
                 font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 32px,
-                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Center,
                 align_multiline: TextAlignHorizontal::Center

@@ -297,11 +297,17 @@ fn recurse_compile_expressions<'a>(
             //  - must use an exclusive (..) range operator (inclusive could be supported; effort required)
 
             let id = ctx.vtable_uid_gen.next().unwrap();
-            let deps = repeat_source_definition
-                .symbolic_binding
-                .as_ref()
-                .map_or_else(|| vec![], |sb| vec![sb.token_value.clone()]);
-
+            let mut deps = vec![];
+            if let Some(iterable) = &repeat_source_definition.symbolic_binding {
+                deps.push(iterable.token_value.clone());
+            } else if repeat_source_definition.range_symbolic_bindings.len() != 0 {
+                deps.extend(
+                    repeat_source_definition
+                        .range_symbolic_bindings
+                        .iter()
+                        .map(|s| s.token_value.clone()),
+                );
+            }
             repeat_source_definition.expression_info = Some(ExpressionCompilationInfo {
                 vtable_id: id,
                 dependencies: deps,

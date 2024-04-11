@@ -1643,6 +1643,7 @@ impl Hash for ControlFlowSettingsDefinition {
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<Token>,
+    pub range_symbolic_bindings: Vec<Token>,
     pub expression_info: Option<ExpressionCompilationInfo>,
     pub symbolic_binding: Option<Token>,
 }
