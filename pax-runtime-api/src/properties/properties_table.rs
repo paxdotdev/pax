@@ -19,6 +19,8 @@ pub struct PropertyData {
     // can always be downcast to TypedPropertyData<T>
     // where T matches the property type
     pub typed_data: Box<dyn Any>,
+    // List of properties that this property depends on
+    pub inbound: Vec<PropertyId>,
     // List of properties that depend on this value
     pub outbound: Vec<PropertyId>,
     // Specialization data (computed/literal etc)
@@ -40,8 +42,6 @@ pub(crate) enum PropertyType {
         // Dirty bit set if a depency further up in the dirty-dag tree
         // has been changed
         dirty: bool,
-        // The inbound connections, ie dependencies, of this computed value
-        inbound: Vec<PropertyId>,
     },
 }
 
@@ -123,6 +123,7 @@ impl PropertyTable {
     pub fn add_entry<T: PropertyValue>(
         &self,
         start_val: T,
+        inbound: Vec<PropertyId>,
         data: PropertyType,
         debug_name: Option<&str>,
     ) -> PropertyId {
@@ -136,6 +137,7 @@ impl PropertyTable {
             let entry = Entry {
                 ref_count: 1,
                 data: Some(PropertyData {
+                    inbound,
                     typed_data: Box::new(TypedPropertyData {
                         value: start_val,
                         transition_manager: None,
@@ -149,6 +151,7 @@ impl PropertyTable {
         if let Some(name) = debug_name {
             self.debug_names.borrow_mut().insert(id, name.to_owned());
         }
+        log::debug!("calling from add_entry");
         self.connect_inbound(id);
         id
     }
@@ -263,6 +266,7 @@ impl PropertyTable {
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data(target_id, |target_property_data| {
                 source_property_data.property_type = target_property_data.property_type.clone();
+                source_property_data.inbound = target_property_data.inbound.clone();
                 let source_typed = source_property_data
                     .typed_data
                     .downcast_mut::<TypedPropertyData<T>>()

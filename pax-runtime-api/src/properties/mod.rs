@@ -67,7 +67,7 @@ impl<T: PropertyValue> Property<T> {
 
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            untyped: UntypedProperty::new(val, PropertyType::Literal, name),
+            untyped: UntypedProperty::new(val, Vec::with_capacity(0), PropertyType::Literal, name),
             _phantom: PhantomData {},
         }
     }
@@ -83,10 +83,10 @@ impl<T: PropertyValue> Property<T> {
         Self {
             untyped: UntypedProperty::new(
                 start_val,
+                inbound,
                 PropertyType::Computed {
                     evaluator,
                     dirty: true,
-                    inbound,
                 },
                 name,
             ),
