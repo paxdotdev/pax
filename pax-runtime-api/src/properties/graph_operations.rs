@@ -29,8 +29,8 @@ impl PropertyTable {
     /// NOTE: does NOT modify the inbound list
     pub fn disconnect_inbound(&self, id: PropertyId) {
         self.with_property_data_mut(id, |property_data| {
-            if let PropertyType::Computed { inbound, .. } = &mut property_data.property_type {
-                for subscription in inbound {
+            if let PropertyType::Computed { .. } = &mut property_data.property_type {
+                for subscription in &property_data.inbound {
                     self.with_property_data_mut(*subscription, |sub| {
                         sub.outbound.retain(|s| s != &id);
                     });
@@ -45,12 +45,8 @@ impl PropertyTable {
         self.with_property_data(id, |property_data| {
             for sub_id in &property_data.outbound {
                 self.with_property_data_mut(*sub_id, |subscriber| {
-                    if let PropertyType::Computed {
-                        inbound: subscriptions,
-                        ..
-                    } = &mut subscriber.property_type
-                    {
-                        subscriptions.retain(|s| s != &id);
+                    if let PropertyType::Computed { .. } = &mut subscriber.property_type {
+                        subscriber.inbound.retain(|s| s != &id);
                     }
                 });
             }
@@ -64,8 +60,8 @@ impl PropertyTable {
     /// uses it to hook up dependencies
     pub fn connect_inbound(&self, id: PropertyId) {
         self.with_property_data(id, |prop_data| {
-            if let PropertyType::Computed { inbound, .. } = &prop_data.property_type {
-                for dep_id in inbound {
+            if let PropertyType::Computed { .. } = &prop_data.property_type {
+                for dep_id in &prop_data.inbound {
                     self.with_property_data_mut(*dep_id, |dep_prop| {
                         dep_prop.outbound.push(id);
                     });
