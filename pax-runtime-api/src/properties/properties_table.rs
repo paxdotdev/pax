@@ -86,9 +86,8 @@ impl PropertyTable {
     // it and it's dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
-            let new_val = Box::new(new_val);
             let typed_data = property_data.typed_data();
-            typed_data.value = *new_val;
+            typed_data.value = new_val;
         });
         self.dirtify_outbound(id);
     }
@@ -242,6 +241,7 @@ impl PropertyTable {
         // copy nessesary internal state from target to source
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data_mut(target_id, |target_property_data| {
+                // Copy over inbound, dirty state, and current value to source
                 source_property_data.inbound = target_property_data.inbound.clone();
                 source_property_data.dirty = target_property_data.dirty;
                 let source_typed = source_property_data.typed_data::<T>();
@@ -269,6 +269,7 @@ impl PropertyTable {
     pub fn update_value<T: PropertyValue>(&self, id: PropertyId) {
         let mut remove_dep_from_literal = false;
         let evaluator = self.with_property_data_mut(id, |property_data| {
+            //short circuit if the value is still up to date
             if property_data.dirty == false {
                 return None;
             }
@@ -281,13 +282,13 @@ impl PropertyTable {
                     let curr_time = PROPERTY_TIME.with_borrow(|time| time.get());
                     let value = tm.compute_eased_value(curr_time);
                     if let Some(interp_value) = value {
-                        Some(Rc::new(move || interp_value.clone()))
+                        typed_data.value = interp_value;
                     } else {
                         //transition must be over, let's remove dependencies
                         remove_dep_from_literal = true;
                         typed_data.transition_manager = None;
-                        None
                     }
+                    None
                 }
             }
         });
