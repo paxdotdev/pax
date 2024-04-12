@@ -1,7 +1,7 @@
+use crate::api::TextInput;
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{Interpolatable, Property};
-use crate::api::TextInput;
 
 use crate::api::math::Point2;
 use crate::constants::{
