@@ -17,7 +17,7 @@ mod declarative_macros {
         ($name:ident { $($field:ident : $value:expr),* $(,)? }) => {
             $name {
                 $(
-                    $field: Box::new(PropertyLiteral::new($value)),
+                    $field: Property::new($value),
                 )*
             }
         };

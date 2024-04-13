@@ -25,8 +25,7 @@ pub struct Example {
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.message.set("Click me".to_string());
-        self.color
-            .set(Color::AMBER);
+        self.color.set(Color::AMBER);
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
@@ -47,21 +46,18 @@ impl Example {
             true => TextAlignVertical::Top,
             false => TextAlignVertical::Bottom,
         });
-        if *self.checked.get() {
-            self.color
-                .set(Color::GREEN);
+        if self.checked.get() {
+            self.color.set(Color::GREEN);
         } else {
-            self.color
-                .set(Color::BLUE);
+            self.color.set(Color::BLUE);
         }
     }
 
     pub fn textbox_input(&mut self, ctx: &NodeContext, args: Event<TextboxInput>) {
-        self.textbox_text.set(args.text);
+        self.textbox_text.set(args.text.clone());
     }
 
     pub fn button_click(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) {
-        self.color
-            .set(Color::VIOLET);
+        self.color.set(Color::VIOLET);
     }
 }

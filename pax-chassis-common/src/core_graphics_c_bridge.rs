@@ -95,6 +95,7 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::Click(args) => {
             let prospective_hit = engine
                 .runtime_context
+                .borrow()
                 .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
@@ -113,7 +114,7 @@ pub extern "C" fn pax_interrupt(
                     };
                     topmost_node.dispatch_click(
                         args_click,
-                        engine.runtime_context.globals(),
+                        engine.runtime_context.borrow().globals(),
                         &engine.runtime_context,
                     );
                 }

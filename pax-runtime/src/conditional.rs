@@ -1,9 +1,11 @@
+use std::cell::RefCell;
 use std::{iter, rc::Rc};
+
+use pax_runtime_api::Property;
 
 use crate::api::Layer;
 use crate::{
-    declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -18,8 +20,7 @@ pub struct ConditionalInstance {
 ///Contains the expression of a conditional, evaluated as an expression.
 #[derive(Default)]
 pub struct ConditionalProperties {
-    pub boolean_expression: Box<dyn crate::api::PropertyInstance<bool>>,
-    last_boolean_expression: Option<bool>,
+    pub boolean_expression: Property<bool>,
 }
 
 impl InstanceNode for ConditionalInstance {
@@ -40,36 +41,44 @@ impl InstanceNode for ConditionalInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        let (should_update, active) =
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        let weak_ref_self = Rc::downgrade(expanded_node);
+        let cloned_self = Rc::clone(&self);
+        let cloned_context = Rc::clone(context);
+
+        let cond_expr =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
-                handle_vtable_update(
-                    context.expression_table(),
-                    &expanded_node.stack,
-                    &mut properties.boolean_expression,
-                    context.globals(),
-                );
-                let val = Some(*properties.boolean_expression.get());
-                let update_children = properties.last_boolean_expression != val;
-                properties.last_boolean_expression = val;
-                (update_children, *properties.boolean_expression.get())
+                properties.boolean_expression.clone()
             });
 
-        if should_update {
-            if active {
-                let env = Rc::clone(&expanded_node.stack);
-                let children = self.base().get_instance_children().borrow();
-                let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                expanded_node.set_children(children_with_envs, context);
-            } else {
-                expanded_node.set_children(iter::empty(), context);
-            }
-        }
-    }
+        let dep = cond_expr.untyped();
 
-    fn handle_mount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
-        // No-op: wait with creating child-nodes until update tick, since the
-        // condition has then been evaluated
+        expanded_node
+            .children
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                        panic!("ran evaluator after expanded node dropped (conditional elem)")
+                    };
+                    if cond_expr.get() {
+                        let env = Rc::clone(&cloned_expanded_node.stack);
+                        let children = cloned_self.base().get_instance_children().borrow();
+                        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context)
+                    } else {
+                        cloned_expanded_node.generate_children(iter::empty(), &cloned_context)
+                    }
+                },
+                &[dep],
+                &format!(
+                    "conditional_children (node id: {})",
+                    expanded_node.id_chain[0]
+                ),
+            ));
     }
 
     #[cfg(debug_assertions)]
@@ -83,12 +92,5 @@ impl InstanceNode for ConditionalInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
-    }
-
-    fn get_clipping_size(
-        &self,
-        _expanded_node: &ExpandedNode,
-    ) -> Option<(crate::api::Size, crate::api::Size)> {
-        None
     }
 }

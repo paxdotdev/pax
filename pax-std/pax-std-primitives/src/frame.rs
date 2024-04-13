@@ -1,10 +1,11 @@
 use core::option::Option;
 use core::option::Option::Some;
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use kurbo::{Affine, BezPath};
-use pax_runtime::api::{Layer, RenderContext, Size};
+use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -38,85 +39,14 @@ impl InstanceNode for FrameInstance {
         })
     }
 
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
-        Some(self.get_size(expanded_node))
-    }
-
-    // fn handle_native_patches(
-    //     &mut self,
-    //     rtc: &mut RenderTreeContext<R>,
-    //     computed_size: (f64, f64),
-    //     transform_coeffs: Vec<f64>,
-    //     _z_index: u32,
-    //     _subtree_depth: u32,
-    // ) {
-    // let mut new_message: FramePatch = Default::default();
-    // new_message.id_chain = rtc.get_id_chain(self.instance_id);
-    // if !self.last_patches.contains_key(&new_message.id_chain) {
-    //     let mut patch = FramePatch::default();
-    //     patch.id_chain = new_message.id_chain.clone();
-    //     self.last_patches
-    //         .insert(new_message.id_chain.clone(), patch);
-    // }
-    // let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
-    // let mut has_any_updates = false;
-    //
-    // let val = computed_size.0;
-    // let is_new_value = match &last_patch.size_x {
-    //     Some(cached_value) => !val.eq(cached_value),
-    //     None => true,
-    // };
-    // if is_new_value {
-    //     new_message.size_x = Some(val);
-    //     last_patch.size_x = Some(val);
-    //     has_any_updates = true;
-    // }
-    //
-    // let val = computed_size.1;
-    // let is_new_value = match &last_patch.size_y {
-    //     Some(cached_value) => !val.eq(cached_value),
-    //     None => true,
-    // };
-    // if is_new_value {
-    //     new_message.size_y = Some(val);
-    //     last_patch.size_y = Some(val);
-    //     has_any_updates = true;
-    // }
-    //
-    // let latest_transform = transform_coeffs;
-    // let is_new_transform = match &last_patch.transform {
-    //     Some(cached_transform) => latest_transform
-    //         .iter()
-    //         .enumerate()
-    //         .any(|(i, elem)| *elem != cached_transform[i]),
-    //     None => true,
-    // };
-    // if is_new_transform {
-    //     new_message.transform = Some(latest_transform.clone());
-    //     last_patch.transform = Some(latest_transform.clone());
-    //     has_any_updates = true;
-    // }
-    //
-    // if has_any_updates {
-    //     (*rtc.engine.runtime)
-    //         .borrow_mut()
-    //         .enqueue_native_message(pax_message::NativeMessage::FrameUpdate(new_message));
-    // }
-    // todo!()
-    // }
-
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
+        _context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
-        let comp_props = &expanded_node.layout_properties.borrow();
-        let comp_props = comp_props.as_ref().unwrap();
-        let transform = comp_props.computed_tab.transform;
-        let bounding_dimens = comp_props.computed_tab.bounds;
-        let width = bounding_dimens.0;
-        let height = bounding_dimens.1;
+        let transform = expanded_node.layout_properties.transform.get();
+        let (width, height) = expanded_node.layout_properties.bounds.get();
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -141,7 +71,7 @@ impl InstanceNode for FrameInstance {
     fn handle_post_render(
         &self,
         _expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
+        _context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         let layers = rcs.layers();
@@ -152,25 +82,12 @@ impl InstanceNode for FrameInstance {
         }
     }
 
-    // fn handle_mount(&self, _node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {
-    //     let id_chain = node.id_chain.clone();
-
-    //     //though macOS and iOS don't need this ancestry chain for clipping, Web does
-    //     let clipping_ids = ptc.get_current_clipping_ids();
-
-    //     let scroller_ids = ptc.get_current_scroller_ids();
-
-    //     let z_index = node.computed_z_index.unwrap();
-
-    //     ptc.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-    //         id_chain,
-    //         clipping_ids,
-    //         scroller_ids,
-    //         z_index,
-    //     }));
-    // }
-
-    fn handle_unmount(&self, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
+    fn handle_unmount(
+        &self,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+    }
 
     #[cfg(debug_assertions)]
     fn resolve_debug(

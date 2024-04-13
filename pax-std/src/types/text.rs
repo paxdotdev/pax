@@ -1,4 +1,4 @@
-use pax_engine::api::{Color, Numeric, Property, PropertyLiteral, Size, StringBox};
+use pax_engine::api::{Color, Numeric, Property, Size, StringBox};
 use pax_engine::*;
 use pax_message::{
     ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
@@ -22,13 +22,13 @@ pub struct TextStyle {
 impl Default for TextStyle {
     fn default() -> Self {
         Self {
-            font: Box::new(PropertyLiteral::new(Font::default())),
-            font_size: Box::new(PropertyLiteral::new(Size::Pixels(Numeric::Float(20.0)))),
-            fill: Box::new(PropertyLiteral::new(Default::default())),
-            underline: Box::new(PropertyLiteral::new(false)),
-            align_multiline: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
-            align_vertical: Box::new(PropertyLiteral::new(TextAlignVertical::Top)),
-            align_horizontal: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
+            font: Property::new(Font::default()),
+            font_size: Property::new(Size::Pixels(Numeric::Float(20.0))),
+            fill: Property::new(Default::default()),
+            underline: Property::new(false),
+            align_multiline: Property::new(TextAlignHorizontal::Left),
+            align_vertical: Property::new(TextAlignVertical::Top),
+            align_horizontal: Property::new(TextAlignHorizontal::Left),
         }
     }
 }
@@ -38,16 +38,16 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
             font_size: Some(f64::from(self.font_size.get().expect_pixels())),
-            fill: Some(Into::<ColorMessage>::into(self.fill.get())),
+            fill: Some(Into::<ColorMessage>::into(&self.fill.get())),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
-                self.align_multiline.get(),
+                &self.align_multiline.get(),
             )),
             align_vertical: Some(Into::<TextAlignVerticalMessage>::into(
-                self.align_vertical.get(),
+                &self.align_vertical.get(),
             )),
             align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(
-                self.align_horizontal.get(),
+                &self.align_horizontal.get(),
             )),
         }
     }

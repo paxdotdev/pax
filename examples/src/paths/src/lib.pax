@@ -2,14 +2,11 @@
 
 @settings {
     .bounding_segment {
-	    segments: {[
-	        PathSegment::line(
-				LineSegmentData::new(
-		            Point::new(0px, 0px),
-		            Point::new(40%, 40%)
-				)
-	        )
-	    ]},
+        elements: {[
+            PathElement::point(0px, 0px),
+            PathElement::line(),
+            PathElement::point(40%, 40%)
+        ]},
 		stroke: {
             color: GREEN,
             width: 10px

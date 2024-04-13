@@ -1,10 +1,11 @@
 use std::any::Any;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
 use kurbo::BezPath;
 use piet::PaintBrush;
+use properties::UntypedProperty;
 
 #[cfg(feature = "designtime")]
 use {
@@ -12,27 +13,25 @@ use {
     std::cell::RefCell,
 };
 
-use std::cell::Cell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+use std::rc::{Rc, Weak};
 
 pub mod constants;
-pub mod expressions;
 pub mod math;
 pub mod numeric;
+pub mod properties;
 
 pub use crate::numeric::Numeric;
+pub use properties::Property;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
-use crate::expressions::PropertyExpression;
 pub use pax_message::serde;
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
 
 pub struct TransitionQueueEntry<T> {
-    pub global_frame_started: Option<usize>,
     pub duration_frames: u64,
     pub curve: EasingCurve,
-    pub starting_value: T,
     pub ending_value: T,
 }
 
@@ -52,102 +51,11 @@ pub trait RenderContext {
 impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionQueueEntry")
-            .field("global_frame_started", &self.global_frame_started)
             .field("duration_frames", &self.duration_frames)
-            .field("starting_value", &self.starting_value)
             .field("ending_value", &self.ending_value)
             .finish()
     }
 }
-
-pub enum PropertyType {
-    Literal,
-    Expression,
-}
-
-/// An abstract Property that may be either: Literal,
-/// a dynamic runtime Expression, or a Timeline-bound value
-pub trait PropertyInstance<T: Default + Clone> {
-    fn get(&self) -> &T;
-    fn get_mut(&mut self) -> &mut T;
-    fn _get_vtable_id(&self) -> Option<usize>;
-
-    fn set(&mut self, value: T);
-
-    /// Used by engine to gain access to this property's transition queue
-    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>>;
-
-    /// Immediately start transitioning from current value to the provided `new_value`,
-    /// clearing the transition queue before doing so
-    fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
-
-    /// Add a transition to the transition queue, which will execute
-    /// after the current queue is complete.  The starting value for this new
-    /// transition will be the final value upon completion of the current transition queue.
-    fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
-
-    fn property_type(&self) -> PropertyType;
-
-    //Wishlist:
-    // to_default: set back to default value
-    // ease_to_default: set back to default value via interpolation
-    // ^ for the above, consider the transient changes to dirty-DAG when we switch between a Literal and Expression.
-}
-
-impl<'de, T> Deserialize<'de> for Box<dyn PropertyInstance<T>>
-where
-    T: Deserialize<'de> + Default + Clone + 'static,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Box<dyn PropertyInstance<T>>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = T::deserialize(deserializer)?;
-        Ok(Box::new(PropertyLiteral::new(value)))
-    }
-}
-
-impl<T> Serialize for Box<dyn PropertyInstance<T>>
-where
-    T: Serialize + Default + Clone + 'static,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.get().serialize(serializer)
-    }
-}
-
-#[cfg(debug_assertions)]
-impl<T: Default + std::fmt::Debug + Clone + 'static> std::fmt::Debug
-    for Box<dyn PropertyInstance<T>>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.get().fmt(f)
-    }
-}
-
-impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
-    fn default() -> Box<dyn PropertyInstance<T>> {
-        Box::new(PropertyLiteral::new(Default::default()))
-    }
-}
-
-impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
-    fn clone(&self) -> Self {
-        match self.property_type() {
-            PropertyType::Literal => Box::new(PropertyLiteral::new(self.deref().get().clone())),
-            PropertyType::Expression => Box::new(PropertyExpression::new(
-                self.deref()
-                    ._get_vtable_id()
-                    .expect("Cloned expression must have a v-table id"),
-            )),
-        }
-    }
-}
-
-pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 pub struct Window;
 
@@ -574,19 +482,19 @@ pub struct CommonProperty {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Clone)]
 pub struct CommonProperties {
-    pub id: Option<Box<dyn PropertyInstance<String>>>,
-    pub x: Option<Box<dyn PropertyInstance<Size>>>,
-    pub y: Option<Box<dyn PropertyInstance<Size>>>,
-    pub scale_x: Option<Box<dyn PropertyInstance<Size>>>,
-    pub scale_y: Option<Box<dyn PropertyInstance<Size>>>,
-    pub skew_x: Option<Box<dyn PropertyInstance<Numeric>>>,
-    pub skew_y: Option<Box<dyn PropertyInstance<Numeric>>>,
-    pub rotate: Option<Box<dyn PropertyInstance<Rotation>>>,
-    pub anchor_x: Option<Box<dyn PropertyInstance<Size>>>,
-    pub anchor_y: Option<Box<dyn PropertyInstance<Size>>>,
-    pub transform: Box<dyn PropertyInstance<Transform2D>>,
-    pub width: Box<dyn PropertyInstance<Size>>,
-    pub height: Box<dyn PropertyInstance<Size>>,
+    pub id: Option<Property<String>>,
+    pub x: Option<Property<Size>>,
+    pub y: Option<Property<Size>>,
+    pub scale_x: Option<Property<Size>>,
+    pub scale_y: Option<Property<Size>>,
+    pub skew_x: Option<Property<Numeric>>,
+    pub skew_y: Option<Property<Numeric>>,
+    pub rotate: Option<Property<Rotation>>,
+    pub anchor_x: Option<Property<Size>>,
+    pub anchor_y: Option<Property<Size>>,
+    pub transform: Property<Transform2D>,
+    pub width: Property<Size>,
+    pub height: Property<Size>,
 }
 
 impl CommonProperties {
@@ -623,6 +531,46 @@ impl CommonProperties {
             })
             .collect()
     }
+
+    pub fn retrieve_property_scope(&self) -> HashMap<String, UntypedProperty> {
+        let mut scope = HashMap::new();
+
+        if let Some(id) = &self.id {
+            scope.insert("id".to_string(), id.untyped());
+        }
+        if let Some(x) = &self.x {
+            scope.insert("x".to_string(), x.untyped());
+        }
+        if let Some(y) = &self.y {
+            scope.insert("y".to_string(), y.untyped());
+        }
+        if let Some(scale_x) = &self.scale_x {
+            scope.insert("scale_x".to_string(), scale_x.untyped());
+        }
+        if let Some(scale_y) = &self.scale_y {
+            scope.insert("scale_y".to_string(), scale_y.untyped());
+        }
+        if let Some(skew_x) = &self.skew_x {
+            scope.insert("skew_x".to_string(), skew_x.untyped());
+        }
+        if let Some(skew_y) = &self.skew_y {
+            scope.insert("skew_y".to_string(), skew_y.untyped());
+        }
+        if let Some(rotate) = &self.rotate {
+            scope.insert("rotate".to_string(), rotate.untyped());
+        }
+        if let Some(anchor_x) = &self.anchor_x {
+            scope.insert("anchor_x".to_string(), anchor_x.untyped());
+        }
+        if let Some(anchor_y) = &self.anchor_y {
+            scope.insert("anchor_y".to_string(), anchor_y.untyped());
+        }
+        scope.insert("transform".to_string(), self.transform.untyped());
+        scope.insert("width".to_string(), self.width.untyped());
+        scope.insert("height".to_string(), self.height.untyped());
+
+        scope
+    }
 }
 
 impl<T: Interpolatable> Interpolatable for Option<T> {
@@ -638,8 +586,11 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
 }
 
 pub struct TransitionManager<T> {
-    pub queue: VecDeque<TransitionQueueEntry<T>>,
-    pub value: Option<T>,
+    queue: VecDeque<TransitionQueueEntry<T>>,
+    /// The value we are currently transitioning from
+    transition_checkpoint_value: T,
+    /// The time the current transition started
+    origin_frames_elapsed: u64,
 }
 
 #[cfg(debug_assertions)]
@@ -647,135 +598,50 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionManager")
             .field("queue", &self.queue)
-            .field("value", &self.value)
+            .field("value", &self.transition_checkpoint_value)
             .finish()
     }
 }
 
-impl<T> TransitionManager<T> {
-    pub fn new() -> Self {
+impl<T: Clone + Interpolatable> TransitionManager<T> {
+    pub fn new(value: T, current_time: u64) -> Self {
         Self {
             queue: VecDeque::new(),
-            value: None,
-        }
-    }
-}
-
-/// The Literal form of a Property: a bare literal value with support for easing/interpolation
-pub struct PropertyLiteral<T> {
-    value: T,
-    transition_manager: TransitionManager<T>,
-}
-
-#[cfg(debug_assertions)]
-impl<T: std::fmt::Debug> std::fmt::Debug for PropertyLiteral<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PropertyLiteral")
-            .field("value", &self.value)
-            .field("transition_manager", &self.transition_manager)
-            .finish()
-    }
-}
-
-impl<T> Into<Box<dyn PropertyInstance<T>>> for PropertyLiteral<T>
-where
-    T: Default + Clone + 'static,
-{
-    fn into(self) -> Box<dyn PropertyInstance<T>> {
-        Box::new(self)
-    }
-}
-
-impl<T: Clone> PropertyLiteral<T> {
-    pub fn new(value: T) -> Self {
-        PropertyLiteral {
-            value,
-            transition_manager: TransitionManager::new(),
-        }
-    }
-}
-impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
-    fn get(&self) -> &T {
-        &self.value
-    }
-
-    fn get_mut(&mut self) -> &mut T {
-        &mut self.value
-    }
-
-    fn _get_vtable_id(&self) -> Option<usize> {
-        None
-    }
-
-    fn set(&mut self, value: T) {
-        self.value = value;
-    }
-
-    //FUTURE: when trait fields land in Rust, DRY this implementation vs. other <T: PropertyInstance> implementations
-    fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
-        self.transition_manager.value = Some(self.get().clone());
-        let _ = &self.transition_manager.queue.clear();
-        let _ = &self
-            .transition_manager
-            .queue
-            .push_back(TransitionQueueEntry {
-                global_frame_started: None,
-                duration_frames,
-                curve,
-                starting_value: self.value.clone(),
-                ending_value: new_value,
-            });
-    }
-
-    fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
-        if let None = self.transition_manager.value {
-            //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
-            self.transition_manager.value = Some(self.get().clone());
-        }
-
-        let starting_value = if self.transition_manager.queue.len() > 0 {
-            self.transition_manager
-                .queue
-                .get(self.transition_manager.queue.len() - 1)
-                .unwrap()
-                .ending_value
-                .clone()
-        } else {
-            self.value.clone()
-        };
-
-        self.transition_manager
-            .queue
-            .push_back(TransitionQueueEntry {
-                global_frame_started: None,
-                duration_frames,
-                curve,
-                starting_value,
-                ending_value: new_value,
-            });
-    }
-
-    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
-        if let None = self.transition_manager.value {
-            None
-        } else {
-            Some(&mut self.transition_manager)
+            transition_checkpoint_value: value,
+            origin_frames_elapsed: current_time,
         }
     }
 
-    fn property_type(&self) -> PropertyType {
-        PropertyType::Literal
+    pub fn push_transition(&mut self, transition: TransitionQueueEntry<T>) {
+        self.queue.push_back(transition);
     }
-}
 
-impl<T: std::fmt::Debug> PropertyLiteral<T> {
-    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
-        // log(&format!("property: {:?}", self));
-        if let None = self.transition_manager.value {
-            None
-        } else {
-            Some(&mut self.transition_manager)
+    pub fn reset_transitions(&mut self, current_time: u64) {
+        // update current value as to ease from this position
+        self.compute_eased_value(current_time);
+        self.queue.clear();
+        self.origin_frames_elapsed = current_time;
+    }
+
+    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
+        let global_fe = frames_elapsed;
+        let origin_fe = &mut self.origin_frames_elapsed;
+
+        // Fast-forward transitions that have already passed
+        while global_fe - *origin_fe > self.queue.front()?.duration_frames {
+            let curr = self.queue.pop_front()?;
+            *origin_fe += curr.duration_frames;
+            self.transition_checkpoint_value = curr.ending_value;
         }
+        let current_transition = self.queue.front()?;
+        let local_fe = global_fe - *origin_fe;
+        let progress = local_fe as f64 / current_transition.duration_frames as f64;
+        let interpolated_val = current_transition.curve.interpolate(
+            &self.transition_checkpoint_value,
+            &current_transition.ending_value,
+            progress,
+        );
+        Some(interpolated_val)
     }
 }
 
@@ -864,7 +730,12 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
         self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
     }
 }
-impl Interpolatable for std::rc::Rc<std::cell::RefCell<(dyn Any + 'static)>> {}
+impl Interpolatable for Rc<RefCell<(dyn Any + 'static)>> {}
+impl Interpolatable for () {}
+impl<T: Interpolatable> Interpolatable for Rc<T> {}
+impl<T: Interpolatable> Interpolatable for Weak<T> {}
+impl<T: Interpolatable> Interpolatable for RefCell<T> {}
+impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}
 
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
@@ -1427,10 +1298,6 @@ impl Color {
                 Numeric::from(0x00).into(),
             )
             .to_rgba_0_1(),
-
-            _ => {
-                unimplemented!("Unsupported color variant lacks conversion logic to RGB")
-            }
         }
     }
 }
@@ -1770,14 +1637,11 @@ impl Transform2D {
         ret.anchor = Some([x, y]);
         ret
     }
-
-    pub fn default_wrapped() -> Box<dyn PropertyInstance<Self>> {
-        Box::new(PropertyLiteral::new(Transform2D::default()))
-    }
 }
 
 // Represents literal types from the deserializer that may need to be `into()` downstream types.
 // For example, 5% might need to be `.into()`d a Rotation, a ColorChannel, or a Size.  Color might need to be `.into()`d a Fill or a Stroke.
+#[derive(Clone)]
 pub enum IntoableLiteral {
     Color(Color),
     Percent(Percent),

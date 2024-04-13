@@ -3,8 +3,9 @@ use crate::api::Window;
 use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
+use pax_runtime_api::properties::UntypedProperty;
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::{any::Any, collections::HashMap};
 
 use crate::{ExpandedNode, ExpressionTable, Globals};
@@ -24,7 +25,7 @@ pub struct RuntimeContext {
     next_uid: Uid,
     messages: Vec<NativeMessage>,
     globals: Globals,
-    expression_table: ExpressionTable,
+    expression_table: Rc<ExpressionTable>,
     pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
     pub node_cache: HashMap<u32, Rc<ExpandedNode>>,
     pub uni_to_eid: HashMap<UniqueTemplateNodeIdentifier, Vec<u32>>,
@@ -36,7 +37,7 @@ impl RuntimeContext {
             next_uid: Uid(0),
             messages: Vec::new(),
             globals,
-            expression_table,
+            expression_table: Rc::new(expression_table),
             z_index_node_cache: vec![],
             node_cache: HashMap::default(),
             uni_to_eid: HashMap::default(),
@@ -163,8 +164,8 @@ impl RuntimeContext {
         &mut self.globals
     }
 
-    pub fn expression_table(&self) -> &ExpressionTable {
-        &self.expression_table
+    pub fn expression_table(&self) -> Rc<ExpressionTable> {
+        self.expression_table.clone()
     }
 }
 
@@ -177,27 +178,37 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimePropertiesStackFrame {
+    symbols_within_frame: HashMap<String, UntypedProperty>,
     properties: Rc<RefCell<dyn Any>>,
-    parent: Option<Rc<RuntimePropertiesStackFrame>>,
+    parent: Weak<RuntimePropertiesStackFrame>,
 }
 
 impl RuntimePropertiesStackFrame {
-    pub fn new(properties: Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn new(
+        symbols_within_frame: HashMap<String, UntypedProperty>,
+        properties: Rc<RefCell<dyn Any>>,
+    ) -> Rc<Self> {
         Rc::new(Self {
+            symbols_within_frame,
             properties,
-            parent: None,
+            parent: Weak::new(),
         })
     }
 
-    pub fn push(self: &Rc<Self>, properties: &Rc<RefCell<dyn Any>>) -> Rc<Self> {
+    pub fn push(
+        self: &Rc<Self>,
+        symbols_within_frame: HashMap<String, UntypedProperty>,
+        properties: &Rc<RefCell<dyn Any>>,
+    ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
-            parent: Some(Rc::clone(&self)),
+            symbols_within_frame,
+            parent: Rc::downgrade(&self),
             properties: Rc::clone(properties),
         })
     }
 
     pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
-        self.parent.clone()
+        self.parent.upgrade()
     }
 
     /// Traverses stack recursively `n` times to retrieve ancestor;
@@ -206,9 +217,27 @@ impl RuntimePropertiesStackFrame {
     pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<dyn Any>>> {
         let mut curr = Rc::clone(self);
         for _ in 0..n {
-            curr = Rc::clone(curr.parent.as_ref()?);
+            curr = curr.parent.upgrade()?;
         }
         Some(Rc::clone(&curr.properties))
+    }
+
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<dyn Any>>> {
+        if let Some(_) = self.symbols_within_frame.get(symbol) {
+            Some(Rc::clone(&self.properties))
+        } else {
+            self.parent.upgrade()?.resolve_symbol(symbol)
+        }
+    }
+
+    pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {
+        if let Some(e) = self.symbols_within_frame.get(symbol) {
+            Some(e.clone())
+        } else {
+            self.parent
+                .upgrade()?
+                .resolve_symbol_as_erased_property(symbol)
+        }
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {

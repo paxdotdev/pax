@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::RuntimeContext;
 pub use pax_runtime_api::*;
 #[cfg(feature = "designtime")]
@@ -9,15 +11,15 @@ use {
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct NodeContext<'a> {
+pub struct NodeContext {
     /// The current global engine tick count
-    pub frames_elapsed: usize,
+    pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
-    pub bounds_parent: (f64, f64),
+    pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px
-    pub bounds_self: (f64, f64),
+    pub bounds_self: Property<(f64, f64)>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
-    pub(crate) runtime_context: &'a RuntimeContext,
+    pub(crate) runtime_context: Rc<RefCell<RuntimeContext>>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,

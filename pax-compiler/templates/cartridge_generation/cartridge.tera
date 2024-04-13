@@ -6,6 +6,9 @@ use pax_runtime::api::*;
 use pax_runtime::*;
 use pax_manifest::deserializer::{from_pax, from_pax_try_intoable_literal};
 use std::cell::Ref;
+use pax_runtime::api::properties::UntypedProperty;
+use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
+use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
@@ -27,7 +30,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} =
             {
-                let properties = if let Some(sf) = ec.stack_frame.peek_nth({{ invocation.stack_offset }}) {
+                let properties = if let Some(sf) = ec.stack_frame.resolve_symbol("{{ invocation.root_identifier }}") {
                     Rc::clone(&sf)
                 } else {
                     panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
@@ -36,8 +39,8 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
                     if let Some(unwrapped_repeat_item) = borrowed.downcast_ref::<RepeatItem>() {
-                        let i = unwrapped_repeat_item.i;
-                        let elem = Rc::clone(&unwrapped_repeat_item.elem);
+                        let i = unwrapped_repeat_item.i.get();
+                        let elem = Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
@@ -68,7 +71,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
                     let mut unwrapped_repeat_item = if let Some(val) = borrowed.downcast_mut::<RepeatItem>() {val} else {panic!()}; // Failed to downcast
-                    let i = unwrapped_repeat_item.i;
+                    let i = unwrapped_repeat_item.i.get();
                     Numeric::from(i)
                 {% else %}
 
@@ -116,58 +119,84 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 }
 
 pub trait ComponentFactory {
+
     /// Returns the default CommonProperties factory
-    fn build_default_common_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>{
-        Box::new(|| Rc::new(RefCell::new(CommonProperties::default())))    
+    fn build_default_common_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>{
+        Box::new(|_,_| Rc::new(RefCell::new(CommonProperties::default())))    
     }
 
     /// Returns the default properties factory for this component
-    fn build_default_properties(&self) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>;
     
     /// Returns the CommonProperties factory based on the defined properties 
-    fn build_inline_common_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) ->Box<dyn Fn() -> Rc<RefCell<CommonProperties>>> {
-        let mut cp = CommonProperties::default();
-        for (key, value) in defined_properties {
-            match key.as_str() {
-                {% for common_property in common_properties %}
-                "{{common_property.name}}" => {
-                    let resolved_property: Box<dyn PropertyInstance<{{common_property.property_type._type_id}}>> = match value.clone() {
-                        ValueDefinition::LiteralValue(lv) => {
-                            {% if common_property.property_type.is_intoable_downstream_type %}
-                                let mi = from_pax_try_intoable_literal(&lv.raw_value);
-                                if let Ok(intoable_literal) = mi {
-                                    Box::new(PropertyLiteral::new(intoable_literal.into()))
+    fn build_inline_common_properties(&self, defined_properties: HashMap<String,ValueDefinition>) ->Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>> {
+        Box::new(move |stack_frame , table | Rc::new(RefCell::new({
+            let mut cp = CommonProperties::default();
+            for (key, value) in &defined_properties {
+                match key.as_str() {
+                    {% for common_property in common_properties %}
+                    "{{common_property.name}}" => {
+                        let resolved_property: Property<{{common_property.property_type._type_id}}> = match value.clone() {
+                            ValueDefinition::LiteralValue(lv) => {
+                                {% if common_property.property_type.is_intoable_downstream_type %}
+                                    let mi = from_pax_try_intoable_literal(&lv.raw_value);
+                                    if let Ok(intoable_literal) = mi {
+                                        Property::new_with_name(intoable_literal.into(), &lv.raw_value)
+                                    } else {
+                                        Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
+                                    }
+                                {% else %}
+                                    Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
+                                {% endif %}
+                            },
+                            ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
+                            {
+                                if let Some(info) = info {
+                                    let mut dependents = vec![];
+                                    for dependency in &info.dependencies {
+                                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                            dependents.push(p);
+                                        } else {
+                                            panic!("Failed to resolve symbol {}", dependency);
+                                        }
+                                    }
+                                    let cloned_stack = stack_frame.clone();
+                                    let cloned_table = table.clone();
+                                    Property::computed_with_name(move || {
+                                        let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                        if let Ok(downcast_value) = new_value_wrapped.downcast::<{{common_property.property_type._type_id}}>() {
+                                            *downcast_value
+                                        } else {
+                                            panic!(
+                                                "property has an unexpected type for vtable id {}",
+                                                info.vtable_id
+                                            );
+                                        }
+                                    
+                                    }, &dependents, &token.raw_value)
                                 } else {
-                                    Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into()))
+                                    unreachable!("No info for expression")
                                 }
-                            {% else %}
-                                Box::new(PropertyLiteral::new(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into()))
-                            {% endif %}
-                        },
-                        ValueDefinition::Expression(token, id) | ValueDefinition::Identifier(token,id) =>
-                        {
-                            Box::new(PropertyExpression::new(id.expect("Tried to use expression but it wasn't compiled")))
-                        },
-                        _ => unreachable!("Invalid value definition for {{common_property.name}}")
-                    };
-                    {%if common_property.is_optional %}
-                        cp.{{common_property.name}} = Some(resolved_property)
-                    {% else %}
-                        cp.{{common_property.name}} = resolved_property
-                    {% endif %}
-                },
-                {% endfor %}
-                _ => {}
+                            },
+                            _ => unreachable!("Invalid value definition for {{common_property.name}}")
+                        };
+                        {%if common_property.is_optional %}
+                            cp.{{common_property.name}} = Some(resolved_property)
+                        {% else %}
+                            cp.{{common_property.name}} = resolved_property
+                        {% endif %}
+                    },
+                    {% endfor %}
+                    _ => {}
+                }
             }
-        }
 
-        Box::new(move || Rc::new(RefCell::new({
             cp.clone()
         })))
     }
 
     /// Returns the properties factory based on the defined properties
-    fn build_inline_properties(&self, defined_properties: &HashMap<String,ValueDefinition>) -> Box<dyn Fn() -> Rc<RefCell<dyn Any>>>;
+    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>;
     
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template
@@ -178,12 +207,14 @@ pub trait ComponentFactory {
 
     // Takes a hander registry and adds the given inline handlers to it
     fn add_inline_handlers(&self, handlers: Vec<(String, String)>, registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>>;
-    
-    /// Returns the compute properties function for the component
-    fn build_compute_properties_fn(&self) -> Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>;
-    
+   
     // Calls the instantion function for the component
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
+
+    // Returns the property scope for the component
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>> {
+        Box::new(|_| HashMap::new())
+    }
 }
 
 {% for c in components -%}
@@ -193,11 +224,12 @@ pub trait ComponentFactory {
 trait TypeFactory {
     type Output: Default + Clone;
     
-    fn build_type(&self, args: &LiteralBlockDefinition) -> Self::Output;
+    fn build_type(&self, args: &LiteralBlockDefinition, stack_frame: Rc<RuntimePropertiesStackFrame>, table: Rc<ExpressionTable>) -> Self::Output;
 }
-
 {% for key, value in type_table -%}
         {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
+        {% if value.type_id.pax_type.Singleton %}
+        {% endif %}
 {%- endfor %}
 
 pub struct DefinitionToInstanceTraverser {
@@ -275,8 +307,8 @@ impl DefinitionToInstanceTraverser {
     }
 
     pub fn build_component_args(&self, type_id: &TypeId) -> InstantiationArgs {
-
         let manifest = self.get_manifest();
+        let property_names = manifest.get_all_property_names(type_id);
         if let None = manifest.components.get(type_id) {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
@@ -288,9 +320,6 @@ impl DefinitionToInstanceTraverser {
         // pull handlers for this component
         let handlers = manifest.get_component_handlers(type_id);
         let handler_registry = Some(factory.build_component_handlers(handlers));
-
-
-        let compute_properties_fn = factory.build_compute_properties_fn();
 
         let mut component_template = None;
         if let Some(template) = &component.template {
@@ -317,16 +346,16 @@ impl DefinitionToInstanceTraverser {
             prototypical_properties_factory,
             handler_registry,
             component_template,
-            compute_properties_fn,
             children: None,
             template_node_identifier: None,
+            properties_scope_factory: Some(factory.get_properties_scope_factory()),
         }
     }
 
     pub fn build_control_flow(&self, containing_component_type_id: &TypeId, node_id: &TemplateNodeId) -> Rc<dyn InstanceNode> {
 
         let manifest = self.get_manifest();
-        let prototypical_common_properties_factory = Box::new(|| Rc::new(RefCell::new(CommonProperties::default())));
+        let prototypical_common_properties_factory = Box::new(|_,_| Rc::new(RefCell::new(CommonProperties::default())));
 
         let containing_component = manifest.components.get(containing_component_type_id).unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
@@ -336,14 +365,40 @@ impl DefinitionToInstanceTraverser {
         let children = self.build_children(containing_component_type_id, &node_id);
         match tnd.type_id.get_pax_type(){
             PaxType::If => {
-                let vtable_id = tnd.control_flow_settings
+                let expression_info = tnd
+                    .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .condition_expression_vtable_id
+                    .condition_expression_info
+                    .as_ref()
                     .unwrap();
-                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                let vtable_id = expression_info.vtable_id;
+                let dep_symbols = expression_info.dependencies.clone();
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
                         let mut properties = ConditionalProperties::default();
-                        properties.boolean_expression = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        let cloned_table = table.clone();
+                        let cloned_stack = stack_frame.clone();
+
+                        let mut dependencies = Vec::new();
+                        for dependency in &dep_symbols {
+                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
+                            }
+                        }
+
+                        properties.boolean_expression =  Property::computed_with_name(move || {
+                            let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                            if let Ok(downcast_value) = new_value_wrapped.downcast::<bool>() {
+                                *downcast_value
+                            } else {
+                                panic!(
+                                    "property has an unexpected type for vtable id {}",
+                                    vtable_id
+                                );
+                            }
+                        }, &dependencies, "conditional (if) expr");
                         properties
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -351,21 +406,47 @@ impl DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
-                    template_node_identifier: Some(unique_identifier)
+                    template_node_identifier: Some(unique_identifier),
+                    properties_scope_factory: None,
                 })
             },
             PaxType::Slot => {
-                let vtable_id = tnd
+                let expression_info = tnd
                     .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .slot_index_expression_vtable_id
+                    .slot_index_expression_info
+                    .as_ref()
                     .unwrap();
-                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                
+                let vtable_id = expression_info.vtable_id;
+                let dep_symbols = expression_info.dependencies.clone();
+
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>  = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
                         let mut properties = SlotProperties::default();
-                        properties.index = Box::new(PropertyExpression::new(vtable_id.clone()));
+                        let cloned_table = table.clone();
+                        let cloned_stack = stack_frame.clone();
+
+                        let mut dependencies = Vec::new();
+                        for dependency in &dep_symbols {
+                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
+                            }
+                        }
+                        properties.index = Property::computed_with_name(move || {
+                            let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                            if let Ok(downcast_value) = new_value_wrapped.downcast::<Numeric>() {
+                                *downcast_value
+                            } else {
+                                panic!(
+                                    "property has an unexpected type for vtable id {}",
+                                    vtable_id
+                                );
+                            }
+                        }, &dependencies, "slot index");
                         properties
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -373,9 +454,9 @@ impl DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
-                    template_node_identifier: Some(unique_identifier)
+                    template_node_identifier: Some(unique_identifier),
+                    properties_scope_factory: None,
                 })
             },
             PaxType::Repeat => {
@@ -386,21 +467,81 @@ impl DefinitionToInstanceTraverser {
                     .repeat_source_definition
                     .clone()
                     .unwrap();
-                let vtable_id = rsd.vtable_id.unwrap();
-                let prototypical_properties_factory : Box<dyn Fn() -> Rc<RefCell<dyn Any>>>  = Box::new(move || Rc::new(RefCell::new( {
+                let rpd = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .repeat_predicate_definition
+                    .clone()
+                    .unwrap();
+                let expression_info = rsd.expression_info.as_ref().unwrap();
+                let vtable_id = expression_info.vtable_id.clone();
+                let dep_symbols = expression_info.dependencies.clone();
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> = Box::new(move |stack_frame,table| Rc::new(RefCell::new( {
                         let mut properties = RepeatProperties::default();
+
+                        let mut dependencies = Vec::new();
+                        for dependency in &dep_symbols {
+                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
+                            }
+                        }
+
                         properties.source_expression_vec = 
                             if let Some(t) = &rsd.symbolic_binding {
-                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                                let cloned_table = table.clone();
+                                let cloned_stack = stack_frame.clone();
+                                Some(
+                                    Property::computed_with_name(move || {
+                                        let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                                        if let Ok(downcast_value) = new_value_wrapped.downcast::<Vec<Rc<RefCell<dyn Any>>>>() {
+                                            *downcast_value
+                                        } else {
+                                            panic!(
+                                                "property has an unexpected type for vtable id {}",
+                                                vtable_id
+                                            );
+                                        }
+                                    }, &dependencies, "repeat source vec")
+                                    ) 
                             } else {
                                 None
                             };
+                            
                         properties.source_expression_range =
                             if let Some(t) = &rsd.range_expression_paxel {
-                                Some(Box::new(PropertyExpression::new(vtable_id)))
+                                let cloned_table = table.clone();
+                                let cloned_stack = stack_frame.clone();
+                                Some(
+                                    Property::computed_with_name(move || {
+                                        let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                                        if let Ok(downcast_value) = new_value_wrapped.downcast::<std::ops::Range<isize>>() {
+                                            *downcast_value
+                                        } else {
+                                            panic!(
+                                                "property has an unexpected type for vtable id {}",
+                                                vtable_id
+                                            );
+                                        }
+                                    }, &dependencies, "repeat source range")
+                                )
                             } else {
                                 None
                             };
+
+                        let (elem, index) = match &rpd {
+                            ElemId(token) => {
+                                (Some(token.raw_value.clone()), None)
+                            },
+                            ElemIdIndexId(t1,t2) => {
+                                (Some(t1.raw_value.clone()), Some(t2.raw_value.clone()))
+                            }
+                        };
+                        properties.iterator_i_symbol = index;
+                        properties.iterator_elem_symbol = elem;
+                    
                         properties
                     })));
                 RepeatInstance::instantiate(InstantiationArgs {
@@ -408,9 +549,9 @@ impl DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    compute_properties_fn: None,
                     children: Some(RefCell::new(children)),
-                    template_node_identifier: Some(unique_identifier)
+                    template_node_identifier: Some(unique_identifier),
+                    properties_scope_factory: None
                 })
             },
             _ => {  
@@ -466,16 +607,17 @@ impl DefinitionToInstanceTraverser {
 
         // update properties from tnd 
         let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
-        let updated_properties = node_component_factory.build_inline_properties(&inline_properties);
+        let updated_properties = node_component_factory.build_inline_properties(inline_properties.clone());
         args.prototypical_properties_factory = updated_properties;
 
         // update common properties from tnd
-        let updated_common_properties = node_component_factory.build_inline_common_properties(&inline_properties);
+        let updated_common_properties = node_component_factory.build_inline_common_properties(inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
 
        
         args.children = Some(RefCell::new(self.build_children(containing_component_type_id, node_id)));
         args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(containing_component_type_id.clone(), node_id.clone()));
+
         node_component_factory.build_component(args)
     }
 

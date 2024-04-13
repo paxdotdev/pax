@@ -1,14 +1,14 @@
 use kurbo::{RoundedRect, Shape};
-use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::BaseInstance;
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
 use pax_std::types::Fill;
 
-use pax_runtime::api::{Layer, RenderContext, Size};
+use pax_runtime::api::{Layer, RenderContext};
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -31,71 +31,22 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        //Doesn't need to expand any children
-        expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.stroke,
-                context.globals(),
-            );
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.stroke.get_mut().color,
-                context.globals(),
-            );
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.stroke.get_mut().width,
-                context.globals(),
-            );
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.fill,
-                context.globals(),
-            );
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.corner_radii,
-                context.globals(),
-            );
-
-            // TODO: figure out best practice for nested properties struct (perhaps higher-level struct is not Property<> wrapped?)
-            // handle_vtable_update!(ptc, corner_radii.bottom_left, f64);
-            // handle_vtable_update!(ptc, corner_radii.bottom_right, f64);
-            // handle_vtable_update!(ptc, corner_radii.top_left, f64);
-            // handle_vtable_update!(ptc, corner_radii.top_right, f64);
-        });
-    }
-
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
-        Some(self.get_size(expanded_node))
-    }
-
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &mut RuntimeContext,
+        _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
-        let computed_props = expanded_node.layout_properties.borrow();
-        let tab = &computed_props.as_ref().unwrap().computed_tab;
+        let tab = &expanded_node.layout_properties;
+        let (width, height) = tab.bounds.get();
 
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
 
-        let width: f64 = tab.bounds.0;
-        let height: f64 = tab.bounds.1;
-
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+            let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
             let bez_path = rect.to_path(0.1);
 
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform.get()) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             match properties.fill.get() {
@@ -147,7 +98,7 @@ impl InstanceNode for RectangleInstance {
         match expanded_node {
             Some(expanded_node) => expanded_node.with_properties_unwrapped(|r: &mut Rectangle| {
                 f.debug_struct("Rectangle")
-                    .field("fill", r.fill.get())
+                    .field("fill", &r.fill.get())
                     .finish()
             }),
             None => f.debug_struct("Rectangle").finish_non_exhaustive(),
