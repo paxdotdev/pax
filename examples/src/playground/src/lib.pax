@@ -8,14 +8,17 @@
         align_multiline: TextAlignHorizontal::Center
     }
 />
-<Textbox id=text
-    background=GREEN
-    border_radius=100.0
-    stroke={
-        color: AMBER
-        width: 10px
-    }
-    y=70% anchor_y=50% x=100px width=50% height=30px text={self.textbox_text} @textbox_input=self.textbox_input/>
+
+if self.checked {
+    <Textbox id=text
+        background=GREEN
+        border_radius=100.0
+        stroke={
+            color: AMBER
+            width: 10px
+        }
+        y=70% anchor_y=50% x=100px width=50% height=30px text={self.textbox_text} @textbox_input=self.textbox_input/>
+}
 <Checkbox class=small y=50% anchor_y=50% x={50% - 100px} anchor_x=100% checked={self.checked} @checkbox_change=self.checkbox_change/>
 
 <Image class=small class=centered path="assets/images/pax-logo-light.png"/>

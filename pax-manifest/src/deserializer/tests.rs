@@ -6,7 +6,7 @@ use crate::deserializer::from_pax;
 
 #[test]
 fn test_number() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
@@ -20,12 +20,12 @@ fn test_number() {
 
 #[test]
 fn test_pixels() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Size {
         Pixels(Numeric),
         Percent(Numeric),
@@ -39,12 +39,12 @@ fn test_pixels() {
 
 #[test]
 fn test_percent() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Size {
         Pixels(Numeric),
         Percent(Numeric),
@@ -58,12 +58,12 @@ fn test_percent() {
 
 #[test]
 fn test_degrees() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Rotation {
         Radians(Numeric),
         Degrees(Numeric),
@@ -78,12 +78,12 @@ fn test_degrees() {
 
 #[test]
 fn test_radians() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Rotation {
         Radians(Numeric),
         Degrees(Numeric),
@@ -98,7 +98,7 @@ fn test_radians() {
 
 #[test]
 fn test_string_box() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub struct StringBox {
         pub string: String,
     }
@@ -113,11 +113,11 @@ fn test_string_box() {
 
 #[test]
 fn test_tuple() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub struct StringBox {
         pub string: String,
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
@@ -136,12 +136,12 @@ fn test_tuple() {
 
 #[test]
 fn test_enum() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Color {
         Rgba(Numeric, Numeric, Numeric, Numeric),
     }
@@ -167,12 +167,12 @@ fn test_boolean() {
 
 #[test]
 fn test_object() {
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub enum Numeric {
         Integer(isize),
         Float(f64),
     }
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub struct Example {
         pub x_px: Numeric,
         pub y_px: Numeric,

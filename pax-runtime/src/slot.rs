@@ -1,11 +1,13 @@
 use core::option::Option;
 
-use std::rc::Rc;
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
+
+use pax_runtime_api::{Numeric, Property};
 
 use crate::api::Layer;
 use crate::{
-    declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
@@ -25,9 +27,11 @@ pub struct SlotInstance {
 ///Contains the index value for slot, either a literal or an expression.
 #[derive(Default)]
 pub struct SlotProperties {
-    pub index: Box<dyn crate::api::PropertyInstance<crate::api::Numeric>>,
-    last_index: usize,
-    last_node_id: Option<u32>,
+    // HACK: these two properties are being used in update:
+    pub index: Property<Numeric>,
+    pub last_node_id: Property<usize>,
+    // to compute this:
+    pub showing_node: Property<Weak<ExpandedNode>>,
 }
 
 impl InstanceNode for SlotInstance {
@@ -48,43 +52,68 @@ impl InstanceNode for SlotInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        let weak_ref_self = Rc::downgrade(expanded_node);
+        let cloned_context = Rc::clone(context);
+
+        // index should be renamed slot_node_id
+        let showing_node =
+            expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+                properties.showing_node.clone()
+            });
+        let deps = vec![showing_node.untyped()];
+
+        expanded_node
+            .children
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                        panic!("ran evaluator after expanded node dropped (repeat elem)")
+                    };
+
+                    let ret = if let Some(node) = showing_node.get().upgrade() {
+                        cloned_expanded_node.attach_children(vec![node], &cloned_context)
+                    } else {
+                        vec![]
+                    };
+                    ret
+                },
+                &deps,
+                &format!("slot_children (node id: {})", expanded_node.id_chain[0]),
+            ));
+    }
+
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        let containing = expanded_node.containing_component.upgrade();
+        let nodes = containing
+            .as_ref()
+            .expect("slot to have a containing component")
+            .expanded_and_flattened_slot_children
+            .borrow();
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            handle_vtable_update(
-                &context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.index,
-                &context.globals(),
-            );
-            let index: usize = properties
-                .index
+            let node_rc = nodes
+                .as_ref()
+                .and_then(|l| l.get(properties.index.get().to_int() as usize).cloned());
+            let node = match &node_rc {
+                Some(rc) => Rc::downgrade(rc),
+                None => Weak::new(),
+            };
+            if properties
+                .showing_node
                 .get()
-                .to_int()
-                .try_into()
-                .expect("Slot index must be non-negative");
-
-            let node = expanded_node
-                .containing_component
                 .upgrade()
-                .as_ref()
-                .expect("slot has containing component during create")
-                .expanded_and_flattened_slot_children
-                .borrow()
-                .as_ref()
-                .and_then(|v| v.get(index))
-                .map(|v| Rc::clone(&v));
-
-            let node_id = node.as_ref().map(|n| n.id_chain[0]);
-            let update_child = properties.last_index != index || node_id != properties.last_node_id;
-            properties.last_node_id = node_id;
-            properties.last_index = index;
-
-            if update_child {
-                if let Some(node) = node {
-                    expanded_node.attach_children(vec![Rc::clone(&node)], context);
-                } else {
-                    expanded_node.set_children(vec![], context);
-                }
+                .map(|v| v.id_chain[0])
+                != node.upgrade().map(|v| v.id_chain[0])
+            {
+                properties.showing_node.set(node);
             }
         });
     }

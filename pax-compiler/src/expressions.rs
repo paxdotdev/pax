@@ -1,10 +1,10 @@
 use pax_manifest::{
     escape_identifier, ComponentDefinition, ComponentTemplate,
-    ControlFlowRepeatPredicateDefinition, ExpressionSpec, ExpressionSpecInvocation, HostCrateInfo,
-    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, SettingElement, TemplateNodeId,
-    Token, TypeDefinition, TypeId, TypeTable, ValueDefinition,
+    ControlFlowRepeatPredicateDefinition, ExpressionCompilationInfo, ExpressionSpec,
+    ExpressionSpecInvocation, HostCrateInfo, PaxManifest, PropertyDefinition,
+    PropertyDefinitionFlags, SettingElement, TemplateNodeId, Token, TypeDefinition, TypeId,
+    TypeTable, ValueDefinition,
 };
-use std::any::Any;
 use std::collections::HashMap;
 use std::ops::RangeFrom;
 use std::slice::IterMut;
@@ -126,7 +126,7 @@ fn recurse_compile_literal_block<'a>(
                         source_map,
                     )?;
                 }
-                ValueDefinition::Expression(input, manifest_id) => {
+                ValueDefinition::Expression(input, expression_compilation_info) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
 
                     let output_type = get_output_type_by_property_identifier(
@@ -149,7 +149,7 @@ fn recurse_compile_literal_block<'a>(
                         id,
                         ExpressionSpec {
                             id,
-                            invocations,
+                            invocations: invocations.clone(),
                             output_type,
                             output_statement,
                             input_statement,
@@ -157,11 +157,21 @@ fn recurse_compile_literal_block<'a>(
                         },
                     );
 
-                    //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let mut manifest_id_insert = Some(id);
-                    std::mem::swap(manifest_id, &mut manifest_id_insert);
+                    //Write this expression compilation info back to the manifest, for downstream use by RIL component tree generator
+                    let dependencies = invocations
+                        .iter()
+                        .map(|i| i.root_identifier.clone())
+                        .collect::<Vec<String>>();
+                    let mut expression_compilation_insert = Some(ExpressionCompilationInfo {
+                        vtable_id: id,
+                        dependencies,
+                    });
+                    std::mem::swap(
+                        expression_compilation_info,
+                        &mut expression_compilation_insert,
+                    );
                 }
-                ValueDefinition::Identifier(identifier, manifest_id) => {
+                ValueDefinition::Identifier(identifier, expression_compilation_info) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
 
                     if token.token_value == "id" || token.token_value == "class" {
@@ -183,14 +193,24 @@ fn recurse_compile_literal_block<'a>(
                         .get_type_definition(ctx.type_table);
                         let output_type = type_def.type_id.clone();
 
-                        //Write this id back to the manifest, for downstream use by RIL component tree generator
-                        let mut manifest_id_insert: Option<usize> = Some(id);
-                        std::mem::swap(manifest_id, &mut manifest_id_insert);
-
                         //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
                         //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
                         let (output_statement, invocations) =
                             compile_paxel_to_ril(identifier.clone(), &ctx)?;
+
+                        //Write this expression compilation info back to the manifest, for downstream use by RIL component tree generator
+                        let dependencies = invocations
+                            .iter()
+                            .map(|i| i.root_identifier.clone())
+                            .collect::<Vec<String>>();
+                        let mut expression_compilation_insert = Some(ExpressionCompilationInfo {
+                            vtable_id: id,
+                            dependencies,
+                        });
+                        std::mem::swap(
+                            expression_compilation_info,
+                            &mut expression_compilation_insert,
+                        );
 
                         let source_map_id = source_map.insert(identifier.clone());
                         let input_statement = source_map
@@ -277,7 +297,21 @@ fn recurse_compile_expressions<'a>(
             //  - must use an exclusive (..) range operator (inclusive could be supported; effort required)
 
             let id = ctx.vtable_uid_gen.next().unwrap();
-            repeat_source_definition.vtable_id = Some(id);
+            let mut deps = vec![];
+            if let Some(iterable) = &repeat_source_definition.symbolic_binding {
+                deps.push(iterable.token_value.clone());
+            } else if repeat_source_definition.range_symbolic_bindings.len() != 0 {
+                deps.extend(
+                    repeat_source_definition
+                        .range_symbolic_bindings
+                        .iter()
+                        .map(|s| s.token_value.clone()),
+                );
+            }
+            repeat_source_definition.expression_info = Some(ExpressionCompilationInfo {
+                vtable_id: id,
+                dependencies: deps,
+            });
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
@@ -451,7 +485,15 @@ fn recurse_compile_expressions<'a>(
                 compile_paxel_to_ril(condition_expression_paxel.clone(), &ctx)?;
             let id = ctx.vtable_uid_gen.next().unwrap();
 
-            cfa.condition_expression_vtable_id = Some(id);
+            let deps = invocations
+                .iter()
+                .map(|i| i.root_identifier.clone())
+                .collect::<Vec<String>>();
+
+            cfa.condition_expression_info = Some(ExpressionCompilationInfo {
+                vtable_id: id,
+                dependencies: deps,
+            });
 
             let mut whitespace_removed_input = condition_expression_paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());
@@ -477,7 +519,15 @@ fn recurse_compile_expressions<'a>(
                 compile_paxel_to_ril(slot_index_expression_paxel.clone(), &ctx)?;
             let id = ctx.vtable_uid_gen.next().unwrap();
 
-            cfa.slot_index_expression_vtable_id = Some(id);
+            let deps = invocations
+                .iter()
+                .map(|i| i.root_identifier.clone())
+                .collect::<Vec<String>>();
+
+            cfa.slot_index_expression_info = Some(ExpressionCompilationInfo {
+                vtable_id: id,
+                dependencies: deps,
+            });
 
             let mut whitespace_removed_input = slot_index_expression_paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());

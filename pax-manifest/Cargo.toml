@@ -20,3 +20,4 @@ pax-runtime-api = {path="../pax-runtime-api", version="0.12.8"}
 pest = { version="2.7.6", optional=true}
 pest_derive = {version="2.7.6", optional=true}
 serde_with = { version= "3.6.1", features = ["json"]} 
+log = "0.4.20"

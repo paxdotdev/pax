@@ -1,10 +1,11 @@
 use kurbo::{Rect, Shape};
 use pax_runtime::api::{Layer, RenderContext};
-use pax_runtime::{declarative_macros::handle_vtable_update, BaseInstance};
+use pax_runtime::BaseInstance;
 use pax_std::{primitives::Ellipse, types::Fill};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// A basic 2D vector ellipse, drawn to fill the bounds specified
@@ -34,21 +35,18 @@ impl InstanceNode for EllipseInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &mut RuntimeContext,
+        _context: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
-        let computed_props = expanded_node.layout_properties.borrow();
-        let tab = &computed_props.as_ref().unwrap().computed_tab;
-
-        let width: f64 = tab.bounds.0;
-        let height: f64 = tab.bounds.1;
+        let tab = &expanded_node.layout_properties;
+        let (width, height) = tab.bounds.get();
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);
             let accuracy = 0.1;
             let bez_path = ellipse.to_path(accuracy);
 
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform.get()) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = if let Fill::Solid(properties_color) = properties.fill.get() {
@@ -89,23 +87,5 @@ impl InstanceNode for EllipseInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
-    }
-
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        //Doesn't need to expand any children
-        expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.stroke,
-                context.globals(),
-            );
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.fill,
-                context.globals(),
-            );
-        });
     }
 }

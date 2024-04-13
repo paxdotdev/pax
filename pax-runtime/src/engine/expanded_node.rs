@@ -1,4 +1,7 @@
-use pax_runtime_api::TextInput;
+use crate::api::TextInput;
+use pax_runtime_api::math::Transform2;
+use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::{Interpolatable, Property};
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -9,11 +12,15 @@ use crate::constants::{
     TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
-use crate::{properties, Globals};
+use crate::node_interface::NodeLocal;
+use crate::{ExpressionTable, Globals};
 #[cfg(debug_assertions)]
 use core::fmt;
 use std::any::Any;
+use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
@@ -24,10 +31,11 @@ use crate::api::{
 };
 
 use crate::{
-    compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr,
-    PropertiesComputable, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+    compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext,
+    RuntimePropertiesStackFrame,
 };
 
+#[derive(Clone)]
 pub struct ExpandedNode {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
@@ -53,7 +61,10 @@ pub struct ExpandedNode {
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    pub children: RefCell<Vec<Rc<ExpandedNode>>>,
+    pub children: Property<Vec<Rc<ExpandedNode>>>,
+
+    /// A list of mounted children that need to be dismounted when children is recalculated
+    pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     pub properties: RefCell<Rc<RefCell<dyn Any>>>,
@@ -64,7 +75,7 @@ pub struct ExpandedNode {
     /// Properties that are currently re-computed each frame before rendering.
     /// Only contains computed_tab atm. Might be possible to retire if tab comp
     /// would be part of render pass?
-    pub layout_properties: RefCell<Option<LayoutProperties>>,
+    pub layout_properties: LayoutProperties,
 
     /// For component instances only, tracks the expanded slot_children in it's
     /// non-collapsed form (repeat and conditionals still present). This allows
@@ -88,11 +99,22 @@ pub struct ExpandedNode {
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
     pub occlusion_id: RefCell<u32>,
+
+    /// A map of all properties available on this expanded node.
+    /// Used by the RuntimePropertiesStackFrame to resolve symbols.
+    pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 }
+
+impl Interpolatable for ExpandedNode {}
 
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {
-        pub fn $fn_name(&self, args: $arg_type, globals: &Globals, ctx: &RuntimeContext) -> bool {
+        pub fn $fn_name(
+            &self,
+            args: $arg_type,
+            globals: &Globals,
+            ctx: &Rc<RefCell<RuntimeContext>>,
+        ) -> bool {
             let event = Event::new(args.clone());
             if let Some(registry) = self.instance_node.borrow().base().get_handler_registry() {
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
@@ -102,22 +124,22 @@ macro_rules! dispatch_event_handler {
                 };
 
                 let comp_props = self.layout_properties.borrow();
-                let bounds_self = comp_props.as_ref().unwrap().computed_tab.bounds;
+                let bounds_self = comp_props.bounds.clone();
                 let bounds_parent = self
                     .parent_expanded_node
                     .borrow()
                     .upgrade()
                     .map(|parent| {
                         let comp_props = parent.layout_properties.borrow();
-                        let bounds_parent = comp_props.as_ref().unwrap().computed_tab.bounds;
+                        let bounds_parent = comp_props.bounds.clone();
                         bounds_parent
                     })
-                    .unwrap_or(globals.viewport.bounds);
+                    .unwrap_or(globals.viewport.bounds.clone());
                 let context = NodeContext {
                     bounds_self,
                     bounds_parent,
-                    frames_elapsed: globals.frames_elapsed,
-                    runtime_context: ctx,
+                    frames_elapsed: globals.frames_elapsed.clone(),
+                    runtime_context: ctx.clone(),
                     #[cfg(feature = "designtime")]
                     designtime: globals.designtime.clone(),
                 };
@@ -151,27 +173,55 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
-    pub fn root(template: Rc<ComponentInstance>, context: &mut RuntimeContext) -> Rc<Self> {
-        let root_env =
-            RuntimePropertiesStackFrame::new(Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>);
+    pub fn root(
+        template: Rc<ComponentInstance>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) -> Rc<Self> {
+        let root_env = RuntimePropertiesStackFrame::new(
+            HashMap::new(),
+            Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>,
+        );
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
+        let ctx = (**context).borrow();
+        let globals = ctx.globals();
+        let parent_bounds = globals.viewport.bounds.clone();
+        let parent_transform = globals.viewport.transform.clone();
+        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
+        root_node.layout_properties.bounds.replace_with(bounds);
+        root_node
+            .layout_properties
+            .transform
+            .replace_with(transform);
         root_node
     }
 
     fn new(
         template: Rc<dyn InstanceNode>,
         env: Rc<RuntimePropertiesStackFrame>,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let properties = (&template.base().instance_prototypical_properties_factory)();
+        let properties = (&template.base().instance_prototypical_properties_factory)(
+            env.clone(),
+            (*(*context)).borrow().expression_table(),
+        );
         let common_properties = (&template
             .base()
-            .instance_prototypical_common_properties_factory)();
+            .instance_prototypical_common_properties_factory)(
+            env.clone(),
+            (*(*context)).borrow().expression_table(),
+        );
 
-        Rc::new(ExpandedNode {
-            id_chain: vec![context.gen_uid().0],
+        let mut property_scope = (*common_properties).borrow().retrieve_property_scope();
+
+        if let Some(scope) = &template.base().properties_scope_factory {
+            property_scope.extend(scope(properties.clone()));
+        }
+
+        let id = (**context).borrow_mut().gen_uid().0;
+        let res = Rc::new(ExpandedNode {
+            id_chain: vec![id],
             instance_node: RefCell::new(Rc::clone(&template)),
             attached: RefCell::new(0),
             properties: RefCell::new(properties),
@@ -179,23 +229,36 @@ impl ExpandedNode {
             stack: env,
             parent_expanded_node: Default::default(),
             containing_component,
-
-            children: RefCell::new(Vec::new()),
-            layout_properties: RefCell::new(None),
+            children: Property::new_with_name(
+                Vec::new(),
+                &format!("node children (node id: {})", id),
+            ),
+            mounted_children: RefCell::new(Vec::new()),
+            layout_properties: LayoutProperties::default(),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             occlusion_id: RefCell::new(0),
-        })
+            properties_scope: RefCell::new(property_scope),
+        });
+        res
     }
 
-    pub fn recreate_with_new_data(self: &Rc<Self>, template: Rc<dyn InstanceNode>) {
+    pub fn recreate_with_new_data(
+        self: &Rc<Self>,
+        template: Rc<dyn InstanceNode>,
+        expression_table: Rc<ExpressionTable>,
+    ) {
         *self.instance_node.borrow_mut() = Rc::clone(&template);
 
-        *self.properties.borrow_mut() =
-            (&template.base().instance_prototypical_properties_factory)();
+        *self.properties.borrow_mut() = (&template.base().instance_prototypical_properties_factory)(
+            self.stack.clone(),
+            expression_table.clone(),
+        );
         *self.common_properties.borrow_mut() = (template
             .base()
             .instance_prototypical_common_properties_factory)(
+            self.stack.clone(),
+            expression_table.clone(),
         );
     }
 
@@ -218,7 +281,7 @@ impl ExpandedNode {
     pub fn create_children_detached(
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
     ) -> Vec<Rc<ExpandedNode>> {
         let containing_component = if self.instance_node.borrow().base().flags().is_component {
             Rc::downgrade(&self)
@@ -242,9 +305,9 @@ impl ExpandedNode {
     pub fn attach_children(
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
-        context: &mut RuntimeContext,
-    ) {
-        let mut curr_children = self.children.borrow_mut();
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) -> Vec<Rc<ExpandedNode>> {
+        let mut curr_children = self.mounted_children.borrow_mut();
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         if *self.attached.borrow() > 0 {
             for child in curr_children.iter() {
@@ -255,43 +318,34 @@ impl ExpandedNode {
             }
         }
         for child in new_children.iter() {
+            // set parent and connect up viewport bounds to new parent
             *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
+
+            let parent_bounds = self.layout_properties.bounds.clone();
+            let parent_transform = self.layout_properties.transform.clone();
+            let (transform, bounds) = compute_tab(&child, parent_transform, parent_bounds);
+            child.layout_properties.bounds.replace_with(bounds);
+            child.layout_properties.transform.replace_with(transform);
         }
-        *curr_children = new_children;
+        *curr_children = new_children.clone();
+        new_children
     }
 
-    pub fn set_children(
+    pub fn generate_children(
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
-        context: &mut RuntimeContext,
-    ) {
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context);
-        self.attach_children(new_children, context);
+        self.attach_children(new_children, context)
     }
 
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
-    pub fn recurse_update(self: &Rc<Self>, context: &mut RuntimeContext) {
-        self.get_common_properties()
-            .borrow_mut()
-            .compute_properties(&self.stack, context.expression_table(), context.globals());
-
-        let viewport = self
-            .parent_expanded_node
-            .borrow()
-            .upgrade()
-            .and_then(|p| {
-                let props = p.layout_properties.borrow();
-                props.as_ref().map(|c| c.computed_tab.clone())
-            })
-            .unwrap_or(context.globals().viewport.clone());
-
-        *self.layout_properties.borrow_mut() = Some(LayoutProperties {
-            computed_tab: compute_tab(self, &viewport),
-        });
-
+    pub fn recurse_update(self: &Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
         if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
             for handler in registry
+                .deref()
                 .borrow()
                 .handlers
                 .get("tick")
@@ -305,14 +359,9 @@ impl ExpandedNode {
             }
         }
         Rc::clone(&self.instance_node.borrow()).update(&self, context);
-
-        if *self.attached.borrow() > 0 {
-            self.instance_node
-                .borrow()
-                .handle_native_patches(self, context);
-        }
         if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
             for handler in registry
+                .deref()
                 .borrow()
                 .handlers
                 .get("pre_render")
@@ -325,15 +374,16 @@ impl ExpandedNode {
                 )
             }
         }
-        for child in self.children.borrow().iter() {
+        for child in self.children.get().iter() {
             child.recurse_update(context);
         }
     }
 
-    pub fn recurse_mount(self: Rc<Self>, context: &mut RuntimeContext) {
+    pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
         if *self.attached.borrow() == 0 {
             *self.attached.borrow_mut() += 1;
-            context
+            (*(*context))
+                .borrow_mut()
                 .node_cache
                 .insert(self.id_chain[0], Rc::clone(&self));
 
@@ -344,10 +394,11 @@ impl ExpandedNode {
                 .template_node_identifier
                 .clone();
             if let Some(uni) = uni {
-                if let Some(nodes) = context.uni_to_eid.get_mut(&uni) {
+                let mut ctx = (*(*context)).borrow_mut();
+                if let Some(nodes) = ctx.uni_to_eid.get_mut(&uni) {
                     nodes.push(self.id_chain[0]);
                 } else {
-                    context.uni_to_eid.insert(uni, vec![self.id_chain[0]]);
+                    ctx.uni_to_eid.insert(uni, vec![self.id_chain[0]]);
                 }
             }
 
@@ -358,10 +409,14 @@ impl ExpandedNode {
             //     this requires calling `update` at least once.  (Note that this means `update` is currently called twice on init)
             //Thus: primitive#handle_mount, primitive#update, component#handle_mount.  This requires the primitive author to
             //  be aware of the fact that properties don't yet exist on mount.
-            self.instance_node.borrow().handle_mount(&self, context);
+            self.instance_node
+                .borrow()
+                .clone()
+                .handle_mount(&self, context);
             Rc::clone(&self.instance_node.borrow()).update(&self, context);
             if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
                 for handler in registry
+                    .deref()
                     .borrow()
                     .handlers
                     .get("mount")
@@ -375,18 +430,21 @@ impl ExpandedNode {
                 }
             }
         }
-        for child in self.children.borrow().iter() {
+        for child in self.children.get().iter() {
             Rc::clone(child).recurse_mount(context);
         }
     }
 
-    pub fn recurse_unmount(self: Rc<Self>, context: &mut RuntimeContext) {
-        for child in self.children.borrow().iter() {
+    pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
+        for child in self.children.get().iter() {
             Rc::clone(child).recurse_unmount(context);
         }
         if *self.attached.borrow() == 1 {
             *self.attached.borrow_mut() -= 1;
-            context.node_cache.remove(&self.id_chain[0]);
+            (*(*context))
+                .borrow_mut()
+                .node_cache
+                .remove(&self.id_chain[0]);
             let uni = self
                 .instance_node
                 .borrow()
@@ -394,7 +452,7 @@ impl ExpandedNode {
                 .template_node_identifier
                 .clone();
             if let Some(uni) = uni {
-                if let Some(nodes) = context.uni_to_eid.get_mut(&uni) {
+                if let Some(nodes) = (*(*context)).borrow_mut().uni_to_eid.get_mut(&uni) {
                     nodes.retain(|id| id != &self.id_chain[0]);
                 }
             }
@@ -402,11 +460,11 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_render(&self, ctx: &mut RuntimeContext, rcs: &mut dyn RenderContext) {
+    pub fn recurse_render(&self, ctx: &Rc<RefCell<RuntimeContext>>, rcs: &mut dyn RenderContext) {
         self.instance_node
             .borrow()
             .handle_pre_render(&self, ctx, rcs);
-        for child in self.children.borrow().iter().rev() {
+        for child in self.children.get().iter().rev() {
             child.recurse_render(ctx, rcs);
         }
         self.instance_node.borrow().render(&self, ctx, rcs);
@@ -442,32 +500,27 @@ impl ExpandedNode {
         func: &impl Fn(&Rc<Self>, &mut T),
         val: &mut T,
     ) {
-        for child in self.children.borrow().iter().rev() {
+        for child in self.children.get().iter().rev() {
             child.recurse_visit_postorder(func, val);
         }
         func(self, val);
     }
 
-    pub fn get_node_context<'a>(&'a self, context: &'a RuntimeContext) -> NodeContext {
-        let globals = context.globals();
-        let computed_props = self.layout_properties.borrow();
-        let bounds_self = computed_props
-            .as_ref()
-            .map(|v| v.computed_tab.bounds)
-            .unwrap_or(globals.viewport.bounds);
-        let parent = self.parent_expanded_node.borrow().upgrade();
-        let bounds_parent = parent
-            .as_ref()
-            .and_then(|p| {
-                let props = p.layout_properties.borrow();
-                props.as_ref().map(|v| v.computed_tab.bounds)
-            })
-            .unwrap_or(globals.viewport.bounds);
+    pub fn get_node_context<'a>(&'a self, context: &Rc<RefCell<RuntimeContext>>) -> NodeContext {
+        let ctx = (**context).borrow();
+        let globals = ctx.globals();
+        let bounds_self = self.layout_properties.bounds.clone();
+        let bounds_parent = if let Some(parent) = self.parent_expanded_node.borrow().upgrade() {
+            parent.layout_properties.bounds.clone()
+        } else {
+            globals.viewport.bounds.clone()
+        };
+
         NodeContext {
-            frames_elapsed: globals.frames_elapsed,
+            frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
-            runtime_context: context,
+            runtime_context: context.clone(),
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }
@@ -491,37 +544,16 @@ impl ExpandedNode {
             return false;
         }
 
-        let props = self.layout_properties.borrow();
-        let computed_tab = &props.as_ref().unwrap().computed_tab;
-
-        let inverted_transform = computed_tab.transform.inverse();
+        let inverted_transform = self.layout_properties.transform.get().inverse();
         let transformed_ray = inverted_transform * ray;
 
-        let relevant_bounds = computed_tab.bounds;
-
+        let (width, height) = self.layout_properties.bounds.get();
         //Default implementation: rectilinear bounding hull
         let res = transformed_ray.x > 0.0
             && transformed_ray.y > 0.0
-            && transformed_ray.x < relevant_bounds.0
-            && transformed_ray.y < relevant_bounds.1;
-
+            && transformed_ray.x < width
+            && transformed_ray.y < height;
         res
-    }
-
-    /// Returns the size of this node, or `None` if this node
-    /// doesn't have a size (e.g. `Group`)
-    pub fn get_size(&self) -> (Size, Size) {
-        self.instance_node.borrow().get_size(self)
-    }
-
-    /// Returns the size of this node in pixels, requiring this node's containing bounds
-    /// for calculation of `Percent` values
-    pub fn get_size_computed(&self, bounds: (f64, f64)) -> (f64, f64) {
-        let size = self.get_size();
-        (
-            size.0.evaluate(bounds, Axis::X),
-            size.1.evaluate(bounds, Axis::Y),
-        )
     }
 
     /// Used at least by ray-casting; only nodes that clip content (and thus should
@@ -613,20 +645,75 @@ impl ExpandedNode {
 
 /// Properties that are currently re-computed each frame before rendering.
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Clone)]
 pub struct LayoutProperties {
-    /// Computed transform and size of this ExpandedNode
-    pub computed_tab: TransformAndBounds,
+    pub transform: Property<Transform2<NodeLocal, Window>>,
+    pub bounds: Property<(f64, f64)>,
+}
+
+impl LayoutProperties {
+    pub fn corners(&self) -> [Point2<Window>; 4] {
+        let (width, height) = self.bounds.get();
+
+        let top_left = self.transform.get() * Point2::new(0.0, 0.0);
+        let top_right = self.transform.get() * Point2::new(width, 0.0);
+        let bottom_left = self.transform.get() * Point2::new(0.0, height);
+        let bottom_right = self.transform.get() * Point2::new(width, height);
+
+        [top_left, top_right, bottom_right, bottom_left]
+    }
+
+    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
+    pub fn intersects(&self, other: &Self) -> bool {
+        let corners_self = self.corners();
+        let corners_other = other.corners();
+
+        for i in 0..2 {
+            let axis = (corners_self[i] - corners_self[(i + 1) % 4]).normal();
+
+            let self_projections: Vec<_> = corners_self
+                .iter()
+                .map(|&p| p.to_vector().project_onto(axis).length())
+                .collect();
+            let other_projections: Vec<_> = corners_other
+                .iter()
+                .map(|&p| p.to_vector().project_onto(axis).length())
+                .collect();
+
+            let (min_self, max_self) = min_max_projections(&self_projections);
+            let (min_other, max_other) = min_max_projections(&other_projections);
+
+            // Check for non-overlapping projections
+            if max_self < min_other || max_other < min_self {
+                // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
+                return false;
+            }
+        }
+        true
+    }
+}
+
+fn min_max_projections(projections: &[f64]) -> (f64, f64) {
+    let min_projection = *projections
+        .iter()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    let max_projection = *projections
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    (min_projection, max_projection)
 }
 
 /// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
 /// and return another InstanceNodePtrList with a flattened top-level list of nodes.
 fn flatten_expanded_nodes_for_slot(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<ExpandedNode>> {
-    let mut result = vec![];
+    let mut result: Vec<Rc<ExpandedNode>> = vec![];
     for node in nodes {
         if node.instance_node.borrow().base().flags().invisible_to_slot {
             result.extend(flatten_expanded_nodes_for_slot(
                 node.children
-                    .borrow()
+                    .get()
                     .clone()
                     .into_iter()
                     .collect::<Vec<_>>()
@@ -668,10 +755,7 @@ impl std::fmt::Debug for ExpandedNode {
             //     "computed_expanded_properties",
             //     &self.computed_expanded_properties.try_borrow(),
             // )
-            .field(
-                "children",
-                &self.children.try_borrow().iter().collect::<Vec<_>>(),
-            )
+            .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field(
                 "parent",
                 &self

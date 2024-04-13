@@ -1,18 +1,26 @@
-use pax_runtime::{api::math::Point2, api::RenderContext};
+use pax_runtime::{
+    api::RenderContext,
+    api::{math::Point2, Property},
+};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
 use pax_message::ImagePatch;
 use pax_runtime::{
-    declarative_macros::handle_vtable_update, BaseInstance, ExpandedNode, InstanceFlags,
-    InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use std::rc::Rc;
+
+use crate::patch_if_needed;
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`
 pub struct ImageInstance {
     base: BaseInstance,
-    last_patches: RefCell<HashMap<Vec<u32>, pax_message::ImagePatch>>,
+    // Properties that listen to Image property changes, and computes
+    // a patch in the case that they have changed + sends it as a native
+    // message to the chassi. Since InstanceNode -> ExpandedNode has a one
+    // to many relationship, needs to be a hashmap
+    native_message_props: RefCell<HashMap<u32, Property<()>>>,
 }
 
 impl InstanceNode for ImageInstance {
@@ -30,61 +38,101 @@ impl InstanceNode for ImageInstance {
                     is_component: false,
                 },
             ),
-            last_patches: Default::default(),
+            native_message_props: Default::default(),
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        //Doesn't need to expand any children
-        expanded_node.with_properties_unwrapped(|properties: &mut Image| {
-            handle_vtable_update(
-                context.expression_table(),
-                &expanded_node.stack,
-                &mut properties.path,
-                context.globals(),
-            );
-        });
+    fn update(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        //trigger computation of property that computes + sends native message update
+        self.native_message_props
+            .borrow()
+            .get(&expanded_node.id_chain[0])
+            .unwrap()
+            .get();
     }
 
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, rtc: &mut RuntimeContext) {
-        let val =
-            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
-        let mut new_message: ImagePatch = Default::default();
-        new_message.id_chain = expanded_node.id_chain.clone();
-        let mut last_patches = self.last_patches.borrow_mut();
-        if !last_patches.contains_key(&new_message.id_chain) {
-            let mut patch = ImagePatch::default();
-            patch.id_chain = new_message.id_chain.clone();
-            last_patches.insert(new_message.id_chain.clone(), patch);
-        }
-        let last_patch = last_patches.get_mut(&new_message.id_chain).unwrap();
-        let mut has_any_updates = false;
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        let id_chain = expanded_node.id_chain.clone();
 
-        let is_new_value = match &last_patch.path {
-            Some(cached_value) => !val.string.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.path = Some(val.string.clone());
-            last_patch.path = Some(val.string.clone());
-            has_any_updates = true;
-        }
+        // send update message when relevant properties change
+        let weak_self_ref = Rc::downgrade(&expanded_node);
+        let context = Rc::clone(context);
+        let last_patch = Rc::new(RefCell::new(ImagePatch {
+            id_chain: id_chain.clone(),
+            ..Default::default()
+        }));
 
-        if has_any_updates {
-            rtc.enqueue_native_message(pax_message::NativeMessage::ImageLoad(new_message));
-        }
+        let deps: Vec<_> = expanded_node
+            .properties_scope
+            .borrow()
+            .values()
+            .cloned()
+            .chain([
+                expanded_node.layout_properties.transform.untyped(),
+                expanded_node.layout_properties.bounds.untyped(),
+            ])
+            .collect();
+        self.native_message_props.borrow_mut().insert(
+            id_chain[0],
+            Property::computed(
+                move || {
+                    let Some(expanded_node) = weak_self_ref.upgrade() else {
+                        unreachable!()
+                    };
+                    let id_chain = expanded_node.id_chain.clone();
+                    let mut old_state = last_patch.borrow_mut();
+
+                    let mut patch = ImagePatch {
+                        id_chain: id_chain.clone(),
+                        ..Default::default()
+                    };
+                    let path_val = expanded_node
+                        .with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
+
+                    let update =
+                        patch_if_needed(&mut old_state.path, &mut patch.path, path_val.string);
+
+                    if update {
+                        context
+                            .borrow_mut()
+                            .enqueue_native_message(pax_message::NativeMessage::ImageLoad(patch));
+                    }
+                    ()
+                },
+                &deps,
+            ),
+        );
+    }
+
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        let id_chain = expanded_node.id_chain.clone();
+        let id = id_chain[0];
+        // Reset so that native_message stops sending updates while unmounted
+        self.native_message_props.borrow_mut().remove(&id);
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &mut RuntimeContext,
+        _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
-        let comp_props = &expanded_node.layout_properties.borrow();
-        let comp_props = comp_props.as_ref().unwrap();
-        let transform = comp_props.computed_tab.transform;
-        let bounding_dimens = comp_props.computed_tab.bounds;
+        let transform = expanded_node.layout_properties.transform.get();
+        let bounding_dimens = expanded_node.layout_properties.bounds.get();
+        let width = bounding_dimens.0;
+        let height = bounding_dimens.1;
 
         let transformed_bounds = kurbo::Rect::new(0.0, 0.0, bounding_dimens.0, bounding_dimens.1);
 

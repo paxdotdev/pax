@@ -1,122 +1,182 @@
+use std::rc::Rc;
+
+use pax_runtime_api::{Property, Window};
+
 use crate::api::math::{Generic, Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
 use crate::node_interface::NodeLocal;
-use crate::{ExpandedNode, TransformAndBounds};
+use crate::ExpandedNode;
 
 /// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
 /// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.
-pub fn compute_tab(node: &ExpandedNode, container_tab: &TransformAndBounds) -> TransformAndBounds {
+pub fn compute_tab(
+    node: &Rc<ExpandedNode>,
+    container_transform: Property<Transform2<NodeLocal, Window>>,
+    container_bounds: Property<(f64, f64)>,
+) -> (
+    Property<Transform2<NodeLocal, Window>>,
+    Property<(f64, f64)>,
+) {
     //get the size of this node (calc'd or otherwise) and use
     //it as the new accumulated bounds: both for this node's children (their parent container bounds)
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
 
-    let new_accumulated_bounds_and_current_node_size =
-        { node.get_size_computed(container_tab.bounds) };
+    let cp_container_bounds = container_bounds.clone();
+    let common_props = node.get_common_properties();
+    let common_props = common_props.borrow();
+    let cp_width = common_props.width.clone();
+    let cp_height = common_props.height.clone();
 
-    let node_transform_property_computed = {
-        node.get_common_properties()
-            .borrow()
-            .transform
-            .get()
-            .compute_transform2d_matrix(
-                new_accumulated_bounds_and_current_node_size.clone(),
-                container_tab.bounds,
-            )
-            .cast_spaces::<NodeLocal, NodeLocal>()
-    };
+    let deps = vec![
+        container_bounds.untyped(),
+        cp_width.untyped(),
+        cp_height.untyped(),
+    ];
 
-    // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
-    let desugared_transform = {
-        //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-        let comm = node.get_common_properties();
-        let comm = comm.borrow();
-        let mut desugared_transform2d = Transform2D::default();
+    let bounds = Property::computed_with_name(
+        move || {
+            let p_bounds = cp_container_bounds.get();
+            let width = cp_width.get().evaluate(p_bounds, Axis::X);
+            let height = cp_height.get().evaluate(p_bounds, Axis::Y);
+            (width, height)
+        },
+        &deps,
+        &format!("bounds of node {}", node.id_chain[0]),
+    );
 
-        let translate = [
-            if let Some(ref val) = comm.x {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-            if let Some(ref val) = comm.y {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-        ];
-        desugared_transform2d.translate = Some(translate);
+    let cp_bounds = bounds.clone();
+    let cp_transform = common_props.transform.clone();
+    let cp_container_bounds = container_bounds.clone();
+    let cp_x = common_props.x.clone();
+    let cp_y = common_props.y.clone();
+    let cp_anchor_x = common_props.anchor_x.clone();
+    let cp_anchor_y = common_props.anchor_y.clone();
+    let cp_scale_x = common_props.scale_x.clone();
+    let cp_scale_y = common_props.scale_y.clone();
+    let cp_skew_x = common_props.skew_x.clone();
+    let cp_skew_y = common_props.skew_y.clone();
+    let cp_rotate = common_props.rotate.clone();
 
-        let anchor = [
-            if let Some(ref val) = comm.anchor_x {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-            if let Some(ref val) = comm.anchor_y {
-                val.get().clone()
-            } else {
-                Size::ZERO()
-            },
-        ];
-        desugared_transform2d.anchor = Some(anchor);
+    let size_props = [
+        &cp_x,
+        &cp_y,
+        &cp_anchor_x,
+        &cp_anchor_y,
+        &cp_scale_x,
+        &cp_scale_y,
+    ]
+    .map(|v| v.as_ref().map(|p| p.untyped()))
+    .into_iter()
+    .flatten();
 
-        let scale = [
-            if let Some(ref val) = comm.scale_x {
-                val.get().clone()
-            } else {
-                Size::Percent(crate::numeric::Numeric::from(100.0))
-            },
-            if let Some(ref val) = comm.scale_y {
-                val.get().clone()
-            } else {
-                Size::Percent(crate::numeric::Numeric::from(100.0))
-            },
-        ];
-        desugared_transform2d.scale = Some(scale);
+    let other_props = [
+        cp_skew_x.as_ref().map(|p| p.untyped()),
+        cp_skew_y.as_ref().map(|p| p.untyped()),
+        cp_rotate.as_ref().map(|p| p.untyped()),
+    ]
+    .into_iter()
+    .flatten();
 
-        let skew = [
-            if let Some(ref val) = comm.skew_x {
-                val.get().to_float()
-            } else {
-                0.0
-            },
-            if let Some(ref val) = comm.skew_y {
-                val.get().to_float()
-            } else {
-                0.0
-            },
-        ];
-        desugared_transform2d.skew = Some(skew);
+    let all_transform_deps: Vec<_> = size_props
+        .chain(other_props)
+        .chain(
+            [
+                cp_transform.untyped(),
+                cp_bounds.untyped(),
+                cp_container_bounds.untyped(),
+                container_transform.untyped(),
+            ]
+            .into_iter(),
+        )
+        .collect();
 
-        let rotate = if let Some(ref val) = comm.rotate {
-            val.get().clone()
-        } else {
-            Default::default()
-        };
-        desugared_transform2d.rotate = Some(rotate);
+    let transform = Property::computed_with_name(
+        move || {
+            let node_transform_property_computed = {
+                cp_transform
+                    .get()
+                    .compute_transform2d_matrix(cp_bounds.get(), cp_container_bounds.get())
+                    .cast_spaces::<NodeLocal, NodeLocal>()
+            };
+            // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
+            let desugared_transform = {
+                //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
+                let mut desugared_transform2d = Transform2D::default();
 
-        desugared_transform2d
-            .compute_transform2d_matrix(
-                new_accumulated_bounds_and_current_node_size.clone(),
-                container_tab.bounds,
-            )
-            .cast_spaces::<NodeLocal, NodeLocal>()
-    };
+                let translate = [
+                    if let Some(ref val) = cp_x {
+                        val.get().clone()
+                    } else {
+                        Size::ZERO()
+                    },
+                    if let Some(ref val) = cp_y {
+                        val.get().clone()
+                    } else {
+                        Size::ZERO()
+                    },
+                ];
+                desugared_transform2d.translate = Some(translate);
 
-    let new_accumulated_transform =
-        container_tab.transform * desugared_transform * node_transform_property_computed;
+                let anchor = [
+                    if let Some(ref val) = cp_anchor_x {
+                        val.get().clone()
+                    } else {
+                        Size::ZERO()
+                    },
+                    if let Some(ref val) = cp_anchor_y {
+                        val.get().clone()
+                    } else {
+                        Size::ZERO()
+                    },
+                ];
+                desugared_transform2d.anchor = Some(anchor);
 
-    // let new_scroller_normalized_accumulated_transform =
-    //     accumulated_scroller_normalized_transform
-    //         * desugared_transform
-    //         * node_transform_property_computed;
+                let scale = [
+                    if let Some(ref val) = cp_scale_x {
+                        val.get().clone()
+                    } else {
+                        Size::Percent(crate::numeric::Numeric::from(100.0))
+                    },
+                    if let Some(ref val) = cp_scale_y {
+                        val.get().clone()
+                    } else {
+                        Size::Percent(crate::numeric::Numeric::from(100.0))
+                    },
+                ];
+                desugared_transform2d.scale = Some(scale);
 
-    // rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
+                let skew = [
+                    if let Some(ref val) = cp_skew_x {
+                        val.get().to_float()
+                    } else {
+                        0.0
+                    },
+                    if let Some(ref val) = cp_skew_y {
+                        val.get().to_float()
+                    } else {
+                        0.0
+                    },
+                ];
+                desugared_transform2d.skew = Some(skew);
 
-    TransformAndBounds {
-        transform: new_accumulated_transform,
-        bounds: new_accumulated_bounds_and_current_node_size,
-    }
+                let rotate = if let Some(ref val) = cp_rotate {
+                    val.get().clone()
+                } else {
+                    Default::default()
+                };
+                desugared_transform2d.rotate = Some(rotate);
+
+                desugared_transform2d
+                    .compute_transform2d_matrix(cp_bounds.get(), container_bounds.get())
+                    .cast_spaces::<NodeLocal, NodeLocal>()
+            };
+            container_transform.get() * desugared_transform * node_transform_property_computed
+        },
+        &all_transform_deps,
+        &format!("transform of node {}", node.id_chain[0]),
+    );
+
+    (transform, bounds)
 }
 
 pub trait ComputableTransform {

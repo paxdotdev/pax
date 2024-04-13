@@ -1,19 +1,20 @@
 use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
-use super::api::math::Point2;
 use std::iter;
 use std::rc::Rc;
 
-use crate::api::math::Transform2;
-use crate::api::{CommonProperties, RenderContext, Window};
-use crate::node_interface::NodeLocal;
+use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_runtime_api::properties::UntypedProperty;
 use piet::{Color, StrokeStyle};
 
-use crate::api::{Layer, Scroll, Size};
+use crate::api::{Layer, Scroll};
 
-use crate::{ExpandedNode, ExpressionTable, Globals, HandlerRegistry, RuntimeContext};
+use crate::{
+    ExpandedNode, ExpressionTable, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame,
+};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -21,82 +22,22 @@ pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
 pub struct InstantiationArgs {
-    pub prototypical_common_properties_factory: Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
-    pub prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
+    pub prototypical_common_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Rc<ExpressionTable>,
+        ) -> Rc<RefCell<CommonProperties>>,
+    >,
+    pub prototypical_properties_factory:
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
 
-    ///used by Component instances, specifically to unwrap dyn Any properties
-    ///and recurse into descendant property computation
-    pub compute_properties_fn: Option<Box<dyn Fn(&ExpandedNode, &ExpressionTable, &Globals)>>,
-
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
-}
-
-/// Stores the computed transform and the pre-transform bounding box (where the
-/// other corner is the origin).  Useful for ray-casting, along with
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, PartialEq)]
-pub struct TransformAndBounds {
-    pub transform: Transform2<NodeLocal, Window>,
-    pub bounds: (f64, f64),
-    // pub clipping_bounds: Option<(f64, f64)>,
-}
-
-impl TransformAndBounds {
-    pub fn corners(&self) -> [Point2<Window>; 4] {
-        let width = self.bounds.0;
-        let height = self.bounds.1;
-
-        let top_left = self.transform * Point2::new(0.0, 0.0);
-        let top_right = self.transform * Point2::new(width, 0.0);
-        let bottom_left = self.transform * Point2::new(0.0, height);
-        let bottom_right = self.transform * Point2::new(width, height);
-
-        [top_left, top_right, bottom_right, bottom_left]
-    }
-
-    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
-    pub fn intersects(&self, other: &Self) -> bool {
-        let corners_self = self.corners();
-        let corners_other = other.corners();
-
-        for i in 0..2 {
-            let axis = (corners_self[i] - corners_self[(i + 1) % 4]).normal();
-
-            let self_projections: Vec<_> = corners_self
-                .iter()
-                .map(|&p| p.to_vector().project_onto(axis).length())
-                .collect();
-            let other_projections: Vec<_> = corners_other
-                .iter()
-                .map(|&p| p.to_vector().project_onto(axis).length())
-                .collect();
-
-            let (min_self, max_self) = min_max_projections(&self_projections);
-            let (min_other, max_other) = min_max_projections(&other_projections);
-
-            // Check for non-overlapping projections
-            if max_self < min_other || max_other < min_self {
-                // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
-                return false;
-            }
-        }
-        true
-    }
-}
-
-fn min_max_projections(projections: &[f64]) -> (f64, f64) {
-    let min_projection = *projections
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    let max_projection = *projections
-        .iter()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    (min_projection, max_projection)
+    // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
+    pub properties_scope_factory:
+        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>>>,
 }
 
 #[derive(Clone)]
@@ -134,24 +75,6 @@ pub trait InstanceNode {
     where
         Self: Sized;
 
-    /// Returns the bounds of an InstanceNode.  This computation requires a stateful [`ExpandedNode`], yet requires
-    /// customization at the trait-implementor level (dyn InstanceNode), thus this method accepts an expanded_node
-    /// parameter.
-    /// The default implementation retrieves the expanded_node's [`crate::api::CommonProperties#width`] and [`crate::api::CommonProperties#height`]
-    fn get_size(&self, expanded_node: &ExpandedNode) -> (Size, Size) {
-        let common_properties = expanded_node.get_common_properties();
-        let common_properties_borrowed = common_properties.borrow();
-        (
-            common_properties_borrowed.width.get().clone(),
-            common_properties_borrowed.height.get().clone(),
-        )
-    }
-
-    #[allow(unused_variables)]
-    fn get_clipping_size(&self, expanded_node: &ExpandedNode) -> Option<(Size, Size)> {
-        None
-    }
-
     #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
@@ -159,19 +82,13 @@ pub trait InstanceNode {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result;
 
-    /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
-    /// Called by engine after [`expand_node`], passed calculated size and transform matrix coefficients for convenience
-    /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
-    ///
-    /// An implementor of `handle_native_patches` is responsible for determining which properties if any have changed
-    /// (e.g. by keeping a local patch object as a cache of last known values.)
-    #[allow(unused_variables)]
-    fn handle_native_patches(&self, expanded_node: &ExpandedNode, context: &mut RuntimeContext) {
-        //no-op default implementation
-    }
-
     /// Updates the expanded node, recomputing it's properties and possibly updating it's children
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &mut RuntimeContext) {}
+    fn update(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+    }
 
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
@@ -182,7 +99,7 @@ pub trait InstanceNode {
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         //no-op default implementation
@@ -196,7 +113,7 @@ pub trait InstanceNode {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
     }
@@ -210,7 +127,7 @@ pub trait InstanceNode {
     fn handle_post_render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &mut RuntimeContext,
+        context: &Rc<RefCell<RuntimeContext>>,
         rcs: &mut dyn RenderContext,
     ) {
         //no-op default implementation
@@ -221,17 +138,27 @@ pub trait InstanceNode {
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
     #[allow(unused_variables)]
-    fn handle_mount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         let env = Rc::clone(&expanded_node.stack);
         let children = self.base().get_instance_children().borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-        expanded_node.set_children(children_with_envs, context);
+
+        let new_children = expanded_node.generate_children(children_with_envs, context);
+        expanded_node.children.set(new_children);
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
+    fn handle_unmount(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node
@@ -247,10 +174,17 @@ pub trait InstanceNode {
 
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_prototypical_properties_factory: Box<dyn Fn() -> Rc<RefCell<dyn Any>>>,
-    pub instance_prototypical_common_properties_factory:
-        Box<dyn Fn() -> Rc<RefCell<CommonProperties>>>,
+    pub instance_prototypical_properties_factory:
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>>,
+    pub instance_prototypical_common_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Rc<ExpressionTable>,
+        ) -> Rc<RefCell<CommonProperties>>,
+    >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    pub properties_scope_factory:
+        Option<Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -283,6 +217,7 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
+            properties_scope_factory: args.properties_scope_factory,
         }
     }
 

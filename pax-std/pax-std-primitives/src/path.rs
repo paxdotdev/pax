@@ -1,5 +1,4 @@
 use kurbo::BezPath;
-use pax_runtime::declarative_macros::handle_vtable_update;
 
 use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
@@ -8,6 +7,7 @@ use pax_runtime::{
 use pax_std::primitives::Path;
 use pax_std::types::{PathElement, Point};
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
@@ -33,32 +33,10 @@ impl InstanceNode for PathInstance {
         })
     }
 
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &mut RuntimeContext) {
-        expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let tbl = context.expression_table();
-            let stk = &expanded_node.stack;
-            handle_vtable_update(tbl, stk, &mut properties.stroke, context.globals());
-            handle_vtable_update(
-                tbl,
-                stk,
-                &mut properties.stroke.get_mut().color,
-                context.globals(),
-            );
-            handle_vtable_update(
-                tbl,
-                stk,
-                &mut properties.stroke.get_mut().width,
-                context.globals(),
-            );
-            handle_vtable_update(tbl, stk, &mut properties.fill, context.globals());
-            handle_vtable_update(tbl, stk, &mut properties.elements, context.globals());
-        });
-    }
-
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &mut RuntimeContext,
+        _rtc: &Rc<RefCell<RuntimeContext>>,
         rc: &mut dyn RenderContext,
     ) {
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
@@ -66,10 +44,10 @@ impl InstanceNode for PathInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let mut bez_path = BezPath::new();
 
-            let layout_props = expanded_node.layout_properties.borrow();
-            let bounds = layout_props.as_ref().unwrap().computed_tab.bounds;
+            let bounds = expanded_node.layout_properties.bounds.get();
 
-            let mut itr_elems = properties.elements.get().iter();
+            let elems = properties.elements.get();
+            let mut itr_elems = elems.iter();
 
             if let Some(elem) = itr_elems.next() {
                 if let &PathElement::Point(x, y) = elem {
@@ -109,10 +87,8 @@ impl InstanceNode for PathInstance {
                 }
             }
 
-            let computed_props = expanded_node.layout_properties.borrow();
-            let tab = &computed_props.as_ref().unwrap().computed_tab;
-
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
+            let tab = &expanded_node.layout_properties;
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform.get()) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = properties.fill.get().to_piet_color();

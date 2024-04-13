@@ -176,12 +176,9 @@ pub struct InfoRequest {
 fn extract_rust_type(ty: &Type) -> String {
     let ty_str = ty.to_token_stream().to_string();
 
-    if let Some(inner) = extract_between(&ty_str, "Property <", ">") {
-        return inner.replace(" ", "");
-    } else if let Some(inner) = extract_between(&ty_str, "PropertyInstance <", ">") {
+    if let Some(inner) = extract_between(&ty_str, "Property<", ">") {
         return inner.replace(" ", "");
     }
-
     ty_str
 }
 

@@ -68,6 +68,16 @@ impl PaxManifest {
             .unwrap()
             .get_location(&uni.template_node_id)
     }
+
+    pub fn get_all_property_names(&self, type_id: &TypeId) -> HashSet<String> {
+        let mut ret = HashSet::new();
+        self.get_all_component_properties(type_id)
+            .iter()
+            .for_each(|prop| {
+                ret.insert(prop.name.clone());
+            });
+        ret
+    }
 }
 
 pub fn get_common_properties_type_ids() -> Vec<TypeId> {
@@ -563,7 +573,7 @@ impl TypeId {
         let ret = id.replace("crate::", "").to_string();
         #[allow(non_snake_case)]
         let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
+        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.iter().cloned().collect();
 
         if primitives_set.contains(id.as_str()) || id.contains("pax_reexports") {
             Some(ret.to_string())
@@ -1149,14 +1159,14 @@ impl ComponentTemplate {
 
     /// Returns a map from string to expression id.
     /// This is used for live reloading without compilation
-    pub fn get_known_expressions(&self) -> HashMap<String, usize> {
+    pub fn get_known_expressions(&self) -> HashMap<String, ExpressionCompilationInfo> {
         let mut ret = HashMap::new();
         for (_, tnd) in self.nodes.iter() {
             if let Some(settings) = &tnd.settings {
                 for setting in settings {
                     if let SettingElement::Setting(_, v) = setting {
                         if let ValueDefinition::Expression(t, id) = v {
-                            ret.insert(t.raw_value.clone(), id.unwrap());
+                            ret.insert(t.raw_value.clone(), id.clone().unwrap());
                         }
                         if let ValueDefinition::Block(b) = v {
                             Self::recurse_get_known_expressions(b, &mut ret);
@@ -1170,12 +1180,12 @@ impl ComponentTemplate {
 
     fn recurse_get_known_expressions(
         block: &LiteralBlockDefinition,
-        known_expressions: &mut HashMap<String, usize>,
+        known_expressions: &mut HashMap<String, ExpressionCompilationInfo>,
     ) {
         for s in block.elements.iter() {
             if let SettingElement::Setting(_, v) = s {
-                if let ValueDefinition::Expression(t, id) = v {
-                    known_expressions.insert(t.raw_value.clone(), id.unwrap());
+                if let ValueDefinition::Expression(t, e) = v {
+                    known_expressions.insert(t.raw_value.clone(), e.clone().unwrap());
                 }
                 if let ValueDefinition::Block(b) = v {
                     Self::recurse_get_known_expressions(b, known_expressions);
@@ -1185,14 +1195,17 @@ impl ComponentTemplate {
     }
 
     /// Given a list of known expressions, this function will update the expression ids in the template
-    pub fn update_expression_ids(&mut self, known_expressions: &HashMap<String, usize>) {
+    pub fn update_expression_ids(
+        &mut self,
+        known_expressions: &HashMap<String, ExpressionCompilationInfo>,
+    ) {
         for (_, tnd) in self.nodes.iter_mut() {
             if let Some(settings) = &mut tnd.settings {
                 for setting in settings {
-                    if let SettingElement::Setting(k, v) = setting {
-                        if let ValueDefinition::Expression(t, id) = v {
-                            if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
-                                *id = Some(*new_id);
+                    if let SettingElement::Setting(_k, v) = setting {
+                        if let ValueDefinition::Expression(t, ec) = v {
+                            if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
+                                *ec = Some(new_ec.clone());
                             }
                         }
                         if let ValueDefinition::Block(b) = v {
@@ -1206,13 +1219,13 @@ impl ComponentTemplate {
 
     fn recurse_update_block(
         block: &mut LiteralBlockDefinition,
-        known_expressions: &HashMap<String, usize>,
+        known_expressions: &HashMap<String, ExpressionCompilationInfo>,
     ) {
         for s in block.elements.iter_mut() {
-            if let SettingElement::Setting(k, v) = s {
-                if let ValueDefinition::Expression(t, id) = v {
-                    if let Some(new_id) = known_expressions.get(t.raw_value.trim()) {
-                        *id = Some(*new_id);
+            if let SettingElement::Setting(_k, v) = s {
+                if let ValueDefinition::Expression(t, ec) = v {
+                    if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
+                        *ec = Some(new_ec.clone());
                     }
                 }
                 if let ValueDefinition::Block(b) = v {
@@ -1444,6 +1457,14 @@ impl TypeDefinition {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct ExpressionCompilationInfo {
+    pub vtable_id: usize,
+    /// symbols used in the expression
+    pub dependencies: Vec<String>,
+}
+
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
@@ -1454,9 +1475,9 @@ pub enum ValueDefinition {
     LiteralValue(Token),
     Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
-    Expression(Token, Option<usize>),
+    Expression(Token, Option<ExpressionCompilationInfo>),
     /// (Expression contents, vtable id binding)
-    Identifier(Token, Option<usize>),
+    Identifier(Token, Option<ExpressionCompilationInfo>),
     EventBindingTarget(Token),
 }
 
@@ -1553,6 +1574,21 @@ pub enum ControlFlowRepeatPredicateDefinition {
     ElemIdIndexId(Token, Token),
 }
 
+impl ControlFlowRepeatPredicateDefinition {
+    pub fn get_symbols(&self) -> HashSet<String> {
+        match self {
+            ControlFlowRepeatPredicateDefinition::ElemId(t) => {
+                vec![t.raw_value.clone()].into_iter().collect()
+            }
+            ControlFlowRepeatPredicateDefinition::ElemIdIndexId(t1, t2) => {
+                vec![t1.raw_value.clone(), t2.raw_value.clone()]
+                    .into_iter()
+                    .collect()
+            }
+        }
+    }
+}
+
 /// Container for storing parsed control flow information, for
 /// example the string (PAXEL) representations of condition / slot / repeat
 /// expressions and the related vtable ids (for "punching" during expression compilation)
@@ -1560,9 +1596,9 @@ pub enum ControlFlowRepeatPredicateDefinition {
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression_paxel: Option<Token>,
-    pub condition_expression_vtable_id: Option<usize>,
+    pub condition_expression_info: Option<ExpressionCompilationInfo>,
     pub slot_index_expression_paxel: Option<Token>,
-    pub slot_index_expression_vtable_id: Option<usize>,
+    pub slot_index_expression_info: Option<ExpressionCompilationInfo>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
 }
@@ -1607,7 +1643,8 @@ impl Hash for ControlFlowSettingsDefinition {
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<Token>,
-    pub vtable_id: Option<usize>,
+    pub range_symbolic_bindings: Vec<Token>,
+    pub expression_info: Option<ExpressionCompilationInfo>,
     pub symbolic_binding: Option<Token>,
 }
 
@@ -1845,7 +1882,7 @@ pub struct HostCrateInfo {
 }
 
 //Effectively our `Prelude` types
-pub const IMPORTS_BUILTINS: [&str; 29] = [
+pub const IMPORTS_BUILTINS: &[&str] = &[
     "std::any::Any",
     "std::cell::RefCell",
     "std::collections::HashMap",
@@ -1857,13 +1894,11 @@ pub const IMPORTS_BUILTINS: [&str; 29] = [
     "pax_runtime::ConditionalProperties",
     "pax_runtime::SlotProperties",
     "pax_runtime::get_numeric_from_wrapped_properties",
-    "pax_runtime::api::PropertyInstance",
-    "pax_runtime::api::PropertyLiteral",
+    "pax_runtime::api::Property",
     "pax_runtime::api::CommonProperties",
     "pax_runtime::api::Color::*",
     "pax_runtime::ComponentInstance",
     "pax_runtime::InstanceNodePtr",
-    "pax_runtime::api::expressions::PropertyExpression",
     "pax_runtime::InstanceNodePtrList",
     "pax_runtime::ExpressionContext",
     "pax_runtime::PaxEngine",
