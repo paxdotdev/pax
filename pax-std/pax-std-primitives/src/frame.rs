@@ -1,6 +1,3 @@
-use core::option::Option;
-use core::option::Option::Some;
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
