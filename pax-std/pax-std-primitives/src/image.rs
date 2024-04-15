@@ -1,7 +1,4 @@
-use pax_runtime::{
-    api::RenderContext,
-    api::{math::Point2, Property},
-};
+use pax_runtime::{api::Property, api::RenderContext};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
@@ -134,7 +131,7 @@ impl InstanceNode for ImageInstance {
         let width = bounding_dimens.0;
         let height = bounding_dimens.1;
 
-        let transformed_bounds = kurbo::Rect::new(0.0, 0.0, bounding_dimens.0, bounding_dimens.1);
+        let transformed_bounds = kurbo::Rect::new(0.0, 0.0, width, height);
 
         let path =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());

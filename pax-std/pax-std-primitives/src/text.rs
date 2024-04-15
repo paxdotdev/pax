@@ -1,15 +1,18 @@
-use kurbo::{RoundedRect, Shape};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime::api::{Layer, Property, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
-    DEBUG_TEXT_GREEN_BACKGROUND,
 };
 use pax_std::primitives::Text;
-use piet::Color;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+#[cfg(feature = "designtime")]
+use {
+    kurbo::{RoundedRect, Shape},
+    pax_runtime::DEBUG_TEXT_GREEN_BACKGROUND,
+    piet::Color,
+};
 
 use crate::patch_if_needed;
 

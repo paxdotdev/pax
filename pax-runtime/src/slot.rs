@@ -1,5 +1,3 @@
-use core::option::Option;
-
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
