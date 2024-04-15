@@ -8,9 +8,9 @@ use super::{private::PropertyId, PropertyValue};
 
 thread_local! {
     /// Global property table used to store data backing dirty-dag
-    pub static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
+    pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
     /// Property time variable, to be used by
-    pub static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
+    pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
 }
 
 /// The main collection of data associated with a specific property id

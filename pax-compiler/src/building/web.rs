@@ -2,7 +2,7 @@ use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, ERR_SPAWN, PAX_BADGE,
     PKG_DIR_NAME, PUBLIC_DIR_NAME,
 };
-use crate::{copy_dir_recursively, pre_exec_hook, RunContext, RunTarget};
+use crate::{copy_dir_recursively, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use colored::Colorize;
@@ -75,7 +75,7 @@ pub fn build_web_chassis_with_cartridge(
 
     #[cfg(unix)]
     unsafe {
-        cmd.pre_exec(pre_exec_hook);
+        cmd.pre_exec(crate::pre_exec_hook);
     }
 
     let child = cmd.spawn().expect(ERR_SPAWN);
