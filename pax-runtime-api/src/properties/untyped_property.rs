@@ -1,10 +1,3 @@
-use std::{
-    any::{Any, TypeId},
-    marker::PhantomData,
-};
-
-use crate::Property;
-
 use super::{
     private::PropertyId,
     properties_table::{PropertyType, PROPERTY_TABLE},

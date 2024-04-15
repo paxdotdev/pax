@@ -6,7 +6,6 @@ pub use pax_runtime_api::*;
 use {
     crate::api::math::Point2, crate::node_interface::NodeInterface,
     pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier,
-    std::cell::RefCell, std::rc::Rc,
 };
 
 #[derive(Clone)]
@@ -19,6 +18,7 @@ pub struct NodeContext {
     /// The bounds of this element in px
     pub bounds_self: Property<(f64, f64)>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
+    #[allow(unused)]
     pub(crate) runtime_context: Rc<RefCell<RuntimeContext>>,
 
     #[cfg(feature = "designtime")]
