@@ -2,7 +2,7 @@ use colored::Colorize;
 use serde_json::Value;
 
 use crate::helpers::{BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, PAX_BADGE, PKG_DIR_NAME};
-use crate::{copy_dir_recursively, pre_exec_hook, wait_with_output, RunContext, RunTarget};
+use crate::{copy_dir_recursively, wait_with_output, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use eyre::eyre;
@@ -130,7 +130,7 @@ pub fn build_apple_chassis_with_cartridge(
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
 
             let child = cmd.spawn().expect(ERR_SPAWN);
@@ -211,7 +211,7 @@ pub fn build_apple_chassis_with_cartridge(
 
         #[cfg(unix)]
         unsafe {
-            cmd.pre_exec(pre_exec_hook);
+            cmd.pre_exec(crate::pre_exec_hook);
         }
         let child = cmd.spawn().unwrap();
         let output = wait_with_output(&process_child_ids, child);
@@ -292,7 +292,7 @@ pub fn build_apple_chassis_with_cartridge(
 
             #[cfg(unix)]
             unsafe {
-                lipo_command.pre_exec(pre_exec_hook);
+                lipo_command.pre_exec(crate::pre_exec_hook);
             }
             let child = lipo_command.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -335,7 +335,7 @@ pub fn build_apple_chassis_with_cartridge(
 
             #[cfg(unix)]
             unsafe {
-                lipo_command.pre_exec(pre_exec_hook);
+                lipo_command.pre_exec(crate::pre_exec_hook);
             }
             let child = lipo_command.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -447,7 +447,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
     #[cfg(unix)]
     unsafe {
-        cmd.pre_exec(pre_exec_hook);
+        cmd.pre_exec(crate::pre_exec_hook);
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(&process_child_ids, child);
@@ -581,7 +581,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -635,7 +635,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -653,7 +653,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let _output = wait_with_output(&process_child_ids, child);
@@ -671,7 +671,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -716,7 +716,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -734,7 +734,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             #[cfg(unix)]
             unsafe {
-                cmd.pre_exec(pre_exec_hook);
+                cmd.pre_exec(crate::pre_exec_hook);
             }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
@@ -769,7 +769,7 @@ fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>
 
     #[cfg(unix)]
     unsafe {
-        cmd.pre_exec(pre_exec_hook);
+        cmd.pre_exec(crate::pre_exec_hook);
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(&process_child_ids, child);
