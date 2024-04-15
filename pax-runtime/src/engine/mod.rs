@@ -2,7 +2,6 @@ use crate::api::Property;
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
 use std::iter;
 use std::rc::Rc;
 
@@ -192,8 +191,8 @@ pub struct ExpressionTable {
 }
 
 #[cfg(debug_assertions)]
-impl Debug for ExpressionTable {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Debug for ExpressionTable {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unimplemented!()
     }
 }
