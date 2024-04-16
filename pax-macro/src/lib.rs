@@ -521,7 +521,6 @@ pub fn pax(
             }
         })
         .collect();
-
     let output = quote! {
         #[derive(#derives)]
         #[serde(crate = "pax_engine::serde")]
