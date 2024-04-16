@@ -275,6 +275,7 @@ fn pax_full_component(
 
     let static_property_definitions =
         get_static_property_definitions_from_tokens(&input_parsed.data);
+
     let mut template_dependencies =
         parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
