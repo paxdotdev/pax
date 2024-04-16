@@ -2,10 +2,10 @@ extern crate proc_macro;
 extern crate proc_macro2;
 mod parsing;
 mod templating;
-use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
+use std::{fs, path::PathBuf};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -269,7 +269,7 @@ fn pax_full_component(
     is_main_component: bool,
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
-    associated_pax_file_path: Option<String>,
+    associated_pax_file_path: Option<PathBuf>,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
 
@@ -475,7 +475,7 @@ pub fn pax(
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
         let include_fix = generate_include(&name, path.clone().to_str().unwrap());
-        let associated_pax_file = Some(path.clone().to_str().unwrap().to_string());
+        let associated_pax_file = Some(path.clone());
         let file = File::open(path);
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
