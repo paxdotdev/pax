@@ -5,10 +5,10 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.13.1"}
-pax-std = { version = "0.13.1"}
-pax-compiler = { version = "0.13.1", optional = true}
-pax-manifest = { version = "0.13.1"}
+pax-engine = { version = "0.13.3"}
+pax-std = { version = "0.13.3"}
+pax-compiler = { version = "0.13.3", optional = true}
+pax-manifest = { version = "0.13.3"}
 serde_json = {version = "1.0.95", optional = true}
 
 [[bin]]
