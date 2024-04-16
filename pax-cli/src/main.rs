@@ -13,8 +13,7 @@ mod http;
 
 use color_eyre::eyre::Report;
 use color_eyre::eyre::Result;
-use signal_hook::consts::{SIGINT, SIGTERM};
-use signal_hook::iterator::Signals;
+use ctrlc;
 
 /// `pax-cli` entrypoint
 fn main() -> Result<(), Report> {
@@ -135,20 +134,19 @@ fn main() -> Result<(), Report> {
     let is_libdev_mode = args.contains(&"--libdev".to_string());
 
     // Create a separate thread to handle signals e.g. via CTRL+C
-    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
+
     let cloned_version_info = Arc::clone(&new_version_info);
     let cloned_process_child_ids = Arc::clone(&process_child_ids);
-    thread::spawn(move || {
-        for _sig in signals.forever() {
-            println!("\nInterrupt received. Cleaning up child processes...");
-            perform_cleanup(
-                Arc::clone(&cloned_version_info),
-                Arc::clone(&cloned_process_child_ids),
-                is_libdev_mode,
-                true,
-            );
-        }
-    });
+    ctrlc::set_handler(move || {
+        println!("\nInterrupt received. Cleaning up child processes...");
+        perform_cleanup(
+            Arc::clone(&cloned_version_info),
+            Arc::clone(&cloned_process_child_ids),
+            is_libdev_mode,
+            true,
+        );
+    })
+    .expect("ctrl-c hook should have been set up sucessfully");
 
     let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
     perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
@@ -365,7 +363,7 @@ fn kill_process(pid: u32) -> Result<(), std::io::Error> {
 }
 
 #[cfg(windows)]
-fn kill_process(pid: u64) -> Result<(), std::io::Error> {
+fn kill_process(pid: u32) -> Result<(), std::io::Error> {
     use std::process::Command;
 
     let output = Command::new("taskkill")
