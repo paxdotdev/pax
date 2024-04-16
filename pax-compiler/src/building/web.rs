@@ -83,7 +83,7 @@ pub fn build_web_chassis_with_cartridge(
     // Execute wasm-pack build
     let output = wait_with_output(&process_child_ids, child);
     if !output.status.success() {
-        return Err(eyre!("Failed to build project with wasm-pack. Aborting."));
+        eprintln!("Something didn't go smoothly while running wasm-pack (wasm-opt not available?) - trying to continue anyway");
     }
 
     // Copy assets
