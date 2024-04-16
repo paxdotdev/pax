@@ -18,6 +18,7 @@ examples/src/*/.pax/
 **/*.rs.bk
 Cargo.lock
 .DS_Store
+*/.DS_Store
 .cargo
 
 ## VScode project configuration files

@@ -1,6 +1,6 @@
 [package]
 name = "pax-cartridge"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -13,11 +13,11 @@ default = ["pax-manifest/parsing"]
 
 [dependencies]
 piet-common = "0.6.0"
-pax-runtime = {path = "../pax-runtime", version = "0.13.0"}
-pax-runtime-api = {path = "../pax-runtime-api", version = "0.13.0"}
-pax-engine = {path = "../pax-engine", version = "0.13.0"}
-pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.13.0"}
-pax-manifest = {path = "../pax-manifest", version = "0.13.0"}
+pax-runtime = {path = "../pax-runtime", version = "0.13.1"}
+pax-runtime-api = {path = "../pax-runtime-api", version = "0.13.1"}
+pax-engine = {path = "../pax-engine", version = "0.13.1"}
+pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.13.1"}
+pax-manifest = {path = "../pax-manifest", version = "0.13.1"}
 serde_json = "1.0.95"
 
 [profile.release]
