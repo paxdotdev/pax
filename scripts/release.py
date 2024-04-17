@@ -188,7 +188,7 @@ for root in root_packages:
             # we pre-build artifacts (js/css) that are not checked in to commit
             # publish doesn't like this if we don't include --allow-dirty
             if elem == "pax-chassis-web":
-                cmd_args.push("--allow-dirty")
+                cmd_args.append("--allow-dirty")
 
             # Run `cargo publish` within the current package directory
             subprocess.run(cmd_args, cwd=os.path.join(os.getcwd(), elem), check=True)
