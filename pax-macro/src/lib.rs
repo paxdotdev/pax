@@ -475,7 +475,7 @@ pub fn pax(
         let path = current_dir.join("src").join(&filename);
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
-        let include_fix = generate_include(&name, path.clone().to_str().unwrap());
+        let include_fix = generate_include(&name, &path);
         let associated_pax_file = Some(path.clone());
         let file = File::open(path);
         let mut content = String::new();
@@ -527,16 +527,20 @@ pub fn pax(
         #input
         #appended_tokens
     };
+    eprintln!("{}", output);
     output.into()
 }
 
 // Needed because Cargo wouldn't otherwise watch for changes in pax files.
 // By include_str!ing the file contents,
 // (Trick borrowed from Pest: github.com/pest-parser/pest)
-fn generate_include(name: &Ident, path: &str) -> TokenStream {
+fn generate_include(name: &Ident, path: &PathBuf) -> TokenStream {
     let const_name = Ident::new(&format!("_PAX_FILE_{}", name), Span::call_site());
+    let path_str = path.to_string_lossy().into_owned();
+    // needed for windows (to property escape paths with \)
+    let path_str: String = path_str.escape_default().collect();
     quote! {
         #[allow(non_upper_case_globals)]
-        const #const_name: &'static str = include_str!(#path);
+        const #const_name: &'static str = include_str!(#path_str);
     }
 }

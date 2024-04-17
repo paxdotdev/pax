@@ -20,6 +20,6 @@ tokio = { version = "1", features = ["full"] }
 colored = "2.0.0"
 reqwest = "0.11.18"
 nix = "0.20.2"
-pax-language-server = {version = "0.13.12"}
+pax-language-server = {version = "0.13.11"}
 color-eyre = "0.6.2"
 ctrlc = { version = "3.4.4", features = ["termination"] }
