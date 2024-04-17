@@ -183,15 +183,15 @@ for root in root_packages:
     for elem in order:
         # Only publish the package if it has not been published in this run
         if elem not in published:
-            # Run `cargo publish` within the current package directory
-            args = ["cargo", "publish", "--no-verify"]
+            cmd_args = ["cargo", "publish", "--no-verify"]
 
             # we pre-build artifacts (js/css) that are not checked in to commit
             # publish doesn't like this if we don't include --allow-dirty
             if elem == "pax-chassis-web":
-                args.push("--allow-dirty")
+                cmd_args.push("--allow-dirty")
 
-            subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
+            # Run `cargo publish` within the current package directory
+            subprocess.run(cmd_args, cwd=os.path.join(os.getcwd(), elem), check=True)
             # Mark this package as published
             published.add(elem)
             # Wait one minute, to satisfy crates.io's throttling mechanism.
