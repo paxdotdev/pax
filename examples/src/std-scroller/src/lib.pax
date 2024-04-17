@@ -1,0 +1,7 @@
+<Scroller>
+    <Group>
+        <Rectangle height=50% fill=RED/>
+        <Rectangle y=50% height=50% fill=BLUE/>
+        <Rectangle y=100% height=50% fill=GREEN/>
+    </Group>
+</Scroller>
