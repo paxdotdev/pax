@@ -1,6 +1,6 @@
 [package]
 name = "pax-compiler"
-version = "0.13.12"
+version = "0.13.13"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -41,10 +41,10 @@ lazy_static = "1.4.0"
 libc = "0.2"
 log = "0.4"
 nix = "0.20.2"
-pax-manifest = {version= "0.13.12", path="../pax-manifest"}
-pax-message = {version = "0.13.12", path="../pax-message"}
-pax-runtime = {path = "../pax-runtime", version="0.13.12" }
-pax-runtime-api = {path = "../pax-runtime-api", version="0.13.12" }
+pax-manifest = {version= "0.13.13", path="../pax-manifest"}
+pax-message = {version = "0.13.13", path="../pax-message"}
+pax-runtime = {path = "../pax-runtime", version="0.13.13" }
+pax-runtime-api = {path = "../pax-runtime-api", version="0.13.13" }
 pest = "2.6.0"
 pest_derive = "2.6.0"
 portpicker = "0.1.1"
