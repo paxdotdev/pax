@@ -80,8 +80,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         let mut cmd = Command::new("./build-interface.sh");
         if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
             let chassis_web_path = Path::new(&root).join("pax-chassis-web");
-            eprintln!("path: {:?}", chassis_web_path);
             cmd.current_dir(&chassis_web_path);
+            eprintln!("COMMAND: {:?}", cmd);
             if !cmd
                 .output()
                 .expect("failed to start process")
