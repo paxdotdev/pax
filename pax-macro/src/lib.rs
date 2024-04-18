@@ -536,9 +536,7 @@ pub fn pax(
 // (Trick borrowed from Pest: github.com/pest-parser/pest)
 fn generate_include(name: &Ident, path: &PathBuf) -> TokenStream {
     let const_name = Ident::new(&format!("_PAX_FILE_{}", name), Span::call_site());
-    let path_str = path.to_string_lossy().into_owned();
-    // needed for windows (to property escape paths with \)
-    let path_str: String = path_str.escape_default().collect();
+    let path_str = path.to_str().expect("expected non-unicode path");
     quote! {
         #[allow(non_upper_case_globals)]
         const #const_name: &'static str = include_str!(#path_str);
