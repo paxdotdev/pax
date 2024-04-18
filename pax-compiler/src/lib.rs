@@ -77,11 +77,11 @@ pub enum RunTarget {
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
     //Compile ts files if applicable (this needs to happen before copying to .pax)
     if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
-        let mut cmd = Command::new("./build-interface.sh");
         if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
+            let mut cmd = Command::new("bash");
+            cmd.arg("./build-interface.sh");
             let chassis_web_path = Path::new(&root).join("pax-chassis-web");
             cmd.current_dir(&chassis_web_path);
-            eprintln!("COMMAND: {:?}", cmd);
             if !cmd
                 .output()
                 .expect("failed to start process")
