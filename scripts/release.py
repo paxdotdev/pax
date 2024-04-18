@@ -183,12 +183,7 @@ for root in root_packages:
     for elem in order:
         # Only publish the package if it has not been published in this run
         if elem not in published:
-            cmd_args = ["cargo", "publish", "--no-verify"]
-
-            # we pre-build artifacts (js/css) that are not checked in to commit
-            # publish doesn't like this if we don't include --allow-dirty
-            if elem == "pax-chassis-web":
-                cmd_args.append("--allow-dirty")
+            cmd_args = ["cargo", "publish", "--no-verify", "--allow-dirty"]
 
             # Run `cargo publish` within the current package directory
             subprocess.run(cmd_args, cwd=os.path.join(os.getcwd(), elem), check=True)
