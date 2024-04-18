@@ -1,13 +1,13 @@
 [package]
 name = "pax-chassis-web"
-version = "0.13.16"
+version = "0.13.17"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
 repository = "https://www.github.com/paxproject/pax"
 description = "Platform-specific chassis allowing Pax cartridges to be executed as Web apps"
-include = ["interface/public"]
+include = ["/src", "/interface/public"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -18,9 +18,9 @@ default = ["console_error_panic_hook"]
 [dependencies]
 piet = "0.6.0"
 piet-web = "0.6.0"
-pax-runtime = { path = "../pax-runtime", version="0.13.16" }
-pax-cartridge = {path="../pax-cartridge", version="0.13.16"}
-pax-message = {path = "../pax-message", version="0.13.16"}
+pax-runtime = { path = "../pax-runtime", version="0.13.17" }
+pax-cartridge = {path="../pax-cartridge", version="0.13.17"}
+pax-message = {path = "../pax-message", version="0.13.17"}
 wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 serde_json = "1.0.95"
 console_log = "1.0.0"
