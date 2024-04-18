@@ -527,7 +527,6 @@ pub fn pax(
         #input
         #appended_tokens
     };
-    eprintln!("MACRO_OUTPUT: {}", output);
     output.into()
 }
 
