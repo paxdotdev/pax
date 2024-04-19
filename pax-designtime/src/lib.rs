@@ -31,6 +31,7 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
     priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
+    last_written_manifest_version: usize,
 }
 
 #[cfg(debug_assertions)]
@@ -53,6 +54,7 @@ impl DesigntimeManager {
             orm,
             factories,
             priv_agent_connection: priv_agent,
+            last_written_manifest_version: 0,
         }
     }
 
@@ -131,6 +133,30 @@ impl DesigntimeManager {
     }
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
+        let current_manifest_version = self.orm.get_manifest_version();
+        if current_manifest_version != self.last_written_manifest_version
+            && current_manifest_version % 5 == 0
+        {
+            match self.get_orm().get_reload_queue() {
+                Some(ReloadType::FullEdit) => {
+                    self.send_component_update(&TypeId::build_singleton(
+                        "pax_designer::pax_reexports::designer_project::Example",
+                        None,
+                    ))?;
+                }
+                Some(ReloadType::FullPlay) => {
+                    self.send_component_update(&TypeId::build_singleton(
+                        "pax_designer::pax_reexports::designer_project::Example",
+                        None,
+                    ))?;
+                }
+                Some(ReloadType::Partial(uni)) => {
+                    self.send_component_update(&uni.get_containing_component_type_id())?;
+                }
+                _ => {}
+            }
+            self.last_written_manifest_version = current_manifest_version;
+        }
         self.priv_agent_connection
             .borrow_mut()
             .handle_recv(&mut self.orm)
