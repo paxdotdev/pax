@@ -23,7 +23,7 @@ impl Example {
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
-        self.ticks.set(old_ticks + 1);
+        self.ticks.set((old_ticks + 1) % 255);
     }
 
     pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
