@@ -1,5 +1,5 @@
 use crate::helpers::{
-    wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, ERR_SPAWN, PAX_BADGE,
+    wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, PAX_BADGE,
     PKG_DIR_NAME, PUBLIC_DIR_NAME,
 };
 use crate::{copy_dir_recursively, RunContext, RunTarget};
@@ -78,7 +78,11 @@ pub fn build_web_chassis_with_cartridge(
         cmd.pre_exec(crate::pre_exec_hook);
     }
 
-    let child = cmd.spawn().expect(ERR_SPAWN);
+    let child = cmd.spawn().expect(
+        r#"failed to run wasm-pack, is it:
+- installed?
+- present in PATH?"#,
+    );
 
     // Execute wasm-pack build
     let output = wait_with_output(&process_child_ids, child);

@@ -1,6 +1,14 @@
-<Text text={self.message} class=centered class=small id=text />
-<Rectangle class=centered class=small @click=self.increment
-     fill={rgb(ticks, 75, 150)}
+<Text 
+	text={self.message}
+	class=centered
+	class=small
+	id=text
+	@click=self.increment
+/>
+<Rectangle 
+	class=centered
+	class=small
+    fill={rgb(ticks, 75, 150)}
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 />
 
