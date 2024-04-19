@@ -219,7 +219,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
 }
 
 fn handle_component_serialization_request(request: ComponentSerializationRequest) {
-    println!("Serializing to code...");
     let component: ComponentDefinition = rmp_serde::from_slice(&request.component_bytes).unwrap();
     let file_path = component
         .template
@@ -229,7 +228,6 @@ fn handle_component_serialization_request(request: ComponentSerializationRequest
         .unwrap()
         .to_owned();
     serialize_component_to_file(&component, file_path);
-    println!("Serialization complete!");
 }
 
 fn handle_manifest_serialization_request(
