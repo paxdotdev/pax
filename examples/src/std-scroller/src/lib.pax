@@ -1,23 +1,29 @@
-<Scroller  bound_x=100% bound_y=600% damping=0.05>
+<Scroller  bound_x=100% bound_y=750% damping=0.04>
     <Group>
-        <Text x=50% y=150% anchor_x=50% anchor_y=50% height=30px width=50% text="Hello World"/>
         <Group>
             <Rectangle height=50% fill=RED/>
             <Rectangle y=50% height=50% fill=BLUE/>
             <Rectangle y=100% height=50% fill=GREEN/>
-            <Rectangle y=150% height=50% fill=YELLOW/>
         </Group>
-        <Group>
-            <Rectangle y=200% height=50% fill=BLACK/>
-            <Rectangle y=250% height=50% fill=WHITE/>
-            <Rectangle y=300% height=50% fill=BLACK/>
-            <Rectangle y=350% height=50% fill=BLUE/>
+        <Group y=150%>
+            <Rectangle height=50% fill=RED/>
+            <Rectangle y=50% height=50% fill=BLUE/>
+            <Rectangle y=100% height=50% fill=GREEN/>
         </Group>
-        <Group>
-            <Rectangle y=400% height=50% fill=GREEN/>
-            <Rectangle y=450% height=50% fill=YELLOW/>
-            <Rectangle y=500% height=50% fill=BLACK/>
-            <Rectangle y=550% height=50% fill=WHITE/>
+        <Group y=300%>
+            <Rectangle height=50% fill=RED/>
+            <Rectangle y=50% height=50% fill=BLUE/>
+            <Rectangle y=100% height=50% fill=GREEN/>
+        </Group>
+        <Group y=450%>
+            <Rectangle height=50% fill=RED/>
+            <Rectangle y=50% height=50% fill=BLUE/>
+            <Rectangle y=100% height=50% fill=GREEN/>
+        </Group>
+        <Group y=600%>
+            <Rectangle height=50% fill=RED/>
+            <Rectangle y=50% height=50% fill=BLUE/>
+            <Rectangle y=100% height=50% fill=GREEN/>
         </Group>
     </Group>
 </Scroller>
