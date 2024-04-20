@@ -37,6 +37,9 @@ pub struct Scroller {
     pub scroll_pos_y: Property<Numeric>,
     pub bound_x: Property<Size>,
     pub bound_y: Property<Size>,
+
+    // only give this an initial value - changes during runtime
+    // after that, and should NOT be modified/changed
     pub damping: Property<Numeric>,
 
     // private fields
@@ -53,8 +56,9 @@ pub struct TouchInfo {
 thread_local! {
     static TOUCH_TRACKER: RefCell<HashMap<i64, TouchInfo>> = RefCell::new(HashMap::new());
 }
-
-// - how to not go to next page in Y direction? (args.prevent_default()?)
+pub fn no_touches() -> bool {
+    TOUCH_TRACKER.with_borrow(|touches| touches.len() == 0)
+}
 
 impl Scroller {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {}
@@ -62,11 +66,13 @@ impl Scroller {
     pub fn update(&mut self, ctx: &NodeContext) {
         let mom_x = self.momentum_x.get();
         let mom_y = self.momentum_y.get();
-        if TOUCH_TRACKER.with_borrow(|touches| touches.len() == 0) {
+        if no_touches() {
             self.add_position(ctx, mom_x, mom_y);
         }
-        let mut new_mom_x = mom_x * (1.0 - self.damping.get().to_float());
-        let mut new_mom_y = mom_y * (1.0 - self.damping.get().to_float());
+        let damping = self.damping.get().to_float();
+        let falloff_factor = 1.0 - damping;
+        let mut new_mom_x = mom_x * falloff_factor;
+        let mut new_mom_y = mom_y * falloff_factor;
         if new_mom_x.abs() < 0.1 {
             new_mom_x = 0.0;
         }
@@ -125,7 +131,8 @@ impl Scroller {
     }
 
     pub fn touch_start(&mut self, _ctx: &NodeContext, args: Event<TouchStart>) {
-        if TOUCH_TRACKER.with_borrow(|touches| touches.len() == 0) {
+        if no_touches() {
+            // this is first touch
             let cached_damping = self.damping.get().to_float();
             let temp_damping = cached_damping.max(0.5);
             self.cached_damping.set(cached_damping.into());
@@ -141,6 +148,7 @@ impl Scroller {
             );
         });
     }
+
     pub fn touch_end(&mut self, ctx: &NodeContext, args: Event<TouchEnd>) {
         for touch in &args.touches {
             self.process_new_touch_pos(ctx, touch.x, touch.y, touch.identifier);
@@ -149,7 +157,7 @@ impl Scroller {
             let idents: Vec<_> = args.touches.iter().map(|e| e.identifier).collect();
             touches.retain(|k, _| !idents.contains(k));
         });
-        if TOUCH_TRACKER.with_borrow(|touches| touches.len() == 0) {
+        if no_touches() {
             let cached_damping = self.cached_damping.get();
             self.damping.set(cached_damping.into());
         }
