@@ -9,7 +9,7 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Definition container for an entire Pax cartridge"
 
 [features]
-parsing = ["pest", "pest_derive"]
+parsing = ["pax-parser"]
 
 [lib]
 
@@ -17,7 +17,6 @@ parsing = ["pest", "pest_derive"]
 serde = { version="1.0.95", features=["derive"]}
 pax-message = {path="../pax-message", version="0.14.3"}
 pax-runtime-api = {path="../pax-runtime-api", version="0.14.3"}
-pest = { version="2.7.6", optional=true}
-pest_derive = {version="2.7.6", optional=true}
+pax-parser = {version = "0.13.19", path="../pax-parser", optional = true}
 serde_with = { version= "3.6.1", features = ["json"]} 
 log = "0.4.20"

@@ -1,6 +1,5 @@
-use crate::parsing::Rule;
 use core::panic;
-use pest::iterators::Pair;
+use pax_parser::{Pair, Rule};
 use std::{collections::VecDeque, vec};
 
 const LINE_LIMIT: usize = 120;

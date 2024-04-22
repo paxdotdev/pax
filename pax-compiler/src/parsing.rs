@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use pax_manifest::{escape_identifier, ComponentTemplate, TemplateNodeId, TreeLocation, TypeId};
+use pax_parser::{Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
 
 use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
@@ -10,17 +11,6 @@ use pax_manifest::{
     LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
     Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
 };
-
-extern crate pest;
-use pest::iterators::{Pair, Pairs};
-use pest::{Parser, Span};
-use pest_derive::Parser;
-
-use pest::pratt_parser::{Assoc, Op, PrattParser};
-
-#[derive(Parser)]
-#[grammar = "pax.pest"]
-pub struct PaxParser;
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
@@ -1082,7 +1072,7 @@ pub struct ParsingError {
 }
 
 /// Extract all errors from a Pax parse result
-pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> {
+pub fn extract_errors(pairs: Pairs<Rule>) -> Vec<ParsingError> {
     let mut errors = vec![];
 
     for pair in pairs {
