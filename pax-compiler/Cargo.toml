@@ -45,11 +45,9 @@ pax-manifest = {version= "0.14.3", path="../pax-manifest"}
 pax-message = {version = "0.14.3", path="../pax-message"}
 pax-runtime = {path = "../pax-runtime", version="0.14.3" }
 pax-runtime-api = {path = "../pax-runtime-api", version="0.14.3" }
-pest = "2.6.0"
-pest_derive = "2.6.0"
 portpicker = "0.1.1"
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
-pax-lang = {version = "0.13.19", path="../pax-lang"}
+pax-lang = {version = "0.13.20", path="../pax-lang"}
 rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
