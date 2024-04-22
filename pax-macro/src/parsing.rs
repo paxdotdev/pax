@@ -1,15 +1,8 @@
-extern crate pest;
-use pest::iterators::Pair;
-use pest::Parser;
-use pest_derive::Parser;
+use pax_parser::{Pair, Pairs, Parser, PaxParser, Rule};
 
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
-
-#[derive(Parser)]
-#[grammar = "pax.pest"]
-pub struct PaxMacroParser;
 
 #[derive(Debug)]
 pub struct ParsingError {
@@ -21,7 +14,7 @@ pub struct ParsingError {
 }
 
 /// Extract all errors from a Pax parse result
-pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> {
+pub fn extract_errors(pairs: Pairs<Rule>) -> Vec<ParsingError> {
     let mut errors = vec![];
 
     for pair in pairs {
@@ -76,7 +69,7 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> 
 }
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
-    let pax_component_definition = PaxMacroParser::parse(Rule::pax_component_definition, pax)
+    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax))
         .next()
         .unwrap();
