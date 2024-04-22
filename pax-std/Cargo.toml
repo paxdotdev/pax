@@ -1,7 +1,11 @@
 
 [package]
 name = "pax-std"
+<<<<<<< HEAD
 version = "0.14.3"
+=======
+version = "0.13.21"
+>>>>>>> 20fa6df6 (Release 0.13.21)
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -16,6 +20,7 @@ primitives_crate = "./pax-std-primitives"
 [dependencies]
 piet = "0.6.0"
 kurbo = "0.9.0"
+<<<<<<< HEAD
 pax-engine = {path = "../pax-engine", version="0.14.3"}
 pax-message = {path = "../pax-message", version="0.14.3"}
 lazy_static = "1.4.0"
@@ -23,6 +28,15 @@ pax-compiler = {path="../pax-compiler", optional = true, version="0.14.3"}
 serde_json = {version="1.0.95", optional = true}
 pax-manifest = {path = "../pax-manifest", version="0.14.3"}
 pax-runtime = {path = "../pax-runtime", version="0.14.3"}
+=======
+pax-engine = {path = "../pax-engine", version="0.13.21"}
+pax-message = {path = "../pax-message", version="0.13.21"}
+lazy_static = "1.4.0"
+pax-compiler = {path="../pax-compiler", optional = true, version="0.13.21"}
+serde_json = {version="1.0.95", optional = true}
+pax-manifest = {path = "../pax-manifest", version="0.13.21"}
+pax-runtime = {path = "../pax-runtime", version="0.13.21"}
+>>>>>>> 20fa6df6 (Release 0.13.21)
 serde = { version = "1.0.159", features=["derive"]}
 log = "0.4.20"
 
