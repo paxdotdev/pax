@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use lsp_types::Position;
-use pax_compiler::parsing::Rule;
-use pest::iterators::Pair;
+use pax_lang::{Pair, Pairs, Rule};
 
 #[derive(Debug, Clone)]
 pub struct PositionalNode {
