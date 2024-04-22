@@ -48,7 +48,7 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-message",
     "pax-std",
     "pax-manifest",
-    "pax-parser",
+    "pax-lang",
 ];
 
 #[derive(Debug, Deserialize)]

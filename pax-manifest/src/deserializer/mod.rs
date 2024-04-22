@@ -2,7 +2,7 @@ use core::panic;
 use pax_runtime_api::constants::I64;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{Color, Numeric, Percent};
-use pax_parser::{Parser, PaxParser, Rule};
+use pax_lang::{Parser, PaxParser, Rule};
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
 use std::any::TypeId;

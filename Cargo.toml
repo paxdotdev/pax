@@ -20,7 +20,7 @@ members = [
     "pax-std",
     "pax-std/pax-std-primitives",
     "pax-manifest",
-    "pax-parser",
+    "pax-lang",
 ]
 
 exclude = [
