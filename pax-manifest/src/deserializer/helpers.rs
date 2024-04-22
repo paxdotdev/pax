@@ -1,16 +1,16 @@
-use pest::Parser;
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
 };
 
+use pax_parser::{Parser, PaxParser, Rule};
 use pax_runtime_api::constants::{COLOR_CHANNEL, INTEGER, PERCENT};
 
 use crate::constants::{NUMERIC, STRING_BOX};
 
 use super::{
     error::{Error, Result},
-    Deserializer, PaxParser, Rule,
+    Deserializer,
 };
 
 #[derive(Debug)]
@@ -131,7 +131,7 @@ impl PaxEnum {
     }
 
     pub fn from_string(input: String) -> Self {
-        let mut pairs = crate::utils::PaxParser::parse(Rule::literal_enum_value, &input)
+        let mut pairs = PaxParser::parse(Rule::literal_enum_value, &input)
             .unwrap()
             .next()
             .unwrap()

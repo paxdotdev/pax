@@ -1,12 +1,5 @@
 use crate::{LiteralBlockDefinition, SettingElement, Token, TokenType, ValueDefinition};
-
-use pest::iterators::Pair;
-use pest::Parser;
-use pest_derive::Parser;
-
-#[derive(Parser)]
-#[grammar = "pax.pest"]
-pub struct PaxParser;
+use pax_parser::{Pair, Parser, PaxParser, Rule};
 
 pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
     if raw_value.is_empty() {

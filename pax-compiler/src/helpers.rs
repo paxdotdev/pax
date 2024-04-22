@@ -33,7 +33,7 @@ pub const ERR_SPAWN: &str = "failed to spawn child";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
-pub const ALL_PKGS: [&'static str; 14] = [
+pub const ALL_PKGS: &[&str] = &[
     "pax-cartridge",
     "pax-chassis-common",
     "pax-chassis-ios",
@@ -48,6 +48,7 @@ pub const ALL_PKGS: [&'static str; 14] = [
     "pax-message",
     "pax-std",
     "pax-manifest",
+    "pax-parser",
 ];
 
 #[derive(Debug, Deserialize)]
