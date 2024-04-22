@@ -1,5 +1,5 @@
 use crate::{LiteralBlockDefinition, SettingElement, Token, TokenType, ValueDefinition};
-use pax_parser::{Pair, Parser, PaxParser, Rule};
+use pax_lang::{Pair, Parser, PaxParser, Rule};
 
 pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
     if raw_value.is_empty() {
