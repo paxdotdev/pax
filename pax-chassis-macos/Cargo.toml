@@ -1,7 +1,11 @@
 [package]
 name = "pax-chassis-macos"
 edition = "2021"
+<<<<<<< HEAD
 version = "0.14.3"
+=======
+version = "0.13.21"
+>>>>>>> 20fa6df6 (Release 0.13.21)
 authors = ["Zack Brown <zack@pax.dev>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -15,10 +19,17 @@ crate-type = ["cdylib"]
 [dependencies]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
+<<<<<<< HEAD
 pax-chassis-common = { path = "../pax-chassis-common", version="0.14.3" }
 pax-runtime = { path = "../pax-runtime", version="0.14.3" }
 pax-cartridge = {path="../pax-cartridge", version="0.14.3"}
 pax-message = {path = "../pax-message", version="0.14.3"}
+=======
+pax-chassis-common = { path = "../pax-chassis-common", version="0.13.21" }
+pax-runtime = { path = "../pax-runtime", version="0.13.21" }
+pax-cartridge = {path="../pax-cartridge", version="0.13.21"}
+pax-message = {path = "../pax-message", version="0.13.21"}
+>>>>>>> 20fa6df6 (Release 0.13.21)
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --

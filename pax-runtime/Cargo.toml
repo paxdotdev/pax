@@ -1,6 +1,10 @@
 [package]
 name = "pax-runtime"
+<<<<<<< HEAD
 version = "0.14.3"
+=======
+version = "0.13.21"
+>>>>>>> 20fa6df6 (Release 0.13.21)
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -17,7 +21,14 @@ kurbo = "0.9.0"
 serde = {version="1.0.196", features=["derive"]}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
+<<<<<<< HEAD
 pax-message = {path = "../pax-message", version="0.14.3"}
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 pax-manifest = {version="0.14.3", path = "../pax-manifest"}
 pax-runtime-api = {version="0.14.3", path = "../pax-runtime-api"}
+=======
+pax-message = {path = "../pax-message", version="0.13.21"}
+wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
+pax-manifest = {version="0.13.21", path = "../pax-manifest"}
+pax-runtime-api = {version="0.13.21", path = "../pax-runtime-api"}
+>>>>>>> 20fa6df6 (Release 0.13.21)
