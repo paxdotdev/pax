@@ -3,7 +3,7 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use pax_parser::{Parser, PaxParser, Rule};
+use pax_lang::{Parser, PaxParser, Rule};
 use pax_runtime_api::constants::{COLOR_CHANNEL, INTEGER, PERCENT};
 
 use crate::constants::{NUMERIC, STRING_BOX};

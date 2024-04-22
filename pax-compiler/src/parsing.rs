@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use pax_lang::{Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
 use pax_manifest::{escape_identifier, ComponentTemplate, TemplateNodeId, TreeLocation, TypeId};
-use pax_parser::{Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
 
 use pax_manifest::{
     get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,

@@ -1,5 +1,5 @@
 [package]
-name = "pax-parser"
+name = "pax-lang"
 version = "0.13.19"
 edition = "2021"
 

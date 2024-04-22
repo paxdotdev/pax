@@ -1,5 +1,5 @@
 use core::panic;
-use pax_parser::{Pair, Rule};
+use pax_lang::{Pair, Rule};
 use std::{collections::VecDeque, vec};
 
 const LINE_LIMIT: usize = 120;
