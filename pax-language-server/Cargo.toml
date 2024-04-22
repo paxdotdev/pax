@@ -1,6 +1,10 @@
 [package]
 name = "pax-language-server"
+<<<<<<< HEAD
 version = "0.14.3"
+=======
+version = "0.13.21"
+>>>>>>> 20fa6df6 (Release 0.13.21)
 authors = ["Warfa Jibril <warfa@pax.dev>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -18,8 +22,13 @@ tokio = { version = "1.32.0", features = ["full"] }
 tower-lsp = "0.20.0"
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 quote = "1.0.33"
+<<<<<<< HEAD
 pax-compiler = {version = "0.14.3", path="../pax-compiler"}
 pax-lang = {version = "0.13.20", path="../pax-lang"}
+=======
+pax-compiler = {version = "0.13.21", path="../pax-compiler"}
+pax-lang = {version = "0.13.21", path="../pax-lang"}
+>>>>>>> 20fa6df6 (Release 0.13.21)
 phf = { version = "0.11.2", features=["macros"] }
 once_cell = "1.18.0"
 lazy_static = "1.4.0"

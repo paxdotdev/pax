@@ -1,7 +1,11 @@
 [package]
 name = "pax-chassis-ios"
 edition = "2021"
+<<<<<<< HEAD
 version = "0.14.3"
+=======
+version = "0.13.21"
+>>>>>>> 20fa6df6 (Release 0.13.21)
 authors = ["Zack Brown <zack@pax.dev>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -13,4 +17,8 @@ name = "paxchassisios"
 crate-type = ["cdylib"]
 
 [dependencies]
+<<<<<<< HEAD
 pax-chassis-common = {version = "0.14.3", path="../pax-chassis-common"}
+=======
+pax-chassis-common = {version = "0.13.21", path="../pax-chassis-common"}
+>>>>>>> 20fa6df6 (Release 0.13.21)
