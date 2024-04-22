@@ -39,7 +39,8 @@ PACKAGES = [
     "pax-manifest",
     "pax-message",
     "pax-std",
-    "pax-std/pax-std-primitives"
+    "pax-std/pax-std-primitives",
+    "pax-lang",
 ]
 
 # Compile ts to js and css for the web chassi
