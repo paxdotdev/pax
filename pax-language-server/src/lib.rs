@@ -9,8 +9,8 @@ use completion::{get_event_completions, get_struct_completion};
 use core::panic;
 use dashmap::DashMap;
 use lsp_types::request::Request;
-use pax_compiler::parsing::{self, PaxParser, Rule};
-use pest::Parser;
+use pax_compiler::parsing;
+use pax_lang::{Parser, PaxParser, Rule};
 use positional::is_inside_handlers_block;
 use positional::is_inside_selector_block;
 use positional::is_inside_settings_block;
@@ -40,8 +40,6 @@ mod positional;
 mod completion;
 
 use std::sync::{Arc, Mutex};
-
-extern crate pest;
 
 use tokio::time::Duration;
 
