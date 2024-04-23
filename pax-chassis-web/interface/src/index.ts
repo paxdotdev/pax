@@ -127,6 +127,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);
             nativePool.occlusionUpdate(patch);
+        } else if(unwrapped_msg["ScrollerCreate"]) {
+            let msg = unwrapped_msg["ScrollerCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.scrollerCreate(patch);
+        } else if (unwrapped_msg["ScrollerUpdate"]){
+            let msg = unwrapped_msg["ScrollerUpdate"]
+            let patch: ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg);
+            nativePool.scrollerUpdate(patch);
+        }else if (unwrapped_msg["ScrollerDelete"]) {
+            let msg = unwrapped_msg["ScrollerDelete"];
+            nativePool.scrollerDelete(msg)
         } else if(unwrapped_msg["ButtonCreate"]) {
             let msg = unwrapped_msg["ButtonCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
