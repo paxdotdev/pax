@@ -8,7 +8,7 @@ use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
 use pax_manifest::Number;
-use pax_runtime::api::{NodeContext, StringBox, TouchEnd, TouchMove, TouchStart};
+use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, TouchStart, OS};
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
 /// each node.  `Stacker`s can be stacked inside of each other, horizontally
@@ -38,14 +38,17 @@ pub struct Scroller {
     pub bound_x: Property<Size>,
     pub bound_y: Property<Size>,
 
-    // only give this an initial value - changes during runtime
-    // after that, and should NOT be modified/changed
-    pub damping: Property<Numeric>,
-
     // private fields
+    pub platform_params: Property<PlatformSpecificScrollParams>,
     pub momentum_x: Property<f64>,
     pub momentum_y: Property<f64>,
-    pub cached_damping: Property<f64>,
+    pub damping: Property<f64>,
+}
+
+#[pax]
+pub struct PlatformSpecificScrollParams {
+    pub deacceleration: f64,
+    pub damping: f64,
 }
 
 pub struct TouchInfo {
@@ -61,7 +64,20 @@ pub fn no_touches() -> bool {
 }
 
 impl Scroller {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let scroll_params = match ctx.os {
+            OS::Android => PlatformSpecificScrollParams {
+                deacceleration: 0.02,
+                damping: 0.04,
+            },
+            OS::IPhone => PlatformSpecificScrollParams {
+                deacceleration: 0.00,
+                damping: 0.04,
+            },
+            _ => PlatformSpecificScrollParams::default(),
+        };
+        self.platform_params.set(scroll_params);
+    }
 
     pub fn update(&mut self, ctx: &NodeContext) {
         let mom_x = self.momentum_x.get();
@@ -69,16 +85,39 @@ impl Scroller {
         if no_touches() {
             self.add_position(ctx, mom_x, mom_y);
         }
-        let damping = self.damping.get().to_float();
+        let platform_data = self.platform_params.get();
+        let damping = self.damping.get();
+
+        let mut new_mom_x;
+        let mut new_mom_y;
+
+        // damping
         let falloff_factor = 1.0 - damping;
-        let mut new_mom_x = mom_x * falloff_factor;
-        let mut new_mom_y = mom_y * falloff_factor;
+        new_mom_x = mom_x * falloff_factor;
+        new_mom_y = mom_y * falloff_factor;
+
+        // decelleration
+        if new_mom_x > 0.0 {
+            new_mom_x = (new_mom_x - platform_data.deacceleration).max(0.0);
+        }
+        if new_mom_x < 0.0 {
+            new_mom_x = (new_mom_x + platform_data.deacceleration).min(0.0);
+        }
+        if new_mom_y > 0.0 {
+            new_mom_y = (new_mom_y - platform_data.deacceleration).max(0.0);
+        }
+        if new_mom_y < 0.0 {
+            new_mom_y = (new_mom_y + platform_data.deacceleration).min(0.0);
+        }
+
+        // stop if close to 0
         if new_mom_x.abs() < 0.1 {
             new_mom_x = 0.0;
         }
         if new_mom_y.abs() < 0.1 {
             new_mom_y = 0.0;
         }
+
         self.momentum_x.set(new_mom_x);
         self.momentum_y.set(new_mom_y);
     }
@@ -133,10 +172,9 @@ impl Scroller {
     pub fn touch_start(&mut self, _ctx: &NodeContext, args: Event<TouchStart>) {
         if no_touches() {
             // this is first touch
-            let cached_damping = self.damping.get().to_float();
+            let cached_damping = self.platform_params.get().damping;
             let temp_damping = cached_damping.max(0.5);
-            self.cached_damping.set(cached_damping.into());
-            self.damping.set(temp_damping.into());
+            self.damping.set(temp_damping);
         }
         self.momentum_x.set(0.0);
         self.momentum_y.set(0.0);
@@ -158,8 +196,8 @@ impl Scroller {
             touches.retain(|k, _| !idents.contains(k));
         });
         if no_touches() {
-            let cached_damping = self.cached_damping.get();
-            self.damping.set(cached_damping.into());
+            let cached_damping = self.platform_params.get().damping;
+            self.damping.set(cached_damping);
         }
     }
 }

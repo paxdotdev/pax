@@ -57,6 +57,25 @@ impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+pub enum OS {
+    Mac,
+    Linux,
+    Windows,
+    Android,
+    IPhone,
+    #[default]
+    Unknown,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub enum Platform {
+    Web,
+    Native,
+    #[default]
+    Unknown,
+}
+
 pub struct Window;
 
 impl Space for Window {}

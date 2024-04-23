@@ -6,10 +6,12 @@ use pax_message::ImageLoadInterruptArgs;
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::ButtonClick;
 use pax_runtime::api::CheckboxChange;
+use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextInput;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::TextboxInput;
+use pax_runtime::api::OS;
 use pax_runtime::ExpressionTable;
 use std::cell::RefCell;
 
@@ -78,6 +80,13 @@ impl PaxChassisWeb {
             .expect("console_log::init_with_level initialized correctly");
 
         let window = window().unwrap();
+        let os_info = window
+            .navigator()
+            .user_agent()
+            .ok()
+            .and_then(|s| parse_user_agent_str(&s))
+            .unwrap_or_default();
+
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
@@ -96,6 +105,8 @@ impl PaxChassisWeb {
                 expression_table,
                 (width, height),
                 designtime_manager.clone(),
+                Platform::Web,
+                os_info,
             );
             let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
             Self {
@@ -112,6 +123,8 @@ impl PaxChassisWeb {
                 main_component_instance,
                 expression_table,
                 (width, height),
+                Platform::Web,
+                os_info,
             );
 
             let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
@@ -684,6 +697,34 @@ impl PaxChassisWeb {
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.drawing_contexts.image_loaded(path)
     }
+}
+
+// parsing of user_agent strings could most likely be done more robustly, possibly copy some of the logic
+// used in https://crates.io/crates/woothee (used server side normally, to large dep?)
+// list of common user agent strings: https://deviceatlas.com/blog/list-of-user-agent-strings
+fn parse_user_agent_str(user_agent: &str) -> Option<OS> {
+    // example:
+    //              /-----------we are cutting out this part------------\
+    // Mozilla/5.0 (Linux; Android 12; SM-X906C Build/QP1A.190711.020; wv) AppleWebKit/537.36 (KHTML, like Gecko)
+    // Version/4.0 Chrome/80.0.3987.119 Mobile Safari/537.36
+    let platform_start = user_agent.find('(')?;
+    let platform_end = user_agent[platform_start..].find(')')?;
+    let platform_str = user_agent.get(platform_start + 1..platform_end - 1)?;
+
+    // NOTE: the ordering here is important: Android/iOS can contain Linux/MacOS strings
+    const STR_PLATFORM_PAIRS: &[(&str, OS)] = &[
+        ("Android", OS::Android),
+        ("iPhone", OS::IPhone),
+        ("Windows", OS::Windows),
+        ("Mac", OS::Mac),
+        ("Linux", OS::Linux),
+    ];
+    for (needle, plat) in STR_PLATFORM_PAIRS {
+        if platform_str.contains(needle) {
+            return Some(*plat);
+        }
+    }
+    None
 }
 
 #[wasm_bindgen]
