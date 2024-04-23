@@ -7,7 +7,6 @@ export class ScrollerUpdatePatch {
     public transform? : number[];
     public scroll_x? : boolean;
     public scroll_y? : boolean;
-    public subtreeDepth?: number;
 
     fromPatch(jsonMessage: any) {
         this.id_chain = jsonMessage["id_chain"];
