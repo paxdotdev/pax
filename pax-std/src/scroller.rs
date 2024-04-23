@@ -19,8 +19,17 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
     <Frame>
         <PrimitiveScroller 
             scroll_y={self.scroll_pos_y}
-            size_inner_pane_x={self.bound_x}
+            width=20px
+            anchor_x=100%
+            x=100%
             size_inner_pane_y={self.bound_y}
+        />
+        <PrimitiveScroller 
+            scroll_x={self.scroll_pos_x}
+            height=20px
+            anchor_y=100%
+            y=100%
+            size_inner_pane_x={self.bound_x}
         />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px}>
             slot(0)

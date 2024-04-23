@@ -13,3 +13,9 @@ use pax_std::types::*;
 #[main]
 #[file("lib.pax")]
 pub struct Example {}
+
+impl Example {
+    pub fn on_click(&mut self, ctx: &NodeContext, event: Event<Click>) {
+        log::debug!("click registered!!");
+    }
+}

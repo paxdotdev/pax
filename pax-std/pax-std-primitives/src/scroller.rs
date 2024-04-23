@@ -138,16 +138,6 @@ impl InstanceNode for ScrollerInstance {
                                     properties.scroll_x.get(),
                                 ),
                                 patch_if_needed(
-                                    &mut old_state.scroll_enabled_x,
-                                    &mut patch.scroll_enabled_x,
-                                    properties.scroll_enabled_x.get(),
-                                ),
-                                patch_if_needed(
-                                    &mut old_state.scroll_enabled_x,
-                                    &mut patch.scroll_enabled_x,
-                                    properties.scroll_enabled_x.get(),
-                                ),
-                                patch_if_needed(
                                     &mut old_state.transform,
                                     &mut patch.transform,
                                     computed_tab.transform.get().coeffs().to_vec(),
