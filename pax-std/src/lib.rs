@@ -31,7 +31,7 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::scroller::ScrollerInstance")]
-    pub struct Scroller {
+    pub struct PrimitiveScroller {
         pub size_inner_pane_x: Property<Size>,
         pub size_inner_pane_y: Property<Size>,
         pub scroll_enabled_x: Property<bool>,

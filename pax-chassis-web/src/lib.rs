@@ -80,10 +80,8 @@ impl PaxChassisWeb {
             .expect("console_log::init_with_level initialized correctly");
 
         let window = window().unwrap();
-        let os_info = window
-            .navigator()
-            .user_agent()
-            .ok()
+        let user_agent_str = window.navigator().user_agent().ok();
+        let os_info = user_agent_str
             .and_then(|s| parse_user_agent_str(&s))
             .unwrap_or_default();
 
@@ -708,7 +706,7 @@ fn parse_user_agent_str(user_agent: &str) -> Option<OS> {
     // Mozilla/5.0 (Linux; Android 12; SM-X906C Build/QP1A.190711.020; wv) AppleWebKit/537.36 (KHTML, like Gecko)
     // Version/4.0 Chrome/80.0.3987.119 Mobile Safari/537.36
     let platform_start = user_agent.find('(')?;
-    let platform_end = user_agent[platform_start..].find(')')?;
+    let platform_end = platform_start + user_agent[platform_start..].find(')')?;
     let platform_str = user_agent.get(platform_start + 1..platform_end - 1)?;
 
     // NOTE: the ordering here is important: Android/iOS can contain Linux/MacOS strings

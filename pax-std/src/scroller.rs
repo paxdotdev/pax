@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use crate::primitives::PrimitiveScroller;
 use crate::primitives::*;
 use crate::types::{StackerCell, StackerDirection};
 use pax_engine::api::Numeric;
@@ -16,6 +17,11 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
 #[pax]
 #[inlined(
     <Frame>
+        <PrimitiveScroller 
+            scroll_y={self.scroll_pos_y}
+            size_inner_pane_x={self.bound_x}
+            size_inner_pane_y={self.bound_y}
+        />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px}>
             slot(0)
         </Group>
@@ -47,8 +53,12 @@ pub struct Scroller {
 
 #[pax]
 pub struct PlatformSpecificScrollParams {
+    // constant decrease in momentum over time
     pub deacceleration: f64,
+    // friction (decreases momentum proportionally to current value)
     pub damping: f64,
+    // if user "flings", set to high momentum to quickly scroll
+    pub fling: bool,
 }
 
 pub struct TouchInfo {
@@ -68,13 +78,20 @@ impl Scroller {
         let scroll_params = match ctx.os {
             OS::Android => PlatformSpecificScrollParams {
                 deacceleration: 0.02,
-                damping: 0.04,
+                damping: 0.03,
+                fling: true,
             },
             OS::IPhone => PlatformSpecificScrollParams {
                 deacceleration: 0.00,
                 damping: 0.04,
+                fling: false,
             },
-            _ => PlatformSpecificScrollParams::default(),
+            // just choose some hopefully sane default
+            OS::Windows | OS::Mac | OS::Linux | OS::Unknown => PlatformSpecificScrollParams {
+                deacceleration: 0.01,
+                damping: 0.04,
+                fling: false,
+            },
         };
         self.platform_params.set(scroll_params);
     }
@@ -196,8 +213,19 @@ impl Scroller {
             touches.retain(|k, _| !idents.contains(k));
         });
         if no_touches() {
-            let cached_damping = self.platform_params.get().damping;
-            self.damping.set(cached_damping);
+            let params = self.platform_params.get();
+            self.damping.set(params.damping);
+
+            let mut mom_x = self.momentum_x.get();
+            let mut mom_y = self.momentum_y.get();
+            if params.fling && mom_x.abs() > 50.0 {
+                mom_x *= 1.7;
+            }
+            if params.fling && mom_y.abs() > 50.0 {
+                mom_y *= 1.7;
+            }
+            self.momentum_x.set(mom_x);
+            self.momentum_y.set(mom_y);
         }
     }
 }

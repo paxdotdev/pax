@@ -593,6 +593,25 @@ export class NativeElementPool {
     }
 
     scrollerCreate(patch: AnyCreatePatch){
+        window.textNodes = this.textNodes;
+        console.assert(patch.idChain != null);
+        console.assert(patch.clippingIds != null);
+        console.assert(patch.scrollerIds != null);
+        console.assert(patch.zIndex != null);
+
+        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        runningChain.addEventListener("scroll", (_event) => {
+            // TODO send interrupt
+            // console.log("scrolling!");
+        });
+
+        runningChain.appendChild(scroller);
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.style.overflow = "scroll";
+        runningChain.setAttribute("id_chain", String(patch.idChain));
+
+
         let scroller_id;
         if(patch.scrollerIds != null){
             let length = patch.scrollerIds.length;
@@ -600,21 +619,59 @@ export class NativeElementPool {
                 scroller_id = patch.scrollerIds[length-1];
             }
         }
-        let scroller: Scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
-        scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis!, this.scrollers,
-            this.baseOcclusionContext, this.canvases, this.isMobile)
+        if(patch.idChain != undefined && patch.zIndex != undefined) {
+            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
+                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+        }
         // @ts-ignore
-        this.scrollers.set(arrayToKey(patch.idChain),scroller);
+        this.textNodes[patch.idChain] = runningChain;
     }
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
-            this.scrollers.get(arrayToKey(patch.idChain!))!.handleScrollerUpdate(patch);
+        // @ts-ignore
+        let leaf = this.textNodes[patch.id_chain];
+        console.assert(leaf !== undefined);
+
+        let scroller_inner = leaf.firstChild;
+        // Handle size_x and size_y
+        if (patch.size_x != null) {
+            leaf.style.width = patch.size_x + "px";
+        }
+        if (patch.size_y != null) {
+            leaf.style.height = patch.size_y + "px";
+        }
+        if (patch.scroll_x != null) {
+            leaf.scrollLeft = patch.scroll_x;
+        }
+        if (patch.scroll_y != null) {
+            leaf.scrollTop = patch.scroll_y;
+        }
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+
+        if (patch.size_inner_pane_x != null) {
+            scroller_inner.style.width = patch.size_inner_pane_x + "px";
+        }
+        if (patch.size_inner_pane_y != null) {
+            scroller_inner.style.height = patch.size_inner_pane_y + "px";
+        }
+
+        if (patch.scroll_enabled_x != null) {
+           // TODO enable/disable 
+        }
+        if (patch.scroll_enabled_x != null) {
+           // TODO enable/disable 
+        }
     }
 
     scrollerDelete(idChain: number[]){
-        if(this.scrollers.has(arrayToKey(idChain))){
-            this.objectManager.returnToPool(SCROLLER, this.scrollers.get(arrayToKey(idChain)));
-            this.scrollers.delete(arrayToKey(idChain));
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
         }
     }
 
