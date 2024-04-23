@@ -30,7 +30,7 @@ js-sys = "0.3.63"
 
 [dependencies.web-sys]
 version = "0.3.10"
-features = ["console", "CanvasRenderingContext2d", "Window", "Document", "Element", "HtmlCanvasElement", "Event", "HtmlCollection"]
+features = ["Navigator", "console", "CanvasRenderingContext2d", "Window", "Document", "Element", "HtmlCanvasElement", "Event", "HtmlCollection"]
 
 [profile.release]
 lto = true

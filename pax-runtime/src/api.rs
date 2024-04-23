@@ -17,6 +17,10 @@ pub struct NodeContext {
     pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px
     pub bounds_self: Property<(f64, f64)>,
+    /// Current platform (Web/Native) this app is running on
+    pub platform: Platform,
+    /// Current os (Android/Windows/Mac/Linux) this app is running on
+    pub os: OS,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     #[allow(unused)]
     pub(crate) runtime_context: Rc<RefCell<RuntimeContext>>,
