@@ -32,7 +32,9 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
             size_inner_pane_x={self.bound_x}
         />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px}>
-            slot(0)
+            for i in 0..self.slot_children {
+                slot(i)
+            }
         </Group>
         <Rectangle fill=TRANSPARENT/>
     </Frame>
@@ -58,6 +60,7 @@ pub struct Scroller {
     pub momentum_x: Property<f64>,
     pub momentum_y: Property<f64>,
     pub damping: Property<f64>,
+    pub slot_children: Property<usize>,
 }
 
 #[pax]
@@ -106,6 +109,11 @@ impl Scroller {
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
+
+        if ctx.slot_children != self.slot_children.get() {
+            self.slot_children.set(ctx.slot_children);
+        }
+
         let mom_x = self.momentum_x.get();
         let mom_y = self.momentum_y.get();
         if no_touches() {
