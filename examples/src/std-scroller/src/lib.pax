@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 <Scroller  scroll_width=200% scroll_height=750%>
     <Button label="test" width=200px height=30px  @click=self.on_click/>
+=======
+<Scroller  bound_x=100% bound_y=750%>
+>>>>>>> 5f91d93b (os + platform var)
     <Group>
         <Rectangle height=50% fill=RED/>
         <Rectangle x=50% y=50% height=50% fill=BLUE/>
