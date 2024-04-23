@@ -17,14 +17,14 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
 #[pax]
 #[inlined(
     <Frame>
-        <PrimitiveScroller 
+        <PrimitiveScroller
             scroll_y={self.scroll_pos_y}
             width=20px
             anchor_x=100%
             x=100%
             size_inner_pane_y={self.bound_y}
         />
-        <PrimitiveScroller 
+        <PrimitiveScroller
             scroll_x={self.scroll_pos_x}
             height=20px
             anchor_y=100%
@@ -109,7 +109,6 @@ impl Scroller {
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
-
         if ctx.slot_children != self.slot_children.get() {
             self.slot_children.set(ctx.slot_children);
         }
