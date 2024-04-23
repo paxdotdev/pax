@@ -23,7 +23,7 @@ export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
     private scrollers: Map<string, Scroller>;
     baseOcclusionContext: OcclusionContext;
-    private textNodes = {};
+    private nodesLookup = {};
     private chassis? : PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
@@ -98,7 +98,7 @@ export class NativeElementPool {
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         // @ts-ignore
-        let node = this.textNodes[patch.idChain];
+        let node = this.nodesLookup[patch.idChain];
         if (node){
             let parent = node.parentElement;
             parent.removeChild(node);
@@ -147,16 +147,16 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nodesLookup[patch.idChain] = runningChain;
 
     }
 
     
     checkboxUpdate(patch: CheckboxUpdatePatch) {
         //@ts-ignore
-        window.textNodes = this.textNodes;
+        window.textNodes = this.nodesLookup;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nodesLookup[patch.id_chain];
         console.assert(leaf !== undefined);
         let checkbox = leaf.firstChild;
         if (patch.checked !== null) {
@@ -177,7 +177,7 @@ export class NativeElementPool {
 
     checkboxDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nodesLookup[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
@@ -224,16 +224,16 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nodesLookup[patch.idChain] = runningChain;
 
     }
 
     
     textboxUpdate(patch: TextboxUpdatePatch) {
         //@ts-ignore
-        window.textNodes = this.textNodes;
+        window.textNodes = this.nodesLookup;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nodesLookup[patch.id_chain];
         console.assert(leaf !== undefined);
         let textbox = leaf.firstChild;
 
@@ -302,7 +302,7 @@ export class NativeElementPool {
 
     textboxDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nodesLookup[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
@@ -348,16 +348,16 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nodesLookup[patch.idChain] = runningChain;
 
     }
 
     
     buttonUpdate(patch: ButtonUpdatePatch) {
         //@ts-ignore
-        window.textNodes = this.textNodes;
+        window.textNodes = this.nodesLookup;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nodesLookup[patch.id_chain];
         console.assert(leaf !== undefined);
         let button = leaf.firstChild;
         let textContainer = button.firstChild;
@@ -388,7 +388,7 @@ export class NativeElementPool {
 
     buttonDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nodesLookup[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
@@ -437,14 +437,14 @@ export class NativeElementPool {
         }
 
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nodesLookup[patch.idChain] = runningChain;
     }
 
     textUpdate(patch: TextUpdatePatch) {
         //@ts-ignore
-        window.textNodes = this.textNodes;
+        window.textNodes = this.nodesLookup;
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nodesLookup[patch.id_chain];
         console.assert(leaf !== undefined);
 
         let textChild = leaf.firstChild;
@@ -523,7 +523,7 @@ export class NativeElementPool {
 
     textDelete(id_chain: number[]) {
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nodesLookup[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
@@ -531,69 +531,67 @@ export class NativeElementPool {
     }
 
     frameCreate(_patch: AnyCreatePatch) {
-        // console.assert(patch.idChain != null);
-        // console.assert(this.clippingNodes["id_chain"] === undefined);
-        //
-        // let attachPoint = getAttachPointFromClippingIds(patch.clippingIds);
-        //
-        // let newClip = document.createElement("div");
-        // newClip.id = getStringIdFromClippingId("clip", patch.idChain);
-        // newClip.classList.add(NATIVE_CLIPPING_CLASS);
+         console.assert(patch.idChain != null);
+         console.assert(this.clippingNodes["id_chain"] === undefined);
+        
+         let attachPoint = getAttachPointFromClippingIds(patch.clippingIds);
+        
+         let newClip = document.createElement("div");
+         newClip.id = getStringIdFromClippingId("clip", patch.idChain);
+         newClip.classList.add(NATIVE_CLIPPING_CLASS);
 
-        //attachPoint!.appendChild(newClip);
+        attachPoint!.appendChild(newClip);
     }
 
     frameUpdate(_patch: FrameUpdatePatch) {
-        //@ts-ignore
-        // let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
-        //
-        // let shouldRedraw = false;
-        // if (patch.size_x != null) {
-        //     shouldRedraw = true;
-        //     cacheContainer.size_x = patch.size_x
-        // }
-        // if (patch.size_y != null) {
-        //     shouldRedraw = true;
-        //     cacheContainer.size_y = patch.size_y
-        // }
-        // if (patch.transform != null) {
-        //     shouldRedraw = true;
-        //     cacheContainer.transform = patch.transform;
-        // }
-        //
-        // if (shouldRedraw) {
-        //     let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
-        //
-        //     // Fallback and/or perf optimizer: `polygon` instead of `path`.
-        //     let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-        //     node.style.clipPath = polygonDef;
-        //     //@ts-ignore
-        //     node.style.webkitClipPath = polygonDef;
-        //
-        //     // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
-        //     // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-        //     // node.style.clipPath = pathDef;
-        //     // //@ts-ignore
-        //     // node.style.webkitClipPath = pathDef;
-        // }
-        // //@ts-ignore
-        // this.clippingValueCache[patch.id_chain] = cacheContainer;
+        @ts-ignore
+         let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
+        
+         let shouldRedraw = false;
+         if (patch.size_x != null) {
+             shouldRedraw = true;
+             cacheContainer.size_x = patch.size_x
+         }
+         if (patch.size_y != null) {
+             shouldRedraw = true;
+             cacheContainer.size_y = patch.size_y
+         }
+         if (patch.transform != null) {
+             shouldRedraw = true;
+             cacheContainer.transform = patch.transform;
+         }
+        
+         if (shouldRedraw) {
+             let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
+        
+             // Fallback and/or perf optimizer: `polygon` instead of `path`.
+             let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+             node.style.clipPath = polygonDef;
+             //@ts-ignore
+             node.style.webkitClipPath = polygonDef;
+        
+             // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
+             // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+             // node.style.clipPath = pathDef;
+             // //@ts-ignore
+             // node.style.webkitClipPath = pathDef;
+         }
+         //@ts-ignore
+         this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
-    frameDelete(_id_chain: number[]) {
-        // NOTE: this should be supported, and may cause a memory leak if left unaddressed;
-        //       was likely unplugged during v0 implementation due to some deeper bug that was interfering with 'hello world'
-
-        // let oldNode = this.textNodes.get(id_chain);
-        // console.assert(oldNode !== undefined);
-        // this.textNodes.delete(id_chain);
-        //
-        // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_CLASS);
-        // nativeLayer?.removeChild(oldNode);
+    frameDelete(id_chain: number[]) {
+        // @ts-ignore
+        let oldNode = this.nodesLookup[id_chain];
+        this.nodesLookup.delete(id_chain);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
+        }
     }
 
     scrollerCreate(patch: AnyCreatePatch){
-        window.textNodes = this.textNodes;
+        window.textNodes = this.nodesLookup;
         console.assert(patch.idChain != null);
         console.assert(patch.clippingIds != null);
         console.assert(patch.scrollerIds != null);
@@ -624,12 +622,12 @@ export class NativeElementPool {
                 this.scrollers, patch.idChain, scroller_id, patch.zIndex);
         }
         // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
+        this.nodesLookup[patch.idChain] = runningChain;
     }
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
         // @ts-ignore
-        let leaf = this.textNodes[patch.idChain];
+        let leaf = this.nodesLookup[patch.id_chain];
         console.assert(leaf !== undefined);
 
         let scroller_inner = leaf.firstChild;
@@ -661,7 +659,7 @@ export class NativeElementPool {
 
     scrollerDelete(idChain: number[]){
         // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+        let oldNode = this.nodesLookup[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
