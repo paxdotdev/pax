@@ -1,4 +1,4 @@
-<Scroller  bound_x=100% bound_y=750% damping=0.04>
+<Scroller  bound_x=100% bound_y=750%>
     <Group>
         <Group>
             <Rectangle height=50% fill=RED/>

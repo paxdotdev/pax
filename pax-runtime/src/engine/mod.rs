@@ -8,7 +8,7 @@ use std::rc::Rc;
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
-use pax_runtime_api::math::Transform2;
+use pax_runtime_api::{math::Transform2, OS};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
@@ -16,6 +16,7 @@ use piet::InterpolationMode;
 use crate::{
     ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
+use pax_runtime_api::Platform;
 
 pub mod node_interface;
 
@@ -41,6 +42,8 @@ use self::expanded_node::LayoutProperties;
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
     pub viewport: LayoutProperties,
+    pub platform: Platform,
+    pub os: OS,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
@@ -228,6 +231,8 @@ impl PaxEngine {
         main_component_instance: Rc<ComponentInstance>,
         expression_table: ExpressionTable,
         viewport_size: (f64, f64),
+        platform: Platform,
+        os: OS,
     ) -> Self {
         use pax_runtime_api::properties;
 
@@ -239,6 +244,8 @@ impl PaxEngine {
                 transform: Property::new(Transform2::identity()),
                 bounds: Property::new(viewport_size),
             },
+            platform,
+            os,
         };
 
         let runtime_context = Rc::new(RefCell::new(RuntimeContext::new(expression_table, globals)));
@@ -258,6 +265,8 @@ impl PaxEngine {
         expression_table: ExpressionTable,
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
+        platform: Platform,
+        os: OS,
     ) -> Self {
         use pax_runtime_api::math::Transform2;
         let frames_elapsed = Property::new(0);
@@ -268,6 +277,8 @@ impl PaxEngine {
                 transform: Transform2::default(),
                 bounds: viewport_size,
             },
+            platform,
+            os,
             designtime: designtime.clone(),
         };
 

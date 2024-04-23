@@ -21,7 +21,7 @@ use pax_runtime::{ExpressionTable, PaxEngine, Renderer};
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime::api::{Click, ModifierKey, MouseButton, MouseEventArgs, RenderContext};
+use pax_runtime::api::{Click, ModifierKey, MouseButton, MouseEventArgs, RenderContext, OS};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
@@ -48,6 +48,7 @@ pub extern "C" fn pax_init() -> *mut PaxEngineContainer {
         main_component_instance,
         expression_table,
         (1.0, 1.0),
+        pax_runtime::api::Platform::Native(OS::Mac),
     )));
 
     let container = ManuallyDrop::new(Box::new(PaxEngineContainer {

@@ -123,27 +123,7 @@ macro_rules! dispatch_event_handler {
                     Rc::clone(&self.properties.borrow())
                 };
 
-                let comp_props = self.layout_properties.borrow();
-                let bounds_self = comp_props.bounds.clone();
-                let bounds_parent = self
-                    .parent_expanded_node
-                    .borrow()
-                    .upgrade()
-                    .map(|parent| {
-                        let comp_props = parent.layout_properties.borrow();
-                        let bounds_parent = comp_props.bounds.clone();
-                        bounds_parent
-                    })
-                    .unwrap_or(globals.viewport.bounds.clone());
-                let context = NodeContext {
-                    bounds_self,
-                    bounds_parent,
-                    frames_elapsed: globals.frames_elapsed.clone(),
-                    runtime_context: ctx.clone(),
-                    #[cfg(feature = "designtime")]
-                    designtime: globals.designtime.clone(),
-                };
-
+                let context = self.get_node_context(ctx);
                 let borrowed_registry = &(*registry).borrow();
                 if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
                     handlers.iter().for_each(|handler| {
@@ -521,6 +501,8 @@ impl ExpandedNode {
             bounds_self,
             bounds_parent,
             runtime_context: context.clone(),
+            platform: globals.platform.clone(),
+            os: globals.os.clone(),
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }

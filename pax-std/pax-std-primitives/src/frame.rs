@@ -81,7 +81,7 @@ impl InstanceNode for FrameInstance {
 
     fn handle_unmount(
         &self,
-        _expanded_node: &Rc<ExpandedNode>,
+        expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
     }
