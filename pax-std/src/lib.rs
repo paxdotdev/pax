@@ -36,6 +36,8 @@ pub mod primitives {
         pub size_inner_pane_y: Property<Size>,
         pub scroll_enabled_x: Property<bool>,
         pub scroll_enabled_y: Property<bool>,
+        pub scroll_x: Property<f64>,
+        pub scroll_y: Property<f64>,
     }
 
     #[pax]

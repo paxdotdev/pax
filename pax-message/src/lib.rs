@@ -463,8 +463,10 @@ pub struct ScrollerPatch {
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
-    pub scroll_x: Option<bool>,
-    pub scroll_y: Option<bool>,
+    pub scroll_x: Option<f64>,
+    pub scroll_y: Option<f64>,
+    pub scroll_enabled_x: Option<f64>,
+    pub scroll_enabled_y: Option<f64>,
     pub subtree_depth: u32,
 }
 
