@@ -496,11 +496,27 @@ impl ExpandedNode {
             globals.viewport.bounds.clone()
         };
 
+        let slot_children = if self.instance_node.borrow().base().flags().is_component {
+            self.expanded_and_flattened_slot_children
+                .borrow()
+                .as_ref()
+                .map(|c| c.len())
+        } else {
+            self.containing_component.upgrade().and_then(|v| {
+                v.expanded_and_flattened_slot_children
+                    .borrow()
+                    .as_ref()
+                    .map(|c| c.len())
+            })
+        }
+        .unwrap_or_default();
+
         NodeContext {
             frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
             runtime_context: context.clone(),
+            slot_children,
             platform: globals.platform.clone(),
             os: globals.os.clone(),
             #[cfg(feature = "designtime")]
