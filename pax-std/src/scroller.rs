@@ -9,10 +9,6 @@ use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
 use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, TouchStart, OS};
-/// Stacker lays out a series of nodes either
-/// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
-/// each node.  `Stacker`s can be stacked inside of each other, horizontally
-/// and vertically, along with percentage-based positioning and `Transform2D.anchor` to compose any rectilinear 2D layout.
 #[pax]
 #[inlined(
     <Frame>
