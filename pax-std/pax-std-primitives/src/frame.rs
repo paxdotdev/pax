@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::iter;
 use std::rc::Rc;
 
 use kurbo::{Affine, BezPath};
@@ -79,9 +80,24 @@ impl InstanceNode for FrameInstance {
         }
     }
 
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RefCell<RuntimeContext>>,
+    ) {
+        // TODO send native "create frame" message here, and setup prop updates
+        // like in the other primitives
+
+        // When a frame has been mounted (and it's sucessfully attached itself
+        // already to it's own parent) it sets itself as it's parent frame, so
+        // that children of this frame end up attaching to it
+        expanded_node.parent_frame.set(Some(expanded_node.id));
+        (self as Rc<dyn InstanceNode>).handle_mount(expanded_node, context);
+    }
+
     fn handle_unmount(
         &self,
-        expanded_node: &Rc<ExpandedNode>,
+        _expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
     }

@@ -172,7 +172,7 @@ impl InstanceNode for RepeatInstance {
                     ret
                 },
                 &deps,
-                &format!("repeat_children (node id: {})", expanded_node.id_chain[0]),
+                &format!("repeat_children (node id: {:?})", expanded_node.id),
             ));
     }
 }

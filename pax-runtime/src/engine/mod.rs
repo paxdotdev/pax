@@ -1,4 +1,4 @@
-use crate::api::Property;
+use crate::{api::Property, ExpandedNodeIdentifier};
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -424,7 +424,7 @@ impl PaxEngine {
             if layer == Layer::Native && *curr_occlusion_ind != new_occlusion_ind {
                 self.runtime_context.borrow_mut().enqueue_native_message(
                     pax_message::NativeMessage::OcclusionUpdate(OcclusionPatch {
-                        id_chain: node.id_chain.clone(),
+                        id_chain: node.id.to_backwards_compatible_id_chain(),
                         z_index: new_occlusion_ind,
                     }),
                 );
@@ -448,7 +448,7 @@ impl PaxEngine {
             .recurse_render(&mut self.runtime_context, rcs);
     }
 
-    pub fn get_expanded_node(&self, id: u32) -> Option<Rc<ExpandedNode>> {
+    pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
         let binding = self.runtime_context.borrow();
         let val = binding.node_cache.get(&id).clone();
         val.map(|v| (v.clone()))
