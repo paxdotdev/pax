@@ -10,9 +10,20 @@ use std::{any::Any, collections::HashMap};
 
 use crate::{ExpandedNode, ExpressionTable, Globals};
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Uid(pub u32);
+pub struct ExpandedNodeIdentifier(pub u32);
+
+impl ExpandedNodeIdentifier {
+    /// Before ExpandedNodeIdentifier
+    /// was a thing, an Id was a unique Vec of u32s.
+    /// This method can be removed once the native messages to
+    /// the web/other chassis accept either ExpandedNodeIdentifier itself,
+    /// or it's interior single u32
+    pub fn to_backwards_compatible_id_chain(&self) -> Vec<u32> {
+        vec![self.0]
+    }
+}
 
 #[derive(Default)]
 pub struct NodeCache {
@@ -22,19 +33,19 @@ pub struct NodeCache {
 /// Shared context for properties pass recursion
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RuntimeContext {
-    next_uid: Uid,
+    next_uid: ExpandedNodeIdentifier,
     messages: Vec<NativeMessage>,
     globals: Globals,
     expression_table: Rc<ExpressionTable>,
     pub z_index_node_cache: Vec<Rc<ExpandedNode>>,
-    pub node_cache: HashMap<u32, Rc<ExpandedNode>>,
-    pub uni_to_eid: HashMap<UniqueTemplateNodeIdentifier, Vec<u32>>,
+    pub node_cache: HashMap<ExpandedNodeIdentifier, Rc<ExpandedNode>>,
+    pub uni_to_eid: HashMap<UniqueTemplateNodeIdentifier, Vec<ExpandedNodeIdentifier>>,
 }
 
 impl RuntimeContext {
     pub fn new(expression_table: ExpressionTable, globals: Globals) -> Self {
         Self {
-            next_uid: Uid(0),
+            next_uid: ExpandedNodeIdentifier(0),
             messages: Vec::new(),
             globals,
             expression_table: Rc::new(expression_table),
@@ -143,7 +154,7 @@ impl RuntimeContext {
         }
     }
 
-    pub fn gen_uid(&mut self) -> Uid {
+    pub fn gen_uid(&mut self) -> ExpandedNodeIdentifier {
         self.next_uid.0 += 1;
         self.next_uid
     }

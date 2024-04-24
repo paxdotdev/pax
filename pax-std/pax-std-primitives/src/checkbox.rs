@@ -3,7 +3,8 @@ use std::cell::RefCell;
 use pax_message::{AnyCreatePatch, CheckboxPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
+    InstantiationArgs, RuntimeContext,
 };
 use pax_std::primitives::Checkbox;
 use std::collections::HashMap;
@@ -17,7 +18,7 @@ pub struct CheckboxInstance {
     // a patch in the case that they have changed + sends it as a native
     // message to the chassi. Since InstanceNode -> ExpandedNode has a one
     // to many relationship, needs to be a hashmap
-    native_message_props: RefCell<HashMap<u32, Property<()>>>,
+    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
 impl InstanceNode for CheckboxInstance {
@@ -47,7 +48,7 @@ impl InstanceNode for CheckboxInstance {
         //trigger computation of property that computes + sends native message update
         self.native_message_props
             .borrow()
-            .get(&expanded_node.id_chain[0])
+            .get(&expanded_node.id)
             .unwrap()
             .get();
     }
@@ -57,11 +58,11 @@ impl InstanceNode for CheckboxInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
+        let id = expanded_node.id.clone();
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(AnyCreatePatch {
-                id_chain: id_chain.clone(),
+                id_chain: id.to_backwards_compatible_id_chain(),
                 clipping_ids: vec![],
                 scroller_ids: vec![],
                 z_index: 0,
@@ -69,7 +70,7 @@ impl InstanceNode for CheckboxInstance {
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(CheckboxPatch {
-            id_chain: id_chain.clone(),
+            id_chain: id.to_backwards_compatible_id_chain(),
             ..Default::default()
         }));
 
@@ -84,17 +85,17 @@ impl InstanceNode for CheckboxInstance {
             ])
             .collect();
         self.native_message_props.borrow_mut().insert(
-            id_chain[0],
+            id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let id_chain = expanded_node.id_chain.clone();
+                    let id = expanded_node.id.clone();
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = CheckboxPatch {
-                        id_chain: id_chain.clone(),
+                        id_chain: id.to_backwards_compatible_id_chain(),
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
@@ -132,11 +133,12 @@ impl InstanceNode for CheckboxInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
-        let id = id_chain[0];
+        let id = expanded_node.id.clone();
         context
             .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id_chain));
+            .enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(
+                id.to_backwards_compatible_id_chain(),
+            ));
         // Reset so that native_message sending updates while unmounted
         self.native_message_props.borrow_mut().remove(&id);
     }

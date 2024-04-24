@@ -1,5 +1,5 @@
 use core::option::Option::Some;
-use pax_runtime::{BaseInstance, InstanceFlags, RuntimeContext};
+use pax_runtime::{BaseInstance, ExpandedNodeIdentifier, InstanceFlags, RuntimeContext};
 use pax_std::primitives::Scrollbar;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ pub struct ScrollbarInstance {
     // a patch in the case that they have changed + sends it as a native
     // message to the chassi. Since InstanceNode -> ExpandedNode has a one
     // to many relationship, needs to be a hashmap
-    native_message_props: RefCell<HashMap<u32, Property<()>>>,
+    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
 impl InstanceNode for ScrollbarInstance {
@@ -52,7 +52,7 @@ impl InstanceNode for ScrollbarInstance {
         //trigger computation of property that computes + sends native message update
         self.native_message_props
             .borrow()
-            .get(&expanded_node.id_chain[0])
+            .get(&expanded_node.id)
             .unwrap()
             .get();
     }
@@ -63,11 +63,11 @@ impl InstanceNode for ScrollbarInstance {
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
         // Send creation message
-        let id_chain = expanded_node.id_chain.clone();
+        let id = expanded_node.id.clone();
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
-                id_chain: id_chain.clone(),
+                id_chain: id.to_backwards_compatible_id_chain(),
                 clipping_ids: vec![],
                 scroller_ids: vec![],
                 z_index: 0,
@@ -77,7 +77,7 @@ impl InstanceNode for ScrollbarInstance {
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(ScrollerPatch {
-            id_chain: id_chain.clone(),
+            id_chain: id.to_backwards_compatible_id_chain(),
             ..Default::default()
         }));
 
@@ -92,17 +92,17 @@ impl InstanceNode for ScrollbarInstance {
             ])
             .collect();
         self.native_message_props.borrow_mut().insert(
-            id_chain[0],
+            id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let id_chain = expanded_node.id_chain.clone();
+                    let id = expanded_node.id.clone();
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = ScrollerPatch {
-                        id_chain: id_chain.clone(),
+                        id_chain: id.to_backwards_compatible_id_chain(),
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Scrollbar| {
@@ -160,11 +160,12 @@ impl InstanceNode for ScrollbarInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
-        let id = id_chain[0];
+        let id = expanded_node.id.clone();
         context
             .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id_chain));
+            .enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(
+                id.to_backwards_compatible_id_chain(),
+            ));
         // Reset so that native_message sending updates while unmounted
         self.native_message_props.borrow_mut().remove(&id);
     }
