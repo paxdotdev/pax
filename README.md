@@ -49,3 +49,12 @@ This project is licensed under either of:
 - [Apache 2.0 License](LICENSE-APACHE)
 
 at your option.
+
+## Build Pax visually
+
+[Get early access to Pax Create](https://airtable.com/appCUQtUS9g4kuQZL/pagcoNLd0e8amZB0D/form)
+
+![image](https://github.com/paxengine/pax/assets/2100885/972fd339-868d-4718-8e07-aabc26d6945c)
+
+
+
