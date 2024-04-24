@@ -92,7 +92,14 @@ impl InstanceNode for FrameInstance {
         // already to it's own parent) it sets itself as it's parent frame, so
         // that children of this frame end up attaching to it
         expanded_node.parent_frame.set(Some(expanded_node.id));
-        (self as Rc<dyn InstanceNode>).handle_mount(expanded_node, context);
+
+        // bellow is the same as default impl for adding children in instance_node
+        let env = Rc::clone(&expanded_node.stack);
+        let children = self.base().get_instance_children().borrow();
+        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+
+        let new_children = expanded_node.generate_children(children_with_envs, context);
+        expanded_node.children.set(new_children);
     }
 
     fn handle_unmount(

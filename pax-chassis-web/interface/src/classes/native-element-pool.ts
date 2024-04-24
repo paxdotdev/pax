@@ -21,41 +21,31 @@ import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
-    private scrollers: Map<string, Scroller>;
-    baseOcclusionContext: OcclusionContext;
+    occlusionContext: OcclusionContext;
     private nodesLookup = {};
-    private chassis? : PaxChassisWeb;
+    private chassis?: PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
     messageList:string[] = [];
-    private isMobile = false;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
         this.canvases = new Map();
-        this.scrollers = new Map();
-        this.baseOcclusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
+        this.occlusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
     }
 
-    build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
-        this.isMobile = isMobile;
+    attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
-        this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
+        this.occlusionContext.attach(mount, chassis, this.canvases);
     }
 
-    static addNativeElement(elem: HTMLElement, baseOcclusionContext: OcclusionContext, scrollers: Map<string, Scroller>,
-                                     idChain: number[] , scrollerIdChain: number[] | undefined, zIndex: number){
-        if(scrollerIdChain != undefined){
-            let scroller: Scroller = scrollers.get(arrayToKey(scrollerIdChain))!;
-            scroller.addElement(elem, zIndex);
-        } else {
-            baseOcclusionContext.addElement(elem, zIndex);
-        }
+    static addNativeElement(elem: HTMLElement, occlusionContext: OcclusionContext, occlusionLayerId: number){
+        occlusionContext.addElement(elem, occlusionLayerId);
     }
 
     clearCanvases(): void {
-        this.canvases.forEach((canvas, key) => {
+        this.canvases.forEach((canvas, _key) => {
             let dpr = window.devicePixelRatio;
             const context = canvas.getContext('2d');
             if (context) {
@@ -71,38 +61,13 @@ export class NativeElementPool {
         });
     }
 
-
-    sendScrollerValues(){
-        this.scrollers.forEach((scroller, id) => {
-            // @ts-ignore
-            let deltaX = 0;
-            // @ts-ignore
-            let deltaY = scroller.getTickScrollDelta();
-            if(deltaY && Math.abs(deltaY) > 0){
-                const scrollEvent = this.objectManager.getFromPool(OBJECT);
-                const deltas: object = this.objectManager.getFromPool(OBJECT);
-                // @ts-ignore
-                deltas['delta_x'] = deltaX;
-                // @ts-ignore
-                deltas['delta_y'] = deltaY;
-                // @ts-ignore
-                scrollEvent.Scroll = deltas;
-                const scrollEventStringified = JSON.stringify(scrollEvent);
-                this.messageList.push(scrollEventStringified);
-                this.chassis!.interrupt(scrollEventStringified, []);
-                this.objectManager.returnToPool(OBJECT, deltas);
-                this.objectManager.returnToPool(OBJECT, scrollEvent);
-            }
-        });
-    }
-
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         // @ts-ignore
         let node = this.nodesLookup[patch.idChain];
         if (node){
             let parent = node.parentElement;
             parent.removeChild(node);
-            NativeElementPool.addNativeElement(node, this.baseOcclusionContext,
+            NativeElementPool.addNativeElement(node, this.occlusionContext,
                 // @ts-ignore
                 this.scrollers, patch.idChain, undefined, patch.zIndex);
         }
@@ -110,8 +75,7 @@ export class NativeElementPool {
 
     checkboxCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
+        console.assert(patch.parentFrame != null);
         console.assert(patch.zIndex != null);
         
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
@@ -135,16 +99,8 @@ export class NativeElementPool {
         runningChain.appendChild(checkbox);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
-        }
         if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -212,16 +168,8 @@ export class NativeElementPool {
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
 
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
-        }
         if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -311,8 +259,6 @@ export class NativeElementPool {
 
     buttonCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
         console.assert(patch.zIndex != null);
         
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
@@ -336,16 +282,8 @@ export class NativeElementPool {
         runningChain.appendChild(button);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
-        }
         if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -397,8 +335,7 @@ export class NativeElementPool {
 
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
+        console.assert(patch.parentFrame != null);
         console.assert(patch.zIndex != null);
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -422,18 +359,10 @@ export class NativeElementPool {
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
 
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
-        }
         textChild.style.userSelect = "none";
 
         if(patch.idChain != undefined && patch.zIndex != undefined) {
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
         }
 
         // @ts-ignore
@@ -530,71 +459,68 @@ export class NativeElementPool {
         }
     }
 
-    frameCreate(_patch: AnyCreatePatch) {
-         console.assert(patch.idChain != null);
-         console.assert(this.clippingNodes["id_chain"] === undefined);
-        
-         let attachPoint = getAttachPointFromClippingIds(patch.clippingIds);
-        
-         let newClip = document.createElement("div");
-         newClip.id = getStringIdFromClippingId("clip", patch.idChain);
-         newClip.classList.add(NATIVE_CLIPPING_CLASS);
-
-        attachPoint!.appendChild(newClip);
+    frameCreate(patch: AnyCreatePatch) {
+        console.assert(patch.idChain != null);
+        console.assert(patch.parentFrame != null);
+        // newClip.id = getStringIdFromClippingId("clip", patch.idChain);
+        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.setAttribute("id_chain", String(patch.idChain));
+        // @ts-ignore
+        this.nodesLookup[patch.idChain] = runningChain;
+        // @ts-ignore
+        let parent = this.nodesLookup[patch.parentFrame];
+        parent.appendChild(runningChain);
     }
 
-    frameUpdate(_patch: FrameUpdatePatch) {
-        @ts-ignore
-         let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
+    frameUpdate(patch: FrameUpdatePatch) {
+       
+         // let shouldRedraw = false;
+         // if (patch.size_x != null) {
+         //     shouldRedraw = true;
+         //     cacheContainer.size_x = patch.size_x
+         // }
+         // if (patch.size_y != null) {
+         //     shouldRedraw = true;
+         //     cacheContainer.size_y = patch.size_y
+         // }
+         // if (patch.transform != null) {
+         //     shouldRedraw = true;
+         //     cacheContainer.transform = patch.transform;
+         // }
         
-         let shouldRedraw = false;
-         if (patch.size_x != null) {
-             shouldRedraw = true;
-             cacheContainer.size_x = patch.size_x
-         }
-         if (patch.size_y != null) {
-             shouldRedraw = true;
-             cacheContainer.size_y = patch.size_y
-         }
-         if (patch.transform != null) {
-             shouldRedraw = true;
-             cacheContainer.transform = patch.transform;
-         }
+         // if (shouldRedraw) {
+         //     let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
         
-         if (shouldRedraw) {
-             let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
+         //     // Fallback and/or perf optimizer: `polygon` instead of `path`.
+         //     let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+         //     node.style.clipPath = polygonDef;
+         //     //@ts-ignore
+         //     node.style.webkitClipPath = polygonDef;
         
-             // Fallback and/or perf optimizer: `polygon` instead of `path`.
-             let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-             node.style.clipPath = polygonDef;
-             //@ts-ignore
-             node.style.webkitClipPath = polygonDef;
-        
-             // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
-             // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-             // node.style.clipPath = pathDef;
-             // //@ts-ignore
-             // node.style.webkitClipPath = pathDef;
-         }
-         //@ts-ignore
-         this.clippingValueCache[patch.id_chain] = cacheContainer;
+         //     // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
+         //     // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+         //     // node.style.clipPath = pathDef;
+         //     // //@ts-ignore
+         //     // node.style.webkitClipPath = pathDef;
+         // }
+         // //@ts-ignore
+         // this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
     frameDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.nodesLookup[id_chain];
-        this.nodesLookup.delete(id_chain);
-        if (oldNode){
-            let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
-        }
+        // // @ts-ignore
+        // let oldNode = this.nodesLookup[id_chain];
+        // this.nodesLookup.delete(id_chain);
+        // if (oldNode){
+        //     let parent = oldNode.parentElement;
+        //     parent.removeChild(oldNode);
+        // }
     }
 
     scrollerCreate(patch: AnyCreatePatch){
-        window.textNodes = this.nodesLookup;
         console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
+        // console.assert(patch.parentFrame != null);
         console.assert(patch.zIndex != null);
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -610,16 +536,8 @@ export class NativeElementPool {
         runningChain.setAttribute("id_chain", String(patch.idChain));
 
 
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
-        }
         if(patch.idChain != undefined && patch.zIndex != undefined) {
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -659,7 +577,7 @@ export class NativeElementPool {
 
     scrollerDelete(idChain: number[]){
         // @ts-ignore
-        let oldNode = this.nodesLookup[id_chain];
+        let oldNode = this.nodesLookup[idChain];
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
@@ -670,7 +588,7 @@ export class NativeElementPool {
 
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
-        if (chassis.image_loaded(patch.path)) {
+        if (chassis.image_loaded(patch.path ?? "")) {
             return
         }
         //Check the full path of our index.js; use the prefix of this path also for our image assets

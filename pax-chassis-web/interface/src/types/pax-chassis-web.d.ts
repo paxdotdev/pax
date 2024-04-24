@@ -44,6 +44,10 @@ export class PaxChassisWeb {
 */
   interrupt(native_interrupt: string, additional_payload: any): InterruptResult;
 /**
+* @param {string} path
+*/
+  image_loaded(path: string): boolean;
+/**
 * @param {MemorySlice} slice
 */
   deallocate(slice: MemorySlice): void;

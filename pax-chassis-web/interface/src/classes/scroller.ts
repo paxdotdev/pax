@@ -38,12 +38,12 @@ export class Scroller {
         this.objectManager = objectManager;
     }
 
-    build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
-          scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>, isMobile: boolean) {
+    build(idChain: number[], occlusionLayerId: number, chassis: PaxChassisWeb,
+          baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>) {
         this.isMobile = isMobile;
         this.idChain = idChain;
         this.parentScrollerId = scrollerId;
-        this.zIndex = zIndex;
+        this.zIndex = occlusionLayerId;
         this.scrollOffsetX = 0;
         this.scrollOffsetY = 0;
         this.sizeX = 0;
@@ -53,7 +53,7 @@ export class Scroller {
 
         this.container = this.objectManager.getFromPool(DIV);
         this.container.className = SCROLLER_CONTAINER;
-        NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
+        NativeElementPool.addNativeElement(this.container, baseOcclusionContext , occlusionLayerId);
         this.scrollManager = new ScrollManager(this.container, isMobile);
 
         this.innerPane = this.objectManager.getFromPool(DIV);

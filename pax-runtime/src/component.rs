@@ -73,7 +73,7 @@ impl InstanceNode for ComponentInstance {
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.children.replace_with(Property::new_with_name(
             expanded_node.generate_children(children_with_envs, context),
-            &format!("component (node id: {:?})", expanded_node.id),
+            &format!("component (node id: {})", expanded_node.id.0),
         ));
     }
 

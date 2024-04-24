@@ -81,7 +81,7 @@ impl InstanceNode for SlotInstance {
                     ret
                 },
                 &deps,
-                &format!("slot_children (node id: {:?})", expanded_node.id),
+                &format!("slot_children (node id: {})", expanded_node.id.0),
             ));
     }
 

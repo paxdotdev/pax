@@ -103,14 +103,6 @@ export function getQuadClipPolygonCommand(width: number, height: number, transfo
     return polygon;
 }
 
-export function generateLocationId(scrollerId: number[] | undefined, zIndex: number): string {
-    if (scrollerId) {
-        return `[${scrollerId.join(",")}]_${zIndex}`;
-    } else {
-        return `${zIndex}`;
-    }
-}
-
 export function arrayToKey(arr: number[]): string {
     return arr.join(',');
 }

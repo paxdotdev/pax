@@ -3,7 +3,6 @@
 import {CANVAS_CLASS, NATIVE_OVERLAY_CLASS} from '../utils/constants';
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, CANVAS, DIV, UINT32ARRAY} from "../pools/supported-objects";
-import {generateLocationId} from "../utils/helpers";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
 
@@ -12,7 +11,7 @@ export class Layer {
     canvasMap?: Map<string, HTMLCanvasElement>;
     native?: HTMLDivElement;
     scrollerId?: number[];
-    zIndex?: number;
+    occlusionLayerId?: number;
     chassis?: PaxChassisWeb;
     objectManager: ObjectManager;
 
@@ -21,38 +20,29 @@ export class Layer {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, zIndex: number, scroller_id: number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
-        this.zIndex = zIndex;
-        this.scrollerId = scroller_id;
+    build(parent: Element, occlusionLayerId: number, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
+        this.occlusionLayerId = occlusionLayerId;
         this.chassis = chassis;
         this.canvasMap = canvasMap;
-
         this.canvas = this.objectManager.getFromPool(CANVAS);
         this.native = this.objectManager.getFromPool(DIV);
 
-        this.canvas.id = generateLocationId(scroller_id, zIndex);
-        this.canvas.style.zIndex = String(zIndex);
+        this.canvas.style.zIndex = String(occlusionLayerId);
+        this.canvas.id = String(occlusionLayerId);
         parent.appendChild(this.canvas);
-        // @ts-ignore
+
+        // TODO needed as separate? could this just pass in the canvas to the context through wasm-bindgen
         canvasMap.set(this.canvas.id, this.canvas);
         chassis.add_context(this.canvas.id);
 
         this.native.className = NATIVE_OVERLAY_CLASS;
-        this.native.style.zIndex = String(zIndex);
+        this.native.style.zIndex = String(occlusionLayerId);
         parent.appendChild(this.native);
-        if (scroller_id != undefined) {
-            this.canvas.style.position = "sticky";
-            if (zIndex > 0) {
-                this.canvas.style.marginTop = String(-this.canvas.style.height) + 'px';
-            }
-            this.native.style.position = "sticky";
-            this.native.style.marginTop = String(-this.canvas.style.height) + 'px';
-        }
     }
 
     public cleanUp() {
-        if (this.canvas != undefined && this.chassis != undefined && this.zIndex != undefined) {
-            this.chassis.remove_context(generateLocationId(this.scrollerId, this.zIndex));
+        if (this.canvas != undefined && this.chassis != undefined && this.occlusionLayerId != undefined) {
+            this.chassis.remove_context(this.occlusionLayerId.toString());
             this.canvasMap?.delete(this.canvas.id);
             let parent = this.canvas.parentElement;
             parent!.removeChild(this.canvas);
@@ -64,29 +54,31 @@ export class Layer {
             this.objectManager.returnToPool(DIV, this.native);
         }
         this.scrollerId = [];
-        this.zIndex = undefined;
+        this.occlusionLayerId = undefined;
     }
 
-    public updateCanvas(width: number, height: number) {
-        requestAnimationFrame(() => {
-            if (this.scrollerId != undefined && (this.zIndex != undefined && this.zIndex > 0)) {
-                if (this.canvas != undefined) {
-                    this.canvas.style.marginTop = String(-height) + "px";
-                }
-            }
-        });
+    // TODO needed?
+    // public updateCanvas(width: number, height: number) {
+    //     requestAnimationFrame(() => {
+    //         if (this.scrollerId != undefined && (this.occlusionLayerId != undefined && this.occlusionLayerId > 0)) {
+    //             if (this.canvas != undefined) {
+    //                 this.canvas.style.marginTop = String(-height) + "px";
+    //             }
+    //         }
+    //     });
 
-    }
+    // }
 
-    public updateNativeOverlay(width: number, height: number) {
-        requestAnimationFrame(() => {
-            if (this.native != undefined) {
-                if (this.scrollerId != undefined) {
-                    this.native.style.marginTop = String(-height) + "px";
-                }
-                this.native.style.width = String(width) + 'px';
-                this.native.style.height = String(height) + 'px';
-            }
-        });
-    }
+    // TODO needed?
+    // public updateNativeOverlay(width: number, height: number) {
+    //     requestAnimationFrame(() => {
+    //         if (this.native != undefined) {
+    //             if (this.scrollerId != undefined) {
+    //                 this.native.style.marginTop = String(-height) + "px";
+    //             }
+    //             this.native.style.width = String(width) + 'px';
+    //             this.native.style.height = String(height) + 'px';
+    //         }
+    //     });
+    // }
 }
