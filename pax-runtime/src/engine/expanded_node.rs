@@ -221,7 +221,7 @@ impl ExpandedNode {
             containing_component,
             children: Property::new_with_name(
                 Vec::new(),
-                &format!("node children (node id: {:?})", id),
+                &format!("node children (node id: {})", id.0),
             ),
             mounted_children: RefCell::new(Vec::new()),
             layout_properties: LayoutProperties::default(),

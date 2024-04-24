@@ -75,8 +75,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
-        isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        nativePool.build(chassis, isMobile, mount);
+        nativePool.attach(chassis, mount);
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
         console.error("Failed to load or instantiate Wasm module:", error);
@@ -84,7 +83,6 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
 }
 
 function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
-    nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
     const memorySliceSpec = chassis.tick();
@@ -100,7 +98,8 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
             let width = mount.clientWidth;
             let height = mount.clientHeight;
             chassis.send_viewport_update(width, height);
-            nativePool.baseOcclusionContext.updateCanvases(width, height);
+            // TODO needed?
+            // nativePool.occlusionContext.updateCanvases(width, height);
         };
         window.addEventListener('resize', resizeHandler);
         resizeHandler();//Fire once manually to init viewport size & occlusion context
@@ -127,19 +126,6 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);
             nativePool.occlusionUpdate(patch);
-        } else if(unwrapped_msg["ScrollerCreate"]) {
-            let msg = unwrapped_msg["ScrollerCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerCreate(patch);
-        } else if (unwrapped_msg["ScrollerUpdate"]){
-            let msg = unwrapped_msg["ScrollerUpdate"]
-            let patch: ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.scrollerUpdate(patch);
-        }else if (unwrapped_msg["ScrollerDelete"]) {
-            let msg = unwrapped_msg["ScrollerDelete"];
-            nativePool.scrollerDelete(msg)
         } else if(unwrapped_msg["ButtonCreate"]) {
             let msg = unwrapped_msg["ButtonCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

@@ -9,8 +9,7 @@ export class OcclusionContext {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
     private parent?: Element;
-    private zIndex?: number;
-    private scrollerId?: number[];
+    private nextOcclusionLayerId?: number;
     private objectManager: ObjectManager;
     private chassis?: PaxChassisWeb;
 
@@ -18,58 +17,58 @@ export class OcclusionContext {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, scrollerId : number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
+    attach(parent: Element, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
         this.layers = this.objectManager.getFromPool(ARRAY);
         this.parent = parent;
-        this.zIndex = -1;
-        this.scrollerId = scrollerId;
+        this.nextOcclusionLayerId = -1;
         this.chassis = chassis;
         this.canvasMap = canvasMap;
         this.growTo(0);
     }
 
-    growTo(z_index: number) {
-        let zIndex = z_index + 1;
+    growTo(newOcclusionLayerId: number) {
+        let occlusionLayerId = newOcclusionLayerId + 1;
         if(this.parent == undefined || this.canvasMap == undefined ||
             this.layers == undefined || this.chassis == undefined){
             return
         }
-        if(this.zIndex != undefined && this.zIndex < zIndex){
-            for(let i = this.zIndex+1; i <= zIndex; i++) {
+        if(this.nextOcclusionLayerId != undefined && this.nextOcclusionLayerId < occlusionLayerId){
+            for(let i = this.nextOcclusionLayerId+1; i <= occlusionLayerId; i++) {
                 let newLayer: Layer = this.objectManager.getFromPool(LAYER, this.objectManager);
-                newLayer.build(this.parent, i, this.scrollerId, this.chassis, this.canvasMap);
+                newLayer.build(this.parent, i, this.chassis, this.canvasMap);
                 this.layers.push(newLayer);
             }
-            this.zIndex = zIndex;
+            this.nextOcclusionLayerId = occlusionLayerId;
         }
     }
 
-    shrinkTo(zIndex: number){
+    shrinkTo(occlusionLayerId: number){
         if(this.layers == undefined){
             return
         }
-        if(this.zIndex != undefined && this.zIndex > zIndex) {
-            for(let i = this.zIndex; i > zIndex; i--){
+        if(this.nextOcclusionLayerId != undefined && this.nextOcclusionLayerId > occlusionLayerId) {
+            for(let i = this.nextOcclusionLayerId; i > occlusionLayerId; i--){
                 this.objectManager.returnToPool(LAYER, this.layers[i]);
                 this.layers.pop();
             }
-            this.zIndex = zIndex;
+            this.nextOcclusionLayerId = occlusionLayerId;
         }
     }
 
-    addElement(element: HTMLElement, zIndex: number){
-        if(this.zIndex != undefined){
-            this.growTo(zIndex);
-            element.style.zIndex = String(zIndex);
-            this.layers![zIndex]!.native!.prepend(element);
+    addElement(element: HTMLElement, occlusionLayerId: number){
+        if(this.nextOcclusionLayerId != undefined){
+            this.growTo(occlusionLayerId);
+            element.style.zIndex = String(occlusionLayerId);
+            this.layers![occlusionLayerId]!.native!.prepend(element);
         }
     }
 
-    updateCanvases(width: number, height: number){
-        if(this.layers != undefined){
-            this.layers.forEach((layer)=>{layer.updateCanvas(width, height)});
-        }
-    }
+    // TODO needed?
+    // updateCanvases(width: number, height: number){
+    //     if(this.layers != undefined){
+    //         this.layers.forEach((layer)=>{layer.updateCanvas(width, height)});
+    //     }
+    // }
 
     cleanUp(){
         if(this.layers != undefined){
@@ -79,15 +78,15 @@ export class OcclusionContext {
         }
         this.canvasMap = undefined;
         this.parent = undefined;
-        this.zIndex = undefined;
-        this.scrollerId = undefined;
+        this.nextOcclusionLayerId = undefined;
     }
 
-    updateNativeOverlays(width: number, height: number){
-        if(this.layers != undefined) {
-            this.layers.forEach((layer) => {
-                layer.updateNativeOverlay(width, height)
-            });
-        }
-    }
+    // TODO needed?
+    // updateNativeOverlays(width: number, height: number){
+    //     if(this.layers != undefined) {
+    //         this.layers.forEach((layer) => {
+    //             layer.updateNativeOverlay(width, height)
+    //         });
+    //     }
+    // }
 }

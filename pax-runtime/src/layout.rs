@@ -41,7 +41,7 @@ pub fn compute_tab(
             (width, height)
         },
         &deps,
-        &format!("bounds of node {:?}", node.id),
+        &format!("bounds of node {}", node.id.0),
     );
 
     let cp_bounds = bounds.clone();
@@ -173,7 +173,7 @@ pub fn compute_tab(
             container_transform.get() * desugared_transform * node_transform_property_computed
         },
         &all_transform_deps,
-        &format!("transform of node {:?}", node.id),
+        &format!("transform of node {}", node.id.0),
     );
 
     (transform, bounds)

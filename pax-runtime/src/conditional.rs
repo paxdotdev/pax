@@ -74,7 +74,7 @@ impl InstanceNode for ConditionalInstance {
                     }
                 },
                 &[dep],
-                &format!("conditional_children (node id: {:?})", expanded_node.id),
+                &format!("conditional_children (node id: {})", expanded_node.id.0),
             ));
     }
 
