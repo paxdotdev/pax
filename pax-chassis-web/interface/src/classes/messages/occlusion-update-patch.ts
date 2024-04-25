@@ -1,14 +1,14 @@
 export class OcclusionUpdatePatch {
     public idChain?: number[];
-    public zIndex?: number;
+    public occlusionLayerId?: number;
     fromPatch(jsonMessage: any) {
         this.idChain = jsonMessage["id_chain"];
 
-        this.zIndex = jsonMessage["z_index"];
+        this.occlusionLayerId = jsonMessage["z_index"];
     }
     cleanUp(){
         this.idChain = [];
-        this.zIndex = -1;
+        this.occlusionLayerId = -1;
     }
 }
 

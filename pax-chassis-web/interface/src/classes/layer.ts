@@ -10,7 +10,6 @@ export class Layer {
     canvas?: HTMLCanvasElement;
     canvasMap?: Map<string, HTMLCanvasElement>;
     native?: HTMLDivElement;
-    scrollerId?: number[];
     occlusionLayerId?: number;
     chassis?: PaxChassisWeb;
     objectManager: ObjectManager;
@@ -53,32 +52,6 @@ export class Layer {
             parent!.removeChild(this.native);
             this.objectManager.returnToPool(DIV, this.native);
         }
-        this.scrollerId = [];
         this.occlusionLayerId = undefined;
     }
-
-    // TODO needed?
-    // public updateCanvas(width: number, height: number) {
-    //     requestAnimationFrame(() => {
-    //         if (this.scrollerId != undefined && (this.occlusionLayerId != undefined && this.occlusionLayerId > 0)) {
-    //             if (this.canvas != undefined) {
-    //                 this.canvas.style.marginTop = String(-height) + "px";
-    //             }
-    //         }
-    //     });
-
-    // }
-
-    // TODO needed?
-    // public updateNativeOverlay(width: number, height: number) {
-    //     requestAnimationFrame(() => {
-    //         if (this.native != undefined) {
-    //             if (this.scrollerId != undefined) {
-    //                 this.native.style.marginTop = String(-height) + "px";
-    //             }
-    //             this.native.style.width = String(width) + 'px';
-    //             this.native.style.height = String(height) + 'px';
-    //         }
-    //     });
-    // }
 }
