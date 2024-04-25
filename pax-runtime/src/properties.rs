@@ -15,15 +15,7 @@ use crate::{ExpandedNode, ExpressionTable, Globals};
 pub struct ExpandedNodeIdentifier(pub u32);
 
 impl ExpandedNodeIdentifier {
-    /// Before ExpandedNodeIdentifier
-    /// was a thing, an Id was a unique Vec of u32s.
-    /// This method can be removed once the native messages to
-    /// the web/other chassis accept either ExpandedNodeIdentifier itself,
-    /// or it's interior single u32
-    pub fn to_backwards_compatible_id_chain(&self) -> Vec<u32> {
-        vec![self.0]
-    }
-
+    // used for sending identifiers to chassis
     pub fn to_u32(&self) -> u32 {
         self.0
     }

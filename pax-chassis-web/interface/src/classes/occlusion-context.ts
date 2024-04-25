@@ -4,17 +4,32 @@ import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
-import { NATIVE_LEAF_CLASS, CLIPPING_CONTAINER } from "../utils/constants";
+import { CLIPPING_CONTAINER } from "../utils/constants";
 import { getQuadClipPolygonCommand } from "../utils/helpers";
 
 class ContainerData {
+    id: number;
     parentFrame: number | undefined;
     styles: ContainerStyle;
 
-    constructor(parentId: number | undefined) {
+    constructor(id: number, parentId: number | undefined) {
         this.parentFrame = parentId;
         this.styles = new ContainerStyle();
+        this.id = id;
     }
+
+    updateClippingPath(patch: Partial<ContainerStyle>) {
+        this.styles = {...this.styles, ...patch};
+        let polygonDef = getQuadClipPolygonCommand(this.styles.width!, this.styles.height!, this.styles.transform!)
+        // element.style.clipPath = polygonDef;
+        // element.style.webkitClipPath = polygonDef;
+        let var_name = containerCssClipPathVar(this.id);
+        document.documentElement.style.setProperty(var_name, polygonDef);
+    }
+}
+
+function containerCssClipPathVar(id: number) {
+    return `--container-${id}-clip-path`;
 }
 
 export class ContainerStyle {
@@ -27,13 +42,6 @@ export class ContainerStyle {
         this.width = 0;
         this.height = 0;
     }
-}
-
-export function setClippingPath(element: HTMLElement, styles: ContainerStyle) {
-    let polygonDef = getQuadClipPolygonCommand(styles.width!, styles.height!, styles.transform!)
-    element.style.clipPath = polygonDef;
-    //@ts-ignore
-    element.style.webkitClipPath = polygonDef;
 }
 
 export class OcclusionLayerManager {
@@ -103,11 +111,20 @@ export class OcclusionLayerManager {
         }
 
         //ok doesn't seem to exist, we need to create it
-        let data = this.containers.get(id)!;
+        let data = this.containers.get(id);
+        if (data == null) {
+            throw new Error("something referenced a container that doesn't exist");
+        }
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        new_container.setAttribute("class", CLIPPING_CONTAINER)
         new_container.dataset.containerId = id.toString();
-        setClippingPath(new_container, data.styles);
+
+        // set styling, includes referencing the variable especially created for this container
+        // (this variable exists since a container might need to exist on multiple native layers)
+        new_container.setAttribute("class", CLIPPING_CONTAINER)
+        let var_val = `var(${containerCssClipPathVar(id)})`;
+        new_container.style.clipPath = var_val;
+        (new_container.style as any).webkitClipPath = var_val;
+
 
         let parent_container = this.getOrCreateContainer(data.parentFrame, occlusionLayerId);
         parent_container.appendChild(new_container);
@@ -115,7 +132,9 @@ export class OcclusionLayerManager {
     }
 
     addContainer(id: number, parentId: number | undefined) {
-        this.containers.set(id, new ContainerData(parentId));
+        this.containers.set(id, new ContainerData(id, parentId));
+        // update underlying data used to create new dom trees for a container
+        // update already existing instances of this container
     }
 
     updateContainer(id: number, styles: Partial<ContainerStyle>) {
@@ -123,17 +142,16 @@ export class OcclusionLayerManager {
         if (container == null) {
             throw new Error("tried to update non existent container");
         }
-        container.styles = {...container.styles, ...styles};
-        // update underlying data used to create new dom trees for a container
-        // update already existing instances of this container
-        let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
-        existing_layer_instantiations.forEach((elem, _key, _parent) => {
-            setClippingPath(elem as HTMLElement, container!.styles);
-        })
+        container.updateClippingPath(styles);
     }
 
     removeContainer(id: number) {
+        let container = this.containers.get(id);
+        if (container == null) {
+            throw new Error(`tried to delete non-existent container with id ${id}`);
+        }
         this.containers.delete(id);
+
         let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
         existing_layer_instantiations.forEach((elem, _key, _parent) => {
             let parent = elem.parentElement;
@@ -142,6 +160,8 @@ export class OcclusionLayerManager {
             }
             parent!.removeChild(elem);
         })
+        let var_name = containerCssClipPathVar(id);
+        document.documentElement.style.removeProperty(var_name);
     }
 
     cleanUp(){

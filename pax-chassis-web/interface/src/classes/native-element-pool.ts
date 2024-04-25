@@ -19,7 +19,7 @@ import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
     layers: OcclusionLayerManager;
-    private nodesLookup = {};
+    private nodesLookup = new Map<number, HTMLElement>();
     private chassis?: PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
@@ -34,10 +34,6 @@ export class NativeElementPool {
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
         this.layers.attach(mount, chassis, this.canvases);
-    }
-
-    addNativeElement(elem: HTMLElement, parentContainer: number | undefined, occlusionLayerId: number) {
-        this.layers.addElement(elem, parentContainer, occlusionLayerId);
     }
 
     clearCanvases(): void {
@@ -59,7 +55,7 @@ export class NativeElementPool {
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         // @ts-ignore
-        let node: HTMLElement = this.nodesLookup[patch.idChain];
+        let node: HTMLElement = this.nodesLookup[patch.id];
         if (node){
             let parent = node.parentElement;
             let id_str = parent?.dataset.containerId;
@@ -69,12 +65,12 @@ export class NativeElementPool {
             } else {
                 id = undefined;
             }
-            this.addNativeElement(node, id, patch.occlusionLayerId!);
+            this.layers.addElement(node, id, patch.occlusionLayerId!);
         }
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
+        console.assert(patch.id != null);
         console.assert(patch.occlusionLayerId != null);
         
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
@@ -87,35 +83,31 @@ export class NativeElementPool {
             
             let message = {
                 "FormCheckboxToggle": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id,
                     "state": checkbox.checked,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.appendChild(checkbox);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
-        if(patch.idChain != undefined && patch.occlusionLayerId != undefined){
-            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
+        let checkbox_div: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        checkbox_div.appendChild(checkbox);
+        checkbox_div.setAttribute("class", NATIVE_LEAF_CLASS)
+        checkbox_div.setAttribute("pax_id", String(patch.id));
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(checkbox_div, patch.parentFrame, patch.occlusionLayerId);
         }
         // @ts-ignore
-        this.nodesLookup[patch.idChain] = runningChain;
+        this.nodesLookup[patch.id] = checkbox_div;
 
     }
 
     
     checkboxUpdate(patch: CheckboxUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.nodesLookup;
-        // @ts-ignore
-        let leaf = this.nodesLookup[patch.id_chain];
-        console.assert(leaf !== undefined);
-        let checkbox = leaf.firstChild;
+        let leaf = this.nodesLookup.get(patch.id!);
+        let checkbox = leaf!.firstChild as HTMLInputElement;
         if (patch.checked !== null) {
-            checkbox.checked = patch.checked;
+            checkbox!.checked = patch.checked!;
         }
         // Handle size_x and size_y
         if (patch.size_x != null) {
@@ -126,16 +118,16 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
-    checkboxDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.nodesLookup[id_chain];
+    checkboxDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
@@ -145,7 +137,7 @@ export class NativeElementPool {
         textbox.addEventListener("input", (_event) => {
             let message = {
                 "FormTextboxInput": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id!,
                     "text": textbox.value,
                 }
             }
@@ -155,54 +147,51 @@ export class NativeElementPool {
         textbox.addEventListener("change", (_event) => {
             let message = {
                 "FormTextboxChange": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id!,
                     "text": textbox.value,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.appendChild(textbox);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
+        let textboxDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textboxDiv.appendChild(textbox);
+        textboxDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        textboxDiv.setAttribute("pax_id", String(patch.id));
 
-        if(patch.idChain != undefined && patch.occlusionLayerId != undefined){
-            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(textboxDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, textboxDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        // @ts-ignore
-        this.nodesLookup[patch.idChain] = runningChain;
 
     }
 
     
     textboxUpdate(patch: TextboxUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.nodesLookup;
-        // @ts-ignore
-        let leaf = this.nodesLookup[patch.id_chain];
-        console.assert(leaf !== undefined);
-        let textbox = leaf.firstChild;
+        let leaf = this.nodesLookup.get(patch.id!);
+        let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
         applyTextTyle(textbox, textbox, patch.style);
 
         //We may support styles other than solid in the future; this is a better default than the browser's for now
-        textbox.style["border-style"] = "solid";
+        textbox.style.borderStyle = "solid";
 
         if (patch.background) {
             textbox.style.background = toCssColor(patch.background);
         }
 
         if (patch.border_radius) {
-            textbox.style["border-radius"] = patch.border_radius + "px";
+            textbox.style.borderRadius = patch.border_radius + "px";
         }
 
         if (patch.stroke_color) {
-            textbox.style["border-color"] = toCssColor(patch.stroke_color);
+            textbox.style.borderColor = toCssColor(patch.stroke_color);
         }
 
         if (patch.stroke_width) {
-            textbox.style["border-width"] = patch.stroke_width + "px";
+            textbox.style.borderWidth = patch.stroke_width + "px";
 
         }
 
@@ -239,7 +228,7 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
         if (patch.focus_on_mount) {
@@ -247,17 +236,17 @@ export class NativeElementPool {
         }
     }
 
-    textboxDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.nodesLookup[id_chain];
+    textboxDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
     buttonCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
+        console.assert(patch.id != null);
         console.assert(patch.occlusionLayerId != null);
         
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
@@ -269,36 +258,33 @@ export class NativeElementPool {
         button.addEventListener("click", (_event) => {
             let message = {
                 "FormButtonClick": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id!,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let buttonDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         textContainer.appendChild(textChild);
         button.appendChild(textContainer);
-        runningChain.appendChild(button);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
-        if(patch.idChain != undefined && patch.occlusionLayerId != undefined){
-            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
+        buttonDiv.appendChild(button);
+        buttonDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        buttonDiv.setAttribute("pax_id", String(patch.id));
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(buttonDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, buttonDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        // @ts-ignore
-        this.nodesLookup[patch.idChain] = runningChain;
-
     }
 
     
     buttonUpdate(patch: ButtonUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.nodesLookup;
-        // @ts-ignore
-        let leaf = this.nodesLookup[patch.id_chain];
+        let leaf = this.nodesLookup.get(patch.id!);
         console.assert(leaf !== undefined);
-        let button = leaf.firstChild;
-        let textContainer = button.firstChild;
-        let textChild = textContainer.firstChild;
+        let button = leaf!.firstChild as HTMLElement;
+        let textContainer = button!.firstChild as HTMLElement;
+        let textChild = textContainer.firstChild as HTMLElement;
 
 
         // Apply the content
@@ -319,29 +305,29 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
-    buttonDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.nodesLookup[id_chain];
+    buttonDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
     textCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
+        console.assert(patch.id != null);
         console.assert(patch.occlusionLayerId != null);
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
         textChild.addEventListener("input", (_event) => {
             let message = {
               "TextInput": {
-                "id_chain": patch.idChain!,
+                "id": patch.id!,
                 // why all the replaces?
                 // see: https://stackoverflow.com/questions/13762863/contenteditable-field-to-maintain-newlines-upon-database-entry
                 "text": textChild.innerHTML
@@ -353,40 +339,35 @@ export class NativeElementPool {
 
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
-        runningChain.appendChild(textChild);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
+        textDiv.appendChild(textChild);
+        textDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        textDiv.setAttribute("pax_id", String(patch.id));
 
         textChild.style.userSelect = "none";
 
-        if(patch.idChain != undefined && patch.occlusionLayerId != undefined) {
-            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(textDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, textDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-
-        // @ts-ignore
-        this.nodesLookup[patch.idChain] = runningChain;
     }
 
     textUpdate(patch: TextUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.nodesLookup;
-        // @ts-ignore
-        let leaf = this.nodesLookup[patch.id_chain];
-        console.assert(leaf !== undefined);
-
-        let textChild = leaf.firstChild;
+        let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
+        let textChild = leaf!.firstChild as HTMLElement;
         // Handle size_x and size_y
         if (patch.size_x != null) {
-            leaf.style.width = patch.size_x + "px";
+            leaf!.style.width = patch.size_x + "px";
         }
         if (patch.size_y != null) {
-            leaf.style.height = patch.size_y + "px";
+            leaf!.style.height = patch.size_y + "px";
         }
 
 
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
         if (patch.editable != null) {
@@ -412,7 +393,7 @@ export class NativeElementPool {
             if (patch.style_link) {
                 let linkStyle = patch.style_link;
                 const links = textChild.querySelectorAll('a');
-                links.forEach((link: HTMLDivElement) => {
+                links.forEach((link: HTMLElement) => {
                     if (linkStyle.font) {
                         linkStyle.font.applyFontToDiv(link);
                     }
@@ -448,22 +429,22 @@ export class NativeElementPool {
         }
     }
 
-    textDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.nodesLookup[id_chain];
+    textDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
     frameCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
-        this.layers.addContainer(patch.idChain![0], patch.parentFrame);
+        console.assert(patch.id != null);
+        this.layers.addContainer(patch.id!, patch.parentFrame);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
-        console.assert(patch.idChain != null);
+        console.assert(patch.id != null);
 
         let styles: Partial<ContainerStyle> = {};
          if (patch.sizeX != null) {
@@ -476,44 +457,46 @@ export class NativeElementPool {
             styles.transform = patch.transform;
          }
         
-        this.layers.updateContainer(patch.idChain![0], styles);
+        this.layers.updateContainer(patch.id!, styles);
     }
 
-    frameDelete(idChain: number[]) {
-        this.layers.removeContainer(idChain[0]);
+    frameDelete(id: number) {
+        this.layers.removeContainer(id);
     }
 
     scrollerCreate(patch: AnyCreatePatch){
-        console.assert(patch.idChain != null);
+        console.assert(patch.id != null);
         console.assert(patch.occlusionLayerId != null);
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.addEventListener("scroll", (_event) => {
+        scrollerDiv.addEventListener("scroll", (_event) => {
             // TODO send interrupt
             // console.log("scrolling!");
         });
 
         // TODO move this into add native element? (very similar in all cases)
-        runningChain.appendChild(scroller);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.style.overflow = "scroll";
-        runningChain.setAttribute("id_chain", String(patch.idChain));
+        scrollerDiv.appendChild(scroller);
+        scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        scrollerDiv.style.overflow = "scroll";
+        scrollerDiv.setAttribute("pax_id", String(patch.id));
 
 
-        if(patch.idChain != undefined && patch.occlusionLayerId != undefined) {
-            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(scrollerDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, scrollerDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        // @ts-ignore
-        this.nodesLookup[patch.idChain] = runningChain;
     }
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
-        // @ts-ignore
-        let leaf = this.nodesLookup[patch.idChain];
-        console.assert(leaf !== undefined);
+        let leaf = this.nodesLookup.get(patch.id!);
+        if (leaf == undefined) {
+            throw new Error("tried to update non-existent scroller");
+        }
+        let scroller_inner = leaf.firstChild as HTMLElement;
 
-        let scroller_inner = leaf.firstChild;
         // Handle size_x and size_y
         if (patch.sizeX != null) {
             leaf.style.width = patch.sizeX + "px";
@@ -540,13 +523,14 @@ export class NativeElementPool {
         }
     }
 
-    scrollerDelete(idChain: number[]){
-        // @ts-ignore
-        let oldNode = this.nodesLookup[idChain];
-        if (oldNode){
-            let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+    scrollerDelete(id: number){
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode == undefined) {
+            throw new Error("tried to delete non-existent scroller");
         }
+        let parent = oldNode.parentElement!;
+        parent.removeChild(oldNode);
+        this.nodesLookup.delete(id);
     }
 
 
@@ -576,7 +560,7 @@ export class NativeElementPool {
         let message = {
             "Image": {
                 "Data": {
-                    "id_chain": patch.id_chain!,
+                    "id": patch.id!,
                     "path": patch.path!,
                     "width": image_data.width,
                     "height": image_data.height,
@@ -597,7 +581,7 @@ function toCssColor(color: ColorGroup): string {
     }        
 }
 
-function applyTextTyle(textContainer: HTMLDivElement, textElem: HTMLDivElement, style: TextStyle | undefined) {
+function applyTextTyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {
     
 // Apply TextStyle from patch.style
     if (style) {

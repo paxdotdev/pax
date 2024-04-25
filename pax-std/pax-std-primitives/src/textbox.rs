@@ -63,7 +63,7 @@ impl InstanceNode for TextboxInstance {
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::TextboxCreate(AnyCreatePatch {
-                id_chain: id.to_backwards_compatible_id_chain(),
+                id: id.to_u32(),
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
                 occlusion_layer_id: 0,
             }));
@@ -72,7 +72,7 @@ impl InstanceNode for TextboxInstance {
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(TextboxPatch {
-            id_chain: id.to_backwards_compatible_id_chain(),
+            id: id.to_u32(),
             ..Default::default()
         }));
 
@@ -97,7 +97,7 @@ impl InstanceNode for TextboxInstance {
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = TextboxPatch {
-                        id_chain: id.to_backwards_compatible_id_chain(),
+                        id: id.to_u32(),
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Textbox| {
@@ -168,9 +168,7 @@ impl InstanceNode for TextboxInstance {
         let id = expanded_node.id.clone();
         context
             .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::TextboxDelete(
-                id.to_backwards_compatible_id_chain(),
-            ));
+            .enqueue_native_message(pax_message::NativeMessage::TextboxDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
         self.native_message_props.borrow_mut().remove(&id);
     }

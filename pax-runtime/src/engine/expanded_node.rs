@@ -252,7 +252,7 @@ impl ExpandedNode {
         );
     }
 
-    /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id_chain)
+    /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
     /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
     /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.
     pub fn is_descendant_of(&self, other_expanded_node_id: &ExpandedNodeIdentifier) -> bool {
@@ -756,7 +756,7 @@ impl std::fmt::Debug for ExpandedNode {
                 "instance_node",
                 &Fmt(|f| self.instance_node.borrow().resolve_debug(f, Some(self))),
             )
-            .field("id_chain", &self.id)
+            .field("id", &self.id)
             // .field("common_properties", &self.common_properties.try_borrow())
             // .field(
             //     "computed_expanded_properties",
@@ -775,7 +775,7 @@ impl std::fmt::Debug for ExpandedNode {
             //     "slot_children",
             //     &self.expanded_and_flattened_slot_children.as_ref().map(|o| {
             //         o.iter()
-            //             .map(|v| v.borrow().id_chain.clone())
+            //             .map(|v| v.borrow().id.clone())
             //             .collect::<Vec<_>>()
             //     }),
             // )

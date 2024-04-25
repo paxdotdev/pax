@@ -1,16 +1,16 @@
 export class AnyCreatePatch {
-    public idChain?: number[];
+    public id?: number;
     public parentFrame?: number;
     public occlusionLayerId?: number;
 
     fromPatch(jsonMessage: any) {
-        this.idChain = jsonMessage["id_chain"];
+        this.id = jsonMessage["id"];
         this.parentFrame = jsonMessage["parent_frame"];
         this.occlusionLayerId = jsonMessage["occlusion_layer_id"];
     }
 
     cleanUp(){
-        this.idChain = [];
+        this.id = undefined;
         this.parentFrame = undefined;
         this.occlusionLayerId = -1;
     }

@@ -23,7 +23,7 @@ pub mod node_interface;
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
 /// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
-/// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
+/// rendered scene graph.
 /// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
 /// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
 mod expanded_node;
@@ -424,8 +424,8 @@ impl PaxEngine {
             if layer == Layer::Native && *curr_occlusion_ind != new_occlusion_ind {
                 self.runtime_context.borrow_mut().enqueue_native_message(
                     pax_message::NativeMessage::OcclusionUpdate(OcclusionPatch {
-                        id_chain: node.id.to_backwards_compatible_id_chain(),
-                        z_index: new_occlusion_ind,
+                        id: node.id.to_u32(),
+                        occlusion_layer_id: new_occlusion_ind,
                     }),
                 );
             }
