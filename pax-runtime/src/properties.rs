@@ -23,6 +23,10 @@ impl ExpandedNodeIdentifier {
     pub fn to_backwards_compatible_id_chain(&self) -> Vec<u32> {
         vec![self.0]
     }
+
+    pub fn to_u32(&self) -> u32 {
+        self.0
+    }
 }
 
 #[derive(Default)]

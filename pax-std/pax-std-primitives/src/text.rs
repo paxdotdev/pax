@@ -95,9 +95,8 @@ impl InstanceNode for TextInstance {
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
                 id_chain: id.to_backwards_compatible_id_chain(),
-                clipping_ids: vec![],
-                scroller_ids: vec![],
-                z_index: 0,
+                parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                occlusion_layer_id: 0,
             }));
 
         // send update message when relevant properties change

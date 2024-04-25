@@ -1,4 +1,4 @@
-import type {PaxChassisWeb, InitOutput, initSync} from "./types/pax-chassis-web";
+import type {PaxChassisWeb} from "./types/pax-chassis-web";
 
 // @ts-ignore
 import {ObjectManager} from "./pools/object-manager";
@@ -29,7 +29,6 @@ let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
-let isMobile = false;
 let initializedChassis = false;
 
 export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
@@ -61,7 +60,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 
         const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
-        let _io = await glueCodeModule.default(wasmArrayBuffer);
+        await glueCodeModule.default(wasmArrayBuffer);
 
         let chassis = glueCodeModule.PaxChassisWeb.new();
         let get_latest_memory = glueCodeModule.wasm_memory;
