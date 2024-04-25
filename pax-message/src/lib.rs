@@ -475,9 +475,8 @@ pub struct ScrollerPatch {
 #[repr(C)]
 pub struct AnyCreatePatch {
     pub id_chain: Vec<u32>,
-    pub clipping_ids: Vec<Vec<u32>>,
-    pub scroller_ids: Vec<Vec<u32>>,
-    pub z_index: u32,
+    pub parent_frame: Option<u32>,
+    pub occlusion_layer_id: u32,
 }
 
 // Possible approach to heterogeneous rich text:

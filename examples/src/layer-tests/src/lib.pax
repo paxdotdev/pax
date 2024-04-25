@@ -1,15 +1,18 @@
 
-<Rectangle width=50%
-     fill={hsl(ticks + 100, 50%, 50%)}
-    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-/>
-if self.activated {
-     <Text text="This is some long text" class=centered id=text />
-}
-<Rectangle x=50% width=50%  @click=self.toggle
-     fill={hsl(ticks, 50%, 50%)}
-    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-/>
+<Frame anchor_x=50% x=50% anchor_y=50% y=50% width=50% height=50%>
+	<Rectangle width=50%
+	     fill={hsl(ticks + 100, 50%, 50%)}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+	if self.activated {
+	     <Text x=100% text="This is some long text" class=centered id=text />
+	}
+	<Rectangle x=50%  @click=self.toggle
+	     fill={hsl(ticks, 50%, 50%)}
+	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+	/>
+</Frame>
+<Rectangle fill=BLACK/>
 
 @settings {
      @mount: handle_mount

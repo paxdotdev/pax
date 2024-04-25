@@ -7,10 +7,10 @@ import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
-import {OcclusionLayerManager} from "./occlusion-context";
+import {ContainerStyle, OcclusionLayerManager} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT} from "../pools/supported-objects";
-import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
+import {INPUT, BUTTON, DIV, OCCLUSION_CONTEXT} from "../pools/supported-objects";
+import {packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
@@ -75,7 +75,6 @@ export class NativeElementPool {
 
     checkboxCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.parentFrame != null);
         console.assert(patch.occlusionLayerId != null);
         
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
@@ -335,7 +334,6 @@ export class NativeElementPool {
 
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.parentFrame != null);
         console.assert(patch.occlusionLayerId != null);
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -461,66 +459,32 @@ export class NativeElementPool {
 
     frameCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.parentFrame != null);
-        // newClip.id = getStringIdFromClippingId("clip", patch.idChain);
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
-        // @ts-ignore
-        this.nodesLookup[patch.idChain] = runningChain;
-        // @ts-ignore
-        let parent = this.nodesLookup[patch.parentFrame];
-        parent.appendChild(runningChain);
+        this.layers.addContainer(patch.idChain![0], patch.parentFrame);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
-       
-         // let shouldRedraw = false;
-         // if (patch.size_x != null) {
-         //     shouldRedraw = true;
-         //     cacheContainer.size_x = patch.size_x
-         // }
-         // if (patch.size_y != null) {
-         //     shouldRedraw = true;
-         //     cacheContainer.size_y = patch.size_y
-         // }
-         // if (patch.transform != null) {
-         //     shouldRedraw = true;
-         //     cacheContainer.transform = patch.transform;
-         // }
+        console.assert(patch.idChain != null);
+
+        let styles: Partial<ContainerStyle> = {};
+         if (patch.sizeX != null) {
+             styles.width = patch.sizeX;
+         }
+         if (patch.sizeY != null) {
+             styles.height = patch.sizeY;
+         }
+         if (patch.transform != null) {
+            styles.transform = patch.transform;
+         }
         
-         // if (shouldRedraw) {
-         //     let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
-        
-         //     // Fallback and/or perf optimizer: `polygon` instead of `path`.
-         //     let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-         //     node.style.clipPath = polygonDef;
-         //     //@ts-ignore
-         //     node.style.webkitClipPath = polygonDef;
-        
-         //     // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
-         //     // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-         //     // node.style.clipPath = pathDef;
-         //     // //@ts-ignore
-         //     // node.style.webkitClipPath = pathDef;
-         // }
-         // //@ts-ignore
-         // this.clippingValueCache[patch.id_chain] = cacheContainer;
+        this.layers.updateContainer(patch.idChain![0], styles);
     }
 
-    frameDelete(idChain: number[]) {
-        // // @ts-ignore
-        // let oldNode = this.nodesLookup[id_chain];
-        // this.nodesLookup.delete(id_chain);
-        // if (oldNode){
-        //     let parent = oldNode.parentElement;
-        //     parent.removeChild(oldNode);
-        // }
+    frameDelete(_idChain: number[]) {
+        throw new Error("TODO frameDelete");
     }
 
     scrollerCreate(patch: AnyCreatePatch){
         console.assert(patch.idChain != null);
-        // console.assert(patch.parentFrame != null);
         console.assert(patch.occlusionLayerId != null);
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -530,6 +494,7 @@ export class NativeElementPool {
             // console.log("scrolling!");
         });
 
+        // TODO move this into add native element? (very similar in all cases)
         runningChain.appendChild(scroller);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.style.overflow = "scroll";

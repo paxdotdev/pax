@@ -1,19 +1,39 @@
 // @ts-ignore
 import {Layer} from "./layer";
 import {ObjectManager} from "../pools/object-manager";
-import {ARRAY, LAYER} from "../pools/supported-objects";
+import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
-import { applyStyles} from "../utils/helpers";
+import { NATIVE_LEAF_CLASS, CLIPPING_CONTAINER } from "../utils/constants";
+import { getQuadClipPolygonCommand } from "../utils/helpers";
 
 class ContainerData {
-    parentFrame: number;
-    styles: Partial<CSSStyleDeclaration>;
+    parentFrame: number | undefined;
+    styles: ContainerStyle;
 
-    constructor(parentId: number, styles: Partial<CSSStyleDeclaration>) {
+    constructor(parentId: number | undefined) {
         this.parentFrame = parentId;
-        this.styles = styles;
+        this.styles = new ContainerStyle();
     }
+}
+
+export class ContainerStyle {
+    transform: number[];
+    width: number;
+    height: number;
+
+    constructor() {
+        this.transform = [0, 0, 0, 0, 0, 0];
+        this.width = 0;
+        this.height = 0;
+    }
+}
+
+export function setClippingPath(element: HTMLElement, styles: ContainerStyle) {
+    let polygonDef = getQuadClipPolygonCommand(styles.width!, styles.height!, styles.transform!)
+    element.style.clipPath = polygonDef;
+    //@ts-ignore
+    element.style.webkitClipPath = polygonDef;
 }
 
 export class OcclusionLayerManager {
@@ -44,7 +64,7 @@ export class OcclusionLayerManager {
     growTo(newOcclusionLayerId: number) {
         let occlusionLayerId = newOcclusionLayerId + 1;
         if(this.layers!.length <= occlusionLayerId){
-            for(let i = this.layers!.length; i < occlusionLayerId; i++) {
+            for(let i = this.layers!.length; i <= occlusionLayerId; i++) {
                 let newLayer: Layer = this.objectManager.getFromPool(LAYER, this.objectManager);
                 newLayer.build(this.parent!, i, this.chassis!, this.canvasMap!);
                 this.layers!.push(newLayer);
@@ -66,47 +86,49 @@ export class OcclusionLayerManager {
 
     addElement(element: HTMLElement, parent_container: number | undefined, occlusionLayerId: number){
         this.growTo(occlusionLayerId);
-        // TODO add the element to the correct location if parent_container is != null
         let attach_point = this.getOrCreateContainer(parent_container, occlusionLayerId);
         attach_point.appendChild(element);
     }
 
     getOrCreateContainer(id: number | undefined, occlusionLayerId: number) {
         let layer = this.layers![occlusionLayerId]!.native!;
-        if (id === undefined) {
+        if (id == undefined) {
             return layer;
         }
 
         // see if there already is a dom node corresponding to this container in this layer
         let elem = layer.querySelector(`[data-container-id="${id}"]`);
-        if (elem !== undefined) {
+        if (elem != undefined) {
             return elem!;
         }
 
         //ok doesn't seem to exist, we need to create it
         let data = this.containers.get(id)!;
-        let new_container = document.createElement("div");
+        let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        new_container.setAttribute("class", CLIPPING_CONTAINER)
         new_container.dataset.containerId = id.toString();
-        applyStyles(new_container, data.styles);
+        setClippingPath(new_container, data.styles);
 
         let parent_container = this.getOrCreateContainer(data.parentFrame, occlusionLayerId);
         parent_container.appendChild(new_container);
-
-        return new_container
+        return new_container;
     }
 
-    addContainer(id: number, parentId: number, style: Partial<CSSStyleDeclaration>) {
-        this.containers.set(id, new ContainerData(parentId, style));
+    addContainer(id: number, parentId: number | undefined) {
+        this.containers.set(id, new ContainerData(parentId));
     }
 
-    updateContainer(id: number, styles: Partial<CSSStyleDeclaration>) {
+    updateContainer(id: number, styles: Partial<ContainerStyle>) {
         let container = this.containers.get(id);
-        container!.styles = styles;
+        if (container == null) {
+            throw new Error("tried to update non existent container");
+        }
+        container.styles = {...container.styles, ...styles};
         // update underlying data used to create new dom trees for a container
         // update already existing instances of this container
         let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
         existing_layer_instantiations.forEach((elem, _key, _parent) => {
-            applyStyles(elem as HTMLElement, styles);
+            setClippingPath(elem as HTMLElement, container!.styles);
         })
     }
 

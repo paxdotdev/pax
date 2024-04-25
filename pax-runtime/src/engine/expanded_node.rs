@@ -304,12 +304,12 @@ impl ExpandedNode {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
+                // set frame clipping reference
+                child.parent_frame.set(self.parent_frame.get());
                 Rc::clone(child).recurse_mount(context);
             }
         }
         for child in new_children.iter() {
-            // set frame clipping reference
-            child.parent_frame.set(self.parent_frame.get());
             // set parent and connect up viewport bounds to new parent
             *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
 
