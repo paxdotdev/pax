@@ -1,15 +1,15 @@
 export class ScrollerUpdatePatch {
-    public idChain?: number[];
+    public id?: number;
     public sizeX?: number;
     public sizeY?: number;
     public sizeInnerPaneX? : number;
     public sizeInnerPaneY? : number;
     public transform? : number[];
-    public scrollX? : boolean;
-    public scrollY? : boolean;
+    public scrollX? : number;
+    public scrollY? : number;
 
     fromPatch(jsonMessage: any) {
-        this.idChain = jsonMessage["id_chain"];
+        this.id = jsonMessage["id"];
         this.sizeX = jsonMessage["size_x"];
         this.sizeY = jsonMessage["size_y"];
         this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
@@ -20,13 +20,13 @@ export class ScrollerUpdatePatch {
     }
 
     cleanUp(){
-        this.idChain = [];
+        this.id = undefined;
         this.sizeX = 0;
         this.sizeY = 0;
         this.sizeInnerPaneX = 0;
         this.sizeInnerPaneY = 0;
         this.transform = [];
-        this.scrollX = false;
-        this.scrollY = false;
+        this.scrollX = 0;
+        this.scrollY = 0;
     }
 }

@@ -194,13 +194,13 @@ impl PaxChassisWeb {
             },
             NativeInterrupt::FormButtonClick(args) => {
                 let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id_chain[0]))
+                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("button node exists in engine");
                 node.dispatch_button_click(ButtonClick {}, globals, &engine.runtime_context)
             }
             NativeInterrupt::FormTextboxInput(args) => {
                 let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id_chain[0]))
+                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_input(
                     TextboxInput { text: args.text },
@@ -210,7 +210,7 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::TextInput(args) => {
                 let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id_chain[0]))
+                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("text node exists in engine");
                 node.dispatch_text_input(
                     TextInput { text: args.text },
@@ -220,7 +220,7 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::FormTextboxChange(args) => {
                 let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id_chain[0]))
+                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_change(
                     TextboxChange { text: args.text },
@@ -230,7 +230,7 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id_chain[0]))
+                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("checkbox node exists in engine");
                 node.dispatch_checkbox_change(
                     CheckboxChange {

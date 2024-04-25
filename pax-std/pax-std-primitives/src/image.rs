@@ -57,13 +57,13 @@ impl InstanceNode for ImageInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id = expanded_node.id.clone();
+        let id = expanded_node.id.to_u32();
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(ImagePatch {
-            id_chain: id.to_backwards_compatible_id_chain(),
+            id,
             ..Default::default()
         }));
 
@@ -78,17 +78,16 @@ impl InstanceNode for ImageInstance {
             ])
             .collect();
         self.native_message_props.borrow_mut().insert(
-            id,
+            expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let id = expanded_node.id;
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = ImagePatch {
-                        id_chain: id.to_backwards_compatible_id_chain(),
+                        id,
                         ..Default::default()
                     };
                     let path_val = expanded_node

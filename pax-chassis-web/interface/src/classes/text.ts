@@ -124,7 +124,8 @@ export class Font {
                     });
 
                     fontFace.load().then(loadedFontFace => {
-                        document.fonts.add(loadedFontFace);
+                        // why is add method not recognized?
+                        (document.fonts as any).add(loadedFontFace);
                     });
                 }
             } else if (this.type === "Local" && this.path && this.family) {
@@ -134,12 +135,13 @@ export class Font {
                 });
 
                 fontFace.load().then(loadedFontFace => {
-                    document.fonts.add(loadedFontFace);
+                    // why is add method not recognized?
+                    (document.fonts as any).add(loadedFontFace);
                 });
             }
         }
     }
-    applyFontToDiv(div: HTMLDivElement) {
+    applyFontToDiv(div: HTMLElement) {
         if (this.family != undefined) {
             div.style.fontFamily = this.family;
         }

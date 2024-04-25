@@ -1,20 +1,11 @@
-// @ts-ignore
-
-
-export function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
-    return prefix + "_" + id_chain.join("_");
-}
-
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     const response = await fetch(imagePath);
     const blob = await response.blob();
     const img = await createImageBitmap(blob);
     const canvas = new OffscreenCanvas(img.width+1000, img.height);
     const ctx = canvas.getContext('2d');
-    // @ts-ignore
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-    // @ts-ignore
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    ctx!.drawImage(img, 0, 0, img.width, img.height);
+    const imageData = ctx!.getImageData(0, 0, img.width, img.height);
     let pixels = imageData.data;
     return { pixels, width: img.width, height: img.height };
 }

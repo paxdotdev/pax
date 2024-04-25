@@ -3,7 +3,7 @@ import { TEXT_STYLE } from "../../pools/supported-objects";
 import { TextStyle } from "../text";
 
 export class ButtonUpdatePatch {
-    public id_chain?: number[];
+    public id?: number;
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
@@ -17,7 +17,7 @@ export class ButtonUpdatePatch {
     }
 
     fromPatch(jsonMessage: any, registeredFontFaces: Set<string>) {
-        this.id_chain = jsonMessage["id_chain"];
+        this.id = jsonMessage["id"];
         this.content = jsonMessage["content"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
@@ -31,7 +31,7 @@ export class ButtonUpdatePatch {
     }
 
     cleanUp(){
-        this.id_chain = [];
+        this.id = undefined;
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];

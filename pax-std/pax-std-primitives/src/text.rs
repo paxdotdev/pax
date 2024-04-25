@@ -90,11 +90,11 @@ impl InstanceNode for TextInstance {
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
         // Send creation message
-        let id = expanded_node.id.clone();
+        let id = expanded_node.id.to_u32();
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
-                id_chain: id.to_backwards_compatible_id_chain(),
+                id,
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
                 occlusion_layer_id: 0,
             }));
@@ -103,7 +103,7 @@ impl InstanceNode for TextInstance {
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(TextPatch {
-            id_chain: id.to_backwards_compatible_id_chain(),
+            id,
             ..Default::default()
         }));
 
@@ -118,17 +118,16 @@ impl InstanceNode for TextInstance {
             ])
             .collect();
         self.native_message_props.borrow_mut().insert(
-            id,
+            expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let id = expanded_node.id.clone();
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = TextPatch {
-                        id_chain: id.to_backwards_compatible_id_chain(),
+                        id,
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
@@ -181,14 +180,14 @@ impl InstanceNode for TextInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id = expanded_node.id.clone();
+        let id = expanded_node.id.to_u32();
         context
             .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::TextDelete(
-                id.to_backwards_compatible_id_chain(),
-            ));
+            .enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props.borrow_mut().remove(&id);
+        self.native_message_props
+            .borrow_mut()
+            .remove(&expanded_node.id);
     }
 
     #[cfg(debug_assertions)]
