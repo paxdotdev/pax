@@ -479,8 +479,8 @@ export class NativeElementPool {
         this.layers.updateContainer(patch.idChain![0], styles);
     }
 
-    frameDelete(_idChain: number[]) {
-        throw new Error("TODO frameDelete");
+    frameDelete(idChain: number[]) {
+        this.layers.removeContainer(idChain[0]);
     }
 
     scrollerCreate(patch: AnyCreatePatch){

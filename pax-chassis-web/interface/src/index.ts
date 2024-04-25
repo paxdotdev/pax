@@ -119,6 +119,9 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 }
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    if (messages.length > 0 ) {
+        console.log("messages", messages);
+    }
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["OcclusionUpdate"]) {
             let msg = unwrapped_msg["OcclusionUpdate"]
@@ -189,7 +192,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             nativePool.frameUpdate(patch);
         }else if (unwrapped_msg["FrameDelete"]) {
             let msg = unwrapped_msg["FrameDelete"];
-            nativePool.frameDelete(msg["id_chain"])
+            nativePool.frameDelete(msg)
         }else if (unwrapped_msg["ImageLoad"]){
             let msg = unwrapped_msg["ImageLoad"];
             let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
