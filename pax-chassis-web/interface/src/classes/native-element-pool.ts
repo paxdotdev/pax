@@ -1,18 +1,15 @@
-// @ts-ignore
-import {Scroller} from "./scroller";
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
-// @ts-ignore
 import snarkdown from 'snarkdown';
 import {TextUpdatePatch} from "./messages/text-update-patch";
 import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
-import {OcclusionContext} from "./occlusion-context";
+import {OcclusionLayerManager} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
+import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT} from "../pools/supported-objects";
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
@@ -21,27 +18,26 @@ import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
-    occlusionContext: OcclusionContext;
+    layers: OcclusionLayerManager;
     private nodesLookup = {};
     private chassis?: PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
-    messageList:string[] = [];
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
         this.canvases = new Map();
-        this.occlusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
+        this.layers = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
     }
 
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
-        this.occlusionContext.attach(mount, chassis, this.canvases);
+        this.layers.attach(mount, chassis, this.canvases);
     }
 
-    static addNativeElement(elem: HTMLElement, occlusionContext: OcclusionContext, occlusionLayerId: number){
-        occlusionContext.addElement(elem, occlusionLayerId);
+    addNativeElement(elem: HTMLElement, parentContainer: number | undefined, occlusionLayerId: number) {
+        this.layers.addElement(elem, parentContainer, occlusionLayerId);
     }
 
     clearCanvases(): void {
@@ -63,20 +59,24 @@ export class NativeElementPool {
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         // @ts-ignore
-        let node = this.nodesLookup[patch.idChain];
+        let node: HTMLElement = this.nodesLookup[patch.idChain];
         if (node){
             let parent = node.parentElement;
-            parent.removeChild(node);
-            NativeElementPool.addNativeElement(node, this.occlusionContext,
-                // @ts-ignore
-                this.scrollers, patch.idChain, undefined, patch.zIndex);
+            let id_str = parent?.dataset.containerId;
+            let id;
+            if (id_str !== undefined) {
+                id = parseInt(id_str!);
+            } else {
+                id = undefined;
+            }
+            this.addNativeElement(node, id, patch.occlusionLayerId!);
         }
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
         console.assert(patch.parentFrame != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.occlusionLayerId != null);
         
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         checkbox.type = "checkbox";
@@ -99,8 +99,8 @@ export class NativeElementPool {
         runningChain.appendChild(checkbox);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
-        if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
+        if(patch.idChain != undefined && patch.occlusionLayerId != undefined){
+            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -168,8 +168,8 @@ export class NativeElementPool {
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
 
-        if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
+        if(patch.idChain != undefined && patch.occlusionLayerId != undefined){
+            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -259,7 +259,7 @@ export class NativeElementPool {
 
     buttonCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.occlusionLayerId != null);
         
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
         const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
@@ -282,8 +282,8 @@ export class NativeElementPool {
         runningChain.appendChild(button);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
         runningChain.setAttribute("id_chain", String(patch.idChain));
-        if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
+        if(patch.idChain != undefined && patch.occlusionLayerId != undefined){
+            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -336,7 +336,7 @@ export class NativeElementPool {
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
         console.assert(patch.parentFrame != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.occlusionLayerId != null);
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -361,8 +361,8 @@ export class NativeElementPool {
 
         textChild.style.userSelect = "none";
 
-        if(patch.idChain != undefined && patch.zIndex != undefined) {
-            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
+        if(patch.idChain != undefined && patch.occlusionLayerId != undefined) {
+            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
         }
 
         // @ts-ignore
@@ -508,7 +508,7 @@ export class NativeElementPool {
          // this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
-    frameDelete(id_chain: number[]) {
+    frameDelete(idChain: number[]) {
         // // @ts-ignore
         // let oldNode = this.nodesLookup[id_chain];
         // this.nodesLookup.delete(id_chain);
@@ -521,7 +521,7 @@ export class NativeElementPool {
     scrollerCreate(patch: AnyCreatePatch){
         console.assert(patch.idChain != null);
         // console.assert(patch.parentFrame != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.occlusionLayerId != null);
 
         let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -536,8 +536,8 @@ export class NativeElementPool {
         runningChain.setAttribute("id_chain", String(patch.idChain));
 
 
-        if(patch.idChain != undefined && patch.zIndex != undefined) {
-            NativeElementPool.addNativeElement(runningChain, this.occlusionContext, patch.zIndex);
+        if(patch.idChain != undefined && patch.occlusionLayerId != undefined) {
+            this.addNativeElement(runningChain, patch.parentFrame, patch.occlusionLayerId);
         }
         // @ts-ignore
         this.nodesLookup[patch.idChain] = runningChain;
@@ -545,7 +545,7 @@ export class NativeElementPool {
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
         // @ts-ignore
-        let leaf = this.nodesLookup[patch.id_chain];
+        let leaf = this.nodesLookup[patch.idChain];
         console.assert(leaf !== undefined);
 
         let scroller_inner = leaf.firstChild;

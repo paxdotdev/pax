@@ -6,6 +6,16 @@ export function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
 }
 
 
+export function applyStyles(element: HTMLElement, styles: Partial<CSSStyleDeclaration>): void {
+    Object.keys(styles).forEach(key => {
+        const styleValue = styles[key as keyof CSSStyleDeclaration];
+        if (styleValue !== undefined) { // Only set if not undefined
+            // @ts-ignore
+            element.style[key as any] = styleValue;
+        }
+    });
+}
+
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     const response = await fetch(imagePath);
     const blob = await response.blob();
