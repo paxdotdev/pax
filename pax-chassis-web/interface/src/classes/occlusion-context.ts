@@ -132,8 +132,16 @@ export class OcclusionLayerManager {
         })
     }
 
-    removeContainer(_id: number) {
-        throw new Error("TODO");
+    removeContainer(id: number) {
+        this.containers.delete(id);
+        let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
+        existing_layer_instantiations.forEach((elem, _key, _parent) => {
+            let parent = elem.parentElement;
+            if (elem.children.length > 0) {
+                throw new Error(`tried to remove container width id ${id} while children still present`);
+            }
+            parent!.removeChild(elem);
+        })
     }
 
     cleanUp(){

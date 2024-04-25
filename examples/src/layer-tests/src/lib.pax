@@ -1,13 +1,16 @@
 
 <Frame anchor_x=50% x=50% anchor_y=50% y=50% width=50% height=50%>
-	<Rectangle width=50%
-	     fill={hsl(ticks + 100, 50%, 50%)}
-	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-	/>
 	if self.activated {
-	     <Text x=100% text="This is some long text" class=centered id=text />
+		<Frame anchor_x=50% x=50% anchor_y=50% y=50% width=50% height=50%>
+			<Text width=200% text="<<<><>><>>" class=centered id=text />
+			<Rectangle width=50%
+			     fill={hsl(ticks + 100, 50%, 50%)}
+			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+			/>
+			<Text width=200% text="This is some long text that definitely goes out of bounds" class=centered id=text />
+		</Frame>
 	}
-	<Rectangle x=50%  @click=self.toggle
+	<Rectangle x=30%  
 	     fill={hsl(ticks, 50%, 50%)}
 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 	/>
@@ -15,10 +18,11 @@
 <Rectangle fill=BLACK/>
 
 @settings {
-     @mount: handle_mount
-     @pre_render: handle_pre_render
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+	@click: toggle
 
-     .centered {
+	.centered {
         x: 50%
         y: 50%
         anchor_x: 50%
