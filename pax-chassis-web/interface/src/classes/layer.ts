@@ -1,8 +1,6 @@
-// @ts-ignore
-
-import {CANVAS_CLASS, NATIVE_OVERLAY_CLASS} from '../utils/constants';
+import {NATIVE_OVERLAY_CLASS} from '../utils/constants';
 import {ObjectManager} from "../pools/object-manager";
-import {ARRAY, CANVAS, DIV, UINT32ARRAY} from "../pools/supported-objects";
+import {CANVAS, DIV} from "../pools/supported-objects";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
 

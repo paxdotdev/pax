@@ -54,8 +54,7 @@ export class NativeElementPool {
     }
 
     occlusionUpdate(patch: OcclusionUpdatePatch) {
-        // @ts-ignore
-        let node: HTMLElement = this.nodesLookup[patch.id];
+        let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (node){
             let parent = node.parentElement;
             let id_str = parent?.dataset.containerId;
@@ -97,9 +96,7 @@ export class NativeElementPool {
         if(patch.id != undefined && patch.occlusionLayerId != undefined){
             this.layers.addElement(checkbox_div, patch.parentFrame, patch.occlusionLayerId);
         }
-        // @ts-ignore
-        this.nodesLookup[patch.id] = checkbox_div;
-
+        this.nodesLookup.set(patch.id!, checkbox_div);
     }
 
     
@@ -289,7 +286,6 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.content != null) {
-            // @ts-ignore
             textChild.innerHTML = snarkdown(patch.content);
         }
 
@@ -385,8 +381,6 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.content != null) {
-            // @ts-ignore
-            
             textChild.innerHTML = snarkdown(patch.content);
 
             // Apply the link styles if they exist

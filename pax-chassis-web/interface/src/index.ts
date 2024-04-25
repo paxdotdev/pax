@@ -1,6 +1,4 @@
 import type {PaxChassisWeb} from "./types/pax-chassis-web";
-
-// @ts-ignore
 import {ObjectManager} from "./pools/object-manager";
 import {
     ANY_CREATE_PATCH,
@@ -106,7 +104,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
         initializedChassis = true;
     }
 
-    //@ts-ignore
     processMessages(messages, chassis, objectManager);
 
     //draw canvas elements
@@ -119,9 +116,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 }
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
-    if (messages.length > 0 ) {
-        console.log("messages", messages);
-    }
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["OcclusionUpdate"]) {
             let msg = unwrapped_msg["OcclusionUpdate"]

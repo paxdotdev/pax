@@ -1,4 +1,3 @@
-// @ts-ignore
 import {Layer} from "./layer";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
