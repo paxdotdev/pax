@@ -1,4 +1,4 @@
-use pax_runtime::{api::Property, api::RenderContext};
+use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
 use pax_std::primitives::Image;
 use std::{cell::RefCell, collections::HashMap};
 
@@ -17,7 +17,7 @@ pub struct ImageInstance {
     // a patch in the case that they have changed + sends it as a native
     // message to the chassi. Since InstanceNode -> ExpandedNode has a one
     // to many relationship, needs to be a hashmap
-    native_message_props: RefCell<HashMap<u32, Property<()>>>,
+    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
 impl InstanceNode for ImageInstance {
@@ -47,7 +47,7 @@ impl InstanceNode for ImageInstance {
         //trigger computation of property that computes + sends native message update
         self.native_message_props
             .borrow()
-            .get(&expanded_node.id_chain[0])
+            .get(&expanded_node.id)
             .unwrap()
             .get();
     }
@@ -57,13 +57,13 @@ impl InstanceNode for ImageInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
+        let id = expanded_node.id.to_u32();
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(ImagePatch {
-            id_chain: id_chain.clone(),
+            id,
             ..Default::default()
         }));
 
@@ -78,17 +78,16 @@ impl InstanceNode for ImageInstance {
             ])
             .collect();
         self.native_message_props.borrow_mut().insert(
-            id_chain[0],
+            expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let id_chain = expanded_node.id_chain.clone();
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = ImagePatch {
-                        id_chain: id_chain.clone(),
+                        id,
                         ..Default::default()
                     };
                     let path_val = expanded_node
@@ -114,8 +113,7 @@ impl InstanceNode for ImageInstance {
         expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
-        let id = id_chain[0];
+        let id = expanded_node.id.clone();
         // Reset so that native_message stops sending updates while unmounted
         self.native_message_props.borrow_mut().remove(&id);
     }

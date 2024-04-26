@@ -30,7 +30,7 @@ pub mod primitives {
     pub struct Group {}
 
     #[pax]
-    #[primitive("pax_std_primitives::scroller::ScrollbarInstance")]
+    #[primitive("pax_std_primitives::scrollbar::ScrollbarInstance")]
     pub struct Scrollbar {
         pub size_inner_pane_x: Property<Size>,
         pub size_inner_pane_y: Property<Size>,

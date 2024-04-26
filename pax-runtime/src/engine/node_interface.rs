@@ -86,6 +86,6 @@ impl NodeInterface {
     }
 
     pub fn is_descendant_of(&self, node: &NodeInterface) -> bool {
-        self.inner.is_descendant_of(&node.inner.id_chain)
+        self.inner.is_descendant_of(&node.inner.id)
     }
 }

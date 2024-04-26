@@ -22,7 +22,6 @@ function getMouseButton(event: MouseEvent) {
 export function setupEventListeners(chassis: PaxChassisWeb) {
 
     let lastPositions = new Map<number, {x: number, y: number}>();
-    // @ts-ignore
     function getTouchMessages(touchList: TouchList) {
         return Array.from(touchList).map(touch => {
             let lastPosition = lastPositions.get(touch.identifier) || { x: touch.clientX, y: touch.clientY };
@@ -39,7 +38,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         });
     }
 
-    // @ts-ignore
     window.addEventListener('click', (evt) => {
 
         let clickEvent = {
@@ -59,7 +57,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(clapEvent), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('dblclick', (evt) => {
         let event = {
             "DoubleClick": {
@@ -71,10 +68,9 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('mousemove', (evt) => {
-        // @ts-ignore
-        let button = window.current_button || 'Left';
+        // this value was previously set on window
+        let button = (window as any).current_button || 'Left';
         let event = {
             "MouseMove": {
                 "x": evt.clientX,
@@ -85,7 +81,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('wheel', (evt) => {
         let event = {
             "Wheel": {
@@ -98,11 +93,10 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, {"passive": true, "capture": true});
-    // @ts-ignore
     window.addEventListener('mousedown', (evt) => {
         let button = getMouseButton(evt);
-        // @ts-ignore
-        window.current_button = button;
+        // set non-existent window prop to keep track of value
+        (window as any).current_button = button;
         let event = {
             "MouseDown": {
                 "x": evt.clientX,
@@ -113,7 +107,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('mouseup', (evt) => {
         let event = {
             "MouseUp": {
@@ -125,7 +118,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('mouseover', (evt) => {
         let event = {
             "MouseOver": {
@@ -137,7 +129,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('mouseout', (evt) => {
         let event = {
             "MouseOut": {
@@ -149,7 +140,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('contextmenu', (evt) => {
         let event = {
             "ContextMenu": {
@@ -164,14 +154,13 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    // @ts-ignore
     window.addEventListener('touchstart', (evt) => {
         let event = {
             "TouchStart": {
                 "touches": getTouchMessages(evt.touches)
             }
         };
-        Array.from(evt.changedTouches).forEach(touch => { // @ts-ignore
+        Array.from(evt.changedTouches).forEach(touch => {
             lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
         });
         chassis.interrupt(JSON.stringify(event), []);
@@ -184,7 +173,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(clapEvent), []);
     }, {"passive": true, "capture": true});
-    // @ts-ignore
     window.addEventListener('touchmove', (evt) => {
         let touches = getTouchMessages(evt.touches);
         let event = {
@@ -195,7 +183,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         chassis.interrupt(JSON.stringify(event), []);
 
     }, {"passive": true, "capture": true});
-    // @ts-ignore
     window.addEventListener('touchend', (evt) => {
         let event = {
             "TouchEnd": {
@@ -203,11 +190,10 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        Array.from(evt.changedTouches).forEach(touch => { // @ts-ignore
+        Array.from(evt.changedTouches).forEach(touch => {
             lastPositions.delete(touch.identifier);
         });
     }, {"passive": true, "capture": true});
-    // @ts-ignore
     window.addEventListener('keydown', (evt) => {
         if (document.activeElement != document.body) {
             return;
@@ -221,7 +207,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('keyup', (evt) => {
         if (document.activeElement != document.body) {
             return;
@@ -235,7 +220,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         };
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
-    // @ts-ignore
     window.addEventListener('keypress', (evt) => {
         if (document.activeElement != document.body) {
             return;

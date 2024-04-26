@@ -6,8 +6,7 @@ import {ImageLoadPatch} from "../classes/messages/image-load-patch";
 import {CANVAS_CLASS} from "../utils/constants";
 import {ObjectManager} from "./object-manager";
 import {Layer} from "../classes/layer";
-import {OcclusionContext} from "../classes/occlusion-context";
-import {Scroller} from "../classes/scroller";
+import {OcclusionLayerManager} from "../classes/occlusion-context";
 import {Font, TextStyle} from "../classes/text";
 import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
 import { OcclusionUpdatePatch } from "../classes/messages/occlusion-update-patch";
@@ -32,7 +31,6 @@ export const BUTTON_UPDATE_PATCH = "Button Update Patch";
 
 export const LAYER = "LAYER";
 export const OCCLUSION_CONTEXT = "Occlusion Context";
-export const SCROLLER = "Scroller";
 
 export const FONT = "Font";
 
@@ -154,13 +152,8 @@ export let SUPPORTED_OBJECTS = [{
     },
     {
         name: OCCLUSION_CONTEXT,
-        factory: (objectManager: ObjectManager) => new OcclusionContext(objectManager),
-        cleanUp: (oc: OcclusionContext) => {oc.cleanUp()},
-    },
-    {
-        name: SCROLLER,
-        factory: (objectManager: ObjectManager) => new Scroller(objectManager),
-        cleanUp: (oc: OcclusionContext) => {oc.cleanUp()},
+        factory: (objectManager: ObjectManager) => new OcclusionLayerManager(objectManager),
+        cleanUp: (oc: OcclusionLayerManager) => {oc.cleanUp()},
     },
     {
         name: FONT,

@@ -81,7 +81,7 @@ impl InstanceNode for SlotInstance {
                     ret
                 },
                 &deps,
-                &format!("slot_children (node id: {})", expanded_node.id_chain[0]),
+                &format!("slot_children (node id: {})", expanded_node.id.0),
             ));
     }
 
@@ -104,12 +104,7 @@ impl InstanceNode for SlotInstance {
                 Some(rc) => Rc::downgrade(rc),
                 None => Weak::new(),
             };
-            if properties
-                .showing_node
-                .get()
-                .upgrade()
-                .map(|v| v.id_chain[0])
-                != node.upgrade().map(|v| v.id_chain[0])
+            if properties.showing_node.get().upgrade().map(|v| v.id) != node.upgrade().map(|v| v.id)
             {
                 properties.showing_node.set(node);
             }

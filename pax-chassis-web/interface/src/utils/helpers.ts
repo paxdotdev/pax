@@ -1,25 +1,14 @@
-// @ts-ignore
-
-
-export function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
-    return prefix + "_" + id_chain.join("_");
-}
-
-
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     const response = await fetch(imagePath);
     const blob = await response.blob();
     const img = await createImageBitmap(blob);
     const canvas = new OffscreenCanvas(img.width+1000, img.height);
     const ctx = canvas.getContext('2d');
-    // @ts-ignore
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-    // @ts-ignore
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    ctx!.drawImage(img, 0, 0, img.width, img.height);
+    const imageData = ctx!.getImageData(0, 0, img.width, img.height);
     let pixels = imageData.data;
     return { pixels, width: img.width, height: img.height };
 }
-
 
 //Required due to Safari bug, unable to clip DOM elements to SVG=>`transform: matrix(...)` elements; see https://bugs.webkit.org/show_bug.cgi?id=126207
 //  and repro in this repo: `878576bf0e9`
@@ -101,14 +90,6 @@ export function getQuadClipPolygonCommand(width: number, height: number, transfo
 
     let polygon = `polygon(${point0[0]}px ${point0[1]}px, ${point1[0]}px ${point1[1]}px, ${point2[0]}px ${point2[1]}px, ${point3[0]}px ${point3[1]}px)`
     return polygon;
-}
-
-export function generateLocationId(scrollerId: number[] | undefined, zIndex: number): string {
-    if (scrollerId) {
-        return `[${scrollerId.join(",")}]_${zIndex}`;
-    } else {
-        return `${zIndex}`;
-    }
 }
 
 export function arrayToKey(arr: number[]): string {

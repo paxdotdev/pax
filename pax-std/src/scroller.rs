@@ -8,12 +8,7 @@ use pax_engine::api::Numeric;
 use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
-use pax_manifest::Number;
 use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, TouchStart, OS};
-/// Stacker lays out a series of nodes either
-/// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
-/// each node.  `Stacker`s can be stacked inside of each other, horizontally
-/// and vertically, along with percentage-based positioning and `Transform2D.anchor` to compose any rectilinear 2D layout.
 #[pax]
 #[inlined(
     <Frame>
@@ -29,7 +24,7 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
             height=20px
             anchor_y=100%
             y=100%
-            size_inner_pane_x={self.scroll_height}
+            size_inner_pane_x={self.scroll_width}
         />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px}>
             for i in 0..self.slot_children {

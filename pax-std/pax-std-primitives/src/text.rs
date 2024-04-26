@@ -1,7 +1,8 @@
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime::api::{Layer, Property, RenderContext};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
+    InstantiationArgs, RuntimeContext,
 };
 use pax_std::primitives::Text;
 use std::cell::RefCell;
@@ -22,7 +23,7 @@ pub struct TextInstance {
     // a patch in the case that they have changed + sends it as a native
     // message to the chassi. Since InstanceNode -> ExpandedNode has a one
     // to many relationship, needs to be a hashmap
-    native_message_props: RefCell<HashMap<u32, Property<()>>>,
+    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
 impl InstanceNode for TextInstance {
@@ -52,7 +53,7 @@ impl InstanceNode for TextInstance {
         //trigger computation of property that computes + sends native message update
         self.native_message_props
             .borrow()
-            .get(&expanded_node.id_chain[0])
+            .get(&expanded_node.id)
             .unwrap()
             .get();
     }
@@ -89,21 +90,20 @@ impl InstanceNode for TextInstance {
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
         // Send creation message
-        let id_chain = expanded_node.id_chain.clone();
+        let id = expanded_node.id.to_u32();
         context
             .borrow_mut()
             .enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
-                id_chain: id_chain.clone(),
-                clipping_ids: vec![],
-                scroller_ids: vec![],
-                z_index: 0,
+                id,
+                parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                occlusion_layer_id: 0,
             }));
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(TextPatch {
-            id_chain: id_chain.clone(),
+            id,
             ..Default::default()
         }));
 
@@ -118,17 +118,16 @@ impl InstanceNode for TextInstance {
             ])
             .collect();
         self.native_message_props.borrow_mut().insert(
-            id_chain[0],
+            expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let id_chain = expanded_node.id_chain.clone();
                     let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = TextPatch {
-                        id_chain: id_chain.clone(),
+                        id,
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
@@ -181,13 +180,14 @@ impl InstanceNode for TextInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        let id_chain = expanded_node.id_chain.clone();
-        let id = id_chain[0];
+        let id = expanded_node.id.to_u32();
         context
             .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::TextDelete(id_chain));
+            .enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props.borrow_mut().remove(&id);
+        self.native_message_props
+            .borrow_mut()
+            .remove(&expanded_node.id);
     }
 
     #[cfg(debug_assertions)]
