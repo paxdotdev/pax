@@ -757,11 +757,8 @@ impl std::fmt::Debug for ExpandedNode {
                 &Fmt(|f| self.instance_node.borrow().resolve_debug(f, Some(self))),
             )
             .field("id", &self.id)
-            // .field("common_properties", &self.common_properties.try_borrow())
-            // .field(
-            //     "computed_expanded_properties",
-            //     &self.computed_expanded_properties.try_borrow(),
-            // )
+            .field("common_properties", &self.common_properties.try_borrow())
+            .field("layout_properties", &self.layout_properties)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field(
                 "parent",
@@ -771,14 +768,14 @@ impl std::fmt::Debug for ExpandedNode {
                     .upgrade()
                     .map(|v| v.id.clone()),
             )
-            // .field(
-            //     "slot_children",
-            //     &self.expanded_and_flattened_slot_children.as_ref().map(|o| {
-            //         o.iter()
-            //             .map(|v| v.borrow().id.clone())
-            //             .collect::<Vec<_>>()
-            //     }),
-            // )
+            .field(
+                "slot_children",
+                &self
+                    .expanded_and_flattened_slot_children
+                    .borrow()
+                    .as_ref()
+                    .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
+            )
             .field("occlusion_id", &self.occlusion_id.borrow())
             .field(
                 "containing_component",

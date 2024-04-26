@@ -339,8 +339,6 @@ export class NativeElementPool {
         textDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         textDiv.setAttribute("pax_id", String(patch.id));
 
-        textChild.style.userSelect = "none";
-
         if(patch.id != undefined && patch.occlusionLayerId != undefined){
             this.layers.addElement(textDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, textDiv);
