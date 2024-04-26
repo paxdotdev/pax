@@ -124,7 +124,6 @@ export class Font {
                     });
 
                     fontFace.load().then(loadedFontFace => {
-                        // why is add method not recognized?
                         (document.fonts as any).add(loadedFontFace);
                     });
                 }
@@ -135,7 +134,6 @@ export class Font {
                 });
 
                 fontFace.load().then(loadedFontFace => {
-                    // why is add method not recognized?
                     (document.fonts as any).add(loadedFontFace);
                 });
             }
