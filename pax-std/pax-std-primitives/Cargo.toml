@@ -1,6 +1,6 @@
 [package]
 name = "pax-std-primitives"
-version = "0.14.0"
+version = "0.14.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -12,9 +12,9 @@ description = "Primitives crate for Pax's standard library"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pax-runtime = {path = "../../pax-runtime", version="0.14.0"}
-pax-std = {path = "../", version="0.14.0"}
-pax-message = {path = "../../pax-message", version="0.14.0" }
+pax-runtime = {path = "../../pax-runtime", version="0.14.1"}
+pax-std = {path = "../", version="0.14.1"}
+pax-message = {path = "../../pax-message", version="0.14.1" }
 piet = "0.6.0"
 piet-common = "0.6.0"
 kurbo = "0.9.0"
