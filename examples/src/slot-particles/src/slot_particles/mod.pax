@@ -1,0 +1,15 @@
+for (data, i) in self.particles {
+    <Group
+        x={data.x}
+        y={data.y}
+        width={data.width}
+        height={data.height}
+    >
+        slot(i)
+    </Group>
+}
+
+@settings {
+    @tick: tick
+    @mount: on_mount
+}

@@ -1,0 +1,16 @@
+<SlotParticles>
+	<Rectangle fill=RED/>
+	<Rectangle fill=GREEN/>
+	<Rectangle fill=BLUE/>
+	<Rectangle fill=YELLOW/>
+	<Rectangle fill=BLUE/>
+	<Rectangle fill=BLACK/>
+	<Rectangle fill=RED/>
+	<Rectangle fill=GREEN/>
+	<Rectangle fill=BLUE/>
+	<Rectangle fill=YELLOW/>
+	<Rectangle fill=BLUE/>
+	<Rectangle fill=BLACK/>
+</SlotParticles>
+@settings {
+}
