@@ -1,6 +1,6 @@
 <Frame width=20%>
-	<Text text={self.message} class=centered class=small id=text />
-	<Rectangle class=centered class=small @click=self.increment
+	<Text text={self.message} class=centered class=small id=text @click=self.increment/>
+	<Rectangle class=centered class=small 
 	     fill={hsl(ticks, 75%, 50%)}
 	    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
 	/>
