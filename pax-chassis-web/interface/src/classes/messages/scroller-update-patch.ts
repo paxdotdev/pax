@@ -1,33 +1,32 @@
 export class ScrollerUpdatePatch {
-    public id_chain?: number[];
-    public size_x?: number;
-    public size_y?: number;
-    public size_inner_pane_x? : number;
-    public size_inner_pane_y? : number;
+    public idChain?: number[];
+    public sizeX?: number;
+    public sizeY?: number;
+    public sizeInnerPaneX? : number;
+    public sizeInnerPaneY? : number;
     public transform? : number[];
-    public scroll_x? : boolean;
-    public scroll_y? : boolean;
+    public scrollX? : boolean;
+    public scrollY? : boolean;
 
     fromPatch(jsonMessage: any) {
-        this.id_chain = jsonMessage["id_chain"];
-        this.size_x = jsonMessage["size_x"];
-        this.size_y = jsonMessage["size_y"];
-        this.size_inner_pane_x = jsonMessage["size_inner_pane_x"];
-        this.size_inner_pane_y = jsonMessage["size_inner_pane_y"];
+        this.idChain = jsonMessage["id_chain"];
+        this.sizeX = jsonMessage["size_x"];
+        this.sizeY = jsonMessage["size_y"];
+        this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
+        this.sizeInnerPaneY = jsonMessage["size_inner_pane_y"];
         this.transform = jsonMessage["transform"];
-        this.scroll_x = jsonMessage["scroll_x"];
-        this.scroll_y = jsonMessage["scroll_y"];
+        this.scrollX = jsonMessage["scroll_x"];
+        this.scrollY = jsonMessage["scroll_y"];
     }
 
     cleanUp(){
-        this.id_chain = [];
-        this.size_x = 0;
-        this.size_y = 0;
-        this.size_inner_pane_x = 0;
-        this.size_inner_pane_y = 0;
+        this.idChain = [];
+        this.sizeX = 0;
+        this.sizeY = 0;
+        this.sizeInnerPaneX = 0;
+        this.sizeInnerPaneY = 0;
         this.transform = [];
-        this.scroll_x = false;
-        this.scroll_y = false;
-        this.subtreeDepth = 0;
+        this.scrollX = false;
+        this.scrollY = false;
     }
 }

@@ -1,6 +1,6 @@
 use core::option::Option::Some;
 use pax_runtime::{BaseInstance, InstanceFlags, RuntimeContext};
-use pax_std::primitives::PrimitiveScroller;
+use pax_std::primitives::Scrollbar;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -17,7 +17,7 @@ use crate::patch_if_needed;
 /// `Scroller` translates its children to reflect the current scroll position.
 /// When both scrolling axes are disabled, `Scroller` acts exactly like a `Frame`, with a possibly-
 /// transformed `Group` surrounding its contents.
-pub struct ScrollerInstance {
+pub struct ScrollbarInstance {
     base: BaseInstance,
     // Properties that listen to Text property changes, and computes
     // a patch in the case that they have changed + sends it as a native
@@ -26,7 +26,7 @@ pub struct ScrollerInstance {
     native_message_props: RefCell<HashMap<u32, Property<()>>>,
 }
 
-impl InstanceNode for ScrollerInstance {
+impl InstanceNode for ScrollbarInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -105,51 +105,49 @@ impl InstanceNode for ScrollerInstance {
                         id_chain: id_chain.clone(),
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(
-                        |properties: &mut PrimitiveScroller| {
-                            let computed_tab = &expanded_node.layout_properties;
-                            let (width, height) = computed_tab.bounds.get();
-                            let updates = [
-                                patch_if_needed(
-                                    &mut old_state.size_inner_pane_x,
-                                    &mut patch.size_inner_pane_x,
-                                    properties.size_inner_pane_x.get().get_pixels(width),
-                                ),
-                                patch_if_needed(
-                                    &mut old_state.size_inner_pane_y,
-                                    &mut patch.size_inner_pane_y,
-                                    properties.size_inner_pane_y.get().get_pixels(height),
-                                ),
-                                patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
-                                patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
-                                patch_if_needed(
-                                    &mut old_state.scroll_x,
-                                    &mut patch.scroll_x,
-                                    properties.scroll_x.get(),
-                                ),
-                                patch_if_needed(
-                                    &mut old_state.scroll_y,
-                                    &mut patch.scroll_y,
-                                    properties.scroll_y.get(),
-                                ),
-                                patch_if_needed(
-                                    &mut old_state.scroll_x,
-                                    &mut patch.scroll_x,
-                                    properties.scroll_x.get(),
-                                ),
-                                patch_if_needed(
-                                    &mut old_state.transform,
-                                    &mut patch.transform,
-                                    computed_tab.transform.get().coeffs().to_vec(),
-                                ),
-                            ];
-                            if updates.into_iter().any(|v| v == true) {
-                                context.borrow_mut().enqueue_native_message(
-                                    pax_message::NativeMessage::ScrollerUpdate(patch),
-                                );
-                            }
-                        },
-                    );
+                    expanded_node.with_properties_unwrapped(|properties: &mut Scrollbar| {
+                        let computed_tab = &expanded_node.layout_properties;
+                        let (width, height) = computed_tab.bounds.get();
+                        let updates = [
+                            patch_if_needed(
+                                &mut old_state.size_inner_pane_x,
+                                &mut patch.size_inner_pane_x,
+                                properties.size_inner_pane_x.get().get_pixels(width),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.size_inner_pane_y,
+                                &mut patch.size_inner_pane_y,
+                                properties.size_inner_pane_y.get().get_pixels(height),
+                            ),
+                            patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                            patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                            patch_if_needed(
+                                &mut old_state.scroll_x,
+                                &mut patch.scroll_x,
+                                properties.scroll_x.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.scroll_y,
+                                &mut patch.scroll_y,
+                                properties.scroll_y.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.scroll_x,
+                                &mut patch.scroll_x,
+                                properties.scroll_x.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.transform,
+                                &mut patch.transform,
+                                computed_tab.transform.get().coeffs().to_vec(),
+                            ),
+                        ];
+                        if updates.into_iter().any(|v| v == true) {
+                            context.borrow_mut().enqueue_native_message(
+                                pax_message::NativeMessage::ScrollerUpdate(patch),
+                            );
+                        }
+                    });
                     ()
                 },
                 &deps,
