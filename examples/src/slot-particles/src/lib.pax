@@ -1,13 +1,23 @@
-<SlotParticles>
-	for i in 0..5 {
-		<Rectangle fill=RED/>
-		<Rectangle fill=GREEN/>
-		<Rectangle fill=BLUE/>
-		<Rectangle fill=YELLOW/>
-		<Ellipse fill=CYAN/>
-		<Ellipse fill=INDIGO/>
+<SlotParticles config={
+	max_size: 100.0,
+	min_size: 20.0,
+	max_speed: 4.0,
+	max_rotation: 3.0,
+}>
+	for i in 0..10 {
+		<Group>
+			<Rectangle class=centered fill=RED/>
+			<Rectangle class=centered rotate=45deg fill=RED/>
+		</Group>
+		<Rectangle fill=PURPLE/>
 		<Ellipse fill=LIME/>
 	}
 </SlotParticles>
 @settings {
+    .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    }
 }
