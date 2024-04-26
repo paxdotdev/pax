@@ -109,8 +109,6 @@ impl InstanceNode for FrameInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RefCell<RuntimeContext>>,
     ) {
-        // TODO send native "create frame" message here, and setup prop updates
-        // like in the other primitives
         let id = expanded_node.id.clone();
         context
             .borrow_mut()
@@ -122,7 +120,7 @@ impl InstanceNode for FrameInstance {
 
         // When a frame has been mounted (and it's sucessfully attached itself
         // already to it's own parent) it sets itself as it's parent frame, so
-        // that children of this frame end up attaching to it
+        // that children of this frame created below end up attaching to it
         let old_val = expanded_node.parent_frame.get();
         expanded_node.parent_frame.set(Some(expanded_node.id));
 
@@ -134,7 +132,8 @@ impl InstanceNode for FrameInstance {
         let new_children = expanded_node.generate_children(children_with_envs, context);
         expanded_node.children.set(new_children);
 
-        // reset parent_frame. needed for if multiple mounts/dissmounts of this frame occurs
+        // reset parent_frame. Needed for if multiple mounts/dissmounts of this
+        // frame occurs
         expanded_node.parent_frame.set(old_val);
 
         // send update message when relevant properties change

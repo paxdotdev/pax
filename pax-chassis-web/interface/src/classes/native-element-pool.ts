@@ -469,7 +469,6 @@ export class NativeElementPool {
             // console.log("scrolling!");
         });
 
-        // TODO move this into add native element? (very similar in all cases)
         scrollerDiv.appendChild(scroller);
         scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         scrollerDiv.style.overflow = "scroll";
