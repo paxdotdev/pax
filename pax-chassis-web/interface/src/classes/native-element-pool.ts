@@ -577,7 +577,7 @@ function toCssColor(color: ColorGroup): string {
 
 function applyTextTyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {
     
-// Apply TextStyle from patch.style
+    // Apply TextStyle from patch.style
     if (style) {
         if (style.font) {
             style.font.applyFontToDiv(textContainer);

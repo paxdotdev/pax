@@ -6,54 +6,13 @@ import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CLIPPING_CONTAINER } from "../utils/constants";
 import { getQuadClipPolygonCommand } from "../utils/helpers";
 
-class ContainerData {
-    id: number;
-    parentFrame: number | undefined;
-    styles: ContainerStyle;
-
-    constructor(id: number, parentId: number | undefined) {
-        this.parentFrame = parentId;
-        this.styles = new ContainerStyle();
-        this.id = id;
-    }
-
-    updateClippingPath(patch: Partial<ContainerStyle>) {
-        this.styles = {...this.styles, ...patch};
-        let polygonDef = getQuadClipPolygonCommand(this.styles.width!, this.styles.height!, this.styles.transform!)
-        // element.style.clipPath = polygonDef;
-        // element.style.webkitClipPath = polygonDef;
-        let var_name = containerCssClipPathVar(this.id);
-        document.documentElement.style.setProperty(var_name, polygonDef);
-    }
-}
-
-function containerCssClipPathVar(id: number) {
-    return `--container-${id}-clip-path`;
-}
-
-export class ContainerStyle {
-    transform: number[];
-    width: number;
-    height: number;
-
-    constructor() {
-        this.transform = [0, 0, 0, 0, 0, 0];
-        this.width = 0;
-        this.height = 0;
-    }
-}
-
 export class OcclusionLayerManager {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
     private parent?: Element;
     private objectManager: ObjectManager;
     private chassis?: PaxChassisWeb;
-    /// Frame id to id to data. Whenever a new frame is added, this struct is
-    /// updated. Whenever a node that references a id in this frame is added, a
-    /// chain of divs are created to correspond to this frames location
-    /// if size info assosiated with a frame changes. ie if there is a colliding
-    private containers: Map<number, ContainerData>;
+    private containers: Map<number, Container>;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -97,6 +56,8 @@ export class OcclusionLayerManager {
         attach_point.appendChild(element);
     }
 
+    // If a div for the container referenced already exists, returns it. if not,
+    // create it (and all non-existent parents)
     getOrCreateContainer(id: number | undefined, occlusionLayerId: number) {
         let layer = this.layers![occlusionLayerId]!.native!;
         if (id == undefined) {
@@ -110,30 +71,28 @@ export class OcclusionLayerManager {
         }
 
         //ok doesn't seem to exist, we need to create it
-        let data = this.containers.get(id);
-        if (data == null) {
+        let container = this.containers.get(id);
+        if (container == null) {
             throw new Error("something referenced a container that doesn't exist");
         }
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
         new_container.dataset.containerId = id.toString();
 
         // set styling, includes referencing the variable especially created for this container
-        // (this variable exists since a container might need to exist on multiple native layers)
+        // (a container might need to exist on multiple native layers - variable results in less dom updates needed)
         new_container.setAttribute("class", CLIPPING_CONTAINER)
         let var_val = `var(${containerCssClipPathVar(id)})`;
         new_container.style.clipPath = var_val;
         (new_container.style as any).webkitClipPath = var_val;
 
 
-        let parent_container = this.getOrCreateContainer(data.parentFrame, occlusionLayerId);
+        let parent_container = this.getOrCreateContainer(container.parentFrame, occlusionLayerId);
         parent_container.appendChild(new_container);
         return new_container;
     }
 
     addContainer(id: number, parentId: number | undefined) {
-        this.containers.set(id, new ContainerData(id, parentId));
-        // update underlying data used to create new dom trees for a container
-        // update already existing instances of this container
+        this.containers.set(id, new Container(id, parentId));
     }
 
     updateContainer(id: number, styles: Partial<ContainerStyle>) {
@@ -171,5 +130,42 @@ export class OcclusionLayerManager {
         }
         this.canvasMap = undefined;
         this.parent = undefined;
+    }
+}
+
+class Container {
+    id: number;
+    parentFrame: number | undefined;
+    styles: ContainerStyle;
+
+    constructor(id: number, parentId: number | undefined) {
+        this.parentFrame = parentId;
+        this.styles = new ContainerStyle();
+        this.id = id;
+    }
+
+    updateClippingPath(patch: Partial<ContainerStyle>) {
+        this.styles = {...this.styles, ...patch};
+        let polygonDef = getQuadClipPolygonCommand(this.styles.width!, this.styles.height!, this.styles.transform!)
+        // element.style.clipPath = polygonDef;
+        // element.style.webkitClipPath = polygonDef;
+        let var_name = containerCssClipPathVar(this.id);
+        document.documentElement.style.setProperty(var_name, polygonDef);
+    }
+}
+
+function containerCssClipPathVar(id: number) {
+    return `--container-${id}-clip-path`;
+}
+
+export class ContainerStyle {
+    transform: number[];
+    width: number;
+    height: number;
+
+    constructor() {
+        this.transform = [0, 0, 0, 0, 0, 0];
+        this.width = 0;
+        this.height = 0;
     }
 }
