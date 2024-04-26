@@ -1,16 +1,13 @@
 <SlotParticles>
-	<Rectangle fill=RED/>
-	<Rectangle fill=GREEN/>
-	<Rectangle fill=BLUE/>
-	<Rectangle fill=YELLOW/>
-	<Rectangle fill=BLUE/>
-	<Rectangle fill=BLACK/>
-	<Rectangle fill=RED/>
-	<Rectangle fill=GREEN/>
-	<Rectangle fill=BLUE/>
-	<Rectangle fill=YELLOW/>
-	<Rectangle fill=BLUE/>
-	<Rectangle fill=BLACK/>
+	for i in 0..5 {
+		<Rectangle fill=RED/>
+		<Rectangle fill=GREEN/>
+		<Rectangle fill=BLUE/>
+		<Rectangle fill=YELLOW/>
+		<Ellipse fill=CYAN/>
+		<Ellipse fill=INDIGO/>
+		<Ellipse fill=LIME/>
+	}
 </SlotParticles>
 @settings {
 }
