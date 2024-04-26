@@ -629,40 +629,33 @@ export class NativeElementPool {
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
         // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.textNodes[patch.idChain];
         console.assert(leaf !== undefined);
 
         let scroller_inner = leaf.firstChild;
         // Handle size_x and size_y
-        if (patch.size_x != null) {
-            leaf.style.width = patch.size_x + "px";
+        if (patch.sizeX != null) {
+            leaf.style.width = patch.sizeX + "px";
         }
-        if (patch.size_y != null) {
-            leaf.style.height = patch.size_y + "px";
+        if (patch.sizeY != null) {
+            leaf.style.height = patch.sizeY + "px";
         }
-        if (patch.scroll_x != null) {
-            leaf.scrollLeft = patch.scroll_x;
+        if (patch.scrollX != null) {
+            leaf.scrollLeft = patch.scrollX;
         }
-        if (patch.scroll_y != null) {
-            leaf.scrollTop = patch.scroll_y;
+        if (patch.scrollY != null) {
+            leaf.scrollTop = patch.scrollY;
         }
         // Handle transform
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
-        if (patch.size_inner_pane_x != null) {
-            scroller_inner.style.width = patch.size_inner_pane_x + "px";
+        if (patch.sizeInnerPaneX != null) {
+            scroller_inner.style.width = patch.sizeInnerPaneX + "px";
         }
-        if (patch.size_inner_pane_y != null) {
-            scroller_inner.style.height = patch.size_inner_pane_y + "px";
-        }
-
-        if (patch.scroll_enabled_x != null) {
-           // TODO enable/disable 
-        }
-        if (patch.scroll_enabled_x != null) {
-           // TODO enable/disable 
+        if (patch.sizeInnerPaneY != null) {
+            scroller_inner.style.height = patch.sizeInnerPaneY + "px";
         }
     }
 

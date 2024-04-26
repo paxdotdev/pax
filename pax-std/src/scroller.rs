@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::primitives::PrimitiveScroller;
+use crate::primitives::Scrollbar;
 use crate::primitives::*;
 use crate::types::{StackerCell, StackerDirection};
 use pax_engine::api::Numeric;
@@ -17,19 +17,19 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
 #[pax]
 #[inlined(
     <Frame>
-        <PrimitiveScroller
+        <Scrollbar
             scroll_y={self.scroll_pos_y}
             width=20px
             anchor_x=100%
             x=100%
-            size_inner_pane_y={self.bound_y}
+            size_inner_pane_y={self.scroll_height}
         />
-        <PrimitiveScroller
+        <Scrollbar
             scroll_x={self.scroll_pos_x}
             height=20px
             anchor_y=100%
             y=100%
-            size_inner_pane_x={self.bound_x}
+            size_inner_pane_x={self.scroll_height}
         />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px}>
             for i in 0..self.slot_children {
@@ -52,8 +52,8 @@ use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, To
 pub struct Scroller {
     pub scroll_pos_x: Property<Numeric>,
     pub scroll_pos_y: Property<Numeric>,
-    pub bound_x: Property<Size>,
-    pub bound_y: Property<Size>,
+    pub scroll_width: Property<Size>,
+    pub scroll_height: Property<Size>,
 
     // private fields
     pub platform_params: Property<PlatformSpecificScrollParams>,
@@ -158,8 +158,8 @@ impl Scroller {
     pub fn add_position(&self, ctx: &NodeContext, dx: f64, dy: f64) {
         let (bounds_x, bounds_y) = ctx.bounds_self.get();
         let (max_bounds_x, max_bounds_y) = (
-            self.bound_x.get().get_pixels(bounds_x),
-            self.bound_y.get().get_pixels(bounds_y),
+            self.scroll_width.get().get_pixels(bounds_x),
+            self.scroll_height.get().get_pixels(bounds_y),
         );
         let old_x = self.scroll_pos_x.get().to_float();
         let old_y = self.scroll_pos_y.get().to_float();
