@@ -95,8 +95,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
             let width = mount.clientWidth;
             let height = mount.clientHeight;
             chassis.send_viewport_update(width, height);
-            // TODO needed?
-            // nativePool.occlusionContext.updateCanvases(width, height);
         };
         window.addEventListener('resize', resizeHandler);
         resizeHandler();//Fire once manually to init viewport size & occlusion context

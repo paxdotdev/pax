@@ -28,7 +28,6 @@ export class Layer {
         this.canvas.id = String(occlusionLayerId);
         parent.appendChild(this.canvas);
 
-        // TODO needed as separate? could this just pass in the canvas to the context through wasm-bindgen
         canvasMap.set(this.canvas.id, this.canvas);
         chassis.add_context(this.canvas.id);
 
