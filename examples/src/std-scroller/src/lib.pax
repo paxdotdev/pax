@@ -1,4 +1,4 @@
-<Scroller  bound_x=200% bound_y=750%>
+<Scroller  scroll_width=200% scroll_height=750%>
     <Button label="test" width=200px height=30px  @click=self.on_click/>
     <Group>
         <Rectangle height=50% fill=RED/>

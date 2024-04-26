@@ -6,7 +6,7 @@ pub mod group;
 pub mod image;
 pub mod path;
 pub mod rectangle;
-pub mod scroller;
+pub mod scrollbar;
 pub mod text;
 pub mod textbox;
 
