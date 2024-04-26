@@ -1,19 +1,16 @@
-// @ts-ignore
-import {Scroller} from "./scroller";
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
-// @ts-ignore
 import snarkdown from 'snarkdown';
 import {TextUpdatePatch} from "./messages/text-update-patch";
 import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
-import {OcclusionContext} from "./occlusion-context";
+import {ContainerStyle, OcclusionLayerManager} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {INPUT, BUTTON, DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
-import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
+import {INPUT, BUTTON, DIV, OCCLUSION_CONTEXT} from "../pools/supported-objects";
+import {packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
@@ -21,41 +18,26 @@ import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
-    private scrollers: Map<string, Scroller>;
-    baseOcclusionContext: OcclusionContext;
-    private textNodes = {};
-    private chassis? : PaxChassisWeb;
+    layers: OcclusionLayerManager;
+    private nodesLookup = new Map<number, HTMLElement>();
+    private chassis?: PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
-    messageList:string[] = [];
-    private isMobile = false;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
         this.canvases = new Map();
-        this.scrollers = new Map();
-        this.baseOcclusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
+        this.layers = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
     }
 
-    build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
-        this.isMobile = isMobile;
+    attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
-        this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
-    }
-
-    static addNativeElement(elem: HTMLElement, baseOcclusionContext: OcclusionContext, scrollers: Map<string, Scroller>,
-                                     idChain: number[] , scrollerIdChain: number[] | undefined, zIndex: number){
-        if(scrollerIdChain != undefined){
-            let scroller: Scroller = scrollers.get(arrayToKey(scrollerIdChain))!;
-            scroller.addElement(elem, zIndex);
-        } else {
-            baseOcclusionContext.addElement(elem, zIndex);
-        }
+        this.layers.attach(mount, chassis, this.canvases);
     }
 
     clearCanvases(): void {
-        this.canvases.forEach((canvas, key) => {
+        this.canvases.forEach((canvas, _key) => {
             let dpr = window.devicePixelRatio;
             const context = canvas.getContext('2d');
             if (context) {
@@ -71,48 +53,24 @@ export class NativeElementPool {
         });
     }
 
-
-    sendScrollerValues(){
-        this.scrollers.forEach((scroller, id) => {
-            // @ts-ignore
-            let deltaX = 0;
-            // @ts-ignore
-            let deltaY = scroller.getTickScrollDelta();
-            if(deltaY && Math.abs(deltaY) > 0){
-                const scrollEvent = this.objectManager.getFromPool(OBJECT);
-                const deltas: object = this.objectManager.getFromPool(OBJECT);
-                // @ts-ignore
-                deltas['delta_x'] = deltaX;
-                // @ts-ignore
-                deltas['delta_y'] = deltaY;
-                // @ts-ignore
-                scrollEvent.Scroll = deltas;
-                const scrollEventStringified = JSON.stringify(scrollEvent);
-                this.messageList.push(scrollEventStringified);
-                this.chassis!.interrupt(scrollEventStringified, []);
-                this.objectManager.returnToPool(OBJECT, deltas);
-                this.objectManager.returnToPool(OBJECT, scrollEvent);
-            }
-        });
-    }
-
     occlusionUpdate(patch: OcclusionUpdatePatch) {
-        // @ts-ignore
-        let node = this.textNodes[patch.idChain];
+        let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (node){
             let parent = node.parentElement;
-            parent.removeChild(node);
-            NativeElementPool.addNativeElement(node, this.baseOcclusionContext,
-                // @ts-ignore
-                this.scrollers, patch.idChain, undefined, patch.zIndex);
+            let id_str = parent?.dataset.containerId;
+            let id;
+            if (id_str !== undefined) {
+                id = parseInt(id_str!);
+            } else {
+                id = undefined;
+            }
+            this.layers.addElement(node, id, patch.occlusionLayerId!);
         }
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
         
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         checkbox.type = "checkbox";
@@ -124,43 +82,29 @@ export class NativeElementPool {
             
             let message = {
                 "FormCheckboxToggle": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id,
                     "state": checkbox.checked,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.appendChild(checkbox);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
+        let checkbox_div: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        checkbox_div.appendChild(checkbox);
+        checkbox_div.setAttribute("class", NATIVE_LEAF_CLASS)
+        checkbox_div.setAttribute("pax_id", String(patch.id));
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(checkbox_div, patch.parentFrame, patch.occlusionLayerId);
         }
-        if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
-        }
-        // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
-
+        this.nodesLookup.set(patch.id!, checkbox_div);
     }
 
     
     checkboxUpdate(patch: CheckboxUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
-        // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
-        console.assert(leaf !== undefined);
-        let checkbox = leaf.firstChild;
+        let leaf = this.nodesLookup.get(patch.id!);
+        let checkbox = leaf!.firstChild as HTMLInputElement;
         if (patch.checked !== null) {
-            checkbox.checked = patch.checked;
+            checkbox!.checked = patch.checked!;
         }
         // Handle size_x and size_y
         if (patch.size_x != null) {
@@ -171,16 +115,16 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
-    checkboxDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+    checkboxDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
@@ -190,7 +134,7 @@ export class NativeElementPool {
         textbox.addEventListener("input", (_event) => {
             let message = {
                 "FormTextboxInput": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id!,
                     "text": textbox.value,
                 }
             }
@@ -200,62 +144,51 @@ export class NativeElementPool {
         textbox.addEventListener("change", (_event) => {
             let message = {
                 "FormTextboxChange": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id!,
                     "text": textbox.value,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.appendChild(textbox);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
+        let textboxDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textboxDiv.appendChild(textbox);
+        textboxDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        textboxDiv.setAttribute("pax_id", String(patch.id));
 
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(textboxDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, textboxDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
-        }
-        // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
 
     }
 
     
     textboxUpdate(patch: TextboxUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
-        // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
-        console.assert(leaf !== undefined);
-        let textbox = leaf.firstChild;
+        let leaf = this.nodesLookup.get(patch.id!);
+        let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
         applyTextTyle(textbox, textbox, patch.style);
 
         //We may support styles other than solid in the future; this is a better default than the browser's for now
-        textbox.style["border-style"] = "solid";
+        textbox.style.borderStyle = "solid";
 
         if (patch.background) {
             textbox.style.background = toCssColor(patch.background);
         }
 
         if (patch.border_radius) {
-            textbox.style["border-radius"] = patch.border_radius + "px";
+            textbox.style.borderRadius = patch.border_radius + "px";
         }
 
         if (patch.stroke_color) {
-            textbox.style["border-color"] = toCssColor(patch.stroke_color);
+            textbox.style.borderColor = toCssColor(patch.stroke_color);
         }
 
         if (patch.stroke_width) {
-            textbox.style["border-width"] = patch.stroke_width + "px";
+            textbox.style.borderWidth = patch.stroke_width + "px";
 
         }
 
@@ -292,7 +225,7 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
         if (patch.focus_on_mount) {
@@ -300,20 +233,18 @@ export class NativeElementPool {
         }
     }
 
-    textboxDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+    textboxDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
     buttonCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
         
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
         const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
@@ -324,49 +255,37 @@ export class NativeElementPool {
         button.addEventListener("click", (_event) => {
             let message = {
                 "FormButtonClick": {
-                    "id_chain": patch.idChain!,
+                    "id": patch.id!,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let buttonDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         textContainer.appendChild(textChild);
         button.appendChild(textContainer);
-        runningChain.appendChild(button);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
+        buttonDiv.appendChild(button);
+        buttonDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        buttonDiv.setAttribute("pax_id", String(patch.id));
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(buttonDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, buttonDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        if(patch.idChain != undefined && patch.zIndex != undefined){
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
-        }
-        // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
-
     }
 
     
     buttonUpdate(patch: ButtonUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
-        // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
+        let leaf = this.nodesLookup.get(patch.id!);
         console.assert(leaf !== undefined);
-        let button = leaf.firstChild;
-        let textContainer = button.firstChild;
-        let textChild = textContainer.firstChild;
+        let button = leaf!.firstChild as HTMLElement;
+        let textContainer = button!.firstChild as HTMLElement;
+        let textChild = textContainer.firstChild as HTMLElement;
 
 
         // Apply the content
         if (patch.content != null) {
-            // @ts-ignore
             textChild.innerHTML = snarkdown(patch.content);
         }
 
@@ -382,31 +301,29 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
-    buttonDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+    buttonDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
     textCreate(patch: AnyCreatePatch) {
-        console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
         textChild.addEventListener("input", (_event) => {
             let message = {
               "TextInput": {
-                "id_chain": patch.idChain!,
+                "id": patch.id!,
                 // why all the replaces?
                 // see: https://stackoverflow.com/questions/13762863/contenteditable-field-to-maintain-newlines-upon-database-entry
                 "text": textChild.innerHTML
@@ -418,48 +335,33 @@ export class NativeElementPool {
 
             this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
-        runningChain.appendChild(textChild);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.setAttribute("id_chain", String(patch.idChain));
+        textDiv.appendChild(textChild);
+        textDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        textDiv.setAttribute("pax_id", String(patch.id));
 
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(textDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, textDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        textChild.style.userSelect = "none";
-
-        if(patch.idChain != undefined && patch.zIndex != undefined) {
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
-        }
-
-        // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
     }
 
     textUpdate(patch: TextUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
-        // @ts-ignore
-        let leaf = this.textNodes[patch.id_chain];
-        console.assert(leaf !== undefined);
-
-        let textChild = leaf.firstChild;
+        let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
+        let textChild = leaf!.firstChild as HTMLElement;
         // Handle size_x and size_y
         if (patch.size_x != null) {
-            leaf.style.width = patch.size_x + "px";
+            leaf!.style.width = patch.size_x + "px";
         }
         if (patch.size_y != null) {
-            leaf.style.height = patch.size_y + "px";
+            leaf!.style.height = patch.size_y + "px";
         }
 
 
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
         if (patch.editable != null) {
@@ -477,15 +379,13 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.content != null) {
-            // @ts-ignore
-            
             textChild.innerHTML = snarkdown(patch.content);
 
             // Apply the link styles if they exist
             if (patch.style_link) {
                 let linkStyle = patch.style_link;
                 const links = textChild.querySelectorAll('a');
-                links.forEach((link: HTMLDivElement) => {
+                links.forEach((link: HTMLElement) => {
                     if (linkStyle.font) {
                         linkStyle.font.applyFontToDiv(link);
                     }
@@ -521,118 +421,73 @@ export class NativeElementPool {
         }
     }
 
-    textDelete(id_chain: number[]) {
-        // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
+    textDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
         }
     }
 
-    frameCreate(_patch: AnyCreatePatch) {
-        // console.assert(patch.idChain != null);
-        // console.assert(this.clippingNodes["id_chain"] === undefined);
-        //
-        // let attachPoint = getAttachPointFromClippingIds(patch.clippingIds);
-        //
-        // let newClip = document.createElement("div");
-        // newClip.id = getStringIdFromClippingId("clip", patch.idChain);
-        // newClip.classList.add(NATIVE_CLIPPING_CLASS);
-
-        //attachPoint!.appendChild(newClip);
+    frameCreate(patch: AnyCreatePatch) {
+        console.assert(patch.id != null);
+        this.layers.addContainer(patch.id!, patch.parentFrame);
     }
 
-    frameUpdate(_patch: FrameUpdatePatch) {
-        //@ts-ignore
-        // let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
-        //
-        // let shouldRedraw = false;
-        // if (patch.size_x != null) {
-        //     shouldRedraw = true;
-        //     cacheContainer.size_x = patch.size_x
-        // }
-        // if (patch.size_y != null) {
-        //     shouldRedraw = true;
-        //     cacheContainer.size_y = patch.size_y
-        // }
-        // if (patch.transform != null) {
-        //     shouldRedraw = true;
-        //     cacheContainer.transform = patch.transform;
-        // }
-        //
-        // if (shouldRedraw) {
-        //     let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
-        //
-        //     // Fallback and/or perf optimizer: `polygon` instead of `path`.
-        //     let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-        //     node.style.clipPath = polygonDef;
-        //     //@ts-ignore
-        //     node.style.webkitClipPath = polygonDef;
-        //
-        //     // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
-        //     // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-        //     // node.style.clipPath = pathDef;
-        //     // //@ts-ignore
-        //     // node.style.webkitClipPath = pathDef;
-        // }
-        // //@ts-ignore
-        // this.clippingValueCache[patch.id_chain] = cacheContainer;
+    frameUpdate(patch: FrameUpdatePatch) {
+        console.assert(patch.id != null);
+
+        let styles: Partial<ContainerStyle> = {};
+         if (patch.sizeX != null) {
+             styles.width = patch.sizeX;
+         }
+         if (patch.sizeY != null) {
+             styles.height = patch.sizeY;
+         }
+         if (patch.transform != null) {
+            styles.transform = patch.transform;
+         }
+        
+        this.layers.updateContainer(patch.id!, styles);
     }
 
-    frameDelete(_id_chain: number[]) {
-        // NOTE: this should be supported, and may cause a memory leak if left unaddressed;
-        //       was likely unplugged during v0 implementation due to some deeper bug that was interfering with 'hello world'
-
-        // let oldNode = this.textNodes.get(id_chain);
-        // console.assert(oldNode !== undefined);
-        // this.textNodes.delete(id_chain);
-        //
-        // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_CLASS);
-        // nativeLayer?.removeChild(oldNode);
+    frameDelete(id: number) {
+        this.layers.removeContainer(id);
     }
 
     scrollerCreate(patch: AnyCreatePatch){
-        window.textNodes = this.textNodes;
-        console.assert(patch.idChain != null);
-        console.assert(patch.clippingIds != null);
-        console.assert(patch.scrollerIds != null);
-        console.assert(patch.zIndex != null);
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
 
-        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        runningChain.addEventListener("scroll", (_event) => {
+        scrollerDiv.addEventListener("scroll", (_event) => {
             // TODO send interrupt
             // console.log("scrolling!");
         });
 
-        runningChain.appendChild(scroller);
-        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        runningChain.style.overflow = "scroll";
-        runningChain.setAttribute("id_chain", String(patch.idChain));
+        scrollerDiv.appendChild(scroller);
+        scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        scrollerDiv.style.overflow = "scroll";
+        scrollerDiv.setAttribute("pax_id", String(patch.id));
 
 
-        let scroller_id;
-        if(patch.scrollerIds != null){
-            let length = patch.scrollerIds.length;
-            if(length != 0) {
-                scroller_id = patch.scrollerIds[length-1];
-            }
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(scrollerDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, scrollerDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
         }
-        if(patch.idChain != undefined && patch.zIndex != undefined) {
-            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
-                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
-        }
-        // @ts-ignore
-        this.textNodes[patch.idChain] = runningChain;
     }
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
-        // @ts-ignore
-        let leaf = this.textNodes[patch.idChain];
-        console.assert(leaf !== undefined);
+        let leaf = this.nodesLookup.get(patch.id!);
+        if (leaf == undefined) {
+            throw new Error("tried to update non-existent scroller");
+        }
+        let scroller_inner = leaf.firstChild as HTMLElement;
 
-        let scroller_inner = leaf.firstChild;
         // Handle size_x and size_y
         if (patch.sizeX != null) {
             leaf.style.width = patch.sizeX + "px";
@@ -659,20 +514,21 @@ export class NativeElementPool {
         }
     }
 
-    scrollerDelete(idChain: number[]){
-        // @ts-ignore
-        let oldNode = this.textNodes[id_chain];
-        if (oldNode){
-            let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+    scrollerDelete(id: number){
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode == undefined) {
+            throw new Error("tried to delete non-existent scroller");
         }
+        let parent = oldNode.parentElement!;
+        parent.removeChild(oldNode);
+        this.nodesLookup.delete(id);
     }
 
 
 
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
-        if (chassis.image_loaded(patch.path)) {
+        if (chassis.image_loaded(patch.path ?? "")) {
             return
         }
         //Check the full path of our index.js; use the prefix of this path also for our image assets
@@ -695,7 +551,7 @@ export class NativeElementPool {
         let message = {
             "Image": {
                 "Data": {
-                    "id_chain": patch.id_chain!,
+                    "id": patch.id!,
                     "path": patch.path!,
                     "width": image_data.width,
                     "height": image_data.height,
@@ -716,9 +572,9 @@ function toCssColor(color: ColorGroup): string {
     }        
 }
 
-function applyTextTyle(textContainer: HTMLDivElement, textElem: HTMLDivElement, style: TextStyle | undefined) {
+function applyTextTyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {
     
-// Apply TextStyle from patch.style
+    // Apply TextStyle from patch.style
     if (style) {
         if (style.font) {
             style.font.applyFontToDiv(textContainer);

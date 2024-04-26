@@ -12,22 +12,22 @@ use serde::{Deserialize, Serialize};
 pub enum NativeMessage {
     TextCreate(AnyCreatePatch),
     TextUpdate(TextPatch),
-    TextDelete(Vec<u32>), //node instance ID, "id_chain"
+    TextDelete(u32),
     FrameCreate(AnyCreatePatch),
     FrameUpdate(FramePatch),
-    FrameDelete(Vec<u32>),
+    FrameDelete(u32),
     CheckboxCreate(AnyCreatePatch),
     CheckboxUpdate(CheckboxPatch),
-    CheckboxDelete(Vec<u32>),
+    CheckboxDelete(u32),
     TextboxCreate(AnyCreatePatch),
     TextboxUpdate(TextboxPatch),
-    TextboxDelete(Vec<u32>),
+    TextboxDelete(u32),
     ButtonCreate(AnyCreatePatch),
     ButtonUpdate(ButtonPatch),
-    ButtonDelete(Vec<u32>),
+    ButtonDelete(u32),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
-    ScrollerDelete(Vec<u32>),
+    ScrollerDelete(u32),
     ImageLoad(ImagePatch),
     LayerAdd(LayerAddPatch), //FUTURE: native form controls
     OcclusionUpdate(OcclusionPatch),
@@ -66,34 +66,34 @@ pub enum NativeInterrupt {
 #[repr(C)]
 pub struct FormCheckboxToggleArgs {
     pub state: bool,
-    pub id_chain: Vec<u32>,
+    pub id: u32,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormTextboxChangeArgs {
     pub text: String,
-    pub id_chain: Vec<u32>,
+    pub id: u32,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct TextInputArgs {
     pub text: String,
-    pub id_chain: Vec<u32>,
+    pub id: u32,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormTextboxInputArgs {
     pub text: String,
-    pub id_chain: Vec<u32>,
+    pub id: u32,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FormButtonClickArgs {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
 }
 
 #[derive(Deserialize)]
@@ -271,7 +271,7 @@ pub enum ImageLoadInterruptArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct ImagePointerArgs {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub path: String,
     pub image_data: u64,
     pub image_data_length: usize,
@@ -282,7 +282,7 @@ pub struct ImagePointerArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct ImageDataArgs {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub path: String,
     pub width: usize,
     pub height: usize,
@@ -315,7 +315,7 @@ pub struct AddedLayerArgs {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct FramePatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
@@ -325,7 +325,7 @@ pub struct FramePatch {
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct CheckboxPatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -336,7 +336,7 @@ pub struct CheckboxPatch {
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct TextboxPatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -353,7 +353,7 @@ pub struct TextboxPatch {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ButtonPatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -371,15 +371,15 @@ pub struct CheckboxStyleMessage {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct OcclusionPatch {
-    pub id_chain: Vec<u32>,
-    pub z_index: u32,
+    pub id: u32,
+    pub occlusion_layer_id: u32,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct TextPatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub content: Option<String>,
     pub editable: Option<bool>,
     pub transform: Option<Vec<f64>>,
@@ -406,7 +406,7 @@ pub struct TextStyleMessage {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ImagePatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub path: Option<String>,
 }
 
@@ -457,7 +457,7 @@ pub struct LinkStyleMessage {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ScrollerPatch {
-    pub id_chain: Vec<u32>,
+    pub id: u32,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -474,10 +474,9 @@ pub struct ScrollerPatch {
 #[derive(Serialize)]
 #[repr(C)]
 pub struct AnyCreatePatch {
-    pub id_chain: Vec<u32>,
-    pub clipping_ids: Vec<Vec<u32>>,
-    pub scroller_ids: Vec<Vec<u32>>,
-    pub z_index: u32,
+    pub id: u32,
+    pub parent_frame: Option<u32>,
+    pub occlusion_layer_id: u32,
 }
 
 // Possible approach to heterogeneous rich text:

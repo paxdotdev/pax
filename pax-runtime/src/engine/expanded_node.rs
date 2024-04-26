@@ -13,12 +13,11 @@ use crate::constants::{
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use crate::node_interface::NodeLocal;
-use crate::{ExpressionTable, Globals};
+use crate::{ExpandedNodeIdentifier, ExpressionTable, Globals};
 #[cfg(debug_assertions)]
 use core::fmt;
 use std::any::Any;
-use std::borrow::Borrow;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
@@ -40,7 +39,7 @@ pub struct ExpandedNode {
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
     /// and the subsequent u32s represent addresses within an expanded tree via Repeat.
-    pub id_chain: Vec<u32>,
+    pub id: ExpandedNodeIdentifier,
 
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
     pub instance_node: RefCell<InstanceNodePtr>,
@@ -48,6 +47,12 @@ pub struct ExpandedNode {
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
     /// this one.  Used for e.g. event propagation.
     pub parent_expanded_node: RefCell<Weak<ExpandedNode>>,
+
+    /// Id of closest frame present in the node tree.
+    /// included as a parameter on AnyCreatePatch when
+    /// creating a native element to know what clipping context
+    /// to attach to
+    pub parent_frame: Cell<Option<ExpandedNodeIdentifier>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
@@ -199,19 +204,24 @@ impl ExpandedNode {
             property_scope.extend(scope(properties.clone()));
         }
 
-        let id = (**context).borrow_mut().gen_uid().0;
+        let id = (**context).borrow_mut().gen_uid();
         let res = Rc::new(ExpandedNode {
-            id_chain: vec![id],
+            id,
+            stack: env,
             instance_node: RefCell::new(Rc::clone(&template)),
             attached: RefCell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
-            stack: env,
+
+            // these two refer to their rendering parent, not their
+            // template parent
             parent_expanded_node: Default::default(),
+            parent_frame: Default::default(),
+
             containing_component,
             children: Property::new_with_name(
                 Vec::new(),
-                &format!("node children (node id: {})", id),
+                &format!("node children (node id: {})", id.0),
             ),
             mounted_children: RefCell::new(Vec::new()),
             layout_properties: LayoutProperties::default(),
@@ -242,13 +252,13 @@ impl ExpandedNode {
         );
     }
 
-    /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id_chain)
+    /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
     /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
     /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.
-    pub fn is_descendant_of(&self, other_expanded_node_id: &Vec<u32>) -> bool {
+    pub fn is_descendant_of(&self, other_expanded_node_id: &ExpandedNodeIdentifier) -> bool {
         if let Some(parent) = self.parent_expanded_node.borrow().upgrade() {
             // We have a parent — if it matches the ID, this node is indeed an ancestor of other_expanded_node_id.  Otherwise, recurse upward.
-            if parent.id_chain.eq(other_expanded_node_id) {
+            if parent.id.eq(other_expanded_node_id) {
                 true
             } else {
                 parent.is_descendant_of(other_expanded_node_id)
@@ -294,6 +304,8 @@ impl ExpandedNode {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
+                // set frame clipping reference
+                child.parent_frame.set(self.parent_frame.get());
                 Rc::clone(child).recurse_mount(context);
             }
         }
@@ -365,7 +377,7 @@ impl ExpandedNode {
             (*(*context))
                 .borrow_mut()
                 .node_cache
-                .insert(self.id_chain[0], Rc::clone(&self));
+                .insert(self.id, Rc::clone(&self));
 
             let uni = self
                 .instance_node
@@ -376,9 +388,9 @@ impl ExpandedNode {
             if let Some(uni) = uni {
                 let mut ctx = (*(*context)).borrow_mut();
                 if let Some(nodes) = ctx.uni_to_eid.get_mut(&uni) {
-                    nodes.push(self.id_chain[0]);
+                    nodes.push(self.id);
                 } else {
-                    ctx.uni_to_eid.insert(uni, vec![self.id_chain[0]]);
+                    ctx.uni_to_eid.insert(uni, vec![self.id]);
                 }
             }
 
@@ -421,10 +433,7 @@ impl ExpandedNode {
         }
         if *self.attached.borrow() == 1 {
             *self.attached.borrow_mut() -= 1;
-            (*(*context))
-                .borrow_mut()
-                .node_cache
-                .remove(&self.id_chain[0]);
+            (*(*context)).borrow_mut().node_cache.remove(&self.id);
             let uni = self
                 .instance_node
                 .borrow()
@@ -433,7 +442,7 @@ impl ExpandedNode {
                 .clone();
             if let Some(uni) = uni {
                 if let Some(nodes) = (*(*context)).borrow_mut().uni_to_eid.get_mut(&uni) {
-                    nodes.retain(|id| id != &self.id_chain[0]);
+                    nodes.retain(|id| id != &self.id);
                 }
             }
             self.instance_node.borrow().handle_unmount(&self, context);
@@ -747,12 +756,9 @@ impl std::fmt::Debug for ExpandedNode {
                 "instance_node",
                 &Fmt(|f| self.instance_node.borrow().resolve_debug(f, Some(self))),
             )
-            .field("id_chain", &self.id_chain)
-            // .field("common_properties", &self.common_properties.try_borrow())
-            // .field(
-            //     "computed_expanded_properties",
-            //     &self.computed_expanded_properties.try_borrow(),
-            // )
+            .field("id", &self.id)
+            .field("common_properties", &self.common_properties.try_borrow())
+            .field("layout_properties", &self.layout_properties)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field(
                 "parent",
@@ -760,23 +766,20 @@ impl std::fmt::Debug for ExpandedNode {
                     .parent_expanded_node
                     .borrow()
                     .upgrade()
-                    .map(|v| v.id_chain.clone()),
+                    .map(|v| v.id.clone()),
             )
-            // .field(
-            //     "slot_children",
-            //     &self.expanded_and_flattened_slot_children.as_ref().map(|o| {
-            //         o.iter()
-            //             .map(|v| v.borrow().id_chain.clone())
-            //             .collect::<Vec<_>>()
-            //     }),
-            // )
+            .field(
+                "slot_children",
+                &self
+                    .expanded_and_flattened_slot_children
+                    .borrow()
+                    .as_ref()
+                    .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
+            )
             .field("occlusion_id", &self.occlusion_id.borrow())
             .field(
                 "containing_component",
-                &self
-                    .containing_component
-                    .upgrade()
-                    .map(|v| v.id_chain.clone()),
+                &self.containing_component.upgrade().map(|v| v.id.clone()),
             )
             .finish()
     }

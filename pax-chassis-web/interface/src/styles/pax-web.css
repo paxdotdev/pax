@@ -55,7 +55,7 @@ html, body, #mount, canvas, .native-overlay{
     backface-visibility: hidden;
 }
 
-#clipping-container {
+.clipping-container {
     position: absolute;
     top: 0;
     left: 0;

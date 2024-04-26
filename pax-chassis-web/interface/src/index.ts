@@ -1,6 +1,4 @@
-import type {PaxChassisWeb, InitOutput, initSync} from "./types/pax-chassis-web";
-
-// @ts-ignore
+import type {PaxChassisWeb} from "./types/pax-chassis-web";
 import {ObjectManager} from "./pools/object-manager";
 import {
     ANY_CREATE_PATCH,
@@ -29,7 +27,6 @@ let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
-let isMobile = false;
 let initializedChassis = false;
 
 export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
@@ -61,7 +58,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 
         const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
-        let _io = await glueCodeModule.default(wasmArrayBuffer);
+        await glueCodeModule.default(wasmArrayBuffer);
 
         let chassis = glueCodeModule.PaxChassisWeb.new();
         let get_latest_memory = glueCodeModule.wasm_memory;
@@ -75,8 +72,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
-        isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        nativePool.build(chassis, isMobile, mount);
+        nativePool.attach(chassis, mount);
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
         console.error("Failed to load or instantiate Wasm module:", error);
@@ -84,7 +80,6 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
 }
 
 function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
-    nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
     const memorySliceSpec = chassis.tick();
@@ -100,7 +95,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
             let width = mount.clientWidth;
             let height = mount.clientHeight;
             chassis.send_viewport_update(width, height);
-            nativePool.baseOcclusionContext.updateCanvases(width, height);
         };
         window.addEventListener('resize', resizeHandler);
         resizeHandler();//Fire once manually to init viewport size & occlusion context
@@ -108,7 +102,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
         initializedChassis = true;
     }
 
-    //@ts-ignore
     processMessages(messages, chassis, objectManager);
 
     //draw canvas elements
@@ -127,19 +120,6 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);
             nativePool.occlusionUpdate(patch);
-        } else if(unwrapped_msg["ScrollerCreate"]) {
-            let msg = unwrapped_msg["ScrollerCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerCreate(patch);
-        } else if (unwrapped_msg["ScrollerUpdate"]){
-            let msg = unwrapped_msg["ScrollerUpdate"]
-            let patch: ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.scrollerUpdate(patch);
-        }else if (unwrapped_msg["ScrollerDelete"]) {
-            let msg = unwrapped_msg["ScrollerDelete"];
-            nativePool.scrollerDelete(msg)
         } else if(unwrapped_msg["ButtonCreate"]) {
             let msg = unwrapped_msg["ButtonCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
@@ -204,7 +184,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             nativePool.frameUpdate(patch);
         }else if (unwrapped_msg["FrameDelete"]) {
             let msg = unwrapped_msg["FrameDelete"];
-            nativePool.frameDelete(msg["id_chain"])
+            nativePool.frameDelete(msg)
         }else if (unwrapped_msg["ImageLoad"]){
             let msg = unwrapped_msg["ImageLoad"];
             let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);

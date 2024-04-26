@@ -1,24 +1,18 @@
 export class AnyCreatePatch {
-    public idChain?: number[];
-    public clippingIds?: number[][];
-    public scrollerIds?: number[][];
-    public zIndex?: number;
+    public id?: number;
+    public parentFrame?: number;
+    public occlusionLayerId?: number;
 
     fromPatch(jsonMessage: any) {
-        this.idChain = jsonMessage["id_chain"];
-
-        this.clippingIds = jsonMessage["clipping_ids"];
-
-        this.scrollerIds = jsonMessage["scroller_ids"];
-
-        this.zIndex = jsonMessage["z_index"];
+        this.id = jsonMessage["id"];
+        this.parentFrame = jsonMessage["parent_frame"];
+        this.occlusionLayerId = jsonMessage["occlusion_layer_id"];
     }
 
     cleanUp(){
-        this.idChain = [];
-        this.clippingIds = [];
-        this.scrollerIds = [];
-        this.zIndex = -1;
+        this.id = undefined;
+        this.parentFrame = undefined;
+        this.occlusionLayerId = -1;
     }
 }
 
