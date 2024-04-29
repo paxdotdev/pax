@@ -4,38 +4,29 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// All possible actions that the LLM can perform
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub enum SimpleNodeAction {
-    Add(SimpleAdd),
-    Update(SimpleUpdate),
-    Remove(SimpleRemove),
+    Add(SimpleAddRequest),
+}
+
+/// All the nodes to be added to the scene 
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+pub struct SimpleAddRequest {
+    pub nodes_to_add: Vec<SimpleAdd>,
 }
 
 /// A node with the specified properties will be added to the scene at the specified location.
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct SimpleAdd {
     pub node_type: SimpleNodeType,
-    pub properties: Option<SimpleProperties>,
-}
-
-/// The node specified by id will be updated with the new properties or new parent
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct SimpleUpdate {
-    pub id: usize,
-    pub properties: Option<SimpleProperties>,
-}
-
-/// The node specified by id will be removed from the scene
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct SimpleRemove {
-    pub id: usize,
+    pub properties: SimpleProperties,
 }
 
 // Information about the outer viewport
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ViewportInformation {
-    pub height: SimpleSize,
-    pub width: SimpleSize,
+    pub height: SimplePixel,
+    pub width: SimplePixel,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -47,7 +38,7 @@ pub struct SimpleTemplate {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SimpleNodeInformation {
     pub id: usize,
-    pub node_type: SimpleNodeType,
+    pub node_info: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -55,21 +46,13 @@ pub struct SimpleWorldInformation {
     pub template: SimpleTemplate,
 }
 
-/// The only possible node types that can be added to the scene. Only Group and Other can have children
+/// The only possible node types that can be added to the scene
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub enum SimpleNodeType {
     Rectangle,
     Ellipse,
     Text,
-    Group,
-    Other,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct SimpleNode {
-    pub id: usize,
-    pub node_type: SimpleNodeType,
-    pub properties: Option<SimpleProperties>,
+    Navbar,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
@@ -81,26 +64,23 @@ pub struct SimpleColor {
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct SimpleProperties {
-    pub x: Option<SimpleSize>,
-    pub y: Option<SimpleSize>,
-    pub width: Option<SimpleSize>,
-    pub height: Option<SimpleSize>,
-    pub fill: Option<SimpleColor>,
-    pub stroke: Option<SimpleColor>,
+    pub x: SimplePixel,
+    pub y: SimplePixel,
+    pub width: SimplePixel,
+    pub height: SimplePixel,
+    pub fill: SimpleColor,
     pub rotate: Option<SimpleRotation>,
     pub text: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub enum SimpleSizeType {
-    Pixel,
-    Percent,
+pub struct SimplePercent {
+    pub value: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct SimpleSize {
+pub struct SimplePixel {
     pub value: f32,
-    pub size_type: SimpleSizeType,
 }
 
 /// The rotation of a node in degrees

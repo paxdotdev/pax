@@ -178,12 +178,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                                 let mut node_actions: Vec<NodeAction> = vec![];
                                 for simple_action in response {
                                     println!("LLM Action: {:?}", simple_action);
-                                    if let Some(action) = SimpleNodeAction::build(
+                                    node_actions.extend(SimpleNodeAction::build(
                                         component_type_id.clone(),
                                         simple_action,
-                                    ) {
-                                        node_actions.push(action);
-                                    }
+                                    ));
                                 }
                                 state
                                     .active_websocket_client
