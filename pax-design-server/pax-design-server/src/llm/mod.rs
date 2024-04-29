@@ -14,14 +14,13 @@ use serde_json::json;
 pub mod helpers;
 use schemars::gen::SchemaSettings;
 
-use crate::llm::constants::{ADD_FUNCTION, REMOVE_FUNCTION, TEMPERATURE, UPDATE_FUNCTION};
+use crate::llm::{constants::{ADD_FUNCTION, TEMPERATURE}, simple::SimpleAddRequest};
 
 use self::{
     constants::{
-        ADD_DESCRIPTION, MAX_TOKENS, MODEL, REMOVE_DESCRIPTION, SEED, SYSTEM_PROMPT,
-        UPDATE_DESCRIPTION,
+        ADD_DESCRIPTION, MAX_TOKENS, MODEL, SEED, SYSTEM_PROMPT,
     },
-    simple::{SimpleAdd, SimpleNodeAction, SimpleRemove, SimpleUpdate},
+    simple::{SimpleAdd, SimpleNodeAction},
 };
 pub mod constants;
 pub mod simple;
@@ -62,16 +61,9 @@ pub async fn query_open_ai(request: &str) -> Result<Vec<SimpleNodeAction>, OpenA
 
             match name.as_str() {
                 ADD_FUNCTION => {
-                    let add_operation = serde_json::from_str::<SimpleAdd>(&args).unwrap();
+                    println!("{}", args);
+                    let add_operation = serde_json::from_str::<SimpleAddRequest>(&args).unwrap();
                     ret.push(SimpleNodeAction::Add(add_operation));
-                }
-                UPDATE_FUNCTION => {
-                    let update_operation = serde_json::from_str::<SimpleUpdate>(&args).unwrap();
-                    ret.push(SimpleNodeAction::Update(update_operation));
-                }
-                REMOVE_FUNCTION => {
-                    let remove_operation = serde_json::from_str::<SimpleRemove>(&args).unwrap();
-                    ret.push(SimpleNodeAction::Remove(remove_operation));
                 }
                 _ => {}
             }
@@ -89,16 +81,8 @@ pub fn create_tools() -> Result<Vec<ChatCompletionTool>, OpenAIError> {
     let gen = settings.into_generator();
 
     // Generate the schema for the SimpleAddNode
-    let add_schema = gen.clone().into_root_schema_for::<SimpleAdd>();
-    let add_scehma_json = json!(add_schema);
-
-    // Generate the schema for the SimpleUpdateNode
-    let update_schema = gen.clone().into_root_schema_for::<SimpleUpdate>();
-    let update_schema_json = json!(update_schema);
-
-    // Generate the schema for the SimpleRemoveNode
-    let remove_schema = gen.clone().into_root_schema_for::<SimpleRemove>();
-    let remove_schema_json = json!(remove_schema);
+    let add_schema = gen.clone().into_root_schema_for::<SimpleAddRequest>();
+    let add_schema_json = json!(add_schema);
 
     Ok(vec![
         ChatCompletionToolArgs::default()
@@ -107,27 +91,7 @@ pub fn create_tools() -> Result<Vec<ChatCompletionTool>, OpenAIError> {
                 FunctionObjectArgs::default()
                     .name(ADD_FUNCTION)
                     .description(ADD_DESCRIPTION)
-                    .parameters(add_scehma_json)
-                    .build()?,
-            )
-            .build()?,
-        ChatCompletionToolArgs::default()
-            .r#type(ChatCompletionToolType::Function)
-            .function(
-                FunctionObjectArgs::default()
-                    .name(UPDATE_FUNCTION)
-                    .description(UPDATE_DESCRIPTION)
-                    .parameters(update_schema_json)
-                    .build()?,
-            )
-            .build()?,
-        ChatCompletionToolArgs::default()
-            .r#type(ChatCompletionToolType::Function)
-            .function(
-                FunctionObjectArgs::default()
-                    .name(REMOVE_FUNCTION)
-                    .description(REMOVE_DESCRIPTION)
-                    .parameters(remove_schema_json)
+                    .parameters(add_schema_json)
                     .build()?,
             )
             .build()?,
