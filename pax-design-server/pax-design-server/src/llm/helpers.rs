@@ -1,6 +1,5 @@
 use std::{
-    collections::HashMap,
-    fmt::{Display, Formatter},
+    borrow::BorrowMut, collections::HashMap, fmt::{format, Display, Formatter}
 };
 
 use pax_designtime::orm::template::{
@@ -14,7 +13,7 @@ use pax_manifest::{
 
 use super::simple::{
     SimpleColor, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType, SimpleProperties,
-    SimpleRotation, SimpleSize, SimpleSizeType, SimpleTemplate,
+    SimpleRotation, SimplePixel, SimplePercent, SimpleTemplate,
 };
 
 use super::constants::PREFIX;
@@ -23,21 +22,9 @@ pub fn convert_to_simple_node_info(
     id: &TemplateNodeId,
     node: &TemplateNodeDefinition,
 ) -> SimpleNodeInformation {
-    let node_type = if let Some(p_i) = node.type_id.get_pascal_identifier() {
-        match p_i.as_str() {
-            "Rectangle" => SimpleNodeType::Rectangle,
-            "Ellipse" => SimpleNodeType::Ellipse,
-            "Text" => SimpleNodeType::Text,
-            "Group" => SimpleNodeType::Group,
-            _ => SimpleNodeType::Other,
-        }
-    } else {
-        SimpleNodeType::Other
-    };
-
     SimpleNodeInformation {
         id: id.as_usize(),
-        node_type,
+        node_info: format!("{:?}", node.type_id.get_pascal_identifier()),
     }
 }
 
@@ -75,20 +62,20 @@ pub fn simple_node_type_to_type_id(node_type: SimpleNodeType) -> Option<TypeId> 
         }
         SimpleNodeType::Ellipse => TypeId::build_singleton(&format!("{}::Ellipse", PREFIX), None),
         SimpleNodeType::Text => TypeId::build_singleton(&format!("{}::Text", PREFIX), None),
-        SimpleNodeType::Group => TypeId::build_singleton(&format!("{}::Group", PREFIX), None),
-        SimpleNodeType::Other => {
-            return None;
-        }
+        SimpleNodeType::Navbar => TypeId::build_singleton(&format!("pax_designer::pax_reexports::designer_project::menu_bar::MenuBar"), None),
     };
     Some(t)
 }
 
-impl Display for SimpleSize {
+impl Display for SimplePercent {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.size_type {
-            SimpleSizeType::Pixel => write!(f, "{}px", self.value),
-            SimpleSizeType::Percent => write!(f, "{}%", self.value),
-        }
+        write!(f, "{}%", self.value)
+    }
+}
+
+impl Display for SimplePixel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+         write!(f, "{}px", self.value)
     }
 }
 
@@ -104,8 +91,17 @@ impl Display for SimpleColor {
     }
 }
 
-impl From<SimpleSize> for ValueDefinition {
-    fn from(value: SimpleSize) -> Self {
+impl From<SimplePercent> for ValueDefinition {
+    fn from(value: SimplePercent) -> Self {
+        ValueDefinition::LiteralValue(Token::new_only_raw(
+            value.to_string(),
+            pax_manifest::TokenType::LiteralValue,
+        ))
+    }
+}
+
+impl From<SimplePixel> for ValueDefinition {
+    fn from(value: SimplePixel) -> Self {
         ValueDefinition::LiteralValue(Token::new_only_raw(
             value.to_string(),
             pax_manifest::TokenType::LiteralValue,
@@ -145,51 +141,36 @@ impl From<SimpleProperties> for NodeType {
 impl From<SimpleProperties> for HashMap<Token, Option<ValueDefinition>> {
     fn from(value: SimpleProperties) -> Self {
         let mut settings: HashMap<Token, Option<ValueDefinition>> = HashMap::new();
-        if let Some(x) = value.x {
-            settings.insert(
-                Token::new_only_raw("x".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(x.into()),
-            );
-        }
-        if let Some(y) = value.y {
-            settings.insert(
-                Token::new_only_raw("y".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(y.into()),
-            );
-        }
-        if let Some(width) = value.width {
-            settings.insert(
-                Token::new_only_raw("width".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(width.into()),
-            );
-        }
-        if let Some(height) = value.height {
-            settings.insert(
-                Token::new_only_raw("height".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(height.into()),
-            );
-        }
+        settings.insert(
+            Token::new_only_raw("x".to_string(), pax_manifest::TokenType::SettingKey),
+            Some(value.x.into()),
+        );
+        settings.insert(
+            Token::new_only_raw("y".to_string(), pax_manifest::TokenType::SettingKey),
+            Some(value.y.into()),
+        );
+        settings.insert(
+            Token::new_only_raw("width".to_string(), pax_manifest::TokenType::SettingKey),
+            Some(value.width.into()),
+        );
+        settings.insert(
+            Token::new_only_raw("height".to_string(), pax_manifest::TokenType::SettingKey),
+            Some(value.height.into()),
+        );
 
-        if let Some(rotate) = value.rotate {
+        settings.insert(
+            Token::new_only_raw("fill".to_string(), pax_manifest::TokenType::SettingKey),
+            Some(value.fill.into()),
+        );
+
+        if let Some(rotation) = value.rotate {
             settings.insert(
                 Token::new_only_raw("rotate".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(rotate.into()),
+                Some(rotation.into()),
             );
         }
 
-        if let Some(fill) = value.fill {
-            settings.insert(
-                Token::new_only_raw("fill".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(fill.into()),
-            );
-        }
 
-        if let Some(stroke) = value.stroke {
-            settings.insert(
-                Token::new_only_raw("stroke".to_string(), pax_manifest::TokenType::SettingKey),
-                Some(stroke.into()),
-            );
-        }
         if let Some(text) = value.text {
             // Pest grammar expects a literal value to be an escaped string
             let escaped_text = format!("\"{}\"", text);
@@ -209,61 +190,48 @@ impl SimpleNodeAction {
     pub fn build(
         containing_component_type_id: TypeId,
         action: SimpleNodeAction,
-    ) -> Option<NodeAction> {
+    ) -> Vec<NodeAction> {
         match action {
-            SimpleNodeAction::Add(add) => {
-                let type_id = simple_node_type_to_type_id(add.node_type)?;
-                let node_data = if let Some(properties) = add.properties {
-                    properties.into()
-                } else {
-                    NodeType::Template(vec![])
-                };
-                let tree_location: TreeLocation = TreeLocation::Root;
-                let node_location = NodeLocation::new(
-                    containing_component_type_id.clone(),
-                    tree_location,
-                    TreeIndexPosition::Top,
-                );
+            SimpleNodeAction::Add(adds) => {
+                let mut add_actions : Vec<NodeAction> = Vec::new();
+                for add in adds.nodes_to_add {
+                    let type_id = simple_node_type_to_type_id(add.node_type);
+                    if let Some(type_id) = &type_id {
+                        let mut node_data : NodeType = add.properties.into();
+                        if let Some(pc) = type_id.get_pascal_identifier() {
+                            if pc == "MenuBar" {
+                                if let NodeType::Template(node_data) = &mut node_data {
+                                    for element in node_data.iter_mut() {
+                                        if let SettingElement::Setting(key, value) = element {
+                                            if key.raw_value == "height" {
+                                                *value = SimplePixel{ value: 50.0 }.into();
+                                            }
+                                            if key.raw_value == "width" {
+                                                *value = SimplePercent{ value: 100.0 }.into();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
-                let add = AddTemplateNodeRequest::new(
-                    containing_component_type_id,
-                    type_id,
-                    node_data,
-                    Some(node_location),
-                );
-                Some(NodeAction::Add(add))
-            }
-            SimpleNodeAction::Update(update) => {
-                let template_node_id = TemplateNodeId::build(update.id);
-                let uni = UniqueTemplateNodeIdentifier::build(
-                    containing_component_type_id.clone(),
-                    template_node_id,
-                );
-                let mut updated_property_map = HashMap::new();
-                if let Some(properties) = update.properties {
-                    updated_property_map = properties.into();
+                        let tree_location: TreeLocation = TreeLocation::Root;
+                        let node_location = NodeLocation::new(
+                            containing_component_type_id.clone(),
+                            tree_location,
+                            TreeIndexPosition::Top,
+                        );
+    
+                        let add = AddTemplateNodeRequest::new(
+                            containing_component_type_id.clone(),
+                            type_id.clone(),
+                            node_data,
+                            Some(node_location),
+                        );
+                        add_actions.push(NodeAction::Add(add));
+                    }
                 }
-                let new_location = NodeLocation::new(
-                    containing_component_type_id.clone(),
-                    TreeLocation::Root,
-                    TreeIndexPosition::Top,
-                );
-                let update = UpdateTemplateNodeRequest::new(
-                    uni,
-                    None,
-                    updated_property_map,
-                    Some(new_location),
-                );
-                Some(NodeAction::Update(update))
-            }
-            SimpleNodeAction::Remove(remove) => {
-                let template_node_id = TemplateNodeId::build(remove.id);
-                let uni = UniqueTemplateNodeIdentifier::build(
-                    containing_component_type_id,
-                    template_node_id,
-                );
-                let remove = RemoveTemplateNodeRequest::new(uni);
-                Some(NodeAction::Remove(remove))
+                add_actions
             }
         }
     }
