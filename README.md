@@ -1,16 +1,19 @@
-# Pax  
+# Pax Engine
 
-Pax is a user interface engine for native apps & websites.
+Build extremely fast user interfaces that run anywhere.
 
-Write application logic in TypeScript or Rust while declaring content & behavior in Pax's JSX-inspired user interface description language.
+Write application logic in Rust (or TypeScript, coming soon) — declare your user interface in Pax's user interface description language.
 
-Pax compiles into native desktop/mobile apps and WebAssembly-driven web apps. It's very fast and very lightweight.
+Pax compiles into native desktop/mobile apps, WebAssembly-driven sites, and embeddable universal UI components.
 
 ## What's in this repo?
+
  - The Pax compiler and an implementation of the Pax user interface description language
  - Native renderers + runtimes for iOS, macOS, and browsers/WebAssembly
- - Language bindings for supported programming languages, currently only Rust
- - Pax's CLI for compiling and managing projects 
+ - Layout and animation engine for responsive positioning and expressive user interactions
+ - Language bindings for supported programming languages: Rust is supported today; TypeScript is coming soon.  If you want support for another host programming language, please file an issue.
+ - Pax's CLI for compiling and managing projects
+ - Pax's standard library of reusable UI components like `Text`, `TextBox`, and `Button`; vector drawing primitives like `Rectangle`, `Path`, and `Group`; responsive layouts via `Stacker`, clipping via `Frame`, and scrolling via `Scroller`.
  - Example projects
 
 ## Status
@@ -23,7 +26,7 @@ Pax compiles into native desktop/mobile apps and WebAssembly-driven web apps. It
 
 We do not yet recommend building any production workloads with Pax. Targeting Beta in Q3 2024.
 
-TypeScript bindings are experimental and not yet publicly available.  Currently, writing Pax requires writing Rust.
+Embedded universal components have been proven in concept but adapters for React, Next, Vue, SwiftUI, etc. have not been built.  If you are interested in a particular component adapter, please open an issue so that we can understand your use-case & prioritize accordingly.
 
 ## Examples
 
