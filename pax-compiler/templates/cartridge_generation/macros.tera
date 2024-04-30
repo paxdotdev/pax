@@ -3,11 +3,11 @@ struct {{component.pascal_identifier}}Factory{}
 
 impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
-    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> {
-        Box::new(|_,_| Rc::new(RefCell::new({{component.pascal_identifier}}::default())))
+    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>> {
+        Box::new(|_,_| Rc::new(RefCell::new({{component.pascal_identifier}}::default().to_pax_value())))
     }
 
-    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<dyn Any>>> {
+    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>> {
         Box::new(move |stack_frame , table | Rc::new(RefCell::new(
             {
         let mut properties = {{component.pascal_identifier}}::default();
@@ -41,14 +41,15 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 let cloned_stack = stack_frame.clone();
                                 let cloned_table = table.clone();
                                 Property::computed_with_name(move || {
-                                    let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                                    if let Ok(downcast_value) = new_value_wrapped.downcast::<{{property.property_type.type_id._type_id}}>() {
-                                        *downcast_value
+                                    let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                    if let Ok(downcast_value) = <{{property.property_type.type_id._type_id}}>::from_pax_value(new_value_wrapped) {
+                                        downcast_value
                                     } else {
                                         panic!(
-                                            "property has an unexpected type for vtable id {}",
-                                            info.vtable_id
-                                        );
+                                            "property has an unexpected type for vtable id {}. expected: {}",
+                                            info.vtable_id,
+                                            std::any::type_name::<{{property.property_type.type_id._type_id}}>(),
+                                       );
                                     }
                                 
                                 }, &dependents, &token.raw_value)
@@ -63,21 +64,21 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                     });
             }
         {% endfor %}
-        properties
+        properties.to_pax_value()
         })))
     }
 
-    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<dyn Any>>, &NodeContext, Option::<Box<dyn Any>>) {
+    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<PaxValue>>, &NodeContext, Option::<PaxValue>) {
         match fn_name {
             {% for handler in component.handlers %}
             "{{handler.name}}" => {
                 |properties, ctx, args|{
                     let properties = &mut *properties.as_ref().borrow_mut();
-                    if let Some(mut properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
+                    if let Ok(mut properties) = <{{component.pascal_identifier}}>::mut_from_pax_value(properties) {
                         // downcast args to handler.type
                         {% if handler.args_type %}
                             if let Some(args) = args {
-                                if let Some(args) = args.downcast_ref::<{{handler.args_type}}>() {
+                                if let Ok(args) = <{{handler.args_type}}>::ref_from_pax_value(&args) {
                                     {{component.pascal_identifier}}::{{handler.name}}(properties,ctx, args.clone());
                                 } else {panic!("Failed to downcast args to {{handler.args_type}}")};
                             } else {
@@ -128,10 +129,10 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         {% endif %}    
     }
 
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<dyn Any>>) -> HashMap<String, UntypedProperty>>  {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxValue>>) -> HashMap<String, UntypedProperty>>  {
         Box::new(|props| {
             let properties = &mut props.as_ref().borrow_mut();
-            if let Some(properties) = properties.downcast_mut::<{{component.pascal_identifier}}>() {
+            if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_value(properties) {
                 let mut scope = HashMap::new();
                 {% for prop in component.properties %}
                     scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.untyped());
@@ -197,9 +198,9 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             let cloned_table = table.clone();
                                             let cloned_info = info.clone();
                                             Property::computed_with_name(move || {
-                                                let new_value_wrapped: Box<dyn Any> = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
-                                                if let Ok(downcast_value) = new_value_wrapped.downcast::<{{prop.type_id._type_id}}>() {
-                                                    *downcast_value
+                                                let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
+                                                if let Ok(downcast_value) = <{{prop.type_id._type_id}}>::from_pax_value(new_value_wrapped) {
+                                                    downcast_value
                                                 } else {
                                                     panic!(
                                                         "property has an unexpected type for vtable id {}",

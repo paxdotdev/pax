@@ -1,4 +1,5 @@
 use core::panic;
+use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
@@ -20,7 +21,6 @@ use crate::constants::{
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
 use pax_runtime_api::IntoableLiteral;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -34,7 +34,7 @@ impl Deserializer {
     }
 }
 thread_local! {
-    static CACHED_VALUES : RefCell<HashMap<String, Box<dyn Any>>> = RefCell::new(HashMap::new());
+    static CACHED_VALUES : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
 }
 thread_local! {
     static CACHED_VALUES_INTO : RefCell<HashMap<String, Result<IntoableLiteral>>> = RefCell::new(HashMap::new());
@@ -96,8 +96,8 @@ where
         let option_cached_dyn_any = cache.get(str);
         // down cast val to T
         if let Some(cached_dyn_any) = &option_cached_dyn_any {
-            let option_t_value: Option<&T> = cached_dyn_any.downcast_ref::<T>();
-            if let Some(data) = option_t_value {
+            let option_t_value = T::ref_from_pax_value(&cached_dyn_any);
+            if let Ok(data) = option_t_value {
                 return Some(data.clone());
             }
         }
@@ -112,7 +112,7 @@ where
     CACHED_VALUES.with(|cache| {
         cache
             .borrow_mut()
-            .insert(str.to_string(), Box::new(t.clone()));
+            .insert(str.to_string(), t.clone().to_pax_value());
     });
 
     Ok(t)

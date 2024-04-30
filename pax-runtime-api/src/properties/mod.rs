@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{marker::PhantomData, rc::Rc};
+use std::{any::Any, marker::PhantomData, rc::Rc};
 
 mod graph_operations;
 mod properties_table;
@@ -7,7 +7,7 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
+use crate::pax_value::{PaxValue, ToFromPaxValue};
 
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
@@ -23,19 +23,21 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
-impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
+pub trait PropertyValue: Default + Clone + 'static {}
 
-impl<T: PropertyValue> Interpolatable for Property<T> {
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
-        let cp_self = self.clone();
-        let cp_other = other.clone();
-        Property::computed(
-            move || cp_self.get().interpolate(&cp_other.get(), t),
-            &[self.untyped(), other.untyped()],
-        )
-    }
-}
+impl<T: ToFromPaxValue + Default + Clone + 'static> PropertyValue for T {}
+
+// impl<T: PropertyValue> Interpolatable for Property<T> {
+//     fn interpolate(&self, other: &Self, t: f64) -> Self {
+//         let cp_self = self.clone();
+//         let cp_other = other.clone();
+//         Property::computed(
+//             move || cp_self.get().interpolate(&cp_other.get(), t),
+//             &[self.untyped(), other.untyped()],
+//         )
+//     }
+// }
+
 /// A typed wrapper over a UntypedProperty that casts to/from an untyped
 /// property on get/set
 #[derive(Debug, Clone)]
@@ -67,7 +69,12 @@ impl<T: PropertyValue> Property<T> {
 
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            untyped: UntypedProperty::new(val, Vec::with_capacity(0), PropertyType::Literal, name),
+            untyped: UntypedProperty::new(
+                val.to_pax_value(),
+                Vec::with_capacity(0),
+                PropertyType::Literal,
+                name,
+            ),
             _phantom: PhantomData {},
         }
     }
@@ -79,10 +86,10 @@ impl<T: PropertyValue> Property<T> {
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
-        let evaluator = Rc::new(evaluator);
+        let evaluator = Rc::new(move || evaluator().to_pax_value());
         Self {
             untyped: UntypedProperty::new(
-                start_val,
+                start_val.to_pax_value(),
                 inbound,
                 PropertyType::Computed { evaluator },
                 name,
@@ -91,27 +98,27 @@ impl<T: PropertyValue> Property<T> {
         }
     }
 
-    pub fn ease_to(&self, end_val: T, time: u64, curve: EasingCurve) {
-        self.ease_to_value(end_val, time, curve, true);
-    }
+    // pub fn ease_to(&self, end_val: T, time: u64, curve: EasingCurve) {
+    //     self.ease_to_value(end_val, time, curve, true);
+    // }
 
-    pub fn ease_to_later(&self, end_val: T, time: u64, curve: EasingCurve) {
-        self.ease_to_value(end_val, time, curve, false);
-    }
+    // pub fn ease_to_later(&self, end_val: T, time: u64, curve: EasingCurve) {
+    //     self.ease_to_value(end_val, time, curve, false);
+    // }
 
-    fn ease_to_value(&self, end_val: T, time: u64, curve: EasingCurve, overwrite: bool) {
-        PROPERTY_TABLE.with(|t| {
-            t.transition(
-                self.untyped.id,
-                TransitionQueueEntry {
-                    duration_frames: time,
-                    curve,
-                    ending_value: end_val,
-                },
-                overwrite,
-            )
-        })
-    }
+    // fn ease_to_value(&self, end_val: T, time: u64, curve: EasingCurve, overwrite: bool) {
+    //     PROPERTY_TABLE.with(|t| {
+    //         t.transition(
+    //             self.untyped.id,
+    //             TransitionQueueEntry {
+    //                 duration_frames: time,
+    //                 curve,
+    //                 ending_value: end_val.into(),
+    //             },
+    //             overwrite,
+    //         )
+    //     })
+    // }
 
     /// Gets the currently stored value. Might be computationally
     /// expensive in a large reactivity network since this triggers

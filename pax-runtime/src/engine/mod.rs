@@ -8,7 +8,7 @@ use std::rc::Rc;
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
-use pax_runtime_api::{math::Transform2, OS};
+use pax_runtime_api::{math::Transform2, pax_value::PaxValue, OS};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
@@ -61,13 +61,13 @@ pub enum HandlerLocation {
 }
 
 pub struct Handler {
-    pub function: fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>),
+    pub function: fn(Rc<RefCell<PaxValue>>, &NodeContext, Option<PaxValue>),
     pub location: HandlerLocation,
 }
 
 impl Handler {
     pub fn new_inline_handler(
-        function: fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>),
+        function: fn(Rc<RefCell<PaxValue>>, &NodeContext, Option<PaxValue>),
     ) -> Self {
         Handler {
             function,
@@ -76,7 +76,7 @@ impl Handler {
     }
 
     pub fn new_component_handler(
-        function: fn(Rc<RefCell<dyn Any>>, &NodeContext, Option<Box<dyn Any>>),
+        function: fn(Rc<RefCell<PaxValue>>, &NodeContext, Option<PaxValue>),
     ) -> Self {
         Handler {
             function,
@@ -190,7 +190,7 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
 }
 
 pub struct ExpressionTable {
-    pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>>,
+    pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxValue>>,
 }
 
 #[cfg(debug_assertions)]
@@ -211,7 +211,7 @@ impl ExpressionTable {
         &self,
         stack: &Rc<RuntimePropertiesStackFrame>,
         vtable_id: usize,
-    ) -> Box<dyn Any> {
+    ) -> PaxValue {
         if let Some(evaluator) = self.table.get(&vtable_id) {
             let stack_frame = Rc::clone(stack);
             let ec = ExpressionContext { stack_frame };
