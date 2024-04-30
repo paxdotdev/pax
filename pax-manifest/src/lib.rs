@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
@@ -6,6 +7,7 @@ use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_message::serde::{Deserialize, Serialize};
+use pax_runtime_api::pax_value::PaxValue;
 use pax_runtime_api::Interpolatable;
 
 #[cfg(feature = "parsing")]
@@ -148,8 +150,8 @@ pub struct ExpressionSpec {
     pub invocations: Vec<ExpressionSpecInvocation>,
 
     /// Fully qualified (reexport-qualified) type ID, used for explicit RIL statement
-    /// casting before packing into `dyn Any`.  This ensures .into() chains evaluate before packing
-    /// into `dyn Any`, which enables us to downcast correctly at runtime.
+    /// casting before packing into PaxType.  This ensures .into() chains evaluate before packing
+    /// into PaxType, which enables us to downcast correctly at runtime.
     pub output_type: String,
 
     /// String (RIL) representation of the compiled expression
@@ -182,7 +184,7 @@ pub struct ExpressionSpecInvocation {
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
 
-    /// Type of the containing Properties struct, for downcasting from dyn Any.
+    /// Type of the containing Properties struct, for downcasting from PaxType.
     pub fully_qualified_properties_struct_type: String,
 
     /// For symbolic invocations that refer to repeat elements, this is the fully qualified type of each such repeated element
@@ -1443,7 +1445,7 @@ impl TypeDefinition {
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: TypeId) -> Self {
         Self {
-            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>"),
+            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<PaxType>>"),
             property_definitions: vec![],
             inner_iterable_type_id: Some(inner_iterable_type_id),
         }

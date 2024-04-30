@@ -4,6 +4,7 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
 use kurbo::BezPath;
+use pax_value::PaxValue;
 use piet::PaintBrush;
 use properties::UntypedProperty;
 
@@ -19,6 +20,7 @@ use std::rc::{Rc, Weak};
 pub mod constants;
 pub mod math;
 pub mod numeric;
+pub mod pax_value;
 pub mod properties;
 
 pub use crate::numeric::Numeric;
@@ -29,10 +31,10 @@ pub use pax_message::serde;
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
 
-pub struct TransitionQueueEntry<T> {
+pub struct TransitionQueueEntry {
     pub duration_frames: u64,
     pub curve: EasingCurve,
-    pub ending_value: T,
+    pub ending_value: PaxValue,
 }
 
 pub trait RenderContext {
@@ -48,11 +50,11 @@ pub trait RenderContext {
 }
 
 #[cfg(debug_assertions)]
-impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
+impl std::fmt::Debug for TransitionQueueEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionQueueEntry")
             .field("duration_frames", &self.duration_frames)
-            .field("ending_value", &self.ending_value)
+            // .field("ending_value", &self.ending_value)
             .finish()
     }
 }
@@ -604,26 +606,26 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
     }
 }
 
-pub struct TransitionManager<T> {
-    queue: VecDeque<TransitionQueueEntry<T>>,
+pub struct TransitionManager {
+    queue: VecDeque<TransitionQueueEntry>,
     /// The value we are currently transitioning from
-    transition_checkpoint_value: T,
+    transition_checkpoint_value: PaxValue,
     /// The time the current transition started
     origin_frames_elapsed: u64,
 }
 
 #[cfg(debug_assertions)]
-impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
+impl std::fmt::Debug for TransitionManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionManager")
             .field("queue", &self.queue)
-            .field("value", &self.transition_checkpoint_value)
+            // .field("value", &self.transition_checkpoint_value)
             .finish()
     }
 }
 
-impl<T: Clone + Interpolatable> TransitionManager<T> {
-    pub fn new(value: T, current_time: u64) -> Self {
+impl TransitionManager {
+    pub fn new(value: PaxValue, current_time: u64) -> Self {
         Self {
             queue: VecDeque::new(),
             transition_checkpoint_value: value,
@@ -631,7 +633,7 @@ impl<T: Clone + Interpolatable> TransitionManager<T> {
         }
     }
 
-    pub fn push_transition(&mut self, transition: TransitionQueueEntry<T>) {
+    pub fn push_transition(&mut self, transition: TransitionQueueEntry) {
         self.queue.push_back(transition);
     }
 
@@ -642,7 +644,7 @@ impl<T: Clone + Interpolatable> TransitionManager<T> {
         self.origin_frames_elapsed = current_time;
     }
 
-    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
+    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<PaxValue> {
         let global_fe = frames_elapsed;
         let origin_fe = &mut self.origin_frames_elapsed;
 
@@ -655,12 +657,14 @@ impl<T: Clone + Interpolatable> TransitionManager<T> {
         let current_transition = self.queue.front()?;
         let local_fe = global_fe - *origin_fe;
         let progress = local_fe as f64 / current_transition.duration_frames as f64;
-        let interpolated_val = current_transition.curve.interpolate(
-            &self.transition_checkpoint_value,
-            &current_transition.ending_value,
-            progress,
-        );
-        Some(interpolated_val)
+        // TODOend
+        // let interpolated_val = current_transition.curve.interpolate(
+        //     &self.transition_checkpoint_value,
+        //     &current_transition.ending_value,
+        //     progress,
+        // );
+        // Some(interpolated_val)
+        None
     }
 }
 
@@ -749,8 +753,9 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
         self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
     }
 }
-impl Interpolatable for Rc<RefCell<(dyn Any + 'static)>> {}
+impl Interpolatable for Rc<RefCell<PaxValue>> {}
 impl Interpolatable for () {}
+
 impl<T: Interpolatable> Interpolatable for Rc<T> {}
 impl<T: Interpolatable> Interpolatable for Weak<T> {}
 impl<T: Interpolatable> Interpolatable for RefCell<T> {}

@@ -3,10 +3,11 @@ use crate::api::Window;
 use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
+use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
 use pax_runtime_api::properties::UntypedProperty;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::{Rc, Weak};
-use std::{any::Any, collections::HashMap};
 
 use crate::{ExpandedNode, ExpressionTable, Globals};
 
@@ -183,17 +184,17 @@ impl RuntimeContext {
 ///
 /// `Component`s push `RuntimePropertiesStackFrame`s before computing properties and pop them after computing, thus providing a
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
-#[cfg_attr(debug_assertions, derive(Debug))]
+
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, UntypedProperty>,
-    properties: Rc<RefCell<dyn Any>>,
+    properties: Rc<RefCell<PaxValue>>,
     parent: Weak<RuntimePropertiesStackFrame>,
 }
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
         symbols_within_frame: HashMap<String, UntypedProperty>,
-        properties: Rc<RefCell<dyn Any>>,
+        properties: Rc<RefCell<PaxValue>>,
     ) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
@@ -205,7 +206,7 @@ impl RuntimePropertiesStackFrame {
     pub fn push(
         self: &Rc<Self>,
         symbols_within_frame: HashMap<String, UntypedProperty>,
-        properties: &Rc<RefCell<dyn Any>>,
+        properties: &Rc<RefCell<PaxValue>>,
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
@@ -221,7 +222,7 @@ impl RuntimePropertiesStackFrame {
     /// Traverses stack recursively `n` times to retrieve ancestor;
     /// useful for runtime lookups for identifiers, where `n` is the statically known offset determined by the Pax compiler
     /// when resolving a symbol
-    pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<dyn Any>>> {
+    pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<PaxValue>>> {
         let mut curr = Rc::clone(self);
         for _ in 0..n {
             curr = curr.parent.upgrade()?;
@@ -229,7 +230,7 @@ impl RuntimePropertiesStackFrame {
         Some(Rc::clone(&curr.properties))
     }
 
-    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<dyn Any>>> {
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<PaxValue>>> {
         if let Some(_) = self.symbols_within_frame.get(symbol) {
             Some(Rc::clone(&self.properties))
         } else {
@@ -247,39 +248,39 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
-    pub fn get_properties(&self) -> Rc<RefCell<dyn Any>> {
+    pub fn get_properties(&self) -> Rc<RefCell<PaxValue>> {
         Rc::clone(&self.properties)
     }
 }
 
-pub fn get_numeric_from_wrapped_properties(wrapped: Rc<RefCell<dyn Any>>) -> Numeric {
+pub fn get_numeric_from_wrapped_properties(wrapped: Rc<RefCell<PaxValue>>) -> Numeric {
     //"u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f64"
     let wrapped_borrowed = wrapped.borrow();
-    if let Some(unwrapped_u8) = wrapped_borrowed.downcast_ref::<u8>() {
+    if let Ok(unwrapped_u8) = u8::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_u8)
-    } else if let Some(unwrapped_u16) = wrapped_borrowed.downcast_ref::<u16>() {
+    } else if let Ok(unwrapped_u16) = u16::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_u16)
-    } else if let Some(unwrapped_u32) = wrapped_borrowed.downcast_ref::<u32>() {
+    } else if let Ok(unwrapped_u32) = u32::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_u32)
-    } else if let Some(unwrapped_u64) = wrapped_borrowed.downcast_ref::<u64>() {
+    } else if let Ok(unwrapped_u64) = u64::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_u64)
-    } else if let Some(unwrapped_u128) = wrapped_borrowed.downcast_ref::<u128>() {
+    } else if let Ok(unwrapped_u128) = u128::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_u128)
-    } else if let Some(unwrapped_usize) = wrapped_borrowed.downcast_ref::<usize>() {
+    } else if let Ok(unwrapped_usize) = usize::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_usize)
-    } else if let Some(unwrapped_i8) = wrapped_borrowed.downcast_ref::<i8>() {
+    } else if let Ok(unwrapped_i8) = i8::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_i8)
-    } else if let Some(unwrapped_i16) = wrapped_borrowed.downcast_ref::<i16>() {
+    } else if let Ok(unwrapped_i16) = i16::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_i16)
-    } else if let Some(unwrapped_i32) = wrapped_borrowed.downcast_ref::<i32>() {
+    } else if let Ok(unwrapped_i32) = i32::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_i32)
-    } else if let Some(unwrapped_i64) = wrapped_borrowed.downcast_ref::<i64>() {
+    } else if let Ok(unwrapped_i64) = i64::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_i64)
-    } else if let Some(unwrapped_i128) = wrapped_borrowed.downcast_ref::<i128>() {
+    } else if let Ok(unwrapped_i128) = i128::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_i128)
-    } else if let Some(unwrapped_isize) = wrapped_borrowed.downcast_ref::<isize>() {
+    } else if let Ok(unwrapped_isize) = isize::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_isize)
-    } else if let Some(unwrapped_f64) = wrapped_borrowed.downcast_ref::<f64>() {
+    } else if let Ok(unwrapped_f64) = f64::ref_from_pax_value(&wrapped_borrowed) {
         Numeric::from(*unwrapped_f64)
     } else {
         panic!("Non-Numeric passed; tried to coerce into Numeric")
@@ -289,7 +290,6 @@ pub fn get_numeric_from_wrapped_properties(wrapped: Rc<RefCell<dyn Any>>) -> Num
 /// Data structure used for dynamic injection of values
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ExpressionContext {
     pub stack_frame: Rc<RuntimePropertiesStackFrame>,
 }
