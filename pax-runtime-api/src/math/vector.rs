@@ -111,6 +111,13 @@ impl<W: Space> Vector2<W> {
     pub fn cast_space<WNew: Space>(&self) -> Vector2<WNew> {
         Vector2::new(self.x, self.y)
     }
+
+    pub fn rotate(&self, angle: Rotation) -> Self {
+        let (s, c) = angle.get_as_radians().sin_cos();
+        let x = self.x * c - self.y * s;
+        let y = self.x * s + self.y * c;
+        Self::new(x, y)
+    }
 }
 
 impl<W: Space> Mul for Vector2<W> {
