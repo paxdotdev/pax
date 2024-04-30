@@ -1,0 +1,4 @@
+<Path
+	fill={self.fill}
+	elements={self.path_elements}
+/>
