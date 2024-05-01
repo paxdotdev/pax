@@ -1,10 +1,9 @@
 use kurbo::{RoundedRect, Shape};
-use pax_runtime::BaseInstance;
+use pax_runtime::{api::Fill, BaseInstance};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
-use pax_std::types::Fill;
 
 use pax_runtime::api::{Layer, RenderContext};
 

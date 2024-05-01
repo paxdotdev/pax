@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::{iter, rc::Rc};
 
-use pax_runtime_api::pax_value::ToFromPaxValueAsAny;
+use pax_runtime_api::pax_value::ImplToFromPaxAny;
 use pax_runtime_api::Property;
 
 use crate::api::Layer;
@@ -18,7 +18,7 @@ pub struct ConditionalInstance {
     base: BaseInstance,
 }
 
-impl ToFromPaxValueAsAny for ConditionalProperties {}
+impl ImplToFromPaxAny for ConditionalProperties {}
 
 ///Contains the expression of a conditional, evaluated as an expression.
 #[derive(Default)]

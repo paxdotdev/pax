@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{any::Any, marker::PhantomData, rc::Rc};
+use std::{marker::PhantomData, rc::Rc};
 
 mod graph_operations;
 mod properties_table;
@@ -7,10 +7,7 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use crate::{
-    impl_to_from_pax_value,
-    pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny},
-};
+use crate::{pax_value::ToFromPaxAny, ImplToFromPaxAny};
 
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
@@ -26,9 +23,9 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: ToFromPaxValue + Default + Clone + 'static {}
+pub trait PropertyValue: ToFromPaxAny + Default + Clone + 'static {}
 
-impl<T: ToFromPaxValue + Default + Clone + 'static> PropertyValue for T {}
+impl<T: ToFromPaxAny + Default + Clone + 'static> PropertyValue for T {}
 
 // impl<T: PropertyValue> Interpolatable for Property<T> {
 //     fn interpolate(&self, other: &Self, t: f64) -> Self {
@@ -49,7 +46,7 @@ pub struct Property<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T> ToFromPaxValueAsAny for Property<T> {}
+impl<T: 'static> ImplToFromPaxAny for Property<T> {}
 
 impl<T: PropertyValue> Property<T> {
     pub fn new(val: T) -> Self {
@@ -75,7 +72,7 @@ impl<T: PropertyValue> Property<T> {
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
             untyped: UntypedProperty::new(
-                val.to_pax_value(),
+                val.to_pax_any(),
                 Vec::with_capacity(0),
                 PropertyType::Literal,
                 name,
@@ -91,10 +88,10 @@ impl<T: PropertyValue> Property<T> {
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
-        let evaluator = Rc::new(move || evaluator().to_pax_value());
+        let evaluator = Rc::new(move || evaluator().to_pax_any());
         Self {
             untyped: UntypedProperty::new(
-                start_val.to_pax_value(),
+                start_val.to_pax_any(),
                 inbound,
                 PropertyType::Computed { evaluator },
                 name,

@@ -3,7 +3,7 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 use slotmap::{SlotMap, SparseSecondaryMap};
 
 use crate::{
-    pax_value::{PaxValue, ToFromPaxValue},
+    pax_value::{PaxAny, PaxValue, ToFromPaxValue},
     Property, TransitionManager, TransitionQueueEntry,
 };
 
@@ -18,7 +18,7 @@ thread_local! {
 
 /// The main collection of data associated with a specific property id
 pub struct PropertyData {
-    value: PaxValue,
+    value: PaxAny,
     transition_manager: Option<TransitionManager>,
     // Specialization data (computed/literal etc)
     property_type: PropertyType,
@@ -38,7 +38,7 @@ pub(crate) enum PropertyType {
     Literal,
     Computed {
         // Information needed to recompute on change
-        evaluator: Rc<dyn Fn() -> PaxValue>,
+        evaluator: Rc<dyn Fn() -> PaxAny>,
     },
 }
 
@@ -62,7 +62,7 @@ impl PropertyTable {
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
-            if let Ok(value) = T::ref_from_pax_value(&property_data.value) {
+            if let Ok(value) = T::ref_from_pax_any(&property_data.value) {
                 return value.clone();
             } else {
                 panic!("PaxValue inside prop had unexpected type, must have been modified through reference?")
@@ -75,7 +75,7 @@ impl PropertyTable {
     // it and it's dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
-            property_data.value = new_val.to_pax_value();
+            property_data.value = new_val.to_pax_any();
         });
         self.dirtify_outbound(id);
     }
@@ -83,7 +83,7 @@ impl PropertyTable {
     /// Adds a new untyped property entry
     pub fn add_entry(
         &self,
-        start_val: PaxValue,
+        start_val: PaxAny,
         inbound: Vec<PropertyId>,
         data: PropertyType,
         debug_name: Option<&str>,
@@ -230,10 +230,10 @@ impl PropertyTable {
                 // Copy over inbound, dirty state, and current value to source
                 source_property_data.inbound = target_property_data.inbound.clone();
                 source_property_data.dirty = target_property_data.dirty;
-                source_property_data.value = T::ref_from_pax_value(&target_property_data.value)
+                source_property_data.value = T::ref_from_pax_any(&target_property_data.value)
                     .unwrap()
                     .clone()
-                    .to_pax_value();
+                    .to_pax_any();
                 source_property_data.property_type = target_property_data.property_type.clone();
             });
         });

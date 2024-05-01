@@ -1,4 +1,31 @@
 #[macro_export]
+macro_rules! impl_from_to_pax_any_for_from_to_pax_value {
+    ($Type:ty) => {
+        impl ToFromPaxAny for $Type {
+            fn to_pax_any(self) -> PaxAny {
+                self.to_pax_value().to_pax_any()
+            }
+
+            fn from_pax_any(pax_any: PaxAny) -> Result<Self, String> {
+                PaxValue::from_pax_any(pax_any)
+                    .and_then(|pax_value| Self::from_pax_value(pax_value))
+            }
+
+            fn ref_from_pax_any(pax_any: &PaxAny) -> Result<&Self, String> {
+                PaxValue::ref_from_pax_any(pax_any)
+                    .and_then(|pax_value| Self::ref_from_pax_value(pax_value))
+            }
+
+            fn mut_from_pax_any(pax_any: &mut PaxAny) -> Result<&mut Self, String> {
+                PaxValue::mut_from_pax_any(pax_any)
+                    .and_then(|pax_value| Self::mut_from_pax_value(pax_value))
+            }
+        }
+    };
+}
+
+// This macro implements from and to
+#[macro_export]
 macro_rules! impl_to_from_pax_value {
     // For a single variant path
     ($Type:ty, $Variant:path) => {
@@ -12,7 +39,8 @@ macro_rules! impl_to_from_pax_value {
                     Ok(val)
                 } else {
                     Err(format!(
-                        "pax value cannot be coerced into {}",
+                        "pax value {:?} cannot be coerced into {}",
+                        pax_value,
                         std::any::type_name::<Self>(),
                     ))
                 }
@@ -40,6 +68,8 @@ macro_rules! impl_to_from_pax_value {
                 }
             }
         }
+
+        impl_from_to_pax_any_for_from_to_pax_value!($Type);
     };
     // For nested variant paths like Numeric::U8
     ($Type:ty, $OuterVariant:path, $InnerVariant:path) => {
@@ -81,5 +111,6 @@ macro_rules! impl_to_from_pax_value {
                 }
             }
         }
+        impl_from_to_pax_any_for_from_to_pax_value!($Type);
     };
 }

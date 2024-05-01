@@ -1,8 +1,10 @@
 use core::panic;
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
+use pax_runtime_api::{Color, Numeric, Percent};
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
+use std::any::TypeId;
 
 pub mod error;
 mod helpers;
@@ -13,7 +15,6 @@ use self::helpers::{PaxColor, PaxEnum, PaxObject, PaxSeq};
 pub use error::{Error, Result};
 
 use crate::utils::{PaxParser, Rule};
-use crate::PaxType;
 
 use crate::constants::{
     COLOR, DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
@@ -34,7 +35,7 @@ impl Deserializer {
     }
 }
 thread_local! {
-    static CACHED_VALUES : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
+    static CACHED_VALUES : RefCell<HashMap<String, PaxAny>> = RefCell::new(HashMap::new());
 }
 thread_local! {
     static CACHED_VALUES_INTO : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
@@ -86,8 +87,9 @@ thread_local! {
 //     ret
 // }
 
+//TODOend remove this generic param somehow?
 /// Main entry-point for deserializing a type from Pax.
-pub fn from_pax<T: ToFromPaxValue + Clone>(str: &str) -> Result<T>
+pub fn from_pax<T: ToFromPaxAny + Clone + 'static>(str: &str) -> Result<PaxAny>
 where
     T: DeserializeOwned,
 {
@@ -95,15 +97,40 @@ where
         let cache = cache.borrow();
         let option_cached_dyn_any = cache.get(str);
         // down cast val to T
-        if let Some(cached_dyn_any) = &option_cached_dyn_any {
-            let option_t_value = T::ref_from_pax_value(&cached_dyn_any);
-            if let Ok(data) = option_t_value {
-                return Some(data.clone());
-            }
+        if let Some(data) = &option_cached_dyn_any {
+            return Some(T::ref_from_pax_any(data).unwrap().clone().to_pax_any());
         }
         None
     }) {
-        return Ok(cached.clone());
+        return Ok(cached);
+    }
+
+    let type_id = TypeId::of::<T>();
+    if type_id != TypeId::of::<Color>()
+        && type_id != TypeId::of::<Percent>()
+        && type_id != TypeId::of::<Numeric>()
+    {
+        let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
+            // TODO fill in all types
+            Ok(from_pax::<Color>(str).unwrap())
+        } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
+            // let mut ast= ast.next().unwrap().into_inner();
+            let _number = ast.clone().next().unwrap().as_str();
+            let unit = ast.clone().next().unwrap().as_str();
+            match unit {
+                "%" => Ok(from_pax::<Percent>(&str).unwrap()),
+                _ => Err(Error::UnsupportedMethod),
+            }
+        } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
+            Ok(from_pax::<Numeric>(str).unwrap())
+        } else {
+            Err(Error::UnsupportedMethod) //Not an IntoableLiteral
+        };
+
+        //if intoable literals, return them immediately
+        if let Ok(val) = ret {
+            return Ok(val);
+        }
     }
 
     let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
@@ -112,10 +139,10 @@ where
     CACHED_VALUES.with(|cache| {
         cache
             .borrow_mut()
-            .insert(str.to_string(), t.clone().to_pax_value());
+            .insert(str.to_string(), t.clone().to_pax_any());
     });
 
-    Ok(t)
+    Ok(t.to_pax_any())
 }
 
 impl<'de> de::Deserializer<'de> for Deserializer {

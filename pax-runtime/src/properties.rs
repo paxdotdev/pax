@@ -2,7 +2,7 @@ use crate::api::math::Point2;
 use crate::api::Window;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxAny, PaxValue, ToFromPaxValue};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::Numeric;
 use std::cell::RefCell;
@@ -187,14 +187,14 @@ impl RuntimeContext {
 
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, UntypedProperty>,
-    properties: Rc<RefCell<PaxValue>>,
+    properties: Rc<RefCell<PaxAny>>,
     parent: Weak<RuntimePropertiesStackFrame>,
 }
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
         symbols_within_frame: HashMap<String, UntypedProperty>,
-        properties: Rc<RefCell<PaxValue>>,
+        properties: Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
@@ -206,7 +206,7 @@ impl RuntimePropertiesStackFrame {
     pub fn push(
         self: &Rc<Self>,
         symbols_within_frame: HashMap<String, UntypedProperty>,
-        properties: &Rc<RefCell<PaxValue>>,
+        properties: &Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
@@ -222,7 +222,7 @@ impl RuntimePropertiesStackFrame {
     /// Traverses stack recursively `n` times to retrieve ancestor;
     /// useful for runtime lookups for identifiers, where `n` is the statically known offset determined by the Pax compiler
     /// when resolving a symbol
-    pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<PaxValue>>> {
+    pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<PaxAny>>> {
         let mut curr = Rc::clone(self);
         for _ in 0..n {
             curr = curr.parent.upgrade()?;
@@ -230,7 +230,7 @@ impl RuntimePropertiesStackFrame {
         Some(Rc::clone(&curr.properties))
     }
 
-    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<PaxValue>>> {
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<PaxAny>>> {
         if let Some(_) = self.symbols_within_frame.get(symbol) {
             Some(Rc::clone(&self.properties))
         } else {
@@ -248,7 +248,7 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
-    pub fn get_properties(&self) -> Rc<RefCell<PaxValue>> {
+    pub fn get_properties(&self) -> Rc<RefCell<PaxAny>> {
         Rc::clone(&self.properties)
     }
 }
