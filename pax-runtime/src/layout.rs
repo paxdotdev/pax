@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use pax_runtime_api::{Property, Window};
+use pax_runtime_api::{Numeric, Property, Window};
 
 use crate::api::math::{Generic, Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
@@ -135,24 +135,24 @@ pub fn compute_tab(
                     if let Some(ref val) = cp_scale_x {
                         val.get().clone()
                     } else {
-                        Size::Percent(crate::numeric::Numeric::from(100.0))
+                        Size::Percent(Numeric::F64(100.0))
                     },
                     if let Some(ref val) = cp_scale_y {
                         val.get().clone()
                     } else {
-                        Size::Percent(crate::numeric::Numeric::from(100.0))
+                        Size::Percent(Numeric::F64(100.0))
                     },
                 ];
                 desugared_transform2d.scale = Some(scale);
 
                 let skew = [
                     if let Some(ref val) = cp_skew_x {
-                        val.get().to_float()
+                        val.get()
                     } else {
                         0.0
                     },
                     if let Some(ref val) = cp_skew_y {
-                        val.get().to_float()
+                        val.get()
                     } else {
                         0.0
                     },
@@ -205,13 +205,17 @@ impl ComputableTransform for Transform2D {
             Some(anchor) => Transform2::translate(Vector2::<Generic>::new(
                 match anchor[0] {
                     Size::Pixels(pix) => -pix.to_float(),
-                    Size::Percent(per) => -node_size.0 * (per / 100.0),
-                    Size::Combined(pix, per) => -pix.to_float() + (-node_size.0 * (per / 100.0)),
+                    Size::Percent(per) => -node_size.0 * (per.to_float() / 100.0),
+                    Size::Combined(pix, per) => {
+                        -pix.to_float() + (-node_size.0 * (per.to_float() / 100.0))
+                    }
                 },
                 match anchor[1] {
                     Size::Pixels(pix) => -pix.to_float(),
-                    Size::Percent(per) => -node_size.1 * (per / 100.0),
-                    Size::Combined(pix, per) => -pix.to_float() + (-node_size.0 * (per / 100.0)),
+                    Size::Percent(per) => -node_size.1 * (per.to_float() / 100.0),
+                    Size::Combined(pix, per) => {
+                        -pix.to_float() + (-node_size.0 * (per.to_float() / 100.0))
+                    }
                 },
             )),
             //No anchor applied: treat as 0,0; identity matrix
@@ -219,7 +223,7 @@ impl ComputableTransform for Transform2D {
         };
 
         //decompose vanilla affine matrix and pack into `Affine`
-        let (scale_x, scale_y) = if let Some(scale) = self.scale {
+        let (scale_x, scale_y) = if let Some(scale) = &self.scale {
             (scale[0].expect_percent(), scale[1].expect_percent())
         } else {
             (1.0, 1.0)

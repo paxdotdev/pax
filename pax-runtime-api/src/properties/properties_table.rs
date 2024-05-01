@@ -215,7 +215,7 @@ impl PropertyTable {
     /// computed / it's value to the way target does.
     /// NOTE: source_id and target_id need to both contain
     /// the type T, or else this panics
-    pub fn replace_property_keep_outbound_connections<T: Clone + 'static>(
+    pub fn replace_property_keep_outbound_connections<T: PropertyValue>(
         &self,
         source_id: PropertyId,
         target_id: PropertyId,

@@ -7,7 +7,10 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use crate::pax_value::{PaxValue, ToFromPaxValue};
+use crate::{
+    impl_to_from_pax_value,
+    pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny},
+};
 
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
@@ -23,7 +26,7 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: Default + Clone + 'static {}
+pub trait PropertyValue: ToFromPaxValue + Default + Clone + 'static {}
 
 impl<T: ToFromPaxValue + Default + Clone + 'static> PropertyValue for T {}
 
@@ -45,6 +48,8 @@ pub struct Property<T> {
     untyped: UntypedProperty,
     _phantom: PhantomData<T>,
 }
+
+impl<T> ToFromPaxValueAsAny for Property<T> {}
 
 impl<T: PropertyValue> Property<T> {
     pub fn new(val: T) -> Self {

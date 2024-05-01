@@ -1,26 +1,21 @@
+use serde::{Deserialize, Serialize};
+
+use crate::{math::Transform2, Color, Rotation, Size, Transform2D};
 use std::any::Any;
 
-use derive_more::{From, TryInto};
+use self::numeric::Numeric;
 
-use crate::{math::Transform2, Color, Numeric, Rotation, Size, Transform2D};
+mod macros;
+pub mod numeric;
+mod to_from_impls;
 
-#[derive(TryInto, From)]
-#[try_into(owned, ref, ref_mut)]
+#[derive(Debug)]
+// #[derive(Clone, Serialize, Deserialize)]
+// #[serde(crate = "crate::serde")]
 pub enum PaxValue {
     // TODO remove this variant (use bellow numeric variants instead)
-    Numeric(Numeric),
     Bool(bool),
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-
-    F64(f64),
-    F32(f32),
+    Numeric(Numeric),
     String(String),
     Transform(Transform2),
     Transform2D(Transform2D),
@@ -36,6 +31,16 @@ pub trait ToFromPaxValue
 where
     Self: Sized + 'static,
 {
+    fn to_pax_value(self) -> PaxValue;
+    fn from_pax_value(pax_value: PaxValue) -> Result<Self, String>;
+    fn ref_from_pax_value(pax_value: &PaxValue) -> Result<&Self, String>;
+    fn mut_from_pax_value(pax_value: &mut PaxValue) -> Result<&mut Self, String>;
+}
+
+pub trait ToFromPaxValueAsAny {}
+
+// Remove this impl, and impl all individual types using a macro later on
+impl<T: ToFromPaxValueAsAny + 'static> ToFromPaxValue for T {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Any(Box::new(self) as Box<dyn Any>)
     }
@@ -67,9 +72,6 @@ where
         }
     }
 }
-
-// Remove this impl, and impl all individual types using a macro later on
-impl<T: 'static> ToFromPaxValue for T {}
 
 // TODO check these spots after doing initial conversion
 // - what can be done in the property system? (problem with recursive properties requiring Property to be a PaxValue type, not good?)

@@ -162,8 +162,8 @@ impl Scroller {
         let target_y = old_y + dy;
         let clamped_target_x = target_x.clamp(0.0, max_bounds_x - bounds_x);
         let clamped_target_y = target_y.clamp(0.0, max_bounds_y - bounds_y);
-        self.scroll_pos_x.set(clamped_target_x.into());
-        self.scroll_pos_y.set(clamped_target_y.into());
+        self.scroll_pos_x.set(Numeric::F64(clamped_target_x));
+        self.scroll_pos_y.set(Numeric::F64(clamped_target_y));
     }
 
     pub fn add_momentum(&self, ddx: f64, ddy: f64) {

@@ -1,10 +1,10 @@
 use crate::api::math::Point2;
 use crate::api::Window;
-use crate::numeric::Numeric;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
 use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::Numeric;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
@@ -250,40 +250,6 @@ impl RuntimePropertiesStackFrame {
 
     pub fn get_properties(&self) -> Rc<RefCell<PaxValue>> {
         Rc::clone(&self.properties)
-    }
-}
-
-pub fn get_numeric_from_wrapped_properties(wrapped: Rc<RefCell<PaxValue>>) -> Numeric {
-    //"u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f64"
-    let wrapped_borrowed = wrapped.borrow();
-    if let Ok(unwrapped_u8) = u8::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_u8)
-    } else if let Ok(unwrapped_u16) = u16::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_u16)
-    } else if let Ok(unwrapped_u32) = u32::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_u32)
-    } else if let Ok(unwrapped_u64) = u64::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_u64)
-    } else if let Ok(unwrapped_u128) = u128::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_u128)
-    } else if let Ok(unwrapped_usize) = usize::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_usize)
-    } else if let Ok(unwrapped_i8) = i8::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_i8)
-    } else if let Ok(unwrapped_i16) = i16::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_i16)
-    } else if let Ok(unwrapped_i32) = i32::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_i32)
-    } else if let Ok(unwrapped_i64) = i64::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_i64)
-    } else if let Ok(unwrapped_i128) = i128::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_i128)
-    } else if let Ok(unwrapped_isize) = isize::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_isize)
-    } else if let Ok(unwrapped_f64) = f64::ref_from_pax_value(&wrapped_borrowed) {
-        Numeric::from(*unwrapped_f64)
-    } else {
-        panic!("Non-Numeric passed; tried to coerce into Numeric")
     }
 }
 

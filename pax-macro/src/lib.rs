@@ -452,7 +452,7 @@ pub fn pax(
     let config = parse_config(&mut input.attrs);
     validate_config(&input, &config).unwrap();
 
-    let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize"];
+    let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize", "Debug"];
 
     let mut is_custom_interpolatable = false;
 
@@ -521,7 +521,10 @@ pub fn pax(
             }
         })
         .collect();
+    let ident = &input.ident;
     let output = quote! {
+        impl pax_engine::api::ToFromPaxValueAsAny for #ident {}
+
         #[derive(#derives)]
         #[serde(crate = "pax_engine::serde")]
         #input

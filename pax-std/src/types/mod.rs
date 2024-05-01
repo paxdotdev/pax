@@ -6,41 +6,24 @@ pub use pax_engine::api::Size;
 use pax_engine::api::{Color, Numeric};
 use pax_engine::*;
 
-use pax_runtime::api::IntoableLiteral;
 use piet::UnitPoint;
 
 #[pax]
 #[custom(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Stroke {
     pub color: Property<Color>,
     pub width: Property<Size>,
-}
-
-impl From<IntoableLiteral> for Stroke {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Color(c) => Stroke {
-                color: Property::new(c),
-                width: Property::new(Numeric::from(1).into()),
-            },
-            _ => {
-                unreachable!()
-            }
-        }
-    }
 }
 
 impl Default for Stroke {
     fn default() -> Self {
         Self {
             color: Default::default(),
-            width: Property::new(Size::Pixels(0.0.into())),
+            width: Property::new(Size::Pixels(Numeric::F64(0.0))),
         }
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 pub struct StackerCell {
     pub x_px: f64,
@@ -63,7 +46,6 @@ pub enum SidebarDirection {
     Right,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 #[custom(Default)]
 pub enum Fill {
@@ -78,18 +60,6 @@ impl Into<Fill> for Color {
     }
 }
 
-impl From<IntoableLiteral> for Fill {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Color(c) => c.into(),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 pub struct LinearGradient {
     pub start: (Size, Size),
@@ -97,7 +67,6 @@ pub struct LinearGradient {
     pub stops: Vec<GradientStop>,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 pub struct RadialGradient {
     pub end: (Size, Size),
@@ -106,7 +75,6 @@ pub struct RadialGradient {
     pub stops: Vec<GradientStop>,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 pub struct GradientStop {
     pub position: Size,
@@ -173,7 +141,6 @@ impl Fill {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum PathElement {
     #[default]
     Empty,
@@ -199,7 +166,6 @@ impl PathElement {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LineSegmentData {
     pub start: Point,
     pub end: Point,
@@ -212,7 +178,6 @@ impl LineSegmentData {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CurveSegmentData {
     pub start: Point,
     pub handle: Point,
@@ -221,7 +186,6 @@ pub struct CurveSegmentData {
 
 #[pax]
 #[derive(Copy)]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Point {
     pub x: Size,
     pub y: Size,
@@ -265,7 +229,6 @@ impl Path {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RectangleCornerRadii {
     pub top_left: Property<Numeric>,
     pub top_right: Property<Numeric>,

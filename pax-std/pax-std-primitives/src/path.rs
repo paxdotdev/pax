@@ -106,7 +106,13 @@ impl InstanceNode for PathInstance {
                     &layer_id,
                     duplicate_transformed_bez_path,
                     &properties.stroke.get().color.get().to_piet_color().into(),
-                    properties.stroke.get().width.get().expect_pixels().into(),
+                    properties
+                        .stroke
+                        .get()
+                        .width
+                        .get()
+                        .expect_pixels()
+                        .to_float(),
                 );
             }
         });

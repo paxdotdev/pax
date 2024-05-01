@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::Property;
 
@@ -22,6 +22,7 @@ pub struct RepeatInstance {
     pub base: BaseInstance,
 }
 
+impl ToFromPaxValueAsAny for RepeatProperties {}
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
 ///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
 #[derive(Default)]
@@ -31,6 +32,8 @@ pub struct RepeatProperties {
     pub iterator_i_symbol: Option<String>,
     pub iterator_elem_symbol: Option<String>,
 }
+
+impl ToFromPaxValueAsAny for RepeatItem {}
 
 pub struct RepeatItem {
     pub elem: Property<Option<Rc<RefCell<PaxValue>>>>,
