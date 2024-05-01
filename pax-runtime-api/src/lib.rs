@@ -4,8 +4,8 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
-pub use pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
-use piet::PaintBrush;
+pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
+use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
 
 #[cfg(feature = "designtime")]
@@ -88,7 +88,7 @@ pub struct Event<T> {
     cancelled: Rc<Cell<bool>>,
 }
 
-impl<T> ToFromPaxValueAsAny for Event<T> {}
+impl<T: 'static> ImplToFromPaxAny for Event<T> {}
 
 impl<T> Event<T> {
     pub fn new(args: T) -> Self {
@@ -734,13 +734,13 @@ impl EasingCurve {
     }
 }
 
-impl<I> ToFromPaxValueAsAny for std::ops::Range<I> {}
-impl<T> ToFromPaxValueAsAny for Rc<T> {}
-impl<T> ToFromPaxValueAsAny for Weak<T> {}
-impl<T> ToFromPaxValueAsAny for Option<T> {}
-impl<T> ToFromPaxValueAsAny for Vec<T> {}
-impl<T> ToFromPaxValueAsAny for RefCell<T> {}
-impl<T1, T2> ToFromPaxValueAsAny for (T1, T2) {}
+impl<I: 'static> ImplToFromPaxAny for std::ops::Range<I> {}
+impl<T: 'static> ImplToFromPaxAny for Rc<T> {}
+impl<T: 'static> ImplToFromPaxAny for Weak<T> {}
+impl<T: 'static> ImplToFromPaxAny for Option<T> {}
+impl<T: 'static> ImplToFromPaxAny for Vec<T> {}
+impl<T: 'static> ImplToFromPaxAny for RefCell<T> {}
+impl<T1: 'static, T2: 'static> ImplToFromPaxAny for (T1, T2) {}
 
 pub trait Interpolatable
 where
@@ -920,7 +920,7 @@ impl OcclusionLayerGen {
 }
 
 impl Interpolatable for StringBox {}
-impl ToFromPaxValueAsAny for StringBox {}
+impl ImplToFromPaxAny for StringBox {}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
@@ -970,7 +970,7 @@ impl From<StringBox> for String {
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
 /// about how we parse `%`, and allow the context in which it is used to pull forward a specific
 /// type through `into` inference.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Percent(pub Numeric);
 
 impl Interpolatable for Percent {
@@ -1470,6 +1470,97 @@ impl Add for Rotation {
         let self_rad = self.get_as_radians();
         let other_rad = rhs.get_as_radians();
         Rotation::Radians(Numeric::F64(self_rad + other_rad))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub enum Fill {
+    Solid(Color),
+    LinearGradient(LinearGradient),
+    RadialGradient(RadialGradient),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct LinearGradient {
+    pub start: (Size, Size),
+    pub end: (Size, Size),
+    pub stops: Vec<GradientStop>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct RadialGradient {
+    pub end: (Size, Size),
+    pub start: (Size, Size),
+    pub radius: f64,
+    pub stops: Vec<GradientStop>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct GradientStop {
+    pub position: Size,
+    pub color: Color,
+}
+
+impl GradientStop {
+    pub fn get(color: Color, position: Size) -> GradientStop {
+        GradientStop { position, color }
+    }
+}
+
+impl Default for Fill {
+    fn default() -> Self {
+        Self::Solid(Color::default())
+    }
+}
+
+impl Fill {
+    pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
+        let normalized_x = match x {
+            Size::Pixels(val) => val.to_float() / width,
+            Size::Percent(val) => val.to_float() / 100.0,
+            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
+        };
+
+        let normalized_y = match y {
+            Size::Pixels(val) => val.to_float() / height,
+            Size::Percent(val) => val.to_float() / 100.0,
+            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
+        };
+        UnitPoint::new(normalized_x, normalized_y)
+    }
+
+    pub fn to_piet_gradient_stops(stops: Vec<GradientStop>) -> Vec<piet::GradientStop> {
+        let mut ret = Vec::new();
+        for gradient_stop in stops {
+            match gradient_stop.position {
+                Size::Pixels(_) => {
+                    panic!("Gradient stops must be specified in percentages");
+                }
+                Size::Percent(p) => {
+                    ret.push(piet::GradientStop {
+                        pos: (p.to_float() / 100.0) as f32,
+                        color: gradient_stop.color.to_piet_color(),
+                    });
+                }
+                Size::Combined(_, _) => {
+                    panic!("Gradient stops must be specified in percentages");
+                }
+            }
+        }
+        ret
+    }
+
+    #[allow(non_snake_case)]
+    pub fn linearGradient(
+        start: (Size, Size),
+        end: (Size, Size),
+        stops: Vec<GradientStop>,
+    ) -> Fill {
+        Fill::LinearGradient(LinearGradient { start, end, stops })
     }
 }
 

@@ -6,8 +6,7 @@ use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_message::serde::{Deserialize, Serialize};
-use pax_runtime_api::pax_value::ToFromPaxValueAsAny;
-use pax_runtime_api::Interpolatable;
+use pax_runtime_api::{ImplToFromPaxAny, Interpolatable};
 
 #[cfg(feature = "parsing")]
 pub mod utils;
@@ -369,8 +368,8 @@ pub struct TypeId {
     _type_id_escaped: String,
 }
 
-impl ToFromPaxValueAsAny for TypeId {}
-impl ToFromPaxValueAsAny for TemplateNodeId {}
+impl ImplToFromPaxAny for TypeId {}
+impl ImplToFromPaxAny for TemplateNodeId {}
 impl Interpolatable for TypeId {}
 impl Interpolatable for TemplateNodeId {}
 
@@ -1453,9 +1452,9 @@ impl TypeDefinition {
 
     pub fn builtin_range_isize() -> Self {
         Self {
-            type_id: TypeId::build_range("isize"),
+            type_id: TypeId::build_range("i32"),
             property_definitions: vec![],
-            inner_iterable_type_id: Some(TypeId::build_primitive("isize")),
+            inner_iterable_type_id: Some(TypeId::build_primitive("i32")),
         }
     }
 }

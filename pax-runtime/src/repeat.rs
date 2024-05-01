@@ -1,12 +1,11 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
+use pax_runtime_api::pax_value::{PaxValue, ToFromPaxAny, ToFromPaxValue};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::Property;
+use pax_runtime_api::{ImplToFromPaxAny, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -22,18 +21,18 @@ pub struct RepeatInstance {
     pub base: BaseInstance,
 }
 
-impl ToFromPaxValueAsAny for RepeatProperties {}
+impl ImplToFromPaxAny for RepeatProperties {}
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
 ///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
     pub source_expression_vec: Option<Property<Vec<Rc<RefCell<PaxValue>>>>>,
-    pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
+    pub source_expression_range: Option<Property<std::ops::Range<i32>>>,
     pub iterator_i_symbol: Option<String>,
     pub iterator_elem_symbol: Option<String>,
 }
 
-impl ToFromPaxValueAsAny for RepeatItem {}
+impl ImplToFromPaxAny for RepeatItem {}
 
 pub struct RepeatItem {
     pub elem: Property<Option<Rc<RefCell<PaxValue>>>>,
@@ -153,7 +152,7 @@ impl InstanceNode for RepeatInstance {
                                     i: property_i.clone(),
                                     elem: property_elem.clone(),
                                 }
-                                .to_pax_value(),
+                                .to_pax_any(),
                             ));
 
                             let mut scope: HashMap<String, UntypedProperty> = HashMap::new();

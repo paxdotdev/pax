@@ -3,11 +3,11 @@ struct {{component.pascal_identifier}}Factory{}
 
 impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
-    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>> {
-        Box::new(|_,_| Rc::new(RefCell::new({{component.pascal_identifier}}::default().to_pax_value())))
+    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>> {
+        Box::new(|_,_| Rc::new(RefCell::new({{component.pascal_identifier}}::default().to_pax_any())))
     }
 
-    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>> {
+    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>> {
         Box::new(move |stack_frame , table | Rc::new(RefCell::new(
             {
         let mut properties = {{component.pascal_identifier}}::default();
@@ -16,7 +16,8 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                 properties.{{property.name}}.replace_with(
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            Property::new_with_name(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
+                            let val = <{{property.property_type.type_id._type_id}}>::from_pax_any(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap();
+                            Property::new_with_name(val, &lv.raw_value)
                         },
                         ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                         {
@@ -32,8 +33,8 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 let cloned_stack = stack_frame.clone();
                                 let cloned_table = table.clone();
                                 Property::computed_with_name(move || {
-                                    let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                                    if let Ok(downcast_value) = <{{property.property_type.type_id._type_id}}>::from_pax_value(new_value_wrapped) {
+                                    let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                    if let Ok(downcast_value) = <{{property.property_type.type_id._type_id}}>::from_pax_any(new_value_wrapped) {
                                         downcast_value
                                     } else {
                                         panic!(
@@ -55,17 +56,17 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                     });
             }
         {% endfor %}
-        properties.to_pax_value()
+        properties.to_pax_any()
         })))
     }
 
-    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<PaxValue>>, &NodeContext, Option::<PaxValue>) {
+    fn build_handler(&self,fn_name: &str) -> fn(Rc<RefCell<PaxAny>>, &NodeContext, Option::<PaxAny>) {
         match fn_name {
             {% for handler in component.handlers %}
             "{{handler.name}}" => {
                 |properties, ctx, args|{
                     let properties = &mut *properties.as_ref().borrow_mut();
-                    if let Ok(mut properties) = <{{component.pascal_identifier}}>::mut_from_pax_value(properties) {
+                    if let Ok(mut properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
                         // downcast args to handler.type
                         {% if handler.args_type %}
                             if let Some(args) = args {
@@ -120,10 +121,10 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         {% endif %}    
     }
 
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxValue>>) -> HashMap<String, UntypedProperty>>  {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>  {
         Box::new(|props| {
             let properties = &mut props.as_ref().borrow_mut();
-            if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_value(properties) {
+            if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
                 let mut scope = HashMap::new();
                 {% for prop in component.properties %}
                     scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.untyped());
@@ -158,7 +159,8 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-                                        Property::new_with_name(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap(), &lv.raw_value)
+                                        let val = <{{prop.type_id._type_id}}>::from_pax_any(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap();
+                                        Property::new_with_name(val, &lv.raw_value)
                                     },
                                     ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token, info ) =>
                                     {
@@ -175,8 +177,8 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             let cloned_table = table.clone();
                                             let cloned_info = info.clone();
                                             Property::computed_with_name(move || {
-                                                let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
-                                                if let Ok(downcast_value) = <{{prop.type_id._type_id}}>::from_pax_value(new_value_wrapped) {
+                                                let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
+                                                if let Ok(downcast_value) = <{{prop.type_id._type_id}}>::from_pax_any(new_value_wrapped) {
                                                     downcast_value
                                                 } else {
                                                     panic!(
@@ -198,7 +200,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% else %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-                                        from_pax(&lv.raw_value).unwrap()
+                                        <{{prop.type_id._type_id}}>::from_pax_any(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap()
                                     },
                                     ValueDefinition::Block(block) => {
                                         {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone(), table.clone())

@@ -1,7 +1,7 @@
 use kurbo::{Rect, Shape};
-use pax_runtime::api::{Layer, RenderContext};
+use pax_runtime::api::{Fill, Layer, RenderContext};
 use pax_runtime::BaseInstance;
-use pax_std::{primitives::Ellipse, types::Fill};
+use pax_std::primitives::Ellipse;
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 

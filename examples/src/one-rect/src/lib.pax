@@ -28,12 +28,12 @@
     }
     #text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                // font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 32px,
-                fill: WHITE,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+                fill: GREEN,
+                // align_vertical: TextAlignVertical::Center,
+                // align_horizontal: TextAlignHorizontal::Center,
+                // align_multiline: TextAlignHorizontal::Center
         }
     }
 }

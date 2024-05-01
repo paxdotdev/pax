@@ -12,11 +12,10 @@ pub mod components {
 
 pub mod primitives {
     use pax_engine::pax;
-    use pax_runtime::api::Numeric;
     use pax_runtime::api::{Color, Property, Size, StringBox};
+    use pax_runtime::api::{Fill, Numeric};
 
     use crate::types::text::TextStyle;
-    use crate::types::Fill;
 
     use crate::types::PathElement;
     use crate::types::Stroke;

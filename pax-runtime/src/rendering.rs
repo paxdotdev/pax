@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -7,7 +6,7 @@ use std::rc::Rc;
 
 use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
+use pax_runtime_api::pax_value::{PaxAny, PaxValue};
 use pax_runtime_api::properties::UntypedProperty;
 use piet::{Color, StrokeStyle};
 
@@ -30,7 +29,7 @@ pub struct InstantiationArgs {
         ) -> Rc<RefCell<CommonProperties>>,
     >,
     pub prototypical_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>>,
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
@@ -38,7 +37,7 @@ pub struct InstantiationArgs {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxValue>>) -> HashMap<String, UntypedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>>,
 }
 
 #[derive(Clone)]
@@ -176,7 +175,7 @@ pub trait InstanceNode {
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_prototypical_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>>,
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>,
     pub instance_prototypical_common_properties_factory: Box<
         dyn Fn(
             Rc<RuntimePropertiesStackFrame>,
@@ -185,7 +184,7 @@ pub struct BaseInstance {
     >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxValue>>) -> HashMap<String, UntypedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }

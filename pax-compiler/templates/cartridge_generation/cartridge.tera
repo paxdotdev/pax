@@ -10,6 +10,8 @@ use pax_runtime::api::properties::UntypedProperty;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 use pax_runtime_api::pax_value::PaxValue;
+use pax_runtime_api::pax_value::PaxAny;
+use pax_runtime_api::pax_value::ToFromPaxAny;
 use pax_runtime::api::pax_value::ToFromPaxValue;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
@@ -20,15 +22,15 @@ use {{ import }};
 {% endfor %}
 
 
-pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxValue>> {
-    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxValue>> = HashMap::new();
+pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> {
+    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> = HashMap::new();
 
     {% for expression_spec in expression_specs %}
     // {{ expression_spec.input_statement.content}}
     {% if expression_spec.input_statement.source_map_start_marker %}
         {{ expression_spec.input_statement.source_map_start_marker }}
     {% endif %}
-    vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext| -> PaxValue {
+    vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext| -> PaxAny {
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} =
             {
@@ -40,26 +42,26 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 let mut borrowed = &mut *(*properties).borrow_mut();
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
-                    if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_value(&borrowed) {
+                    if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_any(&borrowed) {
                         let i = unwrapped_repeat_item.i.get();
                         let elem = Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
                             let elem_borrowed = elem.borrow();
-                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_value(&elem_borrowed) {
+                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&elem_borrowed) {
                                 unwrapped
                             } else {
-                                panic!();//Failed to unpack string from PaxValue
+                                panic!();//Failed to unpack string from PaxAny
                             }
                         {% elif invocation.is_string %}
                             //string as `elem`
 
                             let elem_borrowed = elem.borrow();
-                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_value(&elem_borrowed) {
+                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&elem_borrowed) {
                                 StringBox::from(unwrapped)
                             } else {
-                                panic!();//Failed to unpack string from PaxValue
+                                panic!();//Failed to unpack string from PaxAny
                             }
 
                         {% elif invocation.is_bool %}
@@ -68,7 +70,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                         {% else %}
                             //iterable complex type
                             let mut elem_borrowed = elem.borrow_mut();
-                            if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_value(&mut elem_borrowed) {
+                            if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(&mut elem_borrowed) {
                                 dc.clone()
                             } else {unreachable!()}
                         {% endif %}
@@ -77,12 +79,12 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
-                    let mut unwrapped_repeat_item = if let Ok(val) = RepeatItem::mut_from_pax_value(borrowed) {val} else {panic!()}; // Failed to downcast
+                    let mut unwrapped_repeat_item = if let Ok(val) = RepeatItem::mut_from_pax_any(borrowed) {val} else {panic!()}; // Failed to downcast
                     let i = unwrapped_repeat_item.i.get();
                     Numeric::from(i)
                 {% else %}
 
-                    if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_value(&borrowed) {
+                    if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_any(&borrowed) {
 
                         {% if invocation.is_numeric %}
                             //binding simple numeric property
@@ -104,18 +106,18 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
         {% endfor %}
 
         {% if expression_spec.is_repeat_source_iterable_expression %}
-            {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<Rc<RefCell<PaxValue>>> for Repeat #}
+            {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<Rc<RefCell<PaxAny>>> for Repeat #}
             {% for invocation in expression_spec.invocations %}
                 let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
-                    let converted_cell: Rc<RefCell<PaxValue>> = Rc::new(RefCell::new(t.clone().to_pax_value()));
+                    let converted_cell: Rc<RefCell<PaxAny>> = Rc::new(RefCell::new(t.clone().to_pax_any()));
                     converted_cell
-                }).collect::<Vec<Rc<RefCell<PaxValue>>>>();
+                }).collect::<Vec<Rc<RefCell<PaxAny>>>>();
             {% endfor %}
         {% endif %}
 
         let ___ret = {{ expression_spec.output_statement }};
 
-        ___ret.to_pax_value()
+        ___ret.to_pax_any()
     }));
     {% if expression_spec.input_statement.source_map_end_marker %}
         {{ expression_spec.input_statement.source_map_end_marker }}
@@ -133,7 +135,7 @@ pub trait ComponentFactory {
     }
 
     /// Returns the default properties factory for this component
-    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>>;
+    fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>;
     
     /// Returns the CommonProperties factory based on the defined properties 
     fn build_inline_common_properties(&self, defined_properties: HashMap<String,ValueDefinition>) ->Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>> {
@@ -145,7 +147,8 @@ pub trait ComponentFactory {
                     "{{common_property.name}}" => {
                         let resolved_property: Property<{{common_property.property_type._type_id}}> = match value.clone() {
                             ValueDefinition::LiteralValue(lv) => {
-                                Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
+                                let val = <{{common_property.property_type._type_id}}>::from_pax_any(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap()).unwrap();
+                                Property::new_with_name(val, &lv.raw_value)
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                             {
@@ -161,8 +164,8 @@ pub trait ComponentFactory {
                                     let cloned_stack = stack_frame.clone();
                                     let cloned_table = table.clone();
                                     Property::computed_with_name(move || {
-                                        let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                                        if let Ok(downcast_value) = <{{common_property.property_type._type_id}}>::from_pax_value(new_value_wrapped) {
+                                        let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                        if let Ok(downcast_value) = <{{common_property.property_type._type_id}}>::from_pax_any(new_value_wrapped) {
                                             downcast_value
                                         } else {
                                             panic!(
@@ -194,11 +197,11 @@ pub trait ComponentFactory {
     }
 
     /// Returns the properties factory based on the defined properties
-    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>>;
+    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>;
     
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template
-    fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<PaxValue>>, &NodeContext, Option::<PaxValue>);
+    fn build_handler(&self, fn_name: &str) -> fn(Rc<RefCell<PaxAny>>, &NodeContext, Option::<PaxAny>);
     
     /// Returns the handler registry based on the defined handlers for this component
     fn build_component_handlers(&self, handlers: Vec<(String, Vec<String>)>) -> Rc<RefCell<HandlerRegistry>>;
@@ -210,7 +213,7 @@ pub trait ComponentFactory {
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
     // Returns the property scope for the component
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxValue>>) -> HashMap<String, UntypedProperty>> {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>> {
         Box::new(|_| HashMap::new())
     }
 }
@@ -372,7 +375,7 @@ impl DefinitionToInstanceTraverser {
                     .unwrap();
                 let vtable_id = expression_info.vtable_id;
                 let dep_symbols = expression_info.dependencies.clone();
-                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>> = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>> = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
                         let mut properties = ConditionalProperties::default();
                         let cloned_table = table.clone();
                         let cloned_stack = stack_frame.clone();
@@ -387,8 +390,8 @@ impl DefinitionToInstanceTraverser {
                         }
 
                         properties.boolean_expression =  Property::computed_with_name(move || {
-                            let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                            if let Ok(downcast_value) = bool::from_pax_value(new_value_wrapped) {
+                            let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                            if let Ok(downcast_value) = bool::from_pax_any(new_value_wrapped) {
                                 downcast_value
                             } else {
                                 panic!(
@@ -397,7 +400,7 @@ impl DefinitionToInstanceTraverser {
                                 );
                             }
                         }, &dependencies, "conditional (if) expr");
-                        properties.to_pax_value()
+                        properties.to_pax_any()
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
                     prototypical_common_properties_factory,
@@ -421,7 +424,7 @@ impl DefinitionToInstanceTraverser {
                 let vtable_id = expression_info.vtable_id;
                 let dep_symbols = expression_info.dependencies.clone();
 
-                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>>  = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>  = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
                         let mut properties = SlotProperties::default();
                         let cloned_table = table.clone();
                         let cloned_stack = stack_frame.clone();
@@ -435,8 +438,8 @@ impl DefinitionToInstanceTraverser {
                             }
                         }
                         properties.index = Property::computed_with_name(move || {
-                            let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                            if let Ok(downcast_value) = Numeric::from_pax_value(new_value_wrapped) {
+                            let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                            if let Ok(downcast_value) = Numeric::from_pax_any(new_value_wrapped) {
                                 downcast_value
                             } else {
                                 panic!(
@@ -445,7 +448,7 @@ impl DefinitionToInstanceTraverser {
                                 );
                             }
                         }, &dependencies, "slot index");
-                        properties.to_pax_value()
+                        properties.to_pax_any()
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
                     prototypical_common_properties_factory,
@@ -475,7 +478,7 @@ impl DefinitionToInstanceTraverser {
                 let expression_info = rsd.expression_info.as_ref().unwrap();
                 let vtable_id = expression_info.vtable_id.clone();
                 let dep_symbols = expression_info.dependencies.clone();
-                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxValue>>> = Box::new(move |stack_frame,table| Rc::new(RefCell::new( {
+                let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>> = Box::new(move |stack_frame,table| Rc::new(RefCell::new( {
                         let mut properties = RepeatProperties::default();
 
                         let mut dependencies = Vec::new();
@@ -493,8 +496,8 @@ impl DefinitionToInstanceTraverser {
                                 let cloned_stack = stack_frame.clone();
                                 Some(
                                     Property::computed_with_name(move || {
-                                        let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                        if let Ok(downcast_value) = <Vec<Rc<RefCell<PaxValue>>>>::from_pax_value(new_value_wrapped) {
+                                        let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                                        if let Ok(downcast_value) = <Vec<Rc<RefCell<PaxValue>>>>::from_pax_any(new_value_wrapped) {
                                             downcast_value
                                         } else {
                                             panic!(
@@ -514,8 +517,8 @@ impl DefinitionToInstanceTraverser {
                                 let cloned_stack = stack_frame.clone();
                                 Some(
                                     Property::computed_with_name(move || {
-                                        let new_value_wrapped: PaxValue = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                        if let Ok(downcast_value) = <std::ops::Range::<isize>>::from_pax_value(new_value_wrapped) {
+                                        let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
+                                        if let Ok(downcast_value) = <std::ops::Range::<i32>>::from_pax_any(new_value_wrapped) {
                                             downcast_value
                                         } else {
                                             panic!(
@@ -539,7 +542,7 @@ impl DefinitionToInstanceTraverser {
                         };
                         properties.iterator_i_symbol = index;
                         properties.iterator_elem_symbol = elem;
-                        properties.to_pax_value()
+                        properties.to_pax_any()
                     })));
                 RepeatInstance::instantiate(InstantiationArgs {
                     prototypical_common_properties_factory,

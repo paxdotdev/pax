@@ -523,7 +523,8 @@ pub fn pax(
         .collect();
     let ident = &input.ident;
     let output = quote! {
-        impl pax_engine::api::ToFromPaxValueAsAny for #ident {}
+        // TODO make this value represented in PaxValue instead (map of properties), and impl to/from that value
+        impl pax_engine::api::ImplToFromPaxAny for #ident {}
 
         #[derive(#derives)]
         #[serde(crate = "pax_engine::serde")]
