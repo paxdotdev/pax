@@ -1,10 +1,10 @@
-use std::any::Any;
 use std::collections::{HashMap, VecDeque};
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
 use kurbo::BezPath;
-use pax_value::PaxValue;
+pub use pax_value::numeric::Numeric;
+pub use pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
 use piet::PaintBrush;
 use properties::UntypedProperty;
 
@@ -19,11 +19,9 @@ use std::rc::{Rc, Weak};
 
 pub mod constants;
 pub mod math;
-pub mod numeric;
 pub mod pax_value;
 pub mod properties;
 
-pub use crate::numeric::Numeric;
 pub use properties::Property;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
@@ -89,6 +87,8 @@ pub struct Event<T> {
     pub args: T,
     cancelled: Rc<Cell<bool>>,
 }
+
+impl<T> ToFromPaxValueAsAny for Event<T> {}
 
 impl<T> Event<T> {
     pub fn new(args: T) -> Self {
@@ -341,8 +341,7 @@ pub struct ContextMenu {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub enum Size {
     Pixels(Numeric),
@@ -419,14 +418,14 @@ impl Sub for Size {
         for (size, multiplier) in sizes.iter() {
             match size {
                 Size::Pixels(s) => {
-                    pixel_component = pixel_component + *s * Numeric::from(*multiplier)
+                    pixel_component = pixel_component + *s * Numeric::I32(*multiplier)
                 }
                 Size::Percent(s) => {
-                    percent_component = percent_component + *s * Numeric::from(*multiplier)
+                    percent_component = percent_component + *s * Numeric::I32(*multiplier)
                 }
                 Size::Combined(s0, s1) => {
-                    pixel_component = pixel_component + *s0 * Numeric::from(*multiplier);
-                    percent_component = percent_component + *s1 * Numeric::from(*multiplier);
+                    pixel_component = pixel_component + *s0 * Numeric::I32(*multiplier);
+                    percent_component = percent_component + *s1 * Numeric::I32(*multiplier);
                 }
             }
         }
@@ -438,7 +437,7 @@ impl Sub for Size {
 impl Size {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
-        Size::Pixels(Numeric::from(0.0))
+        Size::Pixels(Numeric::F64(0.0))
     }
 
     /// Returns the wrapped percent value normalized as a float, such that 100% => 1.0.
@@ -479,7 +478,7 @@ impl Size {
         };
         match &self {
             Size::Pixels(num) => num.to_float(),
-            Size::Percent(num) => target_bound * (*num / 100.0),
+            Size::Percent(num) => target_bound * (num.to_float() / 100.0),
             Size::Combined(pixel_component, percent_component) => {
                 //first calc percent, then add pixel
                 (target_bound * (percent_component.to_float() / 100.0)) + pixel_component.to_float()
@@ -488,8 +487,7 @@ impl Size {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CommonProperty {
     name: String,
     property_type: String,
@@ -500,16 +498,15 @@ pub struct CommonProperty {
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
 // Retrieved via <dyn InstanceNode>#get_common_properties
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
     pub id: Option<Property<String>>,
     pub x: Option<Property<Size>>,
     pub y: Option<Property<Size>>,
     pub scale_x: Option<Property<Size>>,
     pub scale_y: Option<Property<Size>>,
-    pub skew_x: Option<Property<Numeric>>,
-    pub skew_y: Option<Property<Numeric>>,
+    pub skew_x: Option<Property<f64>>,
+    pub skew_y: Option<Property<f64>>,
     pub rotate: Option<Property<Rotation>>,
     pub anchor_x: Option<Property<Size>>,
     pub anchor_y: Option<Property<Size>>,
@@ -737,6 +734,14 @@ impl EasingCurve {
     }
 }
 
+impl<I> ToFromPaxValueAsAny for std::ops::Range<I> {}
+impl<T> ToFromPaxValueAsAny for Rc<T> {}
+impl<T> ToFromPaxValueAsAny for Weak<T> {}
+impl<T> ToFromPaxValueAsAny for Option<T> {}
+impl<T> ToFromPaxValueAsAny for Vec<T> {}
+impl<T> ToFromPaxValueAsAny for RefCell<T> {}
+impl<T1, T2> ToFromPaxValueAsAny for (T1, T2) {}
+
 pub trait Interpolatable
 where
     Self: Sized + Clone,
@@ -857,8 +862,7 @@ pub struct Timeline {
     pub is_playing: bool,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Layer {
     Native,
     Scroller,
@@ -868,8 +872,7 @@ pub enum Layer {
 
 /// Captures information about z-index during render node traversal
 /// Used for generating chassis side rendering architecture
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OcclusionLayerGen {
     canvas_index: u32,
     layer: Layer,
@@ -917,9 +920,9 @@ impl OcclusionLayerGen {
 }
 
 impl Interpolatable for StringBox {}
+impl ToFromPaxValueAsAny for StringBox {}
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub struct StringBox {
     pub string: String,
@@ -976,49 +979,15 @@ impl Interpolatable for Percent {
     }
 }
 
-impl From<IntoableLiteral> for Rotation {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Percent(p) => p.into(),
-            IntoableLiteral::Numeric(n) => n.into(),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
-
-impl From<IntoableLiteral> for ColorChannel {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Percent(p) => p.into(),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
 impl From<f64> for ColorChannel {
     fn from(value: f64) -> Self {
-        Numeric::Float(value).into()
+        Numeric::F64(value).into()
     }
 }
 
-impl From<isize> for ColorChannel {
-    fn from(value: isize) -> Self {
-        Numeric::Integer(value).into()
-    }
-}
-
-impl From<IntoableLiteral> for Size {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Percent(p) => p.into(),
-            IntoableLiteral::Numeric(n) => n.into(),
-            _ => {
-                unreachable!()
-            }
-        }
+impl From<i32> for ColorChannel {
+    fn from(value: i32) -> Self {
+        Numeric::I32(value).into()
     }
 }
 
@@ -1040,8 +1009,7 @@ impl Into<Rotation> for Percent {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ColorChannel {
     /// [0,255]
     Integer(Numeric),
@@ -1051,7 +1019,7 @@ pub enum ColorChannel {
 
 impl Default for ColorChannel {
     fn default() -> Self {
-        Self::Percent(50.0.into())
+        Self::Percent(Numeric::F64(50.0))
     }
 }
 
@@ -1063,7 +1031,7 @@ impl From<Numeric> for Rotation {
 
 impl From<Numeric> for ColorChannel {
     fn from(value: Numeric) -> Self {
-        Self::Integer(value.to_int().into())
+        Self::Integer(value)
     }
 }
 
@@ -1091,8 +1059,7 @@ impl ColorChannel {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Default, Clone, Serialize, Deserialize)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub enum Color {
     /// Models a color in the RGB space, with an alpha channel of 100%
     rgb(ColorChannel, ColorChannel, ColorChannel),
@@ -1144,10 +1111,10 @@ impl Color {
 
     pub fn from_rgba_0_1(rgba_0_1: [f64; 4]) -> Self {
         Self::rgba(
-            ColorChannel::Percent(Numeric::from(rgba_0_1[0] * 100.0)),
-            ColorChannel::Percent(Numeric::from(rgba_0_1[1] * 100.0)),
-            ColorChannel::Percent(Numeric::from(rgba_0_1[2] * 100.0)),
-            ColorChannel::Percent(Numeric::from(rgba_0_1[3] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[0] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[1] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[2] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[3] * 100.0)),
         )
     }
 
@@ -1172,154 +1139,154 @@ impl Color {
 
             //Color constants from TailwindCSS
             Self::SLATE => Self::rgb(
-                Numeric::from(0x64).into(),
-                Numeric::from(0x74).into(),
-                Numeric::from(0x8b).into(),
+                Numeric::I32(0x64).into(),
+                Numeric::U8(0x74).into(),
+                Numeric::U8(0x8b).into(),
             )
             .to_rgba_0_1(),
             Self::GRAY => Self::rgb(
-                Numeric::from(0x6b).into(),
-                Numeric::from(0x72).into(),
-                Numeric::from(0x80).into(),
+                Numeric::U8(0x6b).into(),
+                Numeric::U8(0x72).into(),
+                Numeric::U8(0x80).into(),
             )
             .to_rgba_0_1(),
             Self::ZINC => Self::rgb(
-                Numeric::from(0x71).into(),
-                Numeric::from(0x71).into(),
-                Numeric::from(0x7a).into(),
+                Numeric::U8(0x71).into(),
+                Numeric::U8(0x71).into(),
+                Numeric::U8(0x7a).into(),
             )
             .to_rgba_0_1(),
             Self::NEUTRAL => Self::rgb(
-                Numeric::from(0x73).into(),
-                Numeric::from(0x73).into(),
-                Numeric::from(0x73).into(),
+                Numeric::U8(0x73).into(),
+                Numeric::U8(0x73).into(),
+                Numeric::U8(0x73).into(),
             )
             .to_rgba_0_1(),
             Self::STONE => Self::rgb(
-                Numeric::from(0x78).into(),
-                Numeric::from(0x71).into(),
-                Numeric::from(0x6c).into(),
+                Numeric::U8(0x78).into(),
+                Numeric::U8(0x71).into(),
+                Numeric::U8(0x6c).into(),
             )
             .to_rgba_0_1(),
             Self::RED => Self::rgb(
-                Numeric::from(0xeF).into(),
-                Numeric::from(0x44).into(),
-                Numeric::from(0x44).into(),
+                Numeric::U8(0xeF).into(),
+                Numeric::U8(0x44).into(),
+                Numeric::U8(0x44).into(),
             )
             .to_rgba_0_1(),
             Self::ORANGE => Self::rgb(
-                Numeric::from(0xf9).into(),
-                Numeric::from(0x73).into(),
-                Numeric::from(0x16).into(),
+                Numeric::U8(0xf9).into(),
+                Numeric::U8(0x73).into(),
+                Numeric::U8(0x16).into(),
             )
             .to_rgba_0_1(),
             Self::AMBER => Self::rgb(
-                Numeric::from(0xf5).into(),
-                Numeric::from(0x9e).into(),
-                Numeric::from(0x0b).into(),
+                Numeric::U8(0xf5).into(),
+                Numeric::U8(0x9e).into(),
+                Numeric::U8(0x0b).into(),
             )
             .to_rgba_0_1(),
             Self::YELLOW => Self::rgb(
-                Numeric::from(0xea).into(),
-                Numeric::from(0xb3).into(),
-                Numeric::from(0x08).into(),
+                Numeric::U8(0xea).into(),
+                Numeric::U8(0xb3).into(),
+                Numeric::U8(0x08).into(),
             )
             .to_rgba_0_1(),
             Self::LIME => Self::rgb(
-                Numeric::from(0x84).into(),
-                Numeric::from(0xcc).into(),
-                Numeric::from(0x16).into(),
+                Numeric::U8(0x84).into(),
+                Numeric::U8(0xcc).into(),
+                Numeric::U8(0x16).into(),
             )
             .to_rgba_0_1(),
             Self::GREEN => Self::rgb(
-                Numeric::from(0x22).into(),
-                Numeric::from(0xc5).into(),
-                Numeric::from(0x5e).into(),
+                Numeric::U8(0x22).into(),
+                Numeric::U8(0xc5).into(),
+                Numeric::U8(0x5e).into(),
             )
             .to_rgba_0_1(),
             Self::EMERALD => Self::rgb(
-                Numeric::from(0x10).into(),
-                Numeric::from(0xb9).into(),
-                Numeric::from(0x81).into(),
+                Numeric::U8(0x10).into(),
+                Numeric::U8(0xb9).into(),
+                Numeric::U8(0x81).into(),
             )
             .to_rgba_0_1(),
             Self::TEAL => Self::rgb(
-                Numeric::from(0x14).into(),
-                Numeric::from(0xb8).into(),
-                Numeric::from(0xa6).into(),
+                Numeric::U8(0x14).into(),
+                Numeric::U8(0xb8).into(),
+                Numeric::U8(0xa6).into(),
             )
             .to_rgba_0_1(),
             Self::CYAN => Self::rgb(
-                Numeric::from(0x06).into(),
-                Numeric::from(0xb6).into(),
-                Numeric::from(0xd4).into(),
+                Numeric::U8(0x06).into(),
+                Numeric::U8(0xb6).into(),
+                Numeric::U8(0xd4).into(),
             )
             .to_rgba_0_1(),
             Self::SKY => Self::rgb(
-                Numeric::from(0x0e).into(),
-                Numeric::from(0xa5).into(),
-                Numeric::from(0xe9).into(),
+                Numeric::U8(0x0e).into(),
+                Numeric::U8(0xa5).into(),
+                Numeric::U8(0xe9).into(),
             )
             .to_rgba_0_1(),
             Self::BLUE => Self::rgb(
-                Numeric::from(0x3b).into(),
-                Numeric::from(0x82).into(),
-                Numeric::from(0xf6).into(),
+                Numeric::U8(0x3b).into(),
+                Numeric::U8(0x82).into(),
+                Numeric::U8(0xf6).into(),
             )
             .to_rgba_0_1(),
             Self::INDIGO => Self::rgb(
-                Numeric::from(0x63).into(),
-                Numeric::from(0x66).into(),
-                Numeric::from(0xf1).into(),
+                Numeric::U8(0x63).into(),
+                Numeric::U8(0x66).into(),
+                Numeric::U8(0xf1).into(),
             )
             .to_rgba_0_1(),
             Self::VIOLET => Self::rgb(
-                Numeric::from(0x8b).into(),
-                Numeric::from(0x5c).into(),
-                Numeric::from(0xf6).into(),
+                Numeric::U8(0x8b).into(),
+                Numeric::U8(0x5c).into(),
+                Numeric::U8(0xf6).into(),
             )
             .to_rgba_0_1(),
             Self::PURPLE => Self::rgb(
-                Numeric::from(0xa8).into(),
-                Numeric::from(0x55).into(),
-                Numeric::from(0xf7).into(),
+                Numeric::U8(0xa8).into(),
+                Numeric::U8(0x55).into(),
+                Numeric::U8(0xf7).into(),
             )
             .to_rgba_0_1(),
             Self::FUCHSIA => Self::rgb(
-                Numeric::from(0xd9).into(),
-                Numeric::from(0x46).into(),
-                Numeric::from(0xef).into(),
+                Numeric::U8(0xd9).into(),
+                Numeric::U8(0x46).into(),
+                Numeric::U8(0xef).into(),
             )
             .to_rgba_0_1(),
             Self::PINK => Self::rgb(
-                Numeric::from(0xec).into(),
-                Numeric::from(0x48).into(),
-                Numeric::from(0x99).into(),
+                Numeric::U8(0xec).into(),
+                Numeric::U8(0x48).into(),
+                Numeric::U8(0x99).into(),
             )
             .to_rgba_0_1(),
             Self::ROSE => Self::rgb(
-                Numeric::from(0xf4).into(),
-                Numeric::from(0x3f).into(),
-                Numeric::from(0x5e).into(),
+                Numeric::U8(0xf4).into(),
+                Numeric::U8(0x3f).into(),
+                Numeric::U8(0x5e).into(),
             )
             .to_rgba_0_1(),
             Self::BLACK => Self::rgb(
-                Numeric::from(0x00).into(),
-                Numeric::from(0x00).into(),
-                Numeric::from(0x00).into(),
+                Numeric::U8(0x00).into(),
+                Numeric::U8(0x00).into(),
+                Numeric::U8(0x00).into(),
             )
             .to_rgba_0_1(),
             Self::WHITE => Self::rgb(
-                Numeric::from(0xff).into(),
-                Numeric::from(0xff).into(),
-                Numeric::from(0xff).into(),
+                Numeric::U8(0xff).into(),
+                Numeric::U8(0xff).into(),
+                Numeric::U8(0xff).into(),
             )
             .to_rgba_0_1(),
             Self::TRANSPARENT | Self::NONE => Self::rgba(
-                Numeric::from(0xff).into(),
-                Numeric::from(0xff).into(),
-                Numeric::from(0xFF).into(),
-                Numeric::from(0x00).into(),
+                Numeric::U8(0xff).into(),
+                Numeric::U8(0xff).into(),
+                Numeric::U8(0xFF).into(),
+                Numeric::U8(0x00).into(),
             )
             .to_rgba_0_1(),
         }
@@ -1425,8 +1392,7 @@ impl Interpolatable for Color {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
@@ -1434,20 +1400,22 @@ pub enum Rotation {
 }
 impl Default for Rotation {
     fn default() -> Self {
-        Self::Percent(Numeric::from(0.0))
+        Self::Percent(Numeric::F64(0.0))
     }
 }
 
 impl Interpolatable for Rotation {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        Self::Percent((other.to_float_0_1() - self.to_float_0_1() * t / 100.0).into())
+        Self::Percent(Numeric::F64(
+            other.to_float_0_1() - self.to_float_0_1() * t / 100.0,
+        ))
     }
 }
 
 impl Rotation {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
-        Self::Radians(Numeric::from(0.0))
+        Self::Radians(Numeric::F64(0.0))
     }
 
     /// Returns a float proportional to `0deg : 0.0 :: 360deg :: 1.0`, in the domain 𝕗𝟞𝟜
@@ -1455,7 +1423,7 @@ impl Rotation {
     pub fn to_float_0_1(&self) -> f64 {
         match self {
             Self::Radians(rad) => rad.to_float() / (std::f64::consts::PI * 2.0),
-            Self::Degrees(deg) => *deg / 360.0_f64,
+            Self::Degrees(deg) => deg.to_float() / 360.0_f64,
             Self::Percent(per) => per.to_float(),
         }
     }
@@ -1501,7 +1469,7 @@ impl Add for Rotation {
     fn add(self, rhs: Self) -> Self::Output {
         let self_rad = self.get_as_radians();
         let other_rad = rhs.get_as_radians();
-        Rotation::Radians(Numeric::from(self_rad + other_rad))
+        Rotation::Radians(Numeric::F64(self_rad + other_rad))
     }
 }
 
@@ -1529,35 +1497,35 @@ impl Interpolatable for Size {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         match &self {
             Self::Pixels(sp) => match other {
-                Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::F64(t))),
                 Self::Percent(op) => Self::Percent(*op),
                 Self::Combined(pix, per) => {
-                    let pix = *sp + ((*pix - *sp) * Numeric::from(t));
+                    let pix = *sp + ((*pix - *sp) * Numeric::F64(t));
                     let per = *per;
                     Self::Combined(pix, per)
                 }
             },
             Self::Percent(sp) => match other {
                 Self::Pixels(op) => Self::Pixels(*op),
-                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::F64(t))),
                 Self::Combined(pix, per) => {
                     let pix = *pix;
-                    let per = *sp + ((*per - *sp) * Numeric::from(t));
+                    let per = *sp + ((*per - *sp) * Numeric::F64(t));
                     Self::Combined(pix, per)
                 }
             },
             Self::Combined(pix, per) => match other {
                 Self::Pixels(op) => {
-                    let pix = *pix + ((*op - *pix) * Numeric::from(t));
+                    let pix = *pix + ((*op - *pix) * Numeric::F64(t));
                     Self::Combined(pix, *per)
                 }
                 Self::Percent(op) => {
-                    let per = *per + ((*op - *per) * Numeric::from(t));
+                    let per = *per + ((*op - *per) * Numeric::F64(t));
                     Self::Combined(*pix, per)
                 }
                 Self::Combined(pix0, per0) => {
-                    let pix = *pix + ((*pix0 - *pix) * Numeric::from(t));
-                    let per = *per + ((*per0 - *per) * Numeric::from(t));
+                    let pix = *pix + ((*pix0 - *pix) * Numeric::F64(t));
+                    let per = *per + ((*per0 - *per) * Numeric::F64(t));
                     Self::Combined(pix, per)
                 }
             },
@@ -1567,7 +1535,7 @@ impl Interpolatable for Size {
 
 impl Default for Size {
     fn default() -> Self {
-        Self::Percent(100.0.into())
+        Self::Percent(Numeric::F64(100.0))
     }
 }
 
@@ -1611,8 +1579,7 @@ impl Mul for Size {
 ///             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct Transform2D {
     /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
@@ -1661,13 +1628,4 @@ impl Transform2D {
         ret.anchor = Some([x, y]);
         ret
     }
-}
-
-// Represents literal types from the deserializer that may need to be `into()` downstream types.
-// For example, 5% might need to be `.into()`d a Rotation, a ColorChannel, or a Size.  Color might need to be `.into()`d a Fill or a Stroke.
-#[derive(Clone)]
-pub enum IntoableLiteral {
-    Color(Color),
-    Percent(Percent),
-    Numeric(Numeric),
 }

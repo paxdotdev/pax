@@ -16,16 +16,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                 properties.{{property.name}}.replace_with(
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            {% if property.property_type.type_id.is_intoable_downstream_type %}
-                                let mi = from_pax_try_intoable_literal(&lv.raw_value);
-                                if let Ok(intoable_literal) = mi {
-                                    Property::new_with_name(intoable_literal.into(), &lv.raw_value)
-                                } else {
-                                    Property::new_with_name(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
-                                }
-                            {% else %}
-                                Property::new_with_name(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
-                            {% endif %}
+                            Property::new_with_name(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
                         },
                         ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                         {
@@ -167,21 +158,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-
-
-                                        {% if prop.property_type.type_id.is_intoable_downstream_type %}
-                                            let mi = from_pax_try_intoable_literal(&lv.raw_value);
-                                            if let Ok(intoable_literal) = mi {
-                                                Property::new_with_name(intoable_literal.into(), &lv.raw_value)
-                                            } else {
-                                                if let Err(e) = from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value) {
-                                                    panic!("Failed to parse value for {} with error {}", &lv.raw_value, e);
-                                                }
-                                                Property::new_with_name(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap(), &lv.raw_value)
-                                            }
-                                        {% else %}
-                                            Property::new_with_name(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap(), &lv.raw_value)
-                                        {% endif %}
+                                        Property::new_with_name(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap(), &lv.raw_value)
                                     },
                                     ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token, info ) =>
                                     {
@@ -221,17 +198,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% else %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-
-                                        {% if prop.property_type.type_id.is_intoable_downstream_type %}
-                                            let mi = from_pax_try_intoable_literal(&lv.raw_value);
-                                            if let Ok(intoable_literal) = mi {
-                                                Property::new_with_name(intoable_literal.into(), &lv.raw_value)
-                                            } else {
-                                                from_pax(&lv.raw_value).unwrap()
-                                            }
-                                        {% else %}
-                                            from_pax(&lv.raw_value).unwrap()
-                                        {% endif %}
+                                        from_pax(&lv.raw_value).unwrap()
                                     },
                                     ValueDefinition::Block(block) => {
                                         {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone(), table.clone())

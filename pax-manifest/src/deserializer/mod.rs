@@ -13,6 +13,7 @@ use self::helpers::{PaxColor, PaxEnum, PaxObject, PaxSeq};
 pub use error::{Error, Result};
 
 use crate::utils::{PaxParser, Rule};
+use crate::PaxType;
 
 use crate::constants::{
     COLOR, DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
@@ -20,7 +21,6 @@ use crate::constants::{
 };
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
-use pax_runtime_api::IntoableLiteral;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -37,7 +37,7 @@ thread_local! {
     static CACHED_VALUES : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
 }
 thread_local! {
-    static CACHED_VALUES_INTO : RefCell<HashMap<String, Result<IntoableLiteral>>> = RefCell::new(HashMap::new());
+    static CACHED_VALUES_INTO : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
 }
 
 // Literal Intoable Graph, as of initial impl:
@@ -58,36 +58,36 @@ thread_local! {
 // If this string parses into a literal type that can be `Into`d (for example, 10% -> ColorChannel::Percent(10))
 // then package the parsed value into the IntoableLiteral enum, which gives us an interface into
 // the Rust `Into` system, while appeasing its particular demands around codegen.
-pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
-    if let Some(cached) = CACHED_VALUES_INTO.with(|cache| cache.borrow().get(str).cloned()) {
-        return cached.clone();
-    }
+// pub fn from_pax_try_intoable_literal(str: &str) -> Result<PaxValue> {
+//     if let Some(cached) = CACHED_VALUES_INTO.with(|cache| cache.borrow().get(str).cloned()) {
+//         return cached.clone();
+//     }
 
-    let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
-        Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
-    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-        // let mut ast= ast.next().unwrap().into_inner();
-        let _number = ast.clone().next().unwrap().as_str();
-        let unit = ast.clone().next().unwrap().as_str();
-        match unit {
-            "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
-            _ => Err(Error::UnsupportedMethod),
-        }
-    } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
-        Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
-    } else {
-        Err(Error::UnsupportedMethod) //Not an IntoableLiteral
-    };
+//     let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
+//         Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
+//     } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
+//         // let mut ast= ast.next().unwrap().into_inner();
+//         let _number = ast.clone().next().unwrap().as_str();
+//         let unit = ast.clone().next().unwrap().as_str();
+//         match unit {
+//             "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
+//             _ => Err(Error::UnsupportedMethod),
+//         }
+//     } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
+//         Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
+//     } else {
+//         Err(Error::UnsupportedMethod) //Not an IntoableLiteral
+//     };
 
-    CACHED_VALUES_INTO.with(|cache| {
-        cache.borrow_mut().insert(str.to_string(), ret.clone());
-    });
+//     CACHED_VALUES_INTO.with(|cache| {
+//         cache.borrow_mut().insert(str.to_string(), ret.clone());
+//     });
 
-    ret
-}
+//     ret
+// }
 
 /// Main entry-point for deserializing a type from Pax.
-pub fn from_pax<T: Clone + 'static>(str: &str) -> Result<T>
+pub fn from_pax<T: ToFromPaxValue + Clone>(str: &str) -> Result<T>
 where
     T: DeserializeOwned,
 {

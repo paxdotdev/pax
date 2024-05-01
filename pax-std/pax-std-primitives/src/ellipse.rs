@@ -59,7 +59,13 @@ impl InstanceNode for EllipseInstance {
             rc.fill(&layer_id, transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web
-            let width: f64 = *&properties.stroke.get().width.get().expect_pixels().into();
+            let width: f64 = properties
+                .stroke
+                .get()
+                .width
+                .get()
+                .expect_pixels()
+                .to_float();
 
             if width > f64::EPSILON {
                 rc.stroke(

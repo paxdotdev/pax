@@ -4,7 +4,7 @@
 use pax_manifest::*;
 use pax_runtime::api::*;
 use pax_runtime::*;
-use pax_manifest::deserializer::{from_pax, from_pax_try_intoable_literal};
+use pax_manifest::deserializer::{from_pax};
 use std::cell::Ref;
 use pax_runtime::api::properties::UntypedProperty;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
@@ -46,7 +46,12 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
-                            get_numeric_from_wrapped_properties(elem)
+                            let elem_borrowed = elem.borrow();
+                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_value(&elem_borrowed) {
+                                unwrapped
+                            } else {
+                                panic!();//Failed to unpack string from PaxValue
+                            }
                         {% elif invocation.is_string %}
                             //string as `elem`
 
@@ -140,16 +145,7 @@ pub trait ComponentFactory {
                     "{{common_property.name}}" => {
                         let resolved_property: Property<{{common_property.property_type._type_id}}> = match value.clone() {
                             ValueDefinition::LiteralValue(lv) => {
-                                {% if common_property.property_type.is_intoable_downstream_type %}
-                                    let mi = from_pax_try_intoable_literal(&lv.raw_value);
-                                    if let Ok(intoable_literal) = mi {
-                                        Property::new_with_name(intoable_literal.into(), &lv.raw_value)
-                                    } else {
-                                        Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
-                                    }
-                                {% else %}
-                                    Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
-                                {% endif %}
+                                Property::new_with_name(from_pax::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap().into(), &lv.raw_value)
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                             {

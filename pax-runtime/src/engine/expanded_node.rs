@@ -1,6 +1,6 @@
 use crate::api::TextInput;
 use pax_runtime_api::math::Transform2;
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{Interpolatable, Property};
 
@@ -111,6 +111,7 @@ pub struct ExpandedNode {
     pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 }
 
+impl ToFromPaxValueAsAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
 
 macro_rules! dispatch_event_handler {
@@ -468,7 +469,7 @@ impl ExpandedNode {
     /// context of that unwrapped variant (including support for mutable operations),
     /// the closure is executed.  Used at least by calculating properties in `expand_node` and
     /// passing `&mut self` into event handlers (where the typed `self` is retrieved from an instance of `PaxValue`)
-    pub fn with_properties_unwrapped<T: 'static, R>(
+    pub fn with_properties_unwrapped<T: ToFromPaxValue, R>(
         &self,
         callback: impl FnOnce(&mut T) -> R,
     ) -> R {
@@ -477,7 +478,7 @@ impl ExpandedNode {
         let mut borrowed = properties.borrow_mut();
 
         // Downcast the unwrapped value to the specified `target_type` (or panic)
-        let mut unwrapped_value = if let Ok(val) = T::mut_from_pax_value(&mut borrowed) {
+        let mut unwrapped_value = if let Ok(val) = T::mut_from_pax_value(&mut *borrowed) {
             val
         } else {
             panic!() //Failed to downcast

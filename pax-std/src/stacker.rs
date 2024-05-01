@@ -41,10 +41,10 @@ pub struct Stacker {
 impl Default for Stacker {
     fn default() -> Self {
         Self {
-            cells: Property::new(1.into()),
+            cells: Property::new(Numeric::I32(1)),
             direction: Property::new(StackerDirection::Horizontal),
             _cell_specs: Property::new(vec![]),
-            gutter: Property::new(Size::Pixels(Numeric::Integer(0))),
+            gutter: Property::new(Size::Pixels(Numeric::I32(0))),
             sizes: Property::new(vec![]),
         }
     }
@@ -79,11 +79,9 @@ impl Stacker {
 
                 let gutter_calc = match gutter.get() {
                     Size::Pixels(pix) => pix,
-                    Size::Percent(per) => {
-                        Numeric::from(active_bound) * (per / Numeric::from(100.0))
-                    }
+                    Size::Percent(per) => Numeric::F64(active_bound) * (per / Numeric::F64(100.0)),
                     Size::Combined(pix, per) => {
-                        pix + (Numeric::from(active_bound) * (per / Numeric::from(100.0)))
+                        pix + (Numeric::F64(active_bound) * (per / Numeric::F64(100.0)))
                     }
                 };
 
@@ -108,11 +106,11 @@ impl Stacker {
                             let space = match s {
                                 Size::Pixels(pix) => *pix,
                                 Size::Percent(per) => {
-                                    Numeric::from(active_bound) * (*per / Numeric::from(100.0))
+                                    Numeric::F64(active_bound) * (*per / Numeric::F64(100.0))
                                 }
                                 Size::Combined(pix, per) => {
-                                    *pix + (Numeric::from(active_bound)
-                                        * (*per / Numeric::from(100.0)))
+                                    *pix + (Numeric::F64(active_bound)
+                                        * (*per / Numeric::F64(100.0)))
                                 }
                             }
                             .to_float();
@@ -147,14 +145,14 @@ impl Stacker {
                             StackerDirection::Horizontal => StackerCell {
                                 height_px: bounds.1,
                                 width_px: cell_space[i],
-                                x_px: ((i) as f64) * (gutter_calc) + used_space,
+                                x_px: ((i) as f64) * gutter_calc.to_float() + used_space,
                                 y_px: 0.0,
                             },
                             StackerDirection::Vertical => StackerCell {
                                 height_px: cell_space[i],
                                 width_px: bounds.0,
                                 x_px: 0.0,
-                                y_px: ((i) as f64) * (gutter_calc) + used_space,
+                                y_px: ((i) as f64) * gutter_calc.to_float() + used_space,
                             },
                         };
                         used_space += cell_space[i];

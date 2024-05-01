@@ -8,7 +8,6 @@ use pax_message::{
 
 #[pax]
 #[custom(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextStyle {
     pub font: Property<Font>,
     pub font_size: Property<Size>,
@@ -23,7 +22,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         Self {
             font: Property::new(Font::default()),
-            font_size: Property::new(Size::Pixels(Numeric::Float(20.0))),
+            font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
             fill: Property::new(Default::default()),
             underline: Property::new(false),
             align_multiline: Property::new(TextAlignHorizontal::Left),
@@ -37,7 +36,7 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
     fn into(self) -> TextStyleMessage {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
-            font_size: Some(f64::from(self.font_size.get().expect_pixels())),
+            font_size: Some(self.font_size.get().expect_pixels().to_float()),
             fill: Some(Into::<ColorMessage>::into(&self.fill.get())),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
@@ -60,8 +59,11 @@ impl PartialEq<TextStyleMessage> for TextStyle {
             .as_ref()
             .map_or(false, |font| self.font.get().eq(font));
 
-        let font_size_equal = other.font_size.map_or(false, |size| {
-            Numeric::Float(size) == self.font_size.get().expect_pixels().clone()
+        let font_size_approx_equal = other.font_size.map_or(false, |size| {
+            (Numeric::F64(size).to_float()
+                - self.font_size.get().expect_pixels().clone().to_float())
+            .abs()
+                < 1e-3
         });
 
         let fill_equal = other
@@ -95,7 +97,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
             });
 
         font_equal
-            && font_size_equal
+            && font_size_approx_equal
             && fill_equal
             && underline_equal
             && align_multiline_equal
@@ -104,7 +106,6 @@ impl PartialEq<TextStyleMessage> for TextStyle {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 #[custom(Default)]
 pub enum Font {
@@ -121,7 +122,6 @@ impl Default for Font {
 
 #[pax]
 #[custom(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SystemFont {
     pub family: StringBox,
     pub style: FontStyle,
@@ -139,7 +139,6 @@ impl Default for SystemFont {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct WebFont {
     pub family: StringBox,
     pub url: StringBox,
@@ -148,7 +147,6 @@ pub struct WebFont {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LocalFont {
     pub family: StringBox,
     pub path: StringBox,
@@ -157,7 +155,6 @@ pub struct LocalFont {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontStyle {
     #[default]
     Normal,
@@ -166,7 +163,6 @@ pub enum FontStyle {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FontWeight {
     Thin,
     ExtraLight,
@@ -181,7 +177,6 @@ pub enum FontWeight {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignHorizontal {
     #[default]
     Left,
@@ -190,7 +185,6 @@ pub enum TextAlignHorizontal {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TextAlignVertical {
     #[default]
     Top,

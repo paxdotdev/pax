@@ -1,0 +1,53 @@
+use super::Numeric;
+use super::PaxValue;
+use super::ToFromPaxValue;
+use super::ToFromPaxValueAsAny;
+use crate::impl_to_from_pax_value;
+use crate::math::Space;
+use crate::math::Transform2;
+use crate::Color;
+use crate::Rotation;
+use crate::Size;
+use crate::Transform2D;
+
+// Primitive types
+impl_to_from_pax_value!(bool, PaxValue::Bool);
+impl_to_from_pax_value!(u8, PaxValue::Numeric, Numeric::U8);
+impl_to_from_pax_value!(u16, PaxValue::Numeric, Numeric::U16);
+impl_to_from_pax_value!(u32, PaxValue::Numeric, Numeric::U32);
+impl_to_from_pax_value!(u64, PaxValue::Numeric, Numeric::U64);
+impl_to_from_pax_value!(i8, PaxValue::Numeric, Numeric::I8);
+impl_to_from_pax_value!(i16, PaxValue::Numeric, Numeric::I16);
+impl_to_from_pax_value!(i32, PaxValue::Numeric, Numeric::I32);
+impl_to_from_pax_value!(i64, PaxValue::Numeric, Numeric::I64);
+impl_to_from_pax_value!(f32, PaxValue::Numeric, Numeric::F32);
+impl_to_from_pax_value!(f64, PaxValue::Numeric, Numeric::F64);
+
+// don't allow usize to be serialized/deserialized sucessfully, just store it as a dyn Any
+impl ToFromPaxValueAsAny for () {}
+impl ToFromPaxValueAsAny for usize {}
+impl ToFromPaxValueAsAny for isize {}
+// for now. TBD how to handle this when we join Transform2D with Transform2 at some point
+impl<F: Space, T: Space> ToFromPaxValueAsAny for Transform2<F, T> {}
+
+impl_to_from_pax_value!(String, PaxValue::String);
+
+// Pax internal types
+impl_to_from_pax_value!(Numeric, PaxValue::Numeric);
+impl_to_from_pax_value!(Size, PaxValue::Size);
+impl_to_from_pax_value!(Color, PaxValue::Color);
+impl_to_from_pax_value!(Transform2D, PaxValue::Transform2D);
+impl_to_from_pax_value!(Rotation, PaxValue::Rotation);
+
+// Literal Intoable Graph, as of initial impl:
+// Numeric
+// - Size
+// - Rotation
+// - ColorChannel
+// Percent
+// - ColorChannel
+// - Rotation
+// - Size
+// Color
+// - Stroke (1px solid)
+// - Fill (solid)

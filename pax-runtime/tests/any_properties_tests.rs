@@ -1,13 +1,14 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxValue, ToFromPaxValue, ToFromPaxValueAsAny};
 
 #[derive(Default)]
 struct Color {
     fill: String,
 }
+
+impl ToFromPaxValueAsAny for Color {}
 
 #[test]
 fn test_dyn_any_properties() {
