@@ -30,10 +30,10 @@ pub use pax_message::serde;
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
 
-pub struct TransitionQueueEntry {
+pub struct TransitionQueueEntry<T> {
     pub duration_frames: u64,
     pub curve: EasingCurve,
-    pub ending_value: PaxAny,
+    pub ending_value: T,
 }
 
 pub trait RenderContext {
@@ -49,7 +49,7 @@ pub trait RenderContext {
 }
 
 #[cfg(debug_assertions)]
-impl std::fmt::Debug for TransitionQueueEntry {
+impl<T> std::fmt::Debug for TransitionQueueEntry<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionQueueEntry")
             .field("duration_frames", &self.duration_frames)
@@ -604,16 +604,16 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
     }
 }
 
-pub struct TransitionManager {
-    queue: VecDeque<TransitionQueueEntry>,
+pub struct TransitionManager<T> {
+    queue: VecDeque<TransitionQueueEntry<T>>,
     /// The value we are currently transitioning from
-    transition_checkpoint_value: PaxAny,
+    transition_checkpoint_value: T,
     /// The time the current transition started
     origin_frames_elapsed: u64,
 }
 
 #[cfg(debug_assertions)]
-impl std::fmt::Debug for TransitionManager {
+impl<T> std::fmt::Debug for TransitionManager<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionManager")
             .field("queue", &self.queue)
@@ -622,8 +622,8 @@ impl std::fmt::Debug for TransitionManager {
     }
 }
 
-impl TransitionManager {
-    pub fn new(value: PaxAny, current_time: u64) -> Self {
+impl<T: Interpolatable> TransitionManager<T> {
+    pub fn new(value: T, current_time: u64) -> Self {
         Self {
             queue: VecDeque::new(),
             transition_checkpoint_value: value,
@@ -631,7 +631,7 @@ impl TransitionManager {
         }
     }
 
-    pub fn push_transition(&mut self, transition: TransitionQueueEntry) {
+    pub fn push_transition(&mut self, transition: TransitionQueueEntry<T>) {
         self.queue.push_back(transition);
     }
 
@@ -642,7 +642,7 @@ impl TransitionManager {
         self.origin_frames_elapsed = current_time;
     }
 
-    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<PaxValue> {
+    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
         let global_fe = frames_elapsed;
         let origin_fe = &mut self.origin_frames_elapsed;
 

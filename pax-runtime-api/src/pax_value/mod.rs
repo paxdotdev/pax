@@ -130,7 +130,7 @@ impl ToFromPaxAny for PaxValue {
 /// Marker trait. Implement only for types that
 /// Are not part of PaxValue, but need to be stored
 /// inside a PaxAny
-pub trait ImplToFromPaxAny: Clone + 'static {}
+pub trait ImplToFromPaxAny: 'static {}
 
 // If a type has marker trait, implement to from
 // pax any automatically by wrapping in Box<dyn Any>

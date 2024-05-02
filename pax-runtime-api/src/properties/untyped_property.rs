@@ -1,5 +1,3 @@
-use crate::pax_value::{PaxAny, PaxValue};
-
 use super::{
     private::PropertyId,
     properties_table::{PropertyType, PROPERTY_TABLE},
@@ -35,10 +33,10 @@ impl Drop for UntypedProperty {
 }
 
 impl UntypedProperty {
-    pub(crate) fn new(
-        val: PaxAny,
+    pub(crate) fn new<T: PropertyValue>(
+        val: T,
         inbound: Vec<PropertyId>,
-        data: PropertyType,
+        data: PropertyType<T>,
         debug_name: Option<&str>,
     ) -> Self {
         UntypedProperty {
