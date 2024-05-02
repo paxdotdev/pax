@@ -1,4 +1,5 @@
 use core::panic;
+use pax_runtime_api::constants::I64;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
 use pax_runtime_api::{Color, Numeric, Percent};
 use pest::Parser;
@@ -17,7 +18,7 @@ pub use error::{Error, Result};
 use crate::utils::{PaxParser, Rule};
 
 use crate::constants::{
-    COLOR, DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
+    COLOR, DEGREES, F64, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
     TRUE,
 };
 
@@ -40,52 +41,6 @@ thread_local! {
 thread_local! {
     static CACHED_VALUES_INTO : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
 }
-
-// Literal Intoable Graph, as of initial impl:
-// Numeric
-// - Size
-// - Rotation
-// - ColorChannel
-// Percent
-// - ColorChannel
-// - Rotation
-// - Size
-// Color
-// - Stroke (1px solid)
-// - Fill (solid)
-
-// `from_pax_try_intoable_literal` tries to parse the provided string as a literal type that we know how to coerce into other literal types.
-// Enables type-coercion from certain literal values, like `Percent` and `Color`.
-// If this string parses into a literal type that can be `Into`d (for example, 10% -> ColorChannel::Percent(10))
-// then package the parsed value into the IntoableLiteral enum, which gives us an interface into
-// the Rust `Into` system, while appeasing its particular demands around codegen.
-// pub fn from_pax_try_intoable_literal(str: &str) -> Result<PaxValue> {
-//     if let Some(cached) = CACHED_VALUES_INTO.with(|cache| cache.borrow().get(str).cloned()) {
-//         return cached.clone();
-//     }
-
-//     let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
-//         Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
-//     } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-//         // let mut ast= ast.next().unwrap().into_inner();
-//         let _number = ast.clone().next().unwrap().as_str();
-//         let unit = ast.clone().next().unwrap().as_str();
-//         match unit {
-//             "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
-//             _ => Err(Error::UnsupportedMethod),
-//         }
-//     } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
-//         Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
-//     } else {
-//         Err(Error::UnsupportedMethod) //Not an IntoableLiteral
-//     };
-
-//     CACHED_VALUES_INTO.with(|cache| {
-//         cache.borrow_mut().insert(str.to_string(), ret.clone());
-//     });
-
-//     ret
-// }
 
 /// Given type information T, this coerces the value of the PaxAny into the expected
 /// type if able, or returns an error
@@ -257,12 +212,12 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         match number.as_rule() {
                             Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
                                 Some(NUMERIC.to_string()),
-                                INTEGER.to_string(),
+                                I64.to_string(),
                                 Some(number.as_str().to_string()),
                             )),
                             Rule::literal_number_float => visitor.visit_enum(PaxEnum::new(
                                 Some(NUMERIC.to_string()),
-                                FLOAT.to_string(),
+                                F64.to_string(),
                                 Some(number.as_str().to_string()),
                             )),
                             _ => Err(Error::UnsupportedType(number.as_str().to_string())),

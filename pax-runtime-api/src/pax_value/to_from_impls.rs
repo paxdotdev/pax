@@ -14,6 +14,7 @@ use crate::Percent;
 use crate::Rotation;
 use crate::Size;
 use crate::StringBox;
+use crate::Stroke;
 use crate::Transform2D;
 
 // Primitive types
@@ -52,3 +53,4 @@ impl_to_from_pax_value!(Transform2D, PaxValue::Transform2D);
 impl_to_from_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(Fill, PaxValue::Fill);
+impl_to_from_pax_value!(Stroke, PaxValue::Stroke);

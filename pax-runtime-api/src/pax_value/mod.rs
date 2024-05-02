@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Color, Fill, Percent, Rotation, Size, StringBox, Transform2D};
+use crate::{Color, Fill, Percent, Rotation, Size, StringBox, Stroke, Transform2D};
 use std::any::{Any, TypeId};
 
 use self::numeric::Numeric;
@@ -30,6 +30,7 @@ pub enum PaxValue {
     Color(Color),
     Rotation(Rotation),
     Fill(Fill),
+    Stroke(Stroke),
     Component {},
 }
 
@@ -58,7 +59,7 @@ impl PaxAny {
     /// sure the stored any value is of type T. For a PaxValue, try to coerce it
     /// into the expected type
     pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<Self, String> {
-        match self {
+        let res = match self {
             PaxAny::Builtin(pax_type) => T::try_coerce(pax_type).map(|v| v.to_pax_any()),
             PaxAny::Any(any) => {
                 if any.as_ref().type_id() == TypeId::of::<T>() {
@@ -67,7 +68,8 @@ impl PaxAny {
                     Err("tried to coerce PaxAny into non-underlying type".to_string())
                 }
             }
-        }
+        };
+        res
     }
 }
 
