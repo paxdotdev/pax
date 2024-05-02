@@ -31,10 +31,10 @@ Currently Pax uses `dynamic analysis` to reflect on the property + struct schema
 This dynamic analysis introduces substantial complexity to our build process, and all of this work could be done strictly statically, similarly to how `rust-analyzer` crawls a program to find property + struct schema.
 
 ### Ternaries in PAXEL:
-Using ternaries in expressions is a powerful way to compress logic — currently to express conditions in PAXEL you must use `if foo == bar { <FooVariantA /> }
+Using ternaries in expressions is a powerful way to compress logic — currently to express conditions in PAXEL you must use an outer if statement + two mostly duplicated arms of template: `if foo == bar { <SomeComponent prop=a /> } if foo != bar {<SomeComponent prop=b />}.  This can be simplified with PAXEL ternaries like `<SomeComponent prop={foo == bar ? a : b} />`.  As a syntactic alternative, since PAXEL compiles into Rust we could easily rely on Rust's treatment of if statments as expressions instead of the more arcane ternary syntax, e.g. `<SomeComponent prop={if foo == bar { a } else { b }} />`
 
 ### Else statements in templates:
-Pax includes control flow in templates, namely `for` and `if`.  Currently `else` is not supported on `if` statements, requiring the authoring of manually complementary if statements `if foo {<VariantA />} if !foo {<VariantB />}`
+Pax includes control flow in templates, namely `for` and `if`.  Currently `else` is not supported on `if` statements, requiring the authoring of manually complementary if statements `if foo {<VariantA />} if !foo {<VariantB />}`.  This work extends to `else if`, as well.
 
 ### Error messages++:
 There are multiple classes of error messages in Pax, including compile-time errors (Rust,) parse-time errors (Pax or PAXEL), runtime errors (Rust) and runtime errors (PAXEL evaluation or Pax runtime).
