@@ -16,7 +16,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                 properties.{{property.name}}.replace_with(
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
-                            let val = <{{property.property_type.type_id._type_id}}>::from_pax_any(from_pax::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap();
+                            let val = <{{property.property_type.type_id._type_id}}>::from_pax_any(from_pax_try_coerce::<{{property.property_type.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap();
                             Property::new_with_name(val, &lv.raw_value)
                         },
                         ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
@@ -34,7 +34,8 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 let cloned_table = table.clone();
                                 Property::computed_with_name(move || {
                                     let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                                    if let Ok(downcast_value) = <{{property.property_type.type_id._type_id}}>::from_pax_any(new_value_wrapped) {
+                                    let coerced = new_value_wrapped.try_coerce::<{{property.property_type.type_id._type_id}}>().unwrap();
+                                    if let Ok(downcast_value) = <{{property.property_type.type_id._type_id}}>::from_pax_any(coerced) {
                                         downcast_value
                                     } else {
                                         panic!(
@@ -159,7 +160,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-                                        let val = <{{prop.type_id._type_id}}>::from_pax_any(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap();
+                                        let val = <{{prop.type_id._type_id}}>::from_pax_any(from_pax_try_coerce::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap();
                                         Property::new_with_name(val, &lv.raw_value)
                                     },
                                     ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token, info ) =>
@@ -178,7 +179,8 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             let cloned_info = info.clone();
                                             Property::computed_with_name(move || {
                                                 let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
-                                                if let Ok(downcast_value) = <{{prop.type_id._type_id}}>::from_pax_any(new_value_wrapped) {
+                                                let coerced = new_value_wrapped.try_coerce::<{{prop.type_id._type_id}}>().unwrap();
+                                                if let Ok(downcast_value) = <{{prop.type_id._type_id}}>::from_pax_any(coerced) {
                                                     downcast_value
                                                 } else {
                                                     panic!(
@@ -200,7 +202,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% else %}
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
-                                        <{{prop.type_id._type_id}}>::from_pax_any(from_pax::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap()
+                                        <{{prop.type_id._type_id}}>::from_pax_any(from_pax_try_coerce::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()).unwrap()
                                     },
                                     ValueDefinition::Block(block) => {
                                         {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone(), table.clone())

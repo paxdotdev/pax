@@ -1,5 +1,5 @@
 use core::panic;
-use pax_runtime_api::pax_value::{PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
+use pax_runtime_api::pax_value::{CoercionRules, PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
 use pax_runtime_api::{Color, Numeric, Percent};
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
@@ -87,9 +87,22 @@ thread_local! {
 //     ret
 // }
 
+/// Given type information T, this coerces the value of the PaxAny into the expected
+/// type if able, or returns an error
+pub fn from_pax_try_coerce<T: ToFromPaxAny + CoercionRules + Clone + 'static>(
+    str: &str,
+) -> std::result::Result<PaxAny, String>
+where
+    T: DeserializeOwned,
+{
+    from_pax::<T>(str)
+        .map_err(|e| format!("failed to deserialize: {:?}", e))
+        .and_then(|v| v.try_coerce::<T>())
+}
+
 //TODOend remove this generic param somehow?
 /// Main entry-point for deserializing a type from Pax.
-pub fn from_pax<T: ToFromPaxAny + Clone + 'static>(str: &str) -> Result<PaxAny>
+fn from_pax<T: ToFromPaxAny + CoercionRules + Clone + 'static>(str: &str) -> Result<PaxAny>
 where
     T: DeserializeOwned,
 {

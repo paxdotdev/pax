@@ -9,12 +9,12 @@ pub enum Numeric {
     I16(i16),
     I32(i32),
     I64(i64),
-    I128(i128),
+    // I128(i128),
     U8(u8),
     U16(u16),
     U32(u32),
     U64(u64),
-    U128(u128),
+    // U128(u128),
     F64(f64),
     F32(f32),
     ISize(isize),
@@ -29,30 +29,28 @@ impl Default for Numeric {
 
 macro_rules! impl_numeric_arith {
     ($trait:ident, $method:ident, $op:tt) => {
-        impl std::ops::$trait for Numeric {
-            type Output = Self;
+        impl std::ops::$trait for &Numeric {
+            type Output = Numeric;
 
             fn $method(self, rhs: Self) -> Self::Output {
-                use Numeric::*;
-                match (self, rhs) {
-                    (I8(a), I8(b)) => I8(a $op b),
-                    (I16(a), I16(b)) => I16(a $op b),
-                    (I32(a), I32(b)) => I32(a $op b),
-                    (I64(a), I64(b)) => I64(a $op b),
-                    (U8(a), U8(b)) => U8(a $op b),
-                    (U16(a), U16(b)) => U16(a $op b),
-                    (U32(a), U32(b)) => U32(a $op b),
-                    (U64(a), U64(b)) => U64(a $op b),
-                    (F32(a), F32(b)) => F32(a $op b),
-                    (F64(a), F64(b)) => F64(a $op b),
-                    (ISize(a), ISize(b)) => ISize(a $op b),
-                    (USize(a), USize(b)) => USize(a $op b),
-                    _ => panic!("tried to perform operation between incompatible Numeric types"),
+
+                // TBD: might want to be more granular here at some point
+                match (self.is_float(), rhs.is_float()) {
+                    (false, false) => Numeric::I64(self.to_int() $op rhs.to_int()),
+                    _ => Numeric::F64(self.to_float() $op rhs.to_float()),
                 }
+            }
+        }
+        impl std::ops::$trait for Numeric {
+            type Output = Numeric;
+
+            fn $method(self, rhs: Self) -> Self::Output {
+                &self $op &rhs
             }
         }
     };
 }
+
 impl_numeric_arith!(Add, add, +);
 impl_numeric_arith!(Sub, sub, -);
 impl_numeric_arith!(Mul, mul, *);
@@ -86,12 +84,10 @@ macro_rules! impl_to_from {
                     I16(a) => a as $return_type,
                     I32(a) => a as $return_type,
                     I64(a) => a as $return_type,
-                    I128(a) => a as $return_type,
                     U8(a) => a as $return_type,
                     U16(a) => a as $return_type,
                     U32(a) => a as $return_type,
                     U64(a) => a as $return_type,
-                    U128(a) => a as $return_type,
                     F32(a) => a as $return_type,
                     F64(a) => a as $return_type,
                     ISize(a) => a as $return_type,
@@ -113,8 +109,16 @@ macro_rules! impl_to_from {
     };
 }
 
+impl_to_from!(f32, Numeric::F32);
 impl_to_from!(f64, Numeric::F64);
+impl_to_from!(i8, Numeric::I8);
+impl_to_from!(i16, Numeric::I16);
 impl_to_from!(i32, Numeric::I32);
+impl_to_from!(i64, Numeric::I64);
+impl_to_from!(u8, Numeric::U8);
+impl_to_from!(u16, Numeric::U16);
+impl_to_from!(u32, Numeric::U32);
+impl_to_from!(u64, Numeric::U64);
 impl_to_from!(isize, Numeric::ISize);
 impl_to_from!(usize, Numeric::USize);
 
@@ -123,8 +127,15 @@ impl Numeric {
         self.into()
     }
 
-    pub fn to_int(&self) -> i32 {
+    pub fn to_int(&self) -> i64 {
         self.into()
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            Numeric::F64(_) | Numeric::F32(_) => true,
+            _ => false,
+        }
     }
 }
 

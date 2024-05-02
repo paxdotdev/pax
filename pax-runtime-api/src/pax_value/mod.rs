@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{Color, Fill, Percent, Rotation, Size, Transform2D};
-use std::any::Any;
+use std::any::{Any, TypeId};
 
-use self::{coercion_impls::CoercionRules, numeric::Numeric};
+use self::numeric::Numeric;
+pub use coercion_impls::CoercionRules;
 
 mod coercion_impls;
 mod macros;
@@ -42,10 +43,16 @@ impl PaxAny {
         })
     }
 
-    pub fn try_coerce<T: CoercionRules>(self) -> Result<Self, String> {
+    pub fn try_coerce<T: CoercionRules + 'static>(self) -> Result<Self, String> {
         match self {
             PaxAny::Builtin(pax_type) => T::try_coerce(pax_type).map(|v| v.to_pax_any()),
-            PaxAny::Any(_) => Err(format!("can't coerce any")),
+            PaxAny::Any(any) => {
+                if any.as_ref().type_id() == TypeId::of::<T>() {
+                    Ok(PaxAny::Any(any))
+                } else {
+                    Err("tried to coerce PaxAny into non-underlying type".to_string())
+                }
+            }
         }
     }
 }
@@ -74,7 +81,6 @@ where
     fn mut_from_pax_any(pax_any: &mut PaxAny) -> Result<&mut Self, String>;
 }
 
-// Automatically implement to/from any for all types that implement to/from pax value
 impl ToFromPaxAny for PaxValue {
     fn to_pax_any(self) -> PaxAny {
         PaxAny::Builtin(self)
@@ -137,6 +143,12 @@ impl<T: ImplToFromPaxAny> ToFromPaxAny for T {
                 .ok_or_else(|| "downcast failed".to_string()),
             _ => Err("wasn't any".to_string()),
         }
+    }
+}
+
+impl<T: ImplToFromPaxAny> CoercionRules for T {
+    fn try_coerce(_value: PaxValue) -> Result<PaxValue, String> {
+        unreachable!("can't")
     }
 }
 
