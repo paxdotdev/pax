@@ -758,7 +758,7 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
         self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
     }
 }
-impl Interpolatable for Rc<RefCell<PaxValue>> {}
+impl Interpolatable for Rc<RefCell<PaxAny>> {}
 impl Interpolatable for () {}
 
 impl<T: Interpolatable> Interpolatable for Rc<T> {}
@@ -1474,10 +1474,39 @@ impl Add for Rotation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
+pub struct Stroke {
+    pub color: Color,
+    pub width: Size,
+}
+
+impl Default for Stroke {
+    fn default() -> Self {
+        Self {
+            color: Default::default(),
+            width: Size::Pixels(Numeric::F64(0.0)),
+        }
+    }
+}
+
+impl Interpolatable for Stroke {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+        // TODO interpolation
+        self.clone()
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
 pub enum Fill {
     Solid(Color),
     LinearGradient(LinearGradient),
     RadialGradient(RadialGradient),
+}
+
+impl Interpolatable for Fill {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+        // TODO interpolation
+        self.clone()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

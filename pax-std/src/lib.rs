@@ -12,14 +12,12 @@ pub mod components {
 
 pub mod primitives {
     use pax_engine::pax;
-    use pax_runtime::api::{Color, Property, Size, StringBox};
+    use pax_runtime::api::{Color, Property, Size, StringBox, Stroke};
     use pax_runtime::api::{Fill, Numeric};
 
     use crate::types::text::TextStyle;
 
     use crate::types::PathElement;
-    use crate::types::Stroke;
-
     #[pax]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
     pub struct Frame {}

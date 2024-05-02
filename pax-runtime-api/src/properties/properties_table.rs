@@ -132,7 +132,7 @@ impl PropertyTable {
     // Add a transition to the transitionmanager, making the value slowly change over time
     // Currently this only transitions the literal value of the property (and updates dependends accordingly)
     // This has no special interactions with computed properties
-    pub fn transition<T: PropertyValue + Interpolatable>(
+    pub fn transition<T: PropertyValue>(
         &self,
         id: PropertyId,
         transition: TransitionQueueEntry<T>,

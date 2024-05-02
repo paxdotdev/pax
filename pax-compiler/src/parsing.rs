@@ -1543,6 +1543,23 @@ impl Reflectable for pax_runtime::api::Fill {
     }
 }
 
+impl Reflectable for pax_runtime::api::Stroke {
+    fn get_import_path() -> String {
+        "pax_engine::api::Stroke".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Stroke".to_string()
+    }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
+        )
+    }
+}
+
 impl Reflectable for pax_runtime::api::Size {
     fn get_import_path() -> String {
         "pax_engine::api::Size".to_string()

@@ -9,22 +9,6 @@ use pax_engine::*;
 use piet::UnitPoint;
 
 #[pax]
-#[custom(Default)]
-pub struct Stroke {
-    pub color: Property<Color>,
-    pub width: Property<Size>,
-}
-
-impl Default for Stroke {
-    fn default() -> Self {
-        Self {
-            color: Default::default(),
-            width: Property::new(Size::Pixels(Numeric::F64(0.0))),
-        }
-    }
-}
-
-#[pax]
 pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,

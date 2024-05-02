@@ -23,7 +23,7 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: Default + Clone + 'static {}
+pub trait PropertyValue: Interpolatable + Default + Clone + 'static {}
 impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
 
 impl<T: PropertyValue + Interpolatable> Interpolatable for Property<T> {
