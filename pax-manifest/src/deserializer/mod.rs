@@ -98,7 +98,7 @@ where
         let option_cached_dyn_any = cache.get(str);
         // down cast val to T
         if let Some(data) = &option_cached_dyn_any {
-            return Some(T::ref_from_pax_any(data).unwrap().clone().to_pax_any());
+            return Some(data.try_clone::<T>().unwrap());
         }
         None
     }) {

@@ -1444,7 +1444,7 @@ impl TypeDefinition {
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: TypeId) -> Self {
         Self {
-            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<PaxType>>"),
+            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<PaxAny>>"),
             property_definitions: vec![],
             inner_iterable_type_id: Some(inner_iterable_type_id),
         }
@@ -1452,9 +1452,9 @@ impl TypeDefinition {
 
     pub fn builtin_range_isize() -> Self {
         Self {
-            type_id: TypeId::build_range("i32"),
+            type_id: TypeId::build_range("isize"),
             property_definitions: vec![],
-            inner_iterable_type_id: Some(TypeId::build_primitive("i32")),
+            inner_iterable_type_id: Some(TypeId::build_primitive("isize")),
         }
     }
 }

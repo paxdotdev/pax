@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::{Color, Fill, Percent, Rotation, Size, Transform2D};
 use std::any::Any;
 
-use self::numeric::Numeric;
+use self::{coercion_impls::CoercionRules, numeric::Numeric};
 
+mod coercion_impls;
 mod macros;
 pub mod numeric;
 mod to_from_impls;
@@ -29,6 +30,26 @@ pub enum PaxAny {
     Any(Box<dyn Any>),
 }
 
+impl PaxAny {
+    pub fn try_clone<T: Clone + 'static>(&self) -> Result<Self, String> {
+        Ok(match self {
+            PaxAny::Builtin(pax_value) => pax_value.clone().to_pax_any(),
+            PaxAny::Any(any) => PaxAny::Any(Box::new(
+                any.downcast_ref::<T>()
+                    .ok_or_else(|| "downcast failed while trying to clone PaxAny")?
+                    .clone(),
+            )),
+        })
+    }
+
+    pub fn try_coerce<T: CoercionRules>(self) -> Result<Self, String> {
+        match self {
+            PaxAny::Builtin(pax_type) => T::try_coerce(pax_type).map(|v| v.to_pax_any()),
+            PaxAny::Any(_) => Err(format!("can't coerce any")),
+        }
+    }
+}
+
 pub trait ToFromPaxValue
 where
     Self: Sized + 'static,
@@ -37,6 +58,10 @@ where
     fn from_pax_value(pax_value: PaxValue) -> Result<Self, String>;
     fn ref_from_pax_value(pax_value: &PaxValue) -> Result<&Self, String>;
     fn mut_from_pax_value(pax_value: &mut PaxValue) -> Result<&mut Self, String>;
+}
+
+pub trait IntoablePaxValue {
+    fn coerce_to_type(value: &mut PaxValue);
 }
 
 pub trait ToFromPaxAny

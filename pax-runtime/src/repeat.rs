@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::pax_value::{PaxValue, ToFromPaxAny, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{ImplToFromPaxAny, Property};
 
@@ -26,8 +26,8 @@ impl ImplToFromPaxAny for RepeatProperties {}
 ///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression_vec: Option<Property<Vec<Rc<RefCell<PaxValue>>>>>,
-    pub source_expression_range: Option<Property<std::ops::Range<i32>>>,
+    pub source_expression_vec: Option<Property<Vec<Rc<RefCell<PaxAny>>>>>,
+    pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
     pub iterator_i_symbol: Option<String>,
     pub iterator_elem_symbol: Option<String>,
 }
@@ -35,7 +35,7 @@ pub struct RepeatProperties {
 impl ImplToFromPaxAny for RepeatItem {}
 
 pub struct RepeatItem {
-    pub elem: Property<Option<Rc<RefCell<PaxValue>>>>,
+    pub elem: Property<Option<Rc<RefCell<PaxAny>>>>,
     pub i: Property<usize>,
 }
 
@@ -96,7 +96,7 @@ impl InstanceNode for RepeatInstance {
                         move || {
                             cp_range
                                 .get()
-                                .map(|v| Rc::new(RefCell::new(v.to_pax_value())))
+                                .map(|v| Rc::new(RefCell::new(v.to_pax_any())))
                                 .collect::<Vec<_>>()
                         },
                         &dep,

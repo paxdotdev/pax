@@ -42,15 +42,15 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 let mut borrowed = &mut *(*properties).borrow_mut();
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
-                    if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_any(&borrowed) {
+                    if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_any(&*borrowed) {
                         let i = unwrapped_repeat_item.i.get();
                         let elem = Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
                             let elem_borrowed = elem.borrow();
-                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&elem_borrowed) {
-                                unwrapped
+                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
+                                *unwrapped
                             } else {
                                 panic!();//Failed to unpack string from PaxAny
                             }
@@ -58,7 +58,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                             //string as `elem`
 
                             let elem_borrowed = elem.borrow();
-                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&elem_borrowed) {
+                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
                                 StringBox::from(unwrapped)
                             } else {
                                 panic!();//Failed to unpack string from PaxAny
@@ -69,8 +69,8 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                             elem.clone()
                         {% else %}
                             //iterable complex type
-                            let mut elem_borrowed = elem.borrow_mut();
-                            if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(&mut elem_borrowed) {
+                            let mut elem_borrowed = &mut *elem.borrow_mut();
+                            if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(elem_borrowed) {
                                 dc.clone()
                             } else {unreachable!()}
                         {% endif %}
@@ -79,12 +79,12 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
-                    let mut unwrapped_repeat_item = if let Ok(val) = RepeatItem::mut_from_pax_any(borrowed) {val} else {panic!()}; // Failed to downcast
+                    let mut unwrapped_repeat_item = if let Ok(val) = RepeatItem::mut_from_pax_any(&mut *borrowed) {val} else {panic!()}; // Failed to downcast
                     let i = unwrapped_repeat_item.i.get();
                     Numeric::from(i)
                 {% else %}
 
-                    if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_any(&borrowed) {
+                    if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_any(&*borrowed) {
 
                         {% if invocation.is_numeric %}
                             //binding simple numeric property
@@ -497,7 +497,7 @@ impl DefinitionToInstanceTraverser {
                                 Some(
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                        if let Ok(downcast_value) = <Vec<Rc<RefCell<PaxValue>>>>::from_pax_any(new_value_wrapped) {
+                                        if let Ok(downcast_value) = <Vec<Rc<RefCell<PaxAny>>>>::from_pax_any(new_value_wrapped) {
                                             downcast_value
                                         } else {
                                             panic!(
@@ -518,7 +518,7 @@ impl DefinitionToInstanceTraverser {
                                 Some(
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                        if let Ok(downcast_value) = <std::ops::Range::<i32>>::from_pax_any(new_value_wrapped) {
+                                        if let Ok(downcast_value) = <std::ops::Range::<isize>>::from_pax_any(new_value_wrapped) {
                                             downcast_value
                                         } else {
                                             panic!(

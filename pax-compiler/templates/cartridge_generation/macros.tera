@@ -123,7 +123,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
     fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>  {
         Box::new(|props| {
-            let properties = &mut props.as_ref().borrow_mut();
+            let properties = &mut *props.as_ref().borrow_mut();
             if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
                 let mut scope = HashMap::new();
                 {% for prop in component.properties %}
