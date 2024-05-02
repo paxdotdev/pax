@@ -71,7 +71,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                         // downcast args to handler.type
                         {% if handler.args_type %}
                             if let Some(args) = args {
-                                if let Ok(args) = <{{handler.args_type}}>::ref_from_pax_value(&args) {
+                                if let Ok(args) = <{{handler.args_type}}>::ref_from_pax_any(&args) {
                                     {{component.pascal_identifier}}::{{handler.name}}(properties,ctx, args.clone());
                                 } else {panic!("Failed to downcast args to {{handler.args_type}}")};
                             } else {

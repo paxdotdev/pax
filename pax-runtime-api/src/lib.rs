@@ -4,6 +4,7 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
+use pax_value::PaxAny;
 pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
@@ -32,7 +33,7 @@ use serde::{Deserialize, Serialize};
 pub struct TransitionQueueEntry {
     pub duration_frames: u64,
     pub curve: EasingCurve,
-    pub ending_value: PaxValue,
+    pub ending_value: PaxAny,
 }
 
 pub trait RenderContext {
@@ -88,7 +89,7 @@ pub struct Event<T> {
     cancelled: Rc<Cell<bool>>,
 }
 
-impl<T: 'static> ImplToFromPaxAny for Event<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Event<T> {}
 
 impl<T> Event<T> {
     pub fn new(args: T) -> Self {
@@ -606,7 +607,7 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
 pub struct TransitionManager {
     queue: VecDeque<TransitionQueueEntry>,
     /// The value we are currently transitioning from
-    transition_checkpoint_value: PaxValue,
+    transition_checkpoint_value: PaxAny,
     /// The time the current transition started
     origin_frames_elapsed: u64,
 }
@@ -622,7 +623,7 @@ impl std::fmt::Debug for TransitionManager {
 }
 
 impl TransitionManager {
-    pub fn new(value: PaxValue, current_time: u64) -> Self {
+    pub fn new(value: PaxAny, current_time: u64) -> Self {
         Self {
             queue: VecDeque::new(),
             transition_checkpoint_value: value,
@@ -654,14 +655,12 @@ impl TransitionManager {
         let current_transition = self.queue.front()?;
         let local_fe = global_fe - *origin_fe;
         let progress = local_fe as f64 / current_transition.duration_frames as f64;
-        // TODOend
-        // let interpolated_val = current_transition.curve.interpolate(
-        //     &self.transition_checkpoint_value,
-        //     &current_transition.ending_value,
-        //     progress,
-        // );
-        // Some(interpolated_val)
-        None
+        let interpolated_val = current_transition.curve.interpolate(
+            &self.transition_checkpoint_value,
+            &current_transition.ending_value,
+            progress,
+        );
+        Some(interpolated_val)
     }
 }
 
@@ -734,13 +733,14 @@ impl EasingCurve {
     }
 }
 
-impl<I: 'static> ImplToFromPaxAny for std::ops::Range<I> {}
+impl<I: Clone + 'static> ImplToFromPaxAny for std::ops::Range<I> {}
 impl<T: 'static> ImplToFromPaxAny for Rc<T> {}
-impl<T: 'static> ImplToFromPaxAny for Weak<T> {}
-impl<T: 'static> ImplToFromPaxAny for Option<T> {}
-impl<T: 'static> ImplToFromPaxAny for Vec<T> {}
-impl<T: 'static> ImplToFromPaxAny for RefCell<T> {}
-impl<T1: 'static, T2: 'static> ImplToFromPaxAny for (T1, T2) {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Weak<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Option<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Vec<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for RefCell<T> {}
+
+impl<T1: Clone + 'static, T2: Clone + 'static> ImplToFromPaxAny for (T1, T2) {}
 
 pub trait Interpolatable
 where
@@ -920,7 +920,6 @@ impl OcclusionLayerGen {
 }
 
 impl Interpolatable for StringBox {}
-impl ImplToFromPaxAny for StringBox {}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]

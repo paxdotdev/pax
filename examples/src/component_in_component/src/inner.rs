@@ -14,6 +14,8 @@ pub struct Inner {
     pub message_inner: Property<String>,
     pub inner_active: Property<bool>,
     pub x_pos: Property<Size>,
+    pub some_num: Property<f64>,
+    pub some_str: Property<String>,
 }
 
 impl Inner {
@@ -21,5 +23,7 @@ impl Inner {
 
     pub fn inner_clicked(&mut self, ctx: &NodeContext, args: Event<Click>) {
         self.inner_active.set(!self.inner_active.get());
+        log::debug!("some num outer passed in: {:?}", self.some_num.get());
+        log::debug!("some str outer passed in: {:?}", self.some_str.get());
     }
 }

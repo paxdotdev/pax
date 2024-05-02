@@ -9,12 +9,10 @@ pub enum Numeric {
     I16(i16),
     I32(i32),
     I64(i64),
-    // I128(i128),
     U8(u8),
     U16(u16),
     U32(u32),
     U64(u64),
-    // U128(u128),
     F64(f64),
     F32(f32),
     ISize(isize),
@@ -93,6 +91,12 @@ macro_rules! impl_to_from {
                     ISize(a) => a as $return_type,
                     USize(a) => a as $return_type,
                 }
+            }
+        }
+
+        impl From<Numeric> for $return_type {
+            fn from(value: Numeric) -> Self {
+                (&value).into()
             }
         }
 

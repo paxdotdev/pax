@@ -13,6 +13,7 @@ use crate::Fill;
 use crate::Percent;
 use crate::Rotation;
 use crate::Size;
+use crate::StringBox;
 use crate::Transform2D;
 
 // Primitive types
@@ -41,6 +42,7 @@ impl ImplToFromPaxAny for () {}
 impl<F: Space, T: Space> ImplToFromPaxAny for Transform2<F, T> {}
 
 impl_to_from_pax_value!(String, PaxValue::String);
+impl_to_from_pax_value!(StringBox, PaxValue::StringBox);
 
 // Pax internal types
 impl_to_from_pax_value!(Numeric, PaxValue::Numeric);
