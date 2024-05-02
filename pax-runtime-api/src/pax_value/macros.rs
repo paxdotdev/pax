@@ -24,28 +24,14 @@ macro_rules! impl_from_to_pax_any_for_from_to_pax_value {
     };
 }
 
+// This macro requires that the $Type can be created by calling into on the $Variant contents
 #[macro_export]
 macro_rules! impl_default_coercion_rule {
     ($Type:ty, $Variant:path) => {
         impl CoercionRules for $Type {
-            fn try_coerce(pax_value: PaxValue) -> Result<PaxValue, String> {
-                if let $Variant(_) = pax_value {
-                    Ok(pax_value)
-                } else {
-                    Err(format!(
-                        "cound't coerce {:?} into {}",
-                        pax_value,
-                        std::any::type_name::<$Type>()
-                    ))
-                }
-            }
-        }
-    };
-    ($Type:ty, $OuterVariant:path, $InnerVariant:path) => {
-        impl CoercionRules for $Type {
-            fn try_coerce(pax_value: PaxValue) -> Result<PaxValue, String> {
-                if let $OuterVariant($InnerVariant(_)) = pax_value {
-                    Ok(pax_value)
+            fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+                if let $Variant(val) = pax_value {
+                    Ok(val.into())
                 } else {
                     Err(format!(
                         "cound't coerce {:?} into {}",
@@ -106,6 +92,7 @@ macro_rules! impl_to_from_pax_value {
         impl_from_to_pax_any_for_from_to_pax_value!($Type);
     };
     // For nested variant paths like Numeric::U8
+    // looks almost exactly the same as above, just with nested variant
     ($Type:ty, $OuterVariant:path, $InnerVariant:path) => {
         impl ToFromPaxValue for $Type {
             fn to_pax_value(self) -> PaxValue {

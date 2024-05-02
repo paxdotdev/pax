@@ -7,7 +7,7 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use crate::{pax_value::ToFromPaxAny, ImplToFromPaxAny};
+use crate::{pax_value::ToFromPaxAny, ImplToFromPaxAny, Interpolatable};
 
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
@@ -27,16 +27,16 @@ pub trait PropertyValue: ToFromPaxAny + Default + Clone + 'static {}
 
 impl<T: ToFromPaxAny + Default + Clone + 'static> PropertyValue for T {}
 
-// impl<T: PropertyValue> Interpolatable for Property<T> {
-//     fn interpolate(&self, other: &Self, t: f64) -> Self {
-//         let cp_self = self.clone();
-//         let cp_other = other.clone();
-//         Property::computed(
-//             move || cp_self.get().interpolate(&cp_other.get(), t),
-//             &[self.untyped(), other.untyped()],
-//         )
-//     }
-// }
+impl<T: PropertyValue> Interpolatable for Property<T> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        let cp_self = self.clone();
+        let cp_other = other.clone();
+        Property::computed(
+            move || cp_self.get().interpolate(&cp_other.get(), t),
+            &[self.untyped(), other.untyped()],
+        )
+    }
+}
 
 /// A typed wrapper over a UntypedProperty that casts to/from an untyped
 /// property on get/set
@@ -46,7 +46,7 @@ pub struct Property<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: 'static> ImplToFromPaxAny for Property<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Property<T> {}
 
 impl<T: PropertyValue> Property<T> {
     pub fn new(val: T) -> Self {

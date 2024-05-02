@@ -1,11 +1,8 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 
-use crate::{
-    pax_value::{PaxAny, PaxValue, ToFromPaxValue},
-    Property, TransitionManager, TransitionQueueEntry,
-};
+use crate::{pax_value::PaxAny, Property, TransitionManager, TransitionQueueEntry};
 
 use super::{private::PropertyId, PropertyValue};
 
@@ -118,32 +115,37 @@ impl PropertyTable {
     // Add a transition to the transitionmanager, making the value slowly change over time
     // Currently this only transitions the literal value of the property (and updates dependends accordingly)
     // This has no special interactions with computed properties
-    // pub fn transition<T: PropertyValue>(
-    //     &self,
-    //     id: PropertyId,
-    //     transition: TransitionQueueEntry,
-    //     overwrite: bool,
-    // ) {
-    //     let mut should_connect_to_time = false;
-    //     let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
-    //     self.with_property_data_mut(id, |property_data: &mut PropertyData| {
-    //         let typed_data = property_data.typed_data::<T>();
-    //         let transition_manager = typed_data
-    //             .transition_manager
-    //             .get_or_insert_with(|| TransitionManager::new(typed_data.value.clone(), curr_time));
-    //         if overwrite {
-    //             transition_manager.reset_transitions(curr_time);
-    //         }
-    //         transition_manager.push_transition(transition);
-    //         if !property_data.inbound.contains(&time_id) {
-    //             should_connect_to_time = true;
-    //             property_data.inbound.push(time_id);
-    //         }
-    //     });
-    //     if should_connect_to_time {
-    //         self.connect_inbound(id);
-    //     }
-    // }
+    pub fn transition<T: PropertyValue>(
+        &self,
+        id: PropertyId,
+        transition: TransitionQueueEntry,
+        overwrite: bool,
+    ) {
+        let mut should_connect_to_time = false;
+        let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
+        self.with_property_data_mut(id, |property_data: &mut PropertyData| {
+            let transition_manager = property_data.transition_manager.get_or_insert_with(|| {
+                TransitionManager::new(
+                    property_data
+                        .value
+                        .try_clone::<T>()
+                        .expect("property should contain expected type"),
+                    curr_time,
+                )
+            });
+            if overwrite {
+                transition_manager.reset_transitions(curr_time);
+            }
+            transition_manager.push_transition(transition);
+            if !property_data.inbound.contains(&time_id) {
+                should_connect_to_time = true;
+                property_data.inbound.push(time_id);
+            }
+        });
+        if should_connect_to_time {
+            self.connect_inbound(id);
+        }
+    }
 
     /// Gives mutable access to a entry in the property table
     /// WARNING: this function is dangerous, f can not drop, create, set, get
