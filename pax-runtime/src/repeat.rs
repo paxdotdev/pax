@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::pax_value::{PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
+use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{ImplToFromPaxAny, Property};
 
@@ -163,9 +163,7 @@ impl InstanceNode for RepeatInstance {
                                 scope.insert(elem_symbol.clone(), property_elem.untyped());
                             }
 
-                            let new_env = cloned_expanded_node
-                                .stack
-                                .push(scope.clone(), &new_repeat_item);
+                            let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
                             children
                                 .borrow()
                                 .clone()

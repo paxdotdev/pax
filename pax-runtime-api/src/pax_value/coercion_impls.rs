@@ -13,13 +13,13 @@ impl_default_coercion_rule!(u8, PaxValue::Numeric, Numeric::U8);
 impl_default_coercion_rule!(u16, PaxValue::Numeric, Numeric::U16);
 impl_default_coercion_rule!(u32, PaxValue::Numeric, Numeric::U32);
 impl_default_coercion_rule!(u64, PaxValue::Numeric, Numeric::U64);
-impl_default_coercion_rule!(u128, PaxValue::Numeric, Numeric::U128);
+// impl_default_coercion_rule!(u128, PaxValue::Numeric, Numeric::U128);
 
 impl_default_coercion_rule!(i8, PaxValue::Numeric, Numeric::I8);
 impl_default_coercion_rule!(i16, PaxValue::Numeric, Numeric::I16);
 impl_default_coercion_rule!(i32, PaxValue::Numeric, Numeric::I32);
 impl_default_coercion_rule!(i64, PaxValue::Numeric, Numeric::I64);
-impl_default_coercion_rule!(i128, PaxValue::Numeric, Numeric::I128);
+// impl_default_coercion_rule!(i128, PaxValue::Numeric, Numeric::I128);
 
 impl_default_coercion_rule!(f32, PaxValue::Numeric, Numeric::F32);
 impl_default_coercion_rule!(f64, PaxValue::Numeric, Numeric::F64);

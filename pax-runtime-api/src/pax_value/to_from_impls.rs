@@ -22,13 +22,11 @@ impl_to_from_pax_value!(u8, PaxValue::Numeric, Numeric::U8);
 impl_to_from_pax_value!(u16, PaxValue::Numeric, Numeric::U16);
 impl_to_from_pax_value!(u32, PaxValue::Numeric, Numeric::U32);
 impl_to_from_pax_value!(u64, PaxValue::Numeric, Numeric::U64);
-impl_to_from_pax_value!(u128, PaxValue::Numeric, Numeric::U128);
 
 impl_to_from_pax_value!(i8, PaxValue::Numeric, Numeric::I8);
 impl_to_from_pax_value!(i16, PaxValue::Numeric, Numeric::I16);
 impl_to_from_pax_value!(i32, PaxValue::Numeric, Numeric::I32);
 impl_to_from_pax_value!(i64, PaxValue::Numeric, Numeric::I64);
-impl_to_from_pax_value!(i128, PaxValue::Numeric, Numeric::I128);
 
 impl_to_from_pax_value!(f32, PaxValue::Numeric, Numeric::F32);
 impl_to_from_pax_value!(f64, PaxValue::Numeric, Numeric::F64);
