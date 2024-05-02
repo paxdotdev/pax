@@ -19,6 +19,8 @@ Write Pax with TypeScript instead of Rust
 - Dropdown list
 - Slider component
 - More controls & styling options for existing standard library components like `<Button />`
+- File upload / open component
+- File download / save component
 - Various visual flair components, ambient decorations, and useful / visually interesting effects.
 
 ### Rendering features:
@@ -32,6 +34,9 @@ This dynamic analysis introduces substantial complexity to our build process, an
 
 ### Ternaries in PAXEL:
 Using ternaries in expressions is a powerful way to compress logic — currently to express conditions in PAXEL you must use an outer if statement + two mostly duplicated arms of template: `if foo == bar { <SomeComponent prop=a /> } if foo != bar {<SomeComponent prop=b />}.  This can be simplified with PAXEL ternaries like `<SomeComponent prop={foo == bar ? a : b} />`.  As a syntactic alternative, since PAXEL compiles into Rust we could easily rely on Rust's treatment of if statments as expressions instead of the more arcane ternary syntax, e.g. `<SomeComponent prop={if foo == bar { a } else { b }} />`
+
+### Router component
+Similar to e.g. React Router, but designed with cross-platform concerns in mind.  
 
 ### Else statements in templates:
 Pax includes control flow in templates, namely `for` and `if`.  Currently `else` is not supported on `if` statements, requiring the authoring of manually complementary if statements `if foo {<VariantA />} if !foo {<VariantB />}`.  This work extends to `else if`, as well.
