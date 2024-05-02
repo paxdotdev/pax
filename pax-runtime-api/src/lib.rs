@@ -418,14 +418,14 @@ impl Sub for Size {
         for (size, multiplier) in sizes.iter() {
             match size {
                 Size::Pixels(s) => {
-                    pixel_component = pixel_component + *s * Numeric::I32(*multiplier)
+                    pixel_component = pixel_component + *s * Numeric::from(*multiplier)
                 }
                 Size::Percent(s) => {
-                    percent_component = percent_component + *s * Numeric::I32(*multiplier)
+                    percent_component = percent_component + *s * Numeric::from(*multiplier)
                 }
                 Size::Combined(s0, s1) => {
-                    pixel_component = pixel_component + *s0 * Numeric::I32(*multiplier);
-                    percent_component = percent_component + *s1 * Numeric::I32(*multiplier);
+                    pixel_component = pixel_component + *s0 * Numeric::from(*multiplier);
+                    percent_component = percent_component + *s1 * Numeric::from(*multiplier);
                 }
             }
         }
@@ -987,7 +987,7 @@ impl From<f64> for ColorChannel {
 
 impl From<i32> for ColorChannel {
     fn from(value: i32) -> Self {
-        Numeric::I32(value).into()
+        Numeric::from(value).into()
     }
 }
 
@@ -1139,154 +1139,154 @@ impl Color {
 
             //Color constants from TailwindCSS
             Self::SLATE => Self::rgb(
-                Numeric::I32(0x64).into(),
-                Numeric::U8(0x74).into(),
-                Numeric::U8(0x8b).into(),
+                Numeric::from(0x64).into(),
+                Numeric::from(0x74).into(),
+                Numeric::from(0x8b).into(),
             )
             .to_rgba_0_1(),
             Self::GRAY => Self::rgb(
-                Numeric::U8(0x6b).into(),
-                Numeric::U8(0x72).into(),
-                Numeric::U8(0x80).into(),
+                Numeric::from(0x6b).into(),
+                Numeric::from(0x72).into(),
+                Numeric::from(0x80).into(),
             )
             .to_rgba_0_1(),
             Self::ZINC => Self::rgb(
-                Numeric::U8(0x71).into(),
-                Numeric::U8(0x71).into(),
-                Numeric::U8(0x7a).into(),
+                Numeric::from(0x71).into(),
+                Numeric::from(0x71).into(),
+                Numeric::from(0x7a).into(),
             )
             .to_rgba_0_1(),
             Self::NEUTRAL => Self::rgb(
-                Numeric::U8(0x73).into(),
-                Numeric::U8(0x73).into(),
-                Numeric::U8(0x73).into(),
+                Numeric::from(0x73).into(),
+                Numeric::from(0x73).into(),
+                Numeric::from(0x73).into(),
             )
             .to_rgba_0_1(),
             Self::STONE => Self::rgb(
-                Numeric::U8(0x78).into(),
-                Numeric::U8(0x71).into(),
-                Numeric::U8(0x6c).into(),
+                Numeric::from(0x78).into(),
+                Numeric::from(0x71).into(),
+                Numeric::from(0x6c).into(),
             )
             .to_rgba_0_1(),
             Self::RED => Self::rgb(
-                Numeric::U8(0xeF).into(),
-                Numeric::U8(0x44).into(),
-                Numeric::U8(0x44).into(),
+                Numeric::from(0xeF).into(),
+                Numeric::from(0x44).into(),
+                Numeric::from(0x44).into(),
             )
             .to_rgba_0_1(),
             Self::ORANGE => Self::rgb(
-                Numeric::U8(0xf9).into(),
-                Numeric::U8(0x73).into(),
-                Numeric::U8(0x16).into(),
+                Numeric::from(0xf9).into(),
+                Numeric::from(0x73).into(),
+                Numeric::from(0x16).into(),
             )
             .to_rgba_0_1(),
             Self::AMBER => Self::rgb(
-                Numeric::U8(0xf5).into(),
-                Numeric::U8(0x9e).into(),
-                Numeric::U8(0x0b).into(),
+                Numeric::from(0xf5).into(),
+                Numeric::from(0x9e).into(),
+                Numeric::from(0x0b).into(),
             )
             .to_rgba_0_1(),
             Self::YELLOW => Self::rgb(
-                Numeric::U8(0xea).into(),
-                Numeric::U8(0xb3).into(),
-                Numeric::U8(0x08).into(),
+                Numeric::from(0xea).into(),
+                Numeric::from(0xb3).into(),
+                Numeric::from(0x08).into(),
             )
             .to_rgba_0_1(),
             Self::LIME => Self::rgb(
-                Numeric::U8(0x84).into(),
-                Numeric::U8(0xcc).into(),
-                Numeric::U8(0x16).into(),
+                Numeric::from(0x84).into(),
+                Numeric::from(0xcc).into(),
+                Numeric::from(0x16).into(),
             )
             .to_rgba_0_1(),
             Self::GREEN => Self::rgb(
-                Numeric::U8(0x22).into(),
-                Numeric::U8(0xc5).into(),
-                Numeric::U8(0x5e).into(),
+                Numeric::from(0x22).into(),
+                Numeric::from(0xc5).into(),
+                Numeric::from(0x5e).into(),
             )
             .to_rgba_0_1(),
             Self::EMERALD => Self::rgb(
-                Numeric::U8(0x10).into(),
-                Numeric::U8(0xb9).into(),
-                Numeric::U8(0x81).into(),
+                Numeric::from(0x10).into(),
+                Numeric::from(0xb9).into(),
+                Numeric::from(0x81).into(),
             )
             .to_rgba_0_1(),
             Self::TEAL => Self::rgb(
-                Numeric::U8(0x14).into(),
-                Numeric::U8(0xb8).into(),
-                Numeric::U8(0xa6).into(),
+                Numeric::from(0x14).into(),
+                Numeric::from(0xb8).into(),
+                Numeric::from(0xa6).into(),
             )
             .to_rgba_0_1(),
             Self::CYAN => Self::rgb(
-                Numeric::U8(0x06).into(),
-                Numeric::U8(0xb6).into(),
-                Numeric::U8(0xd4).into(),
+                Numeric::from(0x06).into(),
+                Numeric::from(0xb6).into(),
+                Numeric::from(0xd4).into(),
             )
             .to_rgba_0_1(),
             Self::SKY => Self::rgb(
-                Numeric::U8(0x0e).into(),
-                Numeric::U8(0xa5).into(),
-                Numeric::U8(0xe9).into(),
+                Numeric::from(0x0e).into(),
+                Numeric::from(0xa5).into(),
+                Numeric::from(0xe9).into(),
             )
             .to_rgba_0_1(),
             Self::BLUE => Self::rgb(
-                Numeric::U8(0x3b).into(),
-                Numeric::U8(0x82).into(),
-                Numeric::U8(0xf6).into(),
+                Numeric::from(0x3b).into(),
+                Numeric::from(0x82).into(),
+                Numeric::from(0xf6).into(),
             )
             .to_rgba_0_1(),
             Self::INDIGO => Self::rgb(
-                Numeric::U8(0x63).into(),
-                Numeric::U8(0x66).into(),
-                Numeric::U8(0xf1).into(),
+                Numeric::from(0x63).into(),
+                Numeric::from(0x66).into(),
+                Numeric::from(0xf1).into(),
             )
             .to_rgba_0_1(),
             Self::VIOLET => Self::rgb(
-                Numeric::U8(0x8b).into(),
-                Numeric::U8(0x5c).into(),
-                Numeric::U8(0xf6).into(),
+                Numeric::from(0x8b).into(),
+                Numeric::from(0x5c).into(),
+                Numeric::from(0xf6).into(),
             )
             .to_rgba_0_1(),
             Self::PURPLE => Self::rgb(
-                Numeric::U8(0xa8).into(),
-                Numeric::U8(0x55).into(),
-                Numeric::U8(0xf7).into(),
+                Numeric::from(0xa8).into(),
+                Numeric::from(0x55).into(),
+                Numeric::from(0xf7).into(),
             )
             .to_rgba_0_1(),
             Self::FUCHSIA => Self::rgb(
-                Numeric::U8(0xd9).into(),
-                Numeric::U8(0x46).into(),
-                Numeric::U8(0xef).into(),
+                Numeric::from(0xd9).into(),
+                Numeric::from(0x46).into(),
+                Numeric::from(0xef).into(),
             )
             .to_rgba_0_1(),
             Self::PINK => Self::rgb(
-                Numeric::U8(0xec).into(),
-                Numeric::U8(0x48).into(),
-                Numeric::U8(0x99).into(),
+                Numeric::from(0xec).into(),
+                Numeric::from(0x48).into(),
+                Numeric::from(0x99).into(),
             )
             .to_rgba_0_1(),
             Self::ROSE => Self::rgb(
-                Numeric::U8(0xf4).into(),
-                Numeric::U8(0x3f).into(),
-                Numeric::U8(0x5e).into(),
+                Numeric::from(0xf4).into(),
+                Numeric::from(0x3f).into(),
+                Numeric::from(0x5e).into(),
             )
             .to_rgba_0_1(),
             Self::BLACK => Self::rgb(
-                Numeric::U8(0x00).into(),
-                Numeric::U8(0x00).into(),
-                Numeric::U8(0x00).into(),
+                Numeric::from(0x00).into(),
+                Numeric::from(0x00).into(),
+                Numeric::from(0x00).into(),
             )
             .to_rgba_0_1(),
             Self::WHITE => Self::rgb(
-                Numeric::U8(0xff).into(),
-                Numeric::U8(0xff).into(),
-                Numeric::U8(0xff).into(),
+                Numeric::from(0xff).into(),
+                Numeric::from(0xff).into(),
+                Numeric::from(0xff).into(),
             )
             .to_rgba_0_1(),
             Self::TRANSPARENT | Self::NONE => Self::rgba(
-                Numeric::U8(0xff).into(),
-                Numeric::U8(0xff).into(),
-                Numeric::U8(0xFF).into(),
-                Numeric::U8(0x00).into(),
+                Numeric::from(0xff).into(),
+                Numeric::from(0xff).into(),
+                Numeric::from(0xFF).into(),
+                Numeric::from(0x00).into(),
             )
             .to_rgba_0_1(),
         }

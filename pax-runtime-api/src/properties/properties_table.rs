@@ -62,8 +62,8 @@ impl PropertyTable {
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
-            if let Ok(value) = T::ref_from_pax_any(&property_data.value) {
-                return value.clone();
+            if let Ok(value) = property_data.value.try_clone::<T>() {
+                return T::from_pax_any(value).unwrap();
             } else {
                 panic!("PaxValue inside prop had unexpected type, must have been modified through reference?")
             }
@@ -230,10 +230,7 @@ impl PropertyTable {
                 // Copy over inbound, dirty state, and current value to source
                 source_property_data.inbound = target_property_data.inbound.clone();
                 source_property_data.dirty = target_property_data.dirty;
-                source_property_data.value = T::ref_from_pax_any(&target_property_data.value)
-                    .unwrap()
-                    .clone()
-                    .to_pax_any();
+                source_property_data.value = target_property_data.value.try_clone::<T>().unwrap();
                 source_property_data.property_type = target_property_data.property_type.clone();
             });
         });

@@ -24,6 +24,40 @@ macro_rules! impl_from_to_pax_any_for_from_to_pax_value {
     };
 }
 
+#[macro_export]
+macro_rules! impl_default_coercion_rule {
+    ($Type:ty, $Variant:path) => {
+        impl CoercionRules for $Type {
+            fn try_coerce(pax_value: PaxValue) -> Result<PaxValue, String> {
+                if let $Variant(_) = pax_value {
+                    Ok(pax_value)
+                } else {
+                    Err(format!(
+                        "cound't coerce {:?} into {}",
+                        pax_value,
+                        std::any::type_name::<$Type>()
+                    ))
+                }
+            }
+        }
+    };
+    ($Type:ty, $OuterVariant:path, $InnerVariant:path) => {
+        impl CoercionRules for $Type {
+            fn try_coerce(pax_value: PaxValue) -> Result<PaxValue, String> {
+                if let $OuterVariant($InnerVariant(_)) = pax_value {
+                    Ok(pax_value)
+                } else {
+                    Err(format!(
+                        "cound't coerce {:?} into {}",
+                        pax_value,
+                        std::any::type_name::<$Type>()
+                    ))
+                }
+            }
+        }
+    };
+}
+
 // This macro implements from and to
 #[macro_export]
 macro_rules! impl_to_from_pax_value {

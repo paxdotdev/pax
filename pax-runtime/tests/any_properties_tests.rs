@@ -27,9 +27,9 @@ fn test_dyn_any_properties() {
 
 #[test]
 fn downcast_repeat_properties_optional() {
-    let wrapped: PaxAny = ((0 as i32)..(10 as i32)).to_pax_any();
+    let wrapped: PaxAny = ((0 as isize)..(10 as isize)).to_pax_any();
 
-    if let Ok(downcast_value) = <std::ops::Range<i32>>::ref_from_pax_any(&wrapped) {
+    if let Ok(downcast_value) = <std::ops::Range<isize>>::ref_from_pax_any(&wrapped) {
         assert_eq!(downcast_value.start, 0);
         assert_eq!(downcast_value.end, 10);
     } else {
