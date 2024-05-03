@@ -51,8 +51,6 @@ where
         .and_then(|v| v.try_coerce::<T>())
 }
 
-//TODOend remove this generic param somehow?
-/// Main entry-point for deserializing a type from Pax.
 fn from_pax<T: ToFromPaxAny + CoercionRules + Clone + 'static>(str: &str) -> Result<PaxAny>
 where
     T: DeserializeOwned,
@@ -69,16 +67,18 @@ where
         return Ok(cached);
     }
 
+    // COMMENT-TO-REVIEWER:
+    // What do do here?
+    // I feel like these should be movable into the deserializer,
+    // but for some reason it doesn't work when I do so.
     let type_id = TypeId::of::<T>();
     if type_id != TypeId::of::<Color>()
         && type_id != TypeId::of::<Percent>()
         && type_id != TypeId::of::<Numeric>()
     {
         let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
-            // TODO fill in all types
             Ok(from_pax::<Color>(str).unwrap())
         } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-            // let mut ast= ast.next().unwrap().into_inner();
             let _number = ast.clone().next().unwrap().as_str();
             let unit = ast.clone().next().unwrap().as_str();
             match unit {
@@ -88,10 +88,8 @@ where
         } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
             Ok(from_pax::<Numeric>(str).unwrap())
         } else {
-            Err(Error::UnsupportedMethod) //Not an IntoableLiteral
+            Err(Error::UnsupportedMethod)
         };
-
-        //if intoable literals, return them immediately
         if let Ok(val) = ret {
             return Ok(val);
         }
