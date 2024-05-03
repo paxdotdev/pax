@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::Interpolatable;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, PartialEq)]
 pub enum Numeric {
     I8(i8),
     I16(i16),

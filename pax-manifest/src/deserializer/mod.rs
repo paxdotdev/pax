@@ -1,6 +1,6 @@
 use core::panic;
 use pax_runtime_api::constants::I64;
-use pax_runtime_api::pax_value::{CoercionRules, PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue};
+use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{Color, Numeric, Percent};
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
@@ -18,8 +18,7 @@ pub use error::{Error, Result};
 use crate::utils::{PaxParser, Rule};
 
 use crate::constants::{
-    COLOR, DEGREES, F64, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
-    TRUE,
+    COLOR, DEGREES, F64, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
 };
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
@@ -37,9 +36,6 @@ impl Deserializer {
 }
 thread_local! {
     static CACHED_VALUES : RefCell<HashMap<String, PaxAny>> = RefCell::new(HashMap::new());
-}
-thread_local! {
-    static CACHED_VALUES_INTO : RefCell<HashMap<String, PaxValue>> = RefCell::new(HashMap::new());
 }
 
 /// Given type information T, this coerces the value of the PaxAny into the expected

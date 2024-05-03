@@ -342,7 +342,7 @@ pub struct ContextMenu {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum Size {
     Pixels(Numeric),
@@ -921,7 +921,7 @@ impl OcclusionLayerGen {
 
 impl Interpolatable for StringBox {}
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct StringBox {
     pub string: String,
@@ -1008,7 +1008,7 @@ impl Into<Rotation> for Percent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ColorChannel {
     /// [0,255]
     Integer(Numeric),
@@ -1058,7 +1058,7 @@ impl ColorChannel {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Default, Clone, Serialize, Deserialize, Debug)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Color {
     /// Models a color in the RGB space, with an alpha channel of 100%
     rgb(ColorChannel, ColorChannel, ColorChannel),
@@ -1391,7 +1391,7 @@ impl Interpolatable for Color {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),

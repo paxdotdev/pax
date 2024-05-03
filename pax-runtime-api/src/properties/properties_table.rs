@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 
-use crate::{Interpolatable, Property, TransitionManager, TransitionQueueEntry};
+use crate::{Property, TransitionManager, TransitionQueueEntry};
 
 use super::{private::PropertyId, PropertyValue};
 
