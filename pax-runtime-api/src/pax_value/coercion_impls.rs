@@ -108,6 +108,7 @@ impl CoercionRules for Rotation {
     }
 }
 
+// Impl for all T that implement ImplToFromPaxAny
 impl<T: ImplToFromPaxAny> CoercionRules for T {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         Err(format!(
@@ -117,17 +118,3 @@ impl<T: ImplToFromPaxAny> CoercionRules for T {
         ))
     }
 }
-
-// TODO end
-// Literal Intoable Graph, as of initial impl:
-// Numeric
-// - Size
-// - Rotation
-// - ColorChannel
-// Percent
-// - ColorChannel
-// - Rotation
-// - Size
-// Color
-// - Stroke (1px solid)
-// - Fill (solid)
