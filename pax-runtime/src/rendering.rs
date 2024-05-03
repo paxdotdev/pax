@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::pax_value::{PaxAny, PaxValue};
+use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
 use piet::{Color, StrokeStyle};
 
