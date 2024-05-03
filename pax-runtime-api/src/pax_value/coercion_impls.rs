@@ -31,7 +31,6 @@ impl_default_coercion_rule!(usize, PaxValue::Numeric);
 impl_default_coercion_rule!(Numeric, PaxValue::Numeric);
 impl_default_coercion_rule!(Color, PaxValue::Color);
 impl_default_coercion_rule!(Transform2D, PaxValue::Transform2D);
-impl_default_coercion_rule!(Rotation, PaxValue::Rotation);
 impl_default_coercion_rule!(StringBox, PaxValue::StringBox);
 
 pub trait CoercionRules
@@ -93,6 +92,17 @@ impl CoercionRules for String {
         Ok(match pax_value {
             PaxValue::String(s) => s,
             PaxValue::StringBox(sb) => sb.string,
+            _ => return Err(format!("{:?} can't be coerced into a String", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for Rotation {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Rotation(r) => r,
+            PaxValue::Numeric(n) => Rotation::Degrees(n),
+            PaxValue::Percent(p) => Rotation::Percent(p.0),
             _ => return Err(format!("{:?} can't be coerced into a String", pax_value)),
         })
     }
