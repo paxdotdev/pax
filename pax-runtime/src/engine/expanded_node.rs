@@ -1,8 +1,6 @@
 use crate::api::TextInput;
 use pax_runtime_api::math::Transform2;
-use pax_runtime_api::pax_value::{
-    ImplToFromPaxAny, PaxAny, PaxValue, ToFromPaxAny, ToFromPaxValue,
-};
+use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{Interpolatable, Property};
 

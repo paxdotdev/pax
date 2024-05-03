@@ -2,11 +2,9 @@ pub mod text;
 
 use crate::primitives::Path;
 pub use kurbo::RoundedRectRadii;
+use pax_engine::api::Numeric;
 pub use pax_engine::api::Size;
-use pax_engine::api::{Color, Numeric};
 use pax_engine::*;
-
-use piet::UnitPoint;
 
 #[pax]
 pub struct StackerCell {

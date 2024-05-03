@@ -21,7 +21,6 @@ pub mod deserializer;
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
-#[derive(Debug)]
 pub struct PaxManifest {
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub components: HashMap<TypeId, ComponentDefinition>,
@@ -138,7 +137,6 @@ impl Ord for ExpressionSpec {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
-#[derive(Debug)]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
@@ -167,7 +165,7 @@ pub struct ExpressionSpec {
 /// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
 /// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct ExpressionSpecInvocation {
     /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
@@ -243,7 +241,6 @@ impl ExpressionSpecInvocation {
 /// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
-#[derive(Debug)]
 pub struct ComponentDefinition {
     pub type_id: TypeId,
     pub is_main_component: bool,
@@ -1419,7 +1416,6 @@ impl PropertyDefinition {
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
-#[derive(Debug)]
 pub struct TypeDefinition {
     /// Program-unique ID for this type
     pub type_id: TypeId,
