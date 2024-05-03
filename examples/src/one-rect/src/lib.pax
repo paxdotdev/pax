@@ -2,7 +2,7 @@
     <Group width=50%>
     	<Text text="Hejhej" class=centered class=small id=text />
         <Rectangle class=one_rect
-            fill=RED
+             fill={hsl(ticks + 100, 75%, 50%)}
         />
     </Group>
 </Group>
@@ -28,12 +28,12 @@
     }
     #text {
         style: {
-                // font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 32px,
-                fill: GREEN,
-                // align_vertical: TextAlignVertical::Center,
-                // align_horizontal: TextAlignHorizontal::Center,
-                // align_multiline: TextAlignHorizontal::Center
+                fill: WHITE,
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
         }
     }
 }

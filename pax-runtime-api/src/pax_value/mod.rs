@@ -168,10 +168,3 @@ impl<T: ImplToFromPaxAny> ToFromPaxAny for T {
         }
     }
 }
-
-// TODO check these spots after doing initial conversion
-// - what can be done in the property system? (problem with recursive properties requiring Property to be a PaxValue type, not good?)
-// - can interpolatable and other things be directly implemented on PaxValue instead?
-
-// TODO final check:
-// - do we need all of these enum variants

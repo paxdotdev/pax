@@ -23,10 +23,10 @@ mod private {
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)
-pub trait PropertyValue: Interpolatable + Default + Clone + 'static {}
+pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
 impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
 
-impl<T: PropertyValue + Interpolatable> Interpolatable for Property<T> {
+impl<T: PropertyValue> Interpolatable for Property<T> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         let cp_self = self.clone();
         let cp_other = other.clone();
