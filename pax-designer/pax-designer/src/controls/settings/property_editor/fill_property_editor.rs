@@ -1,4 +1,4 @@
-use pax_engine::api::*;
+use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::*;
 
 use crate::controls::settings::{AreaMsg, REQUEST_PROPERTY_AREA_CHANNEL};
@@ -49,8 +49,9 @@ impl FillPropertyEditor {
     pub fn on_render(&mut self, ctx: &NodeContext) {
         let val_str = self.data.get().get_value_as_str(ctx);
         if self.last_definition.get() != val_str {
-            let color: Color =
-                pax_manifest::deserializer::from_pax(&val_str).unwrap_or(Color::BLACK);
+            let color: Color = pax_manifest::deserializer::from_pax_try_coerce::<Color>(&val_str)
+                .and_then(|v| Color::from_pax_any(v))
+                .unwrap_or(Color::BLACK);
             self.set_color(color);
             self.last_definition.set(val_str);
         }
