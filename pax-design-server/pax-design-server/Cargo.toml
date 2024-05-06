@@ -1,6 +1,6 @@
 [package]
 name = "pax-design-server"
-version = "0.12.3"
+version = "0.13.1"
 edition = "2021"
 description = "Development managing for visual editor and file system"
 
@@ -25,9 +25,9 @@ env_logger = "0.11.1"
 futures = "0.3.30"
 include_dir = {version = "0.7.3", features = ["glob"]}
 notify = "6.1.1"
-pax-compiler = { path = "../pax/pax-compiler", version = "0.12.3" }
-pax-designtime = { path = "../pax-designtime", version = "0.12.3" }
-pax-manifest = { path="../pax/pax-manifest", version = "0.12.3"}
+pax-compiler = { path = "../pax/pax-compiler", version = "0.13.1" }
+pax-designtime = { path = "../pax-designtime", version = "0.13.1" }
+pax-manifest = { path="../pax/pax-manifest", version = "0.13.1"}
 rmp-serde = "1.1.2"
 schemars = "0.8.16"
 serde = { version = "1.0.159", features=["derive"], optional = true }
