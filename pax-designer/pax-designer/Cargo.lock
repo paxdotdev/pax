@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "chrono",
  "pax-compiler",
@@ -1937,7 +1937,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-compiler"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "anyhow",
  "designer_project",
@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "anyhow",
  "env_logger 0.11.0",
@@ -2008,8 +2008,6 @@ dependencies = [
  "itoa",
  "log",
  "pax-manifest",
- "pest",
- "pest_derive",
  "rmp-serde",
  "serde",
  "serde_derive",
@@ -2020,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "log",
  "pax-compiler",
@@ -2031,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "litrs",
  "pax-runtime",
@@ -2048,7 +2046,7 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "log",
  "pax-message",
@@ -2061,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "serde",
  "wasm-bindgen",
@@ -2069,7 +2067,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -2087,7 +2085,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "kurbo",
  "log",
@@ -2100,7 +2098,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "kurbo",
  "lazy_static",

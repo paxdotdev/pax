@@ -10,7 +10,6 @@ use pax_engine::*;
 use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::primitives::{Group, Path, Rectangle, Text, Textbox};
 use pax_std::types::text::TextStyle;
-use pax_std::types::Fill;
 use serde::Deserialize;
 
 use super::control_point::{ControlPoint, ControlPointBehaviour};
@@ -21,6 +20,7 @@ use crate::math::coordinate_spaces::Glass;
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::ActionContext;
 use crate::model::{self, action, SelectionState};
+use pax_engine::api::Fill;
 
 #[pax]
 #[file("glass/object_editor.pax")]
@@ -29,7 +29,7 @@ pub struct ObjectEditor {
     pub control_points: Property<Vec<ControlPointDef>>,
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
-    pub editor_id: Property<Numeric>,
+    pub editor_id: Property<i64>,
     //editor bounds
     pub x: Property<f64>,
     pub y: Property<f64>,

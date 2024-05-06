@@ -1,11 +1,12 @@
-use pax_engine::api::*;
+use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::*;
 
 use crate::controls::settings::{AreaMsg, REQUEST_PROPERTY_AREA_CHANNEL};
 
 use super::PropertyEditorData;
 
-use pax_std::{primitives::*, types::Stroke};
+use pax_engine::api::Stroke;
+use pax_std::primitives::*;
 
 #[pax]
 #[file("controls/settings/property_editor/stroke_property_editor.pax")]
@@ -50,7 +51,10 @@ impl StrokePropertyEditor {
     pub fn on_render(&mut self, ctx: &NodeContext) {
         let val_str = self.data.get().get_value_as_str(ctx);
         if self.last_definition.get() != val_str {
-            let stroke: Stroke = pax_manifest::deserializer::from_pax(&val_str).unwrap_or_default();
+            let stroke: Stroke =
+                pax_manifest::deserializer::from_pax_try_coerce::<Stroke>(&val_str)
+                    .and_then(|v| Stroke::from_pax_any(v))
+                    .unwrap();
             self.set_color(stroke.color.get().clone());
             let val = stroke.width.get().expect_pixels().to_int();
             self.stroke_width.set(val.to_string());
