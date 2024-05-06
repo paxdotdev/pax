@@ -61,6 +61,7 @@ pub fn add_additional_dependencies_to_cargo_toml(
             doc["dependencies"]["pax-designtime"] = pax_designtime_dependency;
         }
         "pax-designtime" => {
+            doc["dependencies"]["pax-engine"] = Item::from_str(r#"{ path="../pax-engine" }"#)?;
             doc["dependencies"]["pax-manifest"] = Item::from_str(r#"{ path="../pax-manifest" }"#)?;
         }
         _ => {}
