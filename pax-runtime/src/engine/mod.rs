@@ -32,7 +32,7 @@ pub use expanded_node::ExpandedNode;
 use {
     self::node_interface::NodeLocal,
     pax_designtime::DesigntimeManager,
-    pax_runtime_api::{properties, Property, Window},
+    pax_runtime_api::{properties, Window},
 };
 
 use self::expanded_node::LayoutProperties;
@@ -272,16 +272,17 @@ impl PaxEngine {
         properties::register_time(&frames_elapsed);
         let globals = Globals {
             frames_elapsed,
-            viewport: TransformAndBounds {
-                transform: Transform2::default(),
-                bounds: viewport_size,
+            viewport: LayoutProperties {
+                transform: Property::new(Transform2::identity()),
+                bounds: Property::new(viewport_size),
             },
             platform,
             os,
             designtime: designtime.clone(),
         };
 
-        let mut runtime_context = RuntimeContext::new(expression_table, globals);
+        let mut runtime_context =
+            Rc::new(RefCell::new(RuntimeContext::new(expression_table, globals)));
 
         let root_node =
             ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
