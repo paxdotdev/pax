@@ -782,6 +782,8 @@ impl<I: Interpolatable> Interpolatable for Vec<I> {
     }
 }
 
+impl Interpolatable for char {}
+
 impl Interpolatable for f64 {
     fn interpolate(&self, other: &f64, t: f64) -> f64 {
         self + (*other - self) * t
