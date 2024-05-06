@@ -1,17 +1,17 @@
 [package]
 name = "pax-designer"
-version = "0.12.3"
+version = "0.13.1"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-compiler = { version = "0.12.3", optional = true , path = ".pax/pkg/pax-compiler" }
-pax-engine = { version = "0.12.3" , path = ".pax/pkg/pax-engine" }
-pax-manifest = { version = "0.12.3"  , path = ".pax/pkg/pax-manifest" }
-pax-std = { version = "0.12.3" , path = ".pax/pkg/pax-std" }
+pax-compiler = { version = "0.13.1", optional = true , path = ".pax/pkg/pax-compiler" }
+pax-engine = { version = "0.13.1" , path = ".pax/pkg/pax-engine" }
+pax-manifest = { version = "0.13.1"  , path = ".pax/pkg/pax-manifest" }
+pax-std = { version = "0.13.1" , path = ".pax/pkg/pax-std" }
 serde_json = {version = "1.0.95", optional = true}
-designer_project = { version = "0.12.3", path = "../designer-project" }
-pax-designtime = {version = "0.12.3", path = ".pax/pkg/pax-designtime" }
+designer_project = { version = "0.13.1", path = "../designer-project" }
+pax-designtime = {version = "0.13.1", path = ".pax/pkg/pax-designtime" }
 anyhow = "1.0.79"
 
 [[bin]]

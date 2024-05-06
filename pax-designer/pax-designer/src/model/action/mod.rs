@@ -42,7 +42,7 @@ pub enum CanUndo {
 }
 
 pub struct ActionContext<'a> {
-    pub engine_context: &'a NodeContext<'a>,
+    pub engine_context: &'a NodeContext,
     pub app_state: &'a mut AppState,
     pub undo_stack: &'a mut UndoStack,
 }

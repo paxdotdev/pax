@@ -58,13 +58,13 @@ impl FileAndComponentPicker {
             let dt = ctx.designtime.borrow();
             dt.get_manifest_version()
         };
-        if &manifest_ver != self.manifest_ver.get() {
+        if manifest_ver != self.manifest_ver.get() {
             self.set_library(ctx);
             self.manifest_ver.set(manifest_ver);
         }
 
         if let Some(msg) = LIBRARY_MSG.lock().unwrap().take() {
-            if self.library_active.get() != &msg.open {
+            if self.library_active.get() != msg.open {
                 self.library_active.set(msg.open);
                 self.set_library(ctx);
             }

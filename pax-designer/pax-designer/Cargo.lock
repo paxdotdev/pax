@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.12.3"
+version = "0.13.1"
 dependencies = [
  "chrono",
  "pax-compiler",
@@ -1937,7 +1937,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-compiler"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.12.3"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "designer_project",
@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.12.3"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "env_logger 0.11.0",
@@ -2020,7 +2020,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "log",
  "pax-compiler",
@@ -2031,7 +2031,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "litrs",
  "pax-runtime",
@@ -2048,8 +2048,9 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
+ "log",
  "pax-message",
  "pax-runtime-api",
  "pest",
@@ -2060,7 +2061,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "serde",
  "wasm-bindgen",
@@ -2068,7 +2069,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -2086,19 +2087,20 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "kurbo",
  "log",
  "pax-message",
  "piet",
  "serde",
+ "slotmap",
  "wasm-bindgen",
 ]
 
 [[package]]
 name = "pax-std"
-version = "0.12.8"
+version = "0.13.1"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -2776,6 +2778,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "slotmap"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbff4acf519f630b3a3ddcfaea6c06b42174d9a44bc70c620e9ed1649d58b82a"
+dependencies = [
+ "version_check",
 ]
 
 [[package]]

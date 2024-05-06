@@ -48,7 +48,7 @@ impl FillPropertyEditor {
 
     pub fn on_render(&mut self, ctx: &NodeContext) {
         let val_str = self.data.get().get_value_as_str(ctx);
-        if self.last_definition.get() != &val_str {
+        if self.last_definition.get() != val_str {
             let color: Color =
                 pax_manifest::deserializer::from_pax(&val_str).unwrap_or(Color::BLACK);
             self.set_color(color);
@@ -83,10 +83,10 @@ impl FillPropertyEditor {
     }
 
     pub fn commit_color(&mut self, ctx: &NodeContext) {
-        let red = color_channel(self.red.get());
-        let green = color_channel(self.green.get());
-        let blue = color_channel(self.blue.get());
-        let alpha = color_channel(self.alpha.get());
+        let red = color_channel(&self.red.get());
+        let green = color_channel(&self.green.get());
+        let blue = color_channel(&self.blue.get());
+        let alpha = color_channel(&self.alpha.get());
         if let (Some(r), Some(g), Some(b), Some(a)) = (red, green, blue, alpha) {
             self.red.set(r.to_string());
             self.green.set(g.to_string());

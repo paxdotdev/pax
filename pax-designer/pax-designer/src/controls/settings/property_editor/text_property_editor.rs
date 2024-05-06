@@ -37,7 +37,7 @@ impl TextPropertyEditor {
 
     pub fn on_render(&mut self, ctx: &NodeContext) {
         let value = self.data.get().get_value_as_str(ctx);
-        if &value != self.last_definition.get() {
+        if value != self.last_definition.get() {
             self.last_definition.set(value.clone());
             self.textbox.set(value.clone());
             self.error.set("".to_owned());

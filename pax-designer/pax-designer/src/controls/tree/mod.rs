@@ -35,7 +35,6 @@ pub struct Tree {
     pub old_selected: Property<Vec<TemplateNodeId>>,
     pub old_type_id: Property<TypeId>,
     pub old_manifest_ver: Property<usize>,
-    pub actual_visible_len: Property<usize>,
 }
 
 pub enum TreeMsg {
@@ -201,23 +200,15 @@ impl Tree {
             })
             .collect();
         self.tree_objects.set(flattened.clone());
-        if self.actual_visible_len.get() == &flattened.len() {
-            flattened.push(FlattenedTreeEntry {
-                is_not_dummy: false,
-                ..Default::default()
-            });
-        }
         self.visible_tree_objects.set(flattened);
-        self.actual_visible_len
-            .set(self.visible_tree_objects.get().len());
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         let mut channel = TREE_CLICK_SENDER.lock().unwrap();
         if let Some(msg) = channel.take() {
+            let mut tree = self.tree_objects.get();
             match msg {
                 TreeMsg::ArrowClicked(sender) => {
-                    let tree = &mut self.tree_objects.get_mut();
                     tree[sender].is_collapsed = !tree[sender].is_collapsed;
                     let collapsed = tree[sender].is_collapsed;
                     for i in (sender + 1)..tree.len() {
@@ -259,6 +250,7 @@ impl Tree {
                     model::perform_action(SetEditingComponent(type_id_of_tree_target), ctx)
                 }
             }
+            self.tree_objects.set(tree);
         }
 
         //HACK pre dirty-dag, ulgy but works and can be removed later!
@@ -271,28 +263,24 @@ impl Tree {
                 let dt = ctx.designtime.borrow();
                 dt.get_manifest_version()
             };
-            if self.old_type_id.get() != type_id || self.old_manifest_ver.get() != &manifest_ver {
+            if &self.old_type_id.get() != type_id || self.old_manifest_ver.get() != manifest_ver {
                 self.old_type_id.set(type_id.clone());
                 self.old_manifest_ver.set(manifest_ver);
                 self.set_tree(type_id.clone(), ctx);
-                for entry in self.visible_tree_objects.get_mut() {
+                let mut visible_tree = self.visible_tree_objects.get();
+                for entry in &mut visible_tree {
                     entry.is_selected = selected.contains(&entry.node_id);
                 }
+                self.visible_tree_objects.set(visible_tree);
             }
 
-            if self.old_selected.get() != selected {
-                if self.visible_tree_objects.get().len() == before_len {
-                    self.visible_tree_objects
-                        .get_mut()
-                        .push(FlattenedTreeEntry {
-                            is_not_dummy: false,
-                            ..Default::default()
-                        });
-                }
+            if &self.old_selected.get() != selected {
+                let mut visible_tree = self.visible_tree_objects.get();
                 self.old_selected.set(selected.clone());
-                for entry in self.visible_tree_objects.get_mut() {
+                for entry in &mut visible_tree {
                     entry.is_selected = selected.contains(&entry.node_id);
                 }
+                self.visible_tree_objects.set(visible_tree);
             }
         });
     }

@@ -49,7 +49,7 @@ impl StrokePropertyEditor {
 
     pub fn on_render(&mut self, ctx: &NodeContext) {
         let val_str = self.data.get().get_value_as_str(ctx);
-        if self.last_definition.get() != &val_str {
+        if self.last_definition.get() != val_str {
             let stroke: Stroke = pax_manifest::deserializer::from_pax(&val_str).unwrap_or_default();
             self.set_color(stroke.color.get().clone());
             let val = stroke.width.get().expect_pixels().to_int();
@@ -90,10 +90,10 @@ impl StrokePropertyEditor {
     }
 
     pub fn commit_stroke(&mut self, ctx: &NodeContext) {
-        let red = color_channel(self.red.get());
-        let green = color_channel(self.green.get());
-        let blue = color_channel(self.blue.get());
-        let alpha = color_channel(self.alpha.get());
+        let red = color_channel(&self.red.get());
+        let green = color_channel(&self.green.get());
+        let blue = color_channel(&self.blue.get());
+        let alpha = color_channel(&self.alpha.get());
         if let (Some(r), Some(g), Some(b), Some(a)) = (red, green, blue, alpha) {
             self.red.set(r.to_string());
             self.green.set(g.to_string());

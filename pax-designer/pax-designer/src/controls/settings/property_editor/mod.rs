@@ -36,8 +36,8 @@ impl PropertyEditor {
     pub fn tick(&mut self, ctx: &NodeContext) {
         let prop = self.data.get();
         if &self.name.get().string != &prop.name
-            || self.stid.get() != &prop.stid
-            || self.snid.get() != &prop.snid
+            || self.stid.get() != prop.stid
+            || self.snid.get() != prop.snid
         {
             let prop = PropertyEditorData {
                 editor_index: self.ind.get().map(|v| v.to_int() as usize),
