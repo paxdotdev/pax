@@ -75,12 +75,12 @@ fn test_tuple() {
 
 #[test]
 fn test_enum() {
-    let enum_pax = "Color::Rgba(0.0, 0.0, 1.0, 1.0)".to_string();
+    let enum_pax = "rgba(0, 0, 1, 1)".to_string();
     let expected = Color::rgba(
-        Numeric::F64(0.0).into(),
-        Numeric::F64(0.0).into(),
-        Numeric::F64(1.0).into(),
-        Numeric::F64(1.0).into(),
+        Numeric::I64(0).into(),
+        Numeric::I64(0).into(),
+        Numeric::I64(1).into(),
+        Numeric::I64(1).into(),
     );
     let v = Color::from_pax_any(from_pax::<Color>(&enum_pax).unwrap()).unwrap();
     assert_eq!(expected, v);

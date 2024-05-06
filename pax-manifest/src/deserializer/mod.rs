@@ -67,10 +67,6 @@ where
         return Ok(cached);
     }
 
-    // COMMENT-TO-REVIEWER:
-    // What do do here?
-    // I feel like these should be movable into the deserializer,
-    // but for some reason it doesn't work when I do so.
     let type_id = TypeId::of::<T>();
     if type_id != TypeId::of::<Color>()
         && type_id != TypeId::of::<Percent>()
