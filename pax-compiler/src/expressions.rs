@@ -71,22 +71,23 @@ fn get_output_type_by_property_identifier(
     _ctx: &ExpressionCompilationContext,
     prop_defs: &Vec<PropertyDefinition>,
     property_identifier: &str,
-) -> String {
+    token: &Token,
+) -> Result<String, eyre::Report> {
     let output_type = if let Some(common_match) = COMMON_PROPERTIES_TYPE
         .iter()
         .find(|cpt| cpt.0 == property_identifier)
     {
-        (*common_match).1.to_string()
+        Ok((*common_match).1.to_string())
     } else if let Some(local_match) = prop_defs
         .iter()
         .find(|property_def| property_def.name == property_identifier)
     {
-        local_match.type_id.to_string()
+        Ok(local_match.type_id.to_string())
     } else {
-        panic!(
-            "Failed to resolve symbol bound to expression: {}",
-            property_identifier
-        );
+        return Err(PaxTemplateError::new(
+            Some(format!("failed to resolve symbol {}", property_identifier)),
+            token.clone(),
+        ));
     };
 
     output_type
@@ -133,7 +134,8 @@ fn recurse_compile_literal_block<'a>(
                         ctx,
                         &current_property_definitions,
                         &token.token_value,
-                    );
+                        input,
+                    )?;
 
                     let id = ctx.vtable_uid_gen.next().unwrap();
                     let (output_statement, invocations) =

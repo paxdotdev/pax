@@ -1477,15 +1477,15 @@ impl Add for Rotation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub struct Stroke {
-    pub color: Color,
-    pub width: Size,
+    pub color: Property<Color>,
+    pub width: Property<Size>,
 }
 
 impl Default for Stroke {
     fn default() -> Self {
         Self {
             color: Default::default(),
-            width: Size::Pixels(Numeric::F64(0.0)),
+            width: Property::new(Size::Pixels(Numeric::F64(0.0))),
         }
     }
 }

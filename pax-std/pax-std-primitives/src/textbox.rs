@@ -124,12 +124,12 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&properties.stroke.get().color).into(),
+                                (&properties.stroke.get().color.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
                                 &mut patch.stroke_width,
-                                properties.stroke.get().width.get_pixels(width),
+                                properties.stroke.get().width.get().get_pixels(width),
                             ),
                             patch_if_needed(
                                 &mut old_state.background,
