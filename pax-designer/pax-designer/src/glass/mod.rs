@@ -195,7 +195,7 @@ impl Glass {
 impl Default for Glass {
     fn default() -> Self {
         Self {
-            is_rect_tool_active: Box::new(PropertyLiteral::new(false)),
+            is_rect_tool_active: Property::new(false),
             rect_tool: Default::default(),
         }
     }

@@ -60,8 +60,8 @@ impl ObjectEditor {
             // HACK: if we were editing text, and the selection has changed,
             // commit the text changes to the old selection before
             // selecting this new object
-            if &app_state.selected_template_node_ids != self.ids.get() {
-                if *self.editor_id.get() == 1 {
+            if app_state.selected_template_node_ids != self.ids.get() {
+                if self.editor_id.get() == 1 {
                     self.commit_changes(ctx, app_state.selected_component_id.clone());
                 }
             }
@@ -353,7 +353,8 @@ impl ObjectEditor {
 
     pub fn commit_changes(&mut self, ctx: &NodeContext, type_id: TypeId) {
         let mut dt = ctx.designtime.borrow_mut();
-        let Some(templ_id) = self.ids.get().first() else {
+        let ids = self.ids.get();
+        let Some(templ_id) = ids.first() else {
             return;
         };
         let Some(mut builder) = dt

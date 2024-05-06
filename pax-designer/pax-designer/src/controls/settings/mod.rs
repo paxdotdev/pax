@@ -66,7 +66,7 @@ impl Settings {
             let temp_node_id = app_state.selected_template_node_ids[0].clone();
             let type_id = app_state.selected_component_id.clone();
 
-            let update = self.stid.get() != &type_id || self.snid.get() != &temp_node_id;
+            let update = self.stid.get() != type_id || self.snid.get() != temp_node_id;
 
             self.stid.set(type_id.clone());
             self.snid.set(temp_node_id.clone());
@@ -115,44 +115,37 @@ impl Settings {
                 };
             }
             self.custom_props.set(custom_props);
-
-            // Setup for waiting for children to send updates about their size
-            self.update_timer.set(3);
-            self.custom_props.get_mut().push(PropertyArea {
-                vertical_space: 0.0,
-                vertical_pos: f64::MAX,
-                name: StringBox::from("".to_owned()),
-                name_friendly: StringBox::from("".to_owned()),
-            });
         });
 
-        let timer = self.update_timer.get_mut();
-        if *timer > 0 {
+        let timer = self.update_timer.get();
+        if timer > 0 {
+            let mut custom_props = self.custom_props.get();
             // HACK: pre-double-binding handle messages from children specifying their requested height
             {
                 let mut msgs = REQUEST_PROPERTY_AREA_CHANNEL.lock().unwrap();
 
                 if let Some(msgs) = msgs.as_mut() {
                     msgs.retain(|msg| {
-                        if let Some(area) = self.custom_props.get_mut().get_mut(msg.index) {
+                        if let Some(area) = custom_props.get_mut(msg.index) {
                             area.vertical_space = msg.vertical_space;
                             false
                         } else {
                             true
                         }
-                    })
+                    });
                 }
             }
             let mut running_sum = 0.0;
-            for area in self.custom_props.get_mut() {
+            for area in &mut custom_props {
                 area.vertical_pos = running_sum;
                 running_sum += area.vertical_space + SPACING;
             }
-            if *timer == 1 {
+            if timer == 1 {
                 //trigger for loop refresh
-                self.custom_props.get_mut().pop();
+                custom_props.pop();
             }
-            *timer -= 1;
+            self.update_timer.set(timer + 1);
+            self.custom_props.set(custom_props);
         }
     }
 
