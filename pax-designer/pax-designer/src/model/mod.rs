@@ -18,7 +18,7 @@ use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::MouseButton;
 use pax_engine::math::{Transform2, Vector2};
-use pax_engine::{api::NodeContext, math::Point2, rendering::TransformAndBounds};
+use pax_engine::{api::NodeContext, math::Point2};
 use pax_manifest::TemplateNodeId;
 use pax_manifest::TypeId;
 use pax_manifest::UniqueTemplateNodeIdentifier;

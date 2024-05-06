@@ -40,7 +40,7 @@ impl LLMInterface {
     pub fn textbox_change(&mut self, ctx: &NodeContext, _args: Event<TextboxChange>) {
         let request = self.request.get();
         let mut dt = ctx.designtime.borrow_mut();
-        if let Err(e) = dt.llm_request(request) {
+        if let Err(e) = dt.llm_request(&request) {
             pax_engine::log::warn!("llm request failed: {:?}", e);
         };
         self.visible.set(false);

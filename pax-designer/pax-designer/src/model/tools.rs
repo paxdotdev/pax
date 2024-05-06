@@ -17,7 +17,6 @@ use pax_engine::api::Color;
 use pax_engine::api::Size;
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
-use pax_engine::rendering::TransformAndBounds;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 
 pub struct CreateComponentTool {

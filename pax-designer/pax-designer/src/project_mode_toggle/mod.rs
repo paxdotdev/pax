@@ -25,7 +25,7 @@ impl ProjectModeToggle {
     }
 
     pub fn click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
-        let curr = *self.edit_mode.get();
+        let curr = self.edit_mode.get();
         self.edit_mode.set(!curr);
         self.running_mode.set(curr);
         let mode = match self.edit_mode.get() {
@@ -34,12 +34,11 @@ impl ProjectModeToggle {
                 dt.reload_edit();
                 ProjectMode::Edit
             }
-                ,
             false => {
                 let mut dt = ctx.designtime.borrow_mut();
                 dt.reload_play();
                 ProjectMode::Playing
-            },
+            }
         };
         model::perform_action(ProjectMsg::SetMode(mode), ctx);
     }

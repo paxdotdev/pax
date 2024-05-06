@@ -208,14 +208,8 @@ impl Toolbar {
                         if let ToolbarEvent::SelectTool(toolbar_tool) = item.event {
                             if toolbar_tool == tool {
                                 self.selected_ind.set(Numeric::from(row));
-                                static LAST_TOOL_ROW: AtomicUsize = AtomicUsize::new(0);
-                                static LAST_TOOL_COL: AtomicUsize = AtomicUsize::new(0);
-                                if row != LAST_TOOL_ROW.swap(row, Ordering::Relaxed)
-                                    || col != LAST_TOOL_COL.swap(col, Ordering::Relaxed)
-                                {
-                                    update = true;
-                                }
-                                self.entries.get_mut()[row] = ToolbarItemView {
+                                let mut entries = self.entries.get();
+                                entries[row] = ToolbarItemView {
                                     background: false,
                                     not_dummy: true,
                                     icon: StringBox::from(item.icon.clone()),
@@ -225,6 +219,7 @@ impl Toolbar {
                                     x: Size::Pixels((row * 65).into()),
                                     y: Size::Pixels(0.into()),
                                 };
+                                self.entries.set(entries);
                                 break 'outer;
                             }
                         }
@@ -232,21 +227,5 @@ impl Toolbar {
                 }
             });
         });
-        if update {
-            if self.entries.get().len() <= TOOLBAR_ENTRIES.with_borrow(|entries| entries.len()) {
-                self.entries.get_mut().push(ToolbarItemView {
-                    background: false,
-                    not_dummy: false,
-                    icon: StringBox::from("".to_owned()),
-                    more_than_one_item: false,
-                    row: 0,
-                    col: 0,
-                    x: Size::Pixels(Numeric::Float(f64::MIN)),
-                    y: Size::Pixels(Numeric::Float(f64::MIN)),
-                })
-            } else {
-                self.entries.get_mut().pop();
-            }
-        }
     }
 }
