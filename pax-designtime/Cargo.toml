@@ -1,6 +1,6 @@
 [package]
 name = "pax-designtime"
-version = "0.12.3"
+version = "0.13.1"
 edition = "2021"
 authors = ["Warfa Jibril <warfa@pax.dev>", "Zack Brown <zack@pax.dev>"]
 homepage = "https://pax.dev/"
@@ -17,9 +17,8 @@ getrandom = {version ="0.2.12", features=["js"]}
 include_dir = {version = "0.7.3", features = ["glob"]}
 itoa = "1.0.10"
 log = "0.4.20"
-pax-manifest = {version = "0.12.3", path="../pax/pax-manifest"}
-pest = "2.7.6"
-pest_derive = "2.7.6"
+pax-manifest = {version = "0.14.1", path="../pax/pax-manifest"}
+pax-lang = {version= "0.13.22", path="../pax/pax-lang"}
 rmp-serde = "1.1.2"
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_derive = "1.0.159"
