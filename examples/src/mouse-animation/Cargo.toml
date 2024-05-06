@@ -1,14 +1,14 @@
 [package]
-name = "paths"
-version = "0.10.10"
+name = "mouse-animation"
+version = "0.14.1"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
 pax-engine = { version = "0.14.1"}
 pax-std = { version = "0.14.1"}
-pax-compiler = { version = "0.14.1", optional = true}
-pax-manifest = { version = "0.14.1"}
+pax-compiler = { version = "0.14.1", optional = true }
+pax-manifest = { version = "0.14.1", optional = true }
 serde_json = {version = "1.0.95", optional = true}
 
 [[bin]]
@@ -21,4 +21,4 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler"]
+parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
