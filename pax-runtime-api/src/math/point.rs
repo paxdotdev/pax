@@ -3,6 +3,8 @@ use std::{
     ops::{Add, Sub},
 };
 
+use crate::Interpolatable;
+
 use super::{vector::Vector2, Generic, Space};
 
 pub struct Point2<W = Generic> {
@@ -96,4 +98,8 @@ impl<W: Space> Sub<Vector2<W>> for Point2<W> {
     fn sub(self, rhs: Vector2<W>) -> Self::Output {
         Self::Output::new(self.x - rhs.x, self.y - rhs.y)
     }
+}
+
+impl<W: Space> Interpolatable for Point2<W> {
+    //TODO impl
 }

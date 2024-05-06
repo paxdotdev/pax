@@ -3,14 +3,15 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use pax_lang::{parse_pax_str, Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
-use pax_manifest::{escape_identifier, ComponentTemplate, TemplateNodeId, TreeLocation, TypeId};
-
 use pax_manifest::{
-    get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
-    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, LiteralBlockDefinition,
-    LocationInfo, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    Token, TokenType, TypeDefinition, TypeTable, ValueDefinition,
+    escape_identifier, get_primitive_type_table, ComponentDefinition, ComponentTemplate,
+    ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
+    ControlFlowSettingsDefinition, LiteralBlockDefinition, LocationInfo, PropertyDefinition,
+    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
+    TemplateNodeId, Token, TokenType, TreeLocation, TypeDefinition, TypeId, TypeTable,
+    ValueDefinition,
 };
+use pax_runtime_api::{Color, Fill, Size, Stroke};
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
@@ -1432,7 +1433,7 @@ impl Reflectable for TemplateNodeId {
     }
 }
 
-impl Reflectable for pax_runtime::api::Fill {
+impl Reflectable for Fill {
     fn get_import_path() -> String {
         "pax_engine::api::Fill".to_string()
     }
@@ -1449,7 +1450,35 @@ impl Reflectable for pax_runtime::api::Fill {
     }
 }
 
-impl Reflectable for pax_runtime::api::Stroke {
+impl Reflectable for Stroke {
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        let type_id = Self::get_type_id();
+        let mut flags = PropertyDefinitionFlags::default();
+        flags.is_property_wrapped = true;
+        let td = TypeDefinition {
+            type_id: type_id.clone(),
+            inner_iterable_type_id: None,
+            property_definitions: vec![
+                PropertyDefinition {
+                    name: "color".to_string(),
+                    flags: flags.clone(),
+                    type_id: Color::get_type_id(),
+                },
+                PropertyDefinition {
+                    name: "width".to_string(),
+                    flags: flags,
+                    type_id: Size::get_type_id(),
+                },
+            ],
+        };
+
+        if !ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        (ctx, vec![])
+    }
+
     fn get_import_path() -> String {
         "pax_engine::api::Stroke".to_string()
     }

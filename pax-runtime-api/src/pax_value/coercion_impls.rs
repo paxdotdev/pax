@@ -4,7 +4,7 @@
 
 use crate::{
     impl_default_coercion_rule, Color, Fill, ImplToFromPaxAny, Numeric, PaxValue, Percent,
-    Rotation, Size, StringBox, Stroke, Transform2D,
+    Property, Rotation, Size, StringBox, Stroke, Transform2D,
 };
 
 // Default coersion rules:
@@ -56,8 +56,8 @@ impl CoercionRules for Stroke {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Color(color) => Stroke {
-                color,
-                width: Size::Pixels(1.into()),
+                color: Property::new(color),
+                width: Property::new(Size::Pixels(1.into())),
             },
             PaxValue::Stroke(stroke) => stroke,
             _ => return Err(format!("{:?} can't be coerced into a Stroke", pax_value)),

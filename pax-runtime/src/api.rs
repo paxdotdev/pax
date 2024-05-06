@@ -32,11 +32,10 @@ pub struct NodeContext {
 }
 
 #[cfg(feature = "designtime")]
-impl NodeContext<'_> {
+impl NodeContext {
     pub fn raycast(&self, point: Point2<Window>) -> Vec<NodeInterface> {
-        let expanded_nodes = self
-            .runtime_context
-            .get_elements_beneath_ray(point, false, vec![]);
+        let rc = self.runtime_context.borrow();
+        let expanded_nodes = rc.get_elements_beneath_ray(point, false, vec![]);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
@@ -44,7 +43,8 @@ impl NodeContext<'_> {
     }
 
     pub fn get_nodes_by_global_id(&self, uni: UniqueTemplateNodeIdentifier) -> Vec<NodeInterface> {
-        let expanded_nodes = self.runtime_context.get_expanded_nodes_by_global_ids(&uni);
+        let rc = self.runtime_context.borrow();
+        let expanded_nodes = rc.get_expanded_nodes_by_global_ids(&uni);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
@@ -52,7 +52,8 @@ impl NodeContext<'_> {
     }
 
     pub fn get_nodes_by_id(&self, id: &str) -> Vec<NodeInterface> {
-        let expanded_nodes = self.runtime_context.get_expanded_nodes_by_id(id);
+        let rc = self.runtime_context.borrow();
+        let expanded_nodes = rc.get_expanded_nodes_by_id(id);
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
