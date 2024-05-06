@@ -3,11 +3,11 @@ use std::rc::Rc;
 
 use super::object_editor::GlassPoint;
 use crate::glass;
+use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::primitives::{Group, Path, Rectangle};
-use pax_std::types::Fill;
 use serde::Deserialize;
 
 use crate::math::AxisAlignedBox;
