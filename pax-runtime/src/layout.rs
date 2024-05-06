@@ -115,18 +115,31 @@ pub fn compute_tab(
                         Size::ZERO()
                     },
                 ];
-                desugared_transform2d.translate = Some(translate);
+                desugared_transform2d.translate = Some(translate.clone());
 
+
+                //Anchor behavior:
+                //  if no anchor is specified:
+                //     if x/y values are present and have an explicit percent value or component, use those percent values
+                //     otherwise, default to 0
                 let anchor = [
                     if let Some(ref val) = cp_anchor_x {
                         val.get().clone()
                     } else {
-                        Size::ZERO()
+                        match translate[0] {
+                            Size::Pixels(_) => Size::ZERO(),
+                            Size::Percent(per) => Size::Percent(per),
+                            Size::Combined(_, per) => Size::Percent(per),
+                        }
                     },
                     if let Some(ref val) = cp_anchor_y {
                         val.get().clone()
                     } else {
-                        Size::ZERO()
+                        match translate[1] {
+                            Size::Pixels(_) => Size::ZERO(),
+                            Size::Percent(per) => Size::Percent(per),
+                            Size::Combined(_, per) => Size::Percent(per),
+                        }
                     },
                 ];
                 desugared_transform2d.anchor = Some(anchor);

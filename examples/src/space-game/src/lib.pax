@@ -14,8 +14,6 @@ if self.game_state == "GAME_OVER" {
 		<Image
 			width=32px
 			height=32px
-			anchor_x=50%
-			anchor_y=50%
 			path="assets/spaceship.png"
 			x={self.ship_x}
 			y={self.ship_y}
@@ -24,8 +22,6 @@ if self.game_state == "GAME_OVER" {
 
 	for asteroid in self.asteroids {
 		<Image
-			anchor_x=50%
-			anchor_y=50%
 			path={asteroid.animation.frame}
 			x={asteroid.x}
 			y={asteroid.y}
@@ -38,8 +34,6 @@ if self.game_state == "GAME_OVER" {
 		<Image
 			width=16px
 			height=16px
-			anchor_x=50%
-			anchor_y=50%
 			path="assets/bullet.png"
 			x={bullet.x}
 			y={bullet.y}
@@ -66,23 +60,23 @@ if self.game_state == "GAME_OVER" {
 
     #game_over {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Normal)},
-                font_size: 100px,
-                fill: WHITE,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 100px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
         }
     }
 
     #game_over_score {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
-                font_size: 64px,
-                fill: WHITE,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 64px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
         }
     }
 }
