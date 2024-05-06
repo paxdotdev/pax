@@ -1,7 +1,7 @@
 use kurbo::{Rect, Shape};
-use pax_runtime::api::{Layer, RenderContext};
+use pax_runtime::api::{Fill, Layer, RenderContext};
 use pax_runtime::BaseInstance;
-use pax_std::{primitives::Ellipse, types::Fill};
+use pax_std::primitives::Ellipse;
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
@@ -59,13 +59,13 @@ impl InstanceNode for EllipseInstance {
             rc.fill(&layer_id, transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web
-            let width: f64 = *&properties.stroke.get().width.get().expect_pixels().into();
+            let width: f64 = properties.stroke.get().width.expect_pixels().to_float();
 
             if width > f64::EPSILON {
                 rc.stroke(
                     &layer_id,
                     duplicate_transformed_bez_path,
-                    &properties.stroke.get().color.get().to_piet_color().into(),
+                    &properties.stroke.get().color.to_piet_color().into(),
                     width,
                 );
             }

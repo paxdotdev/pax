@@ -1,11 +1,11 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
+use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::Property;
+use pax_runtime_api::{ImplToFromPaxAny, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -21,18 +21,21 @@ pub struct RepeatInstance {
     pub base: BaseInstance,
 }
 
+impl ImplToFromPaxAny for RepeatProperties {}
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
-///is encoded as a Vec<T> (where T is a `dyn Any` properties type) or as a Range<isize>
+///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression_vec: Option<Property<Vec<Rc<RefCell<dyn Any>>>>>,
+    pub source_expression_vec: Option<Property<Vec<Rc<RefCell<PaxAny>>>>>,
     pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
     pub iterator_i_symbol: Option<String>,
     pub iterator_elem_symbol: Option<String>,
 }
 
+impl ImplToFromPaxAny for RepeatItem {}
+
 pub struct RepeatItem {
-    pub elem: Property<Option<Rc<RefCell<dyn Any>>>>,
+    pub elem: Property<Option<Rc<RefCell<PaxAny>>>>,
     pub i: Property<usize>,
 }
 
@@ -93,7 +96,7 @@ impl InstanceNode for RepeatInstance {
                         move || {
                             cp_range
                                 .get()
-                                .map(|v| Rc::new(RefCell::new(v)) as Rc<RefCell<dyn Any>>)
+                                .map(|v| Rc::new(RefCell::new(v.to_pax_any())))
                                 .collect::<Vec<_>>()
                         },
                         &dep,
@@ -144,11 +147,13 @@ impl InstanceNode for RepeatInstance {
                                 &[source_expression.untyped()],
                                 "repeat elem",
                             );
-                            let new_repeat_item = Rc::new(RefCell::new(RepeatItem {
-                                i: property_i.clone(),
-                                elem: property_elem.clone(),
-                            }))
-                                as Rc<RefCell<dyn Any>>;
+                            let new_repeat_item = Rc::new(RefCell::new(
+                                RepeatItem {
+                                    i: property_i.clone(),
+                                    elem: property_elem.clone(),
+                                }
+                                .to_pax_any(),
+                            ));
 
                             let mut scope: HashMap<String, UntypedProperty> = HashMap::new();
                             if let Some(ref i_symbol) = i_symbol {
@@ -158,9 +163,7 @@ impl InstanceNode for RepeatInstance {
                                 scope.insert(elem_symbol.clone(), property_elem.untyped());
                             }
 
-                            let new_env = cloned_expanded_node
-                                .stack
-                                .push(scope.clone(), &new_repeat_item);
+                            let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
                             children
                                 .borrow()
                                 .clone()

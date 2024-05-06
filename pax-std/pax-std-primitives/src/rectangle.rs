@@ -1,10 +1,9 @@
 use kurbo::{RoundedRect, Shape};
-use pax_runtime::BaseInstance;
+use pax_runtime::{api::Fill, BaseInstance};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
-use pax_std::types::Fill;
 
 use pax_runtime::api::{Layer, RenderContext};
 
@@ -77,12 +76,12 @@ impl InstanceNode for RectangleInstance {
             }
 
             //hack to address "phantom stroke" bug on Web
-            let width: f64 = *&properties.stroke.get().width.get().expect_pixels().into();
+            let width: f64 = properties.stroke.get().width.expect_pixels().to_float();
             if width > f64::EPSILON {
                 rc.stroke(
                     &layer_id,
                     duplicate_transformed_bez_path,
-                    &properties.stroke.get().color.get().to_piet_color().into(),
+                    &properties.stroke.get().color.to_piet_color().into(),
                     width,
                 );
             }

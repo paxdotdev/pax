@@ -7,7 +7,6 @@ pub mod constants;
 pub mod engine;
 pub mod form_event;
 pub mod layout;
-pub mod numeric;
 pub mod properties;
 pub mod rendering;
 pub mod repeat;

@@ -1,5 +1,6 @@
 use crate::api::TextInput;
 use pax_runtime_api::math::Transform2;
+use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{Interpolatable, Property};
 
@@ -16,7 +17,6 @@ use crate::node_interface::NodeLocal;
 use crate::{ExpandedNodeIdentifier, ExpressionTable, Globals};
 #[cfg(debug_assertions)]
 use core::fmt;
-use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -72,7 +72,7 @@ pub struct ExpandedNode {
     pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
-    pub properties: RefCell<Rc<RefCell<dyn Any>>>,
+    pub properties: RefCell<Rc<RefCell<PaxAny>>>,
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
@@ -110,6 +110,7 @@ pub struct ExpandedNode {
     pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 }
 
+impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
 
 macro_rules! dispatch_event_handler {
@@ -140,7 +141,7 @@ macro_rules! dispatch_event_handler {
                         (handler.function)(
                             Rc::clone(&properties),
                             &context,
-                            Some(Box::new(event.clone()) as Box<dyn Any>),
+                            Some(event.clone().to_pax_any()),
                         );
                     });
                 };
@@ -164,7 +165,7 @@ impl ExpandedNode {
     ) -> Rc<Self> {
         let root_env = RuntimePropertiesStackFrame::new(
             HashMap::new(),
-            Rc::new(RefCell::new(())) as Rc<RefCell<dyn Any>>,
+            Rc::new(RefCell::new(().to_pax_any())),
         );
         let root_node = Self::new(template, root_env, context, Weak::new());
         Rc::clone(&root_node).recurse_mount(context);
@@ -462,12 +463,12 @@ impl ExpandedNode {
             .handle_post_render(&self, ctx, rcs);
     }
 
-    /// Manages unpacking an Rc<RefCell<dyn Any>>, downcasting into
+    /// Manages unpacking an Rc<RefCell<PaxValue>>, downcasting into
     /// the parameterized `target_type`, and executing a provided closure `body` in the
     /// context of that unwrapped variant (including support for mutable operations),
     /// the closure is executed.  Used at least by calculating properties in `expand_node` and
-    /// passing `&mut self` into event handlers (where the typed `self` is retrieved from an instance of `dyn Any`)
-    pub fn with_properties_unwrapped<T: 'static, R>(
+    /// passing `&mut self` into event handlers (where the typed `self` is retrieved from an instance of `PaxValue`)
+    pub fn with_properties_unwrapped<T: ToFromPaxAny, R>(
         &self,
         callback: impl FnOnce(&mut T) -> R,
     ) -> R {
@@ -476,7 +477,7 @@ impl ExpandedNode {
         let mut borrowed = properties.borrow_mut();
 
         // Downcast the unwrapped value to the specified `target_type` (or panic)
-        let mut unwrapped_value = if let Some(val) = borrowed.downcast_mut::<T>() {
+        let mut unwrapped_value = if let Ok(val) = T::mut_from_pax_any(&mut *borrowed) {
             val
         } else {
             panic!() //Failed to downcast

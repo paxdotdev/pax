@@ -1,10 +1,12 @@
-use std::any::Any;
 use std::collections::{HashMap, VecDeque};
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
 use kurbo::BezPath;
-use piet::PaintBrush;
+pub use pax_value::numeric::Numeric;
+use pax_value::PaxAny;
+pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
+use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
 
 #[cfg(feature = "designtime")]
@@ -18,10 +20,9 @@ use std::rc::{Rc, Weak};
 
 pub mod constants;
 pub mod math;
-pub mod numeric;
+pub mod pax_value;
 pub mod properties;
 
-pub use crate::numeric::Numeric;
 pub use properties::Property;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
@@ -48,11 +49,11 @@ pub trait RenderContext {
 }
 
 #[cfg(debug_assertions)]
-impl<T: std::fmt::Debug> std::fmt::Debug for TransitionQueueEntry<T> {
+impl<T> std::fmt::Debug for TransitionQueueEntry<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionQueueEntry")
             .field("duration_frames", &self.duration_frames)
-            .field("ending_value", &self.ending_value)
+            // .field("ending_value", &self.ending_value)
             .finish()
     }
 }
@@ -87,6 +88,8 @@ pub struct Event<T> {
     pub args: T,
     cancelled: Rc<Cell<bool>>,
 }
+
+impl<T: Clone + 'static> ImplToFromPaxAny for Event<T> {}
 
 impl<T> Event<T> {
     pub fn new(args: T) -> Self {
@@ -339,8 +342,7 @@ pub struct ContextMenu {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum Size {
     Pixels(Numeric),
@@ -436,7 +438,7 @@ impl Sub for Size {
 impl Size {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
-        Size::Pixels(Numeric::from(0.0))
+        Size::Pixels(Numeric::F64(0.0))
     }
 
     /// Returns the wrapped percent value normalized as a float, such that 100% => 1.0.
@@ -477,7 +479,7 @@ impl Size {
         };
         match &self {
             Size::Pixels(num) => num.to_float(),
-            Size::Percent(num) => target_bound * (*num / 100.0),
+            Size::Percent(num) => target_bound * (num.to_float() / 100.0),
             Size::Combined(pixel_component, percent_component) => {
                 //first calc percent, then add pixel
                 (target_bound * (percent_component.to_float() / 100.0)) + pixel_component.to_float()
@@ -486,8 +488,7 @@ impl Size {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CommonProperty {
     name: String,
     property_type: String,
@@ -498,16 +499,15 @@ pub struct CommonProperty {
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
 // Retrieved via <dyn InstanceNode>#get_common_properties
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
     pub id: Option<Property<String>>,
     pub x: Option<Property<Size>>,
     pub y: Option<Property<Size>>,
     pub scale_x: Option<Property<Size>>,
     pub scale_y: Option<Property<Size>>,
-    pub skew_x: Option<Property<Numeric>>,
-    pub skew_y: Option<Property<Numeric>>,
+    pub skew_x: Option<Property<f64>>,
+    pub skew_y: Option<Property<f64>>,
     pub rotate: Option<Property<Rotation>>,
     pub anchor_x: Option<Property<Size>>,
     pub anchor_y: Option<Property<Size>>,
@@ -613,16 +613,16 @@ pub struct TransitionManager<T> {
 }
 
 #[cfg(debug_assertions)]
-impl<T: std::fmt::Debug> std::fmt::Debug for TransitionManager<T> {
+impl<T> std::fmt::Debug for TransitionManager<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionManager")
             .field("queue", &self.queue)
-            .field("value", &self.transition_checkpoint_value)
+            // .field("value", &self.transition_checkpoint_value)
             .finish()
     }
 }
 
-impl<T: Clone + Interpolatable> TransitionManager<T> {
+impl<T: Interpolatable> TransitionManager<T> {
     pub fn new(value: T, current_time: u64) -> Self {
         Self {
             queue: VecDeque::new(),
@@ -733,6 +733,15 @@ impl EasingCurve {
     }
 }
 
+impl<I: Clone + 'static> ImplToFromPaxAny for std::ops::Range<I> {}
+impl<T: 'static> ImplToFromPaxAny for Rc<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Weak<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Option<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for Vec<T> {}
+impl<T: Clone + 'static> ImplToFromPaxAny for RefCell<T> {}
+
+impl<T1: Clone + 'static, T2: Clone + 'static> ImplToFromPaxAny for (T1, T2) {}
+
 pub trait Interpolatable
 where
     Self: Sized + Clone,
@@ -749,8 +758,9 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
         self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
     }
 }
-impl Interpolatable for Rc<RefCell<(dyn Any + 'static)>> {}
+impl Interpolatable for Rc<RefCell<PaxAny>> {}
 impl Interpolatable for () {}
+
 impl<T: Interpolatable> Interpolatable for Rc<T> {}
 impl<T: Interpolatable> Interpolatable for Weak<T> {}
 impl<T: Interpolatable> Interpolatable for RefCell<T> {}
@@ -852,8 +862,7 @@ pub struct Timeline {
     pub is_playing: bool,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Layer {
     Native,
     Scroller,
@@ -863,8 +872,7 @@ pub enum Layer {
 
 /// Captures information about z-index during render node traversal
 /// Used for generating chassis side rendering architecture
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OcclusionLayerGen {
     canvas_index: u32,
     layer: Layer,
@@ -913,8 +921,7 @@ impl OcclusionLayerGen {
 
 impl Interpolatable for StringBox {}
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct StringBox {
     pub string: String,
@@ -962,7 +969,7 @@ impl From<StringBox> for String {
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
 /// about how we parse `%`, and allow the context in which it is used to pull forward a specific
 /// type through `into` inference.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Percent(pub Numeric);
 
 impl Interpolatable for Percent {
@@ -971,49 +978,15 @@ impl Interpolatable for Percent {
     }
 }
 
-impl From<IntoableLiteral> for Rotation {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Percent(p) => p.into(),
-            IntoableLiteral::Numeric(n) => n.into(),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
-
-impl From<IntoableLiteral> for ColorChannel {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Percent(p) => p.into(),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
 impl From<f64> for ColorChannel {
     fn from(value: f64) -> Self {
-        Numeric::Float(value).into()
+        Numeric::F64(value).into()
     }
 }
 
-impl From<isize> for ColorChannel {
-    fn from(value: isize) -> Self {
-        Numeric::Integer(value).into()
-    }
-}
-
-impl From<IntoableLiteral> for Size {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Percent(p) => p.into(),
-            IntoableLiteral::Numeric(n) => n.into(),
-            _ => {
-                unreachable!()
-            }
-        }
+impl From<i32> for ColorChannel {
+    fn from(value: i32) -> Self {
+        Numeric::from(value).into()
     }
 }
 
@@ -1035,8 +1008,7 @@ impl Into<Rotation> for Percent {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ColorChannel {
     /// [0,255]
     Integer(Numeric),
@@ -1046,7 +1018,7 @@ pub enum ColorChannel {
 
 impl Default for ColorChannel {
     fn default() -> Self {
-        Self::Percent(50.0.into())
+        Self::Percent(Numeric::F64(50.0))
     }
 }
 
@@ -1058,7 +1030,7 @@ impl From<Numeric> for Rotation {
 
 impl From<Numeric> for ColorChannel {
     fn from(value: Numeric) -> Self {
-        Self::Integer(value.to_int().into())
+        Self::Integer(value)
     }
 }
 
@@ -1086,8 +1058,7 @@ impl ColorChannel {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Default, Clone, Serialize, Deserialize)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Color {
     /// Models a color in the RGB space, with an alpha channel of 100%
     rgb(ColorChannel, ColorChannel, ColorChannel),
@@ -1139,10 +1110,10 @@ impl Color {
 
     pub fn from_rgba_0_1(rgba_0_1: [f64; 4]) -> Self {
         Self::rgba(
-            ColorChannel::Percent(Numeric::from(rgba_0_1[0] * 100.0)),
-            ColorChannel::Percent(Numeric::from(rgba_0_1[1] * 100.0)),
-            ColorChannel::Percent(Numeric::from(rgba_0_1[2] * 100.0)),
-            ColorChannel::Percent(Numeric::from(rgba_0_1[3] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[0] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[1] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[2] * 100.0)),
+            ColorChannel::Percent(Numeric::F64(rgba_0_1[3] * 100.0)),
         )
     }
 
@@ -1420,8 +1391,7 @@ impl Interpolatable for Color {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
@@ -1429,20 +1399,22 @@ pub enum Rotation {
 }
 impl Default for Rotation {
     fn default() -> Self {
-        Self::Percent(Numeric::from(0.0))
+        Self::Percent(Numeric::F64(0.0))
     }
 }
 
 impl Interpolatable for Rotation {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        Self::Percent((other.to_float_0_1() - self.to_float_0_1() * t / 100.0).into())
+        Self::Percent(Numeric::F64(
+            other.to_float_0_1() - self.to_float_0_1() * t / 100.0,
+        ))
     }
 }
 
 impl Rotation {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
-        Self::Radians(Numeric::from(0.0))
+        Self::Radians(Numeric::F64(0.0))
     }
 
     /// Returns a float proportional to `0deg : 0.0 :: 360deg :: 1.0`, in the domain 𝕗𝟞𝟜
@@ -1450,7 +1422,7 @@ impl Rotation {
     pub fn to_float_0_1(&self) -> f64 {
         match self {
             Self::Radians(rad) => rad.to_float() / (std::f64::consts::PI * 2.0),
-            Self::Degrees(deg) => *deg / 360.0_f64,
+            Self::Degrees(deg) => deg.to_float() / 360.0_f64,
             Self::Percent(per) => per.to_float(),
         }
     }
@@ -1496,7 +1468,127 @@ impl Add for Rotation {
     fn add(self, rhs: Self) -> Self::Output {
         let self_rad = self.get_as_radians();
         let other_rad = rhs.get_as_radians();
-        Rotation::Radians(Numeric::from(self_rad + other_rad))
+        Rotation::Radians(Numeric::F64(self_rad + other_rad))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct Stroke {
+    pub color: Color,
+    pub width: Size,
+}
+
+impl Default for Stroke {
+    fn default() -> Self {
+        Self {
+            color: Default::default(),
+            width: Size::Pixels(Numeric::F64(0.0)),
+        }
+    }
+}
+
+impl Interpolatable for Stroke {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+        // TODO interpolation
+        self.clone()
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub enum Fill {
+    Solid(Color),
+    LinearGradient(LinearGradient),
+    RadialGradient(RadialGradient),
+}
+
+impl Interpolatable for Fill {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
+        // TODO interpolation
+        self.clone()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct LinearGradient {
+    pub start: (Size, Size),
+    pub end: (Size, Size),
+    pub stops: Vec<GradientStop>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct RadialGradient {
+    pub end: (Size, Size),
+    pub start: (Size, Size),
+    pub radius: f64,
+    pub stops: Vec<GradientStop>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct GradientStop {
+    pub position: Size,
+    pub color: Color,
+}
+
+impl GradientStop {
+    pub fn get(color: Color, position: Size) -> GradientStop {
+        GradientStop { position, color }
+    }
+}
+
+impl Default for Fill {
+    fn default() -> Self {
+        Self::Solid(Color::default())
+    }
+}
+
+impl Fill {
+    pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
+        let normalized_x = match x {
+            Size::Pixels(val) => val.to_float() / width,
+            Size::Percent(val) => val.to_float() / 100.0,
+            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
+        };
+
+        let normalized_y = match y {
+            Size::Pixels(val) => val.to_float() / height,
+            Size::Percent(val) => val.to_float() / 100.0,
+            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
+        };
+        UnitPoint::new(normalized_x, normalized_y)
+    }
+
+    pub fn to_piet_gradient_stops(stops: Vec<GradientStop>) -> Vec<piet::GradientStop> {
+        let mut ret = Vec::new();
+        for gradient_stop in stops {
+            match gradient_stop.position {
+                Size::Pixels(_) => {
+                    panic!("Gradient stops must be specified in percentages");
+                }
+                Size::Percent(p) => {
+                    ret.push(piet::GradientStop {
+                        pos: (p.to_float() / 100.0) as f32,
+                        color: gradient_stop.color.to_piet_color(),
+                    });
+                }
+                Size::Combined(_, _) => {
+                    panic!("Gradient stops must be specified in percentages");
+                }
+            }
+        }
+        ret
+    }
+
+    #[allow(non_snake_case)]
+    pub fn linearGradient(
+        start: (Size, Size),
+        end: (Size, Size),
+        stops: Vec<GradientStop>,
+    ) -> Fill {
+        Fill::LinearGradient(LinearGradient { start, end, stops })
     }
 }
 
@@ -1524,35 +1616,35 @@ impl Interpolatable for Size {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         match &self {
             Self::Pixels(sp) => match other {
-                Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::F64(t))),
                 Self::Percent(op) => Self::Percent(*op),
                 Self::Combined(pix, per) => {
-                    let pix = *sp + ((*pix - *sp) * Numeric::from(t));
+                    let pix = *sp + ((*pix - *sp) * Numeric::F64(t));
                     let per = *per;
                     Self::Combined(pix, per)
                 }
             },
             Self::Percent(sp) => match other {
                 Self::Pixels(op) => Self::Pixels(*op),
-                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::F64(t))),
                 Self::Combined(pix, per) => {
                     let pix = *pix;
-                    let per = *sp + ((*per - *sp) * Numeric::from(t));
+                    let per = *sp + ((*per - *sp) * Numeric::F64(t));
                     Self::Combined(pix, per)
                 }
             },
             Self::Combined(pix, per) => match other {
                 Self::Pixels(op) => {
-                    let pix = *pix + ((*op - *pix) * Numeric::from(t));
+                    let pix = *pix + ((*op - *pix) * Numeric::F64(t));
                     Self::Combined(pix, *per)
                 }
                 Self::Percent(op) => {
-                    let per = *per + ((*op - *per) * Numeric::from(t));
+                    let per = *per + ((*op - *per) * Numeric::F64(t));
                     Self::Combined(*pix, per)
                 }
                 Self::Combined(pix0, per0) => {
-                    let pix = *pix + ((*pix0 - *pix) * Numeric::from(t));
-                    let per = *per + ((*per0 - *per) * Numeric::from(t));
+                    let pix = *pix + ((*pix0 - *pix) * Numeric::F64(t));
+                    let per = *per + ((*per0 - *per) * Numeric::F64(t));
                     Self::Combined(pix, per)
                 }
             },
@@ -1562,7 +1654,7 @@ impl Interpolatable for Size {
 
 impl Default for Size {
     fn default() -> Self {
-        Self::Percent(100.0.into())
+        Self::Percent(Numeric::F64(100.0))
     }
 }
 
@@ -1606,8 +1698,7 @@ impl Mul for Size {
 ///             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct Transform2D {
     /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
@@ -1656,13 +1747,4 @@ impl Transform2D {
         ret.anchor = Some([x, y]);
         ret
     }
-}
-
-// Represents literal types from the deserializer that may need to be `into()` downstream types.
-// For example, 5% might need to be `.into()`d a Rotation, a ColorChannel, or a Size.  Color might need to be `.into()`d a Fill or a Stroke.
-#[derive(Clone)]
-pub enum IntoableLiteral {
-    Color(Color),
-    Percent(Percent),
-    Numeric(Numeric),
 }

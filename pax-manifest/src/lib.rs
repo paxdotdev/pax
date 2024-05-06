@@ -6,7 +6,7 @@ use std::{cmp::Ordering, hash::Hash};
 
 use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_message::serde::{Deserialize, Serialize};
-use pax_runtime_api::Interpolatable;
+use pax_runtime_api::{ImplToFromPaxAny, Interpolatable};
 
 #[cfg(feature = "parsing")]
 pub mod utils;
@@ -21,7 +21,6 @@ pub mod deserializer;
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PaxManifest {
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub components: HashMap<TypeId, ComponentDefinition>,
@@ -138,7 +137,6 @@ impl Ord for ExpressionSpec {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
@@ -148,8 +146,8 @@ pub struct ExpressionSpec {
     pub invocations: Vec<ExpressionSpecInvocation>,
 
     /// Fully qualified (reexport-qualified) type ID, used for explicit RIL statement
-    /// casting before packing into `dyn Any`.  This ensures .into() chains evaluate before packing
-    /// into `dyn Any`, which enables us to downcast correctly at runtime.
+    /// casting before packing into PaxType.  This ensures .into() chains evaluate before packing
+    /// into PaxType, which enables us to downcast correctly at runtime.
     pub output_type: String,
 
     /// String (RIL) representation of the compiled expression
@@ -167,7 +165,6 @@ pub struct ExpressionSpec {
 /// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
 /// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct ExpressionSpecInvocation {
@@ -182,7 +179,7 @@ pub struct ExpressionSpecInvocation {
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
 
-    /// Type of the containing Properties struct, for downcasting from dyn Any.
+    /// Type of the containing Properties struct, for downcasting from PaxType.
     pub fully_qualified_properties_struct_type: String,
 
     /// For symbolic invocations that refer to repeat elements, this is the fully qualified type of each such repeated element
@@ -244,7 +241,6 @@ impl ExpressionSpecInvocation {
 /// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ComponentDefinition {
     pub type_id: TypeId,
     pub is_main_component: bool,
@@ -369,6 +365,8 @@ pub struct TypeId {
     _type_id_escaped: String,
 }
 
+impl ImplToFromPaxAny for TypeId {}
+impl ImplToFromPaxAny for TemplateNodeId {}
 impl Interpolatable for TypeId {}
 impl Interpolatable for TemplateNodeId {}
 
@@ -1418,7 +1416,6 @@ impl PropertyDefinition {
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TypeDefinition {
     /// Program-unique ID for this type
     pub type_id: TypeId,
@@ -1443,7 +1440,7 @@ impl TypeDefinition {
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_ref_cell_any_properties(inner_iterable_type_id: TypeId) -> Self {
         Self {
-            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<dyn Any>>"),
+            type_id: TypeId::build_vector("std::rc::Rc<core::cell::RefCell<PaxAny>>"),
             property_definitions: vec![],
             inner_iterable_type_id: Some(inner_iterable_type_id),
         }
@@ -1893,7 +1890,6 @@ pub const IMPORTS_BUILTINS: &[&str] = &[
     "pax_runtime::RepeatProperties",
     "pax_runtime::ConditionalProperties",
     "pax_runtime::SlotProperties",
-    "pax_runtime::get_numeric_from_wrapped_properties",
     "pax_runtime::api::Property",
     "pax_runtime::api::CommonProperties",
     "pax_runtime::api::Color::*",

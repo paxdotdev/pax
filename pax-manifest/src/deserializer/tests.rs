@@ -1,159 +1,88 @@
 #![allow(dead_code, unused_imports)]
 
+use pax_runtime_api::{
+    pax_value::{CoercionRules, ToFromPaxAny},
+    Color, ImplToFromPaxAny, Numeric, Rotation, Size, StringBox,
+};
 use serde::Deserialize;
 
 use crate::deserializer::from_pax;
 
 #[test]
 fn test_number() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-
     let num_pax = "10".to_string();
-    let expected = Numeric::Integer(10);
-    let v = from_pax(&num_pax).unwrap();
+    let expected = Numeric::I64(10);
+    let v = Numeric::from_pax_any(from_pax::<Numeric>(&num_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_pixels() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Size {
-        Pixels(Numeric),
-        Percent(Numeric),
-    }
-
     let pixels_pax = "10px".to_string();
-    let expected = Size::Pixels(Numeric::Integer(10));
-    let v = from_pax(&pixels_pax).unwrap();
+    let expected = Size::Pixels(Numeric::I64(10));
+    let v = Size::from_pax_any(from_pax::<Size>(&pixels_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_percent() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Size {
-        Pixels(Numeric),
-        Percent(Numeric),
-    }
-
     let percent_pax = "10%".to_string();
-    let expected = Size::Percent(Numeric::Integer(10));
-    let v = from_pax(&percent_pax).unwrap();
+    let expected = Size::Percent(Numeric::I64(10));
+    let v = Size::from_pax_any(from_pax::<Size>(&percent_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_degrees() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Rotation {
-        Radians(Numeric),
-        Degrees(Numeric),
-        Percent(Numeric),
-    }
-
-    let radians_pax = "10deg".to_string();
-    let expected = Rotation::Degrees(Numeric::Integer(10));
-    let v = from_pax(&radians_pax).unwrap();
+    let deg_pax = "10deg".to_string();
+    let expected = Rotation::Degrees(Numeric::I64(10));
+    let v = Rotation::from_pax_any(from_pax::<Rotation>(&deg_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_radians() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Rotation {
-        Radians(Numeric),
-        Degrees(Numeric),
-        Percent(Numeric),
-    }
-
     let radians_pax = "10rad".to_string();
-    let expected = Rotation::Radians(Numeric::Integer(10));
-    let v = from_pax(&radians_pax).unwrap();
+    let expected = Rotation::Radians(Numeric::I64(10));
+    let v = Rotation::from_pax_any(from_pax::<Rotation>(&radians_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_string_box() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub struct StringBox {
-        pub string: String,
-    }
-
     let string_box_pax = "\"hello\"".to_string();
     let expected = StringBox {
         string: "hello".to_string(),
     };
-    let v = from_pax(&string_box_pax).unwrap();
+    let v = StringBox::from_pax_any(from_pax::<StringBox>(&string_box_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_tuple() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub struct StringBox {
-        pub string: String,
-    }
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-
     let tuple_pax = "(\"hello\", 10)".to_string();
     let expected = (
         StringBox {
             string: "hello".to_string(),
         },
-        Numeric::Integer(10),
+        Numeric::I64(10),
     );
-    let v = from_pax(&tuple_pax).unwrap();
+    let v =
+        <(StringBox, Numeric)>::from_pax_any(from_pax::<(StringBox, Numeric)>(&tuple_pax).unwrap())
+            .unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_enum() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Color {
-        Rgba(Numeric, Numeric, Numeric, Numeric),
-    }
-
-    let enum_pax = "Color::Rgba(0.0, 0.0, 1.0, 1.0)".to_string();
-    let expected = Color::Rgba(
-        Numeric::Float(0.0),
-        Numeric::Float(0.0),
-        Numeric::Float(1.0),
-        Numeric::Float(1.0),
+    let enum_pax = "rgba(0, 0, 1, 1)".to_string();
+    let expected = Color::rgba(
+        Numeric::I64(0).into(),
+        Numeric::I64(0).into(),
+        Numeric::I64(1).into(),
+        Numeric::I64(1).into(),
     );
-    let v = from_pax(&enum_pax).unwrap();
+    let v = Color::from_pax_any(from_pax::<Color>(&enum_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -161,17 +90,12 @@ fn test_enum() {
 fn test_boolean() {
     let boolean_pax = "true".to_string();
     let expected = true;
-    let v: bool = from_pax(&boolean_pax).unwrap();
+    let v = bool::from_pax_any(from_pax::<bool>(&boolean_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_object() {
-    #[derive(Deserialize, PartialEq, Debug, Clone)]
-    pub enum Numeric {
-        Integer(isize),
-        Float(f64),
-    }
     #[derive(Deserialize, PartialEq, Debug, Clone)]
     pub struct Example {
         pub x_px: Numeric,
@@ -180,15 +104,17 @@ fn test_object() {
         pub height_px: Numeric,
     }
 
+    impl ImplToFromPaxAny for Example {}
+
     let object_pax = "{x_px: 10.0, y_px: 10, width_px: 10.0, height_px: 10}".to_string();
 
     let expected = Example {
-        x_px: Numeric::Float(10.0),
-        y_px: Numeric::Integer(10),
-        width_px: Numeric::Float(10.0),
-        height_px: Numeric::Integer(10),
+        x_px: Numeric::F64(10.0),
+        y_px: Numeric::I64(10),
+        width_px: Numeric::F64(10.0),
+        height_px: Numeric::I64(10),
     };
 
-    let v = from_pax(&object_pax).unwrap();
+    let v = Example::from_pax_any(from_pax::<Example>(&object_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }

@@ -1,7 +1,11 @@
 use core::panic;
+use pax_runtime_api::constants::I64;
+use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
+use pax_runtime_api::{Color, Numeric, Percent};
 use pest::Parser;
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
+use std::any::TypeId;
 
 pub mod error;
 mod helpers;
@@ -14,13 +18,10 @@ pub use error::{Error, Result};
 use crate::utils::{PaxParser, Rule};
 
 use crate::constants::{
-    COLOR, DEGREES, FLOAT, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX,
-    TRUE,
+    COLOR, DEGREES, F64, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
 };
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};
-use pax_runtime_api::IntoableLiteral;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -34,60 +35,23 @@ impl Deserializer {
     }
 }
 thread_local! {
-    static CACHED_VALUES : RefCell<HashMap<String, Box<dyn Any>>> = RefCell::new(HashMap::new());
-}
-thread_local! {
-    static CACHED_VALUES_INTO : RefCell<HashMap<String, Result<IntoableLiteral>>> = RefCell::new(HashMap::new());
+    static CACHED_VALUES : RefCell<HashMap<String, PaxAny>> = RefCell::new(HashMap::new());
 }
 
-// Literal Intoable Graph, as of initial impl:
-// Numeric
-// - Size
-// - Rotation
-// - ColorChannel
-// Percent
-// - ColorChannel
-// - Rotation
-// - Size
-// Color
-// - Stroke (1px solid)
-// - Fill (solid)
-
-// `from_pax_try_intoable_literal` tries to parse the provided string as a literal type that we know how to coerce into other literal types.
-// Enables type-coercion from certain literal values, like `Percent` and `Color`.
-// If this string parses into a literal type that can be `Into`d (for example, 10% -> ColorChannel::Percent(10))
-// then package the parsed value into the IntoableLiteral enum, which gives us an interface into
-// the Rust `Into` system, while appeasing its particular demands around codegen.
-pub fn from_pax_try_intoable_literal(str: &str) -> Result<IntoableLiteral> {
-    if let Some(cached) = CACHED_VALUES_INTO.with(|cache| cache.borrow().get(str).cloned()) {
-        return cached.clone();
-    }
-
-    let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
-        Ok(IntoableLiteral::Color(from_pax(str).unwrap()))
-    } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
-        // let mut ast= ast.next().unwrap().into_inner();
-        let _number = ast.clone().next().unwrap().as_str();
-        let unit = ast.clone().next().unwrap().as_str();
-        match unit {
-            "%" => Ok(IntoableLiteral::Percent(from_pax(str).unwrap())),
-            _ => Err(Error::UnsupportedMethod),
-        }
-    } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
-        Ok(IntoableLiteral::Numeric(from_pax(str).unwrap()))
-    } else {
-        Err(Error::UnsupportedMethod) //Not an IntoableLiteral
-    };
-
-    CACHED_VALUES_INTO.with(|cache| {
-        cache.borrow_mut().insert(str.to_string(), ret.clone());
-    });
-
-    ret
+/// Given type information T, this coerces the value of the PaxAny into the expected
+/// type if able, or returns an error
+pub fn from_pax_try_coerce<T: ToFromPaxAny + CoercionRules + Clone + 'static>(
+    str: &str,
+) -> std::result::Result<PaxAny, String>
+where
+    T: DeserializeOwned,
+{
+    from_pax::<T>(str)
+        .map_err(|e| format!("failed to deserialize: {:?}", e))
+        .and_then(|v| v.try_coerce::<T>())
 }
 
-/// Main entry-point for deserializing a type from Pax.
-pub fn from_pax<T: Clone + 'static>(str: &str) -> Result<T>
+fn from_pax<T: ToFromPaxAny + CoercionRules + Clone + 'static>(str: &str) -> Result<PaxAny>
 where
     T: DeserializeOwned,
 {
@@ -95,15 +59,36 @@ where
         let cache = cache.borrow();
         let option_cached_dyn_any = cache.get(str);
         // down cast val to T
-        if let Some(cached_dyn_any) = &option_cached_dyn_any {
-            let option_t_value: Option<&T> = cached_dyn_any.downcast_ref::<T>();
-            if let Some(data) = option_t_value {
-                return Some(data.clone());
-            }
+        if let Some(data) = &option_cached_dyn_any {
+            return Some(data.try_clone::<T>().unwrap());
         }
         None
     }) {
-        return Ok(cached.clone());
+        return Ok(cached);
+    }
+
+    let type_id = TypeId::of::<T>();
+    if type_id != TypeId::of::<Color>()
+        && type_id != TypeId::of::<Percent>()
+        && type_id != TypeId::of::<Numeric>()
+    {
+        let ret = if let Ok(_ast) = PaxParser::parse(Rule::literal_color, str) {
+            Ok(from_pax::<Color>(str).unwrap())
+        } else if let Ok(ast) = PaxParser::parse(Rule::literal_number_with_unit, str) {
+            let _number = ast.clone().next().unwrap().as_str();
+            let unit = ast.clone().next().unwrap().as_str();
+            match unit {
+                "%" => Ok(from_pax::<Percent>(&str).unwrap()),
+                _ => Err(Error::UnsupportedMethod),
+            }
+        } else if let Ok(_ast) = PaxParser::parse(Rule::literal_number, str) {
+            Ok(from_pax::<Numeric>(str).unwrap())
+        } else {
+            Err(Error::UnsupportedMethod)
+        };
+        if let Ok(val) = ret {
+            return Ok(val);
+        }
     }
 
     let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
@@ -112,10 +97,10 @@ where
     CACHED_VALUES.with(|cache| {
         cache
             .borrow_mut()
-            .insert(str.to_string(), Box::new(t.clone()));
+            .insert(str.to_string(), t.clone().to_pax_any());
     });
 
-    Ok(t)
+    Ok(t.to_pax_any())
 }
 
 impl<'de> de::Deserializer<'de> for Deserializer {
@@ -217,12 +202,12 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                         match number.as_rule() {
                             Rule::literal_number_integer => visitor.visit_enum(PaxEnum::new(
                                 Some(NUMERIC.to_string()),
-                                INTEGER.to_string(),
+                                I64.to_string(),
                                 Some(number.as_str().to_string()),
                             )),
                             Rule::literal_number_float => visitor.visit_enum(PaxEnum::new(
                                 Some(NUMERIC.to_string()),
-                                FLOAT.to_string(),
+                                F64.to_string(),
                                 Some(number.as_str().to_string()),
                             )),
                             _ => Err(Error::UnsupportedType(number.as_str().to_string())),
