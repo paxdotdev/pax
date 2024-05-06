@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_runtime_api::pax_value::ToFromPaxAny;
 
 use crate::{
     api::math::{Point2, Space, Transform2},
@@ -48,7 +49,7 @@ impl NodeInterface {
         }
     }
 
-    pub fn with_properties<T: 'static>(&self, f: impl FnOnce(&mut T)) {
+    pub fn with_properties<T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T)) {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 

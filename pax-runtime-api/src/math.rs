@@ -10,7 +10,7 @@ pub use point::Point2;
 pub use transform::Transform2;
 pub use vector::Vector2;
 
-pub trait Space {}
+pub trait Space: 'static {}
 
 pub struct Generic;
 

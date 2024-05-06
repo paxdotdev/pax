@@ -12,15 +12,12 @@ pub mod components {
 
 pub mod primitives {
     use pax_engine::pax;
-    use pax_runtime::api::{Color, Property, Size, StringBox};
-    use pax_runtime::numeric::Numeric;
+    use pax_runtime::api::{Color, Property, Size, StringBox, Stroke};
+    use pax_runtime::api::{Fill, Numeric};
 
     use crate::types::text::TextStyle;
-    use crate::types::Fill;
 
     use crate::types::PathElement;
-    use crate::types::Stroke;
-
     #[pax]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
     pub struct Frame {}
@@ -40,7 +37,6 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
-    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Rectangle {
         pub stroke: Property<Stroke>,
         pub fill: Property<Fill>,
@@ -49,7 +45,6 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::ellipse::EllipseInstance")]
-    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Ellipse {
         pub stroke: Property<Stroke>,
         pub fill: Property<Fill>,
@@ -57,7 +52,6 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::path::PathInstance")]
-    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Path {
         pub elements: Property<Vec<PathElement>>,
         pub stroke: Property<Stroke>,
@@ -66,7 +60,6 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::text::TextInstance")]
-    #[cfg_attr(debug_assertions, derive(Debug))]
     pub struct Text {
         pub editable: Property<bool>,
         pub text: Property<StringBox>,

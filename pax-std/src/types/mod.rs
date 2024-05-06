@@ -2,45 +2,10 @@ pub mod text;
 
 use crate::primitives::Path;
 pub use kurbo::RoundedRectRadii;
+use pax_engine::api::Numeric;
 pub use pax_engine::api::Size;
-use pax_engine::api::{Color, Numeric};
 use pax_engine::*;
 
-use pax_runtime::api::IntoableLiteral;
-use piet::UnitPoint;
-
-#[pax]
-#[custom(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Stroke {
-    pub color: Property<Color>,
-    pub width: Property<Size>,
-}
-
-impl From<IntoableLiteral> for Stroke {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Color(c) => Stroke {
-                color: Property::new(c),
-                width: Property::new(Numeric::from(1).into()),
-            },
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
-
-impl Default for Stroke {
-    fn default() -> Self {
-        Self {
-            color: Default::default(),
-            width: Property::new(Size::Pixels(0.0.into())),
-        }
-    }
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
 pub struct StackerCell {
     pub x_px: f64,
@@ -63,117 +28,7 @@ pub enum SidebarDirection {
     Right,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 #[pax]
-#[custom(Default)]
-pub enum Fill {
-    Solid(Color),
-    LinearGradient(LinearGradient),
-    RadialGradient(RadialGradient),
-}
-
-impl Into<Fill> for Color {
-    fn into(self) -> Fill {
-        Fill::Solid(self)
-    }
-}
-
-impl From<IntoableLiteral> for Fill {
-    fn from(value: IntoableLiteral) -> Self {
-        match value {
-            IntoableLiteral::Color(c) => c.into(),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[pax]
-pub struct LinearGradient {
-    pub start: (Size, Size),
-    pub end: (Size, Size),
-    pub stops: Vec<GradientStop>,
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[pax]
-pub struct RadialGradient {
-    pub end: (Size, Size),
-    pub start: (Size, Size),
-    pub radius: f64,
-    pub stops: Vec<GradientStop>,
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[pax]
-pub struct GradientStop {
-    pub position: Size,
-    pub color: Color,
-}
-
-impl GradientStop {
-    pub fn get(color: Color, position: Size) -> GradientStop {
-        GradientStop { position, color }
-    }
-}
-
-impl Default for Fill {
-    fn default() -> Self {
-        Self::Solid(Color::default())
-    }
-}
-
-impl Fill {
-    pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
-        let normalized_x = match x {
-            Size::Pixels(val) => val.to_float() / width,
-            Size::Percent(val) => val.to_float() / 100.0,
-            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
-        };
-
-        let normalized_y = match y {
-            Size::Pixels(val) => val.to_float() / height,
-            Size::Percent(val) => val.to_float() / 100.0,
-            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
-        };
-        UnitPoint::new(normalized_x, normalized_y)
-    }
-
-    pub fn to_piet_gradient_stops(stops: Vec<GradientStop>) -> Vec<piet::GradientStop> {
-        let mut ret = Vec::new();
-        for gradient_stop in stops {
-            match gradient_stop.position {
-                Size::Pixels(_) => {
-                    panic!("Gradient stops must be specified in percentages");
-                }
-                Size::Percent(p) => {
-                    ret.push(piet::GradientStop {
-                        pos: (p.to_float() / 100.0) as f32,
-                        color: gradient_stop.color.to_piet_color(),
-                    });
-                }
-                Size::Combined(_, _) => {
-                    panic!("Gradient stops must be specified in percentages");
-                }
-            }
-        }
-        ret
-    }
-
-    #[allow(non_snake_case)]
-    pub fn linearGradient(
-        start: (Size, Size),
-        end: (Size, Size),
-        stops: Vec<GradientStop>,
-    ) -> Fill {
-        Fill::LinearGradient(LinearGradient { start, end, stops })
-    }
-}
-
-#[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum PathElement {
     #[default]
     Empty,
@@ -199,7 +54,6 @@ impl PathElement {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LineSegmentData {
     pub start: Point,
     pub end: Point,
@@ -212,7 +66,6 @@ impl LineSegmentData {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CurveSegmentData {
     pub start: Point,
     pub handle: Point,
@@ -221,7 +74,6 @@ pub struct CurveSegmentData {
 
 #[pax]
 #[derive(Copy)]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Point {
     pub x: Size,
     pub y: Size,
@@ -265,7 +117,6 @@ impl Path {
 }
 
 #[pax]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RectangleCornerRadii {
     pub top_left: Property<Numeric>,
     pub top_right: Property<Numeric>,

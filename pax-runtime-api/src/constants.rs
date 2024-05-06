@@ -8,7 +8,8 @@ pub const RADIANS: &str = "Radians";
 pub const PIXELS: &str = "Pixels";
 pub const PERCENT: &str = "Percent";
 pub const INTEGER: &str = "Integer";
-pub const FLOAT: &str = "Float";
+pub const I64: &str = "I64";
+pub const F64: &str = "F64";
 pub const TRUE: &str = "true";
 pub const COLOR: &str = "Color";
 pub const COLOR_CHANNEL: &str = "ColorChannel";
@@ -56,8 +57,8 @@ pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] = [
     ("y", "pax_engine::api::Size"),
     ("scale_x", "pax_engine::api::Size"),
     ("scale_y", "pax_engine::api::Size"),
-    ("skew_x", "pax_engine::api::Numeric"),
-    ("skew_y", "pax_engine::api::Numeric"),
+    ("skew_x", "f64"),
+    ("skew_y", "f64"),
     ("anchor_x", "pax_engine::api::Size"),
     ("anchor_y", "pax_engine::api::Size"),
     ("rotate", "pax_engine::api::Rotation"),

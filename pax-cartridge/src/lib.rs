@@ -1,15 +1,14 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use pax_runtime::{ComponentInstance, ExpressionContext, InstantiationArgs};
+use pax_runtime_api::pax_value::PaxAny;
 use piet_common::RenderContext;
 use std::rc::Rc;
 
 const PLACEHOLDER_ERROR : &str = "Fatal: the development placeholder cartridge is still attached -- a defined cartridge must be attached during compilation.  This means that Pax compilation failed -- please try again with `pax build` or `pax run`.";
 
-pub fn instantiate_expression_table(
-) -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> Box<dyn Any>>> {
+pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> {
     unreachable!("{}", PLACEHOLDER_ERROR)
 }
 

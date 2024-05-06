@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-use pax_runtime_api::{Numeric, Property};
+use pax_runtime_api::{ImplToFromPaxAny, Numeric, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -21,6 +21,8 @@ use crate::{
 pub struct SlotInstance {
     base: BaseInstance,
 }
+
+impl ImplToFromPaxAny for SlotProperties {}
 
 ///Contains the index value for slot, either a literal or an expression.
 #[derive(Default)]

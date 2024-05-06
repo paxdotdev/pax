@@ -13,11 +13,13 @@ use super::{
     Deserializer, PaxParser, Rule,
 };
 
+#[derive(Debug)]
 pub struct PaxColor {
     pub color_func: String,
     pub args: Vec<ColorFuncArg>,
 }
 
+#[derive(Debug)]
 pub enum ColorFuncArg {
     Percent(String),
     Integer(String),

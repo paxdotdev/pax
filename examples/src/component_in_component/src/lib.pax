@@ -1,6 +1,6 @@
 <Frame height=50% @click=self.outer_clicked>
 	if self.outer_active {
-		<Inner x_pos={self.x}>
+		<Inner x_pos={self.x} some_num={self.some_num_outer} some_str={self.some_str_outer}>
 			<Rectangle x={(25*0)%} y={(25*0)%} width=50% height=50%
 			    fill=hsl(0deg, 75%, 50%)
 			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
