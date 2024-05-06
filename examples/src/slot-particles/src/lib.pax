@@ -17,7 +17,5 @@
     .centered {
         x: 50%
         y: 50%
-        anchor_x: 50%
-        anchor_y: 50%
     }
 }
