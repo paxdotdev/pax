@@ -1,0 +1,88 @@
+
+if self.game_state == "PLAYING" {
+	<Text x=10px y=10px text={self.score_text} style={fill:WHITE}/>
+}
+if self.game_state == "GAME_OVER" {
+	<Text y=25% height=25% text="GAME OVER" id=game_over/>
+	<Text y=50% height=25% text={self.score_text} id=game_over_score/>
+	<Rectangle fill=rgba(255, 0, 50, 50)/>
+}
+
+<Group scale_x=200% scale_y=200% width=50% height=50%>
+	if self.game_state == "PLAYING" {
+		// Spaceship
+		<Image
+			width=32px
+			height=32px
+			anchor_x=50%
+			anchor_y=50%
+			path="assets/spaceship.png"
+			x={self.ship_x}
+			y={self.ship_y}
+		/>
+	}
+
+	for asteroid in self.asteroids {
+		<Image
+			anchor_x=50%
+			anchor_y=50%
+			path={asteroid.animation.frame}
+			x={asteroid.x}
+			y={asteroid.y}
+			width={asteroid.w}
+			height={asteroid.w}
+			rotate={(asteroid.r)deg}
+		/>
+	}
+	for bullet in self.bullets {
+		<Image
+			width=16px
+			height=16px
+			anchor_x=50%
+			anchor_y=50%
+			path="assets/bullet.png"
+			x={bullet.x}
+			y={bullet.y}
+		/>
+	}
+	// background
+</Group>
+
+<Group width=512px height=512px>
+	for background in self.background_tiles {
+		<Image
+			x={background.x}
+			y={background.y}
+			path="assets/starfield0.png"
+		/>
+	}
+</Group>
+
+@settings {
+	@mount: handle_mount,
+	@tick: tick,
+	@key_down: key_down,
+	@key_up: key_up,
+
+    #game_over {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Normal)},
+                font_size: 100px,
+                fill: WHITE,
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    #game_over_score {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 64px,
+                fill: WHITE,
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
