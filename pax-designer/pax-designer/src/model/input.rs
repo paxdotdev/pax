@@ -2,15 +2,19 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::Interpolatable;
 
+use crate::model::action::orm::{SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
-use crate::model::action::orm::{UndoRequested, SerializeRequested};
 
 use super::{
     action::{self, meta::ActionSet, orm::DeleteSelected, world, Action, ActionContext, CanUndo},
     Component, Tool,
 };
 
+impl Interpolatable for InputMapper {}
+
+#[derive(Clone)]
 pub struct InputMapper {
     keymap: HashMap<RawInput, InputEvent>,
 }
@@ -117,6 +121,7 @@ impl TryFrom<String> for RawInput {
     }
 }
 
+impl Interpolatable for InputEvent {}
 // This represents the "actions" that can be taken by the user that could
 // potentially be remapped to arbitrary keys. Only user input events: no
 // internal message passing to be done using these tupes
