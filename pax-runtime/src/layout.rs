@@ -117,7 +117,6 @@ pub fn compute_tab(
                 ];
                 desugared_transform2d.translate = Some(translate.clone());
 
-
                 //Anchor behavior:
                 //  if no anchor is specified:
                 //     if x/y values are present and have an explicit percent value or component, use those percent values
