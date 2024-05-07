@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::CanUndo;
@@ -33,11 +34,13 @@ pub enum Pointer {
 impl Action for PointerAction {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let point_glass = ctx.glass_transform() * self.point;
-        ctx.app_state.mouse_position = point_glass;
-        let spacebar = ctx.app_state.keys_pressed.contains(&InputEvent::Space);
-        let tool_behaviour = Rc::clone(&ctx.app_state.tool_behaviour);
-        let mut tool_behaviour = tool_behaviour.borrow_mut();
-
+        ctx.app_state.mouse_position.set(point_glass);
+        let spacebar = ctx
+            .app_state
+            .keys_pressed
+            .get()
+            .contains(&InputEvent::Space);
+        let tool_behaviour = ctx.app_state.tool_behaviour.clone();
         // Open context menu on right mouse button click no matter what
         if matches!(
             (self.event, self.button.clone()),
@@ -52,11 +55,14 @@ impl Action for PointerAction {
         }
 
         // If no tool is active, activate a tool on mouse down
-        if matches!(self.event, Pointer::Down) && tool_behaviour.is_none() {
+        if matches!(self.event, Pointer::Down) && tool_behaviour.get().is_none() {
             match (self.button, spacebar) {
-                (MouseButton::Left, false) => match ctx.app_state.selected_tool {
+                (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     Tool::Pointer => {
-                        *tool_behaviour = Some(Box::new(PointerTool::new(ctx, point_glass)));
+                        tool_behaviour.set(Some(Rc::new(RefCell::new(PointerTool::new(
+                            ctx,
+                            point_glass,
+                        )))));
                     }
                     Tool::CreateComponent(component) => {
                         let primitive_name = match component {
@@ -64,7 +70,7 @@ impl Action for PointerAction {
                             Component::Ellipse => "Ellipse",
                             Component::Text => "Text",
                         };
-                        *tool_behaviour = Some(Box::new(CreateComponentTool::new(
+                        tool_behaviour.set(Some(Rc::new(RefCell::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
                             &TypeId::build_singleton(
@@ -74,38 +80,45 @@ impl Action for PointerAction {
                                 ),
                                 None,
                             ),
-                        )));
+                        )))));
                     }
                     Tool::TodoTool => todo!(),
                 },
                 (MouseButton::Left, true) | (MouseButton::Middle, _) => {
-                    *tool_behaviour = Some(Box::new(Pan {
+                    tool_behaviour.set(Some(Rc::new(RefCell::new(Pan {
                         start_point: point_glass,
-                        original_transform: ctx.app_state.glass_to_world_transform,
-                    }));
+                        original_transform: ctx.app_state.glass_to_world_transform.get(),
+                    }))));
                 }
                 _ => (),
             };
         }
 
         // Whatever tool behaviour exists, let it do it's thing
-        let point = ctx.app_state.mouse_position;
-        if let Some(tool) = tool_behaviour.as_mut() {
-            let res = match self.event {
-                Pointer::Down => tool.pointer_down(point, ctx),
-                Pointer::Move => tool.pointer_move(point, ctx),
-                Pointer::Up => tool.pointer_up(point, ctx),
+        let point = ctx.app_state.mouse_position.get();
+        tool_behaviour.update(|tool_behaviour| {
+            let res = if let Some(tool) = tool_behaviour {
+                let mut tool = tool.borrow_mut();
+                let res = match self.event {
+                    Pointer::Down => tool.pointer_down(point, ctx),
+                    Pointer::Move => tool.pointer_move(point, ctx),
+                    Pointer::Up => tool.pointer_up(point, ctx),
+                };
+                Some(res)
+            } else {
+                None
             };
-
             // Check if this tool is done and is returning control flow to main app
-            match res {
-                std::ops::ControlFlow::Continue(_) => (),
-                std::ops::ControlFlow::Break(_) => {
-                    *tool_behaviour = None;
-                    ctx.app_state.selected_tool = Tool::Pointer;
+            if let Some(res) = res {
+                match res {
+                    std::ops::ControlFlow::Continue(_) => (),
+                    std::ops::ControlFlow::Break(_) => {
+                        *tool_behaviour = None;
+                        ctx.app_state.selected_tool.set(Tool::Pointer);
+                    }
                 }
             }
-        }
+        });
         Ok(CanUndo::No)
     }
 }

@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::ops::ControlFlow;
+use std::rc::Rc;
 
 use model::action::orm::CreateComponent;
 use pax_engine::api::*;
@@ -81,10 +83,12 @@ impl ComponentLibraryItem {
     pub fn on_down(&mut self, ctx: &NodeContext, _args: Event<MouseDown>) {
         model::with_action_context(ctx, |ctx| {
             let data = self.data.get();
-            *ctx.app_state.tool_behaviour.borrow_mut() = Some(Box::new(DropComponent {
-                type_id: data.type_id.clone(),
-                bounds_pixels: data.bounds_pixels,
-            }));
+            ctx.app_state
+                .tool_behaviour
+                .set(Some(Rc::new(RefCell::new(DropComponent {
+                    type_id: data.type_id.clone(),
+                    bounds_pixels: data.bounds_pixels,
+                }))));
         });
     }
 }

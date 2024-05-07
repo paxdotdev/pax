@@ -60,12 +60,13 @@ impl ObjectEditor {
             // HACK: if we were editing text, and the selection has changed,
             // commit the text changes to the old selection before
             // selecting this new object
-            if app_state.selected_template_node_ids != self.ids.get() {
+            if app_state.selected_template_node_ids.get() != self.ids.get() {
                 if self.editor_id.get() == 1 {
-                    self.commit_changes(ctx, app_state.selected_component_id.clone());
+                    self.commit_changes(ctx, app_state.selected_component_id.get().clone());
                 }
             }
-            self.ids.set(app_state.selected_template_node_ids.clone());
+            self.ids
+                .set(app_state.selected_template_node_ids.get().clone());
             // HACK: dirty dag manual check if we need to update
             static BOUNDS: Mutex<Option<AxisAlignedBox>> = Mutex::new(None);
             let total_bounds = derived_state.selected_bounds.total_bounds();
@@ -236,7 +237,12 @@ impl ObjectEditor {
         }
 
         fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviourFactory {
-            Box::new(move |ac, _p| Box::new(ResizeBehaviour::new(anchor, ac.selection_state())))
+            Box::new(move |ac, _p| {
+                Rc::new(RefCell::new(ResizeBehaviour::new(
+                    anchor,
+                    ac.selection_state(),
+                )))
+            })
         }
 
         // resize points
@@ -326,11 +332,11 @@ impl ObjectEditor {
                     .common_properties()
                     .local_rotation;
                 let start_dir = point - rotation_anchor;
-                Box::new(RotationBehaviour {
+                Rc::new(RefCell::new(RotationBehaviour {
                     rotation_anchor,
                     start_dir,
                     start_angle,
-                })
+                }))
             })
         }
         editor.add_control_set(
@@ -402,7 +408,7 @@ impl Editor {
 
 struct CPoint {
     point: Point2<Glass>,
-    behaviour: Box<dyn Fn(&mut ActionContext, Point2<Glass>) -> Box<dyn ToolBehaviour>>,
+    behaviour: Box<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>,
 }
 
 impl CPoint {

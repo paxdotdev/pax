@@ -106,7 +106,7 @@ impl FileAndComponentPicker {
                 let has_template = !comp.is_struct_only_component;
                 let mut is_not_current = false;
                 model::read_app_state(|app_state| {
-                    is_not_current = app_state.selected_component_id != comp.type_id
+                    is_not_current = app_state.selected_component_id.get() != comp.type_id
                 });
                 if has_template && is_not_current {
                     Some(ComponentLibraryItemData {

@@ -65,7 +65,7 @@ impl ActionContext<'_> {
     }
 
     pub fn world_transform(&self) -> Transform2<Glass, World> {
-        self.app_state.glass_to_world_transform
+        self.app_state.glass_to_world_transform.get()
     }
 
     pub fn glass_transform(&self) -> Transform2<Window, Glass> {
@@ -111,23 +111,25 @@ impl ActionContext<'_> {
     }
 
     pub fn selected_nodes(&mut self) -> Vec<(UniqueTemplateNodeIdentifier, NodeInterface)> {
-        let type_id = self.app_state.selected_component_id.clone();
+        let type_id = self.app_state.selected_component_id.get().clone();
         // This is returning the FIRST expanded node matching a template, not all.
         // In the case of one to many relationships existing (for loops), this needs to be revamped.
 
         let mut nodes = vec![];
-        self.app_state.selected_template_node_ids.retain(|id| {
-            let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
-            let Some(node) = self
-                .engine_context
-                .get_nodes_by_global_id(unid.clone())
-                .into_iter()
-                .next()
-            else {
-                return false;
-            };
-            nodes.push((unid, node));
-            true
+        self.app_state.selected_template_node_ids.update(|ids| {
+            ids.retain(|id| {
+                let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
+                let Some(node) = self
+                    .engine_context
+                    .get_nodes_by_global_id(unid.clone())
+                    .into_iter()
+                    .next()
+                else {
+                    return false;
+                };
+                nodes.push((unid, node));
+                true
+            });
         });
         nodes
     }

@@ -28,7 +28,9 @@ impl ToolBehaviour for Pan {
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         let diff = ctx.world_transform() * (self.start_point - point);
         let translation = Transform2::translate(diff);
-        ctx.app_state.glass_to_world_transform = translation * self.original_transform;
+        ctx.app_state
+            .glass_to_world_transform
+            .set(translation * self.original_transform);
         ControlFlow::Continue(())
     }
 
@@ -58,10 +60,16 @@ pub struct Zoom {
 
 impl Action for Zoom {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        if ctx.app_state.keys_pressed.contains(&InputEvent::Control) {
+        if ctx
+            .app_state
+            .keys_pressed
+            .get()
+            .contains(&InputEvent::Control)
+        {
             let scale = if self.closer { 1.0 / 1.4 } else { 1.4 };
-            ctx.app_state.glass_to_world_transform =
-                ctx.app_state.glass_to_world_transform * Transform2::scale(scale);
+            ctx.app_state.glass_to_world_transform.update(|transform| {
+                *transform = *transform * Transform2::scale(scale);
+            });
         }
         Ok(CanUndo::No)
     }

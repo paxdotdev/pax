@@ -45,8 +45,12 @@ impl ToolBehaviour for CreateComponentTool {
         point: Point2<Glass>,
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        let is_shift_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Shift);
-        let is_alt_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Alt);
+        let is_shift_key_down = ctx
+            .app_state
+            .keys_pressed
+            .get()
+            .contains(&InputEvent::Shift);
+        let is_alt_key_down = ctx.app_state.keys_pressed.get().contains(&InputEvent::Alt);
         self.bounds = AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
             .morph_constrained(point, self.origin, is_alt_key_down, is_shift_key_down);
         ControlFlow::Continue(())
@@ -106,10 +110,20 @@ pub struct SelectNode {
 
 impl Action for SelectNode {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        if self.overwrite || !ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
-            ctx.app_state.selected_template_node_ids.clear();
+        if self.overwrite
+            || !ctx
+                .app_state
+                .keys_pressed
+                .get()
+                .contains(&InputEvent::Shift)
+        {
+            ctx.app_state.selected_template_node_ids.update(|ids| {
+                ids.clear();
+            });
         }
-        ctx.app_state.selected_template_node_ids.push(self.id);
+        ctx.app_state.selected_template_node_ids.update(|ids| {
+            ids.push(self.id);
+        });
         Ok(CanUndo::No)
     }
 }
