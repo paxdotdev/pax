@@ -23,7 +23,7 @@ pub struct OpenLLMPrompt {
 
 impl Action for OpenLLMPrompt {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        if !self.require_meta || ctx.app_state.keys_pressed.contains(&InputEvent::Meta) {
+        if !self.require_meta || ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
             OPEN_LLM_PROMPT.store(true, Ordering::Relaxed);
         }
         Ok(CanUndo::No)

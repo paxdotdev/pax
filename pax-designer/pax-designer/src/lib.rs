@@ -60,7 +60,7 @@ pub enum ProjectMsg {
 impl Action for ProjectMsg {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
         match *self {
-            ProjectMsg::SetMode(mode) => ctx.app_state.project_mode = mode,
+            ProjectMsg::SetMode(mode) => ctx.app_state.project_mode.set(mode),
         }
         Ok(CanUndo::No)
     }
@@ -82,7 +82,7 @@ impl PaxDesigner {
         }
         model::read_app_state(|app_state| {
             // set transform to world transform
-            let world_to_glass = app_state.glass_to_world_transform.inverse();
+            let world_to_glass = app_state.glass_to_world_transform.get().inverse();
             let t = world_to_glass.get_translation();
             let s = world_to_glass.get_scale();
             self.transform2d.set(
@@ -93,7 +93,7 @@ impl PaxDesigner {
             );
 
             // set app mode
-            let editing = match app_state.project_mode {
+            let editing = match app_state.project_mode.get() {
                 ProjectMode::Edit => true,
                 ProjectMode::Playing => false,
             };

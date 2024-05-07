@@ -42,7 +42,7 @@ pub struct SelectTool {
 
 impl Action for SelectTool {
     fn perform(self: Box<Self>, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
-        ctx.app_state.selected_tool = self.tool;
+        ctx.app_state.selected_tool.set(self.tool);
         Ok(CanUndo::No)
     }
 }
@@ -201,7 +201,8 @@ impl Toolbar {
             };
         });
         model::read_app_state(|app_state| {
-            let tool = app_state.selected_tool;
+            //TODOdag
+            let tool = app_state.selected_tool.get();
             TOOLBAR_ENTRIES.with_borrow(|entries| {
                 'outer: for (row, entry) in entries.iter().enumerate() {
                     for (col, item) in entry.items.iter().enumerate() {

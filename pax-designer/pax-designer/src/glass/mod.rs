@@ -108,9 +108,11 @@ impl Action for SetEditingComponent {
             .save()
             .map_err(|_| anyhow!("builder couldn't save"))?;
         dt.reload_edit();
-        ctx.app_state.selected_template_node_ids.clear();
-        ctx.app_state.selected_component_id = type_id;
-        *ctx.app_state.tool_behaviour.borrow_mut() = None;
+        ctx.app_state
+            .selected_template_node_ids
+            .update(|v| v.clear());
+        ctx.app_state.selected_component_id.set(type_id);
+        ctx.app_state.tool_behaviour.set(None);
         Ok(CanUndo::No)
     }
 }
@@ -122,11 +124,13 @@ impl Glass {
 
     pub fn handle_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
         let node_id = model::read_app_state(|app_state| {
-            let Some(selected_node_id) = app_state.selected_template_node_ids.last() else {
+            let selected_nodes = app_state.selected_template_node_ids.get();
+
+            let Some(selected_node_id) = selected_nodes.last() else {
                 return None;
             };
             let uid = UniqueTemplateNodeIdentifier::build(
-                app_state.selected_component_id.clone(),
+                app_state.selected_component_id.get().clone(),
                 selected_node_id.clone(),
             );
             let mut dt = ctx.designtime.borrow_mut();
@@ -183,11 +187,13 @@ impl Glass {
         model::read_app_state(|app_state| {
             // Draw current tool visuals
             // this could be factored out into it's own component as well eventually
-            if let Some(tool) = app_state.tool_behaviour.borrow().as_ref() {
-                tool.visualize(self);
-            } else {
-                self.is_rect_tool_active.set(false);
-            }
+            app_state.tool_behaviour.read(|tool| {
+                if let Some(tool) = tool {
+                    tool.borrow().visualize(self);
+                } else {
+                    self.is_rect_tool_active.set(false);
+                }
+            });
         });
     }
 }

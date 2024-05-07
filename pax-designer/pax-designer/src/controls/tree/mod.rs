@@ -239,7 +239,7 @@ impl Tree {
                     let node_id = &self.tree_objects.get()[sender].node_id;
                     let type_id_of_tree_target = model::read_app_state(|app_state| {
                         let uuid = UniqueTemplateNodeIdentifier::build(
-                            app_state.selected_component_id.clone(),
+                            app_state.selected_component_id.get().clone(),
                             node_id.clone(),
                         );
                         let mut dt = ctx.designtime.borrow_mut();
@@ -256,9 +256,9 @@ impl Tree {
         //HACK pre dirty-dag, ulgy but works and can be removed later!
         model::read_app_state(|app_state| {
             let before_len = self.visible_tree_objects.get().len();
-            let type_id = &app_state.selected_component_id;
+            let type_id = &app_state.selected_component_id.get();
 
-            let selected = &app_state.selected_template_node_ids;
+            let selected = &app_state.selected_template_node_ids.get();
             let manifest_ver = {
                 let dt = ctx.designtime.borrow();
                 dt.get_manifest_version()

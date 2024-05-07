@@ -25,9 +25,10 @@ pub struct CreateComponent {
 impl Action for CreateComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = ctx.engine_context.designtime.borrow_mut();
-        let mut builder = dt
-            .get_orm_mut()
-            .build_new_node(ctx.app_state.selected_component_id.clone(), self.type_id);
+        let mut builder = dt.get_orm_mut().build_new_node(
+            ctx.app_state.selected_component_id.get().clone(),
+            self.type_id,
+        );
         builder.set_property("x", &to_pixels(self.bounds.top_left().x))?;
         builder.set_property("y", &to_pixels(self.bounds.top_left().y))?;
         builder.set_property("width", &to_pixels(self.bounds.width()))?;
@@ -107,11 +108,15 @@ pub struct MoveSelected {
 
 impl Action for MoveSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        if ctx.app_state.selected_template_node_ids.len() > 1 {
+        if ctx.app_state.selected_template_node_ids.get().len() > 1 {
             // TODO support multi-selection movement
             return Ok(CanUndo::No);
         }
-        let Some(selected) = ctx.app_state.selected_template_node_ids.get(0) else {
+        let Some(selected) = ctx
+            .app_state
+            .selected_template_node_ids
+            .read(|ids| ids.get(0).cloned())
+        else {
             return Err(anyhow!("tried to move selected but no selected object"));
         };
         let mut dt = ctx.engine_context.designtime.borrow_mut();
@@ -119,7 +124,7 @@ impl Action for MoveSelected {
         let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.clone(),
+                ctx.app_state.selected_component_id.get(),
                 selected.clone(),
             ))
         else {
@@ -151,8 +156,12 @@ impl Action for ResizeSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let (bounds, origin) = self.original_bounds;
 
-        let is_shift_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Shift);
-        let is_alt_key_down = ctx.app_state.keys_pressed.contains(&InputEvent::Alt);
+        let mut is_shift_key_down = false;
+        let mut is_alt_key_down = false;
+        ctx.app_state.keys_pressed.read(|keys| {
+            is_shift_key_down = keys.contains(&InputEvent::Shift);
+            is_alt_key_down = keys.contains(&InputEvent::Alt);
+        });
 
         let world_anchor = bounds.from_inner_space(self.attachment_point);
         let new_bounds =
@@ -166,13 +175,14 @@ impl Action for ResizeSelected {
             .app_state
             .selected_template_node_ids
             // TODO multi-select
+            .get()
             .first()
             .expect("executed action ResizeSelected without a selected object")
             .clone();
         let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.clone(),
+                ctx.app_state.selected_component_id.get(),
                 selected,
             ))
         else {
@@ -217,7 +227,12 @@ impl Action for RotateSelected {
         let new_rot = angle_diff + self.start_angle;
 
         let mut angle_deg = new_rot.get_as_degrees().rem_euclid(360.0);
-        if ctx.app_state.keys_pressed.contains(&InputEvent::Shift) {
+        if ctx
+            .app_state
+            .keys_pressed
+            .get()
+            .contains(&InputEvent::Shift)
+        {
             angle_deg = (angle_deg / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
             if angle_deg >= 360.0 - f64::EPSILON {
                 angle_deg = 0.0;
@@ -229,13 +244,14 @@ impl Action for RotateSelected {
             .app_state
             .selected_template_node_ids
             // TODO multi-select
+            .get()
             .first()
             .expect("executed action ResizeSelected without a selected object")
             .clone();
         let Some(mut builder) = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.clone(),
+                ctx.app_state.selected_component_id.get().clone(),
                 selected,
             ))
         else {
@@ -264,7 +280,7 @@ pub struct SerializeRequested {}
 impl Action for SerializeRequested {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = ctx.engine_context.designtime.borrow_mut();
-        if let Err(e) = dt.send_component_update(&ctx.app_state.selected_component_id) {
+        if let Err(e) = dt.send_component_update(&ctx.app_state.selected_component_id.get()) {
             pax_engine::log::error!("failed to save component to file: {:?}", e);
         }
         Ok(CanUndo::No)
@@ -283,11 +299,11 @@ impl Action for UndoRequested {
 
 impl Action for DeleteSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected = &ctx.app_state.selected_template_node_ids;
+        let selected = &ctx.app_state.selected_template_node_ids.get();
         let mut dt = ctx.engine_context.designtime.borrow_mut();
         for s in selected {
             let uid = UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.clone(),
+                ctx.app_state.selected_component_id.get(),
                 s.clone(),
             );
             dt.get_orm_mut()

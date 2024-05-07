@@ -57,14 +57,15 @@ impl Settings {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            if app_state.selected_template_node_ids.len() != 1 {
+            if app_state.selected_template_node_ids.get().len() != 1 {
                 self.is_component_selected.set(false);
                 return;
             }
             self.is_component_selected.set(true);
 
-            let temp_node_id = app_state.selected_template_node_ids[0].clone();
-            let type_id = app_state.selected_component_id.clone();
+            let temp_node_id = app_state.selected_template_node_ids.get()[0].clone();
+            //TODOdag
+            let type_id = app_state.selected_component_id.get().clone();
 
             let update = self.stid.get() != type_id || self.snid.get() != temp_node_id;
 

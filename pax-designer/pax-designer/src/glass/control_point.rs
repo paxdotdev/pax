@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::object_editor::GlassPoint;
@@ -28,7 +29,7 @@ pub struct ControlPoint {
 }
 
 pub type ControlPointBehaviourFactory =
-    Box<dyn Fn(&mut ActionContext, Point2<Glass>) -> Box<dyn ToolBehaviour>>;
+    Box<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>;
 
 pub trait ControlPointBehaviour {
     fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>);
@@ -73,12 +74,12 @@ impl<C: ControlPointBehaviour> ToolBehaviour for C {
 }
 
 pub struct ActivateControlPoint {
-    behaviour: Box<dyn ToolBehaviour>,
+    behaviour: Rc<RefCell<dyn ToolBehaviour>>,
 }
 
 impl Action for ActivateControlPoint {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        *ctx.app_state.tool_behaviour.borrow_mut() = Some(self.behaviour);
+        ctx.app_state.tool_behaviour.set(Some(self.behaviour));
         Ok(CanUndo::No)
     }
 }
