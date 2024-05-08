@@ -147,7 +147,8 @@ pub trait ComponentFactory {
                     "{{common_property.name}}" => {
                         let resolved_property: Property<{{common_property.property_type._type_id}}> = match value.clone() {
                             ValueDefinition::LiteralValue(lv) => {
-                                let val = <{{common_property.property_type._type_id}}>::from_pax_any(from_pax_try_coerce::<{{common_property.property_type._type_id}}>(&lv.raw_value).unwrap()).unwrap();
+                                let val = from_pax_try_coerce::<{{common_property.property_type._type_id}}>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
                                 Property::new_with_name(val, &lv.raw_value)
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
@@ -166,15 +167,7 @@ pub trait ComponentFactory {
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                         let coerced = new_value_wrapped.try_coerce::<{{common_property.property_type._type_id}}>().unwrap();
-                                        if let Ok(downcast_value) = <{{common_property.property_type._type_id}}>::from_pax_any(coerced) {
-                                            downcast_value
-                                        } else {
-                                            panic!(
-                                                "property has an unexpected type for vtable id {}",
-                                                info.vtable_id
-                                            );
-                                        }
-                                    
+                                        coerced
                                     }, &dependents, &token.raw_value)
                                 } else {
                                     unreachable!("No info for expression")
@@ -393,14 +386,7 @@ impl DefinitionToInstanceTraverser {
                         properties.boolean_expression =  Property::computed_with_name(move || {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             let coerced = new_value_wrapped.try_coerce::<bool>().unwrap();
-                            if let Ok(downcast_value) = bool::from_pax_any(coerced) {
-                                downcast_value
-                            } else {
-                                panic!(
-                                    "property has an unexpected type for vtable id {}",
-                                    vtable_id
-                                );
-                            }
+                            coerced
                         }, &dependencies, "conditional (if) expr");
                         properties.to_pax_any()
                     })));
@@ -442,14 +428,7 @@ impl DefinitionToInstanceTraverser {
                         properties.index = Property::computed_with_name(move || {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             let coerced = new_value_wrapped.try_coerce::<Numeric>().unwrap();
-                            if let Ok(downcast_value) = Numeric::from_pax_any(coerced) {
-                                downcast_value
-                            } else {
-                                panic!(
-                                    "property has an unexpected type for vtable id {}",
-                                    vtable_id
-                                );
-                            }
+                            coerced
                         }, &dependencies, "slot index");
                         properties.to_pax_any()
                     })));
@@ -501,14 +480,7 @@ impl DefinitionToInstanceTraverser {
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<Vec<Rc<RefCell<PaxAny>>>>().unwrap();
-                                        if let Ok(downcast_value) = <Vec<Rc<RefCell<PaxAny>>>>::from_pax_any(coerced) {
-                                            downcast_value
-                                        } else {
-                                            panic!(
-                                                "property has an unexpected type for vtable id {}",
-                                                vtable_id
-                                            );
-                                        }
+                                        coerced
                                     }, &dependencies, "repeat source vec")
                                     ) 
                             } else {
@@ -523,14 +495,7 @@ impl DefinitionToInstanceTraverser {
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<std::ops::Range::<isize>>().unwrap();
-                                        if let Ok(downcast_value) = <std::ops::Range::<isize>>::from_pax_any(coerced) {
-                                            downcast_value
-                                        } else {
-                                            panic!(
-                                                "property has an unexpected type for vtable id {}",
-                                                vtable_id
-                                            );
-                                        }
+                                        coerced
                                     }, &dependencies, "repeat source range")
                                 )
                             } else {

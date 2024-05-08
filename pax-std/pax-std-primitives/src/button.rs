@@ -105,7 +105,7 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.label.get().string.clone(),
+                                properties.label.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style,

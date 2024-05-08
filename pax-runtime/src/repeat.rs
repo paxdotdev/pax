@@ -129,6 +129,7 @@ impl InstanceNode for RepeatInstance {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
                     };
+                    let id = cloned_expanded_node.id.0;
                     let source = source_expression.get();
                     let source_len = source.len();
                     if source_len == *last_length.borrow() {
@@ -143,6 +144,10 @@ impl InstanceNode for RepeatInstance {
                             let property_i = Property::new(i);
                             let cp_source_expression = source_expression.clone();
                             let property_elem = Property::computed_with_name(
+                                // TODOdag why is this triggering after children have been recomputed?
+                                // How to make outer recompute and drop this before evaluation?
+                                // somehow, this is accessed before children are during tick?
+                                //
                                 move || Some(Rc::clone(&cp_source_expression.get()[i])),
                                 &[source_expression.untyped()],
                                 "repeat elem",

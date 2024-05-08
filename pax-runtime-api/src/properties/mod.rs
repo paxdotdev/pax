@@ -126,6 +126,23 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
 
+    // Get access to a mutable reference to the inner value T.
+    // Always updates dependents of this property, no matter
+    // if the value changed or not
+    pub fn update(&self, f: impl FnOnce(&mut T)) {
+        // This is a temporary impl of the update method.
+        // (very bad perf comparatively, but very safe).
+        let mut val = self.get();
+        f(&mut val);
+        self.set(val);
+    }
+
+    // Get access to a reference to the inner value T.
+    pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
+        let val = self.get();
+        f(&val)
+    }
+
     /// replaces a properties evaluation/inbounds/value to be the same as
     /// target, while keeping it's dependents.
     /// WARNING: this method can introduce circular dependencies if one is not careful.

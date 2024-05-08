@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::Interpolatable;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
-#[derive(Debug, Copy, PartialEq)]
+#[derive(Debug, Copy)]
 pub enum Numeric {
     I8(i8),
     I16(i16),
@@ -17,6 +17,15 @@ pub enum Numeric {
     F32(f32),
     ISize(isize),
     USize(usize),
+}
+
+impl PartialEq for Numeric {
+    fn eq(&self, rhs: &Self) -> bool {
+        match (self.is_float(), rhs.is_float()) {
+            (false, false) => self.to_int() == rhs.to_int(),
+            _ => (self.to_float() - rhs.to_float()) < 1e-6,
+        }
+    }
 }
 
 impl Default for Numeric {
