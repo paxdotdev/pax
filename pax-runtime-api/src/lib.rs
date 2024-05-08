@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
@@ -758,10 +758,10 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
         self.start.interpolate(&_other.start, _t)..self.end.interpolate(&_other.end, _t)
     }
 }
-impl Interpolatable for Rc<RefCell<PaxAny>> {}
 impl Interpolatable for () {}
 
-impl<T: Interpolatable> Interpolatable for Rc<T> {}
+impl<T: ?Sized + Clone> Interpolatable for HashSet<T> {}
+impl<T: ?Sized> Interpolatable for Rc<T> {}
 impl<T: Interpolatable> Interpolatable for Weak<T> {}
 impl<T: Interpolatable> Interpolatable for RefCell<T> {}
 impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}

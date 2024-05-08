@@ -40,7 +40,7 @@ thread_local! {
 /// type if able, or returns an error
 pub fn from_pax_try_coerce<T: ToFromPaxAny + CoercionRules + Clone + 'static>(
     str: &str,
-) -> std::result::Result<PaxAny, String>
+) -> std::result::Result<T, String>
 where
     T: DeserializeOwned,
 {
@@ -244,10 +244,7 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                     Rule::string => {
                         let string_within_quotes =
                             inner_pair.into_inner().next().unwrap().as_str().to_string();
-                        visitor.visit_map(PaxObject::new(
-                            Some(STRING_BOX.to_string()),
-                            vec![("string".to_string(), string_within_quotes)],
-                        ))
+                        visitor.visit_string(string_within_quotes)
                     }
                     Rule::literal_tuple => {
                         let pairs = inner_pair.into_inner();

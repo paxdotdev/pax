@@ -12,7 +12,7 @@ pub mod components {
 
 pub mod primitives {
     use pax_engine::pax;
-    use pax_runtime::api::{Color, Property, Size, StringBox, Stroke};
+    use pax_runtime::api::{Color, Property, Size, Stroke};
     use pax_runtime::api::{Fill, Numeric};
 
     use crate::types::text::TextStyle;
@@ -62,7 +62,7 @@ pub mod primitives {
     #[primitive("pax_std_primitives::text::TextInstance")]
     pub struct Text {
         pub editable: Property<bool>,
-        pub text: Property<StringBox>,
+        pub text: Property<String>,
         pub style: Property<TextStyle>,
         pub style_link: Property<TextStyle>,
     }
@@ -76,7 +76,7 @@ pub mod primitives {
     #[pax]
     #[primitive("pax_std_primitives::textbox::TextboxInstance")]
     pub struct Textbox {
-        pub text: Property<StringBox>,
+        pub text: Property<String>,
         pub background: Property<Color>,
         pub stroke: Property<Stroke>,
         pub border_radius: Property<Numeric>,
@@ -87,14 +87,14 @@ pub mod primitives {
     #[pax]
     #[primitive("pax_std_primitives::button::ButtonInstance")]
     pub struct Button {
-        pub label: Property<StringBox>,
+        pub label: Property<String>,
         pub style: Property<TextStyle>,
     }
 
     #[pax]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
-        pub path: Property<StringBox>,
+        pub path: Property<String>,
     }
 
     #[pax]

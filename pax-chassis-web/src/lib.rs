@@ -656,7 +656,8 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub fn designtime_tick(&mut self) {
         self.handle_recv_designtime();
-        self.update_userland_component();
+        // TODOdag re-connect designtime updates
+        // self.update_userland_component();
     }
 
     pub fn tick(&mut self) -> MemorySlice {
