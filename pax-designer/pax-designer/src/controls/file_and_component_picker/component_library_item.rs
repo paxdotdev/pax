@@ -30,8 +30,8 @@ pub struct ComponentLibraryItem {
 
 #[pax]
 pub struct ComponentLibraryItemData {
-    pub name: StringBox,
-    pub file_path: StringBox,
+    pub name: String,
+    pub file_path: String,
     pub type_id: TypeId,
     pub bounds_pixels: (f64, f64),
 }

@@ -26,7 +26,6 @@
 <Rectangle id=global_background />
 
 @settings {
-    @pre_render: pre_render,
     @mount: on_mount,
 
     #global_background {

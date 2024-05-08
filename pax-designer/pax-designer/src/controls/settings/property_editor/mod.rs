@@ -22,8 +22,8 @@ use text_property_editor::TextPropertyEditor;
 #[pax]
 #[file("controls/settings/property_editor/mod.pax")]
 pub struct PropertyEditor {
-    pub name: Property<StringBox>,
-    pub ind: Property<Option<Numeric>>,
+    pub name: Property<String>,
+    pub ind: Property<usize>,
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
 
@@ -33,41 +33,46 @@ pub struct PropertyEditor {
 }
 
 impl PropertyEditor {
-    pub fn tick(&mut self, ctx: &NodeContext) {
-        let prop = self.data.get();
-        if &self.name.get().string != &prop.name
-            || self.stid.get() != prop.stid
-            || self.snid.get() != prop.snid
-        {
-            let prop = PropertyEditorData {
-                editor_index: self.ind.get().map(|v| v.to_int() as usize),
-                name: self.name.get().string.clone(),
-                stid: self.stid.get().clone(),
-                snid: self.snid.get().clone(),
-            };
-            let prop_type_ident = prop
-                .get_prop_type_id(ctx)
-                .unwrap_or_default()
-                .get_unique_identifier();
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let stid = self.stid.clone();
+        let snid = self.snid.clone();
+        let name = self.name.clone();
+        let ind = self.ind.clone();
+        let deps = [
+            stid.untyped(),
+            snid.untyped(),
+            name.untyped(),
+            ind.untyped(),
+        ];
+        self.data.replace_with(Property::computed(
+            move || PropertyEditorData {
+                editor_index: ind.get(),
+                name: name.get(),
+                stid: stid.get(),
+                snid: snid.get(),
+            },
+            &deps,
+        ));
 
-            // Id corresponds to a given editor type in the pax file
-            // 1 = general text editor (without any special features)
-            // 2 = color picker
-            let prop_type_ident_id = match prop_type_ident.as_str() {
-                "pax_engine::api::Size" => 1,
-                "pax_engine::api::Rotation" => 1,
-                "pax_engine::api::Numeric" => 1,
-                "String" => 1,
-                "pax_engine::api::Transform2D" => 1,
-                "pax_designer::pax_reexports::pax_std::types::Stroke" => 3,
-                "pax_designer::pax_reexports::pax_std::types::Fill" => 2,
-                "pax_designer::pax_reexports::pax_std::types::RectangleCornerRadii" => 1,
-                "pax_engine::api::Transform" => 1,
-                _ => 1,
-            };
-            self.prop_type_ident_id.set(prop_type_ident_id);
-            self.data.set(prop);
-        }
+        let data = self.data.clone();
+        let ctx = ctx.clone();
+        let deps = [data.untyped()];
+        self.prop_type_ident_id.replace_with(Property::computed(
+            move || {
+                let data = data.get();
+                let prop_type_ident = data
+                    .get_prop_type_id(&ctx)
+                    .unwrap_or_default()
+                    .get_unique_identifier();
+
+                match prop_type_ident.as_str() {
+                    "pax_designer::pax_reexports::pax_engine::api::Fill" => 2,
+                    "pax_designer::pax_reexports::pax_engine::api::Stroke" => 3,
+                    _ => 1,
+                }
+            },
+            &deps,
+        ));
     }
 }
 
@@ -75,7 +80,7 @@ impl PropertyEditor {
 pub struct PropertyEditorData {
     // this is used  by the custom properties to communicate back to the
     // settings editor to set its height
-    pub editor_index: Option<usize>,
+    pub editor_index: usize,
     pub name: String,
     pub stid: TypeId,
     pub snid: TemplateNodeId,

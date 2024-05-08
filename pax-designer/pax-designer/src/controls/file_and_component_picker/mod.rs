@@ -1,8 +1,11 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use pax_designtime::DesigntimeManager;
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -30,100 +33,120 @@ use crate::USER_PROJ_ROOT_IMPORT_PATH;
 pub struct FileAndComponentPicker {
     pub library_active: Property<bool>,
     pub registered_components: Property<Vec<ComponentLibraryItemData>>,
-    pub library_active_toggle_image: Property<StringBox>,
+    pub library_active_toggle_image: Property<String>,
     pub manifest_ver: Property<usize>,
 }
 
+impl Interpolatable for SetLibraryState {}
+#[derive(Clone, Default)]
 pub struct SetLibraryState {
     pub open: bool,
 }
 
 impl Action for SetLibraryState {
     fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        *LIBRARY_MSG.lock().unwrap() = Some(*self);
+        LIBRARY_PROP.with(|lib_prop| {
+            lib_prop.set(*self);
+        });
         Ok(CanUndo::No)
     }
 }
 
-static LIBRARY_MSG: Mutex<Option<SetLibraryState>> = Mutex::new(None);
+thread_local! {
+    static LIBRARY_PROP: Property<SetLibraryState> = Property::new(SetLibraryState { open: false });
+}
 
 impl FileAndComponentPicker {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        LIBRARY_PROP.with(|lib_prop| {
+            let manifest_ver = self.manifest_ver.clone();
+            let lp = lib_prop.clone();
+            // Add manifest ver as dep so that whenever it changes,
+            // all dependents are updated (not actually used in compute)
+            let deps = [lib_prop.untyped(), manifest_ver.untyped()];
+            self.library_active
+                .replace_with(Property::computed(move || lp.get().open, &deps));
+        });
+        let lib_active = self.library_active.clone();
+        let deps = [lib_active.untyped()];
         self.library_active_toggle_image
-            .set(StringBox::from("assets/icons/chevron-down.png".to_string()));
+            .replace_with(Property::computed(
+                move || {
+                    String::from(match lib_active.get() {
+                        true => "assets/icons/x.png",
+                        false => "assets/icons/chevron-down.png",
+                    })
+                },
+                &deps,
+            ));
+        let dt = Rc::clone(&ctx.designtime);
+        let lib_active = self.library_active.clone();
+        let selected_component =
+            model::read_app_state(|app_state| app_state.selected_component_id.clone());
+        let deps = [lib_active.untyped(), selected_component.untyped()];
+        self.registered_components.replace_with(Property::computed(
+            move || {
+                let dt = dt.borrow_mut();
+
+                if lib_active.get() == false {
+                    return vec![];
+                }
+
+                let components: Vec<_> = dt
+                    .get_orm()
+                    .get_components()
+                    .iter()
+                    .filter_map(|type_id| {
+                        let is_userland_component = type_id
+                            .import_path()
+                            .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH));
+
+                        let is_mock =
+                            matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+
+                        if !is_userland_component && !is_mock {
+                            return None;
+                        }
+
+                        let comp = dt.get_orm().get_component(type_id).unwrap();
+                        let has_template = !comp.is_struct_only_component;
+                        let is_not_current = selected_component.get() != comp.type_id;
+                        if has_template && is_not_current {
+                            Some(ComponentLibraryItemData {
+                                name: comp.type_id.get_pascal_identifier().unwrap(),
+                                file_path: comp.module_path.clone(),
+                                type_id: comp.type_id.clone(),
+                                bounds_pixels: (200.0, 200.0),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                components
+            },
+            &deps,
+        ));
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
+        //TODOdag convert get_manifest_version to return prop?
         let manifest_ver = {
             let dt = ctx.designtime.borrow();
             dt.get_manifest_version()
         };
         if manifest_ver != self.manifest_ver.get() {
-            self.set_library(ctx);
             self.manifest_ver.set(manifest_ver);
-        }
-
-        if let Some(msg) = LIBRARY_MSG.lock().unwrap().take() {
-            if self.library_active.get() != msg.open {
-                self.library_active.set(msg.open);
-                self.set_library(ctx);
-            }
         }
     }
 
     pub fn library_toggle(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        self.library_active.set(!self.library_active.get());
-        self.set_library(ctx);
-    }
-
-    pub fn set_library(&mut self, ctx: &NodeContext) {
-        let curr = self.library_active.get();
-        self.library_active_toggle_image.set(StringBox::from(
-            match curr {
-                true => "assets/icons/x.png",
-                false => "assets/icons/chevron-down.png",
-            }
-            .to_string(),
-        ));
-
-        let dt = ctx.designtime.borrow_mut();
-        let components: Vec<_> = dt
-            .get_orm()
-            .get_components()
-            .iter()
-            .filter_map(|type_id| {
-                let is_userland_component = type_id
-                    .import_path()
-                    .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH));
-
-                let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
-
-                if !is_userland_component && !is_mock {
-                    return None;
-                }
-
-                let comp = dt.get_orm().get_component(type_id).unwrap();
-                let has_template = !comp.is_struct_only_component;
-                let mut is_not_current = false;
-                model::read_app_state(|app_state| {
-                    is_not_current = app_state.selected_component_id.get() != comp.type_id
-                });
-                if has_template && is_not_current {
-                    Some(ComponentLibraryItemData {
-                        name: StringBox::from(comp.type_id.get_pascal_identifier().unwrap()),
-                        file_path: StringBox::from(comp.module_path.to_owned()),
-                        type_id: comp.type_id.clone(),
-                        bounds_pixels: (200.0, 200.0),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        self.registered_components.set(match curr {
-            true => components,
-            false => vec![],
-        });
+        model::perform_action(
+            SetLibraryState {
+                open: !self.library_active.get(),
+            },
+            ctx,
+        );
     }
 }

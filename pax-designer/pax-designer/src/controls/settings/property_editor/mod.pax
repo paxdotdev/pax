@@ -13,5 +13,5 @@ if self.prop_type_ident_id == 3 {
 }
 
 @settings {
-	@tick: self.tick
+	@mount: on_mount
 }

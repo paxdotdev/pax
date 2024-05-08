@@ -36,12 +36,20 @@ pub struct SetStage(pub StageInfo);
 
 impl Action for SetStage {
     fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        *SET_STAGE_MSG.lock().unwrap() = Some(self.0);
+        STAGE_PROP.with(|stage| {
+            stage.set(self.0);
+        });
         Ok(CanUndo::No)
     }
 }
 
-static SET_STAGE_MSG: Mutex<Option<StageInfo>> = Mutex::new(None);
+thread_local! {
+    static STAGE_PROP: Property<StageInfo> = Property::new(StageInfo {
+            width: 2561 / 2,
+            height: 1440 / 2,
+            color: Color::WHITE,
+        });
+}
 
 #[pax]
 #[main]
@@ -69,36 +77,40 @@ impl Action for ProjectMsg {
 impl PaxDesigner {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         self.glass_active.set(true);
-        self.stage.set(StageInfo {
-            width: 2561 / 2,
-            height: 1440 / 2,
-            color: Color::WHITE,
-        });
-    }
+        STAGE_PROP.with(|stage| self.stage.replace_with(stage.clone()));
 
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        if let Some(msg) = SET_STAGE_MSG.lock().unwrap().take() {
-            self.stage.set(msg);
-        }
         model::read_app_state(|app_state| {
-            // set transform to world transform
-            let world_to_glass = app_state.glass_to_world_transform.get().inverse();
-            let t = world_to_glass.get_translation();
-            let s = world_to_glass.get_scale();
-            self.transform2d.set(
-                Transform2D::scale(
-                    Size::Percent((100.0 * s.x).into()),
-                    Size::Percent((100.0 * s.y).into()),
-                ) * Transform2D::translate(Size::Pixels((t.x).into()), Size::Pixels((t.y).into())),
-            );
+            let glass_to_world = app_state.glass_to_world_transform.clone();
+            let deps = [glass_to_world.untyped()];
+            self.transform2d.replace_with(Property::computed(
+                move || {
+                    let world_to_glass = glass_to_world.get().inverse();
+                    let t = world_to_glass.get_translation();
+                    let s = world_to_glass.get_scale();
+                    Transform2D::scale(
+                        Size::Percent((100.0 * s.x).into()),
+                        Size::Percent((100.0 * s.y).into()),
+                    ) * Transform2D::translate(
+                        Size::Pixels((t.x).into()),
+                        Size::Pixels((t.y).into()),
+                    )
+                },
+                &deps,
+            ));
 
-            // set app mode
-            let editing = match app_state.project_mode.get() {
-                ProjectMode::Edit => true,
-                ProjectMode::Playing => false,
-            };
-            self.glass_active.set(editing);
-            self.interaction_mode.set(!editing);
+            let proj_mode = app_state.project_mode.clone();
+            let deps = [proj_mode.untyped()];
+            self.glass_active.replace_with(Property::computed(
+                move || match proj_mode.get() {
+                    ProjectMode::Edit => true,
+                    ProjectMode::Playing => false,
+                },
+                &deps,
+            ));
+            let glass_active = self.glass_active.clone();
+            let deps = [glass_active.untyped()];
+            self.interaction_mode
+                .replace_with(Property::computed(move || !glass_active.get(), &deps));
         });
     }
 }

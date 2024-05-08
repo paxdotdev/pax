@@ -31,6 +31,8 @@ pub struct Settings {
     pub stid: Property<TypeId>,
     // selected template node id
     pub snid: Property<TemplateNodeId>,
+    // areas
+    pub areas: Property<Vec<f64>>,
 }
 
 #[pax]
@@ -39,8 +41,8 @@ pub struct Settings {
 pub struct PropertyArea {
     pub vertical_space: f64,
     pub vertical_pos: f64,
-    pub name: StringBox,
-    pub name_friendly: StringBox,
+    pub name: String,
+    pub name_friendly: String,
 }
 
 // #[derive(Debug)]
@@ -50,103 +52,109 @@ pub struct AreaMsg {
 }
 
 const SPACING: f64 = 10.0;
-pub static REQUEST_PROPERTY_AREA_CHANNEL: Mutex<Option<Vec<AreaMsg>>> = Mutex::new(None);
+thread_local! {
+    pub static AREAS_PROP: Property<Vec<f64>> = Property::new(Vec::new());
+}
 
 impl Settings {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
-
-    pub fn pre_render(&mut self, ctx: &NodeContext) {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            if app_state.selected_template_node_ids.get().len() != 1 {
-                self.is_component_selected.set(false);
-                return;
-            }
-            self.is_component_selected.set(true);
+            let stnids = app_state.selected_template_node_ids.clone();
+            let deps = [stnids.untyped()];
+            self.is_component_selected.replace_with(Property::computed(
+                move || stnids.read(|ids| ids.len()) == 1,
+                &deps,
+            ));
 
-            let temp_node_id = app_state.selected_template_node_ids.get()[0].clone();
-            //TODOdag
-            let type_id = app_state.selected_component_id.get().clone();
+            let stnids = app_state.selected_template_node_ids.clone();
+            self.snid.replace_with(Property::computed(
+                move || stnids.read(|ids| ids.get(0).cloned().unwrap_or(TemplateNodeId::build(0))),
+                &deps,
+            ));
 
-            let update = self.stid.get() != type_id || self.snid.get() != temp_node_id;
+            let scid = app_state.selected_component_id.clone();
+            let deps = [scid.untyped()];
+            self.stid
+                .replace_with(Property::computed(move || scid.get(), &deps));
 
-            self.stid.set(type_id.clone());
-            self.snid.set(temp_node_id.clone());
+            let stid = self.stid.clone();
+            let snid = self.snid.clone();
+            let ctx = ctx.clone();
+            let comp_selected = self.is_component_selected.clone();
+            let deps = [snid.untyped(), stid.untyped(), comp_selected.untyped()];
+            let selected_component_name = self.selected_component_name.clone();
+            let custom_props_no_position = Property::computed(
+                move || {
+                    let uni = UniqueTemplateNodeIdentifier::build(stid.get(), snid.get());
+                    let mut dt = ctx.designtime.borrow_mut();
 
-            if !update {
-                return;
-            }
+                    if let Some(node) = dt
+                        .get_orm()
+                        .get_component(&stid.get())
+                        .ok()
+                        .and_then(|c| c.template.as_ref())
+                        .and_then(|t| t.get_node(&snid.get()))
+                    {
+                        selected_component_name.set(
+                            node.type_id
+                                .get_pascal_identifier()
+                                .unwrap_or_else(|| String::new())
+                                .to_uppercase()
+                                .to_owned(),
+                        );
+                    } else {
+                        //does this work?
+                        selected_component_name.set("".to_owned())
+                    }
+                    let Some(mut node) = dt.get_orm_mut().get_node(uni) else {
+                        return vec![];
+                    };
+                    let props = node.get_all_properties();
 
-            let uni = UniqueTemplateNodeIdentifier::build(type_id.clone(), temp_node_id.clone());
-            let mut dt = ctx.designtime.borrow_mut();
-            if let Some(node) = dt
-                .get_orm()
-                .get_component(&type_id)
-                .ok()
-                .and_then(|c| c.template.as_ref())
-                .and_then(|t| t.get_node(&temp_node_id))
-            {
-                self.selected_component_name.set(
-                    node.type_id
-                        .get_pascal_identifier()
-                        .unwrap_or_else(|| String::new())
-                        .to_uppercase()
-                        .to_owned(),
-                );
-            } else {
-                self.selected_component_name.set("".to_owned())
-            }
-            let Some(mut node) = dt.get_orm_mut().get_node(uni) else {
-                return;
-            };
-            let props = node.get_all_properties();
-
-            let mut custom_props = vec![];
-            for (propdef, _) in props {
-                //ignore common props
-                match propdef.name.as_str() {
-                    "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
-                    | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => (),
-                    custom => custom_props.push(PropertyArea {
-                        //these will be overridden by messages being passed to this component
-                        vertical_space: 10.0,
-                        vertical_pos: Default::default(),
-                        name_friendly: StringBox::from(Self::camel_to_title_case(custom)),
-                        name: StringBox::from(custom),
-                    }),
-                };
-            }
-            self.custom_props.set(custom_props);
+                    let mut custom_props = vec![];
+                    for (propdef, _) in props {
+                        //ignore common props
+                        match propdef.name.as_str() {
+                            "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
+                            | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id"
+                            | "transform" => (),
+                            custom => custom_props.push(PropertyArea {
+                                //these will be overridden by messages being passed to this component
+                                vertical_space: 10.0,
+                                vertical_pos: Default::default(),
+                                name_friendly: String::from(Self::camel_to_title_case(custom)),
+                                name: String::from(custom),
+                            }),
+                        };
+                    }
+                    custom_props
+                },
+                &deps,
+            );
+            let areas = self.areas.clone();
+            let deps = [custom_props_no_position.untyped(), areas.untyped()];
+            self.custom_props.replace_with(Property::computed(
+                move || {
+                    let mut custom_props = custom_props_no_position.get();
+                    let mut running_sum = 0.0;
+                    for (i, area) in areas.get().iter().enumerate() {
+                        custom_props[i].vertical_space = *area;
+                        custom_props[i].vertical_pos = running_sum;
+                        running_sum += area + SPACING;
+                    }
+                    custom_props
+                },
+                &deps,
+            ));
         });
+    }
 
-        let timer = self.update_timer.get();
-        if timer > 0 {
-            let mut custom_props = self.custom_props.get();
-            // HACK: pre-double-binding handle messages from children specifying their requested height
-            {
-                let mut msgs = REQUEST_PROPERTY_AREA_CHANNEL.lock().unwrap();
-
-                if let Some(msgs) = msgs.as_mut() {
-                    msgs.retain(|msg| {
-                        if let Some(area) = custom_props.get_mut(msg.index) {
-                            area.vertical_space = msg.vertical_space;
-                            false
-                        } else {
-                            true
-                        }
-                    });
-                }
-            }
-            let mut running_sum = 0.0;
-            for area in &mut custom_props {
-                area.vertical_pos = running_sum;
-                running_sum += area.vertical_space + SPACING;
-            }
-            if timer == 1 {
-                //trigger for loop refresh
-                custom_props.pop();
-            }
-            self.update_timer.set(timer + 1);
-            self.custom_props.set(custom_props);
+    pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        // HACK: if directly bound to AREAS_PROP, results
+        // in double borrow of context (should investigate why at some point)
+        let val = AREAS_PROP.with(|p| p.get());
+        if val != self.areas.get() {
+            self.areas.set(val);
         }
     }
 
