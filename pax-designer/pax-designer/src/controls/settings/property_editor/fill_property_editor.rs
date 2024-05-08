@@ -1,7 +1,7 @@
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::*;
 
-use crate::controls::settings::{AreaMsg, REQUEST_PROPERTY_AREA_CHANNEL};
+use crate::controls::settings::{AreaMsg, AREAS_PROP};
 
 use super::PropertyEditorData;
 
@@ -13,29 +13,25 @@ pub struct FillPropertyEditor {
     pub data: Property<PropertyEditorData>,
 
     // All the below props should be private: never set by user, used for internal state
-    pub last_definition: Property<String>,
     pub red: Property<String>,
     pub green: Property<String>,
     pub blue: Property<String>,
     pub alpha: Property<String>,
-
     pub color: Property<Color>,
-
     pub palette: Property<Vec<Color>>,
 }
 
 impl FillPropertyEditor {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        if let Some(index) = self.data.get().editor_index {
-            let mut channel_guard = REQUEST_PROPERTY_AREA_CHANNEL.lock().unwrap();
-            let channel = channel_guard.get_or_insert_with(Vec::new);
-            channel.push(AreaMsg {
-                index,
-                vertical_space: 107.0,
-            })
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let index = self.data.get().editor_index;
+        if index != 0 {
+            AREAS_PROP.with(|areas| {
+                areas.update(|areas| {
+                    areas.extend((areas.len()..index).map(|_| 0.0));
+                    areas[index - 1] = 107.0;
+                });
+            });
         }
-        self.last_definition.set("UNSET".to_string());
-        self.set_color(Color::default());
         self.palette.set(vec![
             Color::WHITE,
             Color::GREEN,
@@ -44,38 +40,79 @@ impl FillPropertyEditor {
             Color::BLUE,
             Color::ORANGE,
         ]);
-    }
-
-    pub fn on_render(&mut self, ctx: &NodeContext) {
-        let val_str = self.data.get().get_value_as_str(ctx);
-        if self.last_definition.get() != val_str {
-            let color: Color = pax_manifest::deserializer::from_pax_try_coerce::<Color>(&val_str)
-                .and_then(|v| Color::from_pax_any(v))
-                .unwrap_or(Color::BLACK);
-            self.set_color(color);
-            self.last_definition.set(val_str);
-        }
+        let data = self.data.clone();
+        let deps = [data.untyped()];
+        let ctx = ctx.clone();
+        self.color.replace_with(Property::computed(
+            move || {
+                let val_str = data.get().get_value_as_str(&ctx);
+                let color: Color =
+                    pax_manifest::deserializer::from_pax_try_coerce::<Color>(&val_str)
+                        .unwrap_or_default();
+                color
+            },
+            &deps,
+        ));
+        let color = self.color.clone();
+        let deps = [color.untyped()];
+        self.red.replace_with(Property::computed(
+            move || ((color.get().to_rgba_0_1()[0] * 256.0) as u8).to_string(),
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.blue.replace_with(Property::computed(
+            move || ((color.get().to_rgba_0_1()[1] * 256.0) as u8).to_string(),
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.green.replace_with(Property::computed(
+            move || ((color.get().to_rgba_0_1()[2] * 256.0) as u8).to_string(),
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.alpha.replace_with(Property::computed(
+            move || ((color.get().to_rgba_0_1()[3] * 256.0) as u8).to_string(),
+            &deps,
+        ));
     }
 
     pub fn red_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if color_channel(&event.text).is_some() {
-            self.red.set(event.text.clone());
+        if let Some(v) = color_channel(&event.text) {
+            self.color.update(|col| {
+                let mut c = col.to_rgba_0_1();
+                c[0] = v as f64 / 256.0;
+                *col = Color::from_rgba_0_1(c);
+            });
+        }
+    }
+
+    pub fn blue_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+        if let Some(v) = color_channel(&event.text) {
+            self.color.update(|col| {
+                let mut c = col.to_rgba_0_1();
+                c[1] = v as f64 / 256.0;
+                *col = Color::from_rgba_0_1(c);
+            });
         }
     }
 
     pub fn green_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if color_channel(&event.text).is_some() {
-            self.green.set(event.text.clone());
+        if let Some(v) = color_channel(&event.text) {
+            self.color.update(|col| {
+                let mut c = col.to_rgba_0_1();
+                c[2] = v as f64 / 256.0;
+                *col = Color::from_rgba_0_1(c);
+            });
         }
     }
-    pub fn blue_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if color_channel(&event.text).is_some() {
-            self.blue.set(event.text.clone());
-        }
-    }
+
     pub fn alpha_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if color_channel(&event.text).is_some() {
-            self.alpha.set(event.text.clone());
+        if let Some(v) = color_channel(&event.text) {
+            self.color.update(|col| {
+                let mut c = col.to_rgba_0_1();
+                c[3] = v as f64 / 256.0;
+                *col = Color::from_rgba_0_1(c);
+            });
         }
     }
 
@@ -84,22 +121,11 @@ impl FillPropertyEditor {
     }
 
     pub fn commit_color(&mut self, ctx: &NodeContext) {
-        let red = color_channel(&self.red.get());
-        let green = color_channel(&self.green.get());
-        let blue = color_channel(&self.blue.get());
-        let alpha = color_channel(&self.alpha.get());
-        if let (Some(r), Some(g), Some(b), Some(a)) = (red, green, blue, alpha) {
-            self.red.set(r.to_string());
-            self.green.set(g.to_string());
-            self.blue.set(b.to_string());
-            self.alpha.set(a.to_string());
-            self.data
-                .get()
-                .set_value(ctx, &format!("rgba({}, {}, {}, {})", r, g, b, a))
-                .unwrap();
-        } else {
-            unreachable!("colors always valid u8s")
-        }
+        let [r, g, b, a] = self.color.get().to_rgba_0_1().map(|v| (v * 256.0) as u8);
+        self.data
+            .get()
+            .set_value(ctx, &format!("rgba({}, {}, {}, {})", r, g, b, a))
+            .unwrap();
     }
 
     pub fn palette_slot0_clicked(&mut self, ctx: &NodeContext, event: Event<Click>) {
@@ -132,18 +158,9 @@ impl FillPropertyEditor {
 
     pub fn palette_color_clicked(&mut self, ctx: &NodeContext, _event: Event<Click>, i: usize) {
         if let Some(color) = self.palette.get().get(i) {
-            self.set_color(color.clone());
+            self.color.set(color.clone());
             self.commit_color(ctx);
         }
-    }
-
-    fn set_color(&mut self, color: Color) {
-        let mut ints = color.to_rgba_0_1().into_iter().map(|v| (v * 255.0) as u8);
-        self.red.set(ints.next().unwrap().to_string());
-        self.green.set(ints.next().unwrap().to_string());
-        self.blue.set(ints.next().unwrap().to_string());
-        self.alpha.set(ints.next().unwrap().to_string());
-        self.color.set(color);
     }
 }
 

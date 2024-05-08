@@ -29,7 +29,7 @@ if self.visible {
 }
 
 @settings {
-    @pre_render: self.pre_render
+    @mount: on_mount
     #text {
         style: {
                 font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},

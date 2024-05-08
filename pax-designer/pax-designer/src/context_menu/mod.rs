@@ -10,8 +10,14 @@ use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext, CanUndo};
 use pax_std::primitives::*;
 
+impl Interpolatable for ContextMenuMessage {}
+
+#[derive(Clone, Default)]
 pub enum ContextMenuMessage {
-    Open { pos: Point2<Glass> },
+    Open {
+        pos: Point2<Glass>,
+    },
+    #[default]
     Close,
 }
 
@@ -22,12 +28,14 @@ pub enum ContextMenuMessage {
 
 impl Action for ContextMenuMessage {
     fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        *CONTEXT_MENU_CHANNEL.lock().unwrap() = Some(*self);
+        CONTEXT_MENU_PROP.with(|context_menu_msg| context_menu_msg.set(*self));
         Ok(CanUndo::No)
     }
 }
 
-static CONTEXT_MENU_CHANNEL: Mutex<Option<ContextMenuMessage>> = Mutex::new(None);
+thread_local! {
+    static CONTEXT_MENU_PROP: Property<ContextMenuMessage> = Property::new(ContextMenuMessage::Close);
+}
 
 #[pax]
 #[file("context_menu/mod.pax")]
@@ -38,19 +46,34 @@ pub struct DesignerContextMenu {
 }
 
 impl DesignerContextMenu {
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        if let Some(message) = CONTEXT_MENU_CHANNEL.lock().unwrap().take() {
-            match message {
-                ContextMenuMessage::Open { pos } => {
-                    self.visible.set(true);
-                    self.pos_x.set(pos.x);
-                    self.pos_y.set(pos.y);
-                }
-                ContextMenuMessage::Close => {
-                    self.visible.set(false);
-                }
-            }
-        }
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        CONTEXT_MENU_PROP.with(|context_menu_msg| {
+            let msg = context_menu_msg.clone();
+            let deps = [msg.untyped()];
+            self.visible.replace_with(Property::computed(
+                move || match msg.get() {
+                    ContextMenuMessage::Open { .. } => true,
+                    ContextMenuMessage::Close => false,
+                },
+                &deps,
+            ));
+            let msg = context_menu_msg.clone();
+            self.pos_x.replace_with(Property::computed(
+                move || match msg.get() {
+                    ContextMenuMessage::Open { pos } => pos.x,
+                    ContextMenuMessage::Close => 0.0,
+                },
+                &deps,
+            ));
+            let msg = context_menu_msg.clone();
+            self.pos_y.replace_with(Property::computed(
+                move || match msg.get() {
+                    ContextMenuMessage::Open { pos } => pos.y,
+                    ContextMenuMessage::Close => 0.0,
+                },
+                &deps,
+            ));
+        });
     }
 
     pub fn create_component(&mut self, ctx: &NodeContext, _args: Event<Click>) {

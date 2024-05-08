@@ -15,8 +15,8 @@ use std::rc::Rc;
 #[file("controls/tree/treeobj.pax")]
 pub struct TreeObj {
     pub ind: Property<Numeric>,
-    pub name: Property<StringBox>,
-    pub image_path: Property<StringBox>,
+    pub name: Property<String>,
+    pub image_path: Property<String>,
     pub is_selected: Property<bool>,
     pub is_collapsed: Property<bool>,
     pub arrow_path: Property<String>,
@@ -38,17 +38,21 @@ impl TreeObj {
     }
 
     pub fn arrow_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        *super::TREE_CLICK_SENDER.lock().unwrap() =
-            Some(super::TreeMsg::ArrowClicked(self.ind.get().clone().into()));
+        super::TREE_CLICK_PROP.with(|cn| {
+            cn.set(super::TreeMsg::ArrowClicked(self.ind.get().clone().into()));
+        })
     }
     pub fn obj_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        *super::TREE_CLICK_SENDER.lock().unwrap() =
-            Some(super::TreeMsg::ObjClicked(self.ind.get().clone().into()));
+        super::TREE_CLICK_PROP.with(|cn| {
+            cn.set(super::TreeMsg::ObjClicked(self.ind.get().clone().into()));
+        });
     }
 
     pub fn obj_double_clicked(&mut self, _ctx: &NodeContext, _args: Event<DoubleClick>) {
-        *super::TREE_CLICK_SENDER.lock().unwrap() = Some(super::TreeMsg::ObjDoubleClicked(
-            self.ind.get().clone().into(),
-        ));
+        super::TREE_CLICK_PROP.with(|cn| {
+            cn.set(super::TreeMsg::ObjDoubleClicked(
+                self.ind.get().clone().into(),
+            ));
+        });
     }
 }

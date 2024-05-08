@@ -1,9 +1,7 @@
 
 <Ellipse width=0px height=0px/>
-if self.dropdown_active {
-    for (view, i) in self.dropdown_entries {
-        <ToolbarItemVisual data=view/>
-    }
+for (view, i) in self.dropdown_entries {
+    <ToolbarItemVisual data=view/>
 }
 
 for (view, i) in self.entries {

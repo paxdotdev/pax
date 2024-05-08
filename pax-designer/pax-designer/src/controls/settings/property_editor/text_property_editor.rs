@@ -8,7 +8,7 @@ use pax_std::types::text::*;
 use pax_std::types::*;
 
 use crate::controls::settings::AreaMsg;
-use crate::controls::settings::REQUEST_PROPERTY_AREA_CHANNEL;
+use crate::controls::settings::AREAS_PROP;
 
 use super::PropertyEditorData;
 
@@ -24,24 +24,27 @@ pub struct TextPropertyEditor {
 }
 
 impl TextPropertyEditor {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        if let Some(index) = self.data.get().editor_index {
-            let mut channel_guard = REQUEST_PROPERTY_AREA_CHANNEL.lock().unwrap();
-            let channel = channel_guard.get_or_insert_with(Vec::new);
-            channel.push(AreaMsg {
-                index,
-                vertical_space: 75.0,
-            })
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let index = self.data.get().editor_index;
+        if index != 0 {
+            AREAS_PROP.with(|areas| {
+                areas.update(|areas| {
+                    areas.extend((areas.len()..index).map(|_| 0.0));
+                    areas[index - 1] = 75.0;
+                });
+            });
         }
-    }
-
-    pub fn on_render(&mut self, ctx: &NodeContext) {
-        let value = self.data.get().get_value_as_str(ctx);
-        if value != self.last_definition.get() {
-            self.last_definition.set(value.clone());
-            self.textbox.set(value.clone());
-            self.error.set("".to_owned());
-        }
+        let data = self.data.clone();
+        let deps = [data.untyped()];
+        let ctx = ctx.clone();
+        let err = self.error.clone();
+        self.textbox.replace_with(Property::computed(
+            move || {
+                err.set("".to_string());
+                data.get().get_value_as_str(&ctx)
+            },
+            &deps,
+        ));
     }
 
     pub fn text_input(&mut self, _ctx: &NodeContext, args: Event<TextboxInput>) {
