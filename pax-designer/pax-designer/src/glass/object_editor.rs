@@ -37,8 +37,8 @@ pub struct ObjectEditor {
     pub height: Property<f64>,
 
     pub textbox_editor_style: Property<TextStyle>,
-    pub textbox_editor_text: Property<StringBox>,
-    pub textbox_editor_original_text: Property<StringBox>,
+    pub textbox_editor_text: Property<String>,
+    pub textbox_editor_original_text: Property<String>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -111,12 +111,11 @@ impl ObjectEditor {
                             // and replace content by invisible character to mark as "taken".
                             // NOTE: if we need to hide the underlying object in more places than text,
                             // create a common property "visible" that temporarily hides an expanded node
-                            if &text.text.get().string != "\u{2800}" {
+                            if &text.text.get() != "\u{2800}" {
                                 self.textbox_editor_style.set(text.style.get().clone());
-                                self.textbox_editor_text.set(text.text.get().clone());
-                                self.textbox_editor_original_text
-                                    .set(text.text.get().clone());
-                                text.text.set(StringBox::from("\u{2800}".to_string()));
+                                self.textbox_editor_text.set(text.text.get());
+                                self.textbox_editor_original_text.set(text.text.get());
+                                text.text.set(String::from("\u{2800}"));
                             }
                         });
                     }
@@ -379,8 +378,7 @@ impl ObjectEditor {
     }
 
     pub fn text_editor_input(&mut self, _ctx: &NodeContext, event: Event<TextInput>) {
-        self.textbox_editor_text
-            .set(StringBox::from(event.text.clone()));
+        self.textbox_editor_text.set(String::from(&event.text));
     }
 }
 

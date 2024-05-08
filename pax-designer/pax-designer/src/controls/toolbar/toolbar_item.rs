@@ -17,16 +17,16 @@ pub struct ToolbarItemVisual {
 
 impl ToolbarItemVisual {
     pub fn on_click(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        super::TOOLBAR_CHANNEL.with_borrow_mut(|store| {
+        super::CLICK_PROP.with(|click_msg| {
             let data = self.data.get();
-            *store = Some(super::ToolbarClickEvent::Select(data.row, data.col));
+            click_msg.set(super::ToolbarClickEvent::Select(data.row, data.col));
         });
     }
 
     pub fn dropdown(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        super::TOOLBAR_CHANNEL.with_borrow_mut(|store| {
+        super::CLICK_PROP.with(|click_msg| {
             let data = self.data.get();
-            *store = Some(super::ToolbarClickEvent::Dropdown(data.row));
+            click_msg.set(super::ToolbarClickEvent::Dropdown(data.row));
         });
     }
 }

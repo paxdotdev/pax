@@ -14,5 +14,6 @@ for (obj, i) in self.visible_tree_objects {
 	/>
 }
 @settings {
+	@mount: on_mount
 	@pre_render: pre_render
 }
