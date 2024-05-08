@@ -107,7 +107,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.text,
                                 &mut patch.text,
-                                properties.text.get().string.clone(),
+                                properties.text.get(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),

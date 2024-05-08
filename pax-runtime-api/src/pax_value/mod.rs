@@ -58,16 +58,13 @@ impl PaxAny {
     /// Try to co coerce the inner type to type T. For the any type, just make
     /// sure the stored any value is of type T. For a PaxValue, try to coerce it
     /// into the expected type
-    pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<Self, String> {
+    pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<T, String> {
         let res = match self {
-            PaxAny::Builtin(pax_type) => T::try_coerce(pax_type).map(|v| v.to_pax_any()),
-            PaxAny::Any(any) => {
-                if any.as_ref().type_id() == TypeId::of::<T>() {
-                    Ok(PaxAny::Any(any))
-                } else {
-                    Err("tried to coerce PaxAny into non-underlying type".to_string())
-                }
-            }
+            PaxAny::Builtin(pax_type) => T::try_coerce(pax_type),
+            PaxAny::Any(any) => any
+                .downcast()
+                .map(|v| *v)
+                .map_err(|_| "tried to coerce PaxAny into non-underlying type".to_string()),
         };
         res
     }

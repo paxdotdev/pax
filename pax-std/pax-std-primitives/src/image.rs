@@ -93,8 +93,7 @@ impl InstanceNode for ImageInstance {
                     let path_val = expanded_node
                         .with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
 
-                    let update =
-                        patch_if_needed(&mut old_state.path, &mut patch.path, path_val.string);
+                    let update = patch_if_needed(&mut old_state.path, &mut patch.path, path_val);
 
                     if update {
                         context
@@ -136,7 +135,7 @@ impl InstanceNode for ImageInstance {
         let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
         rc.save(&layer_id);
         rc.transform(&layer_id, transform.into());
-        rc.draw_image(&layer_id, &path.string, transformed_bounds);
+        rc.draw_image(&layer_id, &path, transformed_bounds);
         rc.restore(&layer_id);
     }
 

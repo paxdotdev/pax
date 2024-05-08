@@ -139,7 +139,7 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.text.get().string.clone(),
+                                properties.text.get(),
                             ),
                             // Styles
                             patch_if_needed(
