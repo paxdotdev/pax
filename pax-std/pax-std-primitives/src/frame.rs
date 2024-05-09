@@ -208,7 +208,6 @@ impl InstanceNode for FrameInstance {
         self.native_message_props.borrow_mut().remove(&id);
     }
 
-    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,

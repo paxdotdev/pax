@@ -61,10 +61,12 @@ impl PaxAny {
     pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<T, String> {
         let res = match self {
             PaxAny::Builtin(pax_type) => T::try_coerce(pax_type),
-            PaxAny::Any(any) => any
-                .downcast()
-                .map(|v| *v)
-                .map_err(|_| "tried to coerce PaxAny into non-underlying type".to_string()),
+            PaxAny::Any(any) => any.downcast().map(|v| *v).map_err(|_| {
+                format!(
+                    "tried to coerce PaxAny into {} which wasn't the underlying type",
+                    std::any::type_name::<T>()
+                )
+            }),
         };
         res
     }

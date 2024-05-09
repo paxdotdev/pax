@@ -78,7 +78,6 @@ impl InstanceNode for EllipseInstance {
         });
     }
 
-    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,

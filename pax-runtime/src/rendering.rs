@@ -46,7 +46,6 @@ pub enum NodeType {
     Primitive,
 }
 
-#[cfg(debug_assertions)]
 impl std::fmt::Debug for dyn InstanceNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.resolve_debug(f, None)
@@ -75,7 +74,6 @@ pub trait InstanceNode {
     where
         Self: Sized;
 
-    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
