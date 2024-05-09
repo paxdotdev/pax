@@ -20,24 +20,31 @@ Pax compiles into native desktop/mobile apps, WebAssembly-driven sites, and embe
 
 **Currently Alpha** and unstable, under active full-time development.  Today, Pax compiles and runs for iOS, macOS, and Web.  The Web target is our leading edge of development.  Pax’s standard library includes components for drawing, layouts, and form controls.
 
-[Take Pax for a spin!](https://docs.pax.dev/start-creating-a-project.html)
-
 [Join our Discord](https://discord.com/invite/Eq8KWAUc6b) to chat with our team.  
 
 We do not yet recommend building any production workloads with Pax. Targeting Beta in Q3 2024.
 
 Embedded universal components have been proven in concept but adapters for React, Next, Vue, SwiftUI, etc. have not been built.  If you are interested in a particular component adapter, please open an issue so that we can understand your use-case & prioritize accordingly.
 
+## Get started
+
+1. Set up your workstation:  [macOS](https://docs.pax.dev/getting-started/macos-getting-started.html) | [Linux](https://docs.pax.dev/getting-started/linux-getting-started.html) | [Windows](https://docs.pax.dev/getting-started/windows-getting-started.html)
+2. Set up at least one build target: [Building for Browsers/WASM](https://docs.pax.dev/getting-started/web-target.html) | [Building for native macOS](https://docs.pax.dev/getting-started/desktop-target.html) | [Building for native iOS](https://docs.pax.dev/getting-started/mobile-target.html)
+3. Create a new project with `pax-cli create my-new-project`, or run the examples inside this repo (recommended while this project is in Alpha — see following re: examples)
+
 ## Examples
 
-See a **simple example** in the [introduction page](https://docs.pax.dev/) of our docs.
+To run the examples in this monorepo:
 
-You can also run the [examples](https://github.com/paxproject/pax/tree/master/examples/src) in this monorepo:
+1. Follow `Get started` instructions above
+2. Clone this repo: `git clone git@github.com:paxengine/pax.git`
+3. Run an example: `cd examples/src/space-game && ./pax run --target=web`.  Update the path and target as needed.  Current examples include:
 
-1. [Install Rust toolchain](https://www.rust-lang.org/tools/install)
-2. Clone this repo: `git clone git@github.com:paxproject/pax.git && cd pax`
-3. Run an example: `cargo run --example fireworks`.  See the available examples [here](https://github.com/paxproject/pax/tree/master/examples/src).
-
+- `examples/src/fireworks` — showcase of expressions, repeat, and user interactions.  Try scrolling.
+- `examples/src/mouse-animation` — showcase of path animations and user interaction.  Try moving your mouse vertically.
+- `examples/src/particles` - showcase of iterating over data and animations. Non-interactive, but try tweaking the parameters in the source code.
+- `examples/src/slot-particles` - showcase of the slot mechanism for component reuse; the particles in this system can be whatever the outer component passes in.  Try tweaking the source code.
+- `examples/src/space-game` — showcase of interactions, custom application logic, and making a simple game.
 
 ## Docs
 
