@@ -385,7 +385,7 @@ impl DefinitionToInstanceTraverser {
 
                         properties.boolean_expression =  Property::computed_with_name(move || {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                            let coerced = new_value_wrapped.try_coerce::<bool>().unwrap();
+                            let coerced = new_value_wrapped.try_coerce::<bool>().map_err(|e| format!("expr with vtable_id {} failed: {}", vtable_id, e)).unwrap();
                             coerced
                         }, &dependencies, "conditional (if) expr");
                         properties.to_pax_any()

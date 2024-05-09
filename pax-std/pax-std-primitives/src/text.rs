@@ -190,7 +190,6 @@ impl InstanceNode for TextInstance {
             .remove(&expanded_node.id);
     }
 
-    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,

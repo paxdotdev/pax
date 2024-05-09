@@ -57,7 +57,6 @@ impl InstanceNode for RepeatInstance {
         })
     }
 
-    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
@@ -129,7 +128,6 @@ impl InstanceNode for RepeatInstance {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
                     };
-                    let id = cloned_expanded_node.id.0;
                     let source = source_expression.get();
                     let source_len = source.len();
                     if source_len == *last_length.borrow() {

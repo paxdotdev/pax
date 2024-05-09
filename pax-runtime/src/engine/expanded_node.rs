@@ -330,7 +330,8 @@ impl ExpandedNode {
         context: &Rc<RefCell<RuntimeContext>>,
     ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context);
-        self.attach_children(new_children, context)
+        let res = self.attach_children(new_children, context);
+        res
     }
 
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
@@ -429,7 +430,11 @@ impl ExpandedNode {
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
-        for child in self.children.get().iter() {
+        // WARNING: do NOT make recurse_unmount result in expr evaluation,
+        // in this case: do not refer to self.children expression.
+        // expr evaluation in this context can trigger get's of "old data", ie try to get
+        // an index of a for loop source that doesn't exist anymore
+        for child in self.mounted_children.borrow().iter() {
             Rc::clone(child).recurse_unmount(context);
         }
         if *self.attached.borrow() == 1 {
