@@ -34,6 +34,7 @@ pub struct Tree {
     pub old_selected: Property<Vec<TemplateNodeId>>,
     pub old_type_id: Property<TypeId>,
     pub old_manifest_ver: Property<usize>,
+    pub on_click_handler: Property<bool>,
 }
 
 impl Interpolatable for TreeMsg {}
@@ -143,57 +144,67 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
+    // TODO do collapsed state as separate prop that visible_tree_objects can listen to, and that is updated by changes in click_msg
+    // TreeMsg::ArrowClicked(sender) => {
+    //     tree[sender].is_collapsed = !tree[sender].is_collapsed;
+    //     let collapsed = tree[sender].is_collapsed;
+    //     for i in (sender + 1)..tree.len() {
+    //         if tree[sender].indent_level < tree[i].indent_level {
+    //             tree[i].is_visible = !collapsed;
+    //             tree[i].is_collapsed = collapsed;
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    //     self.visible_tree_objects.set(
+    //         self.tree_objects
+    //             .get()
+    //             .iter()
+    //             .filter(|o| o.is_visible)
+    //             .cloned()
+    //             .collect(),
+    //     );
+    // }
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        // let mut click_msg = TREE_CLICK_PROP.with(|click_msg| click_msg.clone());
+        let click_msg = TREE_CLICK_PROP.with(|click_msg| click_msg.clone());
+        let deps = [click_msg.untyped()];
 
-        // self.tree
-        //     match msg {
-        //         TreeMsg::ArrowClicked(sender) => {
-        //             tree[sender].is_collapsed = !tree[sender].is_collapsed;
-        //             let collapsed = tree[sender].is_collapsed;
-        //             for i in (sender + 1)..tree.len() {
-        //                 if tree[sender].indent_level < tree[i].indent_level {
-        //                     tree[i].is_visible = !collapsed;
-        //                     tree[i].is_collapsed = collapsed;
-        //                 } else {
-        //                     break;
-        //                 }
-        //             }
-        //             self.visible_tree_objects.set(
-        //                 self.tree_objects
-        //                     .get()
-        //                     .iter()
-        //                     .filter(|o| o.is_visible)
-        //                     .cloned()
-        //                     .collect(),
-        //             );
-        //         }
-        //         TreeMsg::ObjClicked(sender) => model::perform_action(
-        //             SelectNode {
-        //                 id: self.tree_objects.get()[sender].node_id.clone(),
-        //                 overwrite: false,
-        //             },
-        //             ctx,
-        //         ),
-        //         TreeMsg::ObjDoubleClicked(sender) => {
-        //             let node_id = &self.tree_objects.get()[sender].node_id;
-        //             let type_id_of_tree_target = model::read_app_state(|app_state| {
-        //                 let uuid = UniqueTemplateNodeIdentifier::build(
-        //                     app_state.selected_component_id.get().clone(),
-        //                     node_id.clone(),
-        //                 );
-        //                 let mut dt = ctx.designtime.borrow_mut();
-        //                 let builder = dt.get_orm_mut().get_node(uuid).unwrap();
-        //                 builder.get_type_id()
-        //             });
+        let ctxp = ctx.clone();
+        let tree_obj = self.tree_objects.clone();
+        let selected_comp =
+            model::read_app_state(|app_state| app_state.selected_component_id.clone());
 
-        //             model::perform_action(SetEditingComponent(type_id_of_tree_target), ctx)
-        //         }
-        //     }
-        //     self.tree_objects.set(tree);
-        // }
+        self.on_click_handler.replace_with(Property::computed(
+            move || {
+                let msg = click_msg.get();
+                match msg {
+                    TreeMsg::ObjClicked(sender) => {
+                        model::perform_action(
+                            SelectNode {
+                                id: tree_obj.read(|t| t[sender].node_id.clone()),
+                                overwrite: false,
+                            },
+                            &ctxp,
+                        );
+                    }
+                    TreeMsg::ObjDoubleClicked(sender) => {
+                        let node_id = tree_obj.read(|t| t[sender].node_id.clone());
+                        let uuid =
+                            UniqueTemplateNodeIdentifier::build(selected_comp.get(), node_id);
+                        let mut dt = ctxp.designtime.borrow_mut();
+                        let builder = dt.get_orm_mut().get_node(uuid).unwrap();
+                        let type_id_of_tree_target = builder.get_type_id();
 
-        //HACK pre dirty-dag, ulgy but works and can be removed later!
+                        model::perform_action(SetEditingComponent(type_id_of_tree_target), &ctxp);
+                    }
+                    TreeMsg::ArrowClicked(_) => (),
+                    TreeMsg::None => (),
+                };
+                false
+            },
+            &deps,
+        ));
+
         model::read_app_state(|app_state| {
             let type_id = app_state.selected_component_id.clone();
             let manifest_ver = self.old_manifest_ver.clone();
@@ -234,6 +245,9 @@ impl Tree {
         if manifest_ver != self.old_manifest_ver.get() {
             self.old_manifest_ver.set(manifest_ver);
         }
+
+        // update this prop
+        self.on_click_handler.get();
     }
 }
 

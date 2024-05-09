@@ -27,7 +27,9 @@ impl FillPropertyEditor {
         if index != 0 {
             AREAS_PROP.with(|areas| {
                 areas.update(|areas| {
-                    areas.extend((areas.len()..index).map(|_| 0.0));
+                    while areas.len() <= index {
+                        areas.push(0.0)
+                    }
                     areas[index - 1] = 107.0;
                 });
             });
