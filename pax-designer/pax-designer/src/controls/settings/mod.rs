@@ -137,7 +137,7 @@ impl Settings {
                 move || {
                     let mut custom_props = custom_props_no_position.get();
                     let mut running_sum = 0.0;
-                    for (i, area) in areas.get().iter().enumerate() {
+                    for (i, area) in areas.get().iter().take(custom_props.len()).enumerate() {
                         custom_props[i].vertical_space = *area;
                         custom_props[i].vertical_pos = running_sum;
                         running_sum += area + SPACING;

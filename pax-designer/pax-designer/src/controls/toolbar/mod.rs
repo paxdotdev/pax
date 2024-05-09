@@ -28,6 +28,8 @@ pub struct Toolbar {
     pub selected_ind: Property<usize>,
     pub entries: Property<Vec<ToolbarItemView>>,
     pub dropdown_entries: Property<Vec<ToolbarItemView>>,
+
+    pub click_ev: Property<ToolbarClickEvent>,
 }
 
 enum ToolbarEvent {
@@ -66,9 +68,8 @@ struct ToolbarItem {
     event: ToolbarEvent,
 }
 
-impl Interpolatable for ToolbarClickEvent {}
-
-#[derive(Clone, Default)]
+#[pax]
+#[derive(PartialEq)]
 pub enum ToolbarClickEvent {
     Select(usize, usize),
     Dropdown(usize),
@@ -158,47 +159,44 @@ impl Toolbar {
             self.entries.set(entry_views);
         });
 
-        CLICK_PROP.with(|click_prop| {
-            let ctx = ctx.clone();
-            let toolbar_click = click_prop.clone();
-            let deps = [toolbar_click.untyped()];
-            let toolbar_click = click_prop.clone();
-            self.dropdown_entries.replace_with(Property::computed(
-                move || match toolbar_click.get() {
-                    ToolbarClickEvent::Select(row, col) => {
-                        let action = TOOLBAR_ENTRIES.with(|entries| {
-                            let event = &entries[row].items[col].event;
-                            match event {
-                                &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
-                                ToolbarEvent::PerformAction(action_factory) => action_factory(),
-                            }
-                        });
-                        model::perform_action(action, &ctx);
-                        vec![]
-                    }
-                    ToolbarClickEvent::None => {
-                        vec![]
-                    }
-                    ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
-                        let items = &entries[row].items;
-                        items
-                            .iter()
-                            .enumerate()
-                            .map(|(col, item)| ToolbarItemView {
-                                background: true,
-                                icon: String::from(item.icon),
-                                more_than_one_item: false,
-                                row,
-                                col,
-                                x: Size::Pixels((row * 65).into()),
-                                y: Size::Pixels((col * 65).into()),
-                            })
-                            .collect()
-                    }),
-                },
-                &deps,
-            ));
-        });
+        let ctx = ctx.clone();
+        let toolbar_click = self.click_ev.clone();
+        let deps = [toolbar_click.untyped()];
+        self.dropdown_entries.replace_with(Property::computed(
+            move || match toolbar_click.get() {
+                ToolbarClickEvent::Select(row, col) => {
+                    let action = TOOLBAR_ENTRIES.with(|entries| {
+                        let event = &entries[row].items[col].event;
+                        match event {
+                            &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
+                            ToolbarEvent::PerformAction(action_factory) => action_factory(),
+                        }
+                    });
+                    model::perform_action(action, &ctx);
+                    vec![]
+                }
+                ToolbarClickEvent::None => {
+                    vec![]
+                }
+                ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
+                    let items = &entries[row].items;
+                    items
+                        .iter()
+                        .enumerate()
+                        .map(|(col, item)| ToolbarItemView {
+                            background: true,
+                            icon: String::from(item.icon),
+                            more_than_one_item: false,
+                            row,
+                            col,
+                            x: Size::Pixels((row * 65).into()),
+                            y: Size::Pixels((col * 65).into()),
+                        })
+                        .collect()
+                }),
+            },
+            &deps,
+        ));
 
         // Selected index should depend on app state
         model::read_app_state(|app_state| {
@@ -235,5 +233,12 @@ impl Toolbar {
             ));
         });
     }
-    pub fn update_view(&mut self, _ctx: &NodeContext) {}
+    pub fn update_view(&mut self, _ctx: &NodeContext) {
+        // HACK: this is temporary, if not here, update ordering causes bugs
+        // will prob not be needed after double bindings?
+        let val = CLICK_PROP.with(|p| p.get());
+        if val != self.click_ev.get() {
+            self.click_ev.set(val);
+        }
+    }
 }
