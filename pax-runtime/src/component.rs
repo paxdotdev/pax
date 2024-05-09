@@ -102,7 +102,6 @@ impl InstanceNode for ComponentInstance {
         expanded_node.compute_flattened_slot_children();
     }
 
-    #[cfg(debug_assertions)]
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
