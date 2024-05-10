@@ -58,7 +58,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
             {% for handler in component.handlers %}
             "{{handler.name}}" => {
                 |properties, ctx, args|{
-                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = &mut *borrow_mut!(properties.as_ref());
                     if let Ok(mut properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
                         // downcast args to handler.type
                         {% if handler.args_type %}
@@ -97,7 +97,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
     fn add_inline_handlers(&self, handlers: Vec<(String, String)>, handler_registry: Rc<RefCell<HandlerRegistry>>) -> Rc<RefCell<HandlerRegistry>> {
         {
-            let mut handler_registry_mut = handler_registry.borrow_mut();
+            let mut handler_registry_mut = borrow_mut!(handler_registry);
             for (event, fn_name) in &handlers {
                 let handler_vec = handler_registry_mut.handlers.entry(event.clone()).or_insert(Vec::new());
                 handler_vec.push(Handler::new_inline_handler(self.build_handler(&fn_name)));
@@ -116,7 +116,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
 
     fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>  {
         Box::new(|props| {
-            let properties = &mut *props.as_ref().borrow_mut();
+            let properties = &mut *borrow_mut!(props.as_ref());
             if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
                 let mut scope = HashMap::new();
                 {% for prop in component.properties %}

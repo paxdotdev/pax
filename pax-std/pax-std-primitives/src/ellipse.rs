@@ -1,11 +1,12 @@
 use kurbo::{Rect, Shape};
 use pax_runtime::api::{Fill, Layer, RenderContext};
 use pax_runtime::BaseInstance;
+use pax_runtime_api::{borrow, use_RefCell};
 use pax_std::primitives::Ellipse;
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use std::cell::RefCell;
+use_RefCell!();
 use std::rc::Rc;
 
 /// A basic 2D vector ellipse, drawn to fill the bounds specified
@@ -35,7 +36,7 @@ impl InstanceNode for EllipseInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &Rc<RefCell<RuntimeContext>>,
+        _context: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
         let tab = &expanded_node.layout_properties;
@@ -55,7 +56,7 @@ impl InstanceNode for EllipseInstance {
                 unimplemented!("gradients not supported on ellipse")
             };
 
-            let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+            let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
             rc.fill(&layer_id, transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web

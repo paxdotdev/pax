@@ -2,7 +2,7 @@ use crate::api::TextInput;
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{Interpolatable, Property};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Property};
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -13,13 +13,12 @@ use crate::constants::{
     TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
+use_RefCell!();
 use crate::node_interface::NodeLocal;
 use crate::{ExpandedNodeIdentifier, ExpressionTable, Globals};
-#[cfg(debug_assertions)]
 use core::fmt;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
@@ -119,22 +118,22 @@ macro_rules! dispatch_event_handler {
             &self,
             args: $arg_type,
             globals: &Globals,
-            ctx: &Rc<RefCell<RuntimeContext>>,
+            ctx: &Rc<RuntimeContext>,
         ) -> bool {
             let event = Event::new(args.clone());
-            if let Some(registry) = self.instance_node.borrow().base().get_handler_registry() {
+            if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
                 let component_properties = if let Some(cc) = self.containing_component.upgrade() {
-                    Rc::clone(&cc.properties.borrow())
+                    Rc::clone(&*borrow!(cc.properties))
                 } else {
-                    Rc::clone(&self.properties.borrow())
+                    Rc::clone(&*borrow!(self.properties))
                 };
 
                 let context = self.get_node_context(ctx);
-                let borrowed_registry = &(*registry).borrow();
+                let borrowed_registry = &borrow!(*registry);
                 if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
                     handlers.iter().for_each(|handler| {
                         let properties = if let HandlerLocation::Component = &handler.location {
-                            Rc::clone(&self.properties.borrow())
+                            Rc::clone(&*borrow!(self.properties))
                         } else {
                             Rc::clone(&component_properties)
                         };
@@ -148,7 +147,7 @@ macro_rules! dispatch_event_handler {
             }
 
             if $recurse {
-                if let Some(parent) = &self.parent_expanded_node.borrow().upgrade() {
+                if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
                     let parent_prevent_default = parent.$fn_name(args, globals, ctx);
                     return event.cancelled() || parent_prevent_default;
                 }
@@ -159,17 +158,13 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
-    pub fn root(
-        template: Rc<ComponentInstance>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) -> Rc<Self> {
+    pub fn root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
         let root_env = RuntimePropertiesStackFrame::new(
             HashMap::new(),
             Rc::new(RefCell::new(().to_pax_any())),
         );
-        let root_node = Self::new(template, root_env, context, Weak::new());
-        Rc::clone(&root_node).recurse_mount(context);
-        let ctx = (**context).borrow();
+        let root_node = Self::new(template, root_env, ctx, Weak::new());
+        Rc::clone(&root_node).recurse_mount(ctx);
         let globals = ctx.globals();
         let parent_bounds = globals.viewport.bounds.clone();
         let parent_transform = globals.viewport.transform.clone();
@@ -185,27 +180,27 @@ impl ExpandedNode {
     fn new(
         template: Rc<dyn InstanceNode>,
         env: Rc<RuntimePropertiesStackFrame>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
         containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
         let properties = (&template.base().instance_prototypical_properties_factory)(
             env.clone(),
-            (*(*context)).borrow().expression_table(),
+            context.expression_table(),
         );
         let common_properties = (&template
             .base()
             .instance_prototypical_common_properties_factory)(
             env.clone(),
-            (*(*context)).borrow().expression_table(),
+            context.expression_table(),
         );
 
-        let mut property_scope = (*common_properties).borrow().retrieve_property_scope();
+        let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
 
         if let Some(scope) = &template.base().properties_scope_factory {
             property_scope.extend(scope(properties.clone()));
         }
 
-        let id = (**context).borrow_mut().gen_uid();
+        let id = context.gen_uid();
         let res = Rc::new(ExpandedNode {
             id,
             stack: env,
@@ -239,13 +234,13 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         expression_table: Rc<ExpressionTable>,
     ) {
-        *self.instance_node.borrow_mut() = Rc::clone(&template);
+        *borrow_mut!(self.instance_node) = Rc::clone(&template);
 
-        *self.properties.borrow_mut() = (&template.base().instance_prototypical_properties_factory)(
+        *borrow_mut!(self.properties) = (&template.base().instance_prototypical_properties_factory)(
             self.stack.clone(),
             expression_table.clone(),
         );
-        *self.common_properties.borrow_mut() = (template
+        *borrow_mut!(self.common_properties) = (template
             .base()
             .instance_prototypical_common_properties_factory)(
             self.stack.clone(),
@@ -257,7 +252,7 @@ impl ExpandedNode {
     /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
     /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.
     pub fn is_descendant_of(&self, other_expanded_node_id: &ExpandedNodeIdentifier) -> bool {
-        if let Some(parent) = self.parent_expanded_node.borrow().upgrade() {
+        if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
             // We have a parent — if it matches the ID, this node is indeed an ancestor of other_expanded_node_id.  Otherwise, recurse upward.
             if parent.id.eq(other_expanded_node_id) {
                 true
@@ -272,9 +267,9 @@ impl ExpandedNode {
     pub fn create_children_detached(
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-        let containing_component = if self.instance_node.borrow().base().flags().is_component {
+        let containing_component = if borrow!(self.instance_node).base().flags().is_component {
             Rc::downgrade(&self)
         } else {
             Weak::clone(&self.containing_component)
@@ -296,11 +291,11 @@ impl ExpandedNode {
     pub fn attach_children(
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-        let mut curr_children = self.mounted_children.borrow_mut();
+        let mut curr_children = borrow_mut!(self.mounted_children);
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
-        if *self.attached.borrow() > 0 {
+        if *borrow!(self.attached) > 0 {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
@@ -312,7 +307,7 @@ impl ExpandedNode {
         }
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
-            *child.parent_expanded_node.borrow_mut() = Rc::downgrade(self);
+            *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
 
             let parent_bounds = self.layout_properties.bounds.clone();
             let parent_transform = self.layout_properties.transform.clone();
@@ -327,7 +322,7 @@ impl ExpandedNode {
     pub fn generate_children(
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context);
         let res = self.attach_children(new_children, context);
@@ -336,33 +331,29 @@ impl ExpandedNode {
 
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
-    pub fn recurse_update(self: &Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
-        if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
-            for handler in registry
-                .deref()
-                .borrow()
+    pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+            for handler in borrow!(registry)
                 .handlers
                 .get("tick")
                 .unwrap_or(&Vec::new())
             {
                 (handler.function)(
-                    Rc::clone(&self.properties.borrow()),
+                    Rc::clone(&*borrow!(self.properties)),
                     &self.get_node_context(context),
                     None,
                 )
             }
         }
-        Rc::clone(&self.instance_node.borrow()).update(&self, context);
-        if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
-            for handler in registry
-                .deref()
-                .borrow()
+        Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
+        if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+            for handler in borrow!(registry)
                 .handlers
                 .get("pre_render")
                 .unwrap_or(&Vec::new())
             {
                 (handler.function)(
-                    Rc::clone(&self.properties.borrow()),
+                    Rc::clone(&*borrow!(self.properties)),
                     &self.get_node_context(context),
                     None,
                 )
@@ -373,29 +364,10 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
-        if *self.attached.borrow() == 0 {
-            *self.attached.borrow_mut() += 1;
-            (*(*context))
-                .borrow_mut()
-                .node_cache
-                .insert(self.id, Rc::clone(&self));
-
-            let uni = self
-                .instance_node
-                .borrow()
-                .base()
-                .template_node_identifier
-                .clone();
-            if let Some(uni) = uni {
-                let mut ctx = (*(*context)).borrow_mut();
-                if let Some(nodes) = ctx.uni_to_eid.get_mut(&uni) {
-                    nodes.push(self.id);
-                } else {
-                    ctx.uni_to_eid.insert(uni, vec![self.id]);
-                }
-            }
-
+    pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if *borrow!(self.attached) == 0 {
+            *borrow_mut!(self.attached) += 1;
+            context.add_to_cache(&self);
             //Note on subtle sequencing here:
             // (1) _primitive_ handle_mounts must fire before updating properties for the first time.
             //     This is at least to appease the needs of Component + Slot ordering; see ComponentInstance#update
@@ -403,21 +375,18 @@ impl ExpandedNode {
             //     this requires calling `update` at least once.  (Note that this means `update` is currently called twice on init)
             //Thus: primitive#handle_mount, primitive#update, component#handle_mount.  This requires the primitive author to
             //  be aware of the fact that properties don't yet exist on mount.
-            self.instance_node
-                .borrow()
+            borrow!(self.instance_node)
                 .clone()
                 .handle_mount(&self, context);
-            Rc::clone(&self.instance_node.borrow()).update(&self, context);
-            if let Some(ref registry) = self.instance_node.borrow().base().handler_registry {
-                for handler in registry
-                    .deref()
-                    .borrow()
+            Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
+            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+                for handler in borrow!(registry)
                     .handlers
                     .get("mount")
                     .unwrap_or(&Vec::new())
                 {
                     (handler.function)(
-                        Rc::clone(&self.properties.borrow()),
+                        Rc::clone(&*borrow!(self.properties)),
                         &self.get_node_context(context),
                         None,
                     )
@@ -429,43 +398,28 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RefCell<RuntimeContext>>) {
+    pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
         // WARNING: do NOT make recurse_unmount result in expr evaluation,
         // in this case: do not refer to self.children expression.
         // expr evaluation in this context can trigger get's of "old data", ie try to get
         // an index of a for loop source that doesn't exist anymore
-        for child in self.mounted_children.borrow().iter() {
+        for child in borrow!(self.mounted_children).iter() {
             Rc::clone(child).recurse_unmount(context);
         }
-        if *self.attached.borrow() == 1 {
-            *self.attached.borrow_mut() -= 1;
-            (*(*context)).borrow_mut().node_cache.remove(&self.id);
-            let uni = self
-                .instance_node
-                .borrow()
-                .base()
-                .template_node_identifier
-                .clone();
-            if let Some(uni) = uni {
-                if let Some(nodes) = (*(*context)).borrow_mut().uni_to_eid.get_mut(&uni) {
-                    nodes.retain(|id| id != &self.id);
-                }
-            }
-            self.instance_node.borrow().handle_unmount(&self, context);
+        if *borrow!(self.attached) == 1 {
+            *borrow_mut!(self.attached) -= 1;
+            context.remove_from_cache(&self);
+            borrow!(self.instance_node).handle_unmount(&self, context);
         }
     }
 
-    pub fn recurse_render(&self, ctx: &Rc<RefCell<RuntimeContext>>, rcs: &mut dyn RenderContext) {
-        self.instance_node
-            .borrow()
-            .handle_pre_render(&self, ctx, rcs);
+    pub fn recurse_render(&self, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
+        borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
         for child in self.children.get().iter().rev() {
             child.recurse_render(ctx, rcs);
         }
-        self.instance_node.borrow().render(&self, ctx, rcs);
-        self.instance_node
-            .borrow()
-            .handle_post_render(&self, ctx, rcs);
+        borrow!(self.instance_node).render(&self, ctx, rcs);
+        borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
     }
 
     /// Manages unpacking an Rc<RefCell<PaxValue>>, downcasting into
@@ -478,8 +432,8 @@ impl ExpandedNode {
         callback: impl FnOnce(&mut T) -> R,
     ) -> R {
         // Borrow the contents of the RefCell mutably.
-        let properties = self.properties.borrow();
-        let mut borrowed = properties.borrow_mut();
+        let properties = borrow_mut!(self.properties);
+        let mut borrowed = borrow_mut!(properties);
 
         // Downcast the unwrapped value to the specified `target_type` (or panic)
         let mut unwrapped_value = if let Ok(val) = T::mut_from_pax_any(&mut *borrowed) {
@@ -490,36 +444,29 @@ impl ExpandedNode {
         callback(&mut unwrapped_value)
     }
 
-    pub fn recurse_visit_postorder<T>(
-        self: &Rc<Self>,
-        func: &impl Fn(&Rc<Self>, &mut T),
-        val: &mut T,
-    ) {
+    pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
         for child in self.children.get().iter().rev() {
-            child.recurse_visit_postorder(func, val);
+            child.recurse_visit_postorder(func)
         }
-        func(self, val);
+        func(self);
     }
 
-    pub fn get_node_context<'a>(&'a self, context: &Rc<RefCell<RuntimeContext>>) -> NodeContext {
-        let ctx = (**context).borrow();
+    pub fn get_node_context<'a>(&'a self, ctx: &Rc<RuntimeContext>) -> NodeContext {
         let globals = ctx.globals();
         let bounds_self = self.layout_properties.bounds.clone();
-        let bounds_parent = if let Some(parent) = self.parent_expanded_node.borrow().upgrade() {
+        let bounds_parent = if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
             parent.layout_properties.bounds.clone()
         } else {
             globals.viewport.bounds.clone()
         };
 
-        let slot_children = if self.instance_node.borrow().base().flags().is_component {
-            self.expanded_and_flattened_slot_children
-                .borrow()
+        let slot_children = if borrow!(self.instance_node).base().flags().is_component {
+            borrow!(self.expanded_and_flattened_slot_children)
                 .as_ref()
                 .map(|c| c.len())
         } else {
             self.containing_component.upgrade().and_then(|v| {
-                v.expanded_and_flattened_slot_children
-                    .borrow()
+                borrow!(v.expanded_and_flattened_slot_children)
                     .as_ref()
                     .map(|c| c.len())
             })
@@ -530,7 +477,7 @@ impl ExpandedNode {
             frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
-            runtime_context: context.clone(),
+            runtime_context: ctx.clone(),
             slot_children,
             platform: globals.platform.clone(),
             os: globals.os.clone(),
@@ -540,16 +487,14 @@ impl ExpandedNode {
     }
 
     pub fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
-        Rc::clone(&self.common_properties.borrow())
+        Rc::clone(&*borrow!(self.common_properties))
     }
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if self
-            .instance_node
-            .borrow()
+        if borrow!(self.instance_node)
             .base()
             .flags()
             .invisible_to_raycasting
@@ -595,8 +540,8 @@ impl ExpandedNode {
     }
 
     pub fn compute_flattened_slot_children(&self) {
-        if let Some(slot_children) = self.expanded_slot_children.borrow().as_ref() {
-            *self.expanded_and_flattened_slot_children.borrow_mut() =
+        if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
+            *borrow_mut!(self.expanded_and_flattened_slot_children) =
                 Some(flatten_expanded_nodes_for_slot(&slot_children));
         }
     }
@@ -657,8 +602,8 @@ impl ExpandedNode {
 }
 
 /// Properties that are currently re-computed each frame before rendering.
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Clone)]
+
+#[derive(Debug, Default, Clone)]
 pub struct LayoutProperties {
     pub transform: Property<Transform2<NodeLocal, Window>>,
     pub bounds: Property<(f64, f64)>,
@@ -673,7 +618,8 @@ impl LayoutProperties {
         let bottom_left = self.transform.get() * Point2::new(0.0, height);
         let bottom_right = self.transform.get() * Point2::new(width, height);
 
-        [top_left, top_right, bottom_right, bottom_left]
+        let res = [top_left, top_right, bottom_right, bottom_left];
+        res
     }
 
     //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
@@ -723,7 +669,7 @@ fn min_max_projections(projections: &[f64]) -> (f64, f64) {
 fn flatten_expanded_nodes_for_slot(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<ExpandedNode>> {
     let mut result: Vec<Rc<ExpandedNode>> = vec![];
     for node in nodes {
-        if node.instance_node.borrow().base().flags().invisible_to_slot {
+        if borrow!(node.instance_node).base().flags().invisible_to_slot {
             result.extend(flatten_expanded_nodes_for_slot(
                 node.children
                     .get()
@@ -739,7 +685,6 @@ fn flatten_expanded_nodes_for_slot(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<Expande
     result
 }
 
-#[cfg(debug_assertions)]
 impl std::fmt::Debug for ExpandedNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         //see: https://users.rust-lang.org/t/reusing-an-fmt-formatter/8531/4
@@ -760,29 +705,22 @@ impl std::fmt::Debug for ExpandedNode {
         f.debug_struct("ExpandedNode")
             .field(
                 "instance_node",
-                &Fmt(|f| self.instance_node.borrow().resolve_debug(f, Some(self))),
+                &Fmt(|f| borrow!(self.instance_node).resolve_debug(f, Some(self))),
             )
             .field("id", &self.id)
-            .field("common_properties", &self.common_properties.try_borrow())
-            .field("layout_properties", &self.layout_properties)
-            .field("children", &self.children.get().iter().collect::<Vec<_>>())
-            .field(
-                "parent",
-                &self
-                    .parent_expanded_node
-                    .borrow()
-                    .upgrade()
-                    .map(|v| v.id.clone()),
-            )
-            .field(
-                "slot_children",
-                &self
-                    .expanded_and_flattened_slot_children
-                    .borrow()
-                    .as_ref()
-                    .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
-            )
-            .field("occlusion_id", &self.occlusion_id.borrow())
+            // .field("common_properties", &self.common_properties.try_borrow())
+            // .field("layout_properties", &self.layout_properties)
+            // .field("children", &self.children.get().iter().collect::<Vec<_>>())
+            // .field("parent", &self.parent_expanded_node.borrow().upgrade())
+            // .field(
+            //     "slot_children",
+            //     &self
+            //         .expanded_and_flattened_slot_children
+            //         .borrow()
+            //         .as_ref()
+            //         .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
+            // )
+            // .field("occlusion_id", &self.occlusion_id.borrow())
             .field(
                 "containing_component",
                 &self.containing_component.upgrade().map(|v| v.id.clone()),

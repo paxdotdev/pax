@@ -4,8 +4,9 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
 use pax_std::primitives::Text;
-use std::cell::RefCell;
+use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
 #[cfg(feature = "designtime")]
@@ -45,14 +46,9 @@ impl InstanceNode for TextInstance {
         })
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        self.native_message_props
-            .borrow()
+        borrow!(self.native_message_props)
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -61,16 +57,16 @@ impl InstanceNode for TextInstance {
     fn render(
         &self,
         _expanded_node: &ExpandedNode,
-        _context: &Rc<RefCell<RuntimeContext>>,
+        _context: &Rc<RuntimeContext>,
         _rc: &mut dyn RenderContext,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
 
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {
-            let computed_props = expanded_node.layout_properties.borrow();
+            let computed_props = borrow!(expanded_node.layout_properties);
             let tab = &computed_props.as_ref().unwrap().computed_tab;
-            let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+            let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
             let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);
@@ -87,17 +83,15 @@ impl InstanceNode for TextInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         // Send creation message
         let id = expanded_node.id.to_u32();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
-                id,
-                parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
-            }));
+        context.enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
+            id,
+            parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+            occlusion_layer_id: 0,
+        }));
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
@@ -107,9 +101,7 @@ impl InstanceNode for TextInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = expanded_node
-            .properties_scope
-            .borrow()
+        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
             .chain([
@@ -117,14 +109,15 @@ impl InstanceNode for TextInstance {
                 expanded_node.layout_properties.bounds.untyped(),
             ])
             .collect();
-        self.native_message_props.borrow_mut().insert(
+
+        borrow_mut!(self.native_message_props).insert(
             expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let mut old_state = last_patch.borrow_mut();
+                    let mut old_state = borrow_mut!(last_patch);
 
                     let mut patch = TextPatch {
                         id,
@@ -163,9 +156,9 @@ impl InstanceNode for TextInstance {
                         ];
 
                         if updates.into_iter().any(|v| v == true) {
-                            context.borrow_mut().enqueue_native_message(
-                                pax_message::NativeMessage::TextUpdate(patch),
-                            );
+                            context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(
+                                patch,
+                            ));
                         }
                     });
                     ()
@@ -175,19 +168,11 @@ impl InstanceNode for TextInstance {
         );
     }
 
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.to_u32();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
+        context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props
-            .borrow_mut()
-            .remove(&expanded_node.id);
+        borrow_mut!(self.native_message_props).remove(&expanded_node.id);
     }
 
     fn resolve_debug(

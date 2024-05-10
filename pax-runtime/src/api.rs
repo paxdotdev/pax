@@ -1,5 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
+use_RefCell!();
 use crate::RuntimeContext;
 pub use pax_runtime_api::*;
 #[cfg(feature = "designtime")]
@@ -9,7 +10,6 @@ use {
 };
 
 #[derive(Clone)]
-#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: Property<u64>,
@@ -25,7 +25,7 @@ pub struct NodeContext {
     pub slot_children: usize,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     #[allow(unused)]
-    pub(crate) runtime_context: Rc<RefCell<RuntimeContext>>,
+    pub(crate) runtime_context: Rc<RuntimeContext>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
@@ -34,7 +34,7 @@ pub struct NodeContext {
 #[cfg(feature = "designtime")]
 impl NodeContext {
     pub fn raycast(&self, point: Point2<Window>) -> Vec<NodeInterface> {
-        let rc = self.runtime_context.borrow();
+        let rc = &self.runtime_context;
         let expanded_nodes = rc.get_elements_beneath_ray(point, false, vec![]);
         expanded_nodes
             .into_iter()
@@ -43,7 +43,7 @@ impl NodeContext {
     }
 
     pub fn get_nodes_by_global_id(&self, uni: UniqueTemplateNodeIdentifier) -> Vec<NodeInterface> {
-        let rc = self.runtime_context.borrow();
+        let rc = &self.runtime_context;
         let expanded_nodes = rc.get_expanded_nodes_by_global_ids(&uni);
         expanded_nodes
             .into_iter()
@@ -52,7 +52,7 @@ impl NodeContext {
     }
 
     pub fn get_nodes_by_id(&self, id: &str) -> Vec<NodeInterface> {
-        let rc = self.runtime_context.borrow();
+        let rc = &self.runtime_context;
         let expanded_nodes = rc.get_expanded_nodes_by_id(id);
         expanded_nodes
             .into_iter()

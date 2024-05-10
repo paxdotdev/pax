@@ -1,5 +1,5 @@
 use crate::{api::Property, ExpandedNodeIdentifier};
-use std::cell::RefCell;
+use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
@@ -7,7 +7,7 @@ use std::rc::Rc;
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
-use pax_runtime_api::{math::Transform2, pax_value::PaxAny, OS};
+use pax_runtime_api::{borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, OS};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
@@ -37,7 +37,7 @@ use {
 
 use self::expanded_node::LayoutProperties;
 
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
     pub viewport: LayoutProperties,
@@ -47,9 +47,18 @@ pub struct Globals {
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
 
+impl std::fmt::Debug for Globals {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Globals")
+            .field("frames_elapsed", &self.frames_elapsed)
+            .field("viewport", &self.viewport)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine {
-    pub runtime_context: Rc<RefCell<RuntimeContext>>,
+    pub runtime_context: Rc<RuntimeContext>,
     pub root_node: Rc<ExpandedNode>,
     main_component_instance: Rc<ComponentInstance>,
 }
@@ -246,10 +255,9 @@ impl PaxEngine {
             platform,
             os,
         };
-
-        let runtime_context = Rc::new(RefCell::new(RuntimeContext::new(expression_table, globals)));
-
+        let runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
         let root_node = ExpandedNode::root(Rc::clone(&main_component_instance), &runtime_context);
+        runtime_context.register_root_node(&root_node);
 
         PaxEngine {
             runtime_context,
@@ -281,11 +289,10 @@ impl PaxEngine {
             designtime: designtime.clone(),
         };
 
-        let mut runtime_context =
-            Rc::new(RefCell::new(RuntimeContext::new(expression_table, globals)));
-
+        let mut runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
         let root_node =
             ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
+        runtime_context.register_root_node(&root_node);
 
         PaxEngine {
             runtime_context,
@@ -296,7 +303,7 @@ impl PaxEngine {
 
     /// Replace an instance node in the main component's template
     pub fn replace_main_template_instance_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
-        for temp in self.main_component_instance.template.borrow().iter() {
+        for temp in borrow!(self.main_component_instance.template).iter() {
             replace_instance_node_at(&temp, &new_instance);
         }
 
@@ -304,7 +311,7 @@ impl PaxEngine {
             parent: &Rc<dyn InstanceNode>,
             new_instance: &Rc<dyn InstanceNode>,
         ) {
-            let mut instance_nodes = parent.base().get_instance_children().borrow_mut();
+            let mut instance_nodes = borrow_mut!(parent.base().get_instance_children());
             for node in instance_nodes.iter_mut() {
                 if node.base().template_node_identifier
                     == new_instance.base().template_node_identifier
@@ -334,11 +341,10 @@ impl PaxEngine {
     pub fn recurse_remount_main_template_expanded_node(
         parent: &Rc<ExpandedNode>,
         id: &UniqueTemplateNodeIdentifier,
-        ctx: &Rc<RefCell<RuntimeContext>>,
+        ctx: &Rc<RuntimeContext>,
     ) {
         if parent.children.get().iter().any(|node| {
-            node.instance_node
-                .borrow()
+            borrow!(node.instance_node)
                 .base()
                 .template_node_identifier
                 .as_ref()
@@ -348,8 +354,8 @@ impl PaxEngine {
             // to do more generally, split expanded_node.update into prop updates and
             // regen of children steps
             let env = Rc::clone(&parent.stack);
-            let parent_template = parent.instance_node.borrow();
-            let children = parent_template.base().get_instance_children().borrow();
+            let parent_template = borrow!(parent.instance_node);
+            let children = borrow!(parent_template.base().get_instance_children());
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
             parent.generate_children(new_templates, ctx);
             parent.recurse_update(ctx);
@@ -370,12 +376,11 @@ impl PaxEngine {
 
         let nodes = self
             .runtime_context
-            .borrow()
             .get_expanded_nodes_by_global_ids(&unique_id);
         for node in nodes {
             node.recreate_with_new_data(
                 new_instance.clone(),
-                self.runtime_context.borrow().expression_table(),
+                self.runtime_context.expression_table(),
             );
         }
     }
@@ -399,40 +404,25 @@ impl PaxEngine {
         //
         self.root_node.recurse_update(&mut self.runtime_context);
 
-        // 2. LAYER-IDS, z-index list creation Will always be recomputed each
-        // frame. Nothing intensive is to be done here.
-        {
-            self.runtime_context.borrow_mut().z_index_node_cache.clear();
-            fn assign_z_indicies(n: &Rc<ExpandedNode>, state: &mut Vec<Rc<ExpandedNode>>) {
-                state.push(Rc::clone(&n));
-            }
-
-            self.root_node.recurse_visit_postorder(
-                &assign_z_indicies,
-                &mut self.runtime_context.borrow_mut().z_index_node_cache,
-            );
-        }
-
+        let ctx = &self.runtime_context;
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
-        let cache = self.runtime_context.borrow().z_index_node_cache.clone();
-        for node in cache.iter() {
-            let layer = node.instance_node.borrow().base().flags().layer;
+        self.root_node.recurse_visit_postorder(&mut |node| {
+            let layer = borrow!(node.instance_node).base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();
-            let mut curr_occlusion_ind = node.occlusion_id.borrow_mut();
+            let mut curr_occlusion_ind = borrow_mut!(node.occlusion_id);
             if layer == Layer::Native && *curr_occlusion_ind != new_occlusion_ind {
-                self.runtime_context.borrow_mut().enqueue_native_message(
-                    pax_message::NativeMessage::OcclusionUpdate(OcclusionPatch {
+                ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
+                    OcclusionPatch {
                         id: node.id.to_u32(),
                         occlusion_layer_id: new_occlusion_ind,
-                    }),
-                );
+                    },
+                ));
             }
             *curr_occlusion_ind = new_occlusion_ind;
-        }
+        });
 
-        let mut ctx = self.runtime_context.borrow_mut();
         let time = &ctx.globals().frames_elapsed;
 
         time.set(time.get() + 1);
@@ -449,57 +439,47 @@ impl PaxEngine {
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
-        let binding = self.runtime_context.borrow();
-        let val = binding.node_cache.get(&id).clone();
+        let val = self.runtime_context.get_expanded_node_by_eid(id).clone();
         val.map(|v| (v.clone()))
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
-        self.runtime_context
-            .borrow_mut()
-            .globals_mut()
-            .viewport
-            .bounds
-            .set(new_viewport_size);
+        self.runtime_context.edit_globals(|globals| {
+            globals.viewport.bounds.set(new_viewport_size);
+        });
     }
 
     pub fn global_dispatch_key_down(&self, args: KeyDown) {
-        self.root_node.recurse_visit_postorder(
-            &|expanded_node, _| {
+        self.root_node
+            .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_down(
                     args.clone(),
-                    self.runtime_context.borrow().globals(),
+                    &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
-            },
-            &mut (),
-        );
+            });
     }
 
     pub fn global_dispatch_key_up(&self, args: KeyUp) {
-        self.root_node.recurse_visit_postorder(
-            &|expanded_node, _| {
+        self.root_node
+            .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_up(
                     args.clone(),
-                    self.runtime_context.borrow().globals(),
+                    &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
-            },
-            &mut (),
-        );
+            });
     }
 
     pub fn global_dispatch_key_press(&self, args: KeyPress) {
-        self.root_node.recurse_visit_postorder(
-            &|expanded_node, _| {
+        self.root_node
+            .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_press(
                     args.clone(),
-                    self.runtime_context.borrow().globals(),
+                    &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
-            },
-            &mut (),
-        );
+            });
     }
 }

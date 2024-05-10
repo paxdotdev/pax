@@ -1,11 +1,11 @@
-use std::cell::RefCell;
-
 use pax_message::{AnyCreatePatch, CheckboxPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
+use_RefCell!();
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
 use pax_std::primitives::Checkbox;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -40,14 +40,9 @@ impl InstanceNode for CheckboxInstance {
         })
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        self.native_message_props
-            .borrow()
+        borrow!(self.native_message_props)
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -56,16 +51,16 @@ impl InstanceNode for CheckboxInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.to_u32();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(AnyCreatePatch {
+        context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
+            AnyCreatePatch {
                 id,
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
                 occlusion_layer_id: 0,
-            }));
+            },
+        ));
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(CheckboxPatch {
@@ -73,9 +68,7 @@ impl InstanceNode for CheckboxInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = expanded_node
-            .properties_scope
-            .borrow()
+        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
             .chain([
@@ -83,14 +76,14 @@ impl InstanceNode for CheckboxInstance {
                 expanded_node.layout_properties.bounds.untyped(),
             ])
             .collect();
-        self.native_message_props.borrow_mut().insert(
+        borrow_mut!(self.native_message_props).insert(
             expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let mut old_state = last_patch.borrow_mut();
+                    let mut old_state = borrow_mut!(last_patch);
 
                     let mut patch = CheckboxPatch {
                         id,
@@ -114,7 +107,7 @@ impl InstanceNode for CheckboxInstance {
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {
-                            context.borrow_mut().enqueue_native_message(
+                            context.enqueue_native_message(
                                 pax_message::NativeMessage::CheckboxUpdate(patch),
                             );
                         }
@@ -126,17 +119,11 @@ impl InstanceNode for CheckboxInstance {
         );
     }
 
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id.to_u32()));
+        context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props.borrow_mut().remove(&id);
+        borrow_mut!(self.native_message_props).remove(&id);
     }
 
     fn base(&self) -> &BaseInstance {

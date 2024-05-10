@@ -1486,12 +1486,12 @@ impl Reflectable for Stroke {
                 },
             );
         }
-        let color_type_id = Size::get_type_id();
-        if !ctx.type_table.contains_key(&color_type_id) {
+        let size_type_id = Size::get_type_id();
+        if !ctx.type_table.contains_key(&size_type_id) {
             ctx.type_table.insert(
-                color_type_id.clone(),
+                size_type_id.clone(),
                 TypeDefinition {
-                    type_id: color_type_id,
+                    type_id: size_type_id,
                     inner_iterable_type_id: None,
                     property_definitions: vec![],
                 },

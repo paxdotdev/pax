@@ -1,7 +1,8 @@
 use core::option::Option::Some;
 use pax_runtime::{BaseInstance, ExpandedNodeIdentifier, InstanceFlags, RuntimeContext};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
 use pax_std::primitives::Scrollbar;
-use std::cell::RefCell;
+use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -44,14 +45,9 @@ impl InstanceNode for ScrollbarInstance {
             native_message_props: Default::default(),
         })
     }
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        self.native_message_props
-            .borrow()
+        borrow!(self.native_message_props)
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -60,17 +56,17 @@ impl InstanceNode for ScrollbarInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         // Send creation message
         let id = expanded_node.id.to_u32();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
+        context.enqueue_native_message(pax_message::NativeMessage::ScrollerCreate(
+            AnyCreatePatch {
                 id,
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
                 occlusion_layer_id: 0,
-            }));
+            },
+        ));
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
@@ -80,9 +76,7 @@ impl InstanceNode for ScrollbarInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = expanded_node
-            .properties_scope
-            .borrow()
+        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
             .chain([
@@ -90,14 +84,14 @@ impl InstanceNode for ScrollbarInstance {
                 expanded_node.layout_properties.bounds.untyped(),
             ])
             .collect();
-        self.native_message_props.borrow_mut().insert(
+        borrow_mut!(self.native_message_props).insert(
             expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let mut old_state = last_patch.borrow_mut();
+                    let mut old_state = borrow_mut!(last_patch);
 
                     let mut patch = ScrollerPatch {
                         id,
@@ -141,7 +135,7 @@ impl InstanceNode for ScrollbarInstance {
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {
-                            context.borrow_mut().enqueue_native_message(
+                            context.enqueue_native_message(
                                 pax_message::NativeMessage::ScrollerUpdate(patch),
                             );
                         }
@@ -153,19 +147,11 @@ impl InstanceNode for ScrollbarInstance {
         );
     }
 
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.to_u32();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id));
+        context.enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(id));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props
-            .borrow_mut()
-            .remove(&expanded_node.id);
+        borrow_mut!(self.native_message_props).remove(&expanded_node.id);
     }
     fn base(&self) -> &BaseInstance {
         &self.base

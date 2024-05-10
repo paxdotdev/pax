@@ -21,6 +21,7 @@ piet-web = "0.6.0"
 pax-runtime = { path = "../pax-runtime", version="0.14.9" }
 pax-cartridge = {path="../pax-cartridge", version="0.14.9"}
 pax-message = {path = "../pax-message", version="0.14.9"}
+pax-runtime-api = { path = "../pax-runtime-api", version="0.14.9" }
 wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 serde_json = "1.0.95"
 console_log = "1.0.0"

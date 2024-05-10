@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use pax_runtime_api::{Numeric, Property, Window};
+use pax_runtime_api::{borrow, Numeric, Property, Window};
 
 use crate::api::math::{Generic, Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
@@ -23,7 +23,7 @@ pub fn compute_tab(
 
     let cp_container_bounds = container_bounds.clone();
     let common_props = node.get_common_properties();
-    let common_props = common_props.borrow();
+    let common_props = borrow!(common_props);
     let cp_width = common_props.width.clone();
     let cp_height = common_props.height.clone();
 
@@ -182,7 +182,9 @@ pub fn compute_tab(
                     .compute_transform2d_matrix(cp_bounds.get(), container_bounds.get())
                     .cast_spaces::<NodeLocal, NodeLocal>()
             };
-            container_transform.get() * desugared_transform * node_transform_property_computed
+            let res =
+                container_transform.get() * desugared_transform * node_transform_property_computed;
+            res
         },
         &all_transform_deps,
         &format!("transform of node {}", node.id.0),

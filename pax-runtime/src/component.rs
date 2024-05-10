@@ -1,8 +1,9 @@
+use std::iter;
 use std::rc::Rc;
-use std::{cell::RefCell, iter};
 
-use pax_runtime_api::Property;
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Property};
 
+use_RefCell!();
 use crate::api::{Layer, Timeline};
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstanceNodePtrList,
@@ -49,27 +50,28 @@ impl InstanceNode for ComponentInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         if let Some(containing_component) = expanded_node.containing_component.upgrade() {
             let env = Rc::clone(&expanded_node.stack);
-            let children = self.base().get_instance_children().borrow();
+            let children = borrow!(self.base().get_instance_children());
             let children_with_env = children.iter().cloned().zip(iter::repeat(env));
-            *expanded_node.expanded_slot_children.borrow_mut() =
+            *borrow_mut!(expanded_node.expanded_slot_children) =
                 Some(containing_component.create_children_detached(children_with_env, context));
 
             // Mounts slot children so repeat can create expression for children
-            if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+            if let Some(slot_children) = borrow!(expanded_node.expanded_slot_children).as_ref() {
                 for slot_child in slot_children {
                     slot_child.recurse_mount(context);
                 }
             }
         }
-        let properties_scope = expanded_node.properties_scope.borrow();
-        let new_env = expanded_node
-            .stack
-            .push(properties_scope.clone(), &expanded_node.properties.borrow());
-        let children = self.template.borrow();
+        let properties_scope = borrow!(expanded_node.properties_scope);
+        let new_env = expanded_node.stack.push(
+            properties_scope.clone(),
+            &*borrow!(expanded_node.properties),
+        );
+        let children = borrow!(self.template);
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.children.replace_with(Property::new_with_name(
             expanded_node.generate_children(children_with_envs, context),
@@ -77,24 +79,16 @@ impl InstanceNode for ComponentInstance {
         ));
     }
 
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow_mut().take() {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        if let Some(slot_children) = borrow_mut!(expanded_node.expanded_slot_children).take() {
             for slot_child in slot_children {
                 slot_child.recurse_unmount(context);
             }
         }
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-        if let Some(slot_children) = expanded_node.expanded_slot_children.borrow().as_ref() {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        if let Some(slot_children) = borrow_mut!(expanded_node.expanded_slot_children).as_ref() {
             for slot_child in slot_children {
                 slot_child.recurse_update(context);
             }

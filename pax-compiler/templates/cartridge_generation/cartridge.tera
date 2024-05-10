@@ -12,6 +12,7 @@ use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 use pax_runtime_api::pax_value::PaxValue;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::pax_value::ToFromPaxAny;
+use pax_runtime_api::{borrow, borrow_mut};
 use pax_runtime::api::pax_value::ToFromPaxValue;
 
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
@@ -21,6 +22,7 @@ const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 use {{ import }};
 {% endfor %}
 
+use_RefCell!();
 
 pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> {
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> = HashMap::new();
@@ -39,7 +41,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 } else {
                     panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
                 };
-                let mut borrowed = &mut *(*properties).borrow_mut();
+                let mut borrowed = &mut *borrow_mut!(*properties);
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
                     if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_any(&*borrowed) {
@@ -48,7 +50,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
-                            let elem_borrowed = elem.borrow();
+                            let elem_borrowed = borrow!(elem);
                             if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
                                 *unwrapped
                             } else {
@@ -57,7 +59,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                         {% elif invocation.is_string %}
                             //string as `elem`
 
-                            let elem_borrowed = elem.borrow();
+                            let elem_borrowed = borrow!(elem);
                             if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
                                 StringBox::from(unwrapped)
                             } else {
@@ -69,7 +71,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                             elem.clone()
                         {% else %}
                             //iterable complex type
-                            let mut elem_borrowed = &mut *elem.borrow_mut();
+                            let mut elem_borrowed = &mut *borrow_mut!(elem);
                             if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(elem_borrowed) {
                                 dc.clone()
                             } else {unreachable!()}
@@ -265,7 +267,7 @@ impl DefinitionToInstanceTraverser {
 
     #[cfg(feature = "designtime")]
     pub fn get_manifest(&self) ->  Ref<PaxManifest> {
-        Ref::map(self.designtime_manager.borrow(), |manager| {
+        Ref::map(borrow!(self.designtime_manager), |manager| {
             manager.get_manifest()
         })
     }
