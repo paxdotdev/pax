@@ -15,6 +15,7 @@ description = "Primitives crate for Pax's standard library"
 pax-runtime = {path = "../../pax-runtime", version="0.14.9"}
 pax-std = {path = "../", version="0.14.9"}
 pax-message = {path = "../../pax-message", version="0.14.9" }
+pax-runtime-api = {path = "../../pax-runtime-api", version="0.14.9"}
 piet = "0.6.0"
 piet-common = "0.6.0"
 kurbo = "0.9.0"

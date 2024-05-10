@@ -1,7 +1,9 @@
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
 use pax_std::primitives::Image;
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
+use_RefCell!();
 use pax_message::ImagePatch;
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
@@ -39,14 +41,9 @@ impl InstanceNode for ImageInstance {
         })
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        self.native_message_props
-            .borrow()
+        borrow!(self.native_message_props)
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -55,7 +52,7 @@ impl InstanceNode for ImageInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.to_u32();
 
@@ -67,9 +64,7 @@ impl InstanceNode for ImageInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = expanded_node
-            .properties_scope
-            .borrow()
+        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
             .chain([
@@ -77,14 +72,14 @@ impl InstanceNode for ImageInstance {
                 expanded_node.layout_properties.bounds.untyped(),
             ])
             .collect();
-        self.native_message_props.borrow_mut().insert(
+        borrow_mut!(self.native_message_props).insert(
             expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let mut old_state = last_patch.borrow_mut();
+                    let mut old_state = borrow_mut!(last_patch);
 
                     let mut patch = ImagePatch {
                         id,
@@ -97,7 +92,6 @@ impl InstanceNode for ImageInstance {
 
                     if update {
                         context
-                            .borrow_mut()
                             .enqueue_native_message(pax_message::NativeMessage::ImageLoad(patch));
                     }
                     ()
@@ -107,20 +101,16 @@ impl InstanceNode for ImageInstance {
         );
     }
 
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
         // Reset so that native_message stops sending updates while unmounted
-        self.native_message_props.borrow_mut().remove(&id);
+        borrow_mut!(self.native_message_props).remove(&id);
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &Rc<RefCell<RuntimeContext>>,
+        _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
         let transform = expanded_node.layout_properties.transform.get();
@@ -132,7 +122,7 @@ impl InstanceNode for ImageInstance {
 
         let path =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
-        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+        let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
         rc.save(&layer_id);
         rc.transform(&layer_id, transform.into());
         rc.draw_image(&layer_id, &path, transformed_bounds);

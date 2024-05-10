@@ -4,10 +4,11 @@ use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
+use pax_runtime_api::{borrow, use_RefCell};
 use pax_std::primitives::Path;
 use pax_std::types::{PathElement, Point};
 
-use std::cell::RefCell;
+use_RefCell!();
 use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
@@ -36,10 +37,10 @@ impl InstanceNode for PathInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &Rc<RefCell<RuntimeContext>>,
+        _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+        let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let mut bez_path = BezPath::new();

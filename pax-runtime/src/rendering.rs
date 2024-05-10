@@ -1,13 +1,13 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 
 use std::iter;
 use std::rc::Rc;
-
+use_RefCell!();
 use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::{borrow, use_RefCell};
 use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll};
@@ -81,12 +81,7 @@ pub trait InstanceNode {
     ) -> std::fmt::Result;
 
     /// Updates the expanded node, recomputing it's properties and possibly updating it's children
-    fn update(
-        self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-    }
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
@@ -97,7 +92,7 @@ pub trait InstanceNode {
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
         //no-op default implementation
@@ -111,7 +106,7 @@ pub trait InstanceNode {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
     }
@@ -125,7 +120,7 @@ pub trait InstanceNode {
     fn handle_post_render(
         &self,
         expanded_node: &ExpandedNode,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
         //no-op default implementation
@@ -139,10 +134,10 @@ pub trait InstanceNode {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         let env = Rc::clone(&expanded_node.stack);
-        let children = self.base().get_instance_children().borrow();
+        let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
         let new_children = expanded_node.generate_children(children_with_envs, context);
@@ -152,11 +147,7 @@ pub trait InstanceNode {
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         //no-op default implementation
     }
     /// Invoked by event interrupts to pass scroll information to render node

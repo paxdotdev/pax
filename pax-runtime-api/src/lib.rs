@@ -8,14 +8,15 @@ use pax_value::PaxAny;
 pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
+pub mod refcell_debug;
+pub use refcell_debug::*;
 
 #[cfg(feature = "designtime")]
 use {
     crate::math::Point2, crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,
-    std::cell::RefCell,
 };
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::{Rc, Weak};
 
 pub mod constants;
@@ -738,7 +739,6 @@ impl<T: 'static> ImplToFromPaxAny for Rc<T> {}
 impl<T: Clone + 'static> ImplToFromPaxAny for Weak<T> {}
 impl<T: Clone + 'static> ImplToFromPaxAny for Option<T> {}
 impl<T: Clone + 'static> ImplToFromPaxAny for Vec<T> {}
-impl<T: Clone + 'static> ImplToFromPaxAny for RefCell<T> {}
 
 impl<T1: Clone + 'static, T2: Clone + 'static> ImplToFromPaxAny for (T1, T2) {}
 
@@ -763,7 +763,6 @@ impl Interpolatable for () {}
 impl<T: ?Sized + Clone> Interpolatable for HashSet<T> {}
 impl<T: ?Sized> Interpolatable for Rc<T> {}
 impl<T: Interpolatable> Interpolatable for Weak<T> {}
-impl<T: Interpolatable> Interpolatable for RefCell<T> {}
 impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}
 
 impl<I: Interpolatable> Interpolatable for Vec<I> {

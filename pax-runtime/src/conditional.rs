@@ -1,8 +1,8 @@
-use std::cell::RefCell;
 use std::{iter, rc::Rc};
+use_RefCell!();
 
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
-use pax_runtime_api::Property;
+use pax_runtime_api::{borrow, use_RefCell, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -47,7 +47,7 @@ impl InstanceNode for ConditionalInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_self = Rc::clone(&self);
@@ -69,13 +69,13 @@ impl InstanceNode for ConditionalInstance {
                     };
                     if cond_expr.get() {
                         let env = Rc::clone(&cloned_expanded_node.stack);
-                        let children = cloned_self.base().get_instance_children().borrow();
+                        let children = borrow!(cloned_self.base().get_instance_children());
                         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
                         let res = cloned_expanded_node
                             .generate_children(children_with_envs, &cloned_context);
                         res
                     } else {
-                        Vec::new()
+                        cloned_expanded_node.generate_children(vec![], &cloned_context)
                     }
                 },
                 &[dep],
