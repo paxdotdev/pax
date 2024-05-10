@@ -16,7 +16,6 @@
     @key_down: handle_key_down,
     @key_up: handle_key_up,
     @double_click: handle_double_click
-    @pre_render: update_view,
     @context_menu: self.context_menu
 
     #backing_plate {

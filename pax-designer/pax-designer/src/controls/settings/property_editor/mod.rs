@@ -88,7 +88,7 @@ pub struct PropertyEditorData {
 
 impl PropertyEditorData {
     pub fn get_prop_type_id(&self, ctx: &NodeContext) -> Option<TypeId> {
-        let dt = ctx.designtime.borrow();
+        let dt = borrow!(ctx.designtime);
         dt.get_orm().get_property_type(
             &UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
             self.name.as_str(),
@@ -96,7 +96,7 @@ impl PropertyEditorData {
     }
 
     pub fn get_value(&self, ctx: &NodeContext) -> Option<ValueDefinition> {
-        let dt = ctx.designtime.borrow();
+        let dt = borrow!(ctx.designtime);
         dt.get_orm().get_property(
             &UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
             self.name.as_str(),
@@ -147,7 +147,7 @@ impl PropertyEditorData {
         ctx: &NodeContext,
         f: impl FnOnce(NodeBuilder<'_>) -> T,
     ) -> Option<T> {
-        let mut dt = ctx.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.designtime);
         let node_definition = dt
             .get_orm_mut()
             .get_node(UniqueTemplateNodeIdentifier::build(

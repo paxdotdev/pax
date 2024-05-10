@@ -28,8 +28,6 @@ pub struct Toolbar {
     pub selected_ind: Property<usize>,
     pub entries: Property<Vec<ToolbarItemView>>,
     pub dropdown_entries: Property<Vec<ToolbarItemView>>,
-
-    pub click_ev: Property<ToolbarClickEvent>,
 }
 
 enum ToolbarEvent {
@@ -160,7 +158,7 @@ impl Toolbar {
         });
 
         let ctx = ctx.clone();
-        let toolbar_click = self.click_ev.clone();
+        let toolbar_click = CLICK_PROP.with(|p| p.clone());
         let deps = [toolbar_click.untyped()];
         self.dropdown_entries.replace_with(Property::computed(
             move || match toolbar_click.get() {
@@ -232,13 +230,5 @@ impl Toolbar {
                 &deps,
             ));
         });
-    }
-    pub fn update_view(&mut self, _ctx: &NodeContext) {
-        // HACK: this is temporary, if not here, update ordering causes bugs
-        // will prob not be needed after double bindings?
-        let val = CLICK_PROP.with(|p| p.get());
-        if val != self.click_ev.get() {
-            self.click_ev.set(val);
-        }
     }
 }
