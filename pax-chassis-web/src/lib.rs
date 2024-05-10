@@ -3,7 +3,9 @@
 use js_sys::Uint8Array;
 use log::Level;
 use pax_message::ImageLoadInterruptArgs;
+use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
+use pax_runtime::api::use_RefCell;
 use pax_runtime::api::ButtonClick;
 use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::Platform;
@@ -13,7 +15,8 @@ use pax_runtime::api::TextboxChange;
 use pax_runtime::api::TextboxInput;
 use pax_runtime::api::OS;
 use pax_runtime::ExpressionTable;
-use std::cell::RefCell;
+use pax_runtime_api::borrow_mut;
+use_RefCell!();
 
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -162,7 +165,7 @@ impl PaxChassisWeb {
     }
 
     pub fn send_viewport_update(&mut self, width: f64, height: f64) {
-        self.engine.borrow_mut().set_viewport_size((width, height));
+        borrow_mut!(self.engine).set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: String) {
         self.drawing_contexts.remove_context(&id);
@@ -175,8 +178,8 @@ impl PaxChassisWeb {
     ) -> InterruptResult {
         let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
 
-        let engine = self.engine.borrow_mut();
-        let ctx = engine.runtime_context.borrow();
+        let engine = borrow_mut!(self.engine);
+        let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match x {
             NativeInterrupt::Image(args) => match args {
@@ -196,7 +199,7 @@ impl PaxChassisWeb {
                 let node = engine
                     .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("button node exists in engine");
-                node.dispatch_button_click(ButtonClick {}, globals, &engine.runtime_context)
+                node.dispatch_button_click(ButtonClick {}, &globals, &engine.runtime_context)
             }
             NativeInterrupt::FormTextboxInput(args) => {
                 let node = engine
@@ -204,7 +207,7 @@ impl PaxChassisWeb {
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_input(
                     TextboxInput { text: args.text },
-                    globals,
+                    &globals,
                     &engine.runtime_context,
                 )
             }
@@ -214,7 +217,7 @@ impl PaxChassisWeb {
                     .expect("text node exists in engine");
                 node.dispatch_text_input(
                     TextInput { text: args.text },
-                    globals,
+                    &globals,
                     &engine.runtime_context,
                 )
             }
@@ -224,7 +227,7 @@ impl PaxChassisWeb {
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_change(
                     TextboxChange { text: args.text },
-                    globals,
+                    &globals,
                     &engine.runtime_context,
                 )
             }
@@ -236,7 +239,7 @@ impl PaxChassisWeb {
                     CheckboxChange {
                         checked: args.state,
                     },
-                    globals,
+                    &globals,
                     &engine.runtime_context,
                 )
             }
@@ -245,7 +248,6 @@ impl PaxChassisWeb {
             NativeInterrupt::Click(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_click = Click {
@@ -260,7 +262,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_click(args_click, globals, &engine.runtime_context)
+                    topmost_node.dispatch_click(args_click, &globals, &engine.runtime_context)
                 } else {
                     false
                 }
@@ -269,14 +271,13 @@ impl PaxChassisWeb {
             NativeInterrupt::Clap(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_clap = Clap {
                         x: args.x,
                         y: args.y,
                     };
-                    topmost_node.dispatch_clap(args_clap, globals, &engine.runtime_context)
+                    topmost_node.dispatch_clap(args_clap, &globals, &engine.runtime_context)
                 } else {
                     false
                 }
@@ -285,14 +286,13 @@ impl PaxChassisWeb {
                 let first_touch = args.touches.get(0).unwrap();
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_start = TouchStart { touches };
                     topmost_node.dispatch_touch_start(
                         args_touch_start,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -303,14 +303,13 @@ impl PaxChassisWeb {
                 let first_touch = args.touches.get(0).unwrap();
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_move = TouchMove { touches };
                     topmost_node.dispatch_touch_move(
                         args_touch_move,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -321,14 +320,13 @@ impl PaxChassisWeb {
                 let first_touch = args.touches.get(0).unwrap();
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 if let Some(topmost_node) = prospective_hit {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_end = TouchEnd { touches };
                     topmost_node.dispatch_touch_end(
                         args_touch_end,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -386,7 +384,6 @@ impl PaxChassisWeb {
             NativeInterrupt::DoubleClick(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_double_click = DoubleClick {
@@ -403,7 +400,7 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_double_click(
                         args_double_click,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -413,7 +410,6 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseMove(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_move = MouseMove {
@@ -430,7 +426,7 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_mouse_move(
                         args_mouse_move,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -440,7 +436,6 @@ impl PaxChassisWeb {
             NativeInterrupt::Wheel(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let modifiers = args
@@ -455,7 +450,7 @@ impl PaxChassisWeb {
                         delta_y: args.delta_y,
                         modifiers,
                     };
-                    topmost_node.dispatch_wheel(args_wheel, globals, &engine.runtime_context)
+                    topmost_node.dispatch_wheel(args_wheel, &globals, &engine.runtime_context)
                 } else {
                     false
                 }
@@ -463,7 +458,6 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseDown(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_down = MouseDown {
@@ -480,7 +474,7 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_mouse_down(
                         args_mouse_down,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -490,7 +484,6 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseUp(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_up = MouseUp {
@@ -505,7 +498,7 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_up(args_mouse_up, globals, &engine.runtime_context)
+                    topmost_node.dispatch_mouse_up(args_mouse_up, &globals, &engine.runtime_context)
                 } else {
                     false
                 }
@@ -513,7 +506,6 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseOver(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_over = MouseOver {
@@ -530,7 +522,7 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_mouse_over(
                         args_mouse_over,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -540,7 +532,6 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseOut(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_mouse_out = MouseOut {
@@ -557,7 +548,7 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_mouse_out(
                         args_mouse_out,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -567,7 +558,6 @@ impl PaxChassisWeb {
             NativeInterrupt::ContextMenu(args) => {
                 let prospective_hit = engine
                     .runtime_context
-                    .borrow()
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
                     let args_context_menu = ContextMenu {
@@ -584,7 +574,7 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_context_menu(
                         args_context_menu,
-                        globals,
+                        &globals,
                         &engine.runtime_context,
                     )
                 } else {
@@ -605,8 +595,8 @@ impl PaxChassisWeb {
 
     #[cfg(feature = "designtime")]
     pub fn update_userland_component(&mut self) {
-        let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
-        let reload_type = self.designtime_manager.borrow().get_reload_queue();
+        let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
+        let reload_type = borrow!(self.designtime_manager).get_reload_queue();
         if current_manifest_version != self.last_manifest_version_rendered {
             if let Some(reload_type) = reload_type {
                 match reload_type {
@@ -615,7 +605,7 @@ impl PaxChassisWeb {
                             .definition_to_instance_traverser
                             .get_template_node_by_id(USERLAND_PROJECT_ID)
                         {
-                            let mut engine = self.engine.borrow_mut();
+                            let mut engine = borrow_mut!(self.engine);
                             engine.replace_main_template_instance_node(Rc::clone(&instance_node));
                             engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
                         }
@@ -625,7 +615,7 @@ impl PaxChassisWeb {
                             .definition_to_instance_traverser
                             .get_template_node_by_id(RUNNING_PROJECT_ID)
                         {
-                            let mut engine = self.engine.borrow_mut();
+                            let mut engine = borrow_mut!(self.engine);
                             engine.replace_main_template_instance_node(Rc::clone(&instance_node));
                             engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
                         }
@@ -636,7 +626,7 @@ impl PaxChassisWeb {
                                 &uni.get_containing_component_type_id(),
                                 &uni.get_template_node_id(),
                             );
-                        let mut engine = self.engine.borrow_mut();
+                        let mut engine = borrow_mut!(self.engine);
                         engine.partial_update_expanded_node(Rc::clone(&instance_node));
                     }
                 }
@@ -647,8 +637,7 @@ impl PaxChassisWeb {
 
     #[cfg(feature = "designtime")]
     pub fn handle_recv_designtime(&mut self) {
-        self.designtime_manager
-            .borrow_mut()
+        borrow_mut!(self.designtime_manager)
             .handle_recv()
             .expect("couldn't handle recv");
     }
@@ -664,7 +653,7 @@ impl PaxChassisWeb {
         #[cfg(feature = "designtime")]
         self.designtime_tick();
 
-        let message_queue = self.engine.borrow_mut().tick();
+        let message_queue = borrow_mut!(self.engine).tick();
 
         // Serialize data to a JSON string
         let json_string = serde_json::to_string(&message_queue).unwrap();
@@ -688,9 +677,7 @@ impl PaxChassisWeb {
     }
 
     pub fn render(&mut self) {
-        self.engine
-            .borrow_mut()
-            .render((&mut self.drawing_contexts) as &mut dyn RenderContext);
+        borrow_mut!(self.engine).render((&mut self.drawing_contexts) as &mut dyn RenderContext);
     }
 
     pub fn image_loaded(&mut self, path: &str) -> bool {

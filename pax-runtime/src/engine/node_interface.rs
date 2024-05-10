@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::pax_value::ToFromPaxAny;
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny};
 
 use crate::{
     api::math::{Point2, Space, Transform2},
@@ -31,15 +31,14 @@ impl Space for NodeLocal {}
 
 impl NodeInterface {
     pub fn global_id(&self) -> Option<UniqueTemplateNodeIdentifier> {
-        let instance_node = self.inner.instance_node.borrow();
+        let instance_node = borrow!(self.inner.instance_node);
         let base = instance_node.base();
         base.template_node_identifier.clone()
     }
 
     pub fn common_properties(&self) -> Properties {
         let cp = self.inner.get_common_properties();
-        let rot = cp
-            .borrow()
+        let rot = borrow!(cp)
             .rotate
             .as_ref()
             .map(|p| p.get().clone())
@@ -55,7 +54,7 @@ impl NodeInterface {
 
     pub fn origin(&self) -> Option<Point2<Window>> {
         let common_props = self.inner.get_common_properties();
-        let common_props = common_props.borrow();
+        let common_props = borrow!(common_props);
         let (width, height) = self.inner.layout_properties.bounds.get();
         let p_anchor = Point2::new(
             common_props
@@ -82,7 +81,7 @@ impl NodeInterface {
     }
 
     pub fn parent(&self) -> Option<NodeInterface> {
-        let parent = self.inner.parent_expanded_node.borrow();
+        let parent = borrow!(self.inner.parent_expanded_node);
         Some(parent.upgrade()?.into())
     }
 

@@ -1,11 +1,11 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
+use_RefCell!();
 
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{ImplToFromPaxAny, Property};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -69,17 +69,12 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
-    fn update(
-        self: Rc<Self>,
-        _expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
-    }
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         // No-op: wait with creating child-nodes until update tick, since the
         // condition has then been evaluated
@@ -130,10 +125,10 @@ impl InstanceNode for RepeatInstance {
                     };
                     let source = source_expression.get();
                     let source_len = source.len();
-                    if source_len == *last_length.borrow() {
+                    if source_len == *borrow!(last_length) {
                         return cloned_expanded_node.children.get();
                     }
-                    *last_length.borrow_mut() = source_len;
+                    *borrow_mut!(last_length) = source_len;
                     let template_children = cloned_self.base().get_instance_children();
                     let children_with_envs = iter::repeat(template_children)
                         .take(source_len)
@@ -146,7 +141,12 @@ impl InstanceNode for RepeatInstance {
                                 // How to make outer recompute and drop this before evaluation?
                                 // somehow, this is accessed before children are during tick?
                                 //
-                                move || Some(Rc::clone(&cp_source_expression.get()[i])),
+                                move || {
+                                    cp_source_expression.get().get(i).cloned() // .unwrap_or_else(|| panic!(
+                                                                               //     "engine error: tried to access index {} of an array source that now only contains {} elements",
+                                                                               //     i, cp_source_expression.get().len()
+                                                                               // )),
+                                },
                                 &[source_expression.untyped()],
                                 "repeat elem",
                             );
@@ -167,8 +167,7 @@ impl InstanceNode for RepeatInstance {
                             }
 
                             let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
-                            children
-                                .borrow()
+                            borrow!(children)
                                 .clone()
                                 .into_iter()
                                 .zip(iter::repeat(new_env))

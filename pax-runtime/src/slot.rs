@@ -1,7 +1,7 @@
-use std::cell::RefCell;
 use std::rc::{Rc, Weak};
+use_RefCell!();
 
-use pax_runtime_api::{ImplToFromPaxAny, Numeric, Property};
+use pax_runtime_api::{borrow, use_RefCell, ImplToFromPaxAny, Numeric, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -55,7 +55,7 @@ impl InstanceNode for SlotInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_context = Rc::clone(context);
@@ -87,17 +87,14 @@ impl InstanceNode for SlotInstance {
             ));
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         let containing = expanded_node.containing_component.upgrade();
-        let nodes = containing
-            .as_ref()
-            .expect("slot to have a containing component")
-            .expanded_and_flattened_slot_children
-            .borrow();
+        let nodes = borrow!(
+            containing
+                .as_ref()
+                .expect("slot to have a containing component")
+                .expanded_and_flattened_slot_children
+        );
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
             let node_rc = nodes
                 .as_ref()

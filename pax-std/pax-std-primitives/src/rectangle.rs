@@ -1,13 +1,14 @@
 use kurbo::{RoundedRect, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
+use pax_runtime_api::{borrow, use_RefCell};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use pax_std::primitives::Rectangle;
 
 use pax_runtime::api::{Layer, RenderContext};
-
-use std::{cell::RefCell, rc::Rc};
+use_RefCell!();
+use std::rc::Rc;
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -33,13 +34,13 @@ impl InstanceNode for RectangleInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &Rc<RefCell<RuntimeContext>>,
+        _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
         let tab = &expanded_node.layout_properties;
         let (width, height) = tab.bounds.get();
 
-        let layer_id = format!("{}", expanded_node.occlusion_id.borrow());
+        let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());

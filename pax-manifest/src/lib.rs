@@ -1881,7 +1881,7 @@ pub struct HostCrateInfo {
 //Effectively our `Prelude` types
 pub const IMPORTS_BUILTINS: &[&str] = &[
     "std::any::Any",
-    "std::cell::RefCell",
+    "pax_runtime::api::{use_RefCell}",
     "std::collections::HashMap",
     "std::collections::VecDeque",
     "std::ops::Deref",

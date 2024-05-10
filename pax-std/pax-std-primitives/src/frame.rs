@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
@@ -11,6 +10,8 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
+use_RefCell!();
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
 use pax_std::primitives::Frame;
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -48,14 +49,9 @@ impl InstanceNode for FrameInstance {
         })
     }
 
-    fn update(
-        self: Rc<Self>,
-        expanded_node: &Rc<ExpandedNode>,
-        _context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        self.native_message_props
-            .borrow()
+        borrow!(self.native_message_props)
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -64,7 +60,7 @@ impl InstanceNode for FrameInstance {
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &Rc<RefCell<RuntimeContext>>,
+        _context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
         let transform = expanded_node.layout_properties.transform.get();
@@ -93,7 +89,7 @@ impl InstanceNode for FrameInstance {
     fn handle_post_render(
         &self,
         _expanded_node: &ExpandedNode,
-        _context: &Rc<RefCell<RuntimeContext>>,
+        _context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
         let layers = rcs.layers();
@@ -107,16 +103,14 @@ impl InstanceNode for FrameInstance {
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
+        context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.clone();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-                id: id.to_u32(),
-                parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
-            }));
+        context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
+            id: id.to_u32(),
+            parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+            occlusion_layer_id: 0,
+        }));
 
         // When a frame has been mounted (and it's sucessfully attached itself
         // already to it's own parent) it sets itself as it's parent frame, so
@@ -126,7 +120,7 @@ impl InstanceNode for FrameInstance {
 
         // bellow is the same as default impl for adding children in instance_node
         let env = Rc::clone(&expanded_node.stack);
-        let children = self.base().get_instance_children().borrow();
+        let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
         let new_children = expanded_node.generate_children(children_with_envs, context);
@@ -144,9 +138,7 @@ impl InstanceNode for FrameInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = expanded_node
-            .properties_scope
-            .borrow()
+        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
             .chain([
@@ -154,7 +146,7 @@ impl InstanceNode for FrameInstance {
                 expanded_node.layout_properties.bounds.untyped(),
             ])
             .collect();
-        self.native_message_props.borrow_mut().insert(
+        borrow_mut!(self.native_message_props).insert(
             id,
             Property::computed(
                 move || {
@@ -162,7 +154,7 @@ impl InstanceNode for FrameInstance {
                         unreachable!()
                     };
                     let id = expanded_node.id.to_u32();
-                    let mut old_state = last_patch.borrow_mut();
+                    let mut old_state = borrow_mut!(last_patch);
 
                     let mut patch = FramePatch {
                         id,
@@ -183,7 +175,7 @@ impl InstanceNode for FrameInstance {
                         ];
 
                         if updates.into_iter().any(|v| v == true) {
-                            context.borrow_mut().enqueue_native_message(
+                            context.enqueue_native_message(
                                 pax_message::NativeMessage::FrameUpdate(patch),
                             );
                         }
@@ -195,17 +187,11 @@ impl InstanceNode for FrameInstance {
         );
     }
 
-    fn handle_unmount(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
-        context: &Rc<RefCell<RuntimeContext>>,
-    ) {
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
-        context
-            .borrow_mut()
-            .enqueue_native_message(pax_message::NativeMessage::FrameDelete(id.to_u32()));
+        context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props.borrow_mut().remove(&id);
+        borrow_mut!(self.native_message_props).remove(&id);
     }
 
     fn resolve_debug(
