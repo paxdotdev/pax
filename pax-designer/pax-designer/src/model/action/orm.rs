@@ -9,7 +9,7 @@ use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::Rotation;
+use pax_engine::api::{borrow_mut, Rotation};
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
@@ -24,7 +24,7 @@ pub struct CreateComponent {
 }
 impl Action for CreateComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let mut builder = dt.get_orm_mut().build_new_node(
             ctx.app_state.selected_component_id.get().clone(),
             self.type_id,
@@ -43,7 +43,7 @@ impl Action for CreateComponent {
         })?;
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
@@ -59,7 +59,7 @@ impl Action for SelectedIntoNewComponent {
         if selection.selected_count() == 0 {
             return Err(anyhow!("can't create new embty component"));
         };
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
 
         let world_transform = ctx.world_transform();
         let entries: Vec<_> = selection
@@ -94,7 +94,7 @@ impl Action for SelectedIntoNewComponent {
             )
             .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
@@ -119,7 +119,7 @@ impl Action for MoveSelected {
         else {
             return Err(anyhow!("tried to move selected but no selected object"));
         };
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
 
         let Some(mut builder) = dt
             .get_orm_mut()
@@ -138,7 +138,7 @@ impl Action for MoveSelected {
             .map_err(|e| anyhow!("could not move thing: {}", e))?;
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
@@ -170,7 +170,7 @@ impl Action for ResizeSelected {
         let origin_relative: Point2<BoxPoint> = bounds.to_inner_space(origin);
         let new_origin_relative = new_bounds.from_inner_space(origin_relative);
 
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let selected = ctx
             .app_state
             .selected_template_node_ids
@@ -204,7 +204,7 @@ impl Action for ResizeSelected {
             .map_err(|e| anyhow!("could not move thing: {}", e))?;
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
@@ -239,7 +239,7 @@ impl Action for RotateSelected {
             }
         }
 
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let selected = ctx
             .app_state
             .selected_template_node_ids
@@ -263,7 +263,7 @@ impl Action for RotateSelected {
             .save()
             .map_err(|e| anyhow!("could not move thing: {}", e))?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
@@ -279,7 +279,7 @@ pub struct SerializeRequested {}
 
 impl Action for SerializeRequested {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         if let Err(e) = dt.send_component_update(&ctx.app_state.selected_component_id.get()) {
             pax_engine::log::error!("failed to save component to file: {:?}", e);
         }
@@ -289,7 +289,7 @@ impl Action for SerializeRequested {
 
 impl Action for UndoRequested {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         dt.get_orm_mut()
             .undo()
             .map_err(|e| anyhow!("undo failed: {:?}", e))?;
@@ -300,7 +300,7 @@ impl Action for UndoRequested {
 impl Action for DeleteSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let selected = &ctx.app_state.selected_template_node_ids.get();
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         for s in selected {
             let uid = UniqueTemplateNodeIdentifier::build(
                 ctx.app_state.selected_component_id.get(),
@@ -312,7 +312,7 @@ impl Action for DeleteSelected {
         }
         // TODO: this undo doesn't work, need to undo multiple things
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))

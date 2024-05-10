@@ -86,7 +86,7 @@ impl FileAndComponentPicker {
         let deps = [lib_active.untyped(), selected_component.untyped()];
         self.registered_components.replace_with(Property::computed(
             move || {
-                let dt = dt.borrow_mut();
+                let dt = borrow_mut!(dt);
 
                 if lib_active.get() == false {
                     return vec![];
@@ -133,7 +133,7 @@ impl FileAndComponentPicker {
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         //TODOdag convert get_manifest_version to return prop?
         let manifest_ver = {
-            let dt = ctx.designtime.borrow();
+            let dt = borrow!(ctx.designtime);
             dt.get_manifest_version()
         };
         if manifest_ver != self.manifest_ver.get() {

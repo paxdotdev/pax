@@ -89,7 +89,7 @@ impl Action for SetEditingComponent {
 
         ctx.execute(SetStage(stage))?;
 
-        let mut dt = ctx.engine_context.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let node = ctx
             .engine_context
             .get_nodes_by_id(USERLAND_PROJECT_ID)
@@ -118,6 +118,21 @@ impl Action for SetEditingComponent {
 }
 
 impl Glass {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        // TODOdag hook up
+        // model::read_app_state(|app_state| {
+        //     // Draw current tool visuals
+        //     // this could be factored out into it's own component as well eventually
+        //     app_state.tool_behaviour.read(|tool| {
+        //         if let Some(tool) = tool {
+        //             tool.borrow().visualize(self);
+        //         } else {
+        //             self.is_rect_tool_active.set(false);
+        //         }
+        //     });
+        // });
+    }
+
     pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
         args.prevent_default();
     }
@@ -133,7 +148,7 @@ impl Glass {
                 app_state.selected_component_id.get().clone(),
                 selected_node_id.clone(),
             );
-            let mut dt = ctx.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.designtime);
             let builder = dt.get_orm_mut().get_node(uid)?;
             Some(builder.get_type_id())
         });
@@ -181,20 +196,6 @@ impl Glass {
 
     pub fn handle_key_up(&mut self, ctx: &NodeContext, args: Event<KeyUp>) {
         model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key.clone());
-    }
-
-    pub fn update_view(&mut self, _ctx: &NodeContext) {
-        model::read_app_state(|app_state| {
-            // Draw current tool visuals
-            // this could be factored out into it's own component as well eventually
-            app_state.tool_behaviour.read(|tool| {
-                if let Some(tool) = tool {
-                    tool.borrow().visualize(self);
-                } else {
-                    self.is_rect_tool_active.set(false);
-                }
-            });
-        });
     }
 }
 

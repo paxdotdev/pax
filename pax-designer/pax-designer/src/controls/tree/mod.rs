@@ -144,7 +144,7 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    // TODO do collapsed state as separate prop that visible_tree_objects can listen to, and that is updated by changes in click_msg
+    // TODOdag do collapsed state as separate prop that visible_tree_objects can listen to, and that is updated by changes in click_msg
     // TreeMsg::ArrowClicked(sender) => {
     //     tree[sender].is_collapsed = !tree[sender].is_collapsed;
     //     let collapsed = tree[sender].is_collapsed;
@@ -191,7 +191,7 @@ impl Tree {
                         let node_id = tree_obj.read(|t| t[sender].node_id.clone());
                         let uuid =
                             UniqueTemplateNodeIdentifier::build(selected_comp.get(), node_id);
-                        let mut dt = ctxp.designtime.borrow_mut();
+                        let mut dt = borrow_mut!(ctxp.designtime);
                         let builder = dt.get_orm_mut().get_node(uuid).unwrap();
                         let type_id_of_tree_target = builder.get_type_id();
 
@@ -239,20 +239,19 @@ impl Tree {
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         // move this logic to engine (expose manifest ver as a prop)
         let manifest_ver = {
-            let dt = ctx.designtime.borrow();
+            let dt = borrow!(ctx.designtime);
             dt.get_manifest_version()
         };
         if manifest_ver != self.old_manifest_ver.get() {
             self.old_manifest_ver.set(manifest_ver);
         }
-
         // update this prop
         self.on_click_handler.get();
     }
 }
 
 fn get_tree(type_id: TypeId, ctx: &NodeContext) -> Vec<FlattenedTreeEntry> {
-    let dt = ctx.designtime.borrow_mut();
+    let dt = borrow_mut!(ctx.designtime);
     let Ok(comp) = dt.get_orm().get_component(&type_id) else {
         pax_engine::log::warn!("couldn't find component for tree view");
         return Vec::new();

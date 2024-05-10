@@ -50,6 +50,7 @@ if self.is_component_selected {
          <Group y=343px>
              for (property, i) in self.custom_props {
                  <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
+                    // is it this one that raycast fails for?
                      <Path class=hr />
                      <Text text={property.name_friendly} class=h2 class=col_1 class=span_6 y=10px/>
                      <PropertyEditor y=40px ind={i + 1} name={property.name} stid={self.stid} snid={self.snid} />

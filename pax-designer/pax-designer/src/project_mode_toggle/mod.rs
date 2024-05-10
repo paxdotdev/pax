@@ -30,12 +30,12 @@ impl ProjectModeToggle {
         self.running_mode.set(curr);
         let mode = match self.edit_mode.get() {
             true => {
-                let mut dt = ctx.designtime.borrow_mut();
+                let mut dt = borrow_mut!(ctx.designtime);
                 dt.reload_edit();
                 ProjectMode::Edit
             }
             false => {
-                let mut dt = ctx.designtime.borrow_mut();
+                let mut dt = borrow_mut!(ctx.designtime);
                 dt.reload_play();
                 ProjectMode::Playing
             }
