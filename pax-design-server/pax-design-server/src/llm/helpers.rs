@@ -1,5 +1,5 @@
 use std::{
-    borrow::BorrowMut, collections::HashMap, fmt::{format, Display, Formatter}
+    collections::HashMap, fmt::{format, Display, Formatter}
 };
 
 use pax_designtime::orm::template::{
