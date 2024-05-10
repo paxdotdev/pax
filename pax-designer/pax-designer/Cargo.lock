@@ -1992,6 +1992,7 @@ dependencies = [
  "pax-designtime",
  "pax-engine",
  "pax-manifest",
+ "pax-runtime-api",
  "pax-std",
  "serde_json",
 ]
@@ -2088,6 +2089,7 @@ dependencies = [
 name = "pax-runtime-api"
 version = "0.14.1"
 dependencies = [
+ "cfg-if",
  "kurbo",
  "log",
  "pax-message",

@@ -29,7 +29,7 @@ pub struct ControlPoint {
 }
 
 pub type ControlPointBehaviourFactory =
-    Box<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>;
+    Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>;
 
 pub trait ControlPointBehaviour {
     fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>);

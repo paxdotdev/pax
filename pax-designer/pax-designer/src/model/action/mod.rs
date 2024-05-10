@@ -5,6 +5,7 @@ use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::log;
 use pax_engine::{
     api::{NodeContext, Window},
     math::{Point2, Space, Transform2},
@@ -111,29 +112,31 @@ impl ActionContext<'_> {
     }
 
     pub fn selected_nodes(&mut self) -> Vec<(UniqueTemplateNodeIdentifier, NodeInterface)> {
-        // let type_id = self.app_state.selected_component_id.get().clone();
+        let type_id = self.app_state.selected_component_id.get().clone();
         // This is returning the FIRST expanded node matching a template, not all.
         // In the case of one to many relationships existing (for loops), this needs to be revamped.
 
-        //TODOdag how to re-introduce this?
-        // let mut nodes = vec![];
-        // self.app_state.selected_template_node_ids.update(|ids| {
-        //     ids.retain(|id| {
-        //         let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
-        //         let Some(node) = self
-        //             .engine_context
-        //             .get_nodes_by_global_id(unid.clone())
-        //             .into_iter()
-        //             .next()
-        //         else {
-        //             return false;
-        //         };
-        //         nodes.push((unid, node));
-        //         true
-        //     });
-        // });
-        // nodes
-        vec![]
+        let mut nodes = vec![];
+        let mut selected_ids = self.app_state.selected_template_node_ids.get();
+        let mut discarded = false;
+        selected_ids.retain(|id| {
+            let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
+            let Some(node) = self
+                .engine_context
+                .get_nodes_by_global_id(unid.clone())
+                .into_iter()
+                .next()
+            else {
+                discarded = true;
+                return false;
+            };
+            nodes.push((unid, node));
+            true
+        });
+        if discarded {
+            self.app_state.selected_template_node_ids.set(selected_ids);
+        }
+        nodes
     }
 
     pub fn selection_state(&mut self) -> SelectionState {

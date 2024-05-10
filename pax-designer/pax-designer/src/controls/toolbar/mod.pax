@@ -15,7 +15,6 @@ for (view, i) in self.entries {
 />
 
 @settings {
-    @tick: update_view
     @mount: on_mount
 
     #save_button {

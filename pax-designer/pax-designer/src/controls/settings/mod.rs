@@ -86,7 +86,7 @@ impl Settings {
             let custom_props_no_position = Property::computed(
                 move || {
                     let uni = UniqueTemplateNodeIdentifier::build(stid.get(), snid.get());
-                    let mut dt = ctx.designtime.borrow_mut();
+                    let mut dt = borrow_mut!(ctx.designtime);
 
                     if let Some(node) = dt
                         .get_orm()

@@ -25,16 +25,19 @@ pub struct TreeObj {
 }
 
 impl TreeObj {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {}
-
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        self.arrow_path.set(
-            match self.is_collapsed.get() {
-                true => "assets/icons/triangle-down.png",
-                false => "assets/icons/triangle-right.png",
-            }
-            .into(),
-        );
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        let collapsed = self.is_collapsed.clone();
+        let deps = [collapsed.untyped()];
+        self.arrow_path.replace_with(Property::computed(
+            move || {
+                match collapsed.get() {
+                    true => "assets/icons/triangle-down.png",
+                    false => "assets/icons/triangle-right.png",
+                }
+                .into()
+            },
+            &deps,
+        ));
     }
 
     pub fn arrow_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
