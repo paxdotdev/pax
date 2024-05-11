@@ -13,6 +13,7 @@
 </Group>
 
 @settings {
+    @pre_render: update_tool_visual,
     @key_down: handle_key_down,
     @key_up: handle_key_up,
     @double_click: handle_double_click

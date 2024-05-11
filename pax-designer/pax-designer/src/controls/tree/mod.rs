@@ -29,11 +29,6 @@ use crate::model::tools::SelectNode;
 #[file("controls/tree/mod.pax")]
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
-    pub visible_tree_objects: Property<Vec<FlattenedTreeEntry>>,
-    // last-patches update stuff
-    pub old_selected: Property<Vec<TemplateNodeId>>,
-    pub old_type_id: Property<TypeId>,
-    pub old_manifest_ver: Property<usize>,
     pub on_click_handler: Property<bool>,
 }
 
@@ -207,28 +202,24 @@ impl Tree {
 
         model::read_app_state(|app_state| {
             let type_id = app_state.selected_component_id.clone();
-            let manifest_ver = self.old_manifest_ver.clone();
+            let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+            let selected = app_state.selected_template_node_ids.clone();
             let ctx = ctx.clone();
-            let deps = [type_id.untyped(), manifest_ver.untyped()];
+            let deps = [
+                selected.untyped(),
+                type_id.untyped(),
+                manifest_ver.untyped(),
+            ];
 
             self.tree_objects.replace_with(Property::computed(
                 move || {
                     let type_id = type_id.get();
-                    get_tree(type_id, &ctx)
-                },
-                &deps,
-            ));
-            let tree = self.tree_objects.clone();
-            let selected = app_state.selected_template_node_ids.clone();
-            let deps = [selected.untyped(), tree.untyped()];
-
-            self.visible_tree_objects.replace_with(Property::computed(
-                move || {
-                    let mut tree = tree.get();
+                    let mut tree = get_tree(type_id, &ctx);
                     let selected = selected.get();
                     for entry in &mut tree {
                         entry.is_selected = selected.contains(&entry.node_id);
                     }
+                    log::debug!("tree elems: {}", tree.len());
                     tree
                 },
                 &deps,
@@ -237,14 +228,6 @@ impl Tree {
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
-        // move this logic to engine (expose manifest ver as a prop)
-        let manifest_ver = {
-            let dt = borrow!(ctx.designtime);
-            dt.get_manifest_version()
-        };
-        if manifest_ver != self.old_manifest_ver.get() {
-            self.old_manifest_ver.set(manifest_ver);
-        }
         // update this prop
         self.on_click_handler.get();
     }
