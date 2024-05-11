@@ -118,19 +118,18 @@ impl Action for SetEditingComponent {
 }
 
 impl Glass {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        // TODOdag hook up
-        // model::read_app_state(|app_state| {
-        //     // Draw current tool visuals
-        //     // this could be factored out into it's own component as well eventually
-        //     app_state.tool_behaviour.read(|tool| {
-        //         if let Some(tool) = tool {
-        //             tool.borrow().visualize(self);
-        //         } else {
-        //             self.is_rect_tool_active.set(false);
-        //         }
-        //     });
-        // });
+    pub fn update_tool_visual(&mut self, _ctx: &NodeContext) {
+        model::read_app_state(|app_state| {
+            // Draw current tool visuals
+            // this could be factored out into it's own component as well eventually
+            app_state.tool_behaviour.read(|tool| {
+                if let Some(tool) = tool {
+                    tool.borrow().visualize(self);
+                } else {
+                    self.is_rect_tool_active.set(false);
+                }
+            });
+        });
     }
 
     pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {

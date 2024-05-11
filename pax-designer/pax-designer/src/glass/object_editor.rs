@@ -49,16 +49,19 @@ thread_local!(
 
 impl ObjectEditor {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        CONTROL_POINT_FUNCS.with_borrow(|funcs| if funcs.is_some() {
-            panic!("can't create more than one ObjectEditor with current architecture (need to move CONTROL_POINTS_FUNCS)");
-        });
         model::read_app_state(|app_state| {
             let comp_id = app_state.selected_component_id.clone();
             let node_ids = app_state.selected_template_node_ids.clone();
             let transform = app_state.glass_to_world_transform.clone();
+            let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
             let ctx = ctx.clone();
 
-            let deps = [comp_id.untyped(), node_ids.untyped(), transform.untyped()];
+            let deps = [
+                comp_id.untyped(),
+                node_ids.untyped(),
+                transform.untyped(),
+                manifest_ver.untyped(),
+            ];
             let editor = Property::computed(
                 move || {
                     let selected_bounds =

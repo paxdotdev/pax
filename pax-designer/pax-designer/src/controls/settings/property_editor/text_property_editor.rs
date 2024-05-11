@@ -37,7 +37,8 @@ impl TextPropertyEditor {
             });
         }
         let data = self.data.clone();
-        let deps = [data.untyped()];
+        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let deps = [data.untyped(), manifest_ver.untyped()];
         let ctx = ctx.clone();
         let err = self.error.clone();
         self.textbox.replace_with(Property::computed(
