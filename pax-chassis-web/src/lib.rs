@@ -597,7 +597,7 @@ impl PaxChassisWeb {
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
         let reload_type = borrow!(self.designtime_manager).get_reload_queue();
-        if current_manifest_version != self.last_manifest_version_rendered {
+        if current_manifest_version.get() != self.last_manifest_version_rendered {
             if let Some(reload_type) = reload_type {
                 match reload_type {
                     ReloadType::FullEdit => {
@@ -631,7 +631,7 @@ impl PaxChassisWeb {
                     }
                 }
             }
-            self.last_manifest_version_rendered = current_manifest_version;
+            self.last_manifest_version_rendered = current_manifest_version.get();
         }
     }
 
@@ -645,8 +645,7 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub fn designtime_tick(&mut self) {
         self.handle_recv_designtime();
-        // TODOdag re-connect designtime updates
-        // self.update_userland_component();
+        self.update_userland_component();
     }
 
     pub fn tick(&mut self) -> MemorySlice {
