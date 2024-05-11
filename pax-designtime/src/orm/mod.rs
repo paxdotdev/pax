@@ -24,6 +24,7 @@ use pax_manifest::{
     ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TypeId,
     UniqueTemplateNodeIdentifier, ValueDefinition,
 };
+use pax_manifest::pax_runtime_api::Property;
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
@@ -64,7 +65,7 @@ pub struct PaxManifestORM {
     redo_stack: Vec<(usize, UndoRedoCommand)>,
     next_command_id: usize,
     // This counter increase with each command execution/undo/redo (essentially tracks each unique change to the manifest)
-    manifest_version: usize,
+    manifest_version: Property<usize>,
     next_new_component_id: usize,
     new_components: Vec<TypeId>,
     reload_queue: Option<ReloadType>,
@@ -77,7 +78,7 @@ impl PaxManifestORM {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             next_command_id: 0,
-            manifest_version: 0,
+            manifest_version: Property::new(0),
             next_new_component_id: 1,
             new_components: Vec::new(),
             reload_queue: None,
@@ -100,8 +101,8 @@ impl PaxManifestORM {
         &self.manifest
     }
 
-    pub fn get_manifest_version(&self) -> usize {
-        self.manifest_version
+    pub fn get_manifest_version(&self) -> Property<usize> {
+        self.manifest_version.clone()
     }
 
     pub fn set_reload(&mut self, reload_type: ReloadType) {
@@ -113,7 +114,7 @@ impl PaxManifestORM {
     }
 
     pub fn increment_manifest_version(&mut self) {
-        self.manifest_version += 1;
+        self.manifest_version.update(|v| *v += 1);
     }
 
     pub fn build_new_node(
@@ -218,7 +219,7 @@ impl PaxManifestORM {
         response.set_id(command_id);
         self.next_command_id += 1;
         if response.get_affected_component_type_id().is_some() {
-            self.manifest_version += 1;
+            self.manifest_version.update(|v| *v += 1);
         }
         if let Some(reload_type) = response.get_reload_type() {
             self.set_reload(reload_type);
@@ -231,7 +232,7 @@ impl PaxManifestORM {
         if let Some((id, mut command)) = self.undo_stack.pop() {
             command.undo(&mut self.manifest)?;
             self.redo_stack.push((id, command));
-            self.manifest_version += 1;
+            self.manifest_version.update(|v| *v += 1);
             self.set_reload(ReloadType::FullEdit);
         }
         Ok(())
@@ -241,7 +242,7 @@ impl PaxManifestORM {
         if let Some((id, mut command)) = self.redo_stack.pop() {
             command.redo(&mut self.manifest)?;
             self.undo_stack.push((id, command));
-            self.manifest_version += 1;
+            self.manifest_version.update(|v| *v += 1);
         }
         Ok(())
     }
