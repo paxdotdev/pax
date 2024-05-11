@@ -13,6 +13,7 @@ pub mod serde_pax;
 mod setup;
 use messages::LLMHelpRequest;
 use orm::ReloadType;
+use pax_manifest::pax_runtime_api::Property;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
@@ -120,7 +121,7 @@ impl DesigntimeManager {
         self.orm.increment_manifest_version();
     }
 
-    pub fn get_manifest_version(&self) -> usize {
+    pub fn get_manifest_version(&self) -> Property<usize> {
         self.orm.get_manifest_version()
     }
 
@@ -133,7 +134,7 @@ impl DesigntimeManager {
     }
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
-        let current_manifest_version = self.orm.get_manifest_version();
+        let current_manifest_version = self.orm.get_manifest_version().get();
         if current_manifest_version != self.last_written_manifest_version
             && current_manifest_version % 5 == 0
         {
