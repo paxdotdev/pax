@@ -310,6 +310,9 @@ impl Action for DeleteSelected {
                 .remove_node(uid)
                 .map_err(|_| anyhow!("couldn't delete node"))?;
         }
+        ctx.app_state
+            .selected_template_node_ids
+            .update(|ids| ids.clear());
         // TODO: this undo doesn't work, need to undo multiple things
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
