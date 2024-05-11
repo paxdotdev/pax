@@ -15,7 +15,7 @@ use crate::constants::{
 };
 use_RefCell!();
 use crate::node_interface::NodeLocal;
-use crate::{ExpandedNodeIdentifier, ExpressionTable, Globals};
+use crate::{ExpandedNodeIdentifier, Globals};
 use core::fmt;
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -232,20 +232,18 @@ impl ExpandedNode {
     pub fn recreate_with_new_data(
         self: &Rc<Self>,
         template: Rc<dyn InstanceNode>,
-        expression_table: Rc<ExpressionTable>,
+        context: &Rc<RuntimeContext>,
     ) {
-        *borrow_mut!(self.instance_node) = Rc::clone(&template);
-
-        *borrow_mut!(self.properties) = (&template.base().instance_prototypical_properties_factory)(
-            self.stack.clone(),
-            expression_table.clone(),
+        let new_expanded_node = Self::new(
+            template.clone(),
+            Rc::clone(&borrow!(self.parent_expanded_node).upgrade().unwrap().stack),
+            context,
+            Weak::clone(&self.containing_component),
         );
-        *borrow_mut!(self.common_properties) = (template
-            .base()
-            .instance_prototypical_common_properties_factory)(
-            self.stack.clone(),
-            expression_table.clone(),
-        );
+        *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
+        *borrow_mut!(self.common_properties) =
+            Rc::clone(&*borrow!(new_expanded_node.common_properties));
+        self.bind_to_parent_bounds();
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -295,28 +293,32 @@ impl ExpandedNode {
     ) -> Vec<Rc<ExpandedNode>> {
         let mut curr_children = borrow_mut!(self.mounted_children);
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
+        for child in new_children.iter() {
+            // set parent and connect up viewport bounds to new parent
+            *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
+        }
         if *borrow!(self.attached) > 0 {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
                 // set frame clipping reference
+                child.bind_to_parent_bounds();
                 child.parent_frame.set(self.parent_frame.get());
                 Rc::clone(child).recurse_mount(context);
             }
         }
-        for child in new_children.iter() {
-            // set parent and connect up viewport bounds to new parent
-            *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
-
-            let parent_bounds = self.layout_properties.bounds.clone();
-            let parent_transform = self.layout_properties.transform.clone();
-            let (transform, bounds) = compute_tab(&child, parent_transform, parent_bounds);
-            child.layout_properties.bounds.replace_with(bounds);
-            child.layout_properties.transform.replace_with(transform);
-        }
         *curr_children = new_children.clone();
         new_children
+    }
+
+    fn bind_to_parent_bounds(self: &Rc<Self>) {
+        let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
+        let parent_bounds = parent.layout_properties.bounds.clone();
+        let parent_transform = parent.layout_properties.transform.clone();
+        let (transform, bounds) = compute_tab(&self, parent_transform, parent_bounds);
+        self.layout_properties.bounds.replace_with(bounds);
+        self.layout_properties.transform.replace_with(transform);
     }
 
     pub fn generate_children(

@@ -59,6 +59,7 @@ impl NodeCache {
 
     // Remove this node from all relevant constant lookup cache structures
     fn remove_from_cache(&mut self, node: &Rc<ExpandedNode>) {
+        self.eid_to_node.remove(&node.id);
         if let Some(uni) = &borrow!(node.instance_node).base().template_node_identifier {
             self.uni_to_eid.remove(uni);
         }

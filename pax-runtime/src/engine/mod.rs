@@ -357,8 +357,8 @@ impl PaxEngine {
             let parent_template = borrow!(parent.instance_node);
             let children = borrow!(parent_template.base().get_instance_children());
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
-            parent.generate_children(new_templates, ctx);
-            parent.recurse_update(ctx);
+            let children = parent.generate_children(new_templates, ctx);
+            parent.children.set(children);
         } else {
             for child in parent.children.get().iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
@@ -378,10 +378,7 @@ impl PaxEngine {
             .runtime_context
             .get_expanded_nodes_by_global_ids(&unique_id);
         for node in nodes {
-            node.recreate_with_new_data(
-                new_instance.clone(),
-                self.runtime_context.expression_table(),
-            );
+            node.recreate_with_new_data(new_instance.clone(), &self.runtime_context);
         }
     }
 
