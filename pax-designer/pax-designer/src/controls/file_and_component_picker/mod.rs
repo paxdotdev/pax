@@ -86,7 +86,6 @@ impl FileAndComponentPicker {
         ];
         self.registered_components.replace_with(Property::computed(
             move || {
-                log::debug!("registered comps changed");
                 let dt = borrow_mut!(dt);
 
                 if lib_active.get() == false {

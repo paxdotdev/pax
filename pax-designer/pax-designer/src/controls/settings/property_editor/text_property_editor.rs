@@ -7,7 +7,6 @@ use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
-use crate::controls::settings::AreaMsg;
 use crate::controls::settings::AREAS_PROP;
 
 use super::PropertyEditorData;

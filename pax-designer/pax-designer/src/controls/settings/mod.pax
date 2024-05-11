@@ -45,7 +45,7 @@ if self.is_component_selected {
         </Group>
 
         <Group y=343px>
-            for (property, i) in self.custom_props {
+            for (property, i) in self.custom_properties {
                 <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
                     <Path class=hr/>
                     <Text text={property.name_friendly} class=h2 class=col_1 class=span_6 y=10px/>
@@ -58,7 +58,6 @@ if self.is_component_selected {
 
 @settings {
     @mount: on_mount
-	@pre_render: pre_render
     .h1 {
         height: 30px
         style: {

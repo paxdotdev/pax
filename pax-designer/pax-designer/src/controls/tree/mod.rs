@@ -219,7 +219,6 @@ impl Tree {
                     for entry in &mut tree {
                         entry.is_selected = selected.contains(&entry.node_id);
                     }
-                    log::debug!("tree elems: {}", tree.len());
                     tree
                 },
                 &deps,
