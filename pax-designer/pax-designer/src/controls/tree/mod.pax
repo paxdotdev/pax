@@ -1,4 +1,4 @@
-for (obj, i) in self.visible_tree_objects {
+for (obj, i) in self.tree_objects {
 	<TreeObj
 		 ind={obj.ind}
 		 y={(40 + i*42)px}

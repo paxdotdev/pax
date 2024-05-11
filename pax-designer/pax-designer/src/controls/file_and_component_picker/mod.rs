@@ -34,7 +34,6 @@ pub struct FileAndComponentPicker {
     pub library_active: Property<bool>,
     pub registered_components: Property<Vec<ComponentLibraryItemData>>,
     pub library_active_toggle_image: Property<String>,
-    pub manifest_ver: Property<usize>,
 }
 
 impl Interpolatable for SetLibraryState {}
@@ -58,15 +57,11 @@ thread_local! {
 
 impl FileAndComponentPicker {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        LIBRARY_PROP.with(|lib_prop| {
-            let manifest_ver = self.manifest_ver.clone();
-            let lp = lib_prop.clone();
-            // Add manifest ver as dep so that whenever it changes,
-            // all dependents are updated (not actually used in compute)
-            let deps = [lib_prop.untyped(), manifest_ver.untyped()];
-            self.library_active
-                .replace_with(Property::computed(move || lp.get().open, &deps));
-        });
+        let lp = LIBRARY_PROP.with(|l| l.clone());
+        let deps = [lp.untyped()];
+        self.library_active
+            .replace_with(Property::computed(move || lp.get().open, &deps));
+
         let lib_active = self.library_active.clone();
         let deps = [lib_active.untyped()];
         self.library_active_toggle_image
@@ -83,9 +78,15 @@ impl FileAndComponentPicker {
         let lib_active = self.library_active.clone();
         let selected_component =
             model::read_app_state(|app_state| app_state.selected_component_id.clone());
-        let deps = [lib_active.untyped(), selected_component.untyped()];
+        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let deps = [
+            lib_active.untyped(),
+            selected_component.untyped(),
+            manifest_ver.untyped(),
+        ];
         self.registered_components.replace_with(Property::computed(
             move || {
+                log::debug!("registered comps changed");
                 let dt = borrow_mut!(dt);
 
                 if lib_active.get() == false {
@@ -128,17 +129,6 @@ impl FileAndComponentPicker {
             },
             &deps,
         ));
-    }
-
-    pub fn pre_render(&mut self, ctx: &NodeContext) {
-        //TODOdag convert get_manifest_version to return prop?
-        let manifest_ver = {
-            let dt = borrow!(ctx.designtime);
-            dt.get_manifest_version()
-        };
-        if manifest_ver != self.manifest_ver.get() {
-            self.manifest_ver.set(manifest_ver);
-        }
     }
 
     pub fn library_toggle(&mut self, ctx: &NodeContext, _args: Event<Click>) {
