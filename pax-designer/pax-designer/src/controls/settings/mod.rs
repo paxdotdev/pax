@@ -23,16 +23,12 @@ use crate::model;
 pub struct Settings {
     pub is_component_selected: Property<bool>,
     pub selected_component_name: Property<String>,
-    // custom props
-    pub custom_props: Property<Vec<PropertyArea>>,
-    pub update_timer: Property<i32>,
+    pub custom_properties: Property<Vec<PropertyArea>>,
 
     // selected template type id
     pub stid: Property<TypeId>,
     // selected template node id
     pub snid: Property<TemplateNodeId>,
-    // areas
-    pub areas: Property<Vec<f64>>,
 }
 
 #[pax]
@@ -43,12 +39,6 @@ pub struct PropertyArea {
     pub vertical_pos: f64,
     pub name: String,
     pub name_friendly: String,
-}
-
-// #[derive(Debug)]
-pub struct AreaMsg {
-    pub index: usize,
-    pub vertical_space: f64,
 }
 
 const SPACING: f64 = 10.0;
@@ -83,7 +73,7 @@ impl Settings {
             let comp_selected = self.is_component_selected.clone();
             let deps = [snid.untyped(), stid.untyped(), comp_selected.untyped()];
             let selected_component_name = self.selected_component_name.clone();
-            let custom_props_no_position = Property::computed(
+            let custom_props_default_position = Property::computed(
                 move || {
                     let uni = UniqueTemplateNodeIdentifier::build(stid.get(), snid.get());
                     let mut dt = borrow_mut!(ctx.designtime);
@@ -131,11 +121,11 @@ impl Settings {
                 },
                 &deps,
             );
-            let areas = self.areas.clone();
-            let deps = [custom_props_no_position.untyped(), areas.untyped()];
-            self.custom_props.replace_with(Property::computed(
+            let areas = AREAS_PROP.with(|p| p.clone());
+            let deps = [custom_props_default_position.untyped(), areas.untyped()];
+            self.custom_properties.replace_with(Property::computed(
                 move || {
-                    let mut custom_props = custom_props_no_position.get();
+                    let mut custom_props = custom_props_default_position.get();
                     let mut running_sum = 0.0;
                     for (i, area) in areas.get().iter().take(custom_props.len()).enumerate() {
                         custom_props[i].vertical_space = *area;
@@ -147,15 +137,6 @@ impl Settings {
                 &deps,
             ));
         });
-    }
-
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // HACK: if directly bound to AREAS_PROP, results
-        // in double borrow of context (should investigate why at some point)
-        let val = AREAS_PROP.with(|p| p.get());
-        if val != self.areas.get() {
-            self.areas.set(val);
-        }
     }
 
     fn camel_to_title_case(s: &str) -> String {

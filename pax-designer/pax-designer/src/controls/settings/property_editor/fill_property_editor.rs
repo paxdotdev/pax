@@ -1,7 +1,7 @@
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::*;
 
-use crate::controls::settings::{AreaMsg, AREAS_PROP};
+use crate::controls::settings::AREAS_PROP;
 
 use super::PropertyEditorData;
 
@@ -55,64 +55,56 @@ impl FillPropertyEditor {
             },
             &deps,
         ));
+        fn get_color_channel(color: &Property<Color>, i: usize) -> String {
+            ((color.get().to_rgba_0_1()[i] * 256.0) as u8).to_string()
+        }
         let color = self.color.clone();
         let deps = [color.untyped()];
         self.red.replace_with(Property::computed(
-            move || ((color.get().to_rgba_0_1()[0] * 256.0) as u8).to_string(),
+            move || get_color_channel(&color, 0),
             &deps,
         ));
+
         let color = self.color.clone();
         self.blue.replace_with(Property::computed(
-            move || ((color.get().to_rgba_0_1()[1] * 256.0) as u8).to_string(),
+            move || get_color_channel(&color, 1),
             &deps,
         ));
+
         let color = self.color.clone();
         self.green.replace_with(Property::computed(
-            move || ((color.get().to_rgba_0_1()[2] * 256.0) as u8).to_string(),
+            move || get_color_channel(&color, 2),
             &deps,
         ));
+
         let color = self.color.clone();
         self.alpha.replace_with(Property::computed(
-            move || ((color.get().to_rgba_0_1()[3] * 256.0) as u8).to_string(),
+            move || get_color_channel(&color, 3),
             &deps,
         ));
     }
 
     pub fn red_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if let Some(v) = color_channel(&event.text) {
-            self.color.update(|col| {
-                let mut c = col.to_rgba_0_1();
-                c[0] = v as f64 / 256.0;
-                *col = Color::from_rgba_0_1(c);
-            });
-        }
+        self.set_channel(0, &event.text);
     }
 
     pub fn blue_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if let Some(v) = color_channel(&event.text) {
-            self.color.update(|col| {
-                let mut c = col.to_rgba_0_1();
-                c[1] = v as f64 / 256.0;
-                *col = Color::from_rgba_0_1(c);
-            });
-        }
+        self.set_channel(1, &event.text);
     }
 
     pub fn green_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if let Some(v) = color_channel(&event.text) {
-            self.color.update(|col| {
-                let mut c = col.to_rgba_0_1();
-                c[2] = v as f64 / 256.0;
-                *col = Color::from_rgba_0_1(c);
-            });
-        }
+        self.set_channel(2, &event.text);
     }
 
     pub fn alpha_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
-        if let Some(v) = color_channel(&event.text) {
+        self.set_channel(3, &event.text);
+    }
+
+    pub fn set_channel(&mut self, i: usize, val: &str) {
+        if let Some(v) = color_channel(val) {
             self.color.update(|col| {
                 let mut c = col.to_rgba_0_1();
-                c[3] = v as f64 / 256.0;
+                c[i] = v as f64 / 256.0;
                 *col = Color::from_rgba_0_1(c);
             });
         }
