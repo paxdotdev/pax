@@ -1,6 +1,6 @@
 [package]
 name = "pax-runtime-api"
-version = "0.14.4"
+version = "0.14.5"
 edition = "2021"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>", "Samuel Selleck <samuel@pax.dev>"]
 license = "MIT OR Apache-2.0"
@@ -17,5 +17,5 @@ wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 kurbo = "0.9.0"
 piet = "0.6.0"
 slotmap = "1.0.7"
-pax-message = {version="0.14.4", path="../pax-message"}
+pax-message = {version="0.14.5", path="../pax-message"}
 log = "0.4.20"
