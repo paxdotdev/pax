@@ -4,9 +4,11 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Result<Vec<String>, String> {
+pub fn parse_pascal_identifiers_from_component_definition_string(
+    pax: &str,
+) -> Result<Vec<String>, String> {
     let pax_component_definition = parse_pax_str(Rule::pax_component_definition, pax)?;
-   
+
     let pascal_identifiers: Rc<RefCell<HashSet<String>>> = Rc::new(RefCell::new(HashSet::new()));
     pax_component_definition
         .into_inner()
