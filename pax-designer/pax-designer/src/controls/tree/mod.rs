@@ -139,7 +139,9 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    // TODOdag do collapsed state as separate prop that visible_tree_objects can listen to, and that is updated by changes in click_msg
+    // TODO re-implement tree collapsing. Do collapsed state as separate prop
+    // that visible_tree_objects can listen to, and that is updated by changes
+    // in click_msg
     // TreeMsg::ArrowClicked(sender) => {
     //     tree[sender].is_collapsed = !tree[sender].is_collapsed;
     //     let collapsed = tree[sender].is_collapsed;
@@ -226,8 +228,9 @@ impl Tree {
         });
     }
 
-    pub fn pre_render(&mut self, ctx: &NodeContext) {
-        // update this prop
+    pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        // because of lazy eval. Need to make sure closure fires
+        // if it's dependents have changed
         self.on_click_handler.get();
     }
 }
@@ -255,7 +258,7 @@ fn get_tree(type_id: TypeId, ctx: &NodeContext) -> Vec<FlattenedTreeEntry> {
 }
 
 fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> Option<TreeEntry> {
-    let node = component_template.get_node(tnid).unwrap();
+    let node = component_template.get_node(tnid)?;
     if node.type_id.get_pax_type() == &PaxType::Comment {
         return None;
     }
