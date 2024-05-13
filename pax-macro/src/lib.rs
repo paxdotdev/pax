@@ -66,7 +66,7 @@ fn pax_struct_only_component(
 
         pascal_identifier: pascal_identifier.clone(),
         static_property_definitions,
-        is_custom_interpolatable,
+        is_custom_interpolatable
     }
     .render_once()
     .unwrap()
@@ -276,8 +276,17 @@ fn pax_full_component(
     let static_property_definitions =
         get_static_property_definitions_from_tokens(&input_parsed.data);
 
-    let mut template_dependencies =
-        parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let mut template_dependencies = vec![];
+    let mut error_message : Option<String> = None;
+
+    match parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax) {
+        Ok(deps) => {
+            template_dependencies = deps;
+        },
+        Err(err) => {
+            error_message = Some(err);
+        }
+    }
 
     // Add BlankComponent to template_dependencies so it's guaranteed to be included in the PaxManifest
     if is_main_component {
@@ -301,6 +310,7 @@ fn pax_full_component(
             template_dependencies,
             reexports_snippet,
             associated_pax_file_path,
+            error_message
         }),
         pascal_identifier,
         static_property_definitions,

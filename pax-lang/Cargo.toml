@@ -11,5 +11,5 @@ description = "Pax language parser"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pest = "2.6.0"
-pest_derive = "2.6.0"
+pest = {version = "2.7.10", features = ["std"]}
+pest_derive = {version = "2.7.10", features = ["std"]}

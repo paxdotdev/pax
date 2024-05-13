@@ -180,18 +180,9 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::any_tag_pair
         | Rule::WHITESPACE
         | Rule::id
-        | Rule::silent_comma
-        | Rule::empty => vec![Box::new(IgnoreRule)],
+        | Rule::silent_comma => vec![Box::new(IgnoreRule)],
 
         Rule::string => vec![Box::new(DoNotIndentRule)],
-
-        Rule::inner_tag_error
-        | Rule::selector_block_error
-        | Rule::attribute_key_value_pair_error
-        | Rule::tag_error
-        | Rule::open_tag_error
-        | Rule::block_level_error
-        | Rule::expression_body_error => vec![Box::new(PanicRule)],
     }
 }
 
@@ -873,7 +864,6 @@ impl FormattingRule for WrapExpressionRule {
     fn is_applicable(&self, children: Vec<Child>) -> bool {
         if children.len() == 1 {
             if children[0].node_type == Rule::expression_body
-                || children[0].node_type == Rule::expression_body_error
             {
                 return true;
             }

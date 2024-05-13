@@ -103,7 +103,7 @@ pub fn extract_positional_nodes(
             });
             return;
         }
-        Rule::open_tag | Rule::open_tag_error | Rule::tag_error | Rule::self_closing_tag => {
+        Rule::open_tag | Rule::self_closing_tag => {
             if let Some(inner_pair) = inner.find(|p| p.as_rule() == Rule::pascal_identifier) {
                 let identifier = inner_pair.as_str().to_string();
                 nodes.push(PositionalNode {
@@ -235,13 +235,6 @@ pub fn extract_positional_nodes(
                     }),
                 });
             }
-        }
-        Rule::attribute_key_value_pair_error => {
-            nodes.push(PositionalNode {
-                start,
-                end,
-                node_type: NodeType::AttributeKeyValuePairError(),
-            });
         }
         Rule::xo_enum_or_function_call => {
             let inner_pairs = &inner;
