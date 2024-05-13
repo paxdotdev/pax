@@ -941,7 +941,10 @@ fn derive_value_definition_from_literal_object_pair(
     }
 }
 
-pub fn parse_settings_from_component_definition_string(pax: &str, pax_component_definition: Pair<Rule>) -> Vec<SettingsBlockElement> {
+pub fn parse_settings_from_component_definition_string(
+    pax: &str,
+    pax_component_definition: Pair<Rule>,
+) -> Vec<SettingsBlockElement> {
     let mut settings: Vec<SettingsBlockElement> = vec![];
 
     pax_component_definition
@@ -1084,8 +1087,7 @@ pub fn assemble_component_definition(
         ),
     };
 
-    let ast = parse_pax_str(Rule::pax_component_definition, pax)
-        .expect("Unsuccessful parse");
+    let ast = parse_pax_str(Rule::pax_component_definition, pax).expect("Unsuccessful parse");
 
     parse_template_from_component_definition_string(&mut tpc, pax, ast.clone());
     let modified_module_path = if module_path.starts_with("parser") {

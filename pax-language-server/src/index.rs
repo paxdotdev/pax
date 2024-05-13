@@ -13,9 +13,7 @@ use syn::{Fields, ItemEnum, ItemUse, UseTree};
 
 fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> bool {
     // Check for the pax procedural macro
-    let has_pax_macro = attrs
-        .iter()
-        .any(|attr| attr.path.is_ident("pax"));
+    let has_pax_macro = attrs.iter().any(|attr| attr.path.is_ident("pax"));
 
     // Check for the file attribute with a matching file path
     let has_file_attr = attrs.iter().any(|attr| {

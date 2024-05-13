@@ -6,11 +6,11 @@ use completion::{
     get_struct_static_member_completions,
 };
 use completion::{get_event_completions, get_struct_completion};
-use pest::error::LineColLocation;
 use core::panic;
 use dashmap::DashMap;
 use lsp_types::request::Request;
 use pax_lang::{parse_pax_err, Rule};
+use pest::error::LineColLocation;
 use positional::is_inside_handlers_block;
 use positional::is_inside_selector_block;
 use positional::is_inside_settings_block;
@@ -357,30 +357,26 @@ impl Backend {
             }
             Err(e) => {
                 let range = match e.line_col {
-                    LineColLocation::Pos((l,c)) => {
-                        Range {
-                            start: Position {
-                                line: (l-1) as u32,
-                                character: (c-1) as u32,
-                            },
-                            end: Position {
-                                line: (l-1) as u32,
-                                character: (c-1) as u32,
-                            },
-                        }
+                    LineColLocation::Pos((l, c)) => Range {
+                        start: Position {
+                            line: (l - 1) as u32,
+                            character: (c - 1) as u32,
+                        },
+                        end: Position {
+                            line: (l - 1) as u32,
+                            character: (c - 1) as u32,
+                        },
                     },
-                    LineColLocation::Span((l_s,c_s),(l_e,c_e)) => {
-                        Range {
-                            start: Position {
-                                line: (l_s-1) as u32,
-                                character: (c_s-1) as u32,
-                            },
-                            end: Position {
-                                line: (l_e-1) as u32,
-                                character: (c_e-1) as u32,
-                            },
-                        }
-                    }
+                    LineColLocation::Span((l_s, c_s), (l_e, c_e)) => Range {
+                        start: Position {
+                            line: (l_s - 1) as u32,
+                            character: (c_s - 1) as u32,
+                        },
+                        end: Position {
+                            line: (l_e - 1) as u32,
+                            character: (c_e - 1) as u32,
+                        },
+                    },
                 };
                 vec![Diagnostic {
                     range: range,
