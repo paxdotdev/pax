@@ -16,11 +16,9 @@ pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Str
             let pair = pairs.next().unwrap();
             Ok(pair)
         }
-        Err(err) => {
-            Err(format!("{err}"))
-        }
+        Err(err) => Err(format!("{err}")),
     }
-} 
+}
 
 pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
@@ -29,8 +27,6 @@ pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Err
             let pair = pairs.next().unwrap();
             Ok(pair)
         }
-        Err(err) => {
-            Err(err)
-        }
+        Err(err) => Err(err),
     }
 }

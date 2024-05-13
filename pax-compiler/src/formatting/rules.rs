@@ -863,8 +863,7 @@ struct WrapExpressionRule;
 impl FormattingRule for WrapExpressionRule {
     fn is_applicable(&self, children: Vec<Child>) -> bool {
         if children.len() == 1 {
-            if children[0].node_type == Rule::expression_body
-            {
+            if children[0].node_type == Rule::expression_body {
                 return true;
             }
         }
