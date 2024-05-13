@@ -215,6 +215,7 @@ impl PaxChassisWeb {
                 let node = engine
                     .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("text node exists in engine");
+                borrow!(node.instance_node).handle_text_change(&node, args.text.clone());
                 node.dispatch_text_input(
                     TextInput { text: args.text },
                     &globals,

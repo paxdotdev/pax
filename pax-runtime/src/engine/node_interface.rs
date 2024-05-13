@@ -48,7 +48,7 @@ impl NodeInterface {
         }
     }
 
-    pub fn with_properties<T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T)) {
+    pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> V {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
