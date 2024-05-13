@@ -1,6 +1,6 @@
 [package]
 name = "pax-chassis-common"
-version = "0.14.3"
+version = "0.14.4"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 description = "Shared resources for Pax Chassis"
@@ -16,9 +16,9 @@ exclude = ["pax-swift-common/.build"]
 env_logger = "0.11.1"
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
-pax-runtime = { path = "../pax-runtime", version="0.14.3" }
-pax-cartridge = {path="../pax-cartridge", version="0.14.3"}
-pax-message = {path = "../pax-message", version="0.14.3"}
+pax-runtime = { path = "../pax-runtime", version="0.14.4" }
+pax-cartridge = {path="../pax-cartridge", version="0.14.4"}
+pax-message = {path = "../pax-message", version="0.14.4"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --
