@@ -75,8 +75,8 @@ impl Action for ProjectMsg {
 }
 
 impl PaxDesigner {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        self.glass_active.set(true);
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        model::init_model(ctx);
         STAGE_PROP.with(|stage| self.stage.replace_with(stage.clone()));
 
         model::read_app_state(|app_state| {

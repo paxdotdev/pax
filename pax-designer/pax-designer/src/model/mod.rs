@@ -24,6 +24,8 @@ use pax_engine::{api::NodeContext, math::Point2};
 use pax_manifest::TemplateNodeId;
 use pax_manifest::TypeId;
 use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_runtime_api::borrow;
+use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
@@ -33,36 +35,67 @@ use crate::math::coordinate_spaces::{self, Glass};
 
 use self::action::pointer::Pointer;
 use self::action::pointer::PointerAction;
+use self::action::UndoStack;
 use self::input::{Dir, InputEvent, InputMapper};
 
-// Needs to be changed if we use a multithreaded async runtime
-thread_local!(
-    static GLOBAL_STATE: RefCell<GlobalDesignerState> = RefCell::new(GlobalDesignerState::new());
-);
+const INITIALIZED: &'static str = "model should have been initialized";
 
-#[derive(Default)]
-pub struct GlobalDesignerState {
-    pub undo_stack: action::UndoStack,
-    pub app_state: AppState,
+// Needs to be changed if we use a multithreaded async runtime
+thread_local! {
+    static GLOBAL_STATE: RefCell<Option<GlobalDesignerState>> = RefCell::new(None);
 }
 
-impl GlobalDesignerState {
-    fn new() -> Self {
-        let userland_project_root_type_id = TypeId::build_singleton(
-            &format!(
-                "{}::{}",
-                USER_PROJ_ROOT_IMPORT_PATH, USER_PROJ_ROOT_COMPONENT
-            ),
-            None,
-        );
-        Self {
-            app_state: AppState {
-                selected_component_id: Property::new(userland_project_root_type_id.to_owned()),
-                ..Default::default()
-            },
-            ..Default::default()
-        }
-    }
+pub struct GlobalDesignerState {
+    pub undo_stack: UndoStack,
+    pub app_state: AppState,
+    pub derived_state: DerivedAppState,
+}
+
+pub fn init_model(ctx: &NodeContext) {
+    let userland_project_root_type_id = TypeId::build_singleton(
+        &format!(
+            "{}::{}",
+            USER_PROJ_ROOT_IMPORT_PATH, USER_PROJ_ROOT_COMPONENT
+        ),
+        None,
+    );
+    let app_state = AppState {
+        selected_component_id: Property::new(userland_project_root_type_id.to_owned()),
+        ..Default::default()
+    };
+
+    let ctx = ctx.clone();
+    let comp_id = app_state.selected_component_id.clone();
+    let node_ids = app_state.selected_template_node_ids.clone();
+    // NOTE: ideally, the dependencies below are at some point removed and
+    // replaced by a direct property dependency of expanded nodes in the engine
+    // itself
+    let transform = app_state.glass_to_world_transform.clone();
+    let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+
+    let deps = [
+        comp_id.untyped(),
+        node_ids.untyped(),
+        transform.untyped(),
+        manifest_ver.untyped(),
+    ];
+    let selected_bounds = Property::computed(
+        move || {
+            let selected_bounds = with_action_context(&ctx, |ac| ac.selection_state());
+            selected_bounds
+        },
+        &deps,
+    );
+
+    let derived_state = DerivedAppState { selected_bounds };
+
+    GLOBAL_STATE.with_borrow_mut(|state| {
+        *state = Some(GlobalDesignerState {
+            undo_stack: UndoStack::default(),
+            app_state,
+            derived_state,
+        })
+    });
 }
 
 /// Represents the global source-of-truth for the desinger.
@@ -129,7 +162,7 @@ pub struct AppState {
 }
 
 pub fn read_app_state<T>(closure: impl FnOnce(&AppState) -> T) -> T {
-    GLOBAL_STATE.with_borrow_mut(|model| closure(&model.app_state))
+    GLOBAL_STATE.with_borrow_mut(|model| closure(&model.as_ref().expect(INITIALIZED).app_state))
 }
 
 pub fn with_action_context<R: 'static>(
@@ -141,7 +174,7 @@ pub fn with_action_context<R: 'static>(
             ref mut undo_stack,
             ref mut app_state,
             ..
-        } = *model;
+        } = model.as_mut().expect(INITIALIZED);
         func(&mut ActionContext {
             undo_stack,
             engine_context: ctx,
@@ -150,6 +183,9 @@ pub fn with_action_context<R: 'static>(
     })
 }
 
+impl Interpolatable for SelectionState {}
+
+#[derive(Clone, Default)]
 pub struct SelectionState {
     total_bounds: AxisAlignedBox,
     items: Vec<SelectedItem>,
@@ -180,6 +216,7 @@ impl SelectionState {
     }
 }
 
+#[derive(Default, Clone)]
 pub struct SelectedItem {
     pub bounds: AxisAlignedBox,
     pub origin: Point2<Glass>,
@@ -189,16 +226,13 @@ pub struct SelectedItem {
 // This represents values that can be deterministically produced from the app
 // state and the projects manifest
 pub struct DerivedAppState {
-    pub selected_bounds: SelectionState,
+    pub selected_bounds: Property<SelectionState>,
 }
 
-pub fn read_app_state_with_derived(
-    ctx: &NodeContext,
-    closure: impl FnOnce(&AppState, &DerivedAppState),
-) {
-    let selected_bounds = with_action_context(ctx, |ac| ac.selection_state());
-    GLOBAL_STATE.with_borrow_mut(|model| {
-        closure(&model.app_state, &DerivedAppState { selected_bounds });
+pub fn read_app_state_with_derived(closure: impl FnOnce(&AppState, &DerivedAppState)) {
+    GLOBAL_STATE.with_borrow(|model| {
+        let model = model.as_ref().expect(INITIALIZED);
+        closure(&model.app_state, &model.derived_state);
     });
 }
 
@@ -217,7 +251,7 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
             ref mut input_mapper,
             ref mut keys_pressed,
             ..
-        } = &mut model.app_state;
+        } = &mut model.as_mut().expect(INITIALIZED).app_state;
 
         let input_mapper = input_mapper.get();
         let event = input_mapper

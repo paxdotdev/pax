@@ -25,7 +25,6 @@ use pax_engine::api::Fill;
 #[pax]
 #[file("glass/object_editor.pax")]
 pub struct ObjectEditor {
-    pub editor_id: Property<i64>,
     pub control_points: Property<Vec<ControlPointDef>>,
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
@@ -35,9 +34,8 @@ pub struct ObjectEditor {
     pub width: Property<f64>,
     pub height: Property<f64>,
 
-    pub textbox_editor_style: Property<TextStyle>,
-    pub textbox_editor_text: Property<String>,
-    pub textbox_editor_original_text: Property<String>,
+    pub on_engine_text_prop_changed: Property<String>,
+    pub on_new_selection: Property<bool>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -49,24 +47,12 @@ thread_local!(
 
 impl ObjectEditor {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        model::read_app_state(|app_state| {
-            let comp_id = app_state.selected_component_id.clone();
-            let node_ids = app_state.selected_template_node_ids.clone();
-            let transform = app_state.glass_to_world_transform.clone();
-            let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
-            let ctx = ctx.clone();
-
-            let deps = [
-                comp_id.untyped(),
-                node_ids.untyped(),
-                transform.untyped(),
-                manifest_ver.untyped(),
-            ];
+        model::read_app_state_with_derived(|_, derived_state| {
+            let selected = derived_state.selected_bounds.clone();
+            let deps = [selected.untyped()];
             let editor = Property::computed(
                 move || {
-                    let selected_bounds =
-                        model::with_action_context(&ctx, |ac| ac.selection_state());
-                    if let Some(total_bounds) = selected_bounds.total_bounds() {
+                    if let Some(total_bounds) = selected.get().total_bounds() {
                         get_generic_object_editor(&total_bounds)
                     } else {
                         Editor::new()
@@ -80,124 +66,105 @@ impl ObjectEditor {
                 self.control_points.clone(),
                 self.bounding_segments.clone(),
             );
+
+            let selected = derived_state.selected_bounds.clone();
+            let ctx = ctx.clone();
+
+            // update these values once
+            let on_engine_text_prop_changed = self.on_engine_text_prop_changed.clone();
+
+            // keep track of last commited value. otherwise we do infinite recursion
+            // (change manifest -> bellow text trigger re-fires -> change manifest ...)
+            let last_commited_val = Rc::new(RefCell::new("".to_string()));
+
+            // TODO: this is messy...
+            // Should probably find a more general framework for this once we have more
+            // than one type of editor.
+            self.on_new_selection.replace_with(Property::computed(
+                move || {
+                    let id = selected.read(|v| v.get_single().map(|s| s.id.clone()));
+                    if let Some(id) = id {
+                        let mut dt = borrow_mut!(ctx.designtime);
+                        let import_path = dt
+                            .get_orm_mut()
+                            .get_node(id.clone())
+                            .expect("node exists")
+                            .get_type_id()
+                            .import_path();
+
+                        match import_path.as_ref().map(|v| v.as_str()) {
+                            Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
+                                let node = ctx
+                                    .get_nodes_by_global_id(id.clone())
+                                    .into_iter()
+                                    .next()
+                                    .unwrap();
+
+                                node.with_properties(|text: &mut Text| {
+                                    text.editable.set(true);
+                                    let last_commited_val = Rc::clone(&last_commited_val);
+                                    let text = text.text.clone();
+                                    let deps = [text.untyped()];
+                                    let ctx = ctx.clone();
+                                    on_engine_text_prop_changed.replace_with(Property::computed(
+                                        move || {
+                                            let text = text.get();
+                                            if &*last_commited_val.borrow() != &text {
+                                                let mut dt = borrow_mut!(ctx.designtime);
+                                                if let Some(mut builder) =
+                                                    dt.get_orm_mut().get_node(id.clone())
+                                                {
+                                                    builder
+                                                        .set_typed_property("text", text.clone())
+                                                        .unwrap();
+                                                    builder.save().unwrap();
+                                                }
+                                                *last_commited_val.borrow_mut() = text.clone();
+                                            }
+                                            text
+                                        },
+                                        &deps,
+                                    ));
+                                });
+                            }
+                            _ => (),
+                        }
+                    }
+                    false
+                },
+                &deps,
+            ));
+
+            let selected = derived_state.selected_bounds.clone();
+            self.x.replace_with(Property::computed(
+                move || {
+                    selected.read(|s| s.total_bounds().map(|tb| tb.top_left().x).unwrap_or(0.0))
+                },
+                &deps,
+            ));
+            let selected = derived_state.selected_bounds.clone();
+            self.y.replace_with(Property::computed(
+                move || {
+                    selected.read(|s| s.total_bounds().map(|tb| tb.top_left().y).unwrap_or(0.0))
+                },
+                &deps,
+            ));
+            let selected = derived_state.selected_bounds.clone();
+            self.width.replace_with(Property::computed(
+                move || selected.read(|s| s.total_bounds().map(|tb| tb.width()).unwrap_or(0.0)),
+                &deps,
+            ));
+            let selected = derived_state.selected_bounds.clone();
+            self.height.replace_with(Property::computed(
+                move || selected.read(|s| s.total_bounds().map(|tb| tb.height()).unwrap_or(0.0)),
+                &deps,
+            ));
         });
     }
 
-    pub fn pre_render(&mut self, ctx: &NodeContext) {
-        // model::read_app_state_with_derived(ctx, |app_state, derived_state| {
-        //     // HACK: if we were editing text, and the selection has changed,
-        //     // commit the text changes to the old selection before
-        //     // selecting this new object
-        //     if app_state.selected_template_node_ids.get() != self.ids.get() {
-        //         if self.editor_id.get() == 1 {
-        //             self.commit_changes(ctx, app_state.selected_component_id.get().clone());
-        //         }
-        //     }
-        //     self.ids
-        //         .set(app_state.selected_template_node_ids.get().clone());
-        //     // HACK: dirty dag manual check if we need to update
-        //     static BOUNDS: Mutex<Option<AxisAlignedBox>> = Mutex::new(None);
-        //     let total_bounds = derived_state.selected_bounds.total_bounds();
-        //     if BOUNDS.lock().unwrap().as_ref() == total_bounds.as_ref() {
-        //         return;
-        //     }
-        //     *BOUNDS.lock().unwrap() = total_bounds;
-
-        //     //reset state
-        //     self.editor_id.set(0.into());
-        //     // set state that isn't determined by selection type and object
-        //     if let Some(bounds) = &derived_state.selected_bounds.total_bounds() {
-        //         self.x.set(bounds.top_left().x);
-        //         self.y.set(bounds.top_left().y);
-        //         self.width.set(bounds.width());
-        //         self.height.set(bounds.height());
-        //     }
-
-        //     if let Some(item) = &derived_state.selected_bounds.get_single() {
-        //         let mut dt = borrow_mut!(ctx.designtime);
-
-        //         // figure out type from template_node (can be changed if we expose this on expanded node)
-        //         let node = dt
-        //             .get_orm_mut()
-        //             .get_node(item.id.clone())
-        //             .expect("node exists")
-        //             .get_type_id()
-        //             .import_path();
-
-        //         match node.as_ref().map(|v| v.as_str()) {
-        //             Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
-        //                 self.set_generic_object_editor(&item.bounds);
-        //                 self.editor_id.set(1.into());
-        //                 let node = ctx
-        //                     .get_nodes_by_global_id(item.id.clone())
-        //                     .into_iter()
-        //                     .next()
-        //                     .unwrap();
-
-        //                 node.with_properties(|text: &mut Text| {
-        //                     // HACK: if this textbox isn't already in "editing state, copy over style and content,
-        //                     // and replace content by invisible character to mark as "taken".
-        //                     // NOTE: if we need to hide the underlying object in more places than text,
-        //                     // create a common property "visible" that temporarily hides an expanded node
-        //                     if &text.text.get() != "\u{2800}" {
-        //                         self.textbox_editor_style.set(text.style.get().clone());
-        //                         self.textbox_editor_text.set(text.text.get());
-        //                         self.textbox_editor_original_text.set(text.text.get());
-        //                         text.text.set(String::from("\u{2800}"));
-        //                     }
-        //                 });
-        //             }
-        //             path => {
-        //                 self.set_generic_object_editor(&item.bounds);
-        //             }
-        //         };
-        //     } else if let Some(total_bounds) = derived_state.selected_bounds.total_bounds() {
-        //         let mut editor = Editor::new();
-        //         let [p1, p2, p3, p4] = total_bounds.corners();
-        //         editor.add_bounding_segments(vec![
-        //             (p1, p2).into(),
-        //             (p2, p3).into(),
-        //             (p3, p4).into(),
-        //             (p4, p1).into(),
-        //         ]);
-        //         self.set_editor(editor);
-        //     } else {
-        //         CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
-        //             *funcs = None;
-        //         });
-        //         self.control_points.set(vec![]);
-        //         self.bounding_segments.set(vec![]);
-        //         self.anchor_point.set(GlassPoint {
-        //             x: f64::MIN,
-        //             y: f64::MIN,
-        //         });
-        //     }
-        // });
-    }
-
-    pub fn commit_changes(&mut self, ctx: &NodeContext, type_id: TypeId) {
-        // let mut dt = borrow_mut!(ctx.designtime);
-        // let ids = self.ids.get();
-        // let Some(templ_id) = ids.first() else {
-        //     return;
-        // };
-        // let Some(mut builder) = dt
-        //     .get_orm_mut()
-        //     .get_node(UniqueTemplateNodeIdentifier::build(
-        //         type_id,
-        //         templ_id.clone(),
-        //     ))
-        // else {
-        //     return;
-        // };
-        // builder
-        //     .set_typed_property("text", self.textbox_editor_text.get().clone())
-        //     .unwrap();
-        // builder.save().unwrap();
-    }
-
-    pub fn text_editor_input(&mut self, _ctx: &NodeContext, event: Event<TextInput>) {
-        self.textbox_editor_text.set(String::from(&event.text));
+    pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        self.on_new_selection.get();
+        self.on_engine_text_prop_changed.get();
     }
 }
 
