@@ -12,10 +12,12 @@ use syn::{
 use syn::{Fields, ItemEnum, ItemUse, UseTree};
 
 fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> bool {
-    let has_pax_derive = attrs
+    // Check for the pax procedural macro
+    let has_pax_macro = attrs
         .iter()
-        .any(|attr| attr.path.is_ident("derive") && attr.tokens.to_string().contains("Pax"));
+        .any(|attr| attr.path.is_ident("pax"));
 
+    // Check for the file attribute with a matching file path
     let has_file_attr = attrs.iter().any(|attr| {
         attr.path.is_ident("file")
             && match attr.parse_meta() {
@@ -31,7 +33,7 @@ fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> bool 
             }
     });
 
-    has_pax_derive && has_file_attr
+    has_pax_macro && has_file_attr
 }
 
 pub fn find_rust_file_with_macro<P: AsRef<Path>>(

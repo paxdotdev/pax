@@ -31,6 +31,7 @@ pub struct ArgsFullComponent {
     pub template_dependencies: Vec<String>,
     pub reexports_snippet: String,
     pub associated_pax_file_path: Option<PathBuf>,
+    pub error_message: Option<String>,
 }
 
 #[derive(TemplateOnce)]

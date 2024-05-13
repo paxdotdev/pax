@@ -6,11 +6,11 @@ use completion::{
     get_struct_static_member_completions,
 };
 use completion::{get_event_completions, get_struct_completion};
+use pest::error::LineColLocation;
 use core::panic;
 use dashmap::DashMap;
 use lsp_types::request::Request;
-use pax_compiler::parsing;
-use pax_lang::{Parser, PaxParser, Rule};
+use pax_lang::{parse_pax_err, Rule};
 use positional::is_inside_handlers_block;
 use positional::is_inside_selector_block;
 use positional::is_inside_settings_block;
@@ -332,7 +332,7 @@ impl Backend {
     }
 
     fn parse_and_cache_pax_file(&self, pax: &str, uri: Url) -> Vec<Diagnostic> {
-        let parse_result = PaxParser::parse(Rule::pax_component_definition, pax);
+        let parse_result = parse_pax_err(Rule::pax_component_definition, pax);
 
         let path_str = uri.path();
 
@@ -343,59 +343,56 @@ impl Backend {
                 let mut classes = HashSet::new();
 
                 extract_positional_nodes(
-                    pax_component_definition.clone().next().unwrap(),
+                    pax_component_definition.clone(),
                     &mut nodes,
                     &mut ids,
                     &mut classes,
                 );
-
                 self.pax_ast_cache
                     .insert(path_str.clone().to_string(), nodes.clone());
 
                 self.pax_selector_map
                     .insert(path_str.clone().to_string(), SelectorData { ids, classes });
-
-                let errors = parsing::extract_errors(
-                    pax_component_definition
-                        .clone()
-                        .next()
-                        .unwrap()
-                        .into_inner(),
-                );
-
-                // If there are errors, publish them as diagnostics
-                if !errors.is_empty() {
-                    let diagnostics: Vec<Diagnostic> = errors
-                        .into_iter()
-                        .map(|err| Diagnostic {
-                            range: Range {
-                                start: Position {
-                                    line: (err.start.0 - 1) as u32,
-                                    character: (err.start.1 - 1) as u32,
-                                },
-                                end: Position {
-                                    line: (err.end.0 - 1) as u32,
-                                    character: (err.end.1 - 1) as u32,
-                                },
-                            },
-                            message: err.error_message,
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            code: None,
-                            source: None,
-                            related_information: None,
-                            code_description: None,
-                            tags: None,
-                            data: None,
-                        })
-                        .collect();
-                    diagnostics
-                } else {
-                    Vec::new()
-                }
+                Vec::new()
             }
             Err(e) => {
-                eprintln!("Failed to parse {}: {:?}", path_str, e);
-                Vec::new()
+                let range = match e.line_col {
+                    LineColLocation::Pos((l,c)) => {
+                        Range {
+                            start: Position {
+                                line: l as u32,
+                                character: c as u32,
+                            },
+                            end: Position {
+                                line: l as u32,
+                                character: c as u32,
+                            },
+                        }
+                    },
+                    LineColLocation::Span((l_s,c_s),(l_e,c_e)) => {
+                        Range {
+                            start: Position {
+                                line: l_s as u32,
+                                character: c_s as u32,
+                            },
+                            end: Position {
+                                line: l_e as u32,
+                                character: c_e as u32,
+                            },
+                        }
+                    }
+                };
+                vec![Diagnostic {
+                    range: range,
+                    message: format!("{e}"),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: None,
+                    source: None,
+                    related_information: None,
+                    code_description: None,
+                    tags: None,
+                    data: None,
+                }]
             }
         }
     }

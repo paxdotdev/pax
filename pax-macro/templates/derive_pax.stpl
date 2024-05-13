@@ -69,6 +69,15 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
     }
 
     fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
+         <% if args_full_component.as_ref().is_some() { %>
+            <% if args_full_component.as_ref().unwrap().error_message.is_some() { %>
+                //Error message for main component
+                let error_message = "<%= args_full_component.as_ref().unwrap().error_message.as_ref().unwrap() %>";
+                eprintln!("{}", error_message);
+                std::process::exit(1);
+            <% } %>
+        <% } %>
+        
         let self_type_id = <%= pascal_identifier %>::get_type_id();
         let mut property_definitions : Vec<pax_manifest::PropertyDefinition> = vec![];
         let self_import_path = <%= pascal_identifier %>::get_import_path();
