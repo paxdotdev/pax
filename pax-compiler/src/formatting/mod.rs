@@ -2,16 +2,14 @@ mod rules;
 
 use crate::helpers::{replace_by_line_column, InlinedTemplateFinder};
 use color_eyre::eyre::{self, Report};
-use pax_lang::{Parser, PaxParser, Rule};
+use pax_lang::{parse_pax_err, Rule};
 use std::fs;
 use std::path::Path;
 use syn::parse_file;
 use syn::visit::Visit;
 
 pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
-    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, code.as_str())?
-        .next()
-        .unwrap();
+    let pax_component_definition = parse_pax_err(Rule::pax_component_definition, code.as_str())?;
     Ok(rules::format(pax_component_definition))
 }
 

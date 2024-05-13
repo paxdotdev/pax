@@ -15,6 +15,8 @@ if self.game_state == "GAME_OVER" {
 			width=32px
 			height=32px
 			path="assets/spaceship.png"
+			anchor_x=50%
+			anchor_y=50%
 			x={self.ship_x}
 			y={self.ship_y}
 		/>
@@ -23,6 +25,8 @@ if self.game_state == "GAME_OVER" {
 	for asteroid in self.asteroids {
 		<Image
 			path={asteroid.animation.frame}
+			anchor_x=50%
+			anchor_y=50%
 			x={asteroid.x}
 			y={asteroid.y}
 			width={asteroid.w}
@@ -35,6 +39,8 @@ if self.game_state == "GAME_OVER" {
 			width=16px
 			height=16px
 			path="assets/bullet.png"
+			anchor_x=50%
+			anchor_y=50%
 			x={bullet.x}
 			y={bullet.y}
 		/>

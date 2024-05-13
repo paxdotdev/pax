@@ -13,30 +13,23 @@ comment = @{  ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ N
 
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | block_level_error)+ ~ EOI | empty }
-empty = {SOI}
-block_level_error = { (!(root_tag_pair | settings_block_declaration) ~ ANY)+}
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration )+ ~ EOI }
 root_tag_pair = { any_tag_pair }
-any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment | tag_error}
-tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@settings") ~ ANY)* ~ WHITESPACE* }
+any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="..."> 
 //and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
 //and `POP`, to match closing & opening tags
-open_tag = {"<" ~ PUSH(pascal_identifier) ~ (attribute_key_value_pair| attribute_key_value_pair_error) * ~ ">"}
-open_tag_error = {"<" ~ PUSH(pascal_identifier) ~ (attribute_key_value_pair| attribute_key_value_pair_error)*}
+open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair * ~ ">"}
 closing_tag = {"<" ~ "/" ~ POP ~ ">"}
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
-self_closing_tag = {"<" ~ pascal_identifier ~ (attribute_key_value_pair | attribute_key_value_pair_error)* ~ "/" ~ ">"}
-
-attribute_key_value_pair_error = { (!(attribute_key_value_pair | "/" | ">" | "<")  ~ ANY)+}
+self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/" ~ ">"}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {(open_tag | open_tag_error) ~ inner_nodes ~ closing_tag}
-inner_nodes = { node_inner_content | (any_tag_pair | inner_tag_error)* }
-inner_tag_error = {(!(any_tag_pair| "}" | ("<"~"/")  ) ~ ANY)+}
+matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
+inner_nodes = { node_inner_content | any_tag_pair* }
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
@@ -80,10 +73,9 @@ char = {
 /// BEGIN SETTINGS
 //////
 
-settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (settings_event_binding | selector_block | comment | selector_block_error)* ~ "}"}
-selector_block_error = {(!(WHITESPACE | "}") ~ ANY)+ ~ "}"}
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (settings_event_binding | selector_block | comment )* ~ "}"}
 selector_block = {selector ~ literal_object ~  silent_comma? }
-literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair | comment)* ~ "}" }
+literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair  | comment)* ~ "}" }
 //Describes a CSS-style selector, used for joining settings to elements
 //Note: only basic `id` and `class` syntax supported for now; could be extended
 //Example: `#some-element`
@@ -185,10 +177,8 @@ literal_color_const = {
 expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
 
 expression_wrapped = _{
-    "{" ~ comment? ~ (expression_body| expression_body_error) ~ "}"
+    "{" ~ comment? ~ expression_body ~ "}"
 }
-
-expression_body_error = { ( !(expression_body | "}") ~ ANY) + }
 
 expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
 
@@ -266,7 +256,8 @@ xo_literal = {literal_color | literal_enum_value | literal_tuple_access | litera
 //objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
 // `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`
 xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
-xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ silent_comma? }
+
+xo_object_settings_key_value_pair = { settings_key ~ expression_body  ~ silent_comma? }
 
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}

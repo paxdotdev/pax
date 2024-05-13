@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use pax_lang::{Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
+use pax_lang::{parse_pax_str, Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
 use pax_manifest::{escape_identifier, ComponentTemplate, TemplateNodeId, TreeLocation, TypeId};
 
 use pax_manifest::{
@@ -339,12 +339,8 @@ fn recurse_pratt_parse_to_string<'a>(
 pub fn parse_template_from_component_definition_string(
     ctx: &mut TemplateNodeParseContext,
     pax: &str,
+    pax_component_definition: Pair<Rule>,
 ) {
-    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next()
-        .unwrap(); // get and unwrap the `pax_component_definition` rule
-
     pax_component_definition
         .into_inner()
         .for_each(|pair| match pair.as_rule() {
@@ -945,12 +941,7 @@ fn derive_value_definition_from_literal_object_pair(
     }
 }
 
-pub fn parse_settings_from_component_definition_string(pax: &str) -> Vec<SettingsBlockElement> {
-    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next()
-        .unwrap(); // get and unwrap the `pax_component_definition` rule
-
+pub fn parse_settings_from_component_definition_string(pax: &str, pax_component_definition: Pair<Rule>) -> Vec<SettingsBlockElement> {
     let mut settings: Vec<SettingsBlockElement> = vec![];
 
     pax_component_definition
@@ -1071,61 +1062,6 @@ pub struct ParsingError {
     pub end: (usize, usize),
 }
 
-/// Extract all errors from a Pax parse result
-pub fn extract_errors(pairs: Pairs<Rule>) -> Vec<ParsingError> {
-    let mut errors = vec![];
-
-    for pair in pairs {
-        let error = match pair.as_rule() {
-            Rule::block_level_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Unexpected template structure encountered.".to_string(),
-            )),
-            Rule::attribute_key_value_pair_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Attribute key-value pair is malformed.".to_string(),
-            )),
-            Rule::inner_tag_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Inner tag doesn't match any expected format.".to_string(),
-            )),
-            Rule::selector_block_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Selector block structure is not well-defined.".to_string(),
-            )),
-            Rule::expression_body_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Expression inside curly braces is not well defined.".to_string(),
-            )),
-            Rule::open_tag_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Open tag is malformed".to_string(),
-            )),
-            Rule::tag_error => Some((
-                format!("{:?}", pair.as_rule()),
-                "Tag structure is unexpected.".to_string(),
-            )),
-            _ => None,
-        };
-        if let Some((error_name, error_message)) = error {
-            let span = pair.as_span();
-            let ((line_start, start_col), (line_end, end_col)) =
-                (pair.line_col(), span.end_pos().line_col());
-            let error = ParsingError {
-                error_name,
-                error_message,
-                matched_string: span.as_str().to_string(),
-                start: (line_start, start_col),
-                end: (line_end, end_col),
-            };
-            errors.push(error);
-        }
-        errors.extend(extract_errors(pair.into_inner()));
-    }
-
-    errors
-}
-
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn assemble_component_definition(
     mut ctx: ParsingContext,
@@ -1136,31 +1072,6 @@ pub fn assemble_component_definition(
     self_type_id: TypeId,
     component_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
-    let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next()
-        .unwrap(); // get and unwrap the `pax_component_definition` rule
-
-    let errors = extract_errors(_ast.clone().into_inner());
-    if !errors.is_empty() {
-        let mut error_messages = String::new();
-
-        for error in &errors {
-            let msg = format!(
-                "error: {}\n   --> {}:{}\n    |\n{}  | {}\n    |{}\n\n",
-                error.error_message,
-                error.start.0,
-                error.start.1,
-                error.start.0,
-                error.matched_string,
-                "^".repeat(error.matched_string.len())
-            );
-            error_messages.push_str(&msg);
-        }
-
-        panic!("{}", error_messages);
-    }
-
     if is_main_component {
         ctx.main_component_type_id = self_type_id.clone();
     }
@@ -1173,7 +1084,10 @@ pub fn assemble_component_definition(
         ),
     };
 
-    parse_template_from_component_definition_string(&mut tpc, pax);
+    let ast = parse_pax_str(Rule::pax_component_definition, pax)
+        .expect("Unsuccessful parse");
+
+    parse_template_from_component_definition_string(&mut tpc, pax, ast.clone());
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
@@ -1183,7 +1097,7 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template.clone();
 
-    let settings = parse_settings_from_component_definition_string(pax);
+    let settings = parse_settings_from_component_definition_string(pax, ast);
 
     let new_def = ComponentDefinition {
         is_primitive: false,
