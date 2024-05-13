@@ -360,24 +360,24 @@ impl Backend {
                     LineColLocation::Pos((l,c)) => {
                         Range {
                             start: Position {
-                                line: l as u32,
-                                character: c as u32,
+                                line: l-1 as u32,
+                                character: c-1 as u32,
                             },
                             end: Position {
-                                line: l as u32,
-                                character: c as u32,
+                                line: l-1 as u32,
+                                character: c-1 as u32,
                             },
                         }
                     },
                     LineColLocation::Span((l_s,c_s),(l_e,c_e)) => {
                         Range {
                             start: Position {
-                                line: l_s as u32,
-                                character: c_s as u32,
+                                line: l_s-1 as u32,
+                                character: c_s-1 as u32,
                             },
                             end: Position {
-                                line: l_e as u32,
-                                character: c_e as u32,
+                                line: l_e-1 as u32,
+                                character: c_e-1 as u32,
                             },
                         }
                     }
