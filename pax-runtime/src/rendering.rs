@@ -159,6 +159,12 @@ pub trait InstanceNode {
     fn get_template(&self) -> Option<&InstanceNodePtrList> {
         None
     }
+
+    fn handle_text_change(&self, expanded_node: &Rc<ExpandedNode>, text: String) {
+        // no-op for most, except for TextInstance
+        // TODO find a more general framework for exposing callbacks into primitives
+        // that doesn't need a method like this for each form type (textbox, checkbox, etc)
+    }
 }
 
 pub struct BaseInstance {
