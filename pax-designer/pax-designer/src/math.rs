@@ -28,6 +28,12 @@ pub struct AxisAlignedBox<W = Glass> {
     max: Point2<W>,
 }
 
+impl<W: Space> Default for AxisAlignedBox<W> {
+    fn default() -> Self {
+        AxisAlignedBox::new(Point2::default(), Point2::default())
+    }
+}
+
 impl<W: Space> PartialEq for AxisAlignedBox<W> {
     fn eq(&self, other: &Self) -> bool {
         self.min == other.min && self.max == other.max

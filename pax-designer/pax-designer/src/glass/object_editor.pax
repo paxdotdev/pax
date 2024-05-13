@@ -9,20 +9,6 @@ for segment in self.bounding_segments {
     <Path class=bounding_segment/>
 }
 
-if self.editor_id == 1 {
-    // Text editor
-    <Text
-        editable=true
-        text={self.textbox_editor_original_text}
-        x={self.x} 
-        y={self.y} 
-        width={self.width} 
-        height={self.height} 
-        style={self.textbox_editor_style}
-        @text_input=self.text_editor_input
-    />
-}
-
 @settings {
     @mount: on_mount,
     @pre_render: pre_render,
