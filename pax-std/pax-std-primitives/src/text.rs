@@ -145,6 +145,11 @@ impl InstanceNode for TextInstance {
                                 &mut patch.style_link,
                                 (&properties.style_link.get()).into(),
                             ),
+                            patch_if_needed(
+                                &mut old_state.editable,
+                                &mut patch.editable,
+                                properties.editable.get(),
+                            ),
                             // Transform and bounds
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -190,5 +195,9 @@ impl InstanceNode for TextInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn handle_text_change(&self, expanded_node: &Rc<ExpandedNode>, text: String) {
+        expanded_node.with_properties_unwrapped(|properties: &mut Text| properties.text.set(text));
     }
 }

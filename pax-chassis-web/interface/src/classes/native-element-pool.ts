@@ -320,16 +320,12 @@ export class NativeElementPool {
 
         let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textChild.style.userSelect = "none";
         textChild.addEventListener("input", (_event) => {
             let message = {
               "TextInput": {
                 "id": patch.id!,
-                // why all the replaces?
-                // see: https://stackoverflow.com/questions/13762863/contenteditable-field-to-maintain-newlines-upon-database-entry
-                "text": textChild.innerHTML
-                        .replace(/<br\s*\/*>/ig, '\n') 
-                        .replace(/(<(p|div))/ig, '\n$1') 
-                        .replace(/(<([^>]+)>)/ig, "")?? '',
+                "text": sanitizeContentEditableString(textChild.innerHTML),
               }
             };
 
@@ -379,8 +375,9 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.content != null) {
-            textChild.innerHTML = snarkdown(patch.content);
-
+            if (sanitizeContentEditableString(textChild.innerHTML) != patch.content) {
+                textChild.innerHTML = patch.content;
+            }
             // Apply the link styles if they exist
             if (patch.style_link) {
                 let linkStyle = patch.style_link;
@@ -602,3 +599,15 @@ function applyTextTyle(textContainer: HTMLElement, textElem: HTMLElement, style:
 }
 
 
+// Function to set selection in content-editable text div
+// see https://stackoverflow.com/questions/6240139/highlight-text-range-using-javascript/6242538#6242538
+
+
+// why all the replaces?:
+// see: https://stackoverflow.com/questions/13762863/contenteditable-field-to-maintain-newlines-upon-database-entry
+function sanitizeContentEditableString(string: string): string {
+    return (string
+        .replace(/<br\s*\/*>/ig, '\n') 
+        .replace(/(<(p|div))/ig, '\n$1') 
+        .replace(/(<([^>]+)>)/ig, "")?? '');
+}
