@@ -229,11 +229,11 @@ pub struct DerivedAppState {
     pub selected_bounds: Property<SelectionState>,
 }
 
-pub fn read_app_state_with_derived(closure: impl FnOnce(&AppState, &DerivedAppState)) {
+pub fn read_app_state_with_derived<V>(closure: impl FnOnce(&AppState, &DerivedAppState) -> V) -> V {
     GLOBAL_STATE.with_borrow(|model| {
         let model = model.as_ref().expect(INITIALIZED);
-        closure(&model.app_state, &model.derived_state);
-    });
+        closure(&model.app_state, &model.derived_state)
+    })
 }
 
 pub fn perform_action(action: impl Action, ctx: &NodeContext) {
