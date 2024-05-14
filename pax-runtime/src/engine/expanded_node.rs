@@ -710,19 +710,17 @@ impl std::fmt::Debug for ExpandedNode {
                 &Fmt(|f| borrow!(self.instance_node).resolve_debug(f, Some(self))),
             )
             .field("id", &self.id)
-            // .field("common_properties", &self.common_properties.try_borrow())
-            // .field("layout_properties", &self.layout_properties)
-            // .field("children", &self.children.get().iter().collect::<Vec<_>>())
-            // .field("parent", &self.parent_expanded_node.borrow().upgrade())
-            // .field(
-            //     "slot_children",
-            //     &self
-            //         .expanded_and_flattened_slot_children
-            //         .borrow()
-            //         .as_ref()
-            //         .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
-            // )
-            // .field("occlusion_id", &self.occlusion_id.borrow())
+            .field("common_properties", &borrow!(self.common_properties))
+            .field("layout_properties", &self.layout_properties)
+            .field("children", &self.children.get().iter().collect::<Vec<_>>())
+            .field("parent", &borrow!(self.parent_expanded_node).upgrade())
+            .field(
+                "slot_children",
+                &borrow!(self.expanded_and_flattened_slot_children)
+                    .as_ref()
+                    .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
+            )
+            .field("occlusion_id", &borrow!(self.occlusion_id))
             .field(
                 "containing_component",
                 &self.containing_component.upgrade().map(|v| v.id.clone()),

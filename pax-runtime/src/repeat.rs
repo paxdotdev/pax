@@ -137,15 +137,11 @@ impl InstanceNode for RepeatInstance {
                             let property_i = Property::new(i);
                             let cp_source_expression = source_expression.clone();
                             let property_elem = Property::computed_with_name(
-                                // TODOdag why is this triggering after children have been recomputed?
-                                // How to make outer recompute and drop this before evaluation?
-                                // somehow, this is accessed before children are during tick?
-                                //
                                 move || {
-                                    cp_source_expression.get().get(i).cloned() // .unwrap_or_else(|| panic!(
-                                                                               //     "engine error: tried to access index {} of an array source that now only contains {} elements",
-                                                                               //     i, cp_source_expression.get().len()
-                                                                               // )),
+                                    Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
+                                        "engine error: tried to access index {} of an array source that now only contains {} elements",
+                                        i, cp_source_expression.get().len()
+                                    ))))
                                 },
                                 &[source_expression.untyped()],
                                 "repeat elem",

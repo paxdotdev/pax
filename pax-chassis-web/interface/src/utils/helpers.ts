@@ -1,28 +1,13 @@
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     const response = await fetch(imagePath);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch image at ${imagePath}, status: ${response.status}`);
-    }
-
     const blob = await response.blob();
-
-    let img;
-    try {
-        img = await createImageBitmap(blob);
-    } catch (error) {
-        throw new Error(`Failed to decode image at path "${imagePath}"`);
-    }    
-    const canvas = new OffscreenCanvas(img.width, img.height);
+    const img = await createImageBitmap(blob);
+    const canvas = new OffscreenCanvas(img.width+1000, img.height);
     const ctx = canvas.getContext('2d');
-
-    if (ctx) {
-        ctx.drawImage(img, 0, 0, img.width, img.height);
-        const imageData = ctx.getImageData(0, 0, img.width, img.height);
-        const pixels = imageData.data;
-        return { pixels, width: img.width, height: img.height };
-    } else {
-        throw new Error("Failed to get 2D context from OffscreenCanvas.");
-    }
+    ctx!.drawImage(img, 0, 0, img.width, img.height);
+    const imageData = ctx!.getImageData(0, 0, img.width, img.height);
+    let pixels = imageData.data;
+    return { pixels, width: img.width, height: img.height };
 }
 
 //Required due to Safari bug, unable to clip DOM elements to SVG=>`transform: matrix(...)` elements; see https://bugs.webkit.org/show_bug.cgi?id=126207
