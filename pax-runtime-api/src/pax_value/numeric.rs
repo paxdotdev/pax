@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Interpolatable;
@@ -17,6 +19,25 @@ pub enum Numeric {
     F32(f32),
     ISize(isize),
     USize(usize),
+}
+
+impl Display for Numeric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Numeric::I8(v) => write!(f, "{}", v),
+            Numeric::I16(v) => write!(f, "{}", v),
+            Numeric::I32(v) => write!(f, "{}", v),
+            Numeric::I64(v) => write!(f, "{}", v),
+            Numeric::U8(v) => write!(f, "{}", v),
+            Numeric::U16(v) => write!(f, "{}", v),
+            Numeric::U32(v) => write!(f, "{}", v),
+            Numeric::U64(v) => write!(f, "{}", v),
+            Numeric::F64(v) => write!(f, "{}", v),
+            Numeric::F32(v) => write!(f, "{}", v),
+            Numeric::ISize(v) => write!(f, "{}", v),
+            Numeric::USize(v) => write!(f, "{}", v),
+        }
+    }
 }
 
 impl PartialEq for Numeric {

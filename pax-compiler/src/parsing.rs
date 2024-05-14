@@ -100,9 +100,9 @@ fn recurse_pratt_parse_to_string<'a>(
                    xo_enum_or_function_args_list = {expression_body ~ ("," ~ expression_body)*} */
 
                 if !primary.as_str().contains("(") {
-                    //If no args, we just want to return this xo_enum_or_function_call exactly,
-                    //such as StackerDirection::Vertical
-                    primary.as_str().to_string()
+                    //If no args, we just want to return this xo_enum_or_function_call wrapped in
+                    //a PaxAny
+                    format!("({}).to_pax_any()", primary.as_str())
                 } else {
                     //prepend identifiers; recurse-pratt-parse `xo_function_args`' `expression_body`s
                     let mut pairs = primary.into_inner();
@@ -127,7 +127,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     }
                     output = output + ")";
 
-                    output
+                    format!("({}).to_pax_any()", output)
                 }
 
 
@@ -198,7 +198,7 @@ fn recurse_pratt_parse_to_string<'a>(
                         format!("({}).to_pax_any()", value)
                     },
                     Rule::string => {
-                        format!("({}).to_pax_any()",literal_kind.as_str().to_string())
+                        format!("({}).to_string().to_pax_any()",literal_kind.as_str().to_string())
                     },
                     Rule::literal_color => {
                         let mut inner = literal_kind.into_inner();
