@@ -6,7 +6,7 @@ use serde::{
 use pax_lang::{Parser, PaxParser, Rule};
 use pax_runtime_api::constants::{COLOR_CHANNEL, INTEGER, PERCENT};
 
-use crate::constants::{NUMERIC, STRING_BOX};
+use crate::constants::NUMERIC;
 
 use super::{
     error::{Error, Result},
@@ -387,15 +387,6 @@ impl<'de> MapAccess<'de> for PaxObject {
     where
         V: DeserializeSeed<'de>,
     {
-        if let Some(name) = &self.name {
-            if name == STRING_BOX {
-                let val =
-                    seed.deserialize(PrimitiveDeserializer::new(&self.elements[self.index].1))?;
-                self.index += 1;
-                return Ok(val);
-            }
-        }
-
         if self.index < self.elements.len() {
             let val = seed.deserialize(Deserializer::from_string(
                 self.elements[self.index].1.clone(),

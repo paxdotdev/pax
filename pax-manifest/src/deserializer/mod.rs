@@ -16,7 +16,7 @@ use self::helpers::{PaxColor, PaxEnum, PaxObject, PaxSeq};
 pub use error::{Error, Result};
 
 use crate::constants::{
-    COLOR, DEGREES, F64, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
+    COLOR, DEGREES, F64, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, TRUE,
 };
 
 use crate::deserializer::helpers::{ColorFuncArg, PaxSeqArg};

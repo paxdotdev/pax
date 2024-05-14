@@ -4,7 +4,7 @@
 
 use crate::{
     impl_default_coercion_rule, Color, ColorChannel, Fill, ImplToFromPaxAny, Numeric, PaxValue,
-    Percent, Property, Rotation, Size, StringBox, Stroke, Transform2D,
+    Percent, Property, Rotation, Size, Stroke, Transform2D,
 };
 
 // Default coersion rules:
@@ -101,7 +101,6 @@ impl CoercionRules for String {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::String(s) => s,
-            PaxValue::StringBox(sb) => sb.string,
             PaxValue::Numeric(n) => {
                 if n.is_float() {
                     n.to_float().to_string()
@@ -110,21 +109,6 @@ impl CoercionRules for String {
                 }
             }
             _ => return Err(format!("{:?} can't be coerced into a String", pax_value)),
-        })
-    }
-}
-
-impl CoercionRules for StringBox {
-    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
-        Ok(match pax_value {
-            PaxValue::String(s) => StringBox::from(s),
-            PaxValue::StringBox(sb) => sb,
-            PaxValue::Numeric(n) => StringBox::from(if n.is_float() {
-                n.to_float().to_string()
-            } else {
-                n.to_int().to_string()
-            }),
-            _ => return Err(format!("{:?} can't be coerced into a StringBox", pax_value)),
         })
     }
 }

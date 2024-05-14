@@ -920,51 +920,6 @@ impl OcclusionLayerGen {
     }
 }
 
-impl Interpolatable for StringBox {}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(crate = "crate::serde")]
-pub struct StringBox {
-    pub string: String,
-}
-
-impl Add for StringBox {
-    type Output = Self;
-
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self.string.push_str(&rhs.string.as_str());
-        self
-    }
-}
-
-impl From<&str> for StringBox {
-    fn from(value: &str) -> Self {
-        StringBox {
-            string: value.to_string(),
-        }
-    }
-}
-
-impl From<String> for StringBox {
-    fn from(value: String) -> Self {
-        StringBox { string: value }
-    }
-}
-
-impl From<&String> for StringBox {
-    fn from(value: &String) -> Self {
-        StringBox {
-            string: value.to_string(),
-        }
-    }
-}
-
-impl From<StringBox> for String {
-    fn from(value: StringBox) -> Self {
-        value.string
-    }
-}
-
 /// Raw Percent type, which we use for serialization and dynamic traversal.  At the time
 /// of authoring, this type is not used directly at runtime, but is intended for `into` coercion
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"

@@ -8,7 +8,7 @@ use pax_engine::api::Numeric;
 use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
-use pax_runtime::api::{NodeContext, Platform, StringBox, TouchEnd, TouchMove, TouchStart, OS};
+use pax_runtime::api::{NodeContext, Platform, TouchEnd, TouchMove, TouchStart, OS};
 #[pax]
 #[inlined(
     <Frame>

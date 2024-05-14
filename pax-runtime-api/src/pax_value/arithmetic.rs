@@ -71,9 +71,6 @@ impl PartialEq for PaxValue {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => a == b,
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a == b,
             (PaxValue::String(a), PaxValue::String(b)) => a == b,
-            (PaxValue::StringBox(a), PaxValue::StringBox(b)) => a == b,
-            (PaxValue::String(a), PaxValue::StringBox(b)) => a == &b.string,
-            (PaxValue::StringBox(a), PaxValue::String(b)) => &a.string == b,
             (a, b) => panic!("can't compare {:?} and {:?}", a, b),
         }
     }

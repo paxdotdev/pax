@@ -1637,21 +1637,6 @@ impl Reflectable for pax_runtime::api::Transform2D {
     }
 }
 
-impl Reflectable for pax_runtime::api::StringBox {
-    fn get_import_path() -> String {
-        "pax_engine::api::StringBox".to_string()
-    }
-    fn get_self_pascal_identifier() -> String {
-        "StringBox".to_string()
-    }
-    fn get_type_id() -> TypeId {
-        TypeId::build_singleton(
-            &Self::get_import_path(),
-            Some(&Self::get_self_pascal_identifier()),
-        )
-    }
-}
-
 impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         let type_id = Self::get_type_id();
