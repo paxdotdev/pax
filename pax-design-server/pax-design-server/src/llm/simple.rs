@@ -9,7 +9,7 @@ pub enum SimpleNodeAction {
     Add(SimpleAddRequest),
 }
 
-/// All the nodes to be added to the scene 
+/// All the nodes to be added to the scene
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct SimpleAddRequest {
     pub nodes_to_add: Vec<SimpleAdd>,

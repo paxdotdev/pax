@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap, fmt::{format, Display, Formatter}
+    collections::HashMap,
+    fmt::{format, Display, Formatter},
 };
 
 use pax_designtime::orm::template::{
@@ -12,8 +13,8 @@ use pax_manifest::{
 };
 
 use super::simple::{
-    SimpleColor, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType, SimpleProperties,
-    SimpleRotation, SimplePixel, SimplePercent, SimpleTemplate,
+    SimpleColor, SimpleNodeAction, SimpleNodeInformation, SimpleNodeType, SimplePercent,
+    SimplePixel, SimpleProperties, SimpleRotation, SimpleTemplate,
 };
 
 use super::constants::PREFIX;
@@ -62,7 +63,10 @@ pub fn simple_node_type_to_type_id(node_type: SimpleNodeType) -> Option<TypeId> 
         }
         SimpleNodeType::Ellipse => TypeId::build_singleton(&format!("{}::Ellipse", PREFIX), None),
         SimpleNodeType::Text => TypeId::build_singleton(&format!("{}::Text", PREFIX), None),
-        SimpleNodeType::Navbar => TypeId::build_singleton(&format!("pax_designer::pax_reexports::designer_project::menu_bar::MenuBar"), None),
+        SimpleNodeType::Navbar => TypeId::build_singleton(
+            &format!("pax_designer::pax_reexports::designer_project::menu_bar::MenuBar"),
+            None,
+        ),
     };
     Some(t)
 }
@@ -75,7 +79,7 @@ impl Display for SimplePercent {
 
 impl Display for SimplePixel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-         write!(f, "{}px", self.value)
+        write!(f, "{}px", self.value)
     }
 }
 
@@ -170,7 +174,6 @@ impl From<SimpleProperties> for HashMap<Token, Option<ValueDefinition>> {
             );
         }
 
-
         if let Some(text) = value.text {
             // Pest grammar expects a literal value to be an escaped string
             let escaped_text = format!("\"{}\"", text);
@@ -193,21 +196,21 @@ impl SimpleNodeAction {
     ) -> Vec<NodeAction> {
         match action {
             SimpleNodeAction::Add(adds) => {
-                let mut add_actions : Vec<NodeAction> = Vec::new();
+                let mut add_actions: Vec<NodeAction> = Vec::new();
                 for add in adds.nodes_to_add {
                     let type_id = simple_node_type_to_type_id(add.node_type);
                     if let Some(type_id) = &type_id {
-                        let mut node_data : NodeType = add.properties.into();
+                        let mut node_data: NodeType = add.properties.into();
                         if let Some(pc) = type_id.get_pascal_identifier() {
                             if pc == "MenuBar" {
                                 if let NodeType::Template(node_data) = &mut node_data {
                                     for element in node_data.iter_mut() {
                                         if let SettingElement::Setting(key, value) = element {
                                             if key.raw_value == "height" {
-                                                *value = SimplePixel{ value: 50.0 }.into();
+                                                *value = SimplePixel { value: 50.0 }.into();
                                             }
                                             if key.raw_value == "width" {
-                                                *value = SimplePercent{ value: 100.0 }.into();
+                                                *value = SimplePercent { value: 100.0 }.into();
                                             }
                                         }
                                     }
@@ -221,7 +224,7 @@ impl SimpleNodeAction {
                             tree_location,
                             TreeIndexPosition::Top,
                         );
-    
+
                         let add = AddTemplateNodeRequest::new(
                             containing_component_type_id.clone(),
                             type_id.clone(),
