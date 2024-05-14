@@ -14,6 +14,8 @@ impl Add for PaxValue {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a + b).to_pax_value(),
             (PaxValue::String(a), PaxValue::String(b)) => (a + &b).to_pax_value(),
+            (PaxValue::String(a), PaxValue::Numeric(b)) => (a + &b.to_string()).to_pax_value(),
+            (PaxValue::Numeric(a), PaxValue::String(b)) => (a.to_string() + &b).to_pax_value(),
             (a, b) => panic!("can't add {:?} and {:?}", a, b),
         }
     }
@@ -47,7 +49,7 @@ impl Div for PaxValue {
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a / b).to_pax_value(),
-            (a, b) => panic!("can't subtract {:?} and {:?}", a, b),
+            (a, b) => panic!("can't divide {:?} and {:?}", a, b),
         }
     }
 }
@@ -66,8 +68,13 @@ impl Neg for PaxValue {
 impl PartialEq for PaxValue {
     fn eq(&self, rhs: &Self) -> bool {
         match (self, rhs) {
+            (PaxValue::Bool(a), PaxValue::Bool(b)) => a == b,
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a == b,
-            (a, b) => panic!("can't multiply {:?} and {:?}", a, b),
+            (PaxValue::String(a), PaxValue::String(b)) => a == b,
+            (PaxValue::StringBox(a), PaxValue::StringBox(b)) => a == b,
+            (PaxValue::String(a), PaxValue::StringBox(b)) => a == &b.string,
+            (PaxValue::StringBox(a), PaxValue::String(b)) => &a.string == b,
+            (a, b) => panic!("can't compare {:?} and {:?}", a, b),
         }
     }
 }
