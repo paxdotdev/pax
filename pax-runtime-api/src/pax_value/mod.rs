@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, StringBox, Stroke, Transform2D};
+use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, Stroke, Transform2D};
 use std::any::{Any, TypeId};
 
 use self::numeric::Numeric;
@@ -24,7 +24,6 @@ pub enum PaxValue {
     Bool(bool),
     Numeric(Numeric),
     String(String),
-    StringBox(StringBox),
     Transform2D(Transform2D),
     Size(Size),
     Percent(Percent),

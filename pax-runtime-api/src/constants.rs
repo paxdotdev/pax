@@ -2,7 +2,6 @@
 pub const NUMERIC: &str = "Numeric";
 pub const SIZE: &str = "Size";
 pub const ROTATION: &str = "Rotation";
-pub const STRING_BOX: &str = "StringBox";
 pub const DEGREES: &str = "Degrees";
 pub const RADIANS: &str = "Radians";
 pub const PIXELS: &str = "Pixels";
