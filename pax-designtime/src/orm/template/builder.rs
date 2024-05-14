@@ -139,7 +139,7 @@ impl<'a> NodeBuilder<'a> {
             // Node already exists
             let location = self
                 .location
-                .unwrap_or_else(|| self.orm.manifest.get_node_location(&uni).unwrap());
+                .unwrap_or_else(|| self.orm.manifest.get_node_location(uni).unwrap());
 
             let resp = self.orm.execute_command(UpdateTemplateNodeRequest::new(
                 uni.clone(),
