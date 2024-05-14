@@ -6,8 +6,7 @@ use std::{
 use pax_designtime::orm::template::{AddTemplateNodeRequest, NodeAction};
 use pax_manifest::{
     ComponentTemplate, NodeLocation, NodeType, SettingElement, TemplateNodeDefinition,
-    TemplateNodeId, Token, TreeIndexPosition, TreeLocation, TypeId,
-    ValueDefinition,
+    TemplateNodeId, Token, TreeIndexPosition, TreeLocation, TypeId, ValueDefinition,
 };
 
 use super::simple::{
