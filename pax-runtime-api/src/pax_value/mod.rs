@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Color, Fill, Percent, Rotation, Size, StringBox, Stroke, Transform2D};
+use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, StringBox, Stroke, Transform2D};
 use std::any::{Any, TypeId};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
 
+mod arithmetic;
 mod coercion_impls;
 mod macros;
 pub mod numeric;
@@ -28,6 +29,7 @@ pub enum PaxValue {
     Size(Size),
     Percent(Percent),
     Color(Color),
+    ColorChannel(ColorChannel),
     Rotation(Rotation),
     Fill(Fill),
     Stroke(Stroke),
@@ -72,10 +74,10 @@ impl PaxAny {
     }
 }
 
-/// This trait is implemented by all types that
-/// has a bultin equivalent representation (see to_from_impls module)
-/// This is NOT responsible for coercing between types, but returns
-/// an err in all cases where the underlying type is not exactly what is expected
+/// This trait is implemented by all types that has a bultin equivalent
+/// representation (see to_from_impls module) This is NOT responsible for
+/// coercing between types, but returns an err in all cases where the underlying
+/// type is not exactly what is expected
 pub trait ToFromPaxValue
 where
     Self: Sized + 'static,
@@ -86,11 +88,12 @@ where
     fn mut_from_pax_value(pax_value: &mut PaxValue) -> Result<&mut Self, String>;
 }
 
-/// Trait that marks a type as being representable as a PaxAny, and provides the
-/// implementation for going to/from that type. For all builtins this means
-/// going to/from a pax value. For others to a Box<dyn Any>. This is automatically
-/// Implemented for PaxValue types through the macro impl_to_from_pax_value!,
-/// and for other types by implementing the marker trait ImplToFromPaxAny.
+/// Trait that marks a type as being representable as a PaxAny, and provides
+/// the implementation for going to/from that type. For all builtins this
+/// means going to/from a pax value. For others to a Box<dyn Any>. This
+/// is automatically Implemented for PaxValue types through the macro
+/// impl_to_from_pax_value!, and for other types by implementing the marker
+/// trait ImplToFromPaxAny.
 pub trait ToFromPaxAny
 where
     Self: Sized + 'static,
@@ -128,9 +131,10 @@ impl ToFromPaxAny for PaxValue {
     }
 }
 
-/// Marker trait. Implement only for types that
-/// Are not part of PaxValue, but need to be stored
-/// inside a PaxAny
+/// Marker trait. Implement only for types that are not part of PaxValue, but
+/// need to be stored inside a PaxAny. If they are part of pax value, instead
+/// implement CoercionRules manually, or using the default impl macro as seen
+/// in coercion_impls.rs
 pub trait ImplToFromPaxAny: 'static {}
 
 // If a type has marker trait, implement to from
@@ -165,5 +169,24 @@ impl<T: ImplToFromPaxAny> ToFromPaxAny for T {
                 .ok_or_else(|| "downcast failed".to_string()),
             _ => Err("wasn't any".to_string()),
         }
+    }
+}
+
+// PaxAny can turn into PaxAny
+impl ToFromPaxAny for PaxAny {
+    fn to_pax_any(self) -> PaxAny {
+        self
+    }
+
+    fn from_pax_any(pax_any: PaxAny) -> Result<Self, String> {
+        Ok(pax_any)
+    }
+
+    fn ref_from_pax_any(pax_any: &PaxAny) -> Result<&Self, String> {
+        Ok(pax_any)
+    }
+
+    fn mut_from_pax_any(pax_any: &mut PaxAny) -> Result<&mut Self, String> {
+        Ok(pax_any)
     }
 }

@@ -496,7 +496,9 @@ impl DefinitionToInstanceTraverser {
                                 Some(
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                        let coerced = new_value_wrapped.try_coerce::<std::ops::Range::<isize>>().unwrap();
+                                        let coerced = new_value_wrapped.try_coerce::<std::ops::Range::<isize>>().map_err(|e| {
+                                            format!("err: {:?} for vtable_id {:?}", e, vtable_id)
+                                        }).unwrap();
                                         coerced
                                     }, &dependencies, "repeat source range")
                                 )
