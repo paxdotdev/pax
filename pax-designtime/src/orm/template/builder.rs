@@ -49,7 +49,7 @@ impl<'a> NodeBuilder<'a> {
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
             .unwrap();
         if let Some(node) = resp.node {
-            let location = orm.manifest.get_node_location(uni);
+            let location = orm.manifest.get_node_location(&uni);
             Some(NodeBuilder {
                 orm,
                 containing_component_type_id: uni.get_containing_component_type_id(),
