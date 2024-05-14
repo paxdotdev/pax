@@ -14,12 +14,13 @@ use serde_json::json;
 pub mod helpers;
 use schemars::gen::SchemaSettings;
 
-use crate::llm::{constants::{ADD_FUNCTION, TEMPERATURE}, simple::SimpleAddRequest};
+use crate::llm::{
+    constants::{ADD_FUNCTION, TEMPERATURE},
+    simple::SimpleAddRequest,
+};
 
 use self::{
-    constants::{
-        ADD_DESCRIPTION, MAX_TOKENS, MODEL, SEED, SYSTEM_PROMPT,
-    },
+    constants::{ADD_DESCRIPTION, MAX_TOKENS, MODEL, SEED, SYSTEM_PROMPT},
     simple::{SimpleAdd, SimpleNodeAction},
 };
 pub mod constants;
@@ -84,16 +85,14 @@ pub fn create_tools() -> Result<Vec<ChatCompletionTool>, OpenAIError> {
     let add_schema = gen.clone().into_root_schema_for::<SimpleAddRequest>();
     let add_schema_json = json!(add_schema);
 
-    Ok(vec![
-        ChatCompletionToolArgs::default()
-            .r#type(ChatCompletionToolType::Function)
-            .function(
-                FunctionObjectArgs::default()
-                    .name(ADD_FUNCTION)
-                    .description(ADD_DESCRIPTION)
-                    .parameters(add_schema_json)
-                    .build()?,
-            )
-            .build()?,
-    ])
+    Ok(vec![ChatCompletionToolArgs::default()
+        .r#type(ChatCompletionToolType::Function)
+        .function(
+            FunctionObjectArgs::default()
+                .name(ADD_FUNCTION)
+                .description(ADD_DESCRIPTION)
+                .parameters(add_schema_json)
+                .build()?,
+        )
+        .build()?])
 }
