@@ -182,9 +182,7 @@ pub fn compute_tab(
                     .compute_transform2d_matrix(cp_bounds.get(), container_bounds.get())
                     .cast_spaces::<NodeLocal, NodeLocal>()
             };
-            let res =
-                container_transform.get() * desugared_transform * node_transform_property_computed;
-            res
+            container_transform.get() * desugared_transform * node_transform_property_computed
         },
         &all_transform_deps,
         &format!("transform of node {}", node.id.0),
