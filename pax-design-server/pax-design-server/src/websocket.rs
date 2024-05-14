@@ -13,11 +13,9 @@ use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{collections::HashMap, fs, time::SystemTime};
 
 use crate::{
-    code_serialization::{press_code_serialization_template, serialize_component_to_file},
+    code_serialization::serialize_component_to_file,
     llm::{
-        constants::{
-            TRAINING_DATA_AFTER_REQUEST, TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST,
-        },
+        constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
         query_open_ai,
         simple::{SimpleNodeAction, SimpleWorldInformation},
     },
@@ -197,7 +195,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         }
                     });
                 }
-                Ok(AgentMessage::LLMUpdatedTemplateNotification(notification)) => {
+                Ok(AgentMessage::LLMUpdatedTemplateNotification(_notification)) => {
                     // let folder_path = format!("{}{}", TRAINING_DATA_PATH, notification.request_id);
                     // let component = notification.component.clone();
                     // serialize_component_to_file(
@@ -264,7 +262,7 @@ fn build_llm_request(request: LLMRequestMessage) -> String {
     req
 }
 
-fn record_request_training_data(help_request: &LLMHelpRequest, request_id: &str) {
+fn _record_request_training_data(help_request: &LLMHelpRequest, request_id: &str) {
     let folder_path = format!("{}{}", TRAINING_DATA_PATH, request_id);
     fs::create_dir_all(&folder_path).unwrap();
     // get a string for the date today using std

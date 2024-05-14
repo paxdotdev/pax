@@ -21,7 +21,7 @@ use crate::llm::{
 
 use self::{
     constants::{ADD_DESCRIPTION, MAX_TOKENS, MODEL, SEED, SYSTEM_PROMPT},
-    simple::{SimpleAdd, SimpleNodeAction},
+    simple::{SimpleNodeAction},
 };
 pub mod constants;
 pub mod simple;
@@ -60,13 +60,10 @@ pub async fn query_open_ai(request: &str) -> Result<Vec<SimpleNodeAction>, OpenA
             let name = tool_call.function.name.clone();
             let args = tool_call.function.arguments.clone();
 
-            match name.as_str() {
-                ADD_FUNCTION => {
-                    println!("{}", args);
-                    let add_operation = serde_json::from_str::<SimpleAddRequest>(&args).unwrap();
-                    ret.push(SimpleNodeAction::Add(add_operation));
-                }
-                _ => {}
+            if name.as_str() == ADD_FUNCTION {
+                println!("{}", args);
+                let add_operation = serde_json::from_str::<SimpleAddRequest>(&args).unwrap();
+                ret.push(SimpleNodeAction::Add(add_operation));
             }
         }
     }
