@@ -93,7 +93,6 @@ impl Settings {
                                 .to_owned(),
                         );
                     } else {
-                        //does this work?
                         selected_component_name.set("".to_owned())
                     }
                     let Some(mut node) = dt.get_orm_mut().get_node(uni) else {
