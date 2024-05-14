@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.14.1"
+version = "0.14.8"
 dependencies = [
  "chrono",
  "pax-compiler",
@@ -1937,7 +1937,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-compiler"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -1957,12 +1957,11 @@ dependencies = [
  "libc",
  "log",
  "nix",
+ "pax-lang",
  "pax-manifest",
  "pax-message",
  "pax-runtime",
  "pax-runtime-api",
- "pest",
- "pest_derive",
  "portpicker",
  "proc-macro2",
  "rand",
@@ -1984,7 +1983,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.14.1"
+version = "0.14.8"
 dependencies = [
  "anyhow",
  "designer_project",
@@ -1999,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.14.1"
+version = "0.14.8"
 dependencies = [
  "anyhow",
  "env_logger 0.11.0",
@@ -2019,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "log",
  "pax-compiler",
@@ -2029,13 +2028,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-macro"
-version = "0.14.3"
+name = "pax-lang"
+version = "0.14.8"
 dependencies = [
- "litrs",
- "pax-runtime",
  "pest",
  "pest_derive",
+]
+
+[[package]]
+name = "pax-macro"
+version = "0.14.8"
+dependencies = [
+ "litrs",
+ "pax-lang",
+ "pax-runtime",
  "proc-macro2",
  "quote",
  "sailfish",
@@ -2047,20 +2053,19 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "log",
+ "pax-lang",
  "pax-message",
  "pax-runtime-api",
- "pest",
- "pest_derive",
  "serde",
  "serde_with",
 ]
 
 [[package]]
 name = "pax-message"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "serde",
  "wasm-bindgen",
@@ -2068,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2087,7 +2092,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2101,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.14.3"
+version = "0.14.8"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -2124,9 +2129,9 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "pest"
-version = "2.7.6"
+version = "2.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f200d8d83c44a45b21764d1916299752ca035d15ecd46faca3e9a2a2bf6ad06"
+checksum = "560131c633294438da9f7c4b08189194b20946c8274c6b9e38881a7874dc8ee8"
 dependencies = [
  "memchr",
  "thiserror",
@@ -2135,9 +2140,9 @@ dependencies = [
 
 [[package]]
 name = "pest_derive"
-version = "2.7.6"
+version = "2.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcd6ab1236bbdb3a49027e920e693192ebfe8913f6d60e294de57463a493cfde"
+checksum = "26293c9193fbca7b1a3bf9b79dc1e388e927e6cacaa78b4a3ab705a1d3d41459"
 dependencies = [
  "pest",
  "pest_generator",
@@ -2145,9 +2150,9 @@ dependencies = [
 
 [[package]]
 name = "pest_generator"
-version = "2.7.6"
+version = "2.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a31940305ffc96863a735bef7c7994a00b325a7138fdbc5bda0f1a0476d3275"
+checksum = "3ec22af7d3fb470a85dd2ca96b7c577a1eb4ef6f1683a9fe9a8c16e136c04687"
 dependencies = [
  "pest",
  "pest_meta",
@@ -2158,9 +2163,9 @@ dependencies = [
 
 [[package]]
 name = "pest_meta"
-version = "2.7.6"
+version = "2.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7ff62f5259e53b78d1af898941cdcdccfae7385cf7d793a6e55de5d05bb4b7d"
+checksum = "d7a240022f37c361ec1878d646fc5b7d7c4d28d5946e1a80ad5a7a4f4ca0bdcd"
 dependencies = [
  "once_cell",
  "pest",

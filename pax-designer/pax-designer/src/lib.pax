@@ -1,5 +1,5 @@
 <Group>
-    <ProjectModeToggle x={100% - 90px} width=90px height=55px/>
+    <ProjectModeToggle x=100% width=90px height=55px/>
     if self.glass_active {
         <LLMInterface/>
         <Controls/>

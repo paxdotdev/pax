@@ -81,21 +81,27 @@
     // col_k = (k * 100/6) + 1.67%
     .col_1 {
         x: 1.67%,
+        anchor_x: 0%,
     }
     .col_2 {
         x: 18.33%,
+        anchor_x: 0%,
     }
     .col_3 {
         x: 35%,
+        anchor_x: 0%,
     }
     .col_4 {
         x: 51.67%,
+        anchor_x: 0%,
     }
     .col_5 {
         x: 68%,
+        anchor_x: 0%,
     }
     .col_6 {
         x: 85%,
+        anchor_x: 0%,
     }
     //Note that the spans account for a total margin of 3.33%
     //so span_k = ((k * 100/6) - 3.33)%
