@@ -22,4 +22,3 @@ wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 pax-manifest = {version="0.14.9", path = "../pax-manifest"}
 pax-runtime-api = {version="0.14.9", path = "../pax-runtime-api"}
 cfg-if = "1.0.0"
->>>>>>> d24a467d (running, settings view opening, stroke/fill editor working)
