@@ -1,6 +1,6 @@
-<Group x=10px y=10px width={100% - 20px} height={100% - 20px}>
+<Group x=50% y=50% width={100% - 20px} height={100% - 20px}>
     if self.edit_mode {
-        <Text text="&nbsp;Run" id=text/>
+        <Text text="Run" id=text/>
         <Path class=play_triangle/>
     }
     if self.running_mode {
