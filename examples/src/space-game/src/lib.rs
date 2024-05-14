@@ -34,7 +34,6 @@ pub struct SpaceGame {
 
     pub difficulty: Property<f64>,
     pub score: Property<u64>,
-    pub score_text: Property<String>,
 }
 
 #[pax]
@@ -181,7 +180,6 @@ impl SpaceGame {
         self.ship_y.set(ship_y);
         self.bullets.set(bullets);
         self.score.set(score);
-        self.score_text.set(format!("Score: {}", score));
 
         // Update tile background positions
         const BACKGROUND_SPEED: f64 = 5.0;
