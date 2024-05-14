@@ -2,7 +2,7 @@
 
 use pax_runtime_api::{
     pax_value::{CoercionRules, ToFromPaxAny},
-    Color, ImplToFromPaxAny, Numeric, Rotation, Size, StringBox,
+    Color, ImplToFromPaxAny, Numeric, Rotation, Size,
 };
 use serde::Deserialize;
 
@@ -49,27 +49,19 @@ fn test_radians() {
 }
 
 #[test]
-fn test_string_box() {
-    let string_box_pax = "\"hello\"".to_string();
-    let expected = StringBox {
-        string: "hello".to_string(),
-    };
-    let v = StringBox::from_pax_any(from_pax::<StringBox>(&string_box_pax).unwrap()).unwrap();
+fn test_string() {
+    let string_pax = "\"hello\"".to_string();
+    let expected = String::from("hello");
+    let v = String::from_pax_any(from_pax::<String>(&string_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_tuple() {
     let tuple_pax = "(\"hello\", 10)".to_string();
-    let expected = (
-        StringBox {
-            string: "hello".to_string(),
-        },
-        Numeric::I64(10),
-    );
-    let v =
-        <(StringBox, Numeric)>::from_pax_any(from_pax::<(StringBox, Numeric)>(&tuple_pax).unwrap())
-            .unwrap();
+    let expected = (String::from("hello"), Numeric::I64(10));
+    let v = <(String, Numeric)>::from_pax_any(from_pax::<(String, Numeric)>(&tuple_pax).unwrap())
+        .unwrap();
     assert_eq!(expected, v);
 }
 
