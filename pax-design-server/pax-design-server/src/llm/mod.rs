@@ -21,7 +21,7 @@ use crate::llm::{
 
 use self::{
     constants::{ADD_DESCRIPTION, MAX_TOKENS, MODEL, SEED, SYSTEM_PROMPT},
-    simple::{SimpleNodeAction},
+    simple::SimpleNodeAction,
 };
 pub mod constants;
 pub mod simple;
