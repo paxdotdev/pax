@@ -3,8 +3,8 @@
 // custom coercion rules can be implemented by a type
 
 use crate::{
-    impl_default_coercion_rule, Color, Fill, ImplToFromPaxAny, Numeric, PaxValue, Percent,
-    Property, Rotation, Size, StringBox, Stroke, Transform2D,
+    impl_default_coercion_rule, Color, ColorChannel, Fill, ImplToFromPaxAny, Numeric, PaxValue,
+    Percent, Property, Rotation, Size, StringBox, Stroke, Transform2D,
 };
 
 // Default coersion rules:
@@ -61,6 +61,17 @@ impl CoercionRules for Stroke {
             },
             PaxValue::Stroke(stroke) => stroke,
             _ => return Err(format!("{:?} can't be coerced into a Stroke", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for ColorChannel {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        Ok(match value {
+            PaxValue::ColorChannel(color) => color,
+            PaxValue::Percent(perc) => ColorChannel::Percent(perc.0),
+            PaxValue::Numeric(num) => ColorChannel::Integer(num),
+            _ => return Err(format!("{:?} can't be coerced into a ColorChannel", value)),
         })
     }
 }

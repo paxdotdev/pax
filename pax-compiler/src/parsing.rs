@@ -80,17 +80,17 @@ fn recurse_pratt_parse_to_string<'a>(
                 if let Some(literal_number_unit) = inner.next() {
                     let unit = literal_number_unit.as_str();
 
-                    if unit == "px" {
-                        format!("Size::Pixels({}.into())", exp_bod)
-                    } else if unit == "%" {
-                        format!("Percent({}.into())", exp_bod)
-                    } else if unit == "deg" {
-                        format!("Rotation::Degrees({}.into())", exp_bod)
-                    } else if unit == "rad" {
-                        format!("Rotation::Radians({}.into())", exp_bod)
-                    } else {
-                        unreachable!()
-                    }
+                if unit == "px" {
+                    format!("Size::Pixels({}.try_coerce().unwrap()).to_pax_any()", exp_bod)
+                } else if unit == "%" {
+                    format!("Percent({}.try_coerce().unwrap()).to_pax_any()", exp_bod)
+                } else if unit == "deg" {
+                    format!("Rotation::Degrees({}.try_coerce().unwrap()).to_pax_any()", exp_bod)
+                } else if unit == "rad" {
+                    format!("Rotation::Radians({}.try_coerce().unwrap()).to_pax_any()", exp_bod)
+                } else {
+                    unreachable!()
+                }
                 } else {
                     exp_bod
                 }
@@ -123,7 +123,7 @@ fn recurse_pratt_parse_to_string<'a>(
 
                     output = output + "(";
                     while let Some(next_pair) = expression_body_pairs.next() {
-                        output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + ").into(),"
+                        output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + ").try_coerce().unwrap(),"
                     }
                     output = output + ")";
 
@@ -141,12 +141,12 @@ fn recurse_pratt_parse_to_string<'a>(
                 let op0_out = match op0.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
-                        op0.as_str().to_string()
+                        format!("({}_isize)", op0.as_str())
                     },
                     Rule::xo_symbol => {
                         symbolic_ids.borrow_mut().push(op0.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        format!("{}.to_int()",convert_symbolic_binding_from_paxel_to_ril(op0))
+                        format!("({}).try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op0))
                     },
                     _ => unimplemented!("")
                 };
@@ -158,17 +158,17 @@ fn recurse_pratt_parse_to_string<'a>(
                 let op2_out = match op2.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
-                        op2.as_str().to_string()
+                        format!("({}_isize)", op2.as_str())
                     },
                     Rule::xo_symbol => {
                         symbolic_ids.borrow_mut().push(op2.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        format!("{}.to_int()",convert_symbolic_binding_from_paxel_to_ril(op2))
+                        format!("({}).try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op2))
                     },
                     _ => unimplemented!("")
                 };
 
-                format!("({} as isize){}({} as isize)", &op0_out, &op1_out, &op2_out)
+                format!("(({}){}({})).to_pax_any()", &op0_out, &op1_out, &op2_out)
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();
@@ -181,13 +181,13 @@ fn recurse_pratt_parse_to_string<'a>(
                         let unit = inner.next().unwrap().as_str();
 
                         if unit == "px" {
-                            format!("Size::Pixels({}.into())", value)
+                            format!("Size::Pixels(({}.into()).to_pax_any()", value)
                         } else if unit == "%" {
-                            format!("Percent({}.into())", value)
+                            format!("Percent({}.into()).to_pax_any()", value)
                         } else if unit == "deg" {
-                            format!("Rotation::Degrees({}.into())", value)
+                            format!("Rotation::Degrees({}.into()).to_pax_any()", value)
                         } else if unit == "rad" {
-                            format!("Rotation::Radians({}.into())", value)
+                            format!("Rotation::Radians({}.into()).to_pax_any()", value)
                         } else {
                             unreachable!()
                         }
@@ -195,17 +195,17 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::literal_number => {
                         let mut inner = literal_kind.into_inner();
                         let value = inner.next().unwrap().as_str();
-                        format!("Numeric::from({})", value)
+                        format!("({}).to_pax_any()", value)
                     },
                     Rule::string => {
-                        format!("StringBox::from({})",literal_kind.as_str().to_string())
+                        format!("({}).to_pax_any()",literal_kind.as_str().to_string())
                     },
                     Rule::literal_color => {
                         let mut inner = literal_kind.into_inner();
                         let next_pair = inner.next().unwrap();
                         if let Rule::literal_color_const = next_pair.as_rule() {
                             //Return color consts like WHITE underneath the Color enum
-                            format!("Color::{}", next_pair.as_str())
+                            format!("Color::{}.to_pax_any()", next_pair.as_str())
                         } else {
                             //Recurse-pratt-parse the args list for color funcs, a la enums
                             let func = next_pair.as_str().split("(").next().unwrap().to_string();
@@ -215,9 +215,9 @@ fn recurse_pratt_parse_to_string<'a>(
                                 // literal_color_channel = {literal_number_with_unit | literal_number_integer}
                                 // while this case is trivial, recurse_pratt_parse is used here to manage literal_number_with_unit without duplicating code here
                                 let literal_representation = next_pair.into_inner();
-                                accum = accum + &recurse_pratt_parse_to_string(literal_representation, pratt_parser, Rc::clone(&symbolic_ids)) + ".into(),"
+                                accum = accum + &recurse_pratt_parse_to_string(literal_representation, pratt_parser, Rc::clone(&symbolic_ids)) + ".try_coerce().unwrap(),"
                             }
-                            format!("Color::{}({})", &func, &accum )
+                            format!("Color::{}({}).to_pax_any()", &func, &accum )
                         }
 
                     },
@@ -238,9 +238,9 @@ fn recurse_pratt_parse_to_string<'a>(
                     // literal_color_channel = {literal_number_with_unit | literal_number_integer}
                     // while this case is trivial, recurse_pratt_parse is used here to manage literal_number_with_unit without duplicating code here
                     let literal_representation = next_pair.into_inner();
-                    accum = accum + &recurse_pratt_parse_to_string(literal_representation, pratt_parser, Rc::clone(&symbolic_ids)) + ".into(),"
+                    accum = accum + &recurse_pratt_parse_to_string(literal_representation, pratt_parser, Rc::clone(&symbolic_ids)) + ".try_coerce().unwrap(),"
                 }
-                format!("Color::{}({})", &func, &accum )
+                format!("Color::{}({}).to_pax_any()", &func, &accum )
             },
             Rule::xo_object => {
                 let mut output : String = "".to_string();
@@ -281,7 +281,9 @@ fn recurse_pratt_parse_to_string<'a>(
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                format!("{}",convert_symbolic_binding_from_paxel_to_ril(primary))
+                // symbols should enter expressions as PaxAny already
+                // TODOexp remove to_pax_any here and instead pass them in as anys during eval
+                format!("({}).to_pax_any()",convert_symbolic_binding_from_paxel_to_ril(primary))
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
@@ -289,7 +291,8 @@ fn recurse_pratt_parse_to_string<'a>(
                 let exp1 = tuple.next().unwrap();
                 let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                format!("({}.into(),{}.into())", exp0, exp1)
+                // TODOexpr how to handle tuple type, or vec?
+                format!("({},{})", exp0, exp1)
             },
             Rule::xo_list => {
                 let mut list = primary.into_inner();
