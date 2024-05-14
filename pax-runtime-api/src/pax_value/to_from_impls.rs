@@ -14,7 +14,6 @@ use crate::Fill;
 use crate::Percent;
 use crate::Rotation;
 use crate::Size;
-use crate::StringBox;
 use crate::Stroke;
 use crate::Transform2D;
 
@@ -44,7 +43,6 @@ impl ImplToFromPaxAny for () {}
 impl<F: Space, T: Space> ImplToFromPaxAny for Transform2<F, T> {}
 
 impl_to_from_pax_value!(String, PaxValue::String);
-impl_to_from_pax_value!(StringBox, PaxValue::StringBox);
 impl_to_from_pax_value!(ColorChannel, PaxValue::ColorChannel);
 
 // Pax internal types

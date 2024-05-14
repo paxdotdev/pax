@@ -61,7 +61,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                             let elem_borrowed = borrow!(elem);
                             if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
-                                StringBox::from(unwrapped)
+                                unwrapped
                             } else {
                                 panic!();//Failed to unpack string from PaxAny
                             }
@@ -92,8 +92,8 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                             //binding simple numeric property
                             Numeric::from(p.{{invocation.root_identifier}}.get())
                         {% elif invocation.is_string %}
-                            //binding simple stringbox property
-                            StringBox::from(p.{{invocation.root_identifier}}.get())
+                            //binding simple string property
+                            p.{{invocation.root_identifier}}.get()
                         {% else %}
                             //binding cloneable property
                             p.{{invocation.root_identifier}}.get().clone()

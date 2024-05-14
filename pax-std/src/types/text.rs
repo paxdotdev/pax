@@ -1,4 +1,4 @@
-use pax_engine::api::{Color, Numeric, Property, Size, StringBox};
+use pax_engine::api::{Color, Numeric, Property, Size};
 use pax_engine::*;
 use pax_message::{
     ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
@@ -123,7 +123,7 @@ impl Default for Font {
 #[pax]
 #[custom(Default)]
 pub struct SystemFont {
-    pub family: StringBox,
+    pub family: String,
     pub style: FontStyle,
     pub weight: FontWeight,
 }
@@ -131,7 +131,7 @@ pub struct SystemFont {
 impl Default for SystemFont {
     fn default() -> Self {
         Self {
-            family: "Arial".to_string().into(),
+            family: "Arial".to_string(),
             style: FontStyle::Normal,
             weight: FontWeight::Normal,
         }
@@ -140,16 +140,16 @@ impl Default for SystemFont {
 
 #[pax]
 pub struct WebFont {
-    pub family: StringBox,
-    pub url: StringBox,
+    pub family: String,
+    pub url: String,
     pub style: FontStyle,
     pub weight: FontWeight,
 }
 
 #[pax]
 pub struct LocalFont {
-    pub family: StringBox,
-    pub path: StringBox,
+    pub family: String,
+    pub path: String,
     pub style: FontStyle,
     pub weight: FontWeight,
 }
@@ -259,19 +259,19 @@ impl From<Font> for FontPatch {
     fn from(font: Font) -> Self {
         match font {
             Font::System(system_font) => FontPatch::System(SystemFontMessage {
-                family: Some(system_font.family.string),
+                family: Some(system_font.family),
                 style: Some(system_font.style.into()),
                 weight: Some(system_font.weight.into()),
             }),
             Font::Web(web_font) => FontPatch::Web(WebFontMessage {
-                family: Some(web_font.family.string.into()),
-                url: Some(web_font.url.string.into()),
+                family: Some(web_font.family),
+                url: Some(web_font.url),
                 style: Some(web_font.style.into()),
                 weight: Some(web_font.weight.into()),
             }),
             Font::Local(local_font) => FontPatch::Local(LocalFontMessage {
-                family: Some(local_font.family.string),
-                path: Some(local_font.path.string.into()),
+                family: Some(local_font.family),
+                path: Some(local_font.path),
                 style: Some(local_font.style.into()),
                 weight: Some(local_font.weight.into()),
             }),
@@ -314,7 +314,7 @@ impl PartialEq<FontPatch> for Font {
                 system_font_patch
                     .family
                     .as_ref()
-                    .map_or(false, |family| *family == system_font.family.string)
+                    .map_or(false, |family| *family == system_font.family)
                     && system_font_patch
                         .style
                         .as_ref()
@@ -328,11 +328,11 @@ impl PartialEq<FontPatch> for Font {
                 web_font_patch
                     .family
                     .as_ref()
-                    .map_or(false, |family| *family == web_font.family.string)
+                    .map_or(false, |family| *family == web_font.family)
                     && web_font_patch
                         .url
                         .as_ref()
-                        .map_or(false, |url| *url == web_font.url.string)
+                        .map_or(false, |url| *url == web_font.url)
                     && web_font_patch
                         .style
                         .as_ref()
@@ -346,11 +346,11 @@ impl PartialEq<FontPatch> for Font {
                 local_font_patch
                     .family
                     .as_ref()
-                    .map_or(false, |family| *family == local_font.family.string)
+                    .map_or(false, |family| *family == local_font.family)
                     && local_font_patch
                         .path
                         .as_ref()
-                        .map_or(false, |path| *path == local_font.path.string)
+                        .map_or(false, |path| *path == local_font.path)
                     && local_font_patch
                         .style
                         .as_ref()
@@ -366,7 +366,7 @@ impl PartialEq<FontPatch> for Font {
 }
 
 impl Font {
-    pub fn system(family: StringBox, style: FontStyle, weight: FontWeight) -> Self {
+    pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {
         Self::System(SystemFont {
             family,
             style,
@@ -374,7 +374,7 @@ impl Font {
         })
     }
 
-    pub fn web(family: StringBox, url: StringBox, style: FontStyle, weight: FontWeight) -> Self {
+    pub fn web(family: String, url: String, style: FontStyle, weight: FontWeight) -> Self {
         Self::Web(WebFont {
             family,
             url,
@@ -383,7 +383,7 @@ impl Font {
         })
     }
 
-    pub fn local(family: StringBox, path: StringBox, style: FontStyle, weight: FontWeight) -> Self {
+    pub fn local(family: String, path: String, style: FontStyle, weight: FontWeight) -> Self {
         Self::Local(LocalFont {
             family,
             path,
