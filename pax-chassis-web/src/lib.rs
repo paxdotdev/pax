@@ -75,6 +75,8 @@ impl PaxChassisWeb {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
+        tracing_wasm::set_as_global_default();
+
         #[cfg(debug_assertions)]
         console_log::init_with_level(Level::Debug)
             .expect("console_log::init_with_level initialized correctly");

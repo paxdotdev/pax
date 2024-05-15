@@ -738,7 +738,6 @@ impl<I: Clone + 'static> ImplToFromPaxAny for std::ops::Range<I> {}
 impl<T: 'static> ImplToFromPaxAny for Rc<T> {}
 impl<T: Clone + 'static> ImplToFromPaxAny for Weak<T> {}
 impl<T: Clone + 'static> ImplToFromPaxAny for Option<T> {}
-impl<T: Clone + 'static> ImplToFromPaxAny for Vec<T> {}
 
 impl<T1: Clone + 'static, T2: Clone + 'static> ImplToFromPaxAny for (T1, T2) {}
 
