@@ -69,6 +69,7 @@ fn recurse_pratt_parse_to_string<'a>(
     pratt_parser: &PrattParser<Rule>,
     symbolic_ids: Rc<RefCell<Vec<String>>>,
 ) -> String {
+    // This is a hack to satisfy type checking,
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
             /* expression_grouped | xo_enum_or_function_call | xo_range     */
@@ -181,7 +182,7 @@ fn recurse_pratt_parse_to_string<'a>(
                         let unit = inner.next().unwrap().as_str();
 
                         if unit == "px" {
-                            format!("Size::Pixels(({}.into()).to_pax_any()", value)
+                            format!("Size::Pixels({}.into()).to_pax_any()", value)
                         } else if unit == "%" {
                             format!("Percent({}.into()).to_pax_any()", value)
                         } else if unit == "deg" {
@@ -300,7 +301,7 @@ fn recurse_pratt_parse_to_string<'a>(
 
                 while let Some(item) = list.next() {
                     let item_str = recurse_pratt_parse_to_string(item.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                    vec.push(item_str);
+                    vec.push(item_str.trim_end_matches(".to_pax_any()").to_string());
                 }
                 format!("vec![{}]", vec.join(","))
             },

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, Stroke, Transform2D};
-use std::any::{Any, TypeId};
+use std::any::Any;
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
