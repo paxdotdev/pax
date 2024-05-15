@@ -95,25 +95,14 @@ fn test_radians() {
 
 #[test]
 fn test_string_box() {
-    #[derive(Serialize, PartialEq, Debug)]
-    pub struct StringBox {
-        pub string: String,
-    }
-
     let expected = "\"hello\"".to_string();
-    let string_box_pax = StringBox {
-        string: "hello".to_string(),
-    };
-    let v = to_pax(&string_box_pax).unwrap();
+    let string_pax = "hello".to_string();
+    let v = to_pax(&string_pax).unwrap();
     assert_eq!(expected, v);
 }
 
 #[test]
 fn test_tuple() {
-    #[derive(Serialize, PartialEq, Debug)]
-    pub struct StringBox {
-        pub string: String,
-    }
     #[derive(Serialize, PartialEq, Debug)]
     pub enum Numeric {
         Integer(isize),
@@ -121,12 +110,7 @@ fn test_tuple() {
     }
 
     let expected = "(\"hello\", 10)".to_string();
-    let tuple_pax = (
-        StringBox {
-            string: "hello".to_string(),
-        },
-        Numeric::Integer(10),
-    );
+    let tuple_pax = ("hello".to_string(), Numeric::Integer(10));
     let v = to_pax(&tuple_pax).unwrap();
     assert_eq!(expected, v);
 }
