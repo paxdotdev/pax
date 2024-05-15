@@ -69,7 +69,6 @@ fn recurse_pratt_parse_to_string<'a>(
     pratt_parser: &PrattParser<Rule>,
     symbolic_ids: Rc<RefCell<Vec<String>>>,
 ) -> String {
-    // This is a hack to satisfy type checking,
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
             /* expression_grouped | xo_enum_or_function_call | xo_range     */
@@ -282,8 +281,6 @@ fn recurse_pratt_parse_to_string<'a>(
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                // symbols should enter expressions as PaxAny already
-                // TODOexp remove to_pax_any here and instead pass them in as anys during eval
                 format!("({}).to_pax_any()",convert_symbolic_binding_from_paxel_to_ril(primary))
             },
             Rule::xo_tuple => {
@@ -292,7 +289,8 @@ fn recurse_pratt_parse_to_string<'a>(
                 let exp1 = tuple.next().unwrap();
                 let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                // TODOexpr how to handle tuple type, or vec?
+                let exp0 = exp0.trim_end_matches(".to_pax_any()");
+                let exp1 = exp1.trim_end_matches(".to_pax_any()");
                 format!("({},{})", exp0, exp1)
             },
             Rule::xo_list => {
