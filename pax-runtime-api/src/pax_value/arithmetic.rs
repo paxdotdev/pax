@@ -1,6 +1,6 @@
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::{PaxValue, ToFromPaxValue};
+use crate::{PaxValue, Percent, Size, ToFromPaxValue};
 
 use super::{PaxAny, ToFromPaxAny};
 
@@ -12,10 +12,17 @@ impl Add for PaxValue {
 
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
+            // Basic types
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a + b).to_pax_value(),
             (PaxValue::String(a), PaxValue::String(b)) => (a + &b).to_pax_value(),
             (PaxValue::String(a), PaxValue::Numeric(b)) => (a + &b.to_string()).to_pax_value(),
             (PaxValue::Numeric(a), PaxValue::String(b)) => (a.to_string() + &b).to_pax_value(),
+
+            // Size and Percent
+            (PaxValue::Size(a), PaxValue::Size(b)) => (a + b).to_pax_value(),
+            (PaxValue::Percent(a), PaxValue::Percent(b)) => (Percent(a.0 + b.0)).to_pax_value(),
+            (PaxValue::Percent(a), PaxValue::Size(b))
+            | (PaxValue::Size(b), PaxValue::Percent(a)) => (Size::Percent(a.0) + b).to_pax_value(),
             (a, b) => panic!("can't add {:?} and {:?}", a, b),
         }
     }
@@ -38,6 +45,11 @@ impl Sub for PaxValue {
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a - b).to_pax_value(),
+            // Size and Percent
+            (PaxValue::Size(a), PaxValue::Size(b)) => (a - b).to_pax_value(),
+            (PaxValue::Percent(a), PaxValue::Percent(b)) => (Percent(a.0 - b.0)).to_pax_value(),
+            (PaxValue::Percent(a), PaxValue::Size(b)) => (Size::Percent(a.0) - b).to_pax_value(),
+            (PaxValue::Size(a), PaxValue::Percent(b)) => (a - Size::Percent(b.0)).to_pax_value(),
             (a, b) => panic!("can't subtract {:?} and {:?}", a, b),
         }
     }
