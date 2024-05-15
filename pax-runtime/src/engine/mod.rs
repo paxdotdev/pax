@@ -1,18 +1,14 @@
 use crate::{api::Property, ExpandedNodeIdentifier};
 use_RefCell!();
+use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
-use std::sync::atomic::AtomicU64;
-use std::time::Duration;
-use std::{collections::HashMap, sync::atomic::Ordering};
 
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::{borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, OS};
 
-pub static TIME_TICK: AtomicU64 = AtomicU64::new(0);
-pub static TIME_RENDER: AtomicU64 = AtomicU64::new(0);
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
 
