@@ -12,6 +12,7 @@ use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
 
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
+pub use properties_table::TIME_GENERAL;
 pub use properties_table::TIME_GET;
 pub use properties_table::TIME_SET;
 pub use untyped_property::UntypedProperty;

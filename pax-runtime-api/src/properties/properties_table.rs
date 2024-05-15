@@ -20,6 +20,7 @@ thread_local! {
 }
 pub static TIME_GET: AtomicU64 = AtomicU64::new(0);
 pub static TIME_SET: AtomicU64 = AtomicU64::new(0);
+pub static TIME_GENERAL: AtomicU64 = AtomicU64::new(0);
 
 /// The main collection of data associated with a specific property id
 pub struct PropertyData {
@@ -85,12 +86,17 @@ impl PropertyTable {
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         let get_start = Instant::now();
         self.update_value::<T>(id);
+        let start = Instant::now();
         let res = self.with_property_data_mut(id, |property_data| {
             property_data.typed_data::<T>().value.clone()
         });
         let get_end = Instant::now();
         TIME_GET.fetch_add(
             get_end.duration_since(get_start).as_nanos() as u64,
+            Ordering::Relaxed,
+        );
+        TIME_GENERAL.fetch_add(
+            get_end.duration_since(start).as_nanos() as u64,
             Ordering::Relaxed,
         );
         res
@@ -288,6 +294,7 @@ impl PropertyTable {
 
     // re-computes the value if dirty
     pub fn update_value<T: PropertyValue>(&self, id: PropertyId) {
+        let start = Instant::now();
         let mut remove_dep_from_literal = false;
         let evaluator = self.with_property_data_mut(id, |property_data| {
             //short circuit if the value is still up to date
@@ -320,6 +327,11 @@ impl PropertyTable {
                 property_data.inbound.clear();
             });
         }
+        let end = Instant::now();
+        TIME_GENERAL.fetch_add(
+            end.duration_since(start).as_nanos() as u64,
+            Ordering::Relaxed,
+        );
 
         if let Some(evaluator) = evaluator {
             // WARNING: the evaluator should not be run while the table is in
@@ -335,10 +347,16 @@ impl PropertyTable {
                 eval_end.duration_since(eval_start).as_nanos() as u64,
                 Ordering::Relaxed,
             );
+            let start = Instant::now();
             self.with_property_data_mut(id, |property_data| {
                 let typed_data = property_data.typed_data();
                 typed_data.value = new_value;
-            })
+            });
+            let end = Instant::now();
+            TIME_GENERAL.fetch_add(
+                end.duration_since(start).as_nanos() as u64,
+                Ordering::Relaxed,
+            );
         }
     }
 

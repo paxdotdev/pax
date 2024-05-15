@@ -405,6 +405,7 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
+        let tick_start = Instant::now();
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
@@ -434,21 +435,30 @@ impl PaxEngine {
 
         time.set(time.get() + 1);
 
+        let tick_end = Instant::now();
+        TIME_TICK.fetch_add((tick_end - tick_start).as_nanos() as u64, Ordering::Relaxed);
         if ctx.globals().frames_elapsed.get() % 100 == 0 {
-            let time_since_start =
-                Instant::now().duration_since(self.runtime_context.globals().start_time);
+            let time_tick = Duration::from_nanos(TIME_TICK.load(Ordering::Relaxed));
+            let time_render = Duration::from_nanos(TIME_RENDER.load(Ordering::Relaxed));
+            let time_since_start = time_tick + time_render;
             let time_prop_get =
                 Duration::from_nanos(pax_runtime_api::properties::TIME_GET.load(Ordering::Relaxed));
             let time_prop_set =
                 Duration::from_nanos(pax_runtime_api::properties::TIME_SET.load(Ordering::Relaxed));
+            let general = Duration::from_nanos(
+                pax_runtime_api::properties::TIME_GENERAL.load(Ordering::Relaxed),
+            );
             let total_prop = time_prop_set + time_prop_get;
             let total_outside_prop = time_since_start - total_prop;
             let percent_inside_prop =
                 (total_prop.as_millis() as f64 / time_since_start.as_millis() as f64) * 100.0;
             log::debug!(
                 "-------
-                total time: {time_since_start:?}\n\
+                total time tick + render: {time_since_start:?}\n\
+                time render: {time_render:?}\n\
+                time tick: {time_tick:?}\n\
                 time inside prop system: {total_prop:?}\n\
+                TIMER: {general:?}\n\
                 time outside prop system: {total_outside_prop:?}\n\
                 proportion of time inside prop system: {percent_inside_prop:.1?}%\n\
                 time prop get: {time_prop_get:?}\n\
@@ -460,11 +470,17 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
+        let render_start = Instant::now();
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
 
         self.root_node
             .recurse_render(&mut self.runtime_context, rcs);
+        let render_end = Instant::now();
+        TIME_RENDER.fetch_add(
+            (render_end - render_start).as_nanos() as u64,
+            Ordering::Relaxed,
+        );
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
