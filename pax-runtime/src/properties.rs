@@ -9,8 +9,9 @@ use_RefCell!();
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use std::sync::atomic::Ordering;
 
-use crate::{ExpandedNode, ExpressionTable, Globals};
+use crate::{ExpandedNode, ExpressionTable, Globals, OTHER};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExpandedNodeIdentifier(pub u32);
@@ -193,6 +194,7 @@ impl RuntimeContext {
 
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
+        let start = web_time::Instant::now();
         let res = self.get_elements_beneath_ray(ray, true, vec![]);
         let res = if res.len() == 0 {
             None
@@ -201,6 +203,8 @@ impl RuntimeContext {
         } else {
             unreachable!() //bug in limit_one logic
         };
+        let end = web_time::Instant::now();
+        OTHER.fetch_add((end - start).as_nanos() as u64, Ordering::Relaxed);
         res
     }
 

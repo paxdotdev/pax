@@ -14,6 +14,7 @@ use web_time::Instant;
 
 pub static TIME_TICK: AtomicU64 = AtomicU64::new(0);
 pub static TIME_RENDER: AtomicU64 = AtomicU64::new(0);
+pub static OTHER: AtomicU64 = AtomicU64::new(0);
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
 
@@ -440,7 +441,8 @@ impl PaxEngine {
         if ctx.globals().frames_elapsed.get() % 100 == 0 {
             let time_tick = Duration::from_nanos(TIME_TICK.load(Ordering::Relaxed));
             let time_render = Duration::from_nanos(TIME_RENDER.load(Ordering::Relaxed));
-            let time_since_start = time_tick + time_render;
+            let time_other = Duration::from_nanos(OTHER.load(Ordering::Relaxed));
+            let time_since_start = time_tick + time_render + time_other;
             let time_prop_get =
                 Duration::from_nanos(pax_runtime_api::properties::TIME_GET.load(Ordering::Relaxed));
             let time_prop_set =
@@ -457,6 +459,7 @@ impl PaxEngine {
                 total time tick + render: {time_since_start:?}\n\
                 time render: {time_render:?}\n\
                 time tick: {time_tick:?}\n\
+                time other: {time_other:?}\n\
                 time inside prop system: {total_prop:?}\n\
                 TIMER: {general:?}\n\
                 time outside prop system: {total_outside_prop:?}\n\
