@@ -5,7 +5,7 @@ use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{Color, Numeric, Percent};
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::forward_to_deserialize_any;
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 
 pub mod error;
 mod helpers;
@@ -33,7 +33,7 @@ impl Deserializer {
     }
 }
 thread_local! {
-    static CACHED_VALUES : RefCell<HashMap<String, PaxAny>> = RefCell::new(HashMap::new());
+    static CACHED_VALUES : RefCell<HashMap<String, Box<dyn Any>>> = RefCell::new(HashMap::new());
 }
 
 /// Given type information T, this coerces the value of the PaxAny into the expected
@@ -57,12 +57,12 @@ where
         let cache = cache.borrow();
         let option_cached_dyn_any = cache.get(str);
         // down cast val to T
-        if let Some(data) = &option_cached_dyn_any {
-            return Some(data.try_clone::<T>().unwrap());
+        if let Some(data) = option_cached_dyn_any {
+            return data.downcast_ref::<T>().cloned();
         }
         None
     }) {
-        return Ok(cached);
+        return Ok(cached.to_pax_any());
     }
 
     let type_id = TypeId::of::<T>();
@@ -95,7 +95,7 @@ where
     CACHED_VALUES.with(|cache| {
         cache
             .borrow_mut()
-            .insert(str.to_string(), t.clone().to_pax_any());
+            .insert(str.to_string(), Box::new(t.clone()));
     });
 
     Ok(t.to_pax_any())

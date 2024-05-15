@@ -1,14 +1,19 @@
 use crate::{api::Property, ExpandedNodeIdentifier};
 use_RefCell!();
-use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
+use std::sync::atomic::AtomicU64;
+use std::time::Duration;
+use std::{collections::HashMap, sync::atomic::Ordering};
 
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::{borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, OS};
+use web_time::Instant;
 
+pub static TIME_TICK: AtomicU64 = AtomicU64::new(0);
+pub static TIME_RENDER: AtomicU64 = AtomicU64::new(0);
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
 
@@ -45,6 +50,7 @@ pub struct Globals {
     pub os: OS,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
+    start_time: Instant,
 }
 
 impl std::fmt::Debug for Globals {
@@ -244,6 +250,7 @@ impl PaxEngine {
     ) -> Self {
         use pax_runtime_api::properties;
 
+        let start_time = Instant::now();
         let frames_elapsed = Property::new(0);
         properties::register_time(&frames_elapsed);
         let globals = Globals {
@@ -254,6 +261,7 @@ impl PaxEngine {
             },
             platform,
             os,
+            start_time,
         };
         let runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
         let root_node = ExpandedNode::root(Rc::clone(&main_component_instance), &runtime_context);
@@ -276,6 +284,7 @@ impl PaxEngine {
         os: OS,
     ) -> Self {
         use pax_runtime_api::math::Transform2;
+        let start_time = Instant::now();
         let frames_elapsed = Property::new(0);
         properties::register_time(&frames_elapsed);
         let globals = Globals {
@@ -287,6 +296,7 @@ impl PaxEngine {
             platform,
             os,
             designtime: designtime.clone(),
+            start_time,
         };
 
         let mut runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
@@ -424,6 +434,28 @@ impl PaxEngine {
 
         time.set(time.get() + 1);
 
+        if ctx.globals().frames_elapsed.get() % 100 == 0 {
+            let time_since_start =
+                Instant::now().duration_since(self.runtime_context.globals().start_time);
+            let time_prop_get =
+                Duration::from_nanos(pax_runtime_api::properties::TIME_GET.load(Ordering::Relaxed));
+            let time_prop_set =
+                Duration::from_nanos(pax_runtime_api::properties::TIME_SET.load(Ordering::Relaxed));
+            let total_prop = time_prop_set + time_prop_get;
+            let total_outside_prop = time_since_start - total_prop;
+            let percent_inside_prop =
+                (total_prop.as_millis() as f64 / time_since_start.as_millis() as f64) * 100.0;
+            log::debug!(
+                "-------
+                total time: {time_since_start:?}\n\
+                time inside prop system: {total_prop:?}\n\
+                time outside prop system: {total_outside_prop:?}\n\
+                proportion of time inside prop system: {percent_inside_prop:.1?}%\n\
+                time prop get: {time_prop_get:?}\n\
+                time prop set: {time_prop_set:?}\n\
+                "
+            );
+        }
         ctx.take_native_messages()
     }
 

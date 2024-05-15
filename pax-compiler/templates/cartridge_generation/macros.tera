@@ -35,9 +35,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 let cloned_table = table.clone();
                                 Property::computed_with_name(move || {
                                     let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                                    let coerced = new_value_wrapped.try_coerce::<{{property.property_type.type_id._type_id}}>()
-                                        .map_err(|e| format!("failed to coerce value from vtable_id: {}, {}", info.vtable_id, e))
-                                    .unwrap();
+                                    let coerced = new_value_wrapped.try_coerce::<{{property.property_type.type_id._type_id}}>().unwrap();
                                     coerced
                                 }, &dependents, &token.raw_value)
                             } else {

@@ -20,3 +20,5 @@ slotmap = "1.0.7"
 pax-message = {version="0.14.9", path="../pax-message"}
 log = "0.4.20"
 cfg-if = "1.0.0"
+tracing = "0.1.40"
+web-time = "1.1.0"

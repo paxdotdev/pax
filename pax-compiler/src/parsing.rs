@@ -289,8 +289,6 @@ fn recurse_pratt_parse_to_string<'a>(
                 let exp1 = tuple.next().unwrap();
                 let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                let exp0 = exp0.trim_end_matches(".to_pax_any()");
-                let exp1 = exp1.trim_end_matches(".to_pax_any()");
                 format!("({},{})", exp0, exp1)
             },
             Rule::xo_list => {
@@ -299,7 +297,7 @@ fn recurse_pratt_parse_to_string<'a>(
 
                 while let Some(item) = list.next() {
                     let item_str = recurse_pratt_parse_to_string(item.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                    vec.push(item_str.trim_end_matches(".to_pax_any()").to_string());
+                    vec.push(item_str);
                 }
                 format!("vec![{}]", vec.join(","))
             },
