@@ -28,7 +28,6 @@ console_log = "1.0.0"
 log = "0.4.20"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 js-sys = "0.3.63"
-tracing-wasm = "0.2.1"
 
 [dependencies.web-sys]
 version = "0.3.10"
