@@ -2,7 +2,7 @@ use serde::{ser, Serialize};
 
 use super::{
     error::{Error, Result},
-    DEGREES, FALSE, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, STRING_BOX, TRUE,
+    DEGREES, FALSE, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, TRUE,
 };
 
 mod tests;
@@ -93,12 +93,6 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
-        if let Some(name) = &self._name {
-            if name == STRING_BOX {
-                self.output += format!("\"{}\"", v).as_str();
-                return Ok(());
-            }
-        }
         self.output += format!("\"{}\"", v).as_str();
         Ok(())
     }
@@ -231,11 +225,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        if _name == STRING_BOX {
-            self._name = Some(_name.to_string());
-        } else {
-            self.output += format!("{}: {{", _name).as_str();
-        }
+        self.output += format!("{}: {{", _name).as_str();
         Ok(self)
     }
 
@@ -364,12 +354,6 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if let Some(name) = &self._name {
-            if name == STRING_BOX {
-                return value.serialize(&mut **self);
-            }
-        }
-
         if !self.output.ends_with('{') {
             self.output += ", ";
         }
@@ -379,12 +363,6 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer {
     }
 
     fn end(self) -> Result<()> {
-        if let Some(name) = &self._name {
-            if name == STRING_BOX {
-                self._name = None;
-                return Ok(());
-            }
-        }
         self.output += "}";
         Ok(())
     }

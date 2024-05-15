@@ -4,7 +4,6 @@ pub mod se;
 const NUMERIC: &str = "Numeric";
 const SIZE: &str = "Size";
 const ROTATION: &str = "Rotation";
-const STRING_BOX: &str = "StringBox";
 const DEGREES: &str = "Degrees";
 const RADIANS: &str = "Radians";
 const PIXELS: &str = "Pixels";
