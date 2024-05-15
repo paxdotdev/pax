@@ -21,4 +21,6 @@ pax-message = {path = "../pax-message", version="0.14.9"}
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 pax-manifest = {version="0.14.9", path = "../pax-manifest"}
 pax-runtime-api = {version="0.14.9", path = "../pax-runtime-api"}
+tracing = "0.1.40"
 cfg-if = "1.0.0"
+web-time = "1.1.0"

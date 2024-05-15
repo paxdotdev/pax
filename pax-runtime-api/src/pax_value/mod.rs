@@ -18,8 +18,9 @@ mod to_from_impls;
 /// String, Color, etc)
 /// CoercionRules - responsible for coercing a PaxValue to a specific type
 /// (possibly from multiple different variants)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(crate = "crate::serde")]
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// #[serde(crate = "crate::serde")]
+#[derive(Debug)]
 pub enum PaxValue {
     Bool(bool),
     Numeric(Numeric),
@@ -32,6 +33,10 @@ pub enum PaxValue {
     Rotation(Rotation),
     Fill(Fill),
     Stroke(Stroke),
+    // Ideally this is later changed to Vec<PaxValue>, once structs can be
+    // represented in PaxValue as a map, enabling serialize/deserialization
+    // debug impl, etc.
+    Vec(Vec<PaxAny>),
     Component {},
 }
 
@@ -42,20 +47,13 @@ pub enum PaxAny {
     Any(Box<dyn Any>),
 }
 
-impl PaxAny {
-    /// Try to clone the underlying value. Successful in most cases, except if
-    /// the underlying type is a Box<dyn Any>, and it couldn't be downcast to T
-    pub fn try_clone<T: Clone + 'static>(&self) -> Result<Self, String> {
-        Ok(match self {
-            PaxAny::Builtin(pax_value) => pax_value.clone().to_pax_any(),
-            PaxAny::Any(any) => PaxAny::Any(Box::new(
-                any.downcast_ref::<T>()
-                    .ok_or_else(|| "downcast failed while trying to clone PaxAny")?
-                    .clone(),
-            )),
-        })
+impl std::fmt::Debug for PaxAny {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PaxAny {{ .. }}")
     }
+}
 
+impl PaxAny {
     /// Try to co coerce the inner type to type T. For the any type, just make
     /// sure the stored any value is of type T. For a PaxValue, try to coerce it
     /// into the expected type
