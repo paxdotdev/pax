@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
-use tracing::{instrument, span, Level};
 
 mod graph_operations;
 mod properties_table;
@@ -12,8 +11,6 @@ use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
 
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
-pub use properties_table::TIME_GET;
-pub use properties_table::TIME_SET;
 pub use untyped_property::UntypedProperty;
 
 /// Sealed PropertyId needed for slotmap (strictly internal)

@@ -1,12 +1,6 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    rc::Rc,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
-use web_time::Instant;
 
 use crate::{Property, TransitionManager, TransitionQueueEntry};
 
@@ -18,8 +12,6 @@ thread_local! {
     /// Property time variable, to be used by
     pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
 }
-pub static TIME_GET: AtomicU64 = AtomicU64::new(0);
-pub static TIME_SET: AtomicU64 = AtomicU64::new(0);
 
 /// The main collection of data associated with a specific property id
 pub struct PropertyData {
@@ -83,34 +75,21 @@ impl PropertyTable {
     /// Makes sure the value is up to date before returning in the case
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
-        let get_start = Instant::now();
         self.update_value::<T>(id);
-        let res = self.with_property_data_mut(id, |property_data| {
+        self.with_property_data_mut(id, |property_data| {
             property_data.typed_data::<T>().value.clone()
-        });
-        let get_end = Instant::now();
-        TIME_GET.fetch_add(
-            get_end.duration_since(get_start).as_nanos() as u64,
-            Ordering::Relaxed,
-        );
-        res
+        })
     }
 
     // Main function to set a value of a property.
     // NOTE: This always assumes the underlying data was changed, and marks
     // it and it's dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
-        let get_start = Instant::now();
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data.typed_data();
             typed_data.value = new_val;
         });
         self.dirtify_outbound(id);
-        let get_end = Instant::now();
-        TIME_SET.fetch_add(
-            get_end.duration_since(get_start).as_nanos() as u64,
-            Ordering::Relaxed,
-        );
     }
 
     /// Adds a new untyped property entry
@@ -327,14 +306,8 @@ impl PropertyTable {
             // as this function is provided by a user of the property system and
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
 
-            let eval_start = Instant::now();
             //TRACING: this is the point we do not want included in a span, it is outside of prop system
             let new_value = { evaluator() };
-            let eval_end = Instant::now();
-            TIME_GET.fetch_sub(
-                eval_end.duration_since(eval_start).as_nanos() as u64,
-                Ordering::Relaxed,
-            );
             self.with_property_data_mut(id, |property_data| {
                 let typed_data = property_data.typed_data();
                 typed_data.value = new_value;
