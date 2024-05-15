@@ -306,7 +306,6 @@ impl PropertyTable {
             // as this function is provided by a user of the property system and
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
 
-            //TRACING: this is the point we do not want included in a span, it is outside of prop system
             let new_value = { evaluator() };
             self.with_property_data_mut(id, |property_data| {
                 let typed_data = property_data.typed_data();
