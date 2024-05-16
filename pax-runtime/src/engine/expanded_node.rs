@@ -91,6 +91,8 @@ pub struct ExpandedNode {
     /// frame from the non-collapsed expanded_slot_children after they have
     /// been updated.
     pub expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+    // Number of expanded and flattened slot children
+    pub flattened_slot_children_count: Property<usize>,
 
     /// Flag that is > 0 if this node is part of the root tree. If it is,
     /// updates to this nodes children also marks them as attached (+1), triggering
@@ -223,6 +225,7 @@ impl ExpandedNode {
             layout_properties: LayoutProperties::default(),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
+            flattened_slot_children_count: Property::new(0),
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
         });
@@ -462,25 +465,21 @@ impl ExpandedNode {
             globals.viewport.bounds.clone()
         };
 
-        let slot_children = if borrow!(self.instance_node).base().flags().is_component {
-            borrow!(self.expanded_and_flattened_slot_children)
-                .as_ref()
-                .map(|c| c.len())
+        let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
+            self.flattened_slot_children_count.clone()
         } else {
-            self.containing_component.upgrade().and_then(|v| {
-                borrow!(v.expanded_and_flattened_slot_children)
-                    .as_ref()
-                    .map(|c| c.len())
-            })
-        }
-        .unwrap_or_default();
+            self.containing_component
+                .upgrade()
+                .map(|v| v.flattened_slot_children_count.clone())
+                .unwrap_or_default()
+        };
 
         NodeContext {
             frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
             runtime_context: ctx.clone(),
-            slot_children,
+            slot_children_count,
             platform: globals.platform.clone(),
             os: globals.os.clone(),
             #[cfg(feature = "designtime")]
@@ -542,9 +541,18 @@ impl ExpandedNode {
     }
 
     pub fn compute_flattened_slot_children(&self) {
+        // All of this should ideally be reactively updated,
+        // but currently doesn't exist a way to "listen to"
+        // an entire node tree, and generate the flattened list
+        // only when changed.
         if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-            *borrow_mut!(self.expanded_and_flattened_slot_children) =
-                Some(flatten_expanded_nodes_for_slot(&slot_children));
+            let mut exp_and_flat_slot_children =
+                borrow_mut!(self.expanded_and_flattened_slot_children);
+            let flattened = flatten_expanded_nodes_for_slot(&slot_children);
+            if self.flattened_slot_children_count.get() != flattened.len() {
+                self.flattened_slot_children_count.set(flattened.len());
+            }
+            *exp_and_flat_slot_children = Some(flattened);
         }
     }
 

@@ -16,8 +16,8 @@ pub struct StackerCell {
 
 #[pax]
 pub enum StackerDirection {
-    Vertical,
     #[default]
+    Vertical,
     Horizontal,
 }
 
