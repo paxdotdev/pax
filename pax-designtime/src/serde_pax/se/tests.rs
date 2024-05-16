@@ -48,8 +48,8 @@ fn test_percent() {
         Percent(Numeric),
     }
 
-    let expected = "10%".to_string();
-    let percent_pax = Size::Percent(Numeric::Integer(10));
+    let expected = "10.21%".to_string();
+    let percent_pax = Size::Percent(Numeric::Float(10.21));
     let v = to_pax(&percent_pax).unwrap();
     assert_eq!(expected, v);
 }
