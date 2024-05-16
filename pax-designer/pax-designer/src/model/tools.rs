@@ -1,12 +1,12 @@
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateComponent, MoveSelected};
+use super::action::orm::{CreateComponent, SetBoxSelected};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
 use crate::glass::RectTool;
-use crate::math::coordinate_spaces::Glass;
+use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
@@ -17,7 +17,10 @@ use pax_engine::api::Color;
 use pax_engine::api::Size;
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
+use pax_engine::{log, NodeLocal, Properties};
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
+use pax_runtime_api::math::Transform2;
+use pax_runtime_api::{Axis, Window};
 
 pub struct CreateComponentTool {
     type_id: TypeId,
@@ -94,7 +97,8 @@ impl ToolBehaviour for CreateComponentTool {
 
 pub enum PointerTool {
     Moving {
-        offset: Vector2<Glass>,
+        mouse_offset_from_top_left: Vector2<Glass>,
+        props: Properties,
     },
     Selecting {
         p1: Point2<Glass>,
@@ -136,10 +140,16 @@ impl PointerTool {
                 id: node_id,
                 overwrite: false,
             });
-            let origin_window = hit.origin().unwrap();
-            let object_origin_glass = ctx.glass_transform() * origin_window;
-            let offset = point - object_origin_glass;
-            Self::Moving { offset }
+
+            let transform = ctx.glass_transform() * hit.transform().unwrap_or_default().inverse();
+            let origin = transform * Point2::new(0.0, 0.0);
+            let mouse_offset_from_top_left = point - origin; // ok
+
+            let props = hit.common_properties();
+            Self::Moving {
+                mouse_offset_from_top_left,
+                props,
+            }
         } else {
             Self::Selecting {
                 p1: point,
@@ -156,9 +166,29 @@ impl ToolBehaviour for PointerTool {
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         match self {
-            &mut PointerTool::Moving { offset } => {
-                let world_point = ctx.world_transform() * (point - offset);
-                if let Err(e) = ctx.execute(MoveSelected { point: world_point }) {
+            &mut PointerTool::Moving {
+                mouse_offset_from_top_left,
+                ref props,
+            } => {
+                let new_top_left = point - mouse_offset_from_top_left;
+                let new_world_top_left = ctx.world_transform() * new_top_left;
+                let stage = ctx.app_state.stage.get();
+                let width = props
+                    .width
+                    .evaluate((stage.width as f64, stage.height as f64), Axis::X);
+                let height = props
+                    .height
+                    .evaluate((stage.width as f64, stage.height as f64), Axis::Y);
+                let node_box = AxisAlignedBox::new(
+                    new_world_top_left,
+                    new_world_top_left + Vector2::new(width, height),
+                );
+
+                if let Err(e) = ctx.execute(SetBoxSelected {
+                    node_box,
+                    props,
+                    ignore_coord: (false, false),
+                }) {
                     pax_engine::log::error!("Error moving selected: {:?}", e);
                 }
             }
@@ -167,7 +197,10 @@ impl ToolBehaviour for PointerTool {
         ControlFlow::Continue(())
     }
 
-    fn pointer_up(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        // move last little distance to pointer up position
+        self.pointer_move(point, ctx);
+
         if let PointerTool::Selecting { .. } = self {
             // TODO select multiple objects
         }
