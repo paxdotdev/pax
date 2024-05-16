@@ -153,6 +153,7 @@ fn get_generic_object_editor(selection_bounds: &AxisAlignedBox) -> Editor {
             if let Err(e) = ctx.execute(action::orm::ResizeSelected {
                 attachment_point: self.attachment_point,
                 original_bounds: (axis_box_world, origin_world),
+                props: &item.props,
                 point: world_point,
             }) {
                 pax_engine::log::warn!("resize failed: {:?}", e);

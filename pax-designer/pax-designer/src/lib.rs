@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use crate::math::coordinate_spaces::{self, World};
 use model::{
     action::{Action, ActionContext, CanUndo},
-    ProjectMode,
+    ProjectMode, StageInfo,
 };
 use pax_engine::api::*;
 use pax_engine::math::Point2;
@@ -32,24 +32,6 @@ pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
 pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
 pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "pax_designer::pax_reexports::designer_project";
 pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
-pub struct SetStage(pub StageInfo);
-
-impl Action for SetStage {
-    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        STAGE_PROP.with(|stage| {
-            stage.set(self.0);
-        });
-        Ok(CanUndo::No)
-    }
-}
-
-thread_local! {
-    static STAGE_PROP: Property<StageInfo> = Property::new(StageInfo {
-            width: 2561 / 2,
-            height: 1440 / 2,
-            color: Color::WHITE,
-        });
-}
 
 #[pax]
 #[main]
@@ -77,9 +59,18 @@ impl Action for ProjectMsg {
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::init_model(ctx);
-        STAGE_PROP.with(|stage| self.stage.replace_with(stage.clone()));
 
         model::read_app_state(|app_state| {
+            let stage = app_state.stage.clone();
+            // init stage to some reasonable size
+            stage.set(StageInfo {
+                width: 2561 / 2,
+                height: 1440 / 2,
+                color: Color::WHITE,
+            });
+            let deps = [stage.untyped()];
+            self.stage
+                .replace_with(Property::computed(move || stage.get(), &deps));
             let glass_to_world = app_state.glass_to_world_transform.clone();
             let deps = [glass_to_world.untyped()];
             self.transform2d.replace_with(Property::computed(
@@ -114,10 +105,11 @@ impl PaxDesigner {
         });
     }
 }
+pub struct SetStage(pub StageInfo);
 
-#[pax]
-pub struct StageInfo {
-    pub width: u32,
-    pub height: u32,
-    pub color: Color,
+impl Action for SetStage {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+        ctx.app_state.stage.set(self.0);
+        Ok(CanUndo::No)
+    }
 }

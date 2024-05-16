@@ -15,8 +15,9 @@ use pax_engine::{
     math::{Point2, Space, Vector2},
     serde,
 };
-use pax_engine::{log, NodeInterface};
+use pax_engine::{log, NodeInterface, Properties};
 use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
+use pax_runtime_api::Axis;
 
 pub struct CreateComponent {
     pub bounds: AxisAlignedBox<World>,
@@ -102,11 +103,13 @@ impl Action for SelectedIntoNewComponent {
     }
 }
 
-pub struct MoveSelected {
-    pub point: Point2<World>,
+pub struct SetBoxSelected<'a> {
+    pub node_box: AxisAlignedBox<World>,
+    pub props: &'a Properties,
+    pub ignore_coord: (bool, bool),
 }
 
-impl Action for MoveSelected {
+impl<'a> Action for SetBoxSelected<'a> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         if ctx.app_state.selected_template_node_ids.get().len() > 1 {
             // TODO support multi-selection movement
@@ -131,8 +134,48 @@ impl Action for MoveSelected {
             return Err(anyhow!("can't move: selected node doesn't exist in orm"));
         };
 
-        builder.set_property("x", &to_pixels(self.point.x))?;
-        builder.set_property("y", &to_pixels(self.point.y))?;
+        let bounds = ctx
+            .app_state
+            .stage
+            .read(|stage| (stage.width as f64, stage.height as f64));
+
+        let width = self.node_box.width();
+        let height = self.node_box.height();
+
+        let Point2 { x: dx, y: dy, .. } = self.node_box.top_left();
+
+        let x = if let Some(anchor_x) = self.props.anchor_x {
+            dx + anchor_x.evaluate((width, height), Axis::X)
+        } else {
+            // if anchor is not set to figure out the new "virtual"
+            // anchor point based on wanted top left position and width/height.
+            // (same thing as bellow is done for the y case)
+            // equation for new position (since anchor depends on x, solving for x):
+            // x = dx + (width/bounds.0)*x =>
+            // x*(1 - (width/bounds.0)) = dx =>
+            // x = dx/(1 - (width/bounds.0))
+            dx / (1.0 - (width / bounds.0))
+        };
+        let y = if let Some(anchor_y) = self.props.anchor_y {
+            dy + anchor_y.evaluate((width, height), Axis::Y)
+        } else {
+            // same thing here
+            dy / (1.0 - (height / bounds.1))
+        };
+
+        let percentage_x = (x / bounds.0) * 100.0;
+        let percentage_y = (y / bounds.1) * 100.0;
+        let perc_width = (width / bounds.0) * 100.0;
+        let perc_height = (height / bounds.1) * 100.0;
+        if !self.ignore_coord.0 {
+            builder.set_property("x", &to_percent(percentage_x))?;
+            builder.set_property("width", &to_percent(perc_width))?;
+        }
+        if !self.ignore_coord.1 {
+            builder.set_property("y", &to_percent(percentage_y))?;
+            builder.set_property("height", &to_percent(perc_height))?;
+        }
+
         builder
             .save()
             .map_err(|e| anyhow!("could not move thing: {}", e))?;
@@ -146,15 +189,16 @@ impl Action for MoveSelected {
     }
 }
 
-pub struct ResizeSelected {
+pub struct ResizeSelected<'props> {
     pub attachment_point: Point2<BoxPoint>,
     pub original_bounds: (AxisAlignedBox<World>, Point2<World>),
+    pub props: &'props Properties,
     pub point: Point2<World>,
 }
 
-impl Action for ResizeSelected {
+impl<'props> Action for ResizeSelected<'props> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let (bounds, origin) = self.original_bounds;
+        let (bounds, _) = self.original_bounds;
 
         let mut is_shift_key_down = false;
         let mut is_alt_key_down = false;
@@ -167,48 +211,15 @@ impl Action for ResizeSelected {
         let new_bounds =
             bounds.morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down);
 
-        let origin_relative: Point2<BoxPoint> = bounds.to_inner_space(origin);
-        let new_origin_relative = new_bounds.from_inner_space(origin_relative);
+        let freeze_x = self.attachment_point.x.abs() <= f64::EPSILON;
+        let freeze_y = self.attachment_point.y.abs() <= f64::EPSILON;
+        ctx.execute(SetBoxSelected {
+            node_box: new_bounds,
+            props: self.props,
+            ignore_coord: (freeze_x, freeze_y),
+        })?;
 
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let selected = ctx
-            .app_state
-            .selected_template_node_ids
-            // TODO multi-select
-            .get()
-            .first()
-            .expect("executed action ResizeSelected without a selected object")
-            .clone();
-        let Some(mut builder) = dt
-            .get_orm_mut()
-            .get_node(UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.get(),
-                selected,
-            ))
-        else {
-            return Err(anyhow!("can't resize: selected node doesn't exist in orm"));
-        };
-
-        if self.attachment_point.y.abs() > f64::EPSILON {
-            builder.set_property("y", &to_pixels(new_origin_relative.y))?;
-            builder.set_property("height", &to_pixels(new_bounds.height()))?;
-        }
-
-        if self.attachment_point.x.abs() > f64::EPSILON {
-            builder.set_property("x", &to_pixels(new_origin_relative.x))?;
-            builder.set_property("width", &to_pixels(new_bounds.width()))?;
-        }
-
-        builder
-            .save()
-            .map_err(|e| anyhow!("could not move thing: {}", e))?;
-
-        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            dt.get_orm_mut()
-                .undo()
-                .map_err(|e| anyhow!("cound't undo: {:?}", e))
-        })))
+        Ok(CanUndo::No)
     }
 }
 
@@ -325,4 +336,8 @@ impl Action for DeleteSelected {
 
 fn to_pixels(v: f64) -> String {
     format!("{:?}px", v.round())
+}
+
+fn to_percent(v: f64) -> String {
+    format!("{:.2?}%", v)
 }
