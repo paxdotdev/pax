@@ -105,12 +105,12 @@ pub fn compute_tab(
 
                 let translate = [
                     if let Some(ref val) = cp_x {
-                        val.get().clone()
+                        val.get()
                     } else {
                         Size::ZERO()
                     },
                     if let Some(ref val) = cp_y {
-                        val.get().clone()
+                        val.get()
                     } else {
                         Size::ZERO()
                     },
@@ -121,36 +121,22 @@ pub fn compute_tab(
                 //  if no anchor is specified:
                 //     if x/y values are present and have an explicit percent value or component, use those percent values
                 //     otherwise, default to 0
-                let anchor = [
-                    if let Some(ref val) = cp_anchor_x {
-                        val.get().clone()
-                    } else {
-                        match translate[0] {
-                            Size::Pixels(_) => Size::ZERO(),
-                            Size::Percent(per) => Size::Percent(per),
-                            Size::Combined(_, per) => Size::Percent(per),
-                        }
-                    },
-                    if let Some(ref val) = cp_anchor_y {
-                        val.get().clone()
-                    } else {
-                        match translate[1] {
-                            Size::Pixels(_) => Size::ZERO(),
-                            Size::Percent(per) => Size::Percent(per),
-                            Size::Combined(_, per) => Size::Percent(per),
-                        }
-                    },
-                ];
+                let anchor = get_position_adjusted_anchor(
+                    cp_anchor_x.as_ref().map(|v| v.get()),
+                    cp_anchor_y.as_ref().map(|v| v.get()),
+                    translate[0],
+                    translate[1],
+                );
                 desugared_transform2d.anchor = Some(anchor);
 
                 let scale = [
                     if let Some(ref val) = cp_scale_x {
-                        val.get().clone()
+                        val.get()
                     } else {
                         Size::Percent(Numeric::F64(100.0))
                     },
                     if let Some(ref val) = cp_scale_y {
-                        val.get().clone()
+                        val.get()
                     } else {
                         Size::Percent(Numeric::F64(100.0))
                     },
@@ -172,7 +158,7 @@ pub fn compute_tab(
                 desugared_transform2d.skew = Some(skew);
 
                 let rotate = if let Some(ref val) = cp_rotate {
-                    val.get().clone()
+                    val.get()
                 } else {
                     Default::default()
                 };
@@ -189,6 +175,39 @@ pub fn compute_tab(
     );
 
     (transform, bounds)
+}
+
+//Anchor behavior:
+//  if no anchor is specified:
+//     if x/y values are present and have an explicit percent value or component, use those percent values
+//     otherwise, default to 0
+pub fn get_position_adjusted_anchor(
+    anchor_x: Option<Size>,
+    anchor_y: Option<Size>,
+    x: Size,
+    y: Size,
+) -> [Size; 2] {
+    let anchor = [
+        if let Some(val) = anchor_x {
+            val
+        } else {
+            match x {
+                Size::Pixels(_) => Size::ZERO(),
+                Size::Percent(per) => Size::Percent(per),
+                Size::Combined(_, per) => Size::Percent(per),
+            }
+        },
+        if let Some(val) = anchor_y {
+            val
+        } else {
+            match y {
+                Size::Pixels(_) => Size::ZERO(),
+                Size::Percent(per) => Size::Percent(per),
+                Size::Combined(_, per) => Size::Percent(per),
+            }
+        },
+    ];
+    anchor
 }
 
 pub trait ComputableTransform {

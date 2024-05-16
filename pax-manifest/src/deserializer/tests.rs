@@ -26,8 +26,8 @@ fn test_pixels() {
 
 #[test]
 fn test_percent() {
-    let percent_pax = "10%".to_string();
-    let expected = Size::Percent(Numeric::I64(10));
+    let percent_pax = "10.21%".to_string();
+    let expected = Size::Percent(Numeric::F64(10.21));
     let v = Size::from_pax_any(from_pax::<Size>(&percent_pax).unwrap()).unwrap();
     assert_eq!(expected, v);
 }
