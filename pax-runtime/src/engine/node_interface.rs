@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{borrow, pax_value::ToFromPaxAny};
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Size};
 
 use crate::{
     api::math::{Point2, Space, Transform2},
@@ -23,8 +23,15 @@ impl From<Rc<ExpandedNode>> for NodeInterface {
 
 pub struct NodeLocal;
 
+#[derive(Clone, Default)]
 pub struct Properties {
+    pub x: Option<Size>,
+    pub y: Option<Size>,
     pub local_rotation: Rotation,
+    pub width: Size,
+    pub height: Size,
+    pub anchor_x: Option<Size>,
+    pub anchor_y: Option<Size>,
 }
 
 impl Space for NodeLocal {}
@@ -38,18 +45,20 @@ impl NodeInterface {
 
     pub fn common_properties(&self) -> Properties {
         let cp = self.inner.get_common_properties();
-        let rot = borrow!(cp)
-            .rotate
-            .as_ref()
-            .map(|p| p.get().clone())
-            .unwrap_or(Rotation::default());
+        let cp = borrow!(cp);
         Properties {
-            local_rotation: rot,
+            x: cp.x.as_ref().map(|v| v.get()),
+            y: cp.y.as_ref().map(|v| v.get()),
+            local_rotation: cp
+                .rotate
+                .as_ref()
+                .map(|p| p.get())
+                .unwrap_or(Rotation::default()),
+            width: cp.width.get(),
+            height: cp.height.get(),
+            anchor_x: cp.anchor_x.as_ref().map(|p| p.get()),
+            anchor_y: cp.anchor_y.as_ref().map(|p| p.get()),
         }
-    }
-
-    pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> V {
-        self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
     pub fn origin(&self) -> Option<Point2<Window>> {
@@ -70,6 +79,10 @@ impl NodeInterface {
         );
         let origin_window = self.inner.layout_properties.transform.get() * p_anchor;
         Some(origin_window)
+    }
+
+    pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> V {
+        self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
     pub fn transform(&self) -> Option<Transform2<Window, NodeLocal>> {
