@@ -160,10 +160,10 @@ pub enum ImageFit {
     FillHorizontal,
     /// Scale the image to perfectly fit within it's bounds, choosing vertical or horizontal
     /// based on which of them makes it fill the container, possibly clipping parts of the image
-    #[default]
     Fill,
     /// Scale the image to perfectly fit within it's bounds, without clipping the image, possibly leaving some
     /// of the available container area embty.
+    #[default]
     Fit,
     /// Stretch the image to fit the container
     Stretch,
