@@ -459,7 +459,7 @@ impl Undo for RemoveTemplateNodeRequest {
             .components
             .get_mut(&self.uni.get_containing_component_type_id())
             .unwrap();
-        component.template = self._cached_template.clone();
+        component.template.clone_from(&self._cached_template);
         Ok(())
     }
 }
@@ -605,7 +605,7 @@ impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
             .get_mut(&self.component_type_id)
             .unwrap();
 
-        self._cached_prev_template = component.template.clone();
+        self._cached_prev_template.clone_from(&component.template);
 
         component.template = Some(self.new_template.clone());
 
@@ -628,7 +628,7 @@ impl Undo for ReplaceTemplateRequest {
             .components
             .get_mut(&self.component_type_id)
             .unwrap();
-        component.template = self._cached_prev_template.clone();
+        component.template.clone_from(&self._cached_prev_template);
         Ok(())
     }
 }
