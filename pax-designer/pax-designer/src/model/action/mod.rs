@@ -149,6 +149,7 @@ impl ActionContext<'_> {
                     bounds: AxisAlignedBox::bound_of_points(
                         n.bounding_points()?.map(|p| to_glass_transform * p),
                     ),
+                    props: n.common_properties(),
                     origin: to_glass_transform * n.origin()?,
                     id,
                 })
