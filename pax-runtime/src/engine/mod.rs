@@ -105,9 +105,14 @@ impl Default for HandlerRegistry {
     }
 }
 
+struct ImgData<R: piet::RenderContext> {
+    img: R::Image,
+    size: (usize, usize),
+}
+
 pub struct Renderer<R: piet::RenderContext> {
     pub backends: HashMap<String, R>,
-    pub image_map: HashMap<String, R::Image>,
+    pub image_map: HashMap<String, ImgData<R>>,
 }
 
 impl<R: piet::RenderContext> Renderer<R> {
@@ -179,17 +184,28 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
         let img = render_context
             .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
             .expect("image creation successful");
-        self.image_map.insert(path.to_owned(), img);
+        self.image_map.insert(
+            path.to_owned(),
+            ImgData {
+                img,
+                size: (width, height),
+            },
+        );
+    }
+
+    fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
+        self.image_map.get(image_path).map(|img| (img.size))
     }
 
     fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect) {
-        let Some(img) = self.image_map.get(image_path) else {
+        let Some(data) = self.image_map.get(image_path) else {
             return;
         };
-        self.backends
-            .get_mut(layer)
-            .unwrap()
-            .draw_image(img, rect, InterpolationMode::Bilinear);
+        self.backends.get_mut(layer).unwrap().draw_image(
+            &data.img,
+            rect,
+            InterpolationMode::Bilinear,
+        );
     }
 
     fn layers(&self) -> Vec<&str> {

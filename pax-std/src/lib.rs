@@ -17,7 +17,7 @@ pub mod primitives {
 
     use crate::types::text::TextStyle;
 
-    use crate::types::PathElement;
+    use crate::types::{ImageFit, PathElement};
     #[pax]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
     pub struct Frame {}
@@ -95,6 +95,7 @@ pub mod primitives {
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
         pub path: Property<String>,
+        pub fit: Property<ImageFit>,
     }
 
     #[pax]

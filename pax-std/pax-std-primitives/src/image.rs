@@ -1,6 +1,6 @@
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
 use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
-use pax_std::primitives::Image;
+use pax_std::{primitives::Image, types::ImageFit};
 use std::collections::HashMap;
 
 use_RefCell!();
@@ -115,18 +115,40 @@ impl InstanceNode for ImageInstance {
     ) {
         let transform = expanded_node.layout_properties.transform.get();
         let bounding_dimens = expanded_node.layout_properties.bounds.get();
-        let width = bounding_dimens.0;
-        let height = bounding_dimens.1;
+        let container_width = bounding_dimens.0;
+        let container_height = bounding_dimens.1;
 
-        let transformed_bounds = kurbo::Rect::new(0.0, 0.0, width, height);
-
-        let path =
-            expanded_node.with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
-        let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
-        rc.save(&layer_id);
-        rc.transform(&layer_id, transform.into());
-        rc.draw_image(&layer_id, &path, transformed_bounds);
-        rc.restore(&layer_id);
+        expanded_node.with_properties_unwrapped(|props: &mut Image| {
+            let path = props.path.get();
+            let Some((image_width, image_height)) = rc.get_image_size(&path) else {
+                // image not loaded yet
+                return;
+            };
+            let (image_width, image_height) = (image_width as f64, image_height as f64);
+            let stretch_w = container_width / image_width;
+            let stretch_h = container_height / image_height;
+            let (width, height) = match props.fit.get() {
+                ImageFit::FillVertical => (image_width * stretch_h, image_height * stretch_h),
+                ImageFit::FillHorizontal => (image_width * stretch_w, image_height * stretch_w),
+                ImageFit::Fill => {
+                    let stretch = stretch_h.max(stretch_w);
+                    (image_width * stretch, image_height * stretch)
+                }
+                ImageFit::Fit => {
+                    let stretch = stretch_h.min(stretch_w);
+                    (image_width * stretch, image_height * stretch)
+                }
+                ImageFit::Stretch => (container_width, container_height),
+            };
+            let x = (container_width - width) / 2.0;
+            let y = (container_height - height) / 2.0;
+            let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
+            let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
+            rc.save(&layer_id);
+            rc.transform(&layer_id, transform.into());
+            rc.draw_image(&layer_id, &path, transformed_bounds);
+            rc.restore(&layer_id);
+        });
     }
 
     fn base(&self) -> &BaseInstance {
