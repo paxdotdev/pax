@@ -55,7 +55,7 @@ pub struct Scroller {
     pub momentum_x: Property<f64>,
     pub momentum_y: Property<f64>,
     pub damping: Property<f64>,
-    pub slot_children: Property<usize>,
+    pub slot_children_count: Property<usize>,
 }
 
 #[pax]
@@ -82,6 +82,8 @@ pub fn no_touches() -> bool {
 
 impl Scroller {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        self.slot_children_count
+            .replace_with(ctx.slot_children_count.clone());
         let scroll_params = match ctx.os {
             OS::Android => PlatformSpecificScrollParams {
                 deacceleration: 0.02,
@@ -104,10 +106,6 @@ impl Scroller {
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
-        if ctx.slot_children != self.slot_children.get() {
-            self.slot_children.set(ctx.slot_children);
-        }
-
         let mom_x = self.momentum_x.get();
         let mom_y = self.momentum_y.get();
         if no_touches() {

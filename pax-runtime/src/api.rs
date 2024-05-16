@@ -22,7 +22,7 @@ pub struct NodeContext {
     /// Current os (Android/Windows/Mac/Linux) this app is running on
     pub os: OS,
     /// The number of slot children provided to this component template
-    pub slot_children: usize,
+    pub slot_children_count: Property<usize>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     #[allow(unused)]
     pub(crate) runtime_context: Rc<RuntimeContext>,
