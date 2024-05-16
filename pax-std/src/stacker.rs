@@ -28,7 +28,6 @@ use pax_runtime::api::NodeContext;
 
 )]
 pub struct Stacker {
-    pub cells: Property<Numeric>,
     pub direction: Property<crate::types::StackerDirection>,
     pub _cell_specs: Property<Vec<StackerCell>>,
     pub gutter: Property<Size>,
@@ -41,8 +40,7 @@ pub struct Stacker {
 impl Default for Stacker {
     fn default() -> Self {
         Self {
-            cells: Property::new(Numeric::I32(1)),
-            direction: Property::new(StackerDirection::Horizontal),
+            direction: Property::new(StackerDirection::Vertical),
             _cell_specs: Property::new(vec![]),
             gutter: Property::new(Size::Pixels(Numeric::I32(0))),
             sizes: Property::new(vec![]),
@@ -52,24 +50,24 @@ impl Default for Stacker {
 
 impl Stacker {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let cells = self.cells.clone();
         let sizes = self.sizes.clone();
         let bound = ctx.bounds_self.clone();
+        let slot_children_count = ctx.slot_children_count.clone();
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
 
         let deps = [
-            cells.untyped(),
             bound.untyped(),
             direction.untyped(),
             sizes.untyped(),
             gutter.untyped(),
+            slot_children_count.untyped(),
         ];
 
         //NOTE: replace with is needed since the for loop already has a connection to the prop
         self._cell_specs.replace_with(Property::computed_with_name(
             move || {
-                let cells: f64 = cells.get().to_float();
+                let cells: f64 = slot_children_count.get() as f64;
                 let bounds = bound.get();
 
                 let active_bound = match direction.get() {

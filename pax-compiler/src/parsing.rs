@@ -141,12 +141,12 @@ fn recurse_pratt_parse_to_string<'a>(
                 let op0_out = match op0.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
-                        format!("({}_isize)", op0.as_str())
+                        format!("({}isize)", op0.as_str())
                     },
                     Rule::xo_symbol => {
                         symbolic_ids.borrow_mut().push(op0.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        format!("({}).try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op0))
+                        format!("({}).to_pax_any().try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op0))
                     },
                     _ => unimplemented!("")
                 };
@@ -158,12 +158,12 @@ fn recurse_pratt_parse_to_string<'a>(
                 let op2_out = match op2.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
-                        format!("({}_isize)", op2.as_str())
+                        format!("({}isize)", op2.as_str())
                     },
                     Rule::xo_symbol => {
                         symbolic_ids.borrow_mut().push(op2.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        format!("({}).try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op2))
+                        format!("({}).to_pax_any().try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op2))
                     },
                     _ => unimplemented!("")
                 };

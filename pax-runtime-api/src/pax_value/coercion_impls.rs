@@ -7,7 +7,7 @@ use crate::{
     Percent, Property, Rotation, Size, Stroke, Transform2D,
 };
 
-use super::{PaxAny, ToFromPaxAny};
+use super::ToFromPaxAny;
 
 // Default coersion rules:
 // call Into::<first param>::into() on contents of second enum variant
@@ -39,22 +39,6 @@ where
     Self: Sized + 'static,
 {
     fn try_coerce(value: PaxValue) -> Result<Self, String>;
-}
-
-impl<T: ToFromPaxAny> CoercionRules for Vec<T> {
-    fn try_coerce(value: PaxValue) -> Result<Self, String> {
-        match value {
-            PaxValue::Vec(vec) => {
-                let res: Result<Vec<_>, _> = vec.into_iter().map(|v| T::from_pax_any(v)).collect();
-                res.map_err(|e| format!("couldn't coerce vec, element {:?}", e))
-            }
-            v => Err(format!(
-                "{:?} can't be coerced into {:?}",
-                v,
-                std::any::type_name::<Vec<T>>(),
-            )),
-        }
-    }
 }
 
 // Fill is a type that other types (Color) can be coerced into, thus the default
@@ -150,5 +134,21 @@ impl<T: ImplToFromPaxAny> CoercionRules for T {
             value,
             std::any::type_name::<T>(),
         ))
+    }
+}
+
+impl<T: ToFromPaxAny> CoercionRules for Vec<T> {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Vec(vec) => {
+                let res: Result<Vec<_>, _> = vec.into_iter().map(|v| T::from_pax_any(v)).collect();
+                res.map_err(|e| format!("couldn't coerce vec, element {:?}", e))
+            }
+            v => Err(format!(
+                "{:?} can't be coerced into {:?}",
+                v,
+                std::any::type_name::<Vec<T>>(),
+            )),
+        }
     }
 }
