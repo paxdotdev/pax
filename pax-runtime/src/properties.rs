@@ -103,11 +103,7 @@ impl RuntimeContext {
             .filter(|val| {
                 let common_props = val.get_common_properties();
                 let common_props = borrow!(common_props);
-                if let Some(other_id) = &common_props.id {
-                    other_id.get() == id
-                } else {
-                    false
-                }
+                common_props.id.get().is_some_and(|i| i == id)
             })
             .cloned()
             .collect()

@@ -22,6 +22,7 @@ export class NativeElementPool {
     private nodesLookup = new Map<number, HTMLElement>();
     private chassis?: PaxChassisWeb;
     private objectManager: ObjectManager;
+    private resizeObserver: ResizeObserver;
     registeredFontFaces: Set<string>;
 
     constructor(objectManager: ObjectManager) {
@@ -29,6 +30,24 @@ export class NativeElementPool {
         this.canvases = new Map();
         this.layers = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
+        this.resizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                let node = entry.target as HTMLElement;
+                let id = parseInt(node.getAttribute("pax_id")!);
+                let width = entry.contentRect.width;
+                let height = entry.contentRect.height;
+                let message = {
+                    "ChassiResizeRequest": {
+                        "id": id,
+                        "width": width,
+                        "height": height,
+                    }
+                }
+                this.chassis!.interrupt!(JSON.stringify(message), undefined);
+            }
+            //TODO accululate and send interrupt
+            // this.chassis?.interrupt();
+        });
     }
 
     attach(chassis: PaxChassisWeb, mount: Element){
@@ -346,14 +365,32 @@ export class NativeElementPool {
     textUpdate(patch: TextUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
+        // should be start listening to this elements size and
+        // send interrupts to the engine, or not?
+        let start_listening = false;
+
         // Handle size_x and size_y
         if (patch.size_x != null) {
-            leaf!.style.width = patch.size_x + "px";
+
+            // if size_x = -1.0, the engine wants to know
+            // this elements size from the chassi.
+            if (patch.size_x == -1.0) {
+                start_listening = true;
+            } else {
+                leaf!.style.width = patch.size_x + "px";
+            }
         }
         if (patch.size_y != null) {
-            leaf!.style.height = patch.size_y + "px";
+            if (patch.size_y == -1.0) {
+                start_listening = true;
+            } else {
+                leaf!.style.height = patch.size_y + "px";
+            }
         }
 
+        if (start_listening) {
+            this.resizeObserver.observe(leaf);
+        }
 
         // Handle transform
         if (patch.transform != null) {
@@ -420,6 +457,7 @@ export class NativeElementPool {
 
     textDelete(id: number) {
         let oldNode = this.nodesLookup.get(id);
+        this.resizeObserver.observe(oldNode!);
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);

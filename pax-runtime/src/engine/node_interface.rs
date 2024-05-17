@@ -9,6 +9,8 @@ use crate::{
     ExpandedNode,
 };
 
+use super::expanded_node::LayoutProperties;
+
 pub struct NodeInterface {
     inner: Rc<ExpandedNode>,
 }
@@ -28,8 +30,8 @@ pub struct Properties {
     pub x: Option<Size>,
     pub y: Option<Size>,
     pub local_rotation: Rotation,
-    pub width: Size,
-    pub height: Size,
+    pub width: Option<Size>,
+    pub height: Option<Size>,
     pub anchor_x: Option<Size>,
     pub anchor_y: Option<Size>,
 }
@@ -47,17 +49,13 @@ impl NodeInterface {
         let cp = self.inner.get_common_properties();
         let cp = borrow!(cp);
         Properties {
-            x: cp.x.as_ref().map(|v| v.get()),
-            y: cp.y.as_ref().map(|v| v.get()),
-            local_rotation: cp
-                .rotate
-                .as_ref()
-                .map(|p| p.get())
-                .unwrap_or(Rotation::default()),
+            x: cp.x.get(),
+            y: cp.y.get(),
+            local_rotation: cp.rotate.get().unwrap_or(Rotation::default()),
             width: cp.width.get(),
             height: cp.height.get(),
-            anchor_x: cp.anchor_x.as_ref().map(|p| p.get()),
-            anchor_y: cp.anchor_y.as_ref().map(|p| p.get()),
+            anchor_x: cp.anchor_x.get(),
+            anchor_y: cp.anchor_y.get(),
         }
     }
 
@@ -68,13 +66,13 @@ impl NodeInterface {
         let p_anchor = Point2::new(
             common_props
                 .anchor_x
-                .as_ref()
-                .map(|x| x.get().get_pixels(width))
+                .get()
+                .map(|x| x.get_pixels(width))
                 .unwrap_or(0.0),
             common_props
                 .anchor_y
-                .as_ref()
-                .map(|y| y.get().get_pixels(height))
+                .get()
+                .map(|y| y.get_pixels(height))
                 .unwrap_or(0.0),
         );
         let origin_window = self.inner.layout_properties.transform.get() * p_anchor;
@@ -85,12 +83,8 @@ impl NodeInterface {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
-    pub fn transform(&self) -> Option<Transform2<Window, NodeLocal>> {
-        Some(self.inner.layout_properties.transform.get().inverse())
-    }
-
-    pub fn bounding_points(&self) -> Option<[Point2<Window>; 4]> {
-        Some(self.inner.layout_properties.corners())
+    pub fn layout_properties(&self) -> LayoutProperties {
+        self.inner.layout_properties.clone()
     }
 
     pub fn parent(&self) -> Option<NodeInterface> {
