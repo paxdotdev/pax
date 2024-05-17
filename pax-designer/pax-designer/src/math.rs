@@ -1,6 +1,7 @@
 use std::ops::Mul;
 
 use pax_engine::math::{Point2, Space, Transform2, Vector2};
+use pax_runtime_api::Interpolatable;
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -23,6 +24,7 @@ pub struct BoxPoint;
 
 impl Space for BoxPoint {}
 
+impl Interpolatable for AxisAlignedBox {}
 pub struct AxisAlignedBox<W = Glass> {
     min: Point2<W>,
     max: Point2<W>,

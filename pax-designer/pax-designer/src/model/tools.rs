@@ -98,6 +98,12 @@ impl ToolBehaviour for CreateComponentTool {
 pub enum PointerTool {
     Moving {
         mouse_offset_from_top_left: Vector2<Glass>,
+        // Needed to figure out new position,
+        // since position now depends on bounds and location
+        // in the pos/anchor % behavior, and bounds can
+        // potentially be coming from chassi even
+        // if width/height props are 0
+        bounds: (f64, f64),
         props: Properties,
     },
     Selecting {
@@ -114,6 +120,7 @@ pub struct SelectNode {
 
 impl Action for SelectNode {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let mut ids = ctx.app_state.selected_template_node_ids.get();
         if self.overwrite
             || !ctx
                 .app_state
@@ -121,13 +128,13 @@ impl Action for SelectNode {
                 .get()
                 .contains(&InputEvent::Shift)
         {
-            ctx.app_state.selected_template_node_ids.update(|ids| {
-                ids.clear();
-            });
+            ids.clear();
         }
-        ctx.app_state.selected_template_node_ids.update(|ids| {
-            ids.push(self.id);
-        });
+        ids.push(self.id);
+        // Only set if changed, otherwise re-triggers when same object gets re-selected
+        if ids != ctx.app_state.selected_template_node_ids.get() {
+            ctx.app_state.selected_template_node_ids.set(ids);
+        }
         Ok(CanUndo::No)
     }
 }
@@ -141,13 +148,14 @@ impl PointerTool {
                 overwrite: false,
             });
 
-            let transform = ctx.glass_transform() * hit.transform().unwrap_or_default().inverse();
+            let transform = ctx.glass_transform() * hit.layout_properties().transform.get();
             let origin = transform * Point2::new(0.0, 0.0);
             let mouse_offset_from_top_left = point - origin; // ok
 
             let props = hit.common_properties();
             Self::Moving {
                 mouse_offset_from_top_left,
+                bounds: hit.layout_properties().bounds.get(),
                 props,
             }
         } else {
@@ -168,20 +176,14 @@ impl ToolBehaviour for PointerTool {
         match self {
             &mut PointerTool::Moving {
                 mouse_offset_from_top_left,
+                bounds,
                 ref props,
             } => {
                 let new_top_left = point - mouse_offset_from_top_left;
                 let new_world_top_left = ctx.world_transform() * new_top_left;
-                let stage = ctx.app_state.stage.get();
-                let width = props
-                    .width
-                    .evaluate((stage.width as f64, stage.height as f64), Axis::X);
-                let height = props
-                    .height
-                    .evaluate((stage.width as f64, stage.height as f64), Axis::Y);
                 let node_box = AxisAlignedBox::new(
                     new_world_top_left,
-                    new_world_top_left + Vector2::new(width, height),
+                    new_world_top_left + Vector2::new(bounds.0, bounds.1),
                 );
 
                 if let Err(e) = ctx.execute(SetBoxSelected {
@@ -198,11 +200,11 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        // move last little distance to pointer up position
-        self.pointer_move(point, ctx);
-
         if let PointerTool::Selecting { .. } = self {
             // TODO select multiple objects
+        } else {
+            // move last little distance to pointer up position
+            // self.pointer_move(point, ctx);
         }
         ControlFlow::Break(())
     }
