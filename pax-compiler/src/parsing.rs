@@ -317,8 +317,8 @@ fn recurse_pratt_parse_to_string<'a>(
         // })
         .map_infix(|lhs, op, rhs| match op.as_rule() {
             Rule::xo_add => {format!("({}+{})", lhs, rhs)},
-            Rule::xo_bool_and => {format!("({}&&{})", lhs, rhs)},
-            Rule::xo_bool_or => {format!("({}||{})", lhs, rhs)},
+            Rule::xo_bool_and => {format!("(({}).op_and({}))", lhs, rhs)},
+            Rule::xo_bool_or => {format!("(({}).op_or({}))", lhs, rhs)},
             Rule::xo_div => {format!("({}/{})", lhs, rhs)},
             Rule::xo_exp => {format!("(({}).pow({}))", lhs, rhs)},
             Rule::xo_mod => {format!("({}%{})", lhs, rhs)},

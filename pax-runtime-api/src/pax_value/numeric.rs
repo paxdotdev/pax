@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{cmp::Ordering, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +83,7 @@ impl_numeric_arith!(Add, add, +);
 impl_numeric_arith!(Sub, sub, -);
 impl_numeric_arith!(Mul, mul, *);
 impl_numeric_arith!(Div, div, /);
+impl_numeric_arith!(Rem, rem, %);
 
 impl std::ops::Neg for Numeric {
     type Output = Self;
@@ -98,6 +99,15 @@ impl std::ops::Neg for Numeric {
             F64(a) => F64(-a),
             ISize(a) => ISize(-a),
             _ => panic!("tried to negate numeric that is unsigned"),
+        }
+    }
+}
+
+impl PartialOrd for Numeric {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        match (self.is_float(), rhs.is_float()) {
+            (false, false) => self.to_int().partial_cmp(&rhs.to_int()),
+            _ => self.to_float().partial_cmp(&rhs.to_float()),
         }
     }
 }
@@ -169,6 +179,13 @@ impl Numeric {
         match self {
             Numeric::F64(_) | Numeric::F32(_) => true,
             _ => false,
+        }
+    }
+
+    pub fn pow(self, exp: Self) -> Self {
+        match (self.is_float(), exp.is_float()) {
+            (false, false) => Numeric::I64(self.to_int().pow(exp.into())),
+            _ => Numeric::F64(self.to_float().powf(exp.to_float())),
         }
     }
 }
