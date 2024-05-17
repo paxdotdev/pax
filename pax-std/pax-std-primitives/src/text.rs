@@ -9,7 +9,6 @@ use pax_std::primitives::Text;
 use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::atomic::AtomicI32;
 #[cfg(feature = "designtime")]
 use {
     kurbo::{RoundedRect, Shape},
@@ -17,7 +16,7 @@ use {
     piet::Color,
 };
 
-use crate::{optional_patch_if_needed, patch_if_needed};
+use crate::patch_if_needed;
 
 pub struct TextInstance {
     base: BaseInstance,

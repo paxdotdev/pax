@@ -457,7 +457,7 @@ export class NativeElementPool {
 
     textDelete(id: number) {
         let oldNode = this.nodesLookup.get(id);
-        this.resizeObserver.observe(oldNode!);
+        this.resizeObserver.unobserve(oldNode!);
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
