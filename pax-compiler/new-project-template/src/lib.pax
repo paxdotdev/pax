@@ -1,34 +1,17 @@
-<Text 
-	text={self.message}
-	class=centered
-	class=small
-	id=text
-	@click=self.increment
-/>
-<Rectangle 
-	class=centered
-	class=small
-    fill={rgb(ticks, 75, 150)}
-    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-/>
+<Group x=50% y=50% width=10% height=10% @click=self.increment >
+    <Text text={self.num_clicks + " clicks"} id=text />
+    <Rectangle
+        fill={rgb(ticks, 75, 150)}
+        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+    />
+</Group>
 
 @settings {
-     @mount: handle_mount
-     @pre_render: handle_pre_render
-     .centered {
-        x: 50%
-        y: 50%
-        anchor_x: 50%
-        anchor_y: 50%
-    }
-    .small {
-        width: 120px
-        height: 120px
-    }
+     @pre_render: handle_pre_render,
     #text {
         style: {
                 font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
-                font_size: 32px,
+                font_size: 22px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Center,
