@@ -69,6 +69,7 @@ impl Action for SelectedIntoNewComponent {
             .map(|e| {
                 let b = e
                     .bounds
+                    .get()
                     .try_into_space(world_transform)
                     .expect("non-valid world transform");
                 MoveToComponentEntry {
@@ -83,6 +84,7 @@ impl Action for SelectedIntoNewComponent {
 
         let tb = selection
             .total_bounds
+            .get()
             .try_into_space(world_transform)
             .expect("non-valid world transform");
         dt.get_orm_mut()
@@ -152,7 +154,7 @@ impl<'a> Action for SetBoxSelected<'a> {
             // (same thing as bellow is done for the y case)
             // equation for new position (since anchor depends on x, solving for x):
             // x = dx + (width/bounds.0)*x =>
-            // x*(1 - (width/bounds.0)) = dx =>
+            // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
             // x = dx/(1 - (width/bounds.0))
             dx / (1.0 - (width / bounds.0))
         };
@@ -162,6 +164,8 @@ impl<'a> Action for SetBoxSelected<'a> {
             // same thing here
             dy / (1.0 - (height / bounds.1))
         };
+        let x = if x.is_nan() { dx } else { x };
+        let y = if y.is_nan() { dy } else { y };
 
         let percentage_x = (x / bounds.0) * 100.0;
         let percentage_y = (y / bounds.1) * 100.0;
@@ -169,11 +173,15 @@ impl<'a> Action for SetBoxSelected<'a> {
         let perc_height = (height / bounds.1) * 100.0;
         if !self.ignore_coord.0 {
             builder.set_property("x", &to_percent(percentage_x))?;
-            builder.set_property("width", &to_percent(perc_width))?;
+            if self.props.width.is_some() {
+                builder.set_property("width", &to_percent(perc_width))?;
+            }
         }
         if !self.ignore_coord.1 {
             builder.set_property("y", &to_percent(percentage_y))?;
-            builder.set_property("height", &to_percent(perc_height))?;
+            if self.props.height.is_some() {
+                builder.set_property("height", &to_percent(perc_height))?;
+            }
         }
 
         builder

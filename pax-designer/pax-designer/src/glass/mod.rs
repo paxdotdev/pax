@@ -152,7 +152,15 @@ impl Glass {
             Some(builder.get_type_id())
         });
         if let Some(node_id) = node_id {
-            model::perform_action(SetEditingComponent(node_id), ctx);
+            let import_path = node_id.import_path();
+            match import_path.as_ref().map(|v| v.as_str()) {
+                Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
+                    // model::perform_action(object_editor::EditText(true), ctx);
+                }
+                // Assume it's a component if it didn't have a custom impl for double click behaviour
+                Some(_) => model::perform_action(SetEditingComponent(node_id), ctx),
+                None => (),
+            }
         }
     }
 
