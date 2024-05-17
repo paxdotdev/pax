@@ -1,4 +1,7 @@
-use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use std::{
+    cmp::Ordering,
+    ops::{Add, Div, Mul, Neg, Rem, Sub},
+};
 
 use crate::{PaxValue, Percent, Size, ToFromPaxValue};
 
@@ -88,6 +91,55 @@ impl PartialEq for PaxValue {
     }
 }
 
+impl PartialOrd for PaxValue {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        match (self, rhs) {
+            (PaxValue::Bool(a), PaxValue::Bool(b)) => a.partial_cmp(b),
+            (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.partial_cmp(b),
+            (PaxValue::String(a), PaxValue::String(b)) => a.partial_cmp(b),
+            (a, b) => panic!("can't compare {:?} and {:?}", a, b),
+        }
+    }
+}
+
+impl Rem for PaxValue {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a % b).to_pax_value(),
+            (a, b) => panic!("can't get remainder of {:?} and {:?}", a, b),
+        }
+    }
+}
+
+impl PaxValue {
+    // the operator && currently can't be overloaded, we use this function instead
+    // NOTE: this does not short circuit in the normal way that && does
+    pub fn op_and(self, rhs: Self) -> bool {
+        match (self, rhs) {
+            (PaxValue::Bool(a), PaxValue::Bool(b)) => a && b,
+            (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
+        }
+    }
+    // the operator || currently can't be overloaded, we use this function instead
+    // NOTE: this does not short circuit in the normal way that && does
+    pub fn op_or(self, rhs: Self) -> bool {
+        match (self, rhs) {
+            (PaxValue::Bool(a), PaxValue::Bool(b)) => a || b,
+            (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
+        }
+    }
+
+    // exponentiation, self ^ exp
+    pub fn pow(self, exp: Self) -> Self {
+        match (self, exp) {
+            (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.pow(b).to_pax_value(),
+            (a, b) => panic!("exponentiation not valid between {:?} and {:?}", a, b),
+        }
+    }
+}
+
 //----------------------------PaxAny Arithmetic-----------------------------
 impl Add for PaxAny {
     type Output = Self;
@@ -133,6 +185,17 @@ impl Div for PaxAny {
     }
 }
 
+impl Rem for PaxAny {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => (a % b).to_pax_any(),
+            _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
+        }
+    }
+}
+
 impl Neg for PaxAny {
     type Output = Self;
 
@@ -148,6 +211,42 @@ impl PartialEq for PaxAny {
     fn eq(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a == b,
+            _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
+        }
+    }
+}
+
+impl PartialOrd for PaxAny {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        match (self, rhs) {
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.partial_cmp(b),
+            _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
+        }
+    }
+}
+
+impl PaxAny {
+    // the operator && currently can't be overloaded, we use this function instead
+    // NOTE: this does not short circuit in the normal way that && does
+    pub fn op_and(self, rhs: Self) -> bool {
+        match (self, rhs) {
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.op_and(b),
+            _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
+        }
+    }
+    // the operator || currently can't be overloaded, we use this function instead
+    // NOTE: this does not short circuit in the normal way that && does
+    pub fn op_or(self, rhs: Self) -> bool {
+        match (self, rhs) {
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.op_or(b),
+            _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
+        }
+    }
+
+    // exponentiation, self ^ exp
+    pub fn pow(self, exp: Self) -> Self {
+        match (self, exp) {
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.pow(b).to_pax_any(),
             _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
         }
     }
