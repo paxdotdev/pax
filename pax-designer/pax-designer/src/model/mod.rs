@@ -72,13 +72,11 @@ pub fn init_model(ctx: &NodeContext) {
     // NOTE: ideally, the dependencies below are at some point removed and
     // replaced by a direct property dependency of expanded nodes in the engine
     // itself
-    let transform = app_state.glass_to_world_transform.clone();
     let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
 
     let deps = [
         comp_id.untyped(),
         node_ids.untyped(),
-        transform.untyped(),
         manifest_ver.untyped(),
     ];
     let selected_bounds = Property::computed(
@@ -195,7 +193,7 @@ impl Interpolatable for SelectionState {}
 
 #[derive(Clone, Default)]
 pub struct SelectionState {
-    total_bounds: AxisAlignedBox,
+    total_bounds: Property<AxisAlignedBox>,
     items: Vec<SelectedItem>,
 }
 
@@ -215,7 +213,7 @@ impl SelectionState {
         self.items.len()
     }
 
-    pub fn total_bounds(&self) -> Option<AxisAlignedBox> {
+    pub fn total_bounds(&self) -> Option<Property<AxisAlignedBox>> {
         if self.items.is_empty() {
             None
         } else {
@@ -229,7 +227,7 @@ pub struct SelectedItem {
     // Most likely don't need all of these
     // TODO figure out axiomatic "root" and
     // create methods that generate the rest
-    pub bounds: AxisAlignedBox,
+    pub bounds: Property<AxisAlignedBox>,
     pub origin: Point2<Glass>,
     pub props: Properties,
     pub id: UniqueTemplateNodeIdentifier,
