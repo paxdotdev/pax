@@ -13,6 +13,7 @@ pub fn compute_tab(
     node: &Rc<ExpandedNode>,
     container_transform: Property<Transform2<NodeLocal, Window>>,
     container_bounds: Property<(f64, f64)>,
+    size_fallback: Property<Option<(f64, f64)>>,
 ) -> (
     Property<Transform2<NodeLocal, Window>>,
     Property<(f64, f64)>,
@@ -31,13 +32,26 @@ pub fn compute_tab(
         container_bounds.untyped(),
         cp_width.untyped(),
         cp_height.untyped(),
+        size_fallback.untyped(),
     ];
 
     let bounds = Property::computed_with_name(
         move || {
             let p_bounds = cp_container_bounds.get();
-            let width = cp_width.get().evaluate(p_bounds, Axis::X);
-            let height = cp_height.get().evaluate(p_bounds, Axis::Y);
+            let (fallback_width, fallback_height) = match size_fallback.get() {
+                Some((x, y)) => (Some(x), Some(y)),
+                None => (None, None),
+            };
+            let width = match (cp_width.get(), fallback_width) {
+                (Some(size), _) => size.evaluate(p_bounds, Axis::X),
+                (_, Some(fallback_width)) => fallback_width,
+                _ => p_bounds.0,
+            };
+            let height = match (cp_height.get(), fallback_height) {
+                (Some(size), _) => size.evaluate(p_bounds, Axis::Y),
+                (_, Some(fallback_height)) => fallback_height,
+                _ => p_bounds.1,
+            };
             (width, height)
         },
         &deps,
@@ -65,17 +79,15 @@ pub fn compute_tab(
         &cp_scale_x,
         &cp_scale_y,
     ]
-    .map(|v| v.as_ref().map(|p| p.untyped()))
-    .into_iter()
-    .flatten();
+    .map(|p| p.untyped())
+    .into_iter();
 
     let other_props = [
-        cp_skew_x.as_ref().map(|p| p.untyped()),
-        cp_skew_y.as_ref().map(|p| p.untyped()),
-        cp_rotate.as_ref().map(|p| p.untyped()),
+        cp_skew_x.untyped(),
+        cp_skew_y.untyped(),
+        cp_rotate.untyped(),
     ]
-    .into_iter()
-    .flatten();
+    .into_iter();
 
     let all_transform_deps: Vec<_> = size_props
         .chain(other_props)
@@ -95,6 +107,7 @@ pub fn compute_tab(
             let node_transform_property_computed = {
                 cp_transform
                     .get()
+                    .unwrap_or_default()
                     .compute_transform2d_matrix(cp_bounds.get(), cp_container_bounds.get())
                     .cast_spaces::<NodeLocal, NodeLocal>()
             };
@@ -104,16 +117,8 @@ pub fn compute_tab(
                 let mut desugared_transform2d = Transform2D::default();
 
                 let translate = [
-                    if let Some(ref val) = cp_x {
-                        val.get()
-                    } else {
-                        Size::ZERO()
-                    },
-                    if let Some(ref val) = cp_y {
-                        val.get()
-                    } else {
-                        Size::ZERO()
-                    },
+                    cp_x.get().unwrap_or(Size::ZERO()),
+                    cp_y.get().unwrap_or(Size::ZERO()),
                 ];
                 desugared_transform2d.translate = Some(translate.clone());
 
@@ -122,46 +127,30 @@ pub fn compute_tab(
                 //     if x/y values are present and have an explicit percent value or component, use those percent values
                 //     otherwise, default to 0
                 let anchor = get_position_adjusted_anchor(
-                    cp_anchor_x.as_ref().map(|v| v.get()),
-                    cp_anchor_y.as_ref().map(|v| v.get()),
+                    cp_anchor_x.get(),
+                    cp_anchor_y.get(),
                     translate[0],
                     translate[1],
                 );
                 desugared_transform2d.anchor = Some(anchor);
 
                 let scale = [
-                    if let Some(ref val) = cp_scale_x {
-                        val.get()
-                    } else {
-                        Size::Percent(Numeric::F64(100.0))
-                    },
-                    if let Some(ref val) = cp_scale_y {
-                        val.get()
-                    } else {
-                        Size::Percent(Numeric::F64(100.0))
-                    },
+                    cp_scale_x
+                        .get()
+                        .unwrap_or(Size::Percent(Numeric::F64(100.0))),
+                    cp_scale_y
+                        .get()
+                        .unwrap_or(Size::Percent(Numeric::F64(100.0))),
                 ];
                 desugared_transform2d.scale = Some(scale);
 
                 let skew = [
-                    if let Some(ref val) = cp_skew_x {
-                        val.get()
-                    } else {
-                        0.0
-                    },
-                    if let Some(ref val) = cp_skew_y {
-                        val.get()
-                    } else {
-                        0.0
-                    },
+                    cp_skew_x.get().unwrap_or(0.0),
+                    cp_skew_y.get().unwrap_or(0.0),
                 ];
                 desugared_transform2d.skew = Some(skew);
 
-                let rotate = if let Some(ref val) = cp_rotate {
-                    val.get()
-                } else {
-                    Default::default()
-                };
+                let rotate = cp_rotate.get().unwrap_or_default();
                 desugared_transform2d.rotate = Some(rotate);
 
                 desugared_transform2d

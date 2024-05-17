@@ -147,11 +147,11 @@ pub trait ComponentFactory {
                 match key.as_str() {
                     {% for common_property in common_properties %}
                     "{{common_property.name}}" => {
-                        let resolved_property: Property<{{common_property.property_type._type_id}}> = match value.clone() {
+                        let resolved_property: Property<Option<{{common_property.property_type._type_id}}>> = match value.clone() {
                             ValueDefinition::LiteralValue(lv) => {
                                 let val = from_pax_try_coerce::<{{common_property.property_type._type_id}}>(&lv.raw_value)
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
-                                Property::new_with_name(val, &lv.raw_value)
+                                Property::new_with_name(Some(val), &lv.raw_value)
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                             {
@@ -169,7 +169,7 @@ pub trait ComponentFactory {
                                     Property::computed_with_name(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                         let coerced = new_value_wrapped.try_coerce::<{{common_property.property_type._type_id}}>().unwrap();
-                                        coerced
+                                        Some(coerced)
                                     }, &dependents, &token.raw_value)
                                 } else {
                                     unreachable!("No info for expression")
@@ -177,11 +177,7 @@ pub trait ComponentFactory {
                             },
                             _ => unreachable!("Invalid value definition for {{common_property.name}}")
                         };
-                        {%if common_property.is_optional %}
-                            cp.{{common_property.name}} = Some(resolved_property)
-                        {% else %}
-                            cp.{{common_property.name}} = resolved_property
-                        {% endif %}
+                        cp.{{common_property.name}} = resolved_property;
                     },
                     {% endfor %}
                     _ => {}

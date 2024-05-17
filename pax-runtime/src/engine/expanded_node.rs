@@ -75,6 +75,9 @@ pub struct ExpandedNode {
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
+    /// Set by chassi, for for example text nodes that get resize info from an interrupt
+    /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
+    size_fallback: Property<Option<(f64, f64)>>,
 
     /// Properties that are currently re-computed each frame before rendering.
     /// Only contains computed_tab atm. Might be possible to retire if tab comp
@@ -170,7 +173,12 @@ impl ExpandedNode {
         let globals = ctx.globals();
         let parent_bounds = globals.viewport.bounds.clone();
         let parent_transform = globals.viewport.transform.clone();
-        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
+        let (transform, bounds) = compute_tab(
+            &root_node,
+            parent_transform,
+            parent_bounds,
+            Property::default(),
+        );
         root_node.layout_properties.bounds.replace_with(bounds);
         root_node
             .layout_properties
@@ -210,6 +218,7 @@ impl ExpandedNode {
             attached: RefCell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
+            size_fallback: Property::default(),
 
             // these two refer to their rendering parent, not their
             // template parent
@@ -319,7 +328,12 @@ impl ExpandedNode {
         let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
         let parent_bounds = parent.layout_properties.bounds.clone();
         let parent_transform = parent.layout_properties.transform.clone();
-        let (transform, bounds) = compute_tab(&self, parent_transform, parent_bounds);
+        let (transform, bounds) = compute_tab(
+            &self,
+            parent_transform,
+            parent_bounds,
+            self.size_fallback.clone(),
+        );
         self.layout_properties.bounds.replace_with(bounds);
         self.layout_properties.transform.replace_with(transform);
     }
@@ -609,6 +623,13 @@ impl ExpandedNode {
     );
     dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
+
+    // fired if the chassi thinks this element should be a different size (in pixels).
+    // usually, this is something the engine has asked for, ie. text nodes
+    // changing size.
+    pub fn chassi_resize_request(self: &Rc<ExpandedNode>, width: f64, height: f64) {
+        self.size_fallback.set(Some((width, height)));
+    }
 }
 
 /// Properties that are currently re-computed each frame before rendering.

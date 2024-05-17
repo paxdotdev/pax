@@ -503,19 +503,19 @@ pub struct CommonProperty {
 
 #[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
-    pub id: Option<Property<String>>,
-    pub x: Option<Property<Size>>,
-    pub y: Option<Property<Size>>,
-    pub scale_x: Option<Property<Size>>,
-    pub scale_y: Option<Property<Size>>,
-    pub skew_x: Option<Property<f64>>,
-    pub skew_y: Option<Property<f64>>,
-    pub rotate: Option<Property<Rotation>>,
-    pub anchor_x: Option<Property<Size>>,
-    pub anchor_y: Option<Property<Size>>,
-    pub transform: Property<Transform2D>,
-    pub width: Property<Size>,
-    pub height: Property<Size>,
+    pub id: Property<Option<String>>,
+    pub x: Property<Option<Size>>,
+    pub y: Property<Option<Size>>,
+    pub scale_x: Property<Option<Size>>,
+    pub scale_y: Property<Option<Size>>,
+    pub skew_x: Property<Option<f64>>,
+    pub skew_y: Property<Option<f64>>,
+    pub rotate: Property<Option<Rotation>>,
+    pub anchor_x: Property<Option<Size>>,
+    pub anchor_y: Property<Option<Size>>,
+    pub transform: Property<Option<Transform2D>>,
+    pub width: Property<Option<Size>>,
+    pub height: Property<Option<Size>>,
 }
 
 impl CommonProperties {
@@ -556,36 +556,16 @@ impl CommonProperties {
     pub fn retrieve_property_scope(&self) -> HashMap<String, UntypedProperty> {
         let mut scope = HashMap::new();
 
-        if let Some(id) = &self.id {
-            scope.insert("id".to_string(), id.untyped());
-        }
-        if let Some(x) = &self.x {
-            scope.insert("x".to_string(), x.untyped());
-        }
-        if let Some(y) = &self.y {
-            scope.insert("y".to_string(), y.untyped());
-        }
-        if let Some(scale_x) = &self.scale_x {
-            scope.insert("scale_x".to_string(), scale_x.untyped());
-        }
-        if let Some(scale_y) = &self.scale_y {
-            scope.insert("scale_y".to_string(), scale_y.untyped());
-        }
-        if let Some(skew_x) = &self.skew_x {
-            scope.insert("skew_x".to_string(), skew_x.untyped());
-        }
-        if let Some(skew_y) = &self.skew_y {
-            scope.insert("skew_y".to_string(), skew_y.untyped());
-        }
-        if let Some(rotate) = &self.rotate {
-            scope.insert("rotate".to_string(), rotate.untyped());
-        }
-        if let Some(anchor_x) = &self.anchor_x {
-            scope.insert("anchor_x".to_string(), anchor_x.untyped());
-        }
-        if let Some(anchor_y) = &self.anchor_y {
-            scope.insert("anchor_y".to_string(), anchor_y.untyped());
-        }
+        scope.insert("id".to_string(), self.id.untyped());
+        scope.insert("x".to_string(), self.x.untyped());
+        scope.insert("y".to_string(), self.y.untyped());
+        scope.insert("scale_x".to_string(), self.scale_x.untyped());
+        scope.insert("scale_y".to_string(), self.scale_y.untyped());
+        scope.insert("skew_x".to_string(), self.skew_x.untyped());
+        scope.insert("skew_y".to_string(), self.skew_y.untyped());
+        scope.insert("rotate".to_string(), self.rotate.untyped());
+        scope.insert("anchor_x".to_string(), self.anchor_x.untyped());
+        scope.insert("anchor_y".to_string(), self.anchor_y.untyped());
         scope.insert("transform".to_string(), self.transform.untyped());
         scope.insert("width".to_string(), self.width.untyped());
         scope.insert("height".to_string(), self.height.untyped());
