@@ -36,6 +36,7 @@ pub enum NativeMessage {
 #[derive(Deserialize)]
 #[repr(C)]
 pub enum NativeInterrupt {
+    ChassiResizeRequest(ChassiResizeRequestArgs),
     Clap(ClapInterruptArgs),
     Scroll(ScrollInterruptArgs),
     TouchStart(TouchStartInterruptArgs),
@@ -60,6 +61,14 @@ pub enum NativeInterrupt {
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ChassiResizeRequestArgs {
+    pub id: u32,
+    pub width: f64,
+    pub height: f64,
 }
 
 #[derive(Deserialize)]

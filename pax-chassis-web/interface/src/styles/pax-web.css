@@ -53,6 +53,7 @@ html, body, #mount, canvas, .native-overlay{
     position: absolute;
     will-change: transform;
     backface-visibility: hidden;
+    background: green;
 }
 
 .clipping-container {

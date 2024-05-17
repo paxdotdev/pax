@@ -9,6 +9,7 @@ use pax_std::primitives::Text;
 use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::AtomicI32;
 #[cfg(feature = "designtime")]
 use {
     kurbo::{RoundedRect, Shape},
@@ -16,7 +17,7 @@ use {
     piet::Color,
 };
 
-use crate::patch_if_needed;
+use crate::{optional_patch_if_needed, patch_if_needed};
 
 pub struct TextInstance {
     base: BaseInstance,
@@ -126,6 +127,15 @@ impl InstanceNode for TextInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
                         let computed_tab = &expanded_node.layout_properties;
                         let (width, height) = computed_tab.bounds.get();
+                        let cp = expanded_node.get_common_properties();
+                        let cp = borrow!(cp);
+                        // send width/height only if common props exist, otherwise we are in "listening mode"
+                        // trying to infer width and height from the engine. To signal this we
+                        // send width/height = -1.0, telling chassis that "you tell me!".
+                        let (width, height) = (
+                            cp.width.get().is_some().then_some(width).unwrap_or(-1.0),
+                            cp.height.get().is_some().then_some(height).unwrap_or(-1.0),
+                        );
 
                         let updates = [
                             // Content

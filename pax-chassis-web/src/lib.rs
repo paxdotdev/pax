@@ -182,6 +182,13 @@ impl PaxChassisWeb {
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match x {
+            NativeInterrupt::ChassiResizeRequest(args) => {
+                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                if let Some(node) = node {
+                    node.chassi_resize_request(args.width, args.height);
+                }
+                false
+            }
             NativeInterrupt::Image(args) => match args {
                 ImageLoadInterruptArgs::Reference(_ref_args) => false,
                 ImageLoadInterruptArgs::Data(data_args) => {
