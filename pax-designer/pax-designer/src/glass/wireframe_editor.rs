@@ -55,7 +55,6 @@ impl WireframeEditor {
         // to that id
         self.on_selection_changed.replace_with(Property::computed(
             move || {
-                log::debug!("on selection changed");
                 let selected = selected_cp.get();
                 let bounds = selected.total_bounds();
                 if let Some(bounds) = bounds {
@@ -287,50 +286,6 @@ fn get_generic_object_editor(selection_bounds: &AxisAlignedBox) -> Editor {
     );
 
     editor
-}
-
-fn bind_text_editor(
-    uid: UniqueTemplateNodeIdentifier,
-    on_tick_after_selection_changed: Property<bool>,
-    tick_after_trigger: Property<bool>,
-    text_binding: Property<String>,
-    ctx: &NodeContext,
-) {
-    let ctx = ctx.clone();
-
-    // keep track of last commited value. otherwise we do infinite recursion
-    // (change manifest -> bellow text trigger re-fires -> change manifest ...)
-    thread_local! {
-        static LAST_UID: Rc<RefCell<Option<UniqueTemplateNodeIdentifier>>> = Rc::new(RefCell::new(None));
-    }
-
-    // TODO: this is messy...
-    // Should probably find a more general framework for this once we have more
-    // than one type of editor.
-    let cp_text_binding = text_binding.clone();
-    let cp_last_uid = LAST_UID.with(|v| v.clone());
-    let cp_ctx = ctx.clone();
-    let mut last_uid = cp_last_uid.borrow_mut();
-    if let Some(l_uid) = &*last_uid {
-        if l_uid != &uid {
-            let mut dt = borrow_mut!(cp_ctx.designtime);
-            if let Some(mut builder) = dt.get_orm_mut().get_node(l_uid.clone()) {
-                log::debug!(
-                    "commiting text: {}, to {:?}",
-                    cp_text_binding.get(),
-                    l_uid.get_template_node_id()
-                );
-                builder
-                    .set_typed_property("text", cp_text_binding.get())
-                    .unwrap();
-                builder.save().unwrap();
-            }
-        }
-        *last_uid = None;
-    }
-
-    let deps = [tick_after_trigger.untyped()];
-    on_tick_after_selection_changed.replace_with(Property::computed(move || false, &deps));
 }
 
 impl Interpolatable for Editor {}

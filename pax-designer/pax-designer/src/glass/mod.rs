@@ -140,7 +140,6 @@ impl Glass {
     }
 
     pub fn handle_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
-        log::debug!("handle double click start");
         let info = model::read_app_state(|app_state| {
             let selected_nodes = app_state.selected_template_node_ids.get();
 
