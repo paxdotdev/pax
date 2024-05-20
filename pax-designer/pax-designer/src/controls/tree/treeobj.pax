@@ -14,7 +14,7 @@ if self.is_not_dummy {
 		path={self.image_path}
 	/>
 	// Label
-	<Text x=80px width={120px} text={self.name} id=text/>
+	<Text x=80px height=100% width={120px} text={self.name} id=text/>
 
 	// Background fill for selection
 	if self.is_selected {
