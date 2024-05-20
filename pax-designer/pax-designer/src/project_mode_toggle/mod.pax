@@ -18,6 +18,8 @@
     @mount: mount
     @click: click
     #text {
+        width: 100%
+        height: 100%
         style: {
             font: {Font::system(
                 "Real Head Pro",

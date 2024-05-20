@@ -23,15 +23,12 @@ use crate::model::{self, action, SelectionState};
 use pax_engine::api::Fill;
 
 #[pax]
-#[file("glass/object_editor.pax")]
-pub struct ObjectEditor {
+#[file("glass/wireframe_editor.pax")]
+pub struct WireframeEditor {
     pub control_points: Property<Vec<ControlPointDef>>,
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
-    pub text_binding: Property<String>,
     pub on_selection_changed: Property<bool>,
-    pub tick_after_trigger: Property<bool>,
-    pub on_tick_after_selection_changed: Property<bool>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -41,8 +38,8 @@ thread_local!(
         RefCell::new(None);
 );
 
-impl ObjectEditor {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
+impl WireframeEditor {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
         let selected = model::read_app_state_with_derived(|_, derived_state| {
             derived_state.selected_bounds.clone()
         });
@@ -51,10 +48,6 @@ impl ObjectEditor {
 
         let control_points = self.control_points.clone();
         let bounding_segments = self.bounding_segments.clone();
-        let on_click_after_selection_changed = self.on_tick_after_selection_changed.clone();
-        let tick_after_trigger = self.tick_after_trigger.clone();
-        let text_binding = self.text_binding.clone();
-        let ctx = ctx.clone();
         // This is an example of hierarchical binding.
         // whenever the selection ID changes,
         // the selection bounds (among other things)
@@ -71,16 +64,6 @@ impl ObjectEditor {
                         Property::computed(move || get_generic_object_editor(&bounds.get()), &deps);
                     bind_props_to_editor(editor, control_points.clone(), bounding_segments.clone());
                 }
-                if let Some(v) = selected.get_single() {
-                    bind_text_editor(
-                        v.id.clone(),
-                        on_click_after_selection_changed.clone(),
-                        tick_after_trigger.clone(),
-                        text_binding.clone(),
-                        &ctx,
-                    );
-                    tick_after_trigger.set(true);
-                }
 
                 true
             },
@@ -96,8 +79,6 @@ impl ObjectEditor {
         // but needed for ORM changes to have taken effect
         // before the expanded node that text selection is
         // connected to get's modified (make it editable)
-        self.on_tick_after_selection_changed.get();
-        // This sets tick_after_trigger
         self.on_selection_changed.get();
     }
 }
@@ -349,41 +330,7 @@ fn bind_text_editor(
     }
 
     let deps = [tick_after_trigger.untyped()];
-    on_tick_after_selection_changed.replace_with(Property::computed(
-        move || {
-            let mut dt = borrow_mut!(ctx.designtime);
-            let import_path = dt
-                .get_orm_mut()
-                .get_node(uid.clone())
-                .expect("node exists")
-                .get_type_id()
-                .import_path();
-
-            match import_path.as_ref().map(|v| v.as_str()) {
-                Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
-                    let node = ctx
-                        .get_nodes_by_global_id(uid.clone())
-                        .into_iter()
-                        .next()
-                        .unwrap();
-
-                    node.with_properties(|text: &mut Text| {
-                        text.editable.set(true);
-                        let text = text.text.clone();
-                        log::debug!("binding to text");
-                        let deps = [text.untyped()];
-                        text_binding.replace_with(Property::computed(move || text.get(), &deps));
-                    });
-                    let last_uid = LAST_UID.with(|v| Rc::clone(v));
-                    let mut last_uid = last_uid.borrow_mut();
-                    *last_uid = Some(uid.clone());
-                }
-                _ => (),
-            }
-            false
-        },
-        &deps,
-    ));
+    on_tick_after_selection_changed.replace_with(Property::computed(move || false, &deps));
 }
 
 impl Interpolatable for Editor {}

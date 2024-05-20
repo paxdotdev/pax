@@ -164,8 +164,8 @@ impl<'a> Action for SetBoxSelected<'a> {
             // same thing here
             dy / (1.0 - (height / bounds.1))
         };
-        let x = if x.is_nan() { dx } else { x };
-        let y = if y.is_nan() { dy } else { y };
+        let x = if x.is_normal() { x } else { 0.0 };
+        let y = if y.is_normal() { y } else { 0.0 };
 
         let percentage_x = (x / bounds.0) * 100.0;
         let percentage_y = (y / bounds.1) * 100.0;

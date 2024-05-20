@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::object_editor::GlassPoint;
+use super::wireframe_editor::GlassPoint;
 use crate::glass;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
@@ -86,7 +86,7 @@ impl Action for ActivateControlPoint {
 
 impl ControlPoint {
     pub fn mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
-        super::object_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
+        super::wireframe_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
                 let behaviour = model::with_action_context(ctx, |ac| {
