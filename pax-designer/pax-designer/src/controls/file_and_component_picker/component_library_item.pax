@@ -1,5 +1,5 @@
-<Text x=15px class=component_text text={self.data.name}/>
-<Text x={-15px} class=path_text text={self.data.file_path}/>
+<Text x=15px width=100% height=100% class=component_text text={self.data.name}/>
+<Text x={-15px} width=100% height=100% class=path_text text={self.data.file_path}/>
 <Rectangle fill=BLACK stroke={color: GRAY, width: 2px}/>
 
 @settings {

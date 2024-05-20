@@ -37,8 +37,11 @@ thread_local! {
 impl LLMInterface {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         let state = OPEN_LLM_PROMPT_PROP.with(|p| p.clone());
-        self.visible.replace_with(state);
+        let deps = [state.untyped()];
+        self.visible
+            .replace_with(Property::computed(move || state.get(), &deps));
     }
+
     pub fn textbox_input(&mut self, _ctx: &NodeContext, args: Event<TextboxInput>) {
         self.request.set(args.text.clone());
     }
