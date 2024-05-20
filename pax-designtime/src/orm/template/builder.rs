@@ -45,10 +45,12 @@ impl<'a> NodeBuilder<'a> {
         orm: &'a mut PaxManifestORM,
         uni: UniqueTemplateNodeIdentifier,
     ) -> Option<Self> {
+        log::debug!("retrieve node start");
         let resp = orm
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
             .unwrap();
-        if let Some(node) = resp.node {
+        log::debug!("retrieve node middle");
+        let res = if let Some(node) = resp.node {
             let location = orm.manifest.get_node_location(&uni);
             Some(NodeBuilder {
                 orm,
@@ -60,7 +62,9 @@ impl<'a> NodeBuilder<'a> {
             })
         } else {
             None
-        }
+        };
+        log::debug!("retrieve node end");
+        res
     }
 
     pub fn get_unique_identifier(&self) -> Option<UniqueTemplateNodeIdentifier> {
