@@ -99,14 +99,20 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             &content,
                         )
                         .expect("Unsuccessful parse");
-
+                        let settings =
+                            pax_compiler::parsing::parse_settings_from_component_definition_string(
+                                &content,
+                                ast.clone(),
+                            );
                         pax_compiler::parsing::parse_template_from_component_definition_string(
                             &mut tpc,
                             &content,
                             ast.clone(),
                         );
 
-                        let new_template = tpc.template;
+                        let mut new_template = tpc.template;
+                        new_template.merge_with_settings(&Some(settings));
+                        new_template.populate_template_with_known_entities(&original_template);
                         let msg =
                             AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
                                 type_id: self_type_id,
