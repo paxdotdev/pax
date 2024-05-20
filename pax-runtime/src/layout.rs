@@ -13,7 +13,6 @@ pub fn compute_tab(
     node: &Rc<ExpandedNode>,
     container_transform: Property<Transform2<NodeLocal, Window>>,
     container_bounds: Property<(f64, f64)>,
-    size_fallback: Property<Option<(f64, f64)>>,
 ) -> (
     Property<Transform2<NodeLocal, Window>>,
     Property<(f64, f64)>,
@@ -24,6 +23,7 @@ pub fn compute_tab(
 
     let cp_container_bounds = container_bounds.clone();
     let common_props = node.get_common_properties();
+    let size_fallback = node.size_fallback.clone();
     let common_props = borrow!(common_props);
     let cp_width = common_props.width.clone();
     let cp_height = common_props.height.clone();
