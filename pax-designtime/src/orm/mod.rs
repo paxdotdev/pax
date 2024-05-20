@@ -219,6 +219,7 @@ impl PaxManifestORM {
         response.set_id(command_id);
         self.next_command_id += 1;
         if response.get_affected_component_type_id().is_some() {
+            log::debug!("inc manifest versioN!!");
             self.manifest_version.update(|v| *v += 1);
         }
         if let Some(reload_type) = response.get_reload_type() {
