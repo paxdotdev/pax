@@ -77,7 +77,7 @@ pub struct ExpandedNode {
     common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
     /// Set by chassi, for for example text nodes that get resize info from an interrupt
     /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
-    size_fallback: Property<Option<(f64, f64)>>,
+    pub size_fallback: Property<Option<(f64, f64)>>,
 
     /// Properties that are currently re-computed each frame before rendering.
     /// Only contains computed_tab atm. Might be possible to retire if tab comp
@@ -173,12 +173,7 @@ impl ExpandedNode {
         let globals = ctx.globals();
         let parent_bounds = globals.viewport.bounds.clone();
         let parent_transform = globals.viewport.transform.clone();
-        let (transform, bounds) = compute_tab(
-            &root_node,
-            parent_transform,
-            parent_bounds,
-            Property::default(),
-        );
+        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
         root_node.layout_properties.bounds.replace_with(bounds);
         root_node
             .layout_properties
@@ -246,15 +241,20 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        Rc::clone(self).recurse_unmount(context);
         let new_expanded_node = Self::new(
             template.clone(),
             Rc::clone(&borrow!(self.parent_expanded_node).upgrade().unwrap().stack),
             context,
             Weak::clone(&self.containing_component),
         );
+        *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
         *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
+        *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
         *borrow_mut!(self.common_properties) =
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
+
+        Rc::clone(self).recurse_mount(context);
         self.bind_to_parent_bounds();
     }
 
@@ -328,12 +328,7 @@ impl ExpandedNode {
         let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
         let parent_bounds = parent.layout_properties.bounds.clone();
         let parent_transform = parent.layout_properties.transform.clone();
-        let (transform, bounds) = compute_tab(
-            &self,
-            parent_transform,
-            parent_bounds,
-            self.size_fallback.clone(),
-        );
+        let (transform, bounds) = compute_tab(&self, parent_transform, parent_bounds);
         self.layout_properties.bounds.replace_with(bounds);
         self.layout_properties.transform.replace_with(transform);
     }

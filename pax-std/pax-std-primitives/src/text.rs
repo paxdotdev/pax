@@ -168,7 +168,6 @@ impl InstanceNode for TextInstance {
                                 computed_tab.transform.get().coeffs().to_vec(),
                             ),
                         ];
-
                         if updates.into_iter().any(|v| v == true) {
                             context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(
                                 patch,
