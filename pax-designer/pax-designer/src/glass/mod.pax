@@ -1,5 +1,5 @@
 <Group @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up>
-    <ObjectEditor/>
+    <WireframeEditor/>
 
     if self.is_rect_tool_active {
         <Rectangle id=rect_tool

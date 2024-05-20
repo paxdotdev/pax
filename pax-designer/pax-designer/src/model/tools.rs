@@ -97,7 +97,8 @@ impl ToolBehaviour for CreateComponentTool {
 
 pub enum PointerTool {
     Moving {
-        mouse_offset_from_top_left: Vector2<Glass>,
+        pickup_point: Point2<Glass>,
+        pickup_origin: Point2<Glass>,
         // Needed to figure out new position,
         // since position now depends on bounds and location
         // in the pos/anchor % behavior, and bounds can
@@ -150,11 +151,11 @@ impl PointerTool {
 
             let transform = ctx.glass_transform() * hit.layout_properties().transform.get();
             let origin = transform * Point2::new(0.0, 0.0);
-            let mouse_offset_from_top_left = point - origin; // ok
 
             let props = hit.common_properties();
             Self::Moving {
-                mouse_offset_from_top_left,
+                pickup_point: point,
+                pickup_origin: origin,
                 bounds: hit.layout_properties().bounds.get(),
                 props,
             }
@@ -175,10 +176,19 @@ impl ToolBehaviour for PointerTool {
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         match self {
             &mut PointerTool::Moving {
-                mouse_offset_from_top_left,
+                pickup_point,
+                pickup_origin,
                 bounds,
                 ref props,
             } => {
+                if (pickup_point - point).length_squared() < 3.0 {
+                    // don't commit any movement for very small pixel changes,
+                    // this creates designtime changes that
+                    // make double click behavior for for example
+                    // text editing not work
+                    return ControlFlow::Continue(());
+                }
+                let mouse_offset_from_top_left = pickup_point - pickup_origin;
                 let new_top_left = point - mouse_offset_from_top_left;
                 let new_world_top_left = ctx.world_transform() * new_top_left;
                 let node_box = AxisAlignedBox::new(
@@ -200,11 +210,10 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        // grigger last bit of movement
+        self.pointer_move(point, ctx);
         if let PointerTool::Selecting { .. } = self {
             // TODO select multiple objects
-        } else {
-            // move last little distance to pointer up position
-            // self.pointer_move(point, ctx);
         }
         ControlFlow::Break(())
     }
