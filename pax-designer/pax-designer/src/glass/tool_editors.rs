@@ -22,7 +22,6 @@ impl Action for TextEdit {
         self: Box<Self>,
         ctx: &mut ActionContext,
     ) -> anyhow::Result<crate::model::action::CanUndo> {
-        log::debug!("set tool to texteditor");
         let tool: Option<Rc<RefCell<dyn ToolBehaviour>>> = Some(Rc::new(RefCell::new(
             TextEditTool::new(ctx, self.uid).expect("should only edit text with text editing tool"),
         )));
@@ -57,7 +56,6 @@ impl TextEditTool {
                     .unwrap();
 
                 node.with_properties(|text: &mut Text| {
-                    log::debug!("set editable to true");
                     text.editable.replace_with(Property::new(true));
                     let text = text.text.clone();
                     let deps = [text.untyped()];
@@ -66,8 +64,6 @@ impl TextEditTool {
             }
             _ => return Err("can't edit non-text node".to_owned()),
         }
-
-        log::debug!("setup text editor finished");
         Ok(Self { uid, text_binding })
     }
 }
@@ -79,33 +75,25 @@ impl ToolBehaviour for TextEditTool {
             if node_id == self.uid.get_template_node_id() {
                 ControlFlow::Continue(())
             } else {
-                // dissable editing capability
-                // let node = ctx
-                //     .engine_context
-                //     .get_nodes_by_global_id(self.uid.clone())
-                //     .into_iter()
-                //     .next()
-                //     .unwrap();
+                let node = ctx
+                    .engine_context
+                    .get_nodes_by_global_id(self.uid.clone())
+                    .into_iter()
+                    .next()
+                    .unwrap();
 
-                // node.with_properties(|text: &mut Text| {
-                //     text.editable.replace_with(Property::new(false));
-                // });
+                node.with_properties(|text: &mut Text| {
+                    text.editable.replace_with(Property::new(false));
+                });
 
-                // commit changes
-
+                // commit text changes
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 if let Some(mut builder) = dt.get_orm_mut().get_node(self.uid.clone()) {
-                    log::debug!(
-                        "commiting text: {}, to {:?}",
-                        self.text_binding.get(),
-                        self.uid.get_template_node_id()
-                    );
                     builder
                         .set_typed_property("text", self.text_binding.get())
                         .unwrap();
                     builder.save().unwrap();
                 }
-                log::debug!("commiting text edit, exiting");
                 ControlFlow::Break(())
             }
         } else {

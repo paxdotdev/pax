@@ -254,7 +254,7 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) {
 
 pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     // useful! keeping around for now
-    // pax_engine::log::debug!("key {:?}: {}", dir, input);
+    // pax_engine::log::info!("key {:?}: {}", dir, input);
     let action = GLOBAL_STATE.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
         let raw_input = RawInput::try_from(input)?;
         let AppState {
