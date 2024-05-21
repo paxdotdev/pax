@@ -13,6 +13,5 @@ for (data, i) in self.particles {
 }
 
 @settings {
-    @tick: tick
     @mount: on_mount
 }
