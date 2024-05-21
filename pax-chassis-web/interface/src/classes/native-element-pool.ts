@@ -31,22 +31,22 @@ export class NativeElementPool {
         this.layers = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
         this.resizeObserver = new ResizeObserver(entries => {
+            let resize_requests = [];
             for (const entry of entries) {
                 let node = entry.target as HTMLElement;
                 let id = parseInt(node.getAttribute("pax_id")!);
                 let width = entry.contentRect.width;
                 let height = entry.contentRect.height;
-                let message = {
-                    "ChassiResizeRequest": {
-                        "id": id,
-                        "width": width,
-                        "height": height,
-                    }
+                let message ={
+                    "id": id,
+                    "width": width,
+                    "height": height,
                 }
-                this.chassis!.interrupt!(JSON.stringify(message), undefined);
+                resize_requests.push(message);
             }
-            //TODO accululate and send interrupt
-            // this.chassis?.interrupt();
+            this.chassis!.interrupt!(JSON.stringify({
+                "ChassiResizeRequestCollection": resize_requests,
+            }), undefined);
         });
     }
 
