@@ -182,7 +182,7 @@ impl PaxChassisWeb {
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match x {
-            NativeInterrupt::ChassiResizeRequestCollection(collection) => {
+            NativeInterrupt::ChassisResizeRequestCollection(collection) => {
                 for args in collection {
                     let node =
                         engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));

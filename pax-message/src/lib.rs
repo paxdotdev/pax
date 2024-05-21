@@ -36,7 +36,7 @@ pub enum NativeMessage {
 #[derive(Deserialize)]
 #[repr(C)]
 pub enum NativeInterrupt {
-    ChassiResizeRequestCollection(Vec<ChassiResizeRequestArgs>),
+    ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
     Clap(ClapInterruptArgs),
     Scroll(ScrollInterruptArgs),
     TouchStart(TouchStartInterruptArgs),
@@ -65,7 +65,7 @@ pub enum NativeInterrupt {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct ChassiResizeRequestArgs {
+pub struct ChassisResizeRequestArgs {
     pub id: u32,
     pub width: f64,
     pub height: f64,
