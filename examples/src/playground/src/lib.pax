@@ -1,7 +1,0 @@
-
-<Text editable=true height=30% text="testingtext"/>
-<Rectangle fill=RED/>
-
-@settings {
-	@mount: on_mount
-}
