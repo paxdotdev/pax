@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::AxisAlignedBox;
+use crate::math::{AxisAlignedBox, Unit};
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
 use crate::{math::BoxPoint, model, model::AppState};
@@ -108,7 +108,10 @@ impl Action for SelectedIntoNewComponent {
 pub struct SetBoxSelected<'a> {
     pub node_box: AxisAlignedBox<World>,
     pub props: &'a Properties,
-    pub ignore_coord: (bool, bool),
+    pub dimension_frozen: (bool, bool),
+    pub set_position: bool,
+    pub set_size: bool,
+    pub unit: Unit,
 }
 
 impl<'a> Action for SetBoxSelected<'a> {
@@ -149,38 +152,60 @@ impl<'a> Action for SetBoxSelected<'a> {
         let x = if let Some(anchor_x) = self.props.anchor_x {
             dx + anchor_x.evaluate((width, height), Axis::X)
         } else {
-            // if anchor is not set to figure out the new "virtual"
-            // anchor point based on wanted top left position and width/height.
-            // (same thing as bellow is done for the y case)
-            // equation for new position (since anchor depends on x, solving for x):
-            // x = dx + (width/bounds.0)*x =>
-            // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
-            // x = dx/(1 - (width/bounds.0))
-            dx / (1.0 - (width / bounds.0))
+            if self.unit == Unit::Percent {
+                // if anchor is not set to figure out the new "virtual"
+                // anchor point based on wanted top left position and width/height.
+                // (same thing as bellow is done for the y case)
+                // equation for new position (since anchor depends on x, solving for x):
+                // x = dx + (width/bounds.0)*x =>
+                // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
+                // x = dx/(1 - (width/bounds.0))
+                dx / (1.0 - (width / bounds.0))
+            } else {
+                dx
+            }
         };
         let y = if let Some(anchor_y) = self.props.anchor_y {
             dy + anchor_y.evaluate((width, height), Axis::Y)
         } else {
-            // same thing here
-            dy / (1.0 - (height / bounds.1))
+            if self.unit == Unit::Percent {
+                // same thing here
+                dy / (1.0 - (height / bounds.1))
+            } else {
+                dy
+            }
         };
         let x = if x.is_normal() { x } else { 0.0 };
         let y = if y.is_normal() { y } else { 0.0 };
 
-        let percentage_x = (x / bounds.0) * 100.0;
-        let percentage_y = (y / bounds.1) * 100.0;
-        let perc_width = (width / bounds.0) * 100.0;
-        let perc_height = (height / bounds.1) * 100.0;
-        if !self.ignore_coord.0 {
-            builder.set_property("x", &to_percent(percentage_x))?;
-            if self.props.width.is_some() {
-                builder.set_property("width", &to_percent(perc_width))?;
+        let (x, y, width, height) = if self.unit == Unit::Percent {
+            let percentage_x = to_percent((x / bounds.0) * 100.0);
+            let percentage_y = to_percent((y / bounds.1) * 100.0);
+            let perc_width = to_percent((width / bounds.0) * 100.0);
+            let perc_height = to_percent((height / bounds.1) * 100.0);
+            (percentage_x, percentage_y, perc_width, perc_height)
+        } else {
+            (
+                to_pixels(x),
+                to_pixels(y),
+                to_pixels(width),
+                to_pixels(height),
+            )
+        };
+        if !self.dimension_frozen.0 {
+            if self.set_position {
+                builder.set_property("x", &x)?;
+            }
+            if self.set_size {
+                builder.set_property("width", &width)?;
             }
         }
-        if !self.ignore_coord.1 {
-            builder.set_property("y", &to_percent(percentage_y))?;
-            if self.props.height.is_some() {
-                builder.set_property("height", &to_percent(perc_height))?;
+        if !self.dimension_frozen.1 {
+            if self.set_position {
+                builder.set_property("y", &y)?;
+            }
+            if self.set_size {
+                builder.set_property("height", &height)?;
             }
         }
 
@@ -221,10 +246,24 @@ impl<'props> Action for ResizeSelected<'props> {
 
         let freeze_x = self.attachment_point.x.abs() <= f64::EPSILON;
         let freeze_y = self.attachment_point.y.abs() <= f64::EPSILON;
+
+        let unit = if ctx
+            .app_state
+            .keys_pressed
+            .read(|keys| keys.contains(&InputEvent::Meta))
+        {
+            Unit::Pixels
+        } else {
+            Unit::Percent
+        };
+
         ctx.execute(SetBoxSelected {
             node_box: new_bounds,
             props: self.props,
-            ignore_coord: (freeze_x, freeze_y),
+            dimension_frozen: (freeze_x, freeze_y),
+            unit,
+            set_position: true,
+            set_size: true,
         })?;
 
         Ok(CanUndo::No)
