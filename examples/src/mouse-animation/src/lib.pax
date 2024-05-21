@@ -18,7 +18,6 @@
 		/>
 	}
 </Group>
-<Rectangle fill=TRANSPARENT/>
 
 @settings {
 	@mouse_move: on_mouse_move
