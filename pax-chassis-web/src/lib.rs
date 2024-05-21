@@ -187,7 +187,7 @@ impl PaxChassisWeb {
                     let node =
                         engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                     if let Some(node) = node {
-                        node.chassi_resize_request(args.width, args.height);
+                        node.chassis_resize_request(args.width, args.height);
                     }
                 }
                 false
