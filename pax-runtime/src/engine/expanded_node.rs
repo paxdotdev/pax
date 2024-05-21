@@ -75,9 +75,9 @@ pub struct ExpandedNode {
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
-    /// Set by chassi, for for example text nodes that get resize info from an interrupt
+    /// Set by chassis, for for example text nodes that get resize info from an interrupt
     /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
-    pub size_fallback: Property<Option<(f64, f64)>>,
+    pub rendered_size: Property<Option<(f64, f64)>>,
 
     /// Properties that are currently re-computed each frame before rendering.
     /// Only contains computed_tab atm. Might be possible to retire if tab comp
@@ -213,7 +213,7 @@ impl ExpandedNode {
             attached: RefCell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
-            size_fallback: Property::default(),
+            rendered_size: Property::default(),
 
             // these two refer to their rendering parent, not their
             // template parent
@@ -619,11 +619,11 @@ impl ExpandedNode {
     dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
 
-    // fired if the chassi thinks this element should be a different size (in pixels).
+    // fired if the chassis thinks this element should be a different size (in pixels).
     // usually, this is something the engine has asked for, ie. text nodes
     // changing size.
-    pub fn chassi_resize_request(self: &Rc<ExpandedNode>, width: f64, height: f64) {
-        self.size_fallback.set(Some((width, height)));
+    pub fn chassis_resize_request(self: &Rc<ExpandedNode>, width: f64, height: f64) {
+        self.rendered_size.set(Some((width, height)));
     }
 }
 

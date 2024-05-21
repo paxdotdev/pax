@@ -23,7 +23,7 @@ pub fn compute_tab(
 
     let cp_container_bounds = container_bounds.clone();
     let common_props = node.get_common_properties();
-    let size_fallback = node.size_fallback.clone();
+    let size_fallback = node.rendered_size.clone();
     let common_props = borrow!(common_props);
     let cp_width = common_props.width.clone();
     let cp_height = common_props.height.clone();
