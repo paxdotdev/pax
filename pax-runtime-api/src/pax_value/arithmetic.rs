@@ -75,6 +75,7 @@ impl Neg for PaxValue {
     fn neg(self) -> Self::Output {
         match self {
             PaxValue::Numeric(a) => (-a).to_pax_value(),
+            PaxValue::Size(a) => (-a).to_pax_value(),
             a => panic!("can't negate {:?}", a),
         }
     }
