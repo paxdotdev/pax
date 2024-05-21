@@ -169,6 +169,7 @@ impl Glass {
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
+        args.prevent_default();
         model::perform_action(
             crate::model::action::pointer::PointerAction {
                 event: Pointer::Down,
