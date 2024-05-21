@@ -1,0 +1,18 @@
+<Resizable dividers={[50px, 50%, (100% - 50px)]}>
+    <Rectangle fill=RED/>
+    <Rectangle fill=GREEN/>
+    <Rectangle fill=BLUE/>
+</Resizable>
+
+@settings {
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 22px,
+                fill: WHITE,
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
