@@ -210,8 +210,9 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        // grigger last bit of movement
+        // move last little distance to pointer up position
         self.pointer_move(point, ctx);
+
         if let PointerTool::Selecting { .. } = self {
             // TODO select multiple objects
         }
