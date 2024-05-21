@@ -48,7 +48,7 @@ impl<'a> NodeBuilder<'a> {
         let resp = orm
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
             .unwrap();
-        let res = if let Some(node) = resp.node {
+        if let Some(node) = resp.node {
             let location = orm.manifest.get_node_location(&uni);
             Some(NodeBuilder {
                 orm,
@@ -60,8 +60,7 @@ impl<'a> NodeBuilder<'a> {
             })
         } else {
             None
-        };
-        res
+        }
     }
 
     pub fn get_unique_identifier(&self) -> Option<UniqueTemplateNodeIdentifier> {
