@@ -16,8 +16,7 @@ use std::rc::Rc;
 pub struct SlotParticles {
     pub config: Property<Config>,
 
-    //private
-    pub particle_len: Property<usize>,
+    // private
     pub persistent_rng_data: Property<Vec<RngData>>,
     pub particles: Property<Vec<ParticleData>>,
 }
@@ -25,11 +24,12 @@ pub struct SlotParticles {
 impl SlotParticles {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let tick = ctx.frames_elapsed.clone();
-        let num = self.particle_len.clone();
+        let num = ctx.slot_children_count.clone();
         let rng = Rc::new(RefCell::new(rand::thread_rng()));
         let bounds = ctx.bounds_self.clone();
         let store = Rc::new(RefCell::new(Vec::new()));
         let config = self.config.clone();
+        let deps = [num.untyped(), self.config.untyped()];
         self.persistent_rng_data.replace_with(Property::computed(
             move || {
                 let mut store = store.borrow_mut();
@@ -54,7 +54,7 @@ impl SlotParticles {
                 }
                 store.clone()
             },
-            &[self.particle_len.untyped(), self.config.untyped()],
+            &deps,
         ));
         let bounds = ctx.bounds_self.clone();
         let base_data = self.persistent_rng_data.clone();
@@ -79,12 +79,6 @@ impl SlotParticles {
                 ctx.bounds_self.untyped(),
             ],
         ));
-    }
-
-    pub fn tick(&mut self, ctx: &NodeContext) {
-        if ctx.slot_children != self.particle_len.get() {
-            self.particle_len.set(ctx.slot_children);
-        }
     }
 }
 
