@@ -72,12 +72,6 @@ impl WireframeEditor {
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         // Fire lazy prop if dirty every tick
-
-        // HACK: This only changes after on_selection_change has set
-        // tick_after_trigger to a new value. Very hacky,
-        // but needed for ORM changes to have taken effect
-        // before the expanded node that text selection is
-        // connected to get's modified (make it editable)
         self.on_selection_changed.get();
     }
 }
