@@ -5,6 +5,12 @@ use pax_runtime_api::Interpolatable;
 
 use crate::math::coordinate_spaces::Glass;
 
+#[derive(PartialEq)]
+pub enum Unit {
+    Pixels,
+    Percent,
+}
+
 pub mod coordinate_spaces {
 
     use pax_engine::math;
