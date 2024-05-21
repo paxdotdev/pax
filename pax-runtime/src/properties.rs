@@ -180,7 +180,6 @@ impl RuntimeContext {
         });
         // TODO this isn't efficient, should make a iterator impl for expanded node instead
         accum.reverse();
-        accum.pop();
         if limit_one {
             accum.truncate(1);
         }
