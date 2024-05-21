@@ -339,7 +339,6 @@ export class NativeElementPool {
 
         let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        textChild.style.userSelect = "none";
         textChild.addEventListener("input", (_event) => {
             let message = {
               "TextInput": {

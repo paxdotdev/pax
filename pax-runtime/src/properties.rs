@@ -189,14 +189,11 @@ impl RuntimeContext {
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
         let res = self.get_elements_beneath_ray(ray, true, vec![]);
-        let res = if res.len() == 0 {
-            None
-        } else if res.len() == 1 {
-            Some(res.get(0).unwrap().clone())
-        } else {
-            unreachable!() //bug in limit_one logic
-        };
-        res
+        Some(
+            res.into_iter()
+                .next()
+                .unwrap_or(borrow!(self.root_node).upgrade().unwrap()),
+        )
     }
 
     pub fn gen_uid(&self) -> ExpandedNodeIdentifier {
