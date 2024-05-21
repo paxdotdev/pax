@@ -45,7 +45,7 @@ export class NativeElementPool {
                 resize_requests.push(message);
             }
             this.chassis!.interrupt!(JSON.stringify({
-                "ChassiResizeRequestCollection": resize_requests,
+                "ChassisResizeRequestCollection": resize_requests,
             }), undefined);
         });
     }
