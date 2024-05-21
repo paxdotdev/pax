@@ -36,7 +36,7 @@ pub enum NativeMessage {
 #[derive(Deserialize)]
 #[repr(C)]
 pub enum NativeInterrupt {
-    ChassiResizeRequest(ChassiResizeRequestArgs),
+    ChassiResizeRequestCollection(Vec<ChassiResizeRequestArgs>),
     Clap(ClapInterruptArgs),
     Scroll(ScrollInterruptArgs),
     TouchStart(TouchStartInterruptArgs),
