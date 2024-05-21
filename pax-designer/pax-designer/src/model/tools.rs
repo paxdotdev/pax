@@ -7,7 +7,7 @@ use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::AxisAlignedBox;
+use crate::math::{AxisAlignedBox, Unit};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::USERLAND_PROJECT_ID;
@@ -196,10 +196,23 @@ impl ToolBehaviour for PointerTool {
                     new_world_top_left + Vector2::new(bounds.0, bounds.1),
                 );
 
+                let unit = if ctx
+                    .app_state
+                    .keys_pressed
+                    .read(|keys| keys.contains(&InputEvent::Meta))
+                {
+                    Unit::Pixels
+                } else {
+                    Unit::Percent
+                };
+
                 if let Err(e) = ctx.execute(SetBoxSelected {
                     node_box,
                     props,
-                    ignore_coord: (false, false),
+                    dimension_frozen: (false, false),
+                    unit,
+                    set_position: true,
+                    set_size: false,
                 }) {
                     pax_engine::log::error!("Error moving selected: {:?}", e);
                 }
