@@ -9,7 +9,31 @@ use std::cmp::Ordering;
 use std::iter;
 
 #[pax]
-#[file("components/resizable.pax")]
+#[inlined(
+    <Group
+        @mouse_down=on_mouse_down
+        @mouse_move=on_mouse_move
+        @mouse_up=on_mouse_up
+    >
+        for s in self.sections {
+            <Group
+                x={s.x}
+                y={s.y}
+                width={s.width}
+                height={s.height}
+                anchor_x=0%
+                anchor_y=0%
+            >
+                slot(s.i)
+            </Group>
+        }
+        <Rectangle fill=rgb(20, 20, 20)/>
+    </Group>
+
+    @settings {
+        @mount: on_mount
+    }
+)]
 pub struct Resizable {
     pub dividers: Property<Vec<Size>>,
     pub direction: Property<ResizableDirection>,

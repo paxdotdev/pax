@@ -47,6 +47,7 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-macro",
     "pax-message",
     "pax-std",
+    "pax-component-library",
     "pax-manifest",
     "pax-lang",
 ];
