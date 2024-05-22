@@ -314,10 +314,10 @@ impl ExpandedNode {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
-                // set frame clipping reference
-                child.bind_to_parent_bounds();
-                child.parent_frame.set(self.parent_frame.get());
                 Rc::clone(child).recurse_mount(context);
+                child.bind_to_parent_bounds();
+                // set frame clipping reference
+                child.parent_frame.set(self.parent_frame.get());
             }
         }
         *curr_children = new_children.clone();
