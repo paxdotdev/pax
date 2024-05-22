@@ -1,7 +1,20 @@
-<Resizable dividers={[50px, 50%, (100% - 50px)]}>
-    <Rectangle fill=RED/>
-    <Rectangle fill=GREEN/>
-    <Rectangle fill=BLUE/>
+<Resizable dividers={[350px, (100% - 350px)]}>
+    <Group>
+        <Tabs names={["tab 1", "tab 2", "tab 3"]} color=rgb(40, 40, 40)>
+            <Group x=50% y=50% width=50% height=50%>
+                <Rectangle fill=BLUE/>
+            </Group>
+            <Group x=50% y=50% width=50% height=50%>
+                <Rectangle fill=INDIGO/>
+            </Group>
+            <Group x=50% y=50% width=50% height=50%>
+                <Rectangle fill=CYAN/>
+            </Group>
+        </Tabs>
+        <Rectangle fill=BLACK/>
+    </Group>
+    <Rectangle fill=rgb(200, 200, 200)/>
+    <Rectangle fill=rgb(40, 40, 40)/>
 </Resizable>
 
 @settings {

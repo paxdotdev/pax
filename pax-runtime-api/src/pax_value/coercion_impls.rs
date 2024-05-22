@@ -137,11 +137,11 @@ impl<T: ImplToFromPaxAny> CoercionRules for T {
     }
 }
 
-impl<T: ToFromPaxAny> CoercionRules for Vec<T> {
+impl<T: ToFromPaxAny + CoercionRules> CoercionRules for Vec<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Vec(vec) => {
-                let res: Result<Vec<_>, _> = vec.into_iter().map(|v| T::from_pax_any(v)).collect();
+                let res: Result<Vec<_>, _> = vec.into_iter().map(|v| v.try_coerce()).collect();
                 res.map_err(|e| format!("couldn't coerce vec, element {:?}", e))
             }
             v => Err(format!(

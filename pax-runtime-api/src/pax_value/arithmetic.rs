@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Rem, Sub},
 };
 
-use crate::{PaxValue, Percent, Size, ToFromPaxValue};
+use crate::{Numeric, PaxValue, Percent, Size, ToFromPaxValue};
 
 use super::{PaxAny, ToFromPaxAny};
 
@@ -26,6 +26,10 @@ impl Add for PaxValue {
             (PaxValue::Percent(a), PaxValue::Percent(b)) => (Percent(a.0 + b.0)).to_pax_value(),
             (PaxValue::Percent(a), PaxValue::Size(b))
             | (PaxValue::Size(b), PaxValue::Percent(a)) => (Size::Percent(a.0) + b).to_pax_value(),
+            (PaxValue::Bool(a), PaxValue::Numeric(b))
+            | (PaxValue::Numeric(b), PaxValue::Bool(a)) => {
+                (Numeric::I64(a as i64) + b).to_pax_value()
+            }
             (a, b) => panic!("can't add {:?} and {:?}", a, b),
         }
     }
@@ -37,6 +41,10 @@ impl Mul for PaxValue {
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a * b).to_pax_value(),
+            (PaxValue::Bool(a), PaxValue::Numeric(b))
+            | (PaxValue::Numeric(b), PaxValue::Bool(a)) => {
+                (Numeric::I64(a as i64) * b).to_pax_value()
+            }
             (a, b) => panic!("can't multiply {:?} and {:?}", a, b),
         }
     }
@@ -117,17 +125,17 @@ impl Rem for PaxValue {
 impl PaxValue {
     // the operator && currently can't be overloaded, we use this function instead
     // NOTE: this does not short circuit in the normal way that && does
-    pub fn op_and(self, rhs: Self) -> bool {
+    pub fn op_and(self, rhs: Self) -> Self {
         match (self, rhs) {
-            (PaxValue::Bool(a), PaxValue::Bool(b)) => a && b,
+            (PaxValue::Bool(a), PaxValue::Bool(b)) => PaxValue::Bool(a && b),
             (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
         }
     }
     // the operator || currently can't be overloaded, we use this function instead
     // NOTE: this does not short circuit in the normal way that && does
-    pub fn op_or(self, rhs: Self) -> bool {
+    pub fn op_or(self, rhs: Self) -> Self {
         match (self, rhs) {
-            (PaxValue::Bool(a), PaxValue::Bool(b)) => a || b,
+            (PaxValue::Bool(a), PaxValue::Bool(b)) => PaxValue::Bool(a || b),
             (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
         }
     }
@@ -229,17 +237,17 @@ impl PartialOrd for PaxAny {
 impl PaxAny {
     // the operator && currently can't be overloaded, we use this function instead
     // NOTE: this does not short circuit in the normal way that && does
-    pub fn op_and(self, rhs: Self) -> bool {
+    pub fn op_and(self, rhs: Self) -> Self {
         match (self, rhs) {
-            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.op_and(b),
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.op_and(b).to_pax_any(),
             _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
         }
     }
     // the operator || currently can't be overloaded, we use this function instead
     // NOTE: this does not short circuit in the normal way that && does
-    pub fn op_or(self, rhs: Self) -> bool {
+    pub fn op_or(self, rhs: Self) -> Self {
         match (self, rhs) {
-            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.op_or(b),
+            (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.op_or(b).to_pax_any(),
             _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
         }
     }

@@ -12,10 +12,18 @@ use std::iter;
 #[file("components/resizable.pax")]
 pub struct Resizable {
     pub dividers: Property<Vec<Size>>,
-    pub sections: Property<Vec<Section>>,
+    pub direction: Property<ResizableDirection>,
 
     // private
+    pub sections: Property<Vec<Section>>,
     pub index_moving: Property<Option<usize>>,
+}
+
+#[pax]
+pub enum ResizableDirection {
+    Vertical,
+    #[default]
+    Horizontal,
 }
 
 #[pax]
@@ -31,12 +39,17 @@ impl Resizable {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let slot_count = ctx.slot_children_count.clone();
         let dividers = self.dividers.clone();
-        let deps = [slot_count.untyped(), dividers.untyped()];
+        let direction = self.direction.clone();
+        let deps = [
+            slot_count.untyped(),
+            dividers.untyped(),
+            direction.untyped(),
+        ];
 
         self.sections.replace_with(Property::computed(
             move || {
                 let divs = dividers.get();
-                if slot_count.get() != divs.len() {
+                if slot_count.get() != divs.len() + 1 {
                     log::warn!("slots in Resizable doesn't match number of Segments")
                 };
 
@@ -46,15 +59,24 @@ impl Resizable {
                 positions.push(Size::default());
                 let mut sections = vec![];
                 for (i, w) in positions.windows(2).enumerate() {
+                    let (pos_main, extent_main) = (w[0].clone(), w[1] - w[0]);
+                    let (pos_off, extent_off) = (Size::ZERO(), Size::default());
+                    let (x, width, y, height) = match direction.get() {
+                        ResizableDirection::Vertical => {
+                            (pos_off, extent_off, pos_main, extent_main)
+                        }
+                        ResizableDirection::Horizontal => {
+                            (pos_main, extent_main, pos_off, extent_off)
+                        }
+                    };
                     sections.push(Section {
-                        x: w[0].clone(),
-                        width: w[1] - w[0],
-                        y: Size::ZERO(),
-                        height: Size::default(),
+                        x,
+                        width,
+                        y,
+                        height,
                         i,
                     })
                 }
-                log::debug!("{:#?}", sections);
                 sections
             },
             &deps,
@@ -63,40 +85,47 @@ impl Resizable {
 
     pub fn on_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
         let bounds = ctx.bounds_self.get();
-        let (x, y) = (event.mouse.x, event.mouse.y);
+
+        let (dim, axis) = match self.direction.get() {
+            ResizableDirection::Vertical => (event.mouse.y, Axis::Y),
+            ResizableDirection::Horizontal => (event.mouse.x, Axis::X),
+        };
         let (closest_ind, distance) = self
             .dividers
             .get()
             .iter()
-            .map(|d| (d.evaluate(bounds, Axis::X) - x).abs())
+            .map(|d| (d.evaluate(bounds, axis) - dim).abs())
             .enumerate()
             .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
             .unwrap_or_default();
         if distance < 10.0 {
             self.index_moving.set(Some(closest_ind));
-            log::debug!("grabbing {:?}", closest_ind);
         }
     }
 
     pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        let x = event.mouse.x;
         let bounds = ctx.bounds_self.get();
+
+        let (dim, bound) = match self.direction.get() {
+            ResizableDirection::Vertical => (event.mouse.y, bounds.1),
+            ResizableDirection::Horizontal => (event.mouse.x, bounds.0),
+        };
+
         if let Some(ind) = self.index_moving.get() {
             self.dividers.update(|dividers| {
-                let mut divider = &mut dividers[ind];
+                let divider = &mut dividers[ind];
                 *divider = match divider.clone() {
-                    Size::Percent(_) => Size::Percent((100.0 * x / bounds.0).into()),
-                    Size::Pixels(_) => Size::Pixels(x.into()),
-                    Size::Combined(_, perc) => Size::Combined(
-                        (x - Size::Percent(perc).evaluate(bounds, Axis::X)).into(),
-                        perc,
-                    ),
+                    Size::Percent(_) => Size::Percent((100.0 * dim / bound).into()),
+                    Size::Pixels(_) => Size::Pixels(dim.into()),
+                    Size::Combined(_, perc) => {
+                        Size::Combined((dim - perc.to_float() * bound / 100.0).into(), perc)
+                    }
                 };
             });
         }
     }
 
-    pub fn on_mouse_up(&mut self, ctx: &NodeContext, event: Event<MouseUp>) {
+    pub fn on_mouse_up(&mut self, _ctx: &NodeContext, _event: Event<MouseUp>) {
         self.index_moving.set(None);
     }
 }

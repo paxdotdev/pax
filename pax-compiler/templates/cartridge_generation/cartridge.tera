@@ -61,7 +61,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                             let elem_borrowed = borrow!(elem);
                             if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
-                                unwrapped
+                                unwrapped.clone()
                             } else {
                                 panic!();//Failed to unpack string from PaxAny
                             }
