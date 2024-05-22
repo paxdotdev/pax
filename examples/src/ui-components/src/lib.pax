@@ -13,7 +13,19 @@
         </Tabs>
         <Rectangle fill=BLACK/>
     </Group>
-    <Rectangle fill=rgb(200, 200, 200)/>
+    <Resizable dividers={[30%, 60%]} direction=ResizableDirection::Vertical>
+        <Rectangle fill=rgb(200, 200, 200) stroke=WHITE/>
+        <Resizable dividers={[30%, 60%]}>
+            <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
+            <Resizable dividers={[30%, 60%]} direction=ResizableDirection::Vertical>
+                <Rectangle fill=rgb(170, 200, 200) stroke=WHITE/>
+                <Rectangle fill=rgb(170, 200, 200) stroke=WHITE/>
+                <Rectangle fill=rgb(170, 200, 200) stroke=WHITE/>
+            </Resizable>
+            <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
+        </Resizable>
+        <Rectangle fill=rgb(200, 200, 200) stroke=WHITE/>
+    </Resizable>
     <Rectangle fill=rgb(40, 40, 40)/>
 </Resizable>
 
