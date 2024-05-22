@@ -1,8 +1,7 @@
 #![allow(unused_imports)]
 
-pub mod components;
-pub use components::resizable::Resizable;
-pub use components::tabs::Tabs;
+pub use pax_component_library::Resizable;
+pub use pax_component_library::Tabs;
 
 use pax_engine::api::*;
 use pax_engine::*;
