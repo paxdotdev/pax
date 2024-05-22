@@ -466,6 +466,7 @@ impl Size {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Axis {
     X,
     Y,

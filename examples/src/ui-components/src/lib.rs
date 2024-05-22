@@ -2,6 +2,7 @@
 
 pub mod components;
 pub use components::resizable::Resizable;
+pub use components::tabs::Tabs;
 
 use pax_engine::api::*;
 use pax_engine::*;
@@ -14,9 +15,6 @@ use pax_std::types::*;
 #[pax]
 #[main]
 #[file("lib.pax")]
-pub struct Example {
-    pub ticks: Property<usize>,
-    pub num_clicks: Property<usize>,
-}
+pub struct Example {}
 
 impl Example {}
