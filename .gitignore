@@ -13,6 +13,7 @@ pax-example/build
 pax-example/.pax/
 pax-create-sandbox/
 examples/src/*/.pax/
+tests/src/*/.pax/
 
 
 **/*.rs.bk
