@@ -18,7 +18,10 @@
         <Resizable dividers={[30%, 60%]}>
             <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
             <Resizable dividers={[40%, 50%]} direction=ResizableDirection::Vertical>
-                <Rectangle fill=rgb(170, 200, 200) stroke=WHITE/>
+                <Group>
+                    <PaxRadioSet options={["roses are red", "greeen is green", "blue is blue", "magenta"]} selected_id={self.selected}/>
+                    <Rectangle fill=rgb(30, 30, 30)/>
+                </Group>
                 <Group>
                     <PaxDropdown options={["hello", "goodbye", "red", "greeen"]} selected_id={self.selected}/>
                 </Group>

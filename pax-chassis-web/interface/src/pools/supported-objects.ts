@@ -14,6 +14,7 @@ import { ButtonUpdatePatch } from "../classes/messages/button-update-patch";
 import { TextboxUpdatePatch } from "../classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "../classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "../classes/messages/slider-update-patch";
+import { RadioSetUpdatePatch } from "../classes/messages/radio-set-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -33,6 +34,7 @@ export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
 export const DROPDOWN_UPDATE_PATCH = "Dropdown Update Patch";
 export const BUTTON_UPDATE_PATCH = "Button Update Patch";
 export const SLIDER_UPDATE_PATCH = "Slider Update Patch";
+export const RADIOSET_UPDATE_PATCH = "Radio Set Update Patch";
 
 export const LAYER = "LAYER";
 export const OCCLUSION_CONTEXT = "Occlusion Context";
@@ -157,6 +159,11 @@ export let SUPPORTED_OBJECTS = [{
         name: SLIDER_UPDATE_PATCH,
         factory: (objectManager: ObjectManager) => new SliderUpdatePatch(objectManager),
         cleanUp: (patch: SliderUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: RADIOSET_UPDATE_PATCH,
+        factory: (objectManager: ObjectManager) => new RadioSetUpdatePatch(objectManager),
+        cleanUp: (patch: RadioSetUpdatePatch) => {patch.cleanUp()},
     },
     {
         name: IMAGE_LOAD_PATCH,
