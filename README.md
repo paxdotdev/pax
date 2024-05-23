@@ -38,7 +38,7 @@ To run the examples in this monorepo:
 
 1. Follow `Get started` instructions above
 2. Clone this repo: `git clone git@github.com:paxengine/pax.git`
-3. Run an example: `cd examples/src/space-game && ./pax run --target=web`.  Update the path and target as needed.  Current examples include:
+3. Run an example: `cd examples/src/space-game && pax-cli run --target=web`.  Update the path and target as needed.  Current examples include:
 
 - `examples/src/fireworks` — showcase of expressions, repeat, and user interactions.  Try scrolling.
 - `examples/src/mouse-animation` — showcase of path animations and user interaction.  Try moving your mouse vertically.
