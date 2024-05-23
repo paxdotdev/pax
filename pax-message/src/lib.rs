@@ -28,6 +28,9 @@ pub enum NativeMessage {
     DropdownCreate(AnyCreatePatch),
     DropdownUpdate(DropdownPatch),
     DropdownDelete(u32),
+    RadioSetCreate(AnyCreatePatch),
+    RadioSetUpdate(RadioSetPatch),
+    RadioSetDelete(u32),
     ButtonCreate(AnyCreatePatch),
     ButtonUpdate(ButtonPatch),
     ButtonDelete(u32),
@@ -66,6 +69,7 @@ pub enum NativeInterrupt {
     FormCheckboxToggle(FormCheckboxToggleArgs),
     FormDropdownChange(FormDropdownChangeArgs),
     FormSliderChange(FormSliderChangeArgs),
+    FormRadioSetChange(FormRadioSetChangeArgs),
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
@@ -105,6 +109,13 @@ pub struct FormDropdownChangeArgs {
 pub struct FormSliderChangeArgs {
     pub id: u32,
     pub value: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormRadioSetChangeArgs {
+    pub id: u32,
+    pub selected_id: u32,
 }
 
 #[derive(Deserialize)]
@@ -373,11 +384,24 @@ pub struct DropdownPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
-    pub text: Option<String>,
     pub background: Option<ColorMessage>,
     pub stroke_color: Option<ColorMessage>,
     pub stroke_width: Option<f64>,
     pub style: Option<TextStyleMessage>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone)]
+#[repr(C)]
+pub struct RadioSetPatch {
+    pub id: u32,
+    pub selected_id: Option<u32>,
+    pub options: Option<Vec<String>>,
+    pub style: Option<TextStyleMessage>,
+    pub background: Option<ColorMessage>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

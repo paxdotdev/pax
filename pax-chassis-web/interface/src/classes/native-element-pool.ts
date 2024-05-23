@@ -15,6 +15,7 @@ import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} f
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
+import { RadioSetUpdatePatch } from "./messages/radio-set-update-patch";
 import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 
 export class NativeElementPool {
@@ -242,6 +243,89 @@ export class NativeElementPool {
             this.nodesLookup.delete(id);
         }
     }
+
+
+    
+    radioSetCreate(patch: AnyCreatePatch) {
+        let fields = document.createElement('fieldset') as HTMLFieldSetElement;
+        fields.style.border = "0";
+        fields.addEventListener('change', (event) => {
+            if (event.target && event.target.matches("input[type='radio']")) {
+                // get the index of the triggered radio button in the fieldset
+                let container = event.target.parentNode;
+                let index = Array.from(container.parentNode.children).indexOf(container);
+                let message = {
+                    "FormRadioSetChange": {
+                        "id": patch.id!,
+                        "selected_id": index,
+                    }
+                }
+                this.chassis!.interrupt(JSON.stringify(message), undefined);
+            }
+        });
+
+        let radioSetDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        radioSetDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        radioSetDiv.setAttribute("pax_id", String(patch.id));
+        radioSetDiv.appendChild(fields);
+
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(radioSetDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, radioSetDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
+        }
+
+    }
+
+    
+    radioSetUpdate(patch: radioSetUpdatePatch) {
+        let leaf = this.nodesLookup.get(patch.id!);
+        updateCommonProps(leaf, patch);
+        let fields = leaf!.firstChild as HTMLFieldSetElement;
+        if (patch.options) {
+            fields!.innerHTML = "";
+            patch.options.forEach((optionText, index) => {
+                let div = document.createElement('div') as HTMLDivElement;
+                const option = document.createElement('input') as HTMLOptionElement;
+                option.type = "radio";
+                option.name = `radio-${patch.id}`;
+                option.value = optionText.toString();
+                div.appendChild(option);
+                const label = document.createElement('label') as HTMLLabelElement;
+                label.innerHTML = optionText.toString();
+                div.appendChild(label);
+                fields.appendChild(div);
+            });
+        }
+
+        if (patch.selected_id) {
+            let radio = fields.children[patch.selected_id].firstChild as HTMLInputElement;
+            if ( radio.checked == false) {
+                radio.checked = true;
+            }
+        }
+
+        if (patch.style) {
+            // might need to for loop over options?
+            applyTextTyle(leaf, leaf, patch.style);
+        }
+
+        // if (patch.background) {
+        //     leaf.style.accent = toCssColor(patch.background);
+        // }
+    }
+
+    radioSetDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
+        }
+    }
+
+    
     sliderCreate(patch: AnyCreatePatch) {
         const slider = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         slider.type = "range";
@@ -754,10 +838,10 @@ function updateCommonProps(leaf: HTMLDivElement, patch: any) {
     let elem = leaf!.firstChild as any;
     // Handle size_x and size_y
     if (patch.size_x != null) {
-        elem.style.width = patch.size_x + "px";
+        elem!.style.width = patch.size_x + "px";
     }
     if (patch.size_y != null) {
-        elem.style.height = patch.size_y + "px";
+        elem!.style.height = patch.size_y + "px";
     }
     // Handle transform
     if (patch.transform != null) {

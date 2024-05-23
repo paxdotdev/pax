@@ -10,7 +10,8 @@ import {
     IMAGE_LOAD_PATCH, OCCLUSION_UPDATE_PATCH, SCROLLER_UPDATE_PATCH,
     SUPPORTED_OBJECTS,
     TEXTBOX_UPDATE_PATCH,
-    TEXT_UPDATE_PATCH
+    TEXT_UPDATE_PATCH,
+    RADIOSET_UPDATE_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
@@ -176,6 +177,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["TextboxDelete"]) {
             let msg = unwrapped_msg["TextboxDelete"];
             nativePool.textboxDelete(msg)
+        }else if(unwrapped_msg["RadioSetCreate"]) {
+            let msg = unwrapped_msg["RadioSetCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.radioSetCreate(patch);
+        } else if (unwrapped_msg["RadioSetUpdate"]){
+            let msg = unwrapped_msg["RadioSetUpdate"]
+            let patch: RadioSetUpdatePatch = objectManager.getFromPool(RADIOSET_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg, nativePool.registeredFontFaces);
+            nativePool.radioSetUpdate(patch);
+        }else if (unwrapped_msg["RadioSetDelete"]) {
+            let msg = unwrapped_msg["RadioSetDelete"];
+            nativePool.radioSetDelete(msg)
         } else if(unwrapped_msg["DropdownCreate"]) {
             let msg = unwrapped_msg["DropdownCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
