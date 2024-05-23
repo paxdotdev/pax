@@ -1,0 +1,16 @@
+[package]
+name = "pax-chassis-ios"
+edition = "2021"
+version = "0.15.1"
+authors = ["Zack Brown <zack@pax.dev>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/paxproject/pax"
+description = "Platform-specific chassis allowing Pax cartridges to be executed as native iOS apps"
+
+[lib]
+name = "paxchassisios"
+crate-type = ["cdylib"]
+
+[dependencies]
+pax-chassis-common = {version = "0.15.1", path="../pax-chassis-common"}

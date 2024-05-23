@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "esbuild": "0.19.8"
+  },
+  "dependencies": {
+    "snarkdown": "^2.0.0"
+  }
+}

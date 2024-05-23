@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Framework name -->
+    <key>CFBundleName</key>
+    <string>PaxCartridge</string>
+
+    <!-- Bundle identifier, usually in reverse DNS format -->
+    <key>CFBundleIdentifier</key>
+    <string>dev.pax.PaxCartridge</string>
+
+    <!-- Version number and build strings -->
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>  <!-- Public version number -->
+
+    <key>CFBundleVersion</key>
+    <string>1</string>  <!-- Internal build number -->
+
+    <!-- Specifies that this bundle is a framework -->
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+
+    <!-- This key specifies the required platform for the framework -->
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>iOS</string>
+        <!-- Add any other platforms as necessary, like "macOS", "tvOS", etc. -->
+    </array>
+
+    <!-- Minimum OS version required by the framework -->
+    <key>MinimumOSVersion</key>
+    <string>15.0</string>
+
+    <!-- Specifies the executable file inside the framework -->
+    <key>CFBundleExecutable</key>
+    <string>PaxCartridge</string>
+
+    <!-- Development region (language) -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+</dict>
+</plist>
+
