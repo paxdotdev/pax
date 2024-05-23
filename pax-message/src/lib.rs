@@ -22,6 +22,9 @@ pub enum NativeMessage {
     TextboxCreate(AnyCreatePatch),
     TextboxUpdate(TextboxPatch),
     TextboxDelete(u32),
+    SliderCreate(AnyCreatePatch),
+    SliderUpdate(SliderPatch),
+    SliderDelete(u32),
     DropdownCreate(AnyCreatePatch),
     DropdownUpdate(DropdownPatch),
     DropdownDelete(u32),
@@ -62,6 +65,7 @@ pub enum NativeInterrupt {
     TextInput(TextInputArgs),
     FormCheckboxToggle(FormCheckboxToggleArgs),
     FormDropdownChange(FormDropdownChangeArgs),
+    FormSliderChange(FormSliderChangeArgs),
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
@@ -94,6 +98,13 @@ pub struct FormTextboxChangeArgs {
 pub struct FormDropdownChangeArgs {
     pub id: u32,
     pub selected_id: u32,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormSliderChangeArgs {
+    pub id: u32,
+    pub value: f64,
 }
 
 #[derive(Deserialize)]
@@ -381,7 +392,6 @@ pub struct SliderPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
-    pub background: Option<ColorMessage>,
     pub accent: Option<ColorMessage>,
 }
 

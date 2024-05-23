@@ -242,6 +242,67 @@ export class NativeElementPool {
             this.nodesLookup.delete(id);
         }
     }
+    sliderCreate(patch: AnyCreatePatch) {
+        const slider = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
+        slider.type = "range";
+        slider.style.padding = "0px";
+        slider.addEventListener("input", (event) => {
+            let message = {
+                "FormSliderChange": {
+                    "id": patch.id!,
+                    "value": parseFloat(slider.value),
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+        });
+
+        let sliderDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        sliderDiv.appendChild(slider);
+        sliderDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        sliderDiv.setAttribute("pax_id", String(patch.id));
+
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(sliderDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, sliderDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
+        }
+
+    }
+
+    
+    sliderUpdate(patch: SliderUpdatePatch) {
+        let leaf = this.nodesLookup.get(patch.id!);
+        updateCommonProps(leaf, patch);
+        let slider = leaf!.firstChild as HTMLTextAreaElement;
+
+        if (patch.value && patch.value != slider.value) {
+            slider.value = patch.value;
+        }
+        if (patch.step && patch.step != slider.step) {
+            slider.step = patch.step;
+        }
+        if (patch.min && patch.min != slider.min) {
+            slider.min = patch.min;
+        }
+        if (patch.max && patch.max != slider.max) {
+            slider.max = patch.max;
+        }
+
+        if (patch.accent) {
+            let color =  toCssColor(patch.accent);   
+            slider.style.accentColor = color;
+        }
+    }
+
+    sliderDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
+        }
+    }
 
     dropdownCreate(patch: AnyCreatePatch) {
         const dropdown = this.objectManager.getFromPool(SELECT) as HTMLSelectElement;
