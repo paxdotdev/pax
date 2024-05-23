@@ -1,0 +1,17 @@
+[package]
+name = "pax-message"
+version = "0.15.1"
+edition = "2021"
+authors = ["Zack Brown <zack@pax.dev>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/paxproject/pax"
+description = "Shared message structs used by Pax runtimes"
+
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = {version = "1.0.159", features=["derive"] }
+wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
