@@ -372,6 +372,22 @@ pub struct DropdownPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+pub struct SliderPatch {
+    pub id: u32,
+    pub value: Option<f64>,
+    pub step: Option<f64>,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub background: Option<ColorMessage>,
+    pub accent: Option<ColorMessage>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone)]
+#[repr(C)]
 pub struct TextboxPatch {
     pub id: u32,
     pub transform: Option<Vec<f64>>,
