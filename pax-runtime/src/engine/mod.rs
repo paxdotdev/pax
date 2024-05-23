@@ -111,8 +111,8 @@ struct ImgData<R: piet::RenderContext> {
 }
 
 pub struct Renderer<R: piet::RenderContext> {
-    pub backends: HashMap<String, R>,
-    pub image_map: HashMap<String, ImgData<R>>,
+    backends: HashMap<String, R>,
+    image_map: HashMap<String, ImgData<R>>,
 }
 
 impl<R: piet::RenderContext> Renderer<R> {

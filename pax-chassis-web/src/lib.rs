@@ -182,6 +182,13 @@ impl PaxChassisWeb {
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match &x {
+            NativeInterrupt::FormSliderChange(args) => {
+                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                if let Some(node) = node {
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                }
+                false
+            }
             NativeInterrupt::FormDropdownChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {

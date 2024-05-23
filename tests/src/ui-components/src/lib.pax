@@ -22,7 +22,7 @@
                 <Group>
                     <PaxDropdown options={["hello", "goodbye", "red", "greeen"]} selected_id={self.selected}/>
                 </Group>
-                <Rectangle fill=rgb(170, 200, 200) stroke=WHITE/>
+                <PaxSlider/>
             </Resizable>
             <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
         </Resizable>

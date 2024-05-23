@@ -8,6 +8,7 @@ pub mod image;
 pub mod path;
 pub mod rectangle;
 pub mod scrollbar;
+pub mod slider;
 pub mod text;
 pub mod textbox;
 

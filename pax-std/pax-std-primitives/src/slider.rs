@@ -103,34 +103,29 @@ impl InstanceNode for SliderInstance {
                                 computed_tab.transform.get().coeffs().to_vec(),
                             ),
                             patch_if_needed(
-                                &mut old_state.style,
-                                &mut patch.style,
-                                (&properties.style.get()).into(),
+                                &mut old_state.accent,
+                                &mut patch.accent,
+                                (&properties.accent.get()).into(),
                             ),
                             patch_if_needed(
-                                &mut old_state.stroke_color,
-                                &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get()).into(),
+                                &mut old_state.value,
+                                &mut patch.value,
+                                properties.value.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.stroke_width,
-                                &mut patch.stroke_width,
-                                properties.stroke.get().width.get().get_pixels(width),
+                                &mut old_state.step,
+                                &mut patch.step,
+                                properties.step.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.background,
-                                &mut patch.background,
-                                (&properties.background.get()).into(),
+                                &mut old_state.min,
+                                &mut patch.min,
+                                properties.min.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.selected_id,
-                                &mut patch.selected_id,
-                                properties.selected_id.get(),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.options,
-                                &mut patch.options,
-                                properties.options.get(),
+                                &mut old_state.max,
+                                &mut patch.max,
+                                properties.max.get(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {
@@ -171,9 +166,9 @@ impl InstanceNode for SliderInstance {
         interrupt: &NativeInterrupt,
     ) {
         if let NativeInterrupt::FormSliderChange(args) = interrupt {
-            expanded_node.with_properties_unwrapped(|props: &mut Slider| {
-                props.selected_id.set(args.selected_id)
-            });
+            log::debug!("slider value set to {}", args.value);
+            expanded_node
+                .with_properties_unwrapped(|props: &mut Slider| props.value.set(args.value));
         }
     }
 }
