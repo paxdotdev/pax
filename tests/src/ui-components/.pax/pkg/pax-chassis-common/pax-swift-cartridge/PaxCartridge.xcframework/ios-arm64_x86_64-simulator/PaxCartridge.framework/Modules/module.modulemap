@@ -1,0 +1,5 @@
+framework module PaxCartridge {
+    umbrella header "../Headers/PaxCartridge.h"
+    export *
+    module * { export * }
+}

@@ -30,6 +30,7 @@ exclude = [
     "pax-compiler/new-project-template",
     "pax-create-sandbox",
     "examples",
+    "tests",
     "www.pax.dev/src/website",
 ]
 

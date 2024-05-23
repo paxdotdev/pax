@@ -1,0 +1,184 @@
+<% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
+    // For the main (application-root) component only, a `main` is generated for the `parser` bin target.
+    // This method bootstraps the parsing process, parsing not only the main/application-root component
+    // but every component/primitive found in its extended render tree. This main method
+    // also returns the parsed, serialized PaxManifest via stdio (println)
+    #[cfg(feature = "parser")]
+    pub fn main() {
+
+        let mut ctx = pax_compiler::parsing::ParsingContext::default();
+
+        let (mut ctx, _) = <<%= pascal_identifier %> as pax_compiler::parsing::Reflectable>::parse_to_manifest(ctx);
+
+        //Special-case pax_runtime::api built-ins, ensure they're imported at least once because it's a built-in but must be surfaced through
+        //the userland project in order to ensure deduping
+        ctx.import_paths.insert(<pax_engine::api::Size as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Color as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::ColorChannel as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Numeric as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Rotation as pax_compiler::parsing::Reflectable>::get_import_path());
+        ctx.import_paths.insert(<pax_engine::api::Transform2D as pax_compiler::parsing::Reflectable>::get_import_path());
+
+        let manifest = pax_manifest::PaxManifest {
+            components: ctx.component_definitions,
+            main_component_type_id: ctx.main_component_type_id,
+            expression_specs: None,
+            type_table: ctx.type_table,
+            import_paths: ctx.import_paths,
+        };
+
+
+        //Send data back to parent process by printing to stdout
+        println!("{}", &serde_json::to_string_pretty(&manifest).unwrap());
+        std::process::exit(0);
+
+    }
+
+    //For main component only, and only when we're NOT parsing, include reexports
+    //Parsing is excluded because the `pub mod pax_reexports` snippet can only be generated
+    //after parsing.
+
+    <%= args_full_component.as_ref().unwrap().reexports_snippet %>
+<% } %>
+
+<% if !is_custom_interpolatable { %>
+    impl pax_engine::api::Interpolatable for <%= pascal_identifier %> {}
+<% } %>
+
+#[cfg(feature = "parser")]
+impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
+
+    fn get_self_pascal_identifier() -> String {
+        "<%= pascal_identifier %>".to_string()
+    }
+
+    fn get_import_path() -> String {
+        let PASCAL_IDENTIFIER  = <%= pascal_identifier %>::get_self_pascal_identifier();
+        let chopped_type = {
+            if PASCAL_IDENTIFIER.contains("::") {
+                PASCAL_IDENTIFIER.split("::").last().unwrap().to_string()
+            } else {
+                PASCAL_IDENTIFIER
+            }
+        };
+        pax_compiler::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
+    }
+
+    fn get_type_id() -> pax_manifest::TypeId {
+       pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
+    }
+
+    fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
+         <% if args_full_component.as_ref().is_some() { %>
+            <% if args_full_component.as_ref().unwrap().error_message.is_some() { %>
+                //Error message for main component
+                let error_message = "<%= args_full_component.as_ref().unwrap().error_message.as_ref().unwrap() %>";
+                eprintln!("{}", error_message);
+                std::process::exit(1);
+            <% } %>
+        <% } %>
+        
+        let self_type_id = <%= pascal_identifier %>::get_type_id();
+        let mut property_definitions : Vec<pax_manifest::PropertyDefinition> = vec![];
+        let self_import_path = <%= pascal_identifier %>::get_import_path();
+        ctx.import_paths.insert(self_import_path);
+
+        // Populate `PropertyDefinition`s
+        <% for spd in &static_property_definitions { %>
+
+            //Special-handle the root scoped_resolvable_type (the one whose properties
+            //must be available as nested symbols in PAXEL, like `foo.bar`).
+            let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_to_manifest(ctx);
+
+            <% for scoped_resolvable_type in &spd.scoped_resolvable_types { %>
+                ctx.import_paths.insert(<%= scoped_resolvable_type %>::get_import_path());
+
+                //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
+                let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_to_manifest(ctx);
+            <% } %>
+
+            let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
+
+            let mut flags = pax_manifest::PropertyDefinitionFlags::default();
+            flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
+            flags.is_enum = <%= spd.is_enum %>;
+            property_definitions.push(pax_manifest::PropertyDefinition {
+                name: "<%= spd.field_name %>".to_string(),
+                type_id: property_type_id,
+                flags,
+            });
+        <% } %>
+
+        match &ctx.visited_type_ids.get(&self_type_id) {
+            None => {
+                //First time visiting this file/source
+
+                <% if args_full_component.as_ref().is_some() { %>
+                    <% for dep in args_full_component.as_ref().unwrap().template_dependencies.clone() { %>
+                    let (mut ctx, _properties) = <%= dep %>::parse_to_manifest(ctx);
+                    let dep_type_id = <%= dep %>::get_type_id();
+                    ctx.template_map.insert("<%= dep %>".into(), dep_type_id);
+                    <% } %>
+                    //FUTURE: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
+                    const raw_pax: &str = r#####"
+                        <%= args_full_component.as_ref().unwrap().raw_pax %>
+                    "#####;
+                <% } %>
+
+                ctx.visited_type_ids.insert(self_type_id.clone().into());
+
+                let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
+                let import_path = <%= pascal_identifier %>::get_import_path();
+
+                let (mut ctx, self_type_definition) =  pax_compiler::parsing::assemble_type_definition(
+                    ctx,
+                    property_definitions.clone(),
+                    None,
+                    self_type_id.clone(),
+                );
+
+                <% if args_full_component.as_ref().is_some() { %>
+                    // Get source file path for write-back
+                    let mut component_source_file_path = file!().to_string();
+                    <% if args_full_component.as_ref().unwrap().associated_pax_file_path.is_some() { %>
+                        component_source_file_path = r"<%= args_full_component.as_ref().unwrap().associated_pax_file_path.as_ref().unwrap() %>".to_string();
+                    <% } %>   
+
+                    let template_map = ctx.template_map.clone();
+                    let (mut ctx, comp_def) =
+                        pax_compiler::parsing::assemble_component_definition(
+                            ctx,
+                            &raw_pax,
+                            <%= args_full_component.as_ref().unwrap().is_main_component %>,
+                            template_map,
+                            &pax_compiler::parsing::clean_module_path(module_path!()),
+                            self_type_id.clone(),
+                            &component_source_file_path,
+                        );
+                <% } %>
+                <% if args_struct_only_component.as_ref().is_some() { %>
+                    let (mut ctx, comp_def) =
+                        pax_compiler::parsing::assemble_struct_only_component_definition(
+                            ctx,
+                            &pax_compiler::parsing::clean_module_path(module_path!()),
+                            self_type_id.clone(),
+                        );
+                <% } %>
+                <% if args_primitive.as_ref().is_some() { %>
+                    let comp_def = pax_compiler::parsing::assemble_primitive_definition(
+                        &pax_compiler::parsing::clean_module_path(module_path!()),
+                        "<%=  args_primitive.as_ref().unwrap().primitive_instance_import_path  %>".to_string(),
+                        self_type_id.clone(),
+                    );
+                <% } %>
+
+                ctx.component_definitions
+                    .insert(self_type_id.clone(), comp_def);
+
+                (ctx, property_definitions)
+            },
+            _ => (ctx, property_definitions), //early return; this file has already been parsed
+        }
+    }
+
+}

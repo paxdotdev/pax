@@ -1,0 +1,57 @@
+[package]
+name = "pax-chassis-web"
+version = "0.15.1"
+authors = ["Zack Brown <zack@pax.dev>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/paxproject/pax"
+description = "Platform-specific chassis allowing Pax cartridges to be executed as Web apps"
+include = ["/src", "/interface/public"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+piet = "0.6.0"
+piet-web = "0.6.0"
+pax-runtime = { path = "../pax-runtime", version="0.15.1" }
+pax-cartridge = {path="../pax-cartridge", version="0.15.1"}
+pax-message = {path = "../pax-message", version="0.15.1"}
+pax-runtime-api = { path = "../pax-runtime-api", version="0.15.1" }
+wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
+serde_json = "1.0.95"
+console_log = "1.0.0"
+log = "0.4.20"
+console_error_panic_hook = { version = "0.1.6", optional = true }
+js-sys = "0.3.63"
+
+[dependencies.web-sys]
+version = "0.3.10"
+features = ["Navigator", "console", "CanvasRenderingContext2d", "Window", "Document", "Element", "HtmlCanvasElement", "Event", "HtmlCollection"]
+
+[profile.release]
+lto = true
+opt-level = "z" 
+codegen-units = 1  
+
+[patch.crates-io]
+pax-cartridge = { path = "../pax-cartridge" }
+pax-chassis-common = { path = "../pax-chassis-common" }
+pax-chassis-ios = { path = "../pax-chassis-ios" }
+pax-chassis-macos = { path = "../pax-chassis-macos" }
+pax-chassis-web = { path = "../pax-chassis-web" }
+pax-cli = { path = "../pax-cli" }
+pax-compiler = { path = "../pax-compiler" }
+pax-runtime = { path = "../pax-runtime" }
+pax-runtime-api = { path = "../pax-runtime-api" }
+pax-engine = { path = "../pax-engine" }
+pax-macro = { path = "../pax-macro" }
+pax-message = { path = "../pax-message" }
+pax-std = { path = "../pax-std" }
+pax-component-library = { path = "../pax-component-library" }
+pax-manifest = { path = "../pax-manifest" }
+pax-lang = { path = "../pax-lang" }
