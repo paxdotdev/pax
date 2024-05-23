@@ -8,7 +8,6 @@ use std::cmp::Ordering;
 use std::iter;
 
 use crate::common;
-
 #[pax]
 #[inlined(
     <RadioSet
