@@ -123,19 +123,11 @@ export class NativeElementPool {
     checkboxUpdate(patch: CheckboxUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         let checkbox = leaf!.firstChild as HTMLInputElement;
+
+        updateCommonProps(leaf, patch);
+
         if (patch.checked !== null) {
             checkbox!.checked = patch.checked!;
-        }
-        // Handle size_x and size_y
-        if (patch.size_x != null) {
-            checkbox.style.width = patch.size_x + "px";
-        }
-        if (patch.size_y != null) {
-            checkbox.style.height = patch.size_y + "px";
-        }
-        // Handle transform
-        if (patch.transform != null) {
-            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
@@ -188,6 +180,7 @@ export class NativeElementPool {
     
     textboxUpdate(patch: TextboxUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        updateCommonProps(leaf, patch);
         let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
         applyTextTyle(textbox, textbox, patch.style);
@@ -236,18 +229,6 @@ export class NativeElementPool {
 
         }
        
-        // Handle size_x and size_y
-        if (patch.size_x != null) {
-            textbox.style.width = patch.size_x - 1 + "px";
-        }
-        if (patch.size_y != null) {
-            textbox.style.height = patch.size_y + "px";
-        }
-        // Handle transform
-        if (patch.transform != null) {
-            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-        }
-
         if (patch.focus_on_mount) {
             setTimeout(() => { textbox.focus(); }, 10);
         }
@@ -292,6 +273,7 @@ export class NativeElementPool {
     
     dropdownUpdate(patch: DropdownUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        updateCommonProps(leaf, patch);
         let dropdown = leaf!.firstChild as HTMLSelectElement;
         applyTextTyle(dropdown, dropdown, patch.style);
         dropdown.style.borderStyle = "solid";
@@ -322,18 +304,6 @@ export class NativeElementPool {
                 option.textContent = optionText;
                 dropdown.appendChild(option);
             });
-        }
-       
-        // Handle size_x and size_y
-        if (patch.size_x != null) {
-            dropdown.style.width = patch.size_x + "px";
-        }
-        if (patch.size_y != null) {
-            dropdown.style.height = patch.size_y + "px";
-        }
-        // Handle transform
-        if (patch.transform != null) {
-            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
@@ -382,6 +352,7 @@ export class NativeElementPool {
     
     buttonUpdate(patch: ButtonUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        updateCommonProps(leaf, patch);
         console.assert(leaf !== undefined);
         let button = leaf!.firstChild as HTMLElement;
         let textContainer = button!.firstChild as HTMLElement;
@@ -395,18 +366,6 @@ export class NativeElementPool {
 
         
         applyTextTyle(textContainer, textChild, patch.style);
-
-        // Handle size_x and size_y
-        if (patch.size_x != null) {
-            button.style.width = patch.size_x - 1 + "px";
-        }
-        if (patch.size_y != null) {
-            button.style.height = patch.size_y + "px";
-        }
-        // Handle transform
-        if (patch.transform != null) {
-            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-        }
     }
 
     buttonDelete(id: number) {
@@ -728,4 +687,19 @@ function sanitizeContentEditableString(string: string): string {
         .replace(/<br\s*\/*>/ig, '\n') 
         .replace(/(<(p|div))/ig, '\n$1') 
         .replace(/(<([^>]+)>)/ig, "")?? '');
+}
+
+function updateCommonProps(leaf: HTMLDivElement, patch: any) {
+    let elem = leaf!.firstChild as any;
+    // Handle size_x and size_y
+    if (patch.size_x != null) {
+        elem.style.width = patch.size_x + "px";
+    }
+    if (patch.size_y != null) {
+        elem.style.height = patch.size_y + "px";
+    }
+    // Handle transform
+    if (patch.transform != null) {
+        leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+    }
 }
