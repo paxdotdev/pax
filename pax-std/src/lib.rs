@@ -87,22 +87,21 @@ pub mod primitives {
     #[pax]
     #[primitive("pax_std_primitives::dropdown::DropdownInstance")]
     pub struct Dropdown {
-        pub value: Property<f64>,
-        pub step: Property<f64>,
-        pub min: Property<f64>,
-        pub max: Property<f64>,
-        pub background: Property<Color>,
-        pub accent: Property<Color>,
-    }
-
-    #[pax]
-    #[primitive("pax_std_primitives::slider::SliderInstance")]
-    pub struct Slider {
         pub options: Property<Vec<String>>,
         pub selected_id: Property<u32>,
         pub style: Property<TextStyle>,
         pub background: Property<Color>,
         pub stroke: Property<Stroke>,
+    }
+
+    #[pax]
+    #[primitive("pax_std_primitives::slider::SliderInstance")]
+    pub struct Slider {
+        pub value: Property<f64>,
+        pub step: Property<f64>,
+        pub min: Property<f64>,
+        pub max: Property<f64>,
+        pub accent: Property<Color>,
     }
 
     #[pax]

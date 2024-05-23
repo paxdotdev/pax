@@ -2,6 +2,7 @@ import type {PaxChassisWeb} from "./types/pax-chassis-web";
 import {ObjectManager} from "./pools/object-manager";
 import {
     ANY_CREATE_PATCH,
+    SLIDER_UPDATE_PATCH,
     BUTTON_UPDATE_PATCH,
     CHECKBOX_UPDATE_PATCH,
     DROPDOWN_UPDATE_PATCH,
@@ -24,6 +25,7 @@ import { OcclusionUpdatePatch } from "./classes/messages/occlusion-update-patch"
 import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
 import { TextboxUpdatePatch } from "./classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "./classes/messages/dropdown-update-patch";
+import { SliderUpdatePatch } from "./classes/messages/slider-update-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -135,7 +137,20 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["ButtonDelete"]) {
             let msg = unwrapped_msg["ButtonDelete"];
             nativePool.buttonDelete(msg)
-        } else if(unwrapped_msg["CheckboxCreate"]) {
+        } else if(unwrapped_msg["SliderCreate"]) {
+            let msg = unwrapped_msg["SliderCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.sliderCreate(patch);
+        } else if (unwrapped_msg["SliderUpdate"]){
+            let msg = unwrapped_msg["SliderUpdate"]
+            let patch: SliderUpdatePatch = objectManager.getFromPool(SLIDER_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg);
+            nativePool.sliderUpdate(patch);
+        }else if (unwrapped_msg["SliderDelete"]) {
+            let msg = unwrapped_msg["SliderDelete"];
+            nativePool.sliderDelete(msg)
+        }else if(unwrapped_msg["CheckboxCreate"]) {
             let msg = unwrapped_msg["CheckboxCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
