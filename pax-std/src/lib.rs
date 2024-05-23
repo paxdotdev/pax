@@ -95,6 +95,15 @@ pub mod primitives {
     }
 
     #[pax]
+    #[primitive("pax_std_primitives::radio_set::RadioSetInstance")]
+    pub struct RadioSet {
+        pub options: Property<Vec<String>>,
+        pub selected_id: Property<u32>,
+        pub style: Property<TextStyle>,
+        pub background: Property<Color>,
+    }
+
+    #[pax]
     #[primitive("pax_std_primitives::slider::SliderInstance")]
     pub struct Slider {
         pub value: Property<f64>,

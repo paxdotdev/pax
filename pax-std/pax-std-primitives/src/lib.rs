@@ -6,6 +6,7 @@ pub mod frame;
 pub mod group;
 pub mod image;
 pub mod path;
+pub mod radio_set;
 pub mod rectangle;
 pub mod scrollbar;
 pub mod slider;
