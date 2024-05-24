@@ -1,0 +1,564 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1486C80F2ACE4E48003AB8B8 /* PaxCartridge in Frameworks */ = {isa = PBXBuildFile; productRef = 1486C80E2ACE4E48003AB8B8 /* PaxCartridge */; };
+		1486C8112ACE4E48003AB8B8 /* PaxCartridgeAssets in Frameworks */ = {isa = PBXBuildFile; productRef = 1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */; };
+		14A8ED632ADE1A7C00292406 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
+		14A8ED642ADE1A7C00292406 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
+		14A8ED662ADE1A7C00292406 /* Messages in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5D2ADE1A7C00292406 /* Messages */; };
+		14A8ED672ADE1A7C00292406 /* FlexBuffers in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5C2ADE1A7C00292406 /* FlexBuffers */; };
+		14A8ED682ADE1A7C00292406 /* PaxCartridge in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5F2ADE1A7C00292406 /* PaxCartridge */; };
+		14A8ED692ADE1A7C00292406 /* PaxCartridgeAssets in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */; };
+		14A8ED6A2ADE1A7C00292406 /* Rendering in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5E2ADE1A7C00292406 /* Rendering */; };
+		14A8ED6C2ADE1A7C00292406 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */; };
+		14A8ED6D2ADE1A7C00292406 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
+		14FDCD492ACC9D690060F532 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
+		14FDCD4B2ACC9D690060F532 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
+		14FDCD4D2ACC9D6A0060F532 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
+		14FDCD502ACC9D6A0060F532 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */; };
+		14FDCD592ACC9E7B0060F532 /* FlexBuffers in Frameworks */ = {isa = PBXBuildFile; productRef = 14FDCD582ACC9E7B0060F532 /* FlexBuffers */; };
+		14FDCD5B2ACC9E7B0060F532 /* Messages in Frameworks */ = {isa = PBXBuildFile; productRef = 14FDCD5A2ACC9E7B0060F532 /* Messages */; };
+		14FDCD5D2ACC9E7B0060F532 /* Rendering in Frameworks */ = {isa = PBXBuildFile; productRef = 14FDCD5C2ACC9E7B0060F532 /* Rendering */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		14A8ED712ADE1A7C00292406 /* Pax macOS (Release).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS (Release).app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		14FDCD452ACC9D690060F532 /* Pax macOS (Development).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS (Development).app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		14FDCD482ACC9D690060F532 /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
+		14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxViewMacos.swift; sourceTree = "<group>"; };
+		14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		14FDCD512ACC9D6A0060F532 /* pax_app_macos.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = pax_app_macos.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		14A8ED652ADE1A7C00292406 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A8ED662ADE1A7C00292406 /* Messages in Frameworks */,
+				14A8ED672ADE1A7C00292406 /* FlexBuffers in Frameworks */,
+				14A8ED682ADE1A7C00292406 /* PaxCartridge in Frameworks */,
+				14A8ED692ADE1A7C00292406 /* PaxCartridgeAssets in Frameworks */,
+				14A8ED6A2ADE1A7C00292406 /* Rendering in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		14FDCD422ACC9D690060F532 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14FDCD5B2ACC9E7B0060F532 /* Messages in Frameworks */,
+				14FDCD592ACC9E7B0060F532 /* FlexBuffers in Frameworks */,
+				1486C80F2ACE4E48003AB8B8 /* PaxCartridge in Frameworks */,
+				1486C8112ACE4E48003AB8B8 /* PaxCartridgeAssets in Frameworks */,
+				14FDCD5D2ACC9E7B0060F532 /* Rendering in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1486C80D2ACE4E48003AB8B8 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		14FDCD3C2ACC9D690060F532 = {
+			isa = PBXGroup;
+			children = (
+				14FDCD472ACC9D690060F532 /* pax-app-macos */,
+				14FDCD462ACC9D690060F532 /* Products */,
+				1486C80D2ACE4E48003AB8B8 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		14FDCD462ACC9D690060F532 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				14FDCD452ACC9D690060F532 /* Pax macOS (Development).app */,
+				14A8ED712ADE1A7C00292406 /* Pax macOS (Release).app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		14FDCD472ACC9D690060F532 /* pax-app-macos */ = {
+			isa = PBXGroup;
+			children = (
+				14FDCD482ACC9D690060F532 /* Main.swift */,
+				14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */,
+				14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */,
+				14FDCD512ACC9D6A0060F532 /* pax_app_macos.entitlements */,
+				14FDCD4E2ACC9D6A0060F532 /* Preview Content */,
+			);
+			path = "pax-app-macos";
+			sourceTree = "<group>";
+		};
+		14FDCD4E2ACC9D6A0060F532 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		14A8ED5B2ADE1A7C00292406 /* Pax macOS (Release) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 14A8ED6E2ADE1A7C00292406 /* Build configuration list for PBXNativeTarget "Pax macOS (Release)" */;
+			buildPhases = (
+				14A8ED622ADE1A7C00292406 /* Sources */,
+				14A8ED652ADE1A7C00292406 /* Frameworks */,
+				14A8ED6B2ADE1A7C00292406 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Pax macOS (Release)";
+			packageProductDependencies = (
+				14A8ED5C2ADE1A7C00292406 /* FlexBuffers */,
+				14A8ED5D2ADE1A7C00292406 /* Messages */,
+				14A8ED5E2ADE1A7C00292406 /* Rendering */,
+				14A8ED5F2ADE1A7C00292406 /* PaxCartridge */,
+				14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */,
+			);
+			productName = "pax-app-macos";
+			productReference = 14A8ED712ADE1A7C00292406 /* Pax macOS (Release).app */;
+			productType = "com.apple.product-type.application";
+		};
+		14FDCD442ACC9D690060F532 /* Pax macOS (Development) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 14FDCD542ACC9D6A0060F532 /* Build configuration list for PBXNativeTarget "Pax macOS (Development)" */;
+			buildPhases = (
+				14FDCD412ACC9D690060F532 /* Sources */,
+				14FDCD422ACC9D690060F532 /* Frameworks */,
+				14FDCD432ACC9D690060F532 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Pax macOS (Development)";
+			packageProductDependencies = (
+				14FDCD582ACC9E7B0060F532 /* FlexBuffers */,
+				14FDCD5A2ACC9E7B0060F532 /* Messages */,
+				14FDCD5C2ACC9E7B0060F532 /* Rendering */,
+				1486C80E2ACE4E48003AB8B8 /* PaxCartridge */,
+				1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */,
+			);
+			productName = "pax-app-macos";
+			productReference = 14FDCD452ACC9D690060F532 /* Pax macOS (Development).app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		14FDCD3D2ACC9D690060F532 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					14FDCD442ACC9D690060F532 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 14FDCD402ACC9D690060F532 /* Build configuration list for PBXProject "pax-app-macos" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 14FDCD3C2ACC9D690060F532;
+			packageReferences = (
+				14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-common" */,
+				14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */,
+			);
+			productRefGroup = 14FDCD462ACC9D690060F532 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				14FDCD442ACC9D690060F532 /* Pax macOS (Development) */,
+				14A8ED5B2ADE1A7C00292406 /* Pax macOS (Release) */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		14A8ED6B2ADE1A7C00292406 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A8ED6C2ADE1A7C00292406 /* Preview Assets.xcassets in Resources */,
+				14A8ED6D2ADE1A7C00292406 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		14FDCD432ACC9D690060F532 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14FDCD502ACC9D6A0060F532 /* Preview Assets.xcassets in Resources */,
+				14FDCD4D2ACC9D6A0060F532 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		14A8ED622ADE1A7C00292406 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A8ED632ADE1A7C00292406 /* PaxViewMacos.swift in Sources */,
+				14A8ED642ADE1A7C00292406 /* Main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		14FDCD412ACC9D690060F532 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14FDCD4B2ACC9D690060F532 /* PaxViewMacos.swift in Sources */,
+				14FDCD492ACC9D690060F532 /* Main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		14A8ED6F2ADE1A7C00292406 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "pax-app-macos/pax_app_macos.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"pax-app-macos/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-macos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		14A8ED702ADE1A7C00292406 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "pax-app-macos/pax_app_macos.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"pax-app-macos/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-macos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		14FDCD522ACC9D6A0060F532 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		14FDCD532ACC9D6A0060F532 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		14FDCD552ACC9D6A0060F532 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "pax-app-macos/pax_app_macos.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"pax-app-macos/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-macos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		14FDCD562ACC9D6A0060F532 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "pax-app-macos/pax_app_macos.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"pax-app-macos/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-macos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		14A8ED6E2ADE1A7C00292406 /* Build configuration list for PBXNativeTarget "Pax macOS (Release)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				14A8ED6F2ADE1A7C00292406 /* Debug */,
+				14A8ED702ADE1A7C00292406 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		14FDCD402ACC9D690060F532 /* Build configuration list for PBXProject "pax-app-macos" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				14FDCD522ACC9D6A0060F532 /* Debug */,
+				14FDCD532ACC9D6A0060F532 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		14FDCD542ACC9D6A0060F532 /* Build configuration list for PBXNativeTarget "Pax macOS (Development)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				14FDCD552ACC9D6A0060F532 /* Debug */,
+				14FDCD562ACC9D6A0060F532 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../../pax-chassis-common/pax-swift-cartridge";
+		};
+		14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-common" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../../pax-chassis-common/pax-swift-common";
+		};
+		14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../../pax-chassis-common/pax-swift-cartridge";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1486C80E2ACE4E48003AB8B8 /* PaxCartridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			productName = PaxCartridge;
+		};
+		1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			productName = PaxCartridgeAssets;
+		};
+		14A8ED5C2ADE1A7C00292406 /* FlexBuffers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlexBuffers;
+		};
+		14A8ED5D2ADE1A7C00292406 /* Messages */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Messages;
+		};
+		14A8ED5E2ADE1A7C00292406 /* Rendering */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Rendering;
+		};
+		14A8ED5F2ADE1A7C00292406 /* PaxCartridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			productName = PaxCartridge;
+		};
+		14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			productName = PaxCartridgeAssets;
+		};
+		14FDCD582ACC9E7B0060F532 /* FlexBuffers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlexBuffers;
+		};
+		14FDCD5A2ACC9E7B0060F532 /* Messages */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Messages;
+		};
+		14FDCD5C2ACC9E7B0060F532 /* Rendering */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Rendering;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 14FDCD3D2ACC9D690060F532 /* Project object */;
+}
