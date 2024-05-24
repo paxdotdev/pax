@@ -1,3 +1,4 @@
+<ConfirmationDialog text="Are you sure?" open={self.dialog_open} signal={self.signal}/>
 <Resizable dividers={[350px, (100% - 350px)]}>
     <Group>
         <Tabs names={["tab 1", "tab 2", "tab 3"]} color=rgb(40, 40, 40)>

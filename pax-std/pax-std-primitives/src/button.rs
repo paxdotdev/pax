@@ -100,6 +100,11 @@ impl InstanceNode for ButtonInstance {
                                 properties.label.get(),
                             ),
                             patch_if_needed(
+                                &mut old_state.color,
+                                &mut patch.color,
+                                (&properties.color.get()).into(),
+                            ),
+                            patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
                                 (&properties.style.get()).into(),
