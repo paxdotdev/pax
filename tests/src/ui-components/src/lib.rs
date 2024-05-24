@@ -5,6 +5,7 @@ pub use pax_component_library::PaxDropdown;
 pub use pax_component_library::PaxRadioSet;
 pub use pax_component_library::PaxSlider;
 pub use pax_component_library::Resizable;
+pub use pax_component_library::Table;
 pub use pax_component_library::Tabs;
 
 use pax_engine::api::*;
