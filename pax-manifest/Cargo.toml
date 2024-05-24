@@ -1,6 +1,6 @@
 [package]
 name = "pax-manifest"
-version = "0.15.1"
+version = "0.15.2"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -15,8 +15,8 @@ parsing = ["pax-lang"]
 
 [dependencies]
 serde = { version="1.0.95", features=["derive"]}
-pax-message = {path="../pax-message", version="0.15.1"}
-pax-runtime-api = {path="../pax-runtime-api", version="0.15.1"}
-pax-lang = {version = "0.15.1", path="../pax-lang", optional = true}
+pax-message = {path="../pax-message", version="0.15.2"}
+pax-runtime-api = {path="../pax-runtime-api", version="0.15.2"}
+pax-lang = {version = "0.15.2", path="../pax-lang", optional = true}
 serde_with = { version= "3.6.1", features = ["json"]} 
 log = "0.4.20"
