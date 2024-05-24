@@ -4,7 +4,6 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
-use pax_value::PaxAny;
 pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
@@ -355,6 +354,7 @@ pub enum Size {
 
 impl Neg for Size {
     type Output = Size;
+
     fn neg(self) -> Self::Output {
         match self {
             Size::Pixels(pix) => Size::Pixels(-pix),
@@ -366,6 +366,7 @@ impl Neg for Size {
 
 impl Add for Size {
     type Output = Size;
+
     fn add(self, rhs: Self) -> Self::Output {
         let mut pixel_component: Numeric = Default::default();
         let mut percent_component: Numeric = Default::default();
@@ -385,6 +386,7 @@ impl Add for Size {
 
 impl Add<Percent> for Size {
     type Output = Size;
+
     fn add(self, rhs: Percent) -> Self::Output {
         self + Size::Percent(rhs.0)
     }
@@ -392,6 +394,7 @@ impl Add<Percent> for Size {
 
 impl Sub<Percent> for Size {
     type Output = Size;
+
     fn sub(self, rhs: Percent) -> Self::Output {
         self - Size::Percent(rhs.0)
     }
@@ -399,6 +402,7 @@ impl Sub<Percent> for Size {
 
 impl Add<Size> for Percent {
     type Output = Size;
+
     fn add(self, rhs: Size) -> Self::Output {
         Size::Percent(self.0) + rhs
     }
@@ -406,6 +410,7 @@ impl Add<Size> for Percent {
 
 impl Sub<Size> for Percent {
     type Output = Size;
+
     fn sub(self, rhs: Size) -> Self::Output {
         Size::Percent(self.0) - rhs
     }
@@ -413,6 +418,7 @@ impl Sub<Size> for Percent {
 
 impl Sub for Size {
     type Output = Size;
+
     fn sub(self, rhs: Self) -> Self::Output {
         let mut pixel_component: Numeric = Default::default();
         let mut percent_component: Numeric = Default::default();
@@ -473,7 +479,8 @@ pub enum Axis {
 
 impl Size {
     //Evaluate a Size in the context of `bounds` and a target `axis`.
-    //Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
+    //Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` &
+    // `axis`
     pub fn evaluate(&self, bounds: (f64, f64), axis: Axis) -> f64 {
         let target_bound = match axis {
             Axis::X => bounds.0,
@@ -498,8 +505,8 @@ pub struct CommonProperty {
 }
 
 // Struct containing fields shared by all RenderNodes.
-// Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
-// Retrieved via <dyn InstanceNode>#get_common_properties
+// Each property here is special-cased by the compiler when parsing element properties (e.g.
+// `<SomeElement width={...} />`) Retrieved via <dyn InstanceNode>#get_common_properties
 
 #[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
@@ -661,6 +668,7 @@ impl EasingEvaluators {
     fn linear(t: f64) -> f64 {
         t
     }
+
     #[allow(dead_code)]
     fn none(t: f64) -> f64 {
         if t == 1.0 {
@@ -669,17 +677,21 @@ impl EasingEvaluators {
             0.0
         }
     }
+
     fn in_quad(t: f64) -> f64 {
         t * t
     }
+
     fn out_quad(t: f64) -> f64 {
         1.0 - (1.0 - t) * (1.0 - t)
     }
+
     fn in_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C3: f64 = C1 + 1.00;
         C3 * t * t * t - C1 * t * t
     }
+
     fn out_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C3: f64 = C1 + 1.00;
@@ -747,7 +759,8 @@ impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}
 
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care" approach to disjoint vec elements
+        //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care"
+        // approach to disjoint vec elements
         assert_eq!(
             self.len(),
             other.len(),
@@ -877,6 +890,7 @@ impl OcclusionLayerGen {
     pub fn get_current_layer(&mut self) -> Layer {
         self.layer.clone()
     }
+
     pub fn update_z_index(&mut self, layer: Layer) {
         match layer {
             Layer::DontCare => {}
@@ -1389,6 +1403,7 @@ impl Rotation {
 }
 impl Neg for Rotation {
     type Output = Rotation;
+
     fn neg(self) -> Self::Output {
         match self {
             Rotation::Degrees(deg) => Rotation::Degrees(-deg),
@@ -1630,8 +1645,8 @@ impl Mul for Size {
 /// `translate` represents an (x,y) affine translation
 /// `scale`     represents an (x,y) non-uniform affine scale
 /// `rotate`    represents a (z) affine rotation (intuitive 2D rotation)
-/// `anchor`    represents the "(0,0)" point of the render node as it relates to its own bounding box.
-///             By default that's the top-left of the element, but `anchor` allows that
+/// `anchor`    represents the "(0,0)" point of the render node as it relates to its own bounding
+/// box.             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
@@ -1665,19 +1680,23 @@ impl Transform2D {
         ret.scale = Some([x, y]);
         ret
     }
+
     ///Rotation over z axis
     pub fn rotate(z: Rotation) -> Self {
         let mut ret = Transform2D::default();
         ret.rotate = Some(z);
         ret
     }
+
     ///Translation across x-y plane, pixels
     pub fn translate(x: Size, y: Size) -> Self {
         let mut ret = Transform2D::default();
         ret.translate = Some([x, y]);
         ret
     }
-    ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box
+
+    ///Describe alignment of the (0,0) position of this element as it relates to its own bounding
+    /// box
     pub fn anchor(x: Size, y: Size) -> Self {
         let mut ret = Transform2D::default();
         ret.anchor = Some([x, y]);

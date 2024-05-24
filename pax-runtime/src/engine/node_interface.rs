@@ -1,13 +1,12 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Size};
+use pax_runtime_api::pax_value::ToFromPaxAny;
+use pax_runtime_api::{borrow, Size};
 
-use crate::{
-    api::math::{Point2, Space, Transform2},
-    api::{Rotation, Window},
-    ExpandedNode,
-};
+use crate::api::math::{Point2, Space};
+use crate::api::{Rotation, Window};
+use crate::ExpandedNode;
 
 use super::expanded_node::LayoutProperties;
 
