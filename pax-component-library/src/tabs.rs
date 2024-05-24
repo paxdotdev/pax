@@ -1,3 +1,4 @@
+use crate::PaxText;
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
@@ -17,7 +18,7 @@ use std::iter;
     			<Rectangle x=50% y=100% width={100%-4px} height={100%-2px} fill={rgba(255, 255, 255, 30*(i == self.selected))}
     			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,0.0,0.0)}
     			/>
-    			<Text id=text width=100% height=100% text={name}/>
+    			<PaxText align={TextAlignHorizontal::Center} width=100% height=100% text={name}/>
     			<Rectangle x=50% y=100% width={100%-4px} height={100%-2px} fill={self.color}
     			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,0.0,0.0)}
     			/>
@@ -32,20 +33,6 @@ use std::iter;
 
     @settings {
         @mount: on_mount
-        #text {
-            style: {
-                font: {Font::system(
-                    "Arial",
-                    FontStyle::Normal,
-                    FontWeight::Bold
-                )},
-                font_size: 12px,
-                fill: WHITE,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
-            }
-        }
     }
 )]
 pub struct Tabs {

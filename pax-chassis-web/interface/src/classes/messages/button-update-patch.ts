@@ -1,6 +1,6 @@
 import {ObjectManager} from "../../pools/object-manager";
 import { TEXT_STYLE } from "../../pools/supported-objects";
-import { TextStyle } from "../text";
+import { ColorGroup, TextStyle } from "../text";
 
 export class ButtonUpdatePatch {
     public id?: number;
@@ -8,6 +8,7 @@ export class ButtonUpdatePatch {
     public size_y?: number;
     public transform?: number[];
     public content?: string;
+    public color?: ColorGroup; 
     public style?: TextStyle;
 
     objectManager: ObjectManager;
@@ -22,6 +23,7 @@ export class ButtonUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.color = jsonMessage["color"];
         const styleMessage = jsonMessage["style"];
 
         if (styleMessage) {
