@@ -117,6 +117,7 @@ pub mod primitives {
     #[primitive("pax_std_primitives::button::ButtonInstance")]
     pub struct Button {
         pub label: Property<String>,
+        pub color: Property<Color>,
         pub style: Property<TextStyle>,
     }
 

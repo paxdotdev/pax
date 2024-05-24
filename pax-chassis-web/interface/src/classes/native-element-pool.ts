@@ -509,6 +509,10 @@ export class NativeElementPool {
             textChild.innerHTML = snarkdown(patch.content);
         }
 
+        if (patch.color) {
+            button.style.background = toCssColor(patch.color);
+        }
+
         
         applyTextTyle(textContainer, textChild, patch.style);
     }

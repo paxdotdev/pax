@@ -445,6 +445,7 @@ pub struct ButtonPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub content: Option<String>,
+    pub color: Option<ColorMessage>,
     pub style: Option<TextStyleMessage>,
 }
 
