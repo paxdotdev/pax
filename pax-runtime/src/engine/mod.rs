@@ -1,4 +1,5 @@
-use crate::{api::Property, ExpandedNodeIdentifier};
+use crate::api::Property;
+use crate::ExpandedNodeIdentifier;
 use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
@@ -7,7 +8,9 @@ use std::rc::Rc;
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
-use pax_runtime_api::{borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, OS};
+use pax_runtime_api::math::Transform2;
+use pax_runtime_api::pax_value::PaxAny;
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, OS};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
@@ -20,11 +23,12 @@ use pax_runtime_api::Platform;
 pub mod node_interface;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
-/// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
-/// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
-/// rendered scene graph.
-/// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
-/// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
+/// Represents an expanded node, that is "expanded" in the context of computed properties and repeat
+/// expansion. For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12
+/// expanded nodes representing the 12 virtual Rectangles in the rendered scene graph.
+/// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside
+/// `computed_properties` and `computed_common_properties`, they require coordinating with their
+/// "type-aware" [`InstanceNode`] to perform operations on those properties.
 mod expanded_node;
 pub use expanded_node::ExpandedNode;
 
@@ -105,7 +109,7 @@ impl Default for HandlerRegistry {
     }
 }
 
-struct ImgData<R: piet::RenderContext> {
+pub struct ImgData<R: piet::RenderContext> {
     img: R::Image,
     size: (usize, usize),
 }
@@ -179,7 +183,8 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
     }
 
     fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
-        //is this okay!? we know it's the same kind of backend no matter what layer, but it might be storing data?
+        //is this okay!? we know it's the same kind of backend no matter what layer, but it might
+        // be storing data?
         let render_context = self.backends.values_mut().next().unwrap();
         let img = render_context
             .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
@@ -241,14 +246,14 @@ impl ExpressionTable {
             let ec = ExpressionContext { stack_frame };
             (**evaluator)(ec)
         } else {
-            panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly initialized
+            panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly
+                     // initialized
         }
     }
 }
 
 /// Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 /// Contains all rendering and runtime logic.
-///
 impl PaxEngine {
     #[cfg(not(feature = "designtime"))]
     pub fn new(
@@ -403,13 +408,13 @@ impl PaxEngine {
 
     /// Workhorse methods of every tick.  Will be executed up to 240 Hz.
     /// Three phases:
-    /// 1. Expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
-    ///    together parent/child relationships between ExpandedNodes along the way.
-    /// 2. Compute layout (z-index & TransformAndBounds) by visiting ExpandedNode tree
-    ///    in rendering order, writing computed rendering-specific values to ExpandedNodes
-    /// 3. Render:
-    ///     a. find lowest node (last child of last node)
-    ///     b. start rendering, from lowest node on-up, throughout tree
+    /// 1. Expand nodes & compute properties; recurse entire instance tree and evaluate
+    ///    ExpandedNodes, stitching together parent/child relationships between ExpandedNodes along
+    ///    the way.
+    /// 2. Compute layout (z-index & TransformAndBounds) by visiting ExpandedNode tree in rendering
+    ///    order, writing computed rendering-specific values to ExpandedNodes
+    /// 3. Render: a. find lowest node (last child of last node) b. start rendering, from lowest
+    ///    node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
