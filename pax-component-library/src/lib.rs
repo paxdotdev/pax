@@ -6,6 +6,7 @@ pub mod dropdown;
 pub mod radio_set;
 pub mod resizable;
 pub mod slider;
+pub mod table;
 pub mod tabs;
 pub mod text;
 
@@ -15,5 +16,6 @@ pub use dropdown::PaxDropdown;
 pub use radio_set::PaxRadioSet;
 pub use resizable::Resizable;
 pub use slider::PaxSlider;
+pub use table::Table;
 pub use tabs::Tabs;
 pub use text::PaxText;

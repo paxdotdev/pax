@@ -3,8 +3,8 @@ if self.game_state == "PLAYING" {
 	<Text x=10px y=10px text={"Score: " + self.score} style={fill:WHITE}/>
 }
 if self.game_state == "GAME_OVER" {
-	<Text y=25% height=25% text="GAME OVER" id=game_over/>
-	<Text y=50% height=25% text={"Score: " + self.score} id=game_over_score/>
+	<Text y=25% height=25% width=100% text="GAME OVER" id=game_over/>
+	<Text y=50% height=25% width=100% text={"Score: " + self.score} id=game_over_score/>
 	<Rectangle fill=rgba(255, 0, 50, 50)/>
 }
 

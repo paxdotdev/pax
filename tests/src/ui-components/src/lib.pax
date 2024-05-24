@@ -5,9 +5,7 @@
             <Group x=50% y=50% width=50% height=50%>
                 <Rectangle fill=BLUE/>
             </Group>
-            <Group x=50% y=50% width=50% height=50%>
-                <Rectangle fill=INDIGO/>
-            </Group>
+            <Table headers={[{text: "TESTING"}, {text: "something"}, {text: "new"}]}/>
             <Group x=50% y=50% width=50% height=50%>
                 <Rectangle fill=CYAN/>
             </Group>
@@ -28,7 +26,8 @@
                 </Group>
                 <PaxSlider/>
             </Resizable>
-            <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
+            <Table/>
+            // <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
         </Resizable>
         <Rectangle fill=rgb(200, 200, 200) stroke=WHITE/>
     </Resizable>
