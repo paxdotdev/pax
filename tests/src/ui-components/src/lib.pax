@@ -5,7 +5,7 @@
             <Group x=50% y=50% width=50% height=50%>
                 <Rectangle fill=BLUE/>
             </Group>
-            <Table headers={[{text: "TESTING"}, {text: "something"}, {text: "new"}]}/>
+            <Rectangle fill=BLACK/>
             <Group x=50% y=50% width=50% height=50%>
                 <Rectangle fill=CYAN/>
             </Group>
