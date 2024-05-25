@@ -166,7 +166,6 @@ impl InstanceNode for SliderInstance {
         interrupt: &NativeInterrupt,
     ) {
         if let NativeInterrupt::FormSliderChange(args) = interrupt {
-            log::debug!("slider value set to {}", args.value);
             expanded_node
                 .with_properties_unwrapped(|props: &mut Slider| props.value.set(args.value));
         }
