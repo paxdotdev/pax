@@ -26,7 +26,7 @@
                 </Group>
                 <PaxSlider/>
             </Resizable>
-            <Table/>
+            <Table headers={[{text: "TESTING"}, {text: "something"}, {text: "new"}]}/>
             // <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
         </Resizable>
         <Rectangle fill=rgb(200, 200, 200) stroke=WHITE/>
