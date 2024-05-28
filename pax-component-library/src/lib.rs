@@ -9,6 +9,7 @@ pub mod slider;
 pub mod table;
 pub mod tabs;
 pub mod text;
+pub mod toast;
 
 pub use button::PaxButton;
 pub use dialogs::ConfirmationDialog;
@@ -19,3 +20,4 @@ pub use slider::PaxSlider;
 pub use table::Table;
 pub use tabs::Tabs;
 pub use text::PaxText;
+pub use toast::Toast;
