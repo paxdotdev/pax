@@ -7,6 +7,7 @@ pub use pax_component_library::PaxSlider;
 pub use pax_component_library::Resizable;
 pub use pax_component_library::Table;
 pub use pax_component_library::Tabs;
+pub use pax_component_library::Toast;
 
 use pax_component_library::table::Cell;
 use pax_engine::api::*;
@@ -24,6 +25,7 @@ use pax_std::types::*;
 pub struct Example {
     pub selected: Property<u32>,
     pub dialog_open: Property<bool>,
+    pub message: Property<String>,
     pub signal: Property<bool>,
     pub headers: Property<Vec<Cell>>,
     pub rows: Property<Vec<Vec<Cell>>>,
@@ -33,6 +35,7 @@ pub struct Example {
 impl Default for Example {
     fn default() -> Self {
         Self {
+            message: Property::default(),
             selected: Property::new(1),
             dialog_open: Property::new(false),
             signal: Property::new(false),
@@ -103,5 +106,9 @@ impl Example {
     pub fn on_click(&mut self, ctx: &NodeContext, event: Event<Click>) {
         self.selected.set(2);
         self.dialog_open.set(true);
+    }
+    pub fn on_left_side_click(&mut self, ctx: &NodeContext, event: Event<Click>) {
+        self.message
+            .set(format!("this is a message! mouse x-pos: {}", event.mouse.x));
     }
 }
