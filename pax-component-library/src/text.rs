@@ -22,6 +22,7 @@ use crate::common;
 pub struct PaxText {
     pub align: Property<TextAlignHorizontal>,
     pub size: Property<f64>,
+    pub color: Property<Color>,
     pub text: Property<String>,
 
     // private
@@ -32,15 +33,18 @@ impl Default for PaxText {
     fn default() -> Self {
         let align = Property::new(TextAlignHorizontal::Center);
         let size = Property::new(12.0);
+        let color = Property::new(Color::WHITE);
 
         let cp_align = align.clone();
         let cp_size = size.clone();
-        let deps = [cp_align.untyped(), cp_size.untyped()];
+        let cp_color = color.clone();
+        let deps = [color.untyped(), cp_align.untyped(), cp_size.untyped()];
         let style = Property::computed(
-            move || common::text_style(cp_size.get(), cp_align.get()),
+            move || common::text_style(cp_size.get(), cp_align.get(), cp_color.get()),
             &deps,
         );
         Self {
+            color,
             align,
             size,
             style,

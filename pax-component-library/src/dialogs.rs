@@ -16,7 +16,7 @@ use std::iter;
         <Group x=50% y=50% width=300px height=170px>
             <PaxButton width=80px height=30px anchor_y=100% anchor_x=100% y={100%-20px} x={100% -80px -20px -20px} label="Yes" @button_click=handle_yes/>
             <PaxButton width=80px height=30px anchor_y=100% anchor_x=100% y={100% -20px} x={100% -20px} label="No" @button_click=handle_no/>
-            <PaxText x=50% width={100% - 40px} y=20px text=text/>
+            <PaxText x=20px y=20px height=15px width=100px text=text/>
             <Rectangle fill=rgb(20, 20, 20)
             corner_radii={
                 RectangleCornerRadii::radii(15.0,15.0,15.0,15.0)
