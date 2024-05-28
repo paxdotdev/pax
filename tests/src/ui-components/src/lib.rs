@@ -8,6 +8,7 @@ pub use pax_component_library::Resizable;
 pub use pax_component_library::Table;
 pub use pax_component_library::Tabs;
 
+use pax_component_library::table::Cell;
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
@@ -19,10 +20,83 @@ use pax_std::types::*;
 #[pax]
 #[main]
 #[file("lib.pax")]
+#[custom(Default)]
 pub struct Example {
     pub selected: Property<u32>,
     pub dialog_open: Property<bool>,
     pub signal: Property<bool>,
+    pub headers: Property<Vec<Cell>>,
+    pub rows: Property<Vec<Vec<Cell>>>,
+    pub row_colors: Property<Vec<Color>>,
+}
+
+impl Default for Example {
+    fn default() -> Self {
+        Self {
+            selected: Property::new(1),
+            dialog_open: Property::new(false),
+            signal: Property::new(false),
+            headers: Property::new(vec![
+                Cell {
+                    text: "And a 1".to_owned(),
+                    text_align: TextAlignHorizontal::Center,
+                },
+                Cell {
+                    text: "And a 2".to_owned(),
+                    text_align: TextAlignHorizontal::Center,
+                },
+                Cell {
+                    text: "And a 3".to_owned(),
+                    text_align: TextAlignHorizontal::Right,
+                },
+            ]),
+            rows: Property::new(vec![
+                vec![
+                    Cell {
+                        text: "first".to_string(),
+                        text_align: TextAlignHorizontal::Left,
+                    },
+                    Cell {
+                        text: "second".to_string(),
+                        text_align: TextAlignHorizontal::Left,
+                    },
+                    Cell {
+                        text: "third".to_string(),
+                        text_align: TextAlignHorizontal::Right,
+                    },
+                ],
+                vec![
+                    Cell {
+                        text: "middle first".to_string(),
+                        text_align: TextAlignHorizontal::Left,
+                    },
+                    Cell {
+                        text: "middle second".to_string(),
+                        text_align: TextAlignHorizontal::Center,
+                    },
+                    Cell {
+                        text: "middle third".to_string(),
+                        text_align: TextAlignHorizontal::Right,
+                    },
+                ],
+                vec![
+                    Cell {
+                        text: "low first".to_string(),
+                        text_align: TextAlignHorizontal::Left,
+                    },
+                    Cell {
+                        text: "low second".to_string(),
+                        text_align: TextAlignHorizontal::Left,
+                    },
+                    Cell {
+                        text: "low third".to_string(),
+                        text_align: TextAlignHorizontal::Right,
+                    },
+                ],
+            ]),
+            row_colors: Property::new(vec![Color::RED, Color::YELLOW]),
+        }
+    }
 }
 
 impl Example {

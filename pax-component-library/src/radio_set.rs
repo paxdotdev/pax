@@ -28,7 +28,11 @@ impl Default for PaxRadioSet {
         Self {
             options: Default::default(),
             selected_id: Default::default(),
-            text_style: Property::new(common::text_style(12.0, TextAlignHorizontal::Left)),
+            text_style: Property::new(common::text_style(
+                12.0,
+                TextAlignHorizontal::Left,
+                Color::WHITE,
+            )),
         }
     }
 }

@@ -30,7 +30,11 @@ impl Default for PaxButton {
         Self {
             color: Property::new(Color::rgb(20.into(), 20.into(), 20.into())),
             label: Property::new("Button".to_owned()),
-            style: Property::new(common::text_style(12.0, TextAlignHorizontal::Center)),
+            style: Property::new(common::text_style(
+                12.0,
+                TextAlignHorizontal::Center,
+                Color::WHITE,
+            )),
         }
     }
 }

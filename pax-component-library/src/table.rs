@@ -12,8 +12,8 @@ use std::iter;
 #[inlined(
     for cell in self.cells {
         <Group anchor_x=0% anchor_y=0% x={cell.x} y={cell.y} width={cell.w} height={cell.h}>
-            <PaxText width=100% height=100% text={cell.def.text}/>
-            <Rectangle x=50% y=50% width={100%-2px} height={100%-2px} fill={cell.background}/>
+            <PaxText x=50% width={100%-10px} height=100% text={cell.def.text} align={cell.def.text_align} color={cell.text_color}/>
+            <Rectangle x=50% y=50% width={100%-1px} height={100%-1px} fill={cell.background}/>
         </Group>
     }
     <Rectangle fill={self.borders}/>
