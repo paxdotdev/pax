@@ -1,6 +1,7 @@
 <ConfirmationDialog text="Are you sure?" open={self.dialog_open} signal={self.signal}/>
+<Toast message={self.message}/>
 <Resizable dividers={[350px, (100% - 350px)]}>
-    <Group>
+    <Group @click=self.on_left_side_click>
         <Tabs names={["tab 1", "tab 2", "tab 3"]} color=rgb(40, 40, 40)>
             <Group x=50% y=50% width=50% height=50%>
                 <Rectangle fill=BLUE/>
