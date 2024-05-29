@@ -15,6 +15,6 @@ pub struct InnerComp {}
 
 impl InnerComp {
     pub fn clicked(&mut self, ctx: &NodeContext, event: Event<Click>) {
-        ctx.dispatch_event("custom_event");
+        ctx.dispatch_event("custom_event").unwrap();
     }
 }

@@ -485,7 +485,7 @@ impl ExpandedNode {
         };
 
         NodeContext {
-            containing_component: Weak::clone(&self.containing_component),
+            component_origin: Weak::clone(&self.containing_component),
             frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
