@@ -1,0 +1,1 @@
+<Rectangle fill=RED @click=self.clicked/>

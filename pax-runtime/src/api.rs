@@ -1,7 +1,8 @@
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::RuntimeContext;
+use crate::{ExpandedNode, HandlerLocation, RuntimeContext};
+use pax_runtime_api::pax_value::PaxAny;
 pub use pax_runtime_api::*;
 #[cfg(feature = "designtime")]
 use {
@@ -11,6 +12,8 @@ use {
 
 #[derive(Clone)]
 pub struct NodeContext {
+    /// Registered handlers on the instance node
+    pub(crate) containing_component: Weak<ExpandedNode>,
     /// The current global engine tick count
     pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
@@ -29,6 +32,31 @@ pub struct NodeContext {
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
+}
+
+impl NodeContext {
+    pub fn dispatch_event(&self, identifier: &str) {
+        let Some(target) = self.containing_component.upgrade() else {
+            return;
+        };
+        let instance_node = borrow!(target.instance_node);
+        let Some(ref registry) = instance_node.base().handler_registry else {
+            return;
+        };
+
+        let Some(parent) = target.containing_component.upgrade() else {
+            return;
+        };
+        let properties = borrow!(parent.properties);
+
+        for handler in borrow!(registry)
+            .handlers
+            .get(identifier)
+            .expect("should exist on this")
+        {
+            (handler.function)(Rc::clone(&*properties), &self, None)
+        }
+    }
 }
 
 #[cfg(feature = "designtime")]
