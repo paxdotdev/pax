@@ -114,7 +114,8 @@ impl PaxManifest {
                         for value in values {
                             let event_args = event_map
                                 .get(key.token_value.as_str())
-                                .and_then(|v| v.as_ref());
+                                .expect("custom handlers not supported in settings block")
+                                .as_ref();
                             handler_data.push(HandlerInfo {
                                 name: self.clean_handler(value.raw_value.clone()),
                                 args_type: event_args.map(|t| format!("Event<{}>", &t)),
