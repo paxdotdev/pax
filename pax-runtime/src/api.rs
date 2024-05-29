@@ -13,7 +13,7 @@ use {
 #[derive(Clone)]
 pub struct NodeContext {
     /// Registered handlers on the instance node
-    pub(crate) containing_component: Weak<ExpandedNode>,
+    pub(crate) component_origin: Weak<ExpandedNode>,
     /// The current global engine tick count
     pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
@@ -35,27 +35,32 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
-    pub fn dispatch_event(&self, identifier: &str) {
-        let Some(target) = self.containing_component.upgrade() else {
-            return;
-        };
-        let instance_node = borrow!(target.instance_node);
-        let Some(ref registry) = instance_node.base().handler_registry else {
-            return;
-        };
+    pub fn dispatch_event(&self, identifier: &str) -> Result<(), String> {
+        let component_origin = self
+            .component_origin
+            .upgrade()
+            .ok_or_else(|| "can't dispatch from root component".to_owned())?;
+        let component_origin_instance = borrow!(component_origin.instance_node);
+        let registry = component_origin_instance
+            .base()
+            .handler_registry
+            .as_ref()
+            .ok_or_else(|| "no registry present".to_owned())?;
 
-        let Some(parent) = target.containing_component.upgrade() else {
-            return;
-        };
-        let properties = borrow!(parent.properties);
+        let parent_component = component_origin
+            .containing_component
+            .upgrade()
+            .ok_or_else(|| "can't dispatch from root (has no parent)".to_owned())?;
+        let properties = borrow!(parent_component.properties);
 
         for handler in borrow!(registry)
             .handlers
             .get(identifier)
-            .expect("should exist on this")
+            .ok_or_else(|| format!("no registered handler with name \"{}\" exists", identifier))?
         {
             (handler.function)(Rc::clone(&*properties), &self, None)
         }
+        Ok(())
     }
 }
 
