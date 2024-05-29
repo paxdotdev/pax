@@ -112,14 +112,12 @@ impl PaxManifest {
                 for setting in settings {
                     if let SettingsBlockElement::Handler(key, values) = setting {
                         for value in values {
-                            let args_type = event_map
+                            let event_args = event_map
                                 .get(key.token_value.as_str())
-                                .unwrap()
-                                .as_ref()
-                                .map(|t| format!("Event<{}>", &t));
+                                .and_then(|v| v.as_ref());
                             handler_data.push(HandlerInfo {
                                 name: self.clean_handler(value.raw_value.clone()),
-                                args_type: args_type.clone(),
+                                args_type: event_args.map(|t| format!("Event<{}>", &t)),
                             });
                         }
                     }
@@ -133,14 +131,12 @@ impl PaxManifest {
                         for setting in settings {
                             if let SettingElement::Setting(key, value) = setting {
                                 if let ValueDefinition::EventBindingTarget(e) = value {
-                                    let args_type = event_map
+                                    let event_args = event_map
                                         .get(key.token_value.as_str())
-                                        .expect("Unsupported event")
-                                        .as_ref()
-                                        .map(|t| format!("Event<{}>", &t));
+                                        .and_then(|v| v.as_ref());
                                     handler_data.push(HandlerInfo {
                                         name: self.clean_handler(e.raw_value.clone()),
-                                        args_type: args_type.clone(),
+                                        args_type: event_args.map(|t| format!("Event<{}>", &t)),
                                     });
                                 }
                             }
