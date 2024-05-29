@@ -13,13 +13,6 @@ use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
 
-/// Sealed PropertyId needed for slotmap (strictly internal)
-mod private {
-    slotmap::new_key_type!(
-        pub struct PropertyId;
-    );
-}
-
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
 /// references/ lifetimes)

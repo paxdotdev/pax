@@ -1,16 +1,32 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 
 use crate::{Property, TransitionManager, TransitionQueueEntry};
 
-use super::{private::PropertyId, PropertyValue};
+use super::PropertyValue;
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static COUNTER: AtomicU64 = AtomicU64::new(1);
 
 thread_local! {
     /// Global property table used to store data backing dirty-dag
     pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
     /// Property time variable, to be used by
     pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
+}
+
+pub struct PropertyId {
+    id: AtomicU64,
+}
+
+impl PropertyId {
+    pub fn new() -> Self {
+        Self {
+            id: AtomicU64::new(COUNTER.fetch_add(1, Ordering::SeqCst)),
+        }
+    }
 }
 
 /// The main collection of data associated with a specific property id
@@ -61,8 +77,7 @@ pub(crate) enum PropertyType<T> {
 pub(crate) struct PropertyTable {
     // Main property table containing property data
     // Box<dyn Any> is of type Box<Entry<T>> where T is the proptype
-    pub(crate) property_map: RefCell<SlotMap<PropertyId, Entry>>,
-    debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
+    pub(crate) property_map: RefCell<HashMap<PropertyId, Entry>>,
 }
 
 pub struct Entry {
@@ -75,7 +90,7 @@ impl PropertyTable {
     /// Makes sure the value is up to date before returning in the case
     /// of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
-        self.update_value::<T>(id);
+        //self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
             property_data.typed_data::<T>().value.clone()
         })
