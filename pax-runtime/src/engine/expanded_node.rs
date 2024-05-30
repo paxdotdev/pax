@@ -621,6 +621,37 @@ impl ExpandedNode {
     dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
 
+    pub fn dispatch_custom_event(
+        &self,
+        identifier: &str,
+        ctx: &Rc<RuntimeContext>,
+    ) -> Result<(), String> {
+        let component_origin_instance = borrow!(self.instance_node);
+        let registry = component_origin_instance
+            .base()
+            .handler_registry
+            .as_ref()
+            .ok_or_else(|| "no registry present".to_owned())?;
+
+        let parent_component = self
+            .containing_component
+            .upgrade()
+            .ok_or_else(|| "can't dispatch from root (has no parent)".to_owned())?;
+        let properties = borrow!(parent_component.properties);
+        // save id of parent component (thing with props)
+        // save registry
+        // save identifier
+
+        for handler in borrow!(registry)
+            .handlers
+            .get(identifier)
+            .expect("presence should have been checked when added to custom_event_queue")
+        {
+            (handler.function)(Rc::clone(&*properties), &self.get_node_context(ctx), None)
+        }
+        Ok(())
+    }
+
     // fired if the chassis thinks this element should be a different size (in pixels).
     // usually, this is something the engine has asked for, ie. text nodes
     // changing size.

@@ -440,6 +440,7 @@ impl PaxEngine {
 
         time.set(time.get() + 1);
 
+        ctx.flush_custom_events().unwrap();
         ctx.take_native_messages()
     }
 
