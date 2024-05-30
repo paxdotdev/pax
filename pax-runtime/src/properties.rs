@@ -7,10 +7,8 @@ use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Store};
 use_RefCell!();
 use std::any::{Any, TypeId};
-use std::cell::{Cell, Ref};
+use std::cell::Cell;
 use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use crate::{ExpandedNode, ExpressionTable, Globals};
@@ -328,11 +326,9 @@ impl RuntimePropertiesStackFrame {
                 .ok_or_else(|| format!("couldn't find store in local stack"))?;
         }
         let v = {
-            f(borrow_mut!(current.local_stores)
-                .get_mut(&type_id)
-                .unwrap()
-                .downcast_mut()
-                .unwrap())
+            let mut stores = borrow_mut!(current.local_stores);
+            let store = stores.get_mut(&type_id).unwrap().downcast_mut().unwrap();
+            f(store)
         };
         Ok(v)
     }
