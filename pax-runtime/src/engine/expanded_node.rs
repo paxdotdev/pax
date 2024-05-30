@@ -15,7 +15,7 @@ use crate::constants::{
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::node_interface::NodeLocal;
+use crate::node_interface::{NodeInterface, NodeLocal};
 use crate::{ExpandedNodeIdentifier, Globals};
 use core::fmt;
 use std::cell::Cell;
@@ -94,7 +94,7 @@ pub struct ExpandedNode {
     /// recursively and replaced by their children. This is re-computed each
     /// frame from the non-collapsed expanded_slot_children after they have
     /// been updated.
-    pub expanded_and_flattened_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+    pub expanded_and_flattened_slot_children: Property<Vec<Rc<ExpandedNode>>>,
     // Number of expanded and flattened slot children
     pub flattened_slot_children_count: Property<usize>,
 
@@ -395,11 +395,8 @@ impl ExpandedNode {
                 .handle_mount(&self, context);
             Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("mount")
-                    .unwrap_or(&Vec::new())
-                {
+                let registry = borrow!(registry);
+                for handler in registry.handlers.get("mount").unwrap_or(&Vec::new()) {
                     (handler.function)(
                         Rc::clone(&*borrow!(self.properties)),
                         &self.get_node_context(context),
@@ -475,25 +472,35 @@ impl ExpandedNode {
             globals.viewport.bounds.clone()
         };
 
-        let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
-            self.flattened_slot_children_count.clone()
-        } else {
-            self.containing_component
-                .upgrade()
-                .map(|v| v.flattened_slot_children_count.clone())
-                .unwrap_or_default()
-        };
+        let (slot_children, slot_children_count) =
+            if borrow!(self.instance_node).base().flags().is_component {
+                (
+                    self.expanded_and_flattened_slot_children.clone(),
+                    self.flattened_slot_children_count.clone(),
+                )
+            } else {
+                self.containing_component
+                    .upgrade()
+                    .map(|v| {
+                        (
+                            v.expanded_and_flattened_slot_children.clone(),
+                            v.flattened_slot_children_count.clone(),
+                        )
+                    })
+                    .unwrap_or_default()
+            };
 
         NodeContext {
             local_stack_frame: Rc::clone(&self.stack),
+            slot_children,
             component_origin: Weak::clone(&self.containing_component),
             frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,
             bounds_parent,
             runtime_context: ctx.clone(),
-            slot_children_count,
             platform: globals.platform.clone(),
             os: globals.os.clone(),
+            slot_children_count,
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }
@@ -558,13 +565,19 @@ impl ExpandedNode {
         // an entire node tree, and generate the flattened list
         // only when changed.
         if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-            let mut exp_and_flat_slot_children =
-                borrow_mut!(self.expanded_and_flattened_slot_children);
-            let flattened = flatten_expanded_nodes_for_slot(&slot_children);
-            if self.flattened_slot_children_count.get() != flattened.len() {
-                self.flattened_slot_children_count.set(flattened.len());
+            let new_flattened = flatten_expanded_nodes_for_slot(&slot_children);
+            let old_and_new_filtered_same =
+                self.expanded_and_flattened_slot_children.read(|flattened| {
+                    flattened
+                        .iter()
+                        .map(|n| n.id)
+                        .eq(new_flattened.iter().map(|n| n.id))
+                });
+
+            if !old_and_new_filtered_same {
+                self.flattened_slot_children_count.set(new_flattened.len());
+                self.expanded_and_flattened_slot_children.set(new_flattened);
             }
-            *exp_and_flat_slot_children = Some(flattened);
         }
     }
 
@@ -771,9 +784,12 @@ impl std::fmt::Debug for ExpandedNode {
             .field("parent", &borrow!(self.parent_expanded_node).upgrade())
             .field(
                 "slot_children",
-                &borrow!(self.expanded_and_flattened_slot_children)
-                    .as_ref()
-                    .map(|o| o.iter().map(|v| v.id).collect::<Vec<_>>()),
+                &self
+                    .expanded_and_flattened_slot_children
+                    .get()
+                    .iter()
+                    .map(|v| v.id)
+                    .collect::<Vec<_>>(),
             )
             .field("occlusion_id", &borrow!(self.occlusion_id))
             .field(
