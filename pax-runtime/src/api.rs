@@ -1,7 +1,9 @@
 use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::{ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame};
+use crate::{
+    node_interface::NodeInterface, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
+};
 pub use pax_runtime_api::*;
 
 #[cfg(feature = "designtime")]
@@ -14,6 +16,7 @@ use {
 pub struct NodeContext {
     /// Stack frame of this component, used to look up stores
     pub(crate) local_stack_frame: Rc<RuntimePropertiesStackFrame>,
+    pub(crate) slot_children: Property<Vec<Rc<ExpandedNode>>>,
     /// Registered handlers on the instance node
     pub(crate) component_origin: Weak<ExpandedNode>,
     /// The current global engine tick count
@@ -42,6 +45,23 @@ impl NodeContext {
 
     pub fn peek_local_store<T: Store, V>(&self, f: impl FnOnce(&mut T) -> V) -> Result<V, String> {
         self.local_stack_frame.peek_stack_local_store(f)
+    }
+
+    pub fn get_slot_children(&self) -> Property<Vec<NodeInterface>> {
+        let slot_children = self.slot_children.clone();
+        let deps = [slot_children.untyped()];
+        Property::computed(
+            move || {
+                let slot_children_interfaces = slot_children
+                    .get()
+                    .into_iter()
+                    .map(Into::<NodeInterface>::into)
+                    .collect();
+
+                slot_children_interfaces
+            },
+            &deps,
+        )
     }
 
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {

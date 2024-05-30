@@ -89,16 +89,13 @@ impl InstanceNode for SlotInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         let containing = expanded_node.containing_component.upgrade();
-        let nodes = borrow!(
-            containing
-                .as_ref()
-                .expect("slot to have a containing component")
-                .expanded_and_flattened_slot_children
-        );
+        let nodes = &containing
+            .as_ref()
+            .expect("slot to have a containing component")
+            .expanded_and_flattened_slot_children;
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            let node_rc = nodes
-                .as_ref()
-                .and_then(|l| l.get(properties.index.get().to_int() as usize).cloned());
+            let node_rc =
+                nodes.read(|nodes| nodes.get(properties.index.get().to_int() as usize).cloned());
             let node = match &node_rc {
                 Some(rc) => Rc::downgrade(rc),
                 None => Weak::new(),

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Size};
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Size};
 
 use crate::{
     api::math::{Point2, Space, Transform2},
@@ -11,6 +11,8 @@ use crate::{
 
 use super::expanded_node::LayoutProperties;
 
+impl Interpolatable for NodeInterface {}
+#[derive(Clone)]
 pub struct NodeInterface {
     inner: Rc<ExpandedNode>,
 }

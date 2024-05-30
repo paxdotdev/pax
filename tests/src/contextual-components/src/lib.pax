@@ -1,0 +1,11 @@
+<ContextualParent>
+    for i in 0..self.num {
+        <ContextualChild text={"testing " + i}/>
+    }
+    <ContextualChild text={self.text}/>
+</ContextualParent>
+
+@settings {
+    @mount: on_mount
+    @click: click
+}
