@@ -4,7 +4,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Store};
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::{Cell, Ref};
@@ -245,33 +245,6 @@ impl RuntimeContext {
     }
 }
 
-/// Marker trait that needs to be implemented for a struct for insertion and
-/// deletion in a store
-/// NOTE: Stored objects need to be UNIQUE for any given stack. Do not insert
-/// values with types that could potentially be used in another use case,
-/// instead create a local type only used for a single purpose
-pub trait Store: Clone {}
-
-/// Guard returned from peek_stack_local_store, to not have
-/// to clone the value out each time. All methods available
-/// on T is available on this since it implements deref
-pub struct StoreRef<T> {
-    local_store_found: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: Store + 'static> StoreRef<T> {
-    fn deref(&self) -> Ref<'_, T> {
-        Ref::map(borrow!(self.local_store_found), |local_store| {
-            local_store
-                .get(&TypeId::of::<T>())
-                .unwrap()
-                .downcast_ref()
-                .unwrap()
-        })
-    }
-}
-
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame and `properties` for
 /// runtime evaluation, e.g. of Expressions.  `RuntimePropertiesStackFrame`s also track
@@ -336,27 +309,32 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
-    pub fn insert_stack_local_store<T: Store + 'static>(&mut self, store: T) {
+    pub fn insert_stack_local_store<T: Store>(&self, store: T) {
         let type_id = TypeId::of::<T>();
         borrow_mut!(self.local_stores).insert(type_id, Box::new(store));
     }
 
-    pub fn peek_stack_local_store<T: Store + 'static>(
-        self: Rc<Self>,
-    ) -> Result<StoreRef<T>, String> {
-        let mut current = self;
+    pub fn peek_stack_local_store<T: Store, V>(
+        self: &Rc<Self>,
+        f: impl FnOnce(&mut T) -> V,
+    ) -> Result<V, String> {
+        let mut current = Rc::clone(self);
         let type_id = TypeId::of::<T>();
 
-        while borrow!(current.local_stores).contains_key(&type_id) {
+        while !borrow!(current.local_stores).contains_key(&type_id) {
             current = current
                 .parent
                 .upgrade()
                 .ok_or_else(|| format!("couldn't find store in local stack"))?;
         }
-        Ok(StoreRef {
-            local_store_found: Rc::clone(&current.local_stores),
-            _phantom: PhantomData,
-        })
+        let v = {
+            f(borrow_mut!(current.local_stores)
+                .get_mut(&type_id)
+                .unwrap()
+                .downcast_mut()
+                .unwrap())
+        };
+        Ok(v)
     }
 
     pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {
