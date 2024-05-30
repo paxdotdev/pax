@@ -1,12 +1,11 @@
 use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::{ExpandedNode, HandlerLocation, RuntimeContext};
-use pax_runtime_api::pax_value::PaxAny;
+use crate::{ExpandedNode, RuntimeContext};
 pub use pax_runtime_api::*;
 #[cfg(feature = "designtime")]
 use {
-    crate::api::math::Point2, crate::node_interface::NodeInterface,
+    crate::api::math::Point2, crate::node_interface::NodeInterface, crate::HandlerLocation,
     pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier,
 };
 
@@ -27,7 +26,6 @@ pub struct NodeContext {
     /// The number of slot children provided to this component template
     pub slot_children_count: Property<usize>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
-    #[allow(unused)]
     pub(crate) runtime_context: Rc<RuntimeContext>,
 
     #[cfg(feature = "designtime")]
@@ -35,31 +33,29 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
-    pub fn dispatch_event(&self, identifier: &str) -> Result<(), String> {
+    pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {
         let component_origin = self
             .component_origin
             .upgrade()
             .ok_or_else(|| "can't dispatch from root component".to_owned())?;
-        let component_origin_instance = borrow!(component_origin.instance_node);
-        let registry = component_origin_instance
-            .base()
-            .handler_registry
-            .as_ref()
-            .ok_or_else(|| "no registry present".to_owned())?;
 
-        let parent_component = component_origin
-            .containing_component
-            .upgrade()
-            .ok_or_else(|| "can't dispatch from root (has no parent)".to_owned())?;
-        let properties = borrow!(parent_component.properties);
-
-        for handler in borrow!(registry)
-            .handlers
-            .get(identifier)
-            .ok_or_else(|| format!("no registered handler with name \"{}\" exists", identifier))?
+        // Check that this is a valid custom event to trigger
         {
-            (handler.function)(Rc::clone(&*properties), &self, None)
+            let component_origin_instance = borrow!(component_origin.instance_node);
+            let registry = component_origin_instance
+                .base()
+                .handler_registry
+                .as_ref()
+                .ok_or_else(|| "no registry present".to_owned())?;
+            borrow!(registry).handlers.get(identifier).ok_or_else(|| {
+                format!("no registered handler with name \"{}\" exists", identifier)
+            })?;
         }
+
+        // ok now we know it's a valid thing to dispatch, queue it for end of tick
+        self.runtime_context
+            .queue_custom_event(Rc::clone(&component_origin), identifier);
+
         Ok(())
     }
 }

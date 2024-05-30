@@ -30,6 +30,7 @@ pub struct RuntimeContext {
     root_node: RefCell<Weak<ExpandedNode>>,
     expression_table: Rc<ExpressionTable>,
     node_cache: RefCell<NodeCache>,
+    queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
 }
 
 struct NodeCache {
@@ -75,6 +76,7 @@ impl RuntimeContext {
             expression_table: Rc::new(expression_table),
             root_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
+            queued_custom_events: Default::default(),
         }
     }
 
@@ -223,6 +225,20 @@ impl RuntimeContext {
 
     pub fn expression_table(&self) -> Rc<ExpressionTable> {
         self.expression_table.clone()
+    }
+
+    pub fn queue_custom_event(&self, source_expanded_node: Rc<ExpandedNode>, name: &'static str) {
+        let mut queued_custom_events = borrow_mut!(self.queued_custom_events);
+        queued_custom_events.push((source_expanded_node, name));
+    }
+
+    pub fn flush_custom_events(self: &Rc<Self>) -> Result<(), String> {
+        let mut queued_custom_event = borrow_mut!(self.queued_custom_events);
+        let to_flush: Vec<_> = std::mem::take(queued_custom_event.as_mut());
+        for (target, ident) in to_flush {
+            target.dispatch_custom_event(ident, self)?;
+        }
+        Ok(())
     }
 }
 
