@@ -16,15 +16,8 @@ pub struct Example {
     pub num_clicks: Property<usize>,
 }
 
-struct SomeStore {
-    i: i32,
-}
-
-impl Store for SomeStore {}
-
 impl Example {
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        ctx.push_environment(SomeStore { i: 45 });
         let old_ticks = self.ticks.get();
         self.ticks.set((old_ticks + 1) % 255);
     }
