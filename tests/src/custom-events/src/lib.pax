@@ -3,4 +3,5 @@
 />
 
 @settings {
+    @mount: on_mount
 }

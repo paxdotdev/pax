@@ -11,6 +11,13 @@ use properties::UntypedProperty;
 pub mod refcell_debug;
 pub use refcell_debug::*;
 
+/// Marker trait that needs to be implemented for a struct for insertion and
+/// deletion in a store
+/// NOTE: Stored objects need to be UNIQUE for any given stack. Do not insert
+/// values with types that could potentially be used in another use case,
+/// instead create a local type only used for a single purpose
+pub trait Store: 'static {}
+
 #[cfg(feature = "designtime")]
 use {
     crate::math::Point2, crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,

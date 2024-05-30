@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use super::StoreExample;
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
@@ -16,5 +17,8 @@ pub struct InnerComp {}
 impl InnerComp {
     pub fn clicked(&mut self, ctx: &NodeContext, event: Event<Click>) {
         ctx.dispatch_event("custom_event").unwrap();
+        ctx.peek_local_store(|store: &mut StoreExample| {
+            log::debug!("{}", store.i);
+        });
     }
 }
