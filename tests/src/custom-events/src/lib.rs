@@ -15,7 +15,17 @@ pub use inner_comp::InnerComp;
 #[file("lib.pax")]
 pub struct Example {}
 
+pub struct StoreExample {
+    pub i: i32,
+}
+
+impl Store for StoreExample {}
+
 impl Example {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        ctx.push_local_store(StoreExample { i: 42 });
+    }
+
     pub fn custom_event_trigger(&mut self, ctx: &NodeContext) {
         log::debug!("custom event was triggered!");
     }

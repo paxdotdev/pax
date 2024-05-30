@@ -1,8 +1,9 @@
 use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::{ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame, Store};
+use crate::{ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame};
 pub use pax_runtime_api::*;
+
 #[cfg(feature = "designtime")]
 use {
     crate::api::math::Point2, crate::node_interface::NodeInterface, crate::HandlerLocation,
@@ -35,7 +36,13 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
-    pub fn push_local_store<T: Store>(&self, store: T) {}
+    pub fn push_local_store<T: Store>(&self, store: T) {
+        self.local_stack_frame.insert_stack_local_store(store);
+    }
+
+    pub fn peek_local_store<T: Store, V>(&self, f: impl FnOnce(&mut T) -> V) -> Result<V, String> {
+        self.local_stack_frame.peek_stack_local_store(f)
+    }
 
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {
         let component_origin = self
