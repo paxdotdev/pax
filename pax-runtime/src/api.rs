@@ -1,7 +1,7 @@
 use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::{ExpandedNode, RuntimeContext};
+use crate::{ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame, Store};
 pub use pax_runtime_api::*;
 #[cfg(feature = "designtime")]
 use {
@@ -11,6 +11,8 @@ use {
 
 #[derive(Clone)]
 pub struct NodeContext {
+    /// Stack frame of this component, used to look up stores
+    pub(crate) local_stack_frame: Rc<RuntimePropertiesStackFrame>,
     /// Registered handlers on the instance node
     pub(crate) component_origin: Weak<ExpandedNode>,
     /// The current global engine tick count
@@ -33,6 +35,8 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
+    pub fn push_local_store<T: Store>(&self, store: T) {}
+
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {
         let component_origin = self
             .component_origin
