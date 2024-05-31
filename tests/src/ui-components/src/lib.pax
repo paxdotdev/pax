@@ -27,16 +27,22 @@
                 </Group>
                 <PaxSlider/>
             </Resizable>
-            // <Table rows=5 columns=4>
-            //     <Row y=1>
-            //         <Rectangle width=30% fill=BLUE/>
-            //         <Rectangle fill=RED/>
-            //     </Row>
-            //     <Row y=3>
-            //         <Text text="testing"/>
-            //     </Row>
-            // </Table>
-            // <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
+            <Table rows=5 columns=4>
+                <Row y=1>
+                    <Rectangle width=30% fill=BLUE/>
+                    <Rectangle fill=RED/>
+                </Row>
+                <Col x=1>
+                    <Rectangle fill=rgba(200, 30, 70, 100)/>
+                </Col>
+                <Span x=2 y=2 w=2 h=2>
+                    <Rectangle fill=rgba(200, 30, 250, 150)/>
+                </Span>
+                <Row y=3>
+                    <Text text="testing"/>
+                </Row>
+            </Table>
+            <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
         </Resizable>
         <Rectangle fill=rgb(200, 200, 200) stroke=WHITE/>
     </Resizable>

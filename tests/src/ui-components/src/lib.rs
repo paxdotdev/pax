@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
 
+use pax_component_library::table::Col;
 use pax_component_library::table::Row;
+use pax_component_library::table::Span;
 pub use pax_component_library::ConfirmationDialog;
 pub use pax_component_library::PaxDropdown;
 pub use pax_component_library::PaxRadioSet;
@@ -19,11 +21,7 @@ use pax_std::types::*;
 
 #[pax]
 #[main]
-// #[file("lib.pax")]
-#[inlined(
-    for i in 0..self.num {
-    }
-)]
+#[file("lib.pax")]
 #[custom(Default)]
 pub struct Example {
     pub selected: Property<u32>,
