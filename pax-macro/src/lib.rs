@@ -383,7 +383,11 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                 for token in tokens {
                     if let proc_macro2::TokenTree::Group(group) = token {
                         if group.delimiter() == proc_macro2::Delimiter::Parenthesis {
+                            eprintln!("INLINES_CONTENT: {}", group.stream());
                             content.extend(group.stream());
+                            eprintln!("INLINED_CONTENT: {}", content);
+                            eprintln!("TOKENS: INLINES_CONTENT: {:?}", group.stream());
+                            eprintln!("TOKENS: INLINED_CONTENT: {:?}", content);
                         }
                     }
                 }

@@ -19,13 +19,18 @@ use pax_std::types::*;
 
 #[pax]
 #[main]
-#[file("lib.pax")]
+// #[file("lib.pax")]
+#[inlined(
+    for i in 0..self.num {
+    }
+)]
 #[custom(Default)]
 pub struct Example {
     pub selected: Property<u32>,
     pub dialog_open: Property<bool>,
     pub message: Property<String>,
     pub signal: Property<bool>,
+    pub num: Property<usize>,
 }
 
 impl Default for Example {
@@ -35,6 +40,7 @@ impl Default for Example {
             selected: Property::new(1),
             dialog_open: Property::new(false),
             signal: Property::new(false),
+            num: Default::default(),
         }
     }
 }
