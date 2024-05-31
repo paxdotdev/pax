@@ -1,8 +1,8 @@
 <ContextualParent>
+    <ContextualChild id=0 text={self.text}/>
     for i in 0..self.num {
-        <ContextualChild text={"testing " + i}/>
+        <ContextualChild id={i+1} text={"testing " + i}/>
     }
-    <ContextualChild text={self.text}/>
 </ContextualParent>
 
 @settings {
