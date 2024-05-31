@@ -10,7 +10,7 @@ use std::iter;
 
 #[pax]
 #[inlined(
-for i in 0..self.slot_children {
+for i in self.slots {
     slot(i)
 }
 <Rectangle fill=GREEN/>
@@ -21,7 +21,7 @@ for i in 0..self.slot_children {
 pub struct Table {
     pub rows: Property<usize>,
     pub columns: Property<usize>,
-    pub slot_children: Property<usize>,
+    pub slots: Property<Vec<usize>>,
 }
 
 pub struct TableContext {
@@ -39,15 +39,17 @@ impl Table {
         });
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slot_children
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+        self.slots.replace_with(Property::computed(
+            move || (0..slot_children.get()).collect(),
+            &deps,
+        ));
     }
 }
 
 #[pax]
 #[inlined(
 <Group anchor_y=0% y={self.y_pos} height={self.height} width=100%>
-    for i in 0..self.slot_children {
+    for i in self.slots {
         slot(i)
     }
 </Group>
@@ -59,7 +61,7 @@ pub struct Row {
     pub y: Property<usize>,
     pub y_pos: Property<Size>,
     pub height: Property<Size>,
-    pub slot_children: Property<usize>,
+    pub slots: Property<Vec<usize>>,
 }
 
 impl Row {
@@ -82,7 +84,127 @@ impl Row {
         .expect("rows can not exist outside a table");
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slot_children
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+        self.slots.replace_with(Property::computed(
+            move || (0..slot_children.get()).collect(),
+            &deps,
+        ));
+    }
+}
+
+#[pax]
+#[inlined(
+<Group anchor_x=0% x={self.x_pos} width={self.width} height=100%>
+    for i in self.slots {
+        slot(i)
+    }
+</Group>
+@settings {
+    @mount: on_mount,
+}
+)]
+pub struct Col {
+    pub x: Property<usize>,
+    pub x_pos: Property<Size>,
+    pub width: Property<Size>,
+    pub slots: Property<Vec<usize>>,
+}
+
+impl Col {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        ctx.peek_local_store(|table_ctx: &mut TableContext| {
+            let columns = table_ctx.columns.clone();
+            let deps = [columns.untyped()];
+            self.width.replace_with(Property::computed(
+                move || Size::Percent((100.0 / columns.get() as f64).into()),
+                &deps,
+            ));
+            let columns = table_ctx.columns.clone();
+            let x = self.x.clone();
+            let deps = [columns.untyped(), x.untyped()];
+            self.x_pos.replace_with(Property::computed(
+                move || Size::Percent((100.0 / columns.get() as f64 * x.get() as f64).into()),
+                &deps,
+            ));
+        })
+        .expect("columns can not exist outside a table");
+        let slot_children = ctx.slot_children_count.clone();
+        let deps = [slot_children.untyped()];
+        self.slots.replace_with(Property::computed(
+            move || (0..slot_children.get()).collect(),
+            &deps,
+        ));
+    }
+}
+
+#[pax]
+#[inlined(
+<Group
+    anchor_x=0%
+    x={self.x_pos}
+    width={self.width}
+    anchor_y=0%
+    y={self.y_pos}
+    height={self.height}>
+
+    for i in self.slots {
+        slot(i)
+    }
+</Group>
+@settings {
+    @mount: on_mount,
+}
+)]
+pub struct Span {
+    pub x: Property<usize>,
+    pub y: Property<usize>,
+    pub w: Property<usize>,
+    pub h: Property<usize>,
+
+    pub x_pos: Property<Size>,
+    pub y_pos: Property<Size>,
+    pub width: Property<Size>,
+    pub height: Property<Size>,
+    pub slots: Property<Vec<usize>>,
+}
+
+impl Span {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        ctx.peek_local_store(|table_ctx: &mut TableContext| {
+            let rows = table_ctx.rows.clone();
+            let h = self.h.clone();
+            let deps = [rows.untyped(), h.untyped()];
+            self.height.replace_with(Property::computed(
+                move || Size::Percent((100.0 / rows.get() as f64 * h.get() as f64).into()),
+                &deps,
+            ));
+            let rows = table_ctx.rows.clone();
+            let y = self.y.clone();
+            let deps = [rows.untyped(), y.untyped()];
+            self.y_pos.replace_with(Property::computed(
+                move || Size::Percent((100.0 / rows.get() as f64 * y.get() as f64).into()),
+                &deps,
+            ));
+            let columns = table_ctx.columns.clone();
+            let w = self.w.clone();
+            let deps = [columns.untyped(), w.untyped()];
+            self.width.replace_with(Property::computed(
+                move || Size::Percent((100.0 / columns.get() as f64 * w.get() as f64).into()),
+                &deps,
+            ));
+            let columns = table_ctx.columns.clone();
+            let x = self.x.clone();
+            let deps = [columns.untyped(), x.untyped()];
+            self.x_pos.replace_with(Property::computed(
+                move || Size::Percent((100.0 / columns.get() as f64 * x.get() as f64).into()),
+                &deps,
+            ));
+        })
+        .expect("columns can not exist outside a table");
+        let slot_children = ctx.slot_children_count.clone();
+        let deps = [slot_children.untyped()];
+        self.slots.replace_with(Property::computed(
+            move || (0..slot_children.get()).collect(),
+            &deps,
+        ));
     }
 }

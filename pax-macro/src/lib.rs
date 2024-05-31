@@ -485,7 +485,9 @@ pub fn pax(
 
     let appended_tokens = if is_pax_file {
         let filename = config.file_path.unwrap();
+
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
+        eprintln!("CURR_DIR: {:?}", current_dir);
         let path = current_dir.join("src").join(&filename);
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
