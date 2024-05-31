@@ -383,17 +383,9 @@ impl ExpandedNode {
         if *borrow!(self.attached) == 0 {
             *borrow_mut!(self.attached) += 1;
             context.add_to_cache(&self);
-            //Note on subtle sequencing here:
-            // (1) _primitive_ handle_mounts must fire before updating properties for the first time.
-            //     This is at least to appease the needs of Component + Slot ordering; see ComponentInstance#update
-            // (2) separately, in userland, we want `mount` events to have properties available for reading & writing.
-            //     this requires calling `update` at least once.  (Note that this means `update` is currently called twice on init)
-            //Thus: primitive#handle_mount, primitive#update, component#handle_mount.  This requires the primitive author to
-            //  be aware of the fact that properties don't yet exist on mount.
             borrow!(self.instance_node)
                 .clone()
                 .handle_mount(&self, context);
-            Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 let registry = borrow!(registry);
                 for handler in registry.handlers.get("mount").unwrap_or(&Vec::new()) {
@@ -403,6 +395,12 @@ impl ExpandedNode {
                         None,
                     )
                 }
+            }
+        }
+        // Mount slot children and children AFTER mounting self
+        if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
+            for slot_child in slot_children {
+                slot_child.recurse_mount(context);
             }
         }
         for child in self.children.get().iter() {

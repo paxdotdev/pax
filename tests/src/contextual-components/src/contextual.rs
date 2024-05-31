@@ -16,7 +16,7 @@ impl Store for ContextStore {}
 #[inlined(
     @settings {
         @mount: on_mount
-        @pre_render: tick
+        @pre_render: pre_render
     }
 )]
 pub struct ContextualParent {
@@ -25,19 +25,21 @@ pub struct ContextualParent {
 
 impl ContextualParent {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let data: Vec<String> = Property::default();
+        log::debug!("firing parent mount");
+        let data: Property<Vec<String>> = Property::default();
         ctx.push_local_store(ContextStore { data: data.clone() });
         let deps = [data.untyped()];
         self.on_data_change.replace_with(Property::computed(
             move || {
                 let data = data.get();
-                log::debug!("data changed: {}", data);
+                log::debug!("data changed: {:?}", data);
+                false
             },
             &deps,
         ));
     }
 
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
         // dirty trigger
         self.on_data_change.get();
     }
@@ -45,7 +47,10 @@ impl ContextualParent {
 
 #[pax]
 #[inlined(
-    @settings {}
+    @settings {
+        @mount: on_mount
+        @pre_render: pre_render
+    }
 )]
 pub struct ContextualChild {
     pub text: Property<String>,
@@ -57,17 +62,25 @@ pub struct ContextualChild {
 
 impl ContextualChild {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let parent_data = ctx.peek_data_store(|store: &mut ContextStore| store.data.clone());
+        log::debug!("firing child mount");
+        let parent_data = ctx
+            .peek_local_store(|store: &mut ContextStore| store.data.clone())
+            .expect("child contextual element should exist under a parent");
         let text = self.text.clone();
         let id = self.id.clone();
         let deps = [text.untyped(), id.untyped()];
-        self.on_change.replace(Property::computed(
-            // move || {
+        self.on_change.replace_with(Property::computed(
+            move || {
                 parent_data.update(|list| {
-                    list[id.get()] = text.get();
+                    let id = id.get();
+                    while list.len() < id + 1 {
+                        list.push(String::new());
+                    }
+                    list[id] = text.get();
                 });
+                false
             },
-            deps,
+            &deps,
         ));
     }
 

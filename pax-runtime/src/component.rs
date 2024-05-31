@@ -58,13 +58,6 @@ impl InstanceNode for ComponentInstance {
             let children_with_env = children.iter().cloned().zip(iter::repeat(env));
             *borrow_mut!(expanded_node.expanded_slot_children) =
                 Some(containing_component.create_children_detached(children_with_env, context));
-
-            // Mounts slot children so repeat can create expression for children
-            if let Some(slot_children) = borrow!(expanded_node.expanded_slot_children).as_ref() {
-                for slot_child in slot_children {
-                    slot_child.recurse_mount(context);
-                }
-            }
         }
         let properties_scope = borrow!(expanded_node.properties_scope);
         let new_env = expanded_node.stack.push(
