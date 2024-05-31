@@ -257,7 +257,8 @@ impl<'de> de::Deserializer<'de> for PrimitiveDeserializer {
         if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_float, &self.input) {
             visitor.visit_f64(ast.next().unwrap().as_str().parse::<f64>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_integer, &self.input) {
-            visitor.visit_i64(ast.next().unwrap().as_str().parse::<i64>().unwrap())
+            let value = ast.next().unwrap().as_str();
+            visitor.visit_i64(value.parse::<i64>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_boolean, &self.input) {
             visitor.visit_bool(ast.next().unwrap().as_str().parse::<bool>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::inner, &self.input) {

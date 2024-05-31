@@ -141,6 +141,8 @@ fn recurse_pratt_parse_to_string<'a>(
                 let op0_out = match op0.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
+                        eprintln!("op: {}", op0);
+                        eprintln!("VALUE_WITH_SPACE: {:?}", op0.as_str());
                         format!("({}isize)", op0.as_str())
                     },
                     Rule::xo_symbol => {
