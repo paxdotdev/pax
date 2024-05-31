@@ -130,7 +130,6 @@ impl InstanceNode for RepeatInstance {
                     }
                     *borrow_mut!(last_length) = source_len;
                     let template_children = cloned_self.base().get_instance_children();
-                    log::debug!("for loop children replaced");
                     let children_with_envs = iter::repeat(template_children)
                         .take(source_len)
                         .enumerate()

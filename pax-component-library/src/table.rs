@@ -137,7 +137,6 @@ impl Table {
 
         self.cells.replace_with(Property::computed(
             move || {
-                log::debug!("cells firing");
                 let mut cell_data = Vec::new();
                 let headers = headers.get();
                 let header_color = header_color.get();

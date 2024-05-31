@@ -319,18 +319,23 @@ impl RuntimePropertiesStackFrame {
         let mut current = Rc::clone(self);
         let type_id = TypeId::of::<T>();
 
+        log::debug!("looking for: {:?}", type_id);
         while !borrow!(current.local_stores).contains_key(&type_id) {
+            log::debug!(
+                "contents in stack: {:?}",
+                borrow!(current.local_stores).keys().collect::<Vec<_>>()
+            );
             current = current
                 .parent
                 .upgrade()
                 .ok_or_else(|| format!("couldn't find store in local stack"))?;
         }
-        let v = {
+        let res = {
             let mut stores = borrow_mut!(current.local_stores);
             let store = stores.get_mut(&type_id).unwrap().downcast_mut().unwrap();
             f(store)
         };
-        Ok(v)
+        Ok(res)
     }
 
     pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {

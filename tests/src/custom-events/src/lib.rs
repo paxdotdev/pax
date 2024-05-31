@@ -27,6 +27,6 @@ impl Example {
     }
 
     pub fn custom_event_trigger(&mut self, ctx: &NodeContext) {
-        log::debug!("custom event was triggered!");
+        log::info!("custom event was triggered!");
     }
 }
