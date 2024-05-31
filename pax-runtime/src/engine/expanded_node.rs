@@ -638,9 +638,6 @@ impl ExpandedNode {
             .upgrade()
             .ok_or_else(|| "can't dispatch from root (has no parent)".to_owned())?;
         let properties = borrow!(parent_component.properties);
-        // save id of parent component (thing with props)
-        // save registry
-        // save identifier
 
         for handler in borrow!(registry)
             .handlers
