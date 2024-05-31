@@ -10,7 +10,7 @@ use std::iter;
 
 #[pax]
 #[inlined(
-for i in self.slots {
+for i in 0..self.slot_children {
     slot(i)
 }
 <Rectangle fill=GREEN/>
@@ -21,7 +21,7 @@ for i in self.slots {
 pub struct Table {
     pub rows: Property<usize>,
     pub columns: Property<usize>,
-    pub slots: Property<Vec<usize>>,
+    pub slot_children: Property<usize>,
 }
 
 pub struct TableContext {
@@ -39,17 +39,15 @@ impl Table {
         });
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slot_children
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }
 
 #[pax]
 #[inlined(
 <Group anchor_y=0% y={self.y_pos} height={self.height} width=100%>
-    for i in self.slots {
+    for i in 0..self.slot_children {
         slot(i)
     }
 </Group>
@@ -61,7 +59,7 @@ pub struct Row {
     pub y: Property<usize>,
     pub y_pos: Property<Size>,
     pub height: Property<Size>,
-    pub slots: Property<Vec<usize>>,
+    pub slot_children: Property<usize>,
 }
 
 impl Row {
@@ -84,9 +82,7 @@ impl Row {
         .expect("rows can not exist outside a table");
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slot_children
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }
