@@ -1,10 +1,10 @@
 use kurbo::BezPath;
 
-use pax_runtime::api::{Layer, NodeContext, RenderContext};
+use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::{borrow, use_RefCell, Property, Store};
+use pax_runtime_api::{borrow, use_RefCell};
 use pax_std::primitives::Path;
 use pax_std::types::path_types::PathContext;
 use pax_std::types::{PathElement, Point};
@@ -72,7 +72,6 @@ impl InstanceNode for PathInstance {
             let bounds = expanded_node.layout_properties.bounds.get();
 
             let elems = properties.elements.get();
-            log::debug!("elements draw: {:?}", elems);
             let mut itr_elems = elems.iter();
 
             if let Some(elem) = itr_elems.next() {

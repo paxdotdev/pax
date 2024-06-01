@@ -4,7 +4,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Size};
 
 use crate::{
-    api::math::{Point2, Space, Transform2},
+    api::math::{Point2, Space},
     api::{Rotation, Window},
     ExpandedNode,
 };

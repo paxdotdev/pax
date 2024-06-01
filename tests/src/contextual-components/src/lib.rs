@@ -26,10 +26,10 @@ impl Example {
 
     pub fn click(&mut self, ctx: &NodeContext, event: Event<Click>) {
         if event.mouse.x > 100.0 {
-            log::debug!("incrementing num");
+            log::info!("incrementing num");
             self.num.set(self.num.get() + 1);
         } else {
-            log::debug!("adding to text");
+            log::info!("adding to text");
             self.text.set(self.text.get() + "O");
         }
     }

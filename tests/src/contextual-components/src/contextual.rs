@@ -25,14 +25,13 @@ pub struct ContextualParent {
 
 impl ContextualParent {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        log::debug!("firing parent mount");
         let data: Property<Vec<String>> = Property::default();
         ctx.push_local_store(ContextStore { data: data.clone() });
         let deps = [data.untyped()];
         self.on_data_change.replace_with(Property::computed(
             move || {
                 let data = data.get();
-                log::debug!("data changed: {:?}", data);
+                log::info!("data changed: {:?}", data);
                 false
             },
             &deps,
@@ -62,7 +61,6 @@ pub struct ContextualChild {
 
 impl ContextualChild {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        log::debug!("firing child mount");
         let parent_data = ctx
             .peek_local_store(|store: &mut ContextStore| store.data.clone())
             .expect("child contextual element should exist under a parent");

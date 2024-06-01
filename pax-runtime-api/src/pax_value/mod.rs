@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, Stroke, Transform2D};
 use std::any::Any;
 
