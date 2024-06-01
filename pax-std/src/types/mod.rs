@@ -1,3 +1,4 @@
+pub mod path_types;
 pub mod text;
 
 use crate::primitives::Path;
