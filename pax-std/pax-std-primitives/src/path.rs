@@ -1,14 +1,17 @@
 use kurbo::BezPath;
 
-use pax_runtime::api::{Layer, RenderContext};
+use pax_runtime::api::{Layer, NodeContext, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::{borrow, use_RefCell};
+use pax_runtime_api::{borrow, use_RefCell, Property, Store};
 use pax_std::primitives::Path;
+use pax_std::types::path_types::PathContext;
 use pax_std::types::{PathElement, Point};
 
 use_RefCell!();
+use std::collections::HashMap;
+use std::iter;
 use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
@@ -34,6 +37,27 @@ impl InstanceNode for PathInstance {
         })
     }
 
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        // create a new stack to be able to insert a local store specific for this node and the
+        // ones bellow. If not done, things above this node could potentially access it
+        let env = expanded_node
+            .stack
+            .push(HashMap::new(), &*borrow!(expanded_node.properties));
+        expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+            env.insert_stack_local_store(PathContext {
+                elements: properties.elements.clone(),
+            });
+            let children = borrow!(self.base().get_instance_children());
+            let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+            let new_children = expanded_node.generate_children(children_with_envs, context);
+            expanded_node.children.set(new_children);
+        });
+    }
+
     fn render(
         &self,
         expanded_node: &ExpandedNode,
@@ -48,6 +72,7 @@ impl InstanceNode for PathInstance {
             let bounds = expanded_node.layout_properties.bounds.get();
 
             let elems = properties.elements.get();
+            log::debug!("elements draw: {:?}", elems);
             let mut itr_elems = elems.iter();
 
             if let Some(elem) = itr_elems.next() {
