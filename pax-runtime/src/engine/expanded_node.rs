@@ -1,5 +1,4 @@
 use crate::api::TextInput;
-use pax_message::NativeInterrupt;
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
@@ -15,7 +14,7 @@ use crate::constants::{
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::node_interface::{NodeInterface, NodeLocal};
+use crate::node_interface::NodeLocal;
 use crate::{ExpandedNodeIdentifier, Globals};
 use core::fmt;
 use std::cell::Cell;

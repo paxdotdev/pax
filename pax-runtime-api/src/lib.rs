@@ -4,7 +4,6 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
-use pax_value::PaxAny;
 pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;

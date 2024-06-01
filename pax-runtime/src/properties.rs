@@ -319,12 +319,7 @@ impl RuntimePropertiesStackFrame {
         let mut current = Rc::clone(self);
         let type_id = TypeId::of::<T>();
 
-        log::debug!("looking for: {:?}", type_id);
         while !borrow!(current.local_stores).contains_key(&type_id) {
-            log::debug!(
-                "contents in stack: {:?}",
-                borrow!(current.local_stores).keys().collect::<Vec<_>>()
-            );
             current = current
                 .parent
                 .upgrade()
