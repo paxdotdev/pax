@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use pax_component_library::table::Cell;
 use pax_component_library::table::Col;
 use pax_component_library::table::Row;
 use pax_component_library::table::Span;

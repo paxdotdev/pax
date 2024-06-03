@@ -1,10 +1,16 @@
 <Path stroke={color: Color::RED, width: 5px}>
-    <PathPoint id=0 x=0.0 y=0.0/>
-    <PathLine id=1/>
-    <PathPoint id=2 x=300.0 y=300.0/>
-    <PathCurve id=3 x=500.0 y=300.0/>
-    <PathPoint id=4 x=300.0 y=100.0/>
-    <PathClose id=5/>
+    <PathPoint x=0.0 y=0.0/>
+    if self.jump {
+        <PathLine/>
+        <PathPoint x=100.0 y=400.0/>
+    }
+    <PathLine/>
+    <PathPoint x=300.0 y=300.0/>
+    <PathCurve x=500.0 y=300.0/>
+    <PathPoint x=300.0 y=100.0/>
+    <PathClose/>
 </Path>
 
-@settings {}
+@settings {
+    @click: self.toggle
+}

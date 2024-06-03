@@ -14,6 +14,8 @@ use {
 
 #[derive(Clone)]
 pub struct NodeContext {
+    /// slot index of this node in it's container
+    pub slot_index: Property<Option<usize>>,
     /// Stack frame of this component, used to look up stores
     pub(crate) local_stack_frame: Rc<RuntimePropertiesStackFrame>,
     pub(crate) slot_children: Property<Vec<Rc<ExpandedNode>>>,
