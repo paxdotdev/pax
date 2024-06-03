@@ -27,9 +27,8 @@
                 </Group>
                 <PaxSlider/>
             </Resizable>
-            <Table rows=5 columns=4>
+            <Table rows=4 columns=4>
                 <Row y=1>
-                    <Rectangle width=30% fill=BLUE/>
                     <Rectangle fill=RED/>
                 </Row>
                 <Col x=1>
@@ -41,6 +40,9 @@
                 <Row y=3>
                     <Text text="testing"/>
                 </Row>
+                <Cell x=0 y=3>
+                    <Rectangle fill=YELLOW/>
+                </Cell>
             </Table>
             <Rectangle fill=rgb(200, 170, 200) stroke=WHITE/>
         </Resizable>

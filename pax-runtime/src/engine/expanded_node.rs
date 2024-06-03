@@ -112,6 +112,9 @@ pub struct ExpandedNode {
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
+
+    /// The index of this node in it's potential slot child container
+    pub slot_index: Property<Option<usize>>,
 }
 
 impl ImplToFromPaxAny for ExpandedNode {}
@@ -232,6 +235,7 @@ impl ExpandedNode {
             flattened_slot_children_count: Property::new(0),
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
+            slot_index: Property::default(),
         });
         res
     }
@@ -501,6 +505,7 @@ impl ExpandedNode {
             };
 
         NodeContext {
+            slot_index: self.slot_index.clone(),
             local_stack_frame: Rc::clone(&self.stack),
             slot_children,
             component_origin: Weak::clone(&self.containing_component),
@@ -587,6 +592,16 @@ impl ExpandedNode {
             if !old_and_new_filtered_same {
                 self.flattened_slot_children_count.set(new_flattened.len());
                 self.expanded_and_flattened_slot_children.set(new_flattened);
+                for (i, slot_child) in self
+                    .expanded_and_flattened_slot_children
+                    .get()
+                    .iter()
+                    .enumerate()
+                {
+                    if slot_child.slot_index.get() != Some(i) {
+                        slot_child.slot_index.set(Some(i));
+                    };
+                }
             }
         }
     }
