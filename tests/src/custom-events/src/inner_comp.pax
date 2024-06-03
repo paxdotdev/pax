@@ -1,1 +1,5 @@
 <Rectangle fill=RED @click=self.clicked/>
+
+@settings {
+	@unmount: on_unmount
+}
