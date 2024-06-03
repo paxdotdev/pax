@@ -255,17 +255,13 @@ impl<'de> de::Deserializer<'de> for PrimitiveDeserializer {
         V: Visitor<'de>,
     {
         if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_float, &self.input) {
-            visitor.visit_f64(ast.next().unwrap().as_str().parse::<f64>().unwrap())
+            visitor.visit_f64(ast.next().unwrap().as_str().trim().parse::<f64>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_number_integer, &self.input) {
-            let value = ast.next().unwrap().as_str();
-            // when text is first processed by include macro, sometimes this includes a space? (processed as token streams), so trim it:
-            // can other variants also include space? how does this happen? Doesn't seem to be part of the grammar
-            let value = value.trim();
-            visitor.visit_i64(value.parse::<i64>().unwrap())
+            visitor.visit_i64(ast.next().unwrap().as_str().trim().parse::<i64>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_boolean, &self.input) {
-            visitor.visit_bool(ast.next().unwrap().as_str().parse::<bool>().unwrap())
+            visitor.visit_bool(ast.next().unwrap().as_str().trim().parse::<bool>().unwrap())
         } else if let Ok(mut ast) = PaxParser::parse(Rule::inner, &self.input) {
-            visitor.visit_str(ast.next().unwrap().as_str())
+            visitor.visit_str(ast.next().unwrap().as_str().trim())
         } else {
             panic!("Failed to parse: {}", &self.input)
         }

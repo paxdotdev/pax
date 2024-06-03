@@ -12,7 +12,7 @@ const PIXEL_ALIGN_FACTOR: f64 = 1.0;
 
 #[pax]
 #[inlined(
-for i in self.slots {
+for i in 0..self.slots {
     slot(i)
 }
 <Rectangle fill=GREEN/>
@@ -23,7 +23,7 @@ for i in self.slots {
 pub struct Table {
     pub rows: Property<usize>,
     pub columns: Property<usize>,
-    pub slots: Property<Vec<usize>>,
+    pub slots: Property<usize>,
 }
 
 pub struct TableContext {
@@ -41,17 +41,15 @@ impl Table {
         });
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slots
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }
 
 #[pax]
 #[inlined(
 <Group anchor_y=0% y={self.y_pos} height={self.height} width=100%>
-    for i in self.slots {
+    for i in 0..self.slots {
         slot(i)
     }
 </Group>
@@ -63,7 +61,7 @@ pub struct Row {
     pub y: Property<usize>,
     pub y_pos: Property<Size>,
     pub height: Property<Size>,
-    pub slots: Property<Vec<usize>>,
+    pub slots: Property<usize>,
 }
 
 impl Row {
@@ -90,17 +88,15 @@ impl Row {
         .expect("rows can not exist outside a table");
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slots
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }
 
 #[pax]
 #[inlined(
 <Group anchor_x=0% x={self.x_pos} width={self.width} height=100%>
-    for i in self.slots {
+    for i in 0..self.slots {
         slot(i)
     }
 </Group>
@@ -112,7 +108,7 @@ pub struct Col {
     pub x: Property<usize>,
     pub x_pos: Property<Size>,
     pub width: Property<Size>,
-    pub slots: Property<Vec<usize>>,
+    pub slots: Property<usize>,
 }
 
 impl Col {
@@ -139,10 +135,8 @@ impl Col {
         .expect("columns can not exist outside a table");
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slots
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }
 
@@ -156,7 +150,7 @@ impl Col {
     y={self.y_pos}
     height={self.height}>
 
-    for i in self.slots {
+    for i in 0..self.slots {
         slot(i)
     }
 </Group>
@@ -174,7 +168,7 @@ pub struct Span {
     pub y_pos: Property<Size>,
     pub width: Property<Size>,
     pub height: Property<Size>,
-    pub slots: Property<Vec<usize>>,
+    pub slots: Property<usize>,
 }
 
 impl Span {
@@ -228,10 +222,8 @@ impl Span {
         .expect("columns can not exist outside a table");
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slots
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }
 
@@ -245,7 +237,7 @@ impl Span {
     y={self.y_pos}
     height={self.height}>
 
-    for i in self.slots {
+    for i in 0..self.slots {
         slot(i)
     }
 </Group>
@@ -261,7 +253,7 @@ pub struct Cell {
     pub y_pos: Property<Size>,
     pub width: Property<Size>,
     pub height: Property<Size>,
-    pub slots: Property<Vec<usize>>,
+    pub slots: Property<usize>,
 }
 
 impl Cell {
@@ -305,9 +297,7 @@ impl Cell {
         .expect("columns can not exist outside a table");
         let slot_children = ctx.slot_children_count.clone();
         let deps = [slot_children.untyped()];
-        self.slots.replace_with(Property::computed(
-            move || (0..slot_children.get()).collect(),
-            &deps,
-        ));
+        self.slots
+            .replace_with(Property::computed(move || slot_children.get(), &deps));
     }
 }

@@ -113,7 +113,8 @@ pub struct ExpandedNode {
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 
-    /// The index of this node in it's potential slot child container
+    /// The flattened index of this node in it's container (if this container
+    /// cares about slot children, ex: component, path).
     pub slot_index: Property<Option<usize>>,
 }
 
@@ -390,8 +391,11 @@ impl ExpandedNode {
                 .clone()
                 .handle_mount(&self, context);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-                let registry = borrow!(registry);
-                for handler in registry.handlers.get("mount").unwrap_or(&Vec::new()) {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("mount")
+                    .unwrap_or(&Vec::new())
+                {
                     (handler.function)(
                         Rc::clone(&*borrow!(self.properties)),
                         &self.get_node_context(context),
@@ -486,28 +490,18 @@ impl ExpandedNode {
             globals.viewport.bounds.clone()
         };
 
-        let (slot_children, slot_children_count) =
-            if borrow!(self.instance_node).base().flags().is_component {
-                (
-                    self.expanded_and_flattened_slot_children.clone(),
-                    self.flattened_slot_children_count.clone(),
-                )
-            } else {
-                self.containing_component
-                    .upgrade()
-                    .map(|v| {
-                        (
-                            v.expanded_and_flattened_slot_children.clone(),
-                            v.flattened_slot_children_count.clone(),
-                        )
-                    })
-                    .unwrap_or_default()
-            };
+        let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
+            self.flattened_slot_children_count.clone()
+        } else {
+            self.containing_component
+                .upgrade()
+                .map(|v| v.flattened_slot_children_count.clone())
+                .unwrap_or_default()
+        };
 
         NodeContext {
             slot_index: self.slot_index.clone(),
             local_stack_frame: Rc::clone(&self.stack),
-            slot_children,
             component_origin: Weak::clone(&self.containing_component),
             frames_elapsed: globals.frames_elapsed.clone(),
             bounds_self,

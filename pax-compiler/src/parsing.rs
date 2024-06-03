@@ -141,10 +141,10 @@ fn recurse_pratt_parse_to_string<'a>(
                 let op0_out = match op0.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
-                        format!("({}isize)", op0.as_str())
+                        format!("({}isize)", op0.as_str().trim())
                     },
                     Rule::xo_symbol => {
-                        symbolic_ids.borrow_mut().push(op0.as_str().to_string());
+                        symbolic_ids.borrow_mut().push(op0.as_str().trim().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
                         format!("({}).to_pax_any().try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op0))
                     },
@@ -152,16 +152,16 @@ fn recurse_pratt_parse_to_string<'a>(
                 };
 
                 let op1 = pairs.next().unwrap();
-                let op1_out = op1.as_str().to_string();
+                let op1_out = op1.as_str().trim().to_string();
 
                 let op2 = pairs.next().unwrap();
                 let op2_out = match op2.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
-                        format!("({}isize)", op2.as_str())
+                        format!("({}isize)", op2.as_str().trim())
                     },
                     Rule::xo_symbol => {
-                        symbolic_ids.borrow_mut().push(op2.as_str().to_string());
+                        symbolic_ids.borrow_mut().push(op2.as_str().trim().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
                         format!("({}).to_pax_any().try_coerce::<isize>().unwrap()",convert_symbolic_binding_from_paxel_to_ril(op2))
                     },
@@ -177,8 +177,8 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::literal_number_with_unit => {
                         let mut inner = literal_kind.into_inner();
 
-                        let value = inner.next().unwrap().as_str();
-                        let unit = inner.next().unwrap().as_str();
+                        let value = inner.next().unwrap().as_str().trim();
+                        let unit = inner.next().unwrap().as_str().trim();
 
                         if unit == "px" {
                             format!("Size::Pixels({}.into()).to_pax_any()", value)
@@ -194,11 +194,11 @@ fn recurse_pratt_parse_to_string<'a>(
                     },
                     Rule::literal_number => {
                         let mut inner = literal_kind.into_inner();
-                        let value = inner.next().unwrap().as_str();
+                        let value = inner.next().unwrap().as_str().trim();
                         format!("({}).to_pax_any()", value)
                     },
                     Rule::string => {
-                        format!("({}).to_string().to_pax_any()",literal_kind.as_str().to_string())
+                        format!("({}).to_string().to_pax_any()",literal_kind.as_str().trim().to_string())
                     },
                     Rule::literal_color => {
                         let mut inner = literal_kind.into_inner();
