@@ -325,12 +325,12 @@ impl RuntimePropertiesStackFrame {
                 .upgrade()
                 .ok_or_else(|| format!("couldn't find store in local stack"))?;
         }
-        let res = {
+        let v = {
             let mut stores = borrow_mut!(current.local_stores);
             let store = stores.get_mut(&type_id).unwrap().downcast_mut().unwrap();
             f(store)
         };
-        Ok(res)
+        Ok(v)
     }
 
     pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {
