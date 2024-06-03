@@ -418,6 +418,19 @@ impl ExpandedNode {
         if *borrow!(self.attached) == 1 {
             *borrow_mut!(self.attached) -= 1;
             context.remove_from_cache(&self);
+            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("unmount")
+                    .unwrap_or(&Vec::new())
+                {
+                    (handler.function)(
+                        Rc::clone(&*borrow!(self.properties)),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
+            }
             borrow!(self.instance_node).handle_unmount(&self, context);
         }
     }

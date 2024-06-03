@@ -300,6 +300,7 @@ lazy_static! {
             ("tick", "Set Tick event handler"),
             ("pre_render", "Set Will Render event handler"),
             ("mount", "Set Did Mount event handler"),
+            ("unmount", "Set Unmount event handler"),
         ];
 
         for (event, description) in &events {
