@@ -78,13 +78,11 @@ impl PaxDesigner {
                     let world_to_glass = glass_to_world.get().inverse();
                     let t = world_to_glass.get_translation();
                     let s = world_to_glass.get_scale();
-                    Transform2D::scale(
-                        Size::Percent((100.0 * s.x).into()),
-                        Size::Percent((100.0 * s.y).into()),
-                    ) * Transform2D::translate(
-                        Size::Pixels((t.x).into()),
-                        Size::Pixels((t.y).into()),
-                    )
+                    Transform2D::scale(Percent((100.0 * s.x).into()), Percent((100.0 * s.y).into()))
+                        * Transform2D::translate(
+                            Size::Pixels((t.x).into()),
+                            Size::Pixels((t.y).into()),
+                        )
                 },
                 &deps,
             ));

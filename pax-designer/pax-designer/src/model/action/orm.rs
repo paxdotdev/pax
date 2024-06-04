@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::{AxisAlignedBox, Unit};
+use crate::math::{self, AxisAlignedBox, Unit};
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
 use crate::{math::BoxPoint, model, model::AppState};
@@ -10,12 +10,13 @@ use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow_mut, Rotation};
+use pax_engine::math::Transform2;
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
     serde,
 };
-use pax_engine::{log, NodeInterface, Properties};
+use pax_engine::{log, NodeInterface, NodeLocal, Properties};
 use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::Axis;
 
@@ -106,7 +107,7 @@ impl Action for SelectedIntoNewComponent {
 }
 
 pub struct SetBoxSelected<'a> {
-    pub node_box: AxisAlignedBox<World>,
+    pub node_box: Transform2<Glass, NodeLocal>,
     pub props: &'a Properties,
     pub dimension_frozen: (bool, bool),
     pub set_position: bool,
@@ -139,74 +140,41 @@ impl<'a> Action for SetBoxSelected<'a> {
             return Err(anyhow!("can't move: selected node doesn't exist in orm"));
         };
 
+        // TODO this should be relative to parent later on (when we have contextual drilling)
         let bounds = ctx
             .app_state
             .stage
             .read(|stage| (stage.width as f64, stage.height as f64));
+        let new_props: Properties =
+            math::transform_to_properties(bounds, self.node_box, self.props);
 
-        let width = self.node_box.width();
-        let height = self.node_box.height();
-
-        let Point2 { x: dx, y: dy, .. } = self.node_box.top_left();
-
-        let x = if let Some(anchor_x) = self.props.anchor_x {
-            dx + anchor_x.evaluate((width, height), Axis::X)
-        } else {
-            if self.unit == Unit::Percent {
-                // if anchor is not set to figure out the new "virtual"
-                // anchor point based on wanted top left position and width/height.
-                // (same thing as bellow is done for the y case)
-                // equation for new position (since anchor depends on x, solving for x):
-                // x = dx + (width/bounds.0)*x =>
-                // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
-                // x = dx/(1 - (width/bounds.0))
-                dx / (1.0 - (width / bounds.0))
-            } else {
-                dx
-            }
-        };
-        let y = if let Some(anchor_y) = self.props.anchor_y {
-            dy + anchor_y.evaluate((width, height), Axis::Y)
-        } else {
-            if self.unit == Unit::Percent {
-                // same thing here
-                dy / (1.0 - (height / bounds.1))
-            } else {
-                dy
-            }
-        };
-        let x = if x.is_normal() { x } else { 0.0 };
-        let y = if y.is_normal() { y } else { 0.0 };
-
-        let (x, y, width, height) = if self.unit == Unit::Percent {
-            let percentage_x = to_percent((x / bounds.0) * 100.0);
-            let percentage_y = to_percent((y / bounds.1) * 100.0);
-            let perc_width = to_percent((width / bounds.0) * 100.0);
-            let perc_height = to_percent((height / bounds.1) * 100.0);
-            (percentage_x, percentage_y, perc_width, perc_height)
-        } else {
-            (
-                to_pixels(x),
-                to_pixels(y),
-                to_pixels(width),
-                to_pixels(height),
-            )
-        };
-        if !self.dimension_frozen.0 {
-            if self.set_position {
-                builder.set_property("x", &x)?;
-            }
-            if self.set_size {
-                builder.set_property("width", &width)?;
-            }
+        // Write new_prop values to ORM
+        if let Some(x) = new_props.x {
+            builder.set_property("x", &x.to_string())?;
         }
-        if !self.dimension_frozen.1 {
-            if self.set_position {
-                builder.set_property("y", &y)?;
-            }
-            if self.set_size {
-                builder.set_property("height", &height)?;
-            }
+        if let Some(width) = new_props.width {
+            builder.set_property("width", &width.to_string())?;
+        }
+        if let Some(y) = new_props.y {
+            builder.set_property("y", &y.to_string())?;
+        }
+        if let Some(height) = new_props.height {
+            builder.set_property("height", &height.to_string())?;
+        }
+        if let Some(scale_x) = new_props.scale_x {
+            builder.set_property("scale_x", &scale_x.to_string())?;
+        }
+        if let Some(scale_y) = new_props.scale_y {
+            builder.set_property("scale_y", &scale_y.to_string())?;
+        }
+        if let Some(skew_x) = new_props.skew_x {
+            builder.set_property("skew_x", &skew_x.to_string())?;
+        }
+        if let Some(skew_y) = new_props.skew_y {
+            builder.set_property("skew_y", &skew_y.to_string())?;
+        }
+        if let Some(rotation) = new_props.local_rotation {
+            builder.set_property("rotate", &rotation.to_string())?;
         }
 
         builder
@@ -241,8 +209,9 @@ impl<'props> Action for ResizeSelected<'props> {
         });
 
         let world_anchor = bounds.from_inner_space(self.attachment_point);
-        let new_bounds =
-            bounds.morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down);
+        let new_bounds = bounds
+            .morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down)
+            .as_transform();
 
         let freeze_x = self.attachment_point.x.abs() <= f64::EPSILON;
         let freeze_y = self.attachment_point.y.abs() <= f64::EPSILON;
@@ -258,7 +227,7 @@ impl<'props> Action for ResizeSelected<'props> {
         };
 
         ctx.execute(SetBoxSelected {
-            node_box: new_bounds,
+            node_box: new_bounds.cast_spaces(),
             props: self.props,
             dimension_frozen: (freeze_x, freeze_y),
             unit,

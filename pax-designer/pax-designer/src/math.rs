@@ -1,7 +1,10 @@
 use std::ops::Mul;
 
-use pax_engine::math::{Point2, Space, Transform2, Vector2};
-use pax_runtime_api::Interpolatable;
+use pax_engine::{
+    math::{Parts, Point2, Space, Transform2, Vector2},
+    NodeLocal, Properties,
+};
+use pax_runtime_api::{Interpolatable, Size};
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -186,6 +189,15 @@ impl<W: Space> AxisAlignedBox<W> {
             AxisAlignedBox::new(anchor + v, anchor)
         }
     }
+
+    /// Returns the transform that moves the unit
+    /// vectors to this box
+    pub fn as_transform(&self) -> Transform2 {
+        let origin = self.min;
+        let vx = Vector2::new(self.width(), 0.0);
+        let vy = Vector2::new(0.0, self.height());
+        Transform2::compose(origin.cast_space(), vx, vy)
+    }
 }
 
 #[cfg(test)]
@@ -202,5 +214,69 @@ mod tests {
         let inner = b.to_inner_space(point);
         let p_back = b.from_inner_space(inner);
         assert!((point - p_back).length() < 0.01);
+    }
+}
+
+// This inversion method goes from a general transform2d describing the bounding box, some optional parameters,
+// and the old property values to the new property values if the object is moved to the new location.
+// This needs to be updated whenever the layout calculation is updated in the engine.
+// TODO expose method for layout calc in engine, right tests in the designer to make sure that this
+// is doing inversion correctly
+pub(crate) fn transform_to_properties(
+    bounds: (f64, f64),
+    target_box: Transform2<Glass, NodeLocal>,
+    old_props: &Properties,
+) -> Properties {
+    // if anchor is not set to figure out the new "virtual"
+    // anchor point based on wanted top left position and width/height.
+    // (same thing as bellow is done for the y case)
+    // equation for new position (since anchor depends on x, solving for x):
+    // x = dx + (width/bounds.0)*x =>
+    // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
+    // x = dx/(1 - (width/bounds.0))
+    // dx / (1.0 - (width / bounds.0))
+    let parts: Parts = target_box.into();
+
+    // TODO don't assume scale is always 1, instead accept boolean flag
+    // if scale or width/height should be resized (probably config object to be able to freeze dims, etc)
+    let width = old_props.width.map(|s| s.updated(bounds.0, parts.scale.x));
+    let height = old_props.height.map(|s| s.updated(bounds.1, parts.scale.y));
+    // TODO expose way to move anchor of object when target box is the same
+    let anchor_x = old_props.anchor_x;
+    let anchor_y = old_props.anchor_y;
+
+    let x = old_props.x.map(|s| s.updated(bounds.0, parts.origin.x));
+    let y = old_props.y.map(|s| s.updated(bounds.1, parts.origin.y));
+
+    // First assume everything is in pixels, then after that
+    // convert into percent using bounds if the old property value was of that type
+    // (TODO expose overrides for pix/perc)
+    Properties {
+        x,
+        y,
+        width,
+        height,
+        // TODO
+        anchor_x,
+        anchor_y,
+        local_rotation: None,
+        scale_x: None,
+        scale_y: None,
+        skew_x: None,
+        skew_y: None,
+    }
+}
+
+trait Update {
+    fn updated(&self, dim: f64, val: f64) -> Self;
+}
+
+impl Update for Size {
+    fn updated(&self, dim: f64, val: f64) -> Self {
+        match self {
+            Size::Pixels(_) => Size::Pixels(val.into()),
+            Size::Percent(_) => Size::Percent((100.0 * val / dim).into()),
+            Size::Combined(_, _) => panic!("can't update combined, is this an expression?"),
+        }
     }
 }

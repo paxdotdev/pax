@@ -260,7 +260,7 @@ fn get_generic_object_editor(selection_bounds: &AxisAlignedBox) -> Editor {
             Rc::new(RefCell::new(RotationBehaviour {
                 rotation_anchor,
                 start_dir,
-                start_angle,
+                start_angle: start_angle.unwrap_or(Rotation::Degrees(0.into())),
             }))
         })
     }
