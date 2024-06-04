@@ -90,7 +90,7 @@ impl ControlPoint {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
                 let behaviour = model::with_action_context(ctx, |ac| {
-                    funcs[self.ind.get().to_int() as usize](ac, ac.glass_transform() * pos)
+                    funcs[self.ind.get().to_int() as usize](ac, ac.glass_transform().get() * pos)
                 });
                 model::perform_action(ActivateControlPoint { behaviour }, ctx);
             } else {

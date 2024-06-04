@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use super::model::ToolBehaviour;
 use pax_engine::api::*;
-use pax_engine::math::{Point2, Vector2};
+use pax_engine::math::{Generic, Point2, Transform2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
@@ -115,8 +115,9 @@ fn bind_props_to_editor(
     bounding_segments_prop.replace_with(Property::computed(move || editor.get().segments, &deps));
 }
 
-fn get_generic_object_editor(selection_bounds: &AxisAlignedBox) -> Editor {
-    let [p1, p4, p3, p2] = selection_bounds.corners();
+fn get_generic_object_editor(selection_bounds: &Transform2<Generic, Glass>) -> Editor {
+    let (o, u, v) = selection_bounds.decompose();
+    let [p1, p4, p3, p2] = [o, o + u, o + u + v, o + v];
 
     let mut editor = Editor::new();
 
@@ -144,11 +145,10 @@ fn get_generic_object_editor(selection_bounds: &AxisAlignedBox) -> Editor {
                 // TODO handle multi-selection
                 return;
             };
-            let axis_box_world = item
-                .bounds
-                .get()
-                .try_into_space(ctx.world_transform())
-                .expect("tried to transform axis aligned box to non-axis aligned space");
+            // todo make conversion nicer
+            let axis_box_world = ctx.world_transform() * item.bounds.get();
+            let (o, u, v) = axis_box_world.decompose();
+            let axis_box_world = AxisAlignedBox::new(o, o + u + v);
             let origin_world = ctx.world_transform() * item.origin;
             if let Err(e) = ctx.execute(action::orm::ResizeSelected {
                 attachment_point: self.attachment_point,

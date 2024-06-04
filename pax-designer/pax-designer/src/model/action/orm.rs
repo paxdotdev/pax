@@ -10,7 +10,7 @@ use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow_mut, Rotation};
-use pax_engine::math::Transform2;
+use pax_engine::math::{Parts, Transform2};
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
@@ -68,34 +68,22 @@ impl Action for SelectedIntoNewComponent {
             .items
             .iter()
             .map(|e| {
-                let b = e
-                    .bounds
-                    .get()
-                    .try_into_space(world_transform)
-                    .expect("non-valid world transform");
+                let b = world_transform * e.bounds.get();
+                let parts: Parts = b.into();
                 MoveToComponentEntry {
-                    x: b.top_left().x,
-                    y: b.top_left().y,
-                    width: b.width(),
-                    height: b.height(),
+                    x: parts.origin.x,
+                    y: parts.origin.y,
+                    width: parts.scale.x,
+                    height: parts.scale.y,
                     id: e.id.clone(),
                 }
             })
             .collect();
 
-        let tb = selection
-            .total_bounds
-            .get()
-            .try_into_space(world_transform)
-            .expect("non-valid world transform");
+        let tb = world_transform * selection.total_bounds.get();
+        let (o, u, v) = tb.decompose();
         dt.get_orm_mut()
-            .move_to_new_component(
-                &entries,
-                tb.top_left().x,
-                tb.top_left().y,
-                tb.width(),
-                tb.height(),
-            )
+            .move_to_new_component(&entries, o.x, o.y, u.length(), v.length())
             .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
