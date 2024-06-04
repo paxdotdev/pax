@@ -510,19 +510,25 @@ pub struct CommonProperty {
 
 #[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
+    // non transform related
     pub id: Property<Option<String>>,
+
+    // Size relative parent
     pub x: Property<Option<Size>>,
     pub y: Property<Option<Size>>,
+    pub width: Property<Option<Size>>,
+    pub height: Property<Option<Size>>,
+    // Size relative self bounds
+    pub anchor_x: Property<Option<Size>>,
+    pub anchor_y: Property<Option<Size>>,
+    // Fixed units (independent of container bounds)
     pub scale_x: Property<Option<Size>>,
     pub scale_y: Property<Option<Size>>,
     pub skew_x: Property<Option<f64>>,
     pub skew_y: Property<Option<f64>>,
     pub rotate: Property<Option<Rotation>>,
-    pub anchor_x: Property<Option<Size>>,
-    pub anchor_y: Property<Option<Size>>,
+    // extra transform
     pub transform: Property<Option<Transform2D>>,
-    pub width: Property<Option<Size>>,
-    pub height: Property<Option<Size>>,
 }
 
 impl CommonProperties {
@@ -1649,8 +1655,8 @@ pub struct Transform2D {
     pub rotate: Option<Rotation>,
     pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
-    pub scale: Option<[Size; 2]>,
-    pub skew: Option<[f64; 2]>,
+    pub scale: Option<[Percent; 2]>,
+    pub skew: Option<[Rotation; 2]>,
 }
 
 impl Interpolatable for Transform2D {}
@@ -1667,7 +1673,7 @@ impl Mul for Transform2D {
 
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
-    pub fn scale(x: Size, y: Size) -> Self {
+    pub fn scale(x: Percent, y: Percent) -> Self {
         let mut ret = Transform2D::default();
         ret.scale = Some([x, y]);
         ret

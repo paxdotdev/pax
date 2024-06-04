@@ -7,6 +7,8 @@ use crate::Interpolatable;
 
 use super::{vector::Vector2, Generic, Space};
 
+impl<W: Space> Interpolatable for Point2<W> {}
+
 pub struct Point2<W = Generic> {
     pub x: f64,
     pub y: f64,
@@ -98,8 +100,4 @@ impl<W: Space> Sub<Vector2<W>> for Point2<W> {
     fn sub(self, rhs: Vector2<W>) -> Self::Output {
         Self::Output::new(self.x - rhs.x, self.y - rhs.y)
     }
-}
-
-impl<W: Space> Interpolatable for Point2<W> {
-    //TODO impl
 }

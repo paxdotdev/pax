@@ -66,6 +66,7 @@ where
     }
 
     let type_id = TypeId::of::<T>();
+
     if type_id != TypeId::of::<Color>()
         && type_id != TypeId::of::<Percent>()
         && type_id != TypeId::of::<Numeric>()
