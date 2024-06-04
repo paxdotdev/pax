@@ -61,10 +61,10 @@ impl ToolBehaviour for CreateComponentTool {
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         self.pointer_move(point, ctx);
-        let world_box = self
-            .bounds
-            .try_into_space(ctx.world_transform())
-            .expect("only translate/scale");
+        let box_transform = ctx.world_transform() * self.bounds.as_transform();
+        let (o, u, v) = box_transform.decompose();
+        // TODO make CreateComponent take transform?
+        let world_box = AxisAlignedBox::new(o, o + u + v);
         ctx.execute(CreateComponent {
             bounds: world_box,
             type_id: self.type_id.clone(),
@@ -149,7 +149,7 @@ impl PointerTool {
                 overwrite: false,
             });
 
-            let transform = ctx.glass_transform() * hit.layout_properties().transform.get();
+            let transform = ctx.glass_transform().get() * hit.layout_properties().transform.get();
             let origin = transform * Point2::new(0.0, 0.0);
 
             let props = hit.common_properties();

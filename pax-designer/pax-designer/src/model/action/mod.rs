@@ -5,6 +5,7 @@ use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::math::Vector2;
 use pax_engine::{
     api::{NodeContext, Window},
     math::{Point2, Space, Transform2},
@@ -69,26 +70,26 @@ impl ActionContext<'_> {
         self.app_state.glass_to_world_transform.get()
     }
 
-    pub fn glass_transform(&self) -> Transform2<Window, Glass> {
+    pub fn glass_transform(&self) -> Property<Transform2<Window, Glass>> {
         self.transform_from_id::<Window, Glass>(DESIGNER_GLASS_ID)
     }
 
-    pub fn transform_from_id<F: Space, T: Space>(&self, id: &str) -> Transform2<F, T> {
+    pub fn transform_from_id<F: Space, T: Space>(&self, id: &str) -> Property<Transform2<F, T>> {
         let container = self.engine_context.get_nodes_by_id(id);
         if let Some(userland_proj) = container.first() {
-            userland_proj
-                .layout_properties()
-                .transform
-                .get()
-                .inverse()
-                .cast_spaces::<F, T>()
+            let layout_props = userland_proj.layout_properties();
+            let deps = [layout_props.transform.untyped()];
+            Property::computed(
+                move || layout_props.transform.get().inverse().cast_spaces::<F, T>(),
+                &deps,
+            )
         } else {
             panic!("no userland project")
         }
     }
 
     pub fn raycast_glass(&self, point: Point2<Glass>) -> Option<NodeInterface> {
-        let window_point = self.glass_transform().inverse() * point;
+        let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
         if let Some(container) = self
@@ -152,18 +153,21 @@ impl ActionContext<'_> {
                         let deps = [
                             layout_props.transform.untyped(),
                             layout_props.bounds.untyped(),
+                            to_glass_transform.untyped(),
                         ];
+                        let to_glass = to_glass_transform.clone();
                         Property::computed(
                             move || {
-                                AxisAlignedBox::bound_of_points(
-                                    layout_props.corners().map(|c| to_glass_transform * c),
-                                )
+                                let bounds = layout_props.bounds.get();
+                                let width_height_scaling =
+                                    Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
+                                to_glass.get() * layout_props.transform.get() * width_height_scaling
                             },
                             &deps,
                         )
                     },
                     props: n.common_properties(),
-                    origin: to_glass_transform * n.origin()?,
+                    origin: to_glass_transform.get() * n.origin()?,
                     id,
                 })
             })
@@ -171,8 +175,20 @@ impl ActionContext<'_> {
 
         let deps: Vec<_> = items.iter().map(|i| i.bounds.untyped()).collect();
         let bounds: Vec<_> = items.iter().map(|i| i.bounds.clone()).collect();
+        // TODO make conversion nicer (remove AxisAlignedBox? Or make conversion methods nice)
         let total_bounds = Property::computed(
-            move || AxisAlignedBox::bound_of_boxes(bounds.iter().map(|v| v.get())),
+            move || {
+                let axis_box = AxisAlignedBox::bound_of_points(bounds.iter().flat_map(|v| {
+                    let (o, u, v) = v.get().decompose();
+                    [o, o + v, o + u, o + v + u]
+                }));
+                let transform = Transform2::compose(
+                    axis_box.top_left(),
+                    Vector2::new(axis_box.width(), 0.0),
+                    Vector2::new(0.0, axis_box.height()),
+                );
+                transform
+            },
             &deps,
         );
         SelectionState {

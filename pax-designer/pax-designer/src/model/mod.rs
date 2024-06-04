@@ -5,7 +5,6 @@ pub mod tools;
 use crate::glass;
 use crate::glass::control_point::ControlPointBehaviour;
 use crate::math::coordinate_spaces::World;
-use crate::math::AxisAlignedBox;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::USER_PROJ_ROOT_COMPONENT;
@@ -18,8 +17,10 @@ use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
 use pax_engine::api::MouseButton;
+use pax_engine::math::Generic;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::pax;
+use pax_engine::NodeLocal;
 use pax_engine::Properties;
 use pax_engine::Property;
 use pax_engine::{api::NodeContext, math::Point2};
@@ -191,9 +192,10 @@ pub fn with_action_context<R: 'static>(
 
 impl Interpolatable for SelectionState {}
 
+pub struct Selection {}
 #[derive(Clone, Default)]
 pub struct SelectionState {
-    total_bounds: Property<AxisAlignedBox>,
+    total_bounds: Property<Transform2<Generic, Glass>>,
     items: Vec<SelectedItem>,
 }
 
@@ -213,9 +215,16 @@ impl SelectionState {
         self.items.len()
     }
 
-    pub fn total_bounds(&self) -> Option<Property<AxisAlignedBox>> {
+    pub fn total_bounds(&self) -> Option<Property<Transform2<Generic, Glass>>> {
         if self.items.is_empty() {
             None
+        } else if self.items.len() == 1 {
+            let bounds = self.items[0].bounds.clone();
+            let deps = [bounds.untyped()];
+            Some(Property::computed(
+                move || bounds.get().cast_spaces(),
+                &deps,
+            ))
         } else {
             Some(self.total_bounds.clone())
         }
@@ -224,10 +233,8 @@ impl SelectionState {
 
 #[derive(Default, Clone)]
 pub struct SelectedItem {
-    // Most likely don't need all of these
-    // TODO figure out axiomatic "root" and
-    // create methods that generate the rest
-    pub bounds: Property<AxisAlignedBox>,
+    // unit rectangle to object bounds transform
+    pub bounds: Property<Transform2<NodeLocal, Glass>>,
     pub origin: Point2<Glass>,
     pub props: Properties,
     pub id: UniqueTemplateNodeIdentifier,

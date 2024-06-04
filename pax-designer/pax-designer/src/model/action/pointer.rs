@@ -33,7 +33,7 @@ pub enum Pointer {
 
 impl Action for PointerAction {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let point_glass = ctx.glass_transform() * self.point;
+        let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
         let spacebar = ctx
             .app_state
