@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-use crate::{Numeric, Rotation};
+use crate::{Interpolatable, Numeric, Rotation};
 
 use super::{Generic, Point2, Space};
 
@@ -15,6 +15,7 @@ pub struct Vector2<W = Generic> {
 
 // Implement Clone, Copy, PartialEq, etc manually, as
 // to not require the Space to implement these.
+impl<W: Space> Interpolatable for Vector2<W> {}
 
 impl<W: Space> std::fmt::Debug for Vector2<W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -112,11 +113,8 @@ impl<W: Space> Vector2<W> {
         Vector2::new(self.x, self.y)
     }
 
-    pub fn rotate(&self, angle: Rotation) -> Self {
-        let (s, c) = angle.get_as_radians().sin_cos();
-        let x = self.x * c - self.y * s;
-        let y = self.x * s + self.y * c;
-        Self::new(x, y)
+    pub fn mult(&self, other: Self) -> Vector2<W> {
+        Vector2::new(self.x / other.x, self.y / other.y)
     }
 }
 
