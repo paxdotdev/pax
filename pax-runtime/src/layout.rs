@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use pax_runtime_api::{borrow, Numeric, Property, Window};
+use pax_runtime_api::{borrow, Numeric, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Generic, Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
@@ -37,22 +37,11 @@ pub fn compute_tab(
 
     let bounds = Property::computed_with_name(
         move || {
-            let p_bounds = cp_container_bounds.get();
-            let (fallback_width, fallback_height) = match size_fallback.get() {
-                Some((x, y)) => (Some(x), Some(y)),
-                None => (None, None),
-            };
-            let width = match (cp_width.get(), fallback_width) {
-                (Some(size), _) => size.evaluate(p_bounds, Axis::X),
-                (_, Some(fallback_width)) => fallback_width,
-                _ => p_bounds.0,
-            };
-            let height = match (cp_height.get(), fallback_height) {
-                (Some(size), _) => size.evaluate(p_bounds, Axis::Y),
-                (_, Some(fallback_height)) => fallback_height,
-                _ => p_bounds.1,
-            };
-            (width, height)
+            calculate_bounds_pixels(
+                (cp_width.get(), cp_height.get()),
+                cp_container_bounds.get(),
+                size_fallback.get(),
+            )
         },
         &deps,
         &format!("bounds of node {}", node.id.0),
@@ -71,18 +60,13 @@ pub fn compute_tab(
     let cp_skew_y = common_props.skew_y.clone();
     let cp_rotate = common_props.rotate.clone();
 
-    let size_props = [
-        &cp_x,
-        &cp_y,
-        &cp_anchor_x,
-        &cp_anchor_y,
-        &cp_scale_x,
-        &cp_scale_y,
-    ]
-    .map(|p| p.untyped())
-    .into_iter();
+    let size_props = [&cp_x, &cp_y, &cp_anchor_x, &cp_anchor_y]
+        .map(|p| p.untyped())
+        .into_iter();
 
     let other_props = [
+        cp_scale_x.untyped(),
+        cp_scale_y.untyped(),
         cp_skew_x.untyped(),
         cp_skew_y.untyped(),
         cp_rotate.untyped(),
@@ -111,52 +95,27 @@ pub fn compute_tab(
                     .compute_transform2d_matrix(cp_bounds.get(), cp_container_bounds.get())
                     .cast_spaces::<NodeLocal, NodeLocal>()
             };
-            // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
-            let desugared_transform = {
-                //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-                let mut desugared_transform2d = Transform2D::default();
 
-                let translate = [
-                    cp_x.get().unwrap_or(Size::ZERO()),
-                    cp_y.get().unwrap_or(Size::ZERO()),
-                ];
-                desugared_transform2d.translate = Some(translate.clone());
-
-                //Anchor behavior:
-                //  if no anchor is specified:
-                //     if x/y values are present and have an explicit percent value or component, use those percent values
-                //     otherwise, default to 0
-                let anchor = get_position_adjusted_anchor(
-                    cp_anchor_x.get(),
-                    cp_anchor_y.get(),
-                    translate[0],
-                    translate[1],
-                );
-                desugared_transform2d.anchor = Some(anchor);
-
-                let scale = [
+            let desugared_transform = calculate_transform_from_parts(
+                (cp_x.get(), cp_y.get()),
+                (cp_anchor_x.get(), cp_anchor_y.get()),
+                (
                     cp_scale_x
                         .get()
-                        .unwrap_or(Size::Percent(Numeric::F64(100.0))),
+                        .map(|s| Percent((100.0 * s.expect_percent()).into())),
                     cp_scale_y
                         .get()
-                        .unwrap_or(Size::Percent(Numeric::F64(100.0))),
-                ];
-                desugared_transform2d.scale = Some(scale);
+                        .map(|s| Percent((100.0 * s.expect_percent()).into())),
+                ),
+                (
+                    cp_skew_x.get().map(|v| Rotation::Radians(v.into())),
+                    cp_skew_y.get().map(|v| Rotation::Radians(v.into())),
+                ),
+                cp_rotate.get(),
+                container_bounds.get(),
+                cp_bounds.get(),
+            );
 
-                let skew = [
-                    cp_skew_x.get().unwrap_or(0.0),
-                    cp_skew_y.get().unwrap_or(0.0),
-                ];
-                desugared_transform2d.skew = Some(skew);
-
-                let rotate = cp_rotate.get().unwrap_or_default();
-                desugared_transform2d.rotate = Some(rotate);
-
-                desugared_transform2d
-                    .compute_transform2d_matrix(cp_bounds.get(), container_bounds.get())
-                    .cast_spaces::<NodeLocal, NodeLocal>()
-            };
             container_transform.get() * desugared_transform * node_transform_property_computed
         },
         &all_transform_deps,
@@ -164,6 +123,73 @@ pub fn compute_tab(
     );
 
     (transform, bounds)
+}
+
+pub fn calculate_bounds_pixels(
+    bounds: (Option<Size>, Option<Size>),
+    container_bounds: (f64, f64),
+    fallback: Option<(f64, f64)>,
+) -> (f64, f64) {
+    let (width_meassure, height_meassure) = bounds;
+    let (fallback_width, fallback_height) = match fallback {
+        Some((x, y)) => (Some(x), Some(y)),
+        None => (None, None),
+    };
+    let width = width_meassure
+        .map(|v| v.evaluate(container_bounds, Axis::X))
+        .or(fallback_width)
+        .unwrap_or(container_bounds.0);
+    let height = height_meassure
+        .map(|v| v.evaluate(container_bounds, Axis::Y))
+        .or(fallback_height)
+        .unwrap_or(container_bounds.1);
+    (width, height)
+}
+
+// From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
+pub fn calculate_transform_from_parts(
+    position: (Option<Size>, Option<Size>),
+    anchor: (Option<Size>, Option<Size>),
+    scale: (Option<Percent>, Option<Percent>),
+    skew: (Option<Rotation>, Option<Rotation>),
+    rotation: Option<Rotation>,
+    container_bounds: (f64, f64),
+    bounds_self: (f64, f64),
+) -> Transform2<NodeLocal, NodeLocal> {
+    //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
+    let mut desugared_transform2d = Transform2D::default();
+
+    let (x_m, y_m) = position;
+    let translate = [x_m.unwrap_or(Size::ZERO()), y_m.unwrap_or(Size::ZERO())];
+    desugared_transform2d.translate = Some(translate.clone());
+
+    //Anchor behavior:
+    //  if no anchor is specified:
+    //     if x/y values are present and have an explicit percent value or component, use those percent values
+    //     otherwise, default to 0
+    let (anchor_x_m, anchor_y_m) = anchor;
+    let anchor = get_position_adjusted_anchor(anchor_x_m, anchor_y_m, translate[0], translate[1]);
+    desugared_transform2d.anchor = Some(anchor);
+
+    // Could make scale_x scale_y in Common properties Percent directly
+    // at some point.
+    let (scale_x_m, scale_y_m) = scale;
+    let scale = [
+        scale_x_m.unwrap_or(Percent(Numeric::F64(100.0))),
+        scale_y_m.unwrap_or(Percent(Numeric::F64(100.0))),
+    ];
+    desugared_transform2d.scale = Some(scale);
+
+    let (skew_x_m, skew_y_m) = skew;
+    let skew = [skew_x_m.unwrap_or_default(), skew_y_m.unwrap_or_default()];
+    desugared_transform2d.skew = Some(skew);
+
+    let rotate = rotation.unwrap_or_default();
+    desugared_transform2d.rotate = Some(rotate);
+
+    desugared_transform2d
+        .compute_transform2d_matrix(bounds_self, container_bounds)
+        .cast_spaces::<NodeLocal, NodeLocal>()
 }
 
 //Anchor behavior:
@@ -244,13 +270,15 @@ impl ComputableTransform for Transform2D {
 
         //decompose vanilla affine matrix and pack into `Affine`
         let (scale_x, scale_y) = if let Some(scale) = &self.scale {
-            (scale[0].expect_percent(), scale[1].expect_percent())
+            (scale[0].0.to_float() / 100.0, scale[1].0.to_float() / 100.0)
         } else {
             (1.0, 1.0)
         };
 
-        let (skew_x, skew_y) = if let Some(skew) = self.skew {
-            (skew[0], skew[1])
+        // TODO this is not the way to convert from angles
+        // to matrix contents. fix this
+        let (skew_x, skew_y) = if let Some(skew) = &self.skew {
+            (skew[0].get_as_radians(), skew[1].get_as_radians())
         } else {
             (0.0, 0.0)
         };
@@ -273,6 +301,7 @@ impl ComputableTransform for Transform2D {
         let cos_theta = rotate_rads.cos();
         let sin_theta = rotate_rads.sin();
 
+        //TODOgeneraltransform change this to use into/from parts
         // Elements for a combined scale and rotation
         let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
         let b = scale_x * sin_theta + scale_y * skew_x * cos_theta;
