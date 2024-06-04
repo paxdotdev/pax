@@ -207,7 +207,7 @@ impl ToolBehaviour for PointerTool {
                 };
 
                 if let Err(e) = ctx.execute(SetBoxSelected {
-                    node_box,
+                    node_box: node_box.as_transform().cast_spaces(),
                     props,
                     dimension_frozen: (false, false),
                     unit,
