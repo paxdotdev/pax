@@ -187,10 +187,7 @@ impl ToolBehaviour for PointerTool {
 
                 if let Err(e) = ctx.execute(SetBoxSelected {
                     node_box: node_box.cast_spaces(),
-                    props,
-                    dimension_frozen: (false, false),
-                    set_position: true,
-                    set_size: false,
+                    old_props: props,
                 }) {
                     pax_engine::log::error!("Error moving selected: {:?}", e);
                 }
