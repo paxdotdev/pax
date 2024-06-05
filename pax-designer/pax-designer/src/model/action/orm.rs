@@ -96,10 +96,7 @@ impl Action for SelectedIntoNewComponent {
 
 pub struct SetBoxSelected<'a> {
     pub node_box: Transform2<NodeLocal, Glass>,
-    pub props: &'a Properties,
-    pub dimension_frozen: (bool, bool),
-    pub set_position: bool,
-    pub set_size: bool,
+    pub old_props: &'a Properties,
 }
 
 impl<'a> Action for SetBoxSelected<'a> {
@@ -136,7 +133,7 @@ impl<'a> Action for SetBoxSelected<'a> {
         let new_props: Properties = math::transform_to_properties(
             bounds,
             ctx.world_transform() * self.node_box,
-            self.props,
+            self.old_props,
         );
 
         // Write new_prop values to ORM
@@ -165,6 +162,7 @@ impl<'a> Action for SetBoxSelected<'a> {
             builder.set_property("skew_y", &skew_y.to_string())?;
         }
         if let Some(rotation) = new_props.local_rotation {
+            log::debug!("set rotate");
             builder.set_property("rotate", &rotation.to_string())?;
         }
 
@@ -204,15 +202,9 @@ impl<'props> Action for ResizeSelected<'props> {
             .morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down)
             .as_transform();
 
-        let freeze_x = self.attachment_point.x.abs() <= f64::EPSILON;
-        let freeze_y = self.attachment_point.y.abs() <= f64::EPSILON;
-
         ctx.execute(SetBoxSelected {
             node_box: new_bounds.cast_spaces(),
-            props: self.props,
-            dimension_frozen: (freeze_x, freeze_y),
-            set_position: true,
-            set_size: true,
+            old_props: self.props,
         })?;
 
         Ok(CanUndo::No)
