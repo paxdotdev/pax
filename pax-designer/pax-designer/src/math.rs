@@ -8,6 +8,8 @@ use pax_runtime_api::{Axis, Interpolatable, Size};
 
 use crate::math::coordinate_spaces::Glass;
 
+use self::coordinate_spaces::World;
+
 #[derive(PartialEq)]
 pub enum Unit {
     Pixels,
@@ -225,7 +227,7 @@ mod tests {
 // is doing inversion correctly.
 pub(crate) fn transform_to_properties(
     bounds: (f64, f64),
-    target_box: Transform2<Glass, NodeLocal>,
+    target_box: Transform2<NodeLocal, World>,
     old_props: &Properties,
 ) -> Properties {
     let parts: Parts = target_box.into();
@@ -234,53 +236,72 @@ pub(crate) fn transform_to_properties(
     // if scale or width/height should be resized (probably config object to be able to freeze dims, etc)
     let width_px = parts.scale.x;
     let height_px = parts.scale.y;
+
+    // TODO expose way to set anchor of object (target box not enough, maybe point relative to target box?)
+    let anchor_x = old_props.anchor_x;
+    let anchor_y = old_props.anchor_y;
+
+    let rotation = parts.rotation;
+    let (sin, cos) = rotation.sin_cos();
+    let dx = parts.origin.x;
+    let dy = parts.origin.y;
+    let w = width_px / bounds.0;
+    let h = height_px / bounds.1;
+
+    let (x, y) = match (old_props.anchor_x, old_props.anchor_y) {
+        (None, None) => {
+            let denom = 1.0 - (w + h) * cos + w * h;
+            let x = (dx * (1.0 - h * cos) - dy * h * sin) / denom;
+            let y = (dy * (1.0 - w * cos) + dx * w * sin) / denom;
+            (x, y)
+        }
+        (None, Some(anchor_y)) => {
+            let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
+            let x = (dx - ay * sin) / (1.0 - w * cos);
+            let y = dy + w * x * sin + ay * cos;
+            (x, y)
+        }
+        (Some(anchor_x), None) => {
+            let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
+            let y = (dy + ax * sin) / (1.0 - h * cos);
+            let x = dx + ax * cos - h * y * sin;
+            (x, y)
+        }
+        (Some(anchor_x), Some(anchor_y)) => {
+            let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
+            let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
+            let ddx = cos * ax - sin * ay;
+            let ddy = sin * ax + cos * ay;
+            (dx + ddx, dy + ddy)
+        }
+    };
+    // let x = if let Some(anchor_x) = old_props.anchor_x {
+    //     dx + anchor_x.evaluate((width_px, height_px), Axis::X)
+    // } else {
+    //     if old_props.x.is_some_and(|s| matches!(s, Size::Percent(_))) {
+    //         // if anchor is not set to figure out the new "virtual"
+    //         // anchor point based on wanted top left position and width/height.
+    //         // (same thing as bellow is done for the y case)
+    //         // equation for new position (since anchor depends on x, solving for x):
+    //         // x = dx + (width/bounds.0)*x =>
+    //         // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
+    //         // x = dx/(1 - (width/bounds.0))
+    //         dx / (1.0 - w_ratio)
+    //     } else {
+    //         dx
+    //     }
+    // };
+
+    // use same unit as old value
+    let x = old_props.x.map(|s| s.with_same_unit(bounds.0, x));
+    let y = old_props.y.map(|s| s.with_same_unit(bounds.1, y));
+
     let width = old_props
         .width
         .map(|s| s.with_same_unit(bounds.0, width_px));
     let height = old_props
         .height
         .map(|s| s.with_same_unit(bounds.1, height_px));
-
-    // TODO expose way to set anchor of object (target box not enough, maybe point relative to target box?)
-    let anchor_x = old_props.anchor_x;
-    let anchor_y = old_props.anchor_y;
-
-    let dx = parts.origin.x;
-    let dy = parts.origin.y;
-
-    let x = if let Some(anchor_x) = old_props.anchor_x {
-        dx + anchor_x.evaluate((width_px, height_px), Axis::X)
-    } else {
-        if old_props.x.is_some_and(|s| matches!(s, Size::Percent(_))) {
-            // if anchor is not set to figure out the new "virtual"
-            // anchor point based on wanted top left position and width/height.
-            // (same thing as bellow is done for the y case)
-            // equation for new position (since anchor depends on x, solving for x):
-            // x = dx + (width/bounds.0)*x =>
-            // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
-            // x = dx/(1 - (width/bounds.0))
-            dx / (1.0 - (width_px / bounds.0))
-        } else {
-            dx
-        }
-    };
-    let y = if let Some(anchor_y) = old_props.anchor_y {
-        dy + anchor_y.evaluate((width_px, height_px), Axis::Y)
-    } else {
-        if old_props.y.is_some_and(|s| matches!(s, Size::Percent(_))) {
-            // same thing here
-            dy / (1.0 - (height_px / bounds.1))
-        } else {
-            dy
-        }
-    };
-    let x = if x.is_normal() { x } else { 0.0 };
-    let y = if y.is_normal() { y } else { 0.0 };
-
-    // use same unit as old value
-    let x = old_props.x.map(|s| s.with_same_unit(bounds.0, x));
-    let y = old_props.y.map(|s| s.with_same_unit(bounds.1, y));
-
     // First assume everything is in pixels, then after that
     // convert into percent using bounds if the old property value was of that type
     // (TODO expose overrides for pix/perc)
