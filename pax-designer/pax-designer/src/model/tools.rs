@@ -98,13 +98,7 @@ impl ToolBehaviour for CreateComponentTool {
 pub enum PointerTool {
     Moving {
         pickup_point: Point2<Glass>,
-        pickup_origin: Point2<Glass>,
-        // Needed to figure out new position,
-        // since position now depends on bounds and location
-        // in the pos/anchor % behavior, and bounds can
-        // potentially be coming from chassi even
-        // if width/height props are 0
-        bounds: (f64, f64),
+        transform_origin: Transform2<NodeLocal, Glass>,
         props: Properties,
     },
     Selecting {
@@ -149,14 +143,15 @@ impl PointerTool {
                 overwrite: false,
             });
 
-            let transform = ctx.glass_transform().get() * hit.layout_properties().transform.get();
-            let origin = transform * Point2::new(0.0, 0.0);
-
+            let layout_props = hit.layout_properties();
+            let bounds = layout_props.bounds.get();
+            let transform = ctx.glass_transform().get()
+                * layout_props.transform.get()
+                * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
             let props = hit.common_properties();
             Self::Moving {
                 pickup_point: point,
-                pickup_origin: origin,
-                bounds: hit.layout_properties().bounds.get(),
+                transform_origin: transform,
                 props,
             }
         } else {
@@ -177,9 +172,8 @@ impl ToolBehaviour for PointerTool {
         match self {
             &mut PointerTool::Moving {
                 pickup_point,
-                pickup_origin,
-                bounds,
                 ref props,
+                transform_origin,
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
                     // don't commit any movement for very small pixel changes,
@@ -188,29 +182,13 @@ impl ToolBehaviour for PointerTool {
                     // text editing not work
                     return ControlFlow::Continue(());
                 }
-                let mouse_offset_from_top_left = pickup_point - pickup_origin;
-                let new_top_left = point - mouse_offset_from_top_left;
-                let new_world_top_left = ctx.world_transform() * new_top_left;
-                let node_box = AxisAlignedBox::new(
-                    new_world_top_left,
-                    new_world_top_left + Vector2::new(bounds.0, bounds.1),
-                );
-
-                let unit = if ctx
-                    .app_state
-                    .keys_pressed
-                    .read(|keys| keys.contains(&InputEvent::Meta))
-                {
-                    Unit::Pixels
-                } else {
-                    Unit::Percent
-                };
+                let translation = point - pickup_point;
+                let node_box = Transform2::translate(translation) * transform_origin;
 
                 if let Err(e) = ctx.execute(SetBoxSelected {
-                    node_box: node_box.as_transform().cast_spaces(),
+                    node_box: node_box.cast_spaces(),
                     props,
                     dimension_frozen: (false, false),
-                    unit,
                     set_position: true,
                     set_size: false,
                 }) {
