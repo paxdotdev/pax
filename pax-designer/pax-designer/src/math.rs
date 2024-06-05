@@ -4,7 +4,7 @@ use pax_engine::{
     math::{Generic, Parts, Point2, Space, Transform2, Vector2},
     NodeLocal, Properties,
 };
-use pax_runtime_api::{Axis, Interpolatable, Size};
+use pax_runtime_api::{Axis, Interpolatable, Rotation, Size};
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -232,8 +232,8 @@ pub(crate) fn transform_to_properties(
 ) -> Properties {
     let parts: Parts = target_box.into();
 
-    // TODO don't assume scale is always 1, instead accept boolean flag
-    // if scale or width/height should be resized (probably config object to be able to freeze dims, etc)
+    // TODO don't assume scale is always 1
+    // TODO accept config flag for if width/height or scale should be modified to fit new bounds
     let width_px = parts.scale.x;
     let height_px = parts.scale.y;
 
@@ -241,60 +241,76 @@ pub(crate) fn transform_to_properties(
     let anchor_x = old_props.anchor_x;
     let anchor_y = old_props.anchor_y;
 
+    // TODO how to handle skew Y?
+    let skew = parts.skew.x;
     let rotation = parts.rotation;
     let (sin, cos) = rotation.sin_cos();
     let dx = parts.origin.x;
     let dy = parts.origin.y;
     let w = width_px / bounds.0;
     let h = height_px / bounds.1;
+    let tan = skew * width_px / height_px;
 
+    #[allow(non_snake_case)]
+    let M = [
+        // this transform matrix represents
+        // skew and then rotation
+        [cos, -sin + tan * cos],
+        [sin, tan * sin + cos],
+    ];
+
+    // This is solving the system of equations:
+
+    // p = d + Ma
+    // where:
+    // p = [x, y]^T
+    // d = [dx , dy]^T
+    // M = transforms applied to anchor point
+    // a = [ax, ay]^T <-- anchor points
+
+    // for the four different cases of ax and ay
+    // either being a function of x/y, or being "constants".
+    // (see annotation of each case)
     let (x, y) = match (old_props.anchor_x, old_props.anchor_y) {
+        // ax = w*x, ay = h*y
         (None, None) => {
-            let denom = 1.0 - (w + h) * cos + w * h;
-            let x = (dx * (1.0 - h * cos) - dy * h * sin) / denom;
-            let y = (dy * (1.0 - w * cos) + dx * w * sin) / denom;
+            let denom = h * w * M[0][1] * M[1][0] + (1.0 - h * M[1][1]) * (1.0 - w * M[0][0]);
+            let x = (dx * (1.0 - h * M[0][1]) + dy * h * M[1][1]) / denom;
+            let y = (dy * (1.0 - w * M[1][0]) + dx * w * M[0][0]) / denom;
             (x, y)
         }
+        // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {
             let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
             let x = (dx - ay * sin) / (1.0 - w * cos);
             let y = dy + w * x * sin + ay * cos;
             (x, y)
         }
+        // ax fixed, ay = h*y
         (Some(anchor_x), None) => {
             let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
             let y = (dy + ax * sin) / (1.0 - h * cos);
             let x = dx + ax * cos - h * y * sin;
             (x, y)
         }
+        // ax and ay fixed
         (Some(anchor_x), Some(anchor_y)) => {
             let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
             let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
-            let ddx = cos * ax - sin * ay;
-            let ddy = sin * ax + cos * ay;
-            (dx + ddx, dy + ddy)
+            let x = dx + ax * M[0][0] + ay * M[0][1];
+            let y = dy + ax * M[1][0] + ay * M[1][1];
+            (x, y)
         }
     };
-    // let x = if let Some(anchor_x) = old_props.anchor_x {
-    //     dx + anchor_x.evaluate((width_px, height_px), Axis::X)
-    // } else {
-    //     if old_props.x.is_some_and(|s| matches!(s, Size::Percent(_))) {
-    //         // if anchor is not set to figure out the new "virtual"
-    //         // anchor point based on wanted top left position and width/height.
-    //         // (same thing as bellow is done for the y case)
-    //         // equation for new position (since anchor depends on x, solving for x):
-    //         // x = dx + (width/bounds.0)*x =>
-    //         // x*(1 - (width/bounds.0)) = dx => (if width != bounds.0)
-    //         // x = dx/(1 - (width/bounds.0))
-    //         dx / (1.0 - w_ratio)
-    //     } else {
-    //         dx
-    //     }
-    // };
 
     // use same unit as old value
     let x = old_props.x.map(|s| s.with_same_unit(bounds.0, x));
     let y = old_props.y.map(|s| s.with_same_unit(bounds.1, y));
+    // TODO make this keep old unit
+    let rotation = old_props
+        .local_rotation
+        .is_some()
+        .then_some(Rotation::Radians(parts.rotation.into()));
 
     let width = old_props
         .width
@@ -313,7 +329,7 @@ pub(crate) fn transform_to_properties(
         anchor_x,
         anchor_y,
         // TODO
-        local_rotation: None,
+        local_rotation: rotation,
         scale_x: None,
         scale_y: None,
         skew_x: None,
