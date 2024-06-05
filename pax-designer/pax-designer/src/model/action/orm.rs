@@ -95,12 +95,11 @@ impl Action for SelectedIntoNewComponent {
 }
 
 pub struct SetBoxSelected<'a> {
-    pub node_box: Transform2<Glass, NodeLocal>,
+    pub node_box: Transform2<NodeLocal, Glass>,
     pub props: &'a Properties,
     pub dimension_frozen: (bool, bool),
     pub set_position: bool,
     pub set_size: bool,
-    pub unit: Unit,
 }
 
 impl<'a> Action for SetBoxSelected<'a> {
@@ -133,8 +132,12 @@ impl<'a> Action for SetBoxSelected<'a> {
             .app_state
             .stage
             .read(|stage| (stage.width as f64, stage.height as f64));
-        let new_props: Properties =
-            math::transform_to_properties(bounds, self.node_box, self.props);
+
+        let new_props: Properties = math::transform_to_properties(
+            bounds,
+            ctx.world_transform() * self.node_box,
+            self.props,
+        );
 
         // Write new_prop values to ORM
         if let Some(x) = new_props.x {
@@ -204,21 +207,10 @@ impl<'props> Action for ResizeSelected<'props> {
         let freeze_x = self.attachment_point.x.abs() <= f64::EPSILON;
         let freeze_y = self.attachment_point.y.abs() <= f64::EPSILON;
 
-        let unit = if ctx
-            .app_state
-            .keys_pressed
-            .read(|keys| keys.contains(&InputEvent::Meta))
-        {
-            Unit::Pixels
-        } else {
-            Unit::Percent
-        };
-
         ctx.execute(SetBoxSelected {
             node_box: new_bounds.cast_spaces(),
             props: self.props,
             dimension_frozen: (freeze_x, freeze_y),
-            unit,
             set_position: true,
             set_size: true,
         })?;
