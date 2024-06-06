@@ -4,7 +4,7 @@ use pax_engine::{
     math::{Generic, Parts, Point2, Space, Transform2, Vector2},
     NodeLocal, Properties,
 };
-use pax_runtime_api::{Axis, Interpolatable, Rotation, Size};
+use pax_runtime_api::{Axis, Interpolatable, Percent, Rotation, Size};
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -220,7 +220,7 @@ mod tests {
     }
 }
 
-// This inversion method goes from a general transform2d describing the bounding box, some optional parameters,
+// This inversion method goes from a general transform2 describing the bounding box and some optional parameters,
 // and the old property values to the new property values if the object is moved to the new location.
 // This needs to be updated whenever the layout calculation is updated in the engine.
 // TODO expose method for layout calc in engine, right tests in the designer to make sure that this
@@ -232,14 +232,9 @@ pub(crate) fn transform_to_properties(
 ) -> Properties {
     let parts: Parts = target_box.into();
 
-    // TODO don't assume scale is always 1
     // TODO accept config flag for if width/height or scale should be modified to fit new bounds
     let width_px = parts.scale.x;
     let height_px = parts.scale.y;
-
-    // TODO expose way to set anchor of object (target box not enough, maybe point relative to target box?)
-    let anchor_x = old_props.anchor_x;
-    let anchor_y = old_props.anchor_y;
 
     // TODO how to handle skew Y?
     let skew = parts.skew.x;
@@ -270,10 +265,21 @@ pub(crate) fn transform_to_properties(
     // M = transforms applied to anchor point
     // a = [ax, ay]^T <-- anchor points
 
+    // If x or y is in pixels, but anchor isn't set,
+    // anchor is defaulted to 0%
+    let anchor_x = old_props.anchor_x.or(old_props
+        .x
+        .is_some_and(|v| matches!(v, Size::Pixels(_)))
+        .then_some(Size::ZERO()));
+    let anchor_y = old_props.anchor_y.or(old_props
+        .y
+        .is_some_and(|v| matches!(v, Size::Pixels(_)))
+        .then_some(Size::ZERO()));
+
     // for the four different cases of ax and ay
     // either being a function of x/y, or being "constants".
     // (see annotation of each case)
-    let (x, y) = match (old_props.anchor_x, old_props.anchor_y) {
+    let (x, y) = match (anchor_x, anchor_y) {
         // ax = w*x, ay = h*y
         (None, None) => {
             let denom = -h * w * M[0][1] * M[1][0] + (1.0 - h * M[1][1]) * (1.0 - w * M[0][0]);
@@ -284,7 +290,7 @@ pub(crate) fn transform_to_properties(
         // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {
             let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
-            let x = (dx + M[0][0] * ay) / (1.0 - M[0][1] * w);
+            let x = (dx + M[0][1] * ay) / (1.0 - M[0][0] * w);
             let y = dy + M[1][1] * ay + M[1][0] * w * x;
             (x, y)
         }
@@ -314,12 +320,30 @@ pub(crate) fn transform_to_properties(
         .is_some()
         .then_some(Rotation::Radians(parts.rotation.into()));
 
-    let width = old_props
-        .width
-        .map(|s| s.with_same_unit(bounds.0, width_px));
-    let height = old_props
-        .height
-        .map(|s| s.with_same_unit(bounds.1, height_px));
+    let width = old_props.width.map(|s| {
+        s.with_same_unit(
+            bounds.0,
+            width_px * 100.0
+                / old_props
+                    .scale_x
+                    .as_ref()
+                    .unwrap_or(&Percent(100.into()))
+                    .0
+                    .to_float(),
+        )
+    });
+    let height = old_props.height.map(|s| {
+        s.with_same_unit(
+            bounds.1,
+            height_px * 100.0
+                / old_props
+                    .scale_y
+                    .as_ref()
+                    .unwrap_or(&Percent(100.into()))
+                    .0
+                    .to_float(),
+        )
+    });
     // First assume everything is in pixels, then after that
     // convert into percent using bounds if the old property value was of that type
     // (TODO expose overrides for pix/perc)
