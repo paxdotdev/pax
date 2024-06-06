@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Size};
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Percent, Size};
 
 use crate::{
     api::math::{Point2, Space},
@@ -31,11 +31,15 @@ pub struct NodeLocal;
 pub struct Properties {
     pub x: Option<Size>,
     pub y: Option<Size>,
-    pub local_rotation: Rotation,
     pub width: Option<Size>,
     pub height: Option<Size>,
+    pub local_rotation: Option<Rotation>,
+    pub scale_x: Option<Percent>,
+    pub scale_y: Option<Percent>,
     pub anchor_x: Option<Size>,
     pub anchor_y: Option<Size>,
+    pub skew_x: Option<Rotation>,
+    pub skew_y: Option<Rotation>,
 }
 
 impl Space for NodeLocal {}
@@ -50,14 +54,26 @@ impl NodeInterface {
     pub fn common_properties(&self) -> Properties {
         let cp = self.inner.get_common_properties();
         let cp = borrow!(cp);
+        // Common props should most likely contain the types
+        // that is coerced into here directly instead of having them converted
         Properties {
             x: cp.x.get(),
             y: cp.y.get(),
-            local_rotation: cp.rotate.get().unwrap_or(Rotation::default()),
+            local_rotation: cp.rotate.get(),
             width: cp.width.get(),
             height: cp.height.get(),
             anchor_x: cp.anchor_x.get(),
             anchor_y: cp.anchor_y.get(),
+            scale_x: cp
+                .scale_x
+                .get()
+                .map(|v| Percent((100.0 * v.expect_percent()).into())),
+            scale_y: cp
+                .scale_y
+                .get()
+                .map(|v| Percent((100.0 * v.expect_percent()).into())),
+            skew_x: cp.skew_x.get().map(|v| Rotation::Radians(v.into())),
+            skew_y: cp.skew_y.get().map(|v| Rotation::Radians(v.into())),
         }
     }
 
