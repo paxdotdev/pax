@@ -229,23 +229,37 @@ impl<T: Space, F: Space> From<Transform2<T, F>> for kurbo::Affine {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::PI;
+
     use crate::math::Vector2;
 
     use super::{Parts, Transform2};
 
     #[test]
     fn from_to_parts() {
-        for origin in [Vector2::new(0.0, 0.0), Vector2::new(11.2, 10.5)] {
+        // any values
+        for origin in [
+            Vector2::new(0.0, 0.0),
+            Vector2::new(11.2, 10.5),
+            Vector2::new(-9.2, 0.98),
+            Vector2::new(14.2, -3.2),
+            Vector2::new(-5.0, -5.1),
+        ] {
+            // always > 0
             for scale in [
                 Vector2::new(1.0, 1.0),
                 Vector2::new(1.2, 1.5),
                 Vector2::new(0.2, 0.4395),
             ] {
-                for rotation in [0.0, 1.0, 1.2940] {
+                // any values
+                for rotation in [0.0, 1.0, 1.2940, -0.495, 5.0, -40.1] {
+                    // skew x any value, skew_y = 0.0
                     for skew in [
                         Vector2::new(0.0, 0.0),
                         Vector2::new(1.0, 0.0),
                         Vector2::new(0.13904, 0.0),
+                        Vector2::new(-0.55, 0.0),
+                        Vector2::new(100.0, 0.0),
                     ] {
                         let parts = Parts {
                             origin,
@@ -258,7 +272,11 @@ mod tests {
                         assert!((parts.skew - new_parts.skew).length() < 1e-3);
                         assert!((parts.origin - new_parts.origin).length() < 1e-3);
                         assert!((parts.scale - new_parts.scale).length() < 1e-3);
-                        assert!((parts.rotation - new_parts.rotation).abs() < 1e-3);
+                        // rotation should be similar up to multiples of 2 pi
+                        assert!(
+                            ((parts.rotation - new_parts.rotation).rem_euclid(2.0 * PI)).abs()
+                                < 1e-3
+                        );
                     }
                 }
             }

@@ -114,7 +114,7 @@ impl<W: Space> Vector2<W> {
     }
 
     pub fn mult(&self, other: Self) -> Vector2<W> {
-        Vector2::new(self.x / other.x, self.y / other.y)
+        Vector2::new(self.x * other.x, self.y * other.y)
     }
 }
 

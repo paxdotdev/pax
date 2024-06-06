@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use pax_runtime_api::math::Parts;
 use pax_runtime_api::{borrow, Numeric, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Generic, Transform2, Vector2};
@@ -37,10 +38,17 @@ pub fn compute_tab(
 
     let bounds = Property::computed_with_name(
         move || {
+            let (fallback_width, fallback_height) = match size_fallback.get() {
+                Some((x, y)) => (Some(x), Some(y)),
+                None => (None, None),
+            };
+            let container_bounds = cp_container_bounds.get();
             calculate_bounds_pixels(
                 (cp_width.get(), cp_height.get()),
-                cp_container_bounds.get(),
-                size_fallback.get(),
+                (
+                    fallback_width.unwrap_or(container_bounds.0),
+                    fallback_height.unwrap_or(container_bounds.1),
+                ),
             )
         },
         &deps,
@@ -96,7 +104,7 @@ pub fn compute_tab(
                     .cast_spaces::<NodeLocal, NodeLocal>()
             };
 
-            let desugared_transform = calculate_transform_from_parts(
+            let desugared_transform2d = calculate_transform_from_parts(
                 (cp_x.get(), cp_y.get()),
                 (cp_anchor_x.get(), cp_anchor_y.get()),
                 (
@@ -112,9 +120,11 @@ pub fn compute_tab(
                     cp_skew_y.get().map(|v| Rotation::Radians(v.into())),
                 ),
                 cp_rotate.get(),
-                container_bounds.get(),
-                cp_bounds.get(),
             );
+
+            let desugared_transform = desugared_transform2d
+                .compute_transform2d_matrix(cp_bounds.get(), cp_container_bounds.get())
+                .cast_spaces::<NodeLocal, NodeLocal>();
 
             container_transform.get() * desugared_transform * node_transform_property_computed
         },
@@ -128,20 +138,13 @@ pub fn compute_tab(
 pub fn calculate_bounds_pixels(
     bounds: (Option<Size>, Option<Size>),
     container_bounds: (f64, f64),
-    fallback: Option<(f64, f64)>,
 ) -> (f64, f64) {
     let (width_meassure, height_meassure) = bounds;
-    let (fallback_width, fallback_height) = match fallback {
-        Some((x, y)) => (Some(x), Some(y)),
-        None => (None, None),
-    };
     let width = width_meassure
         .map(|v| v.evaluate(container_bounds, Axis::X))
-        .or(fallback_width)
         .unwrap_or(container_bounds.0);
     let height = height_meassure
         .map(|v| v.evaluate(container_bounds, Axis::Y))
-        .or(fallback_height)
         .unwrap_or(container_bounds.1);
     (width, height)
 }
@@ -153,9 +156,7 @@ pub fn calculate_transform_from_parts(
     scale: (Option<Percent>, Option<Percent>),
     skew: (Option<Rotation>, Option<Rotation>),
     rotation: Option<Rotation>,
-    container_bounds: (f64, f64),
-    bounds_self: (f64, f64),
-) -> Transform2<NodeLocal, NodeLocal> {
+) -> Transform2D {
     //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
     let mut desugared_transform2d = Transform2D::default();
 
@@ -188,8 +189,6 @@ pub fn calculate_transform_from_parts(
     desugared_transform2d.rotate = Some(rotate);
 
     desugared_transform2d
-        .compute_transform2d_matrix(bounds_self, container_bounds)
-        .cast_spaces::<NodeLocal, NodeLocal>()
 }
 
 //Anchor behavior:
@@ -260,6 +259,7 @@ impl ComputableTransform for Transform2D {
                     Size::Pixels(pix) => -pix.to_float(),
                     Size::Percent(per) => -node_size.1 * (per.to_float() / 100.0),
                     Size::Combined(pix, per) => {
+                        // is this 0 inentional (use combined in width)?
                         -pix.to_float() + (-node_size.0 * (per.to_float() / 100.0))
                     }
                 },
@@ -298,22 +298,14 @@ impl ComputableTransform for Transform2D {
             0.0
         };
 
-        let cos_theta = rotate_rads.cos();
-        let sin_theta = rotate_rads.sin();
+        let parts = Parts {
+            origin: Vector2::new(translate_x, translate_y),
+            scale: Vector2::new(scale_x, scale_y),
+            skew: Vector2::new(skew_x, skew_y),
+            rotation: rotate_rads,
+        };
 
-        //TODOgeneraltransform change this to use into/from parts
-        // Elements for a combined scale and rotation
-        let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
-        let b = scale_x * sin_theta + scale_y * skew_x * cos_theta;
-        let c = -scale_y * sin_theta + scale_x * skew_y * cos_theta;
-        let d = scale_y * cos_theta + scale_x * skew_y * sin_theta;
-
-        // Translation
-        let e = translate_x;
-        let f = translate_y;
-
-        let coeffs = [a, b, c, d, e, f];
-        let transform = Transform2::new(coeffs);
+        let transform: Transform2 = parts.into();
 
         // Compute and combine previous_transform
         let previous_transform = match &self.previous {
