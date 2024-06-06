@@ -284,15 +284,15 @@ pub(crate) fn transform_to_properties(
         // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {
             let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
-            let x = (dx - ay * sin) / (1.0 - w * cos);
-            let y = dy + w * x * sin + ay * cos;
+            let x = (dx + M[0][0] * ay) / (1.0 - M[0][1] * w);
+            let y = dy + M[1][1] * ay + M[1][0] * w * x;
             (x, y)
         }
         // ax fixed, ay = h*y
         (Some(anchor_x), None) => {
             let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
-            let y = (dy + ax * sin) / (1.0 - h * cos);
-            let x = dx + ax * cos - h * y * sin;
+            let y = (dy + M[1][0] * ax) / (1.0 - M[1][1] * h);
+            let x = dx + M[0][0] * ax + M[0][1] * h * y;
             (x, y)
         }
         // ax and ay fixed
