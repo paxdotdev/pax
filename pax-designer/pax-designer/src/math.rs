@@ -249,6 +249,8 @@ pub(crate) fn transform_to_properties(
     let dy = parts.origin.y;
     let w = width_px / bounds.0;
     let h = height_px / bounds.1;
+    // TODO understand why scaling skew by width/height works
+    // (just tested random constants until it did)
     let tan = skew * width_px / height_px;
 
     #[allow(non_snake_case)]
@@ -274,9 +276,9 @@ pub(crate) fn transform_to_properties(
     let (x, y) = match (old_props.anchor_x, old_props.anchor_y) {
         // ax = w*x, ay = h*y
         (None, None) => {
-            let denom = h * w * M[0][1] * M[1][0] + (1.0 - h * M[1][1]) * (1.0 - w * M[0][0]);
-            let x = (dx * (1.0 - h * M[0][1]) + dy * h * M[1][1]) / denom;
-            let y = (dy * (1.0 - w * M[1][0]) + dx * w * M[0][0]) / denom;
+            let denom = -h * w * M[0][1] * M[1][0] + (1.0 - h * M[1][1]) * (1.0 - w * M[0][0]);
+            let x = (dx * (1.0 - h * M[1][1]) + dy * h * M[0][1]) / denom;
+            let y = (dy * (1.0 - w * M[0][0]) + dx * w * M[1][0]) / denom;
             (x, y)
         }
         // ax = w*x, ay fixed
