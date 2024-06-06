@@ -7,6 +7,7 @@ mod transform;
 mod vector;
 
 pub use point::Point2;
+pub use transform::Parts;
 pub use transform::Transform2;
 pub use vector::Vector2;
 

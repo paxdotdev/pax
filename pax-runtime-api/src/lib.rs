@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
@@ -359,6 +360,16 @@ pub enum Size {
     Combined(Numeric, Numeric),
 }
 
+impl Display for Size {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Size::Pixels(pix) => write!(f, "{}px", pix),
+            Size::Percent(perc) => write!(f, "{}%", perc),
+            Size::Combined(pix, perc) => write!(f, "{}px + {}%", pix, perc),
+        }
+    }
+}
+
 impl Neg for Size {
     type Output = Size;
     fn neg(self) -> Self::Output {
@@ -481,10 +492,10 @@ pub enum Axis {
 impl Size {
     //Evaluate a Size in the context of `bounds` and a target `axis`.
     //Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
-    pub fn evaluate(&self, bounds: (f64, f64), axis: Axis) -> f64 {
+    pub fn evaluate(&self, container_bounds: (f64, f64), axis: Axis) -> f64 {
         let target_bound = match axis {
-            Axis::X => bounds.0,
-            Axis::Y => bounds.1,
+            Axis::X => container_bounds.0,
+            Axis::Y => container_bounds.1,
         };
         match &self {
             Size::Pixels(num) => num.to_float(),
@@ -921,6 +932,12 @@ impl OcclusionLayerGen {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Percent(pub Numeric);
 
+impl Display for Percent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}%", self.0)
+    }
+}
+
 impl Interpolatable for Percent {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         Self(self.0.interpolate(&other.0, t))
@@ -1346,6 +1363,17 @@ pub enum Rotation {
     Degrees(Numeric),
     Percent(Numeric),
 }
+
+impl Display for Rotation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Rotation::Radians(rad) => write!(f, "{}rad", rad),
+            Rotation::Degrees(deg) => write!(f, "{}deg", deg),
+            Rotation::Percent(perc) => write!(f, "{}%", perc),
+        }
+    }
+}
+
 impl Default for Rotation {
     fn default() -> Self {
         Self::Percent(Numeric::F64(0.0))
