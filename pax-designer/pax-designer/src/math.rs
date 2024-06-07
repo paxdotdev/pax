@@ -315,45 +315,41 @@ pub enum ScaleOrDimFixed {
 // to:
 // * LayoutProperties - x, y, width, scale, skew, etc. that can we written
 // to ORM, to get an identical bounding box to TransformAndBounds
-pub(crate) fn transform_to_properties(
+// NOTE: this inverts the operations specified in: pax_runtime/src/layout.rs,
+// function calculate_transform_and_bounds
+pub(crate) fn transform_and_bounds_inversion(
     inv_config: InversionConfiguration,
     target_box: TransformAndBounds<NodeLocal, World>,
 ) -> LayoutProperties {
     let parts: Parts = target_box.transform.into();
-    let bounds = target_box.bounds;
-    let container_w = inv_config.container_bounds.0;
-    let container_h = inv_config.container_bounds.1;
-    // width ratio
-    let w_r = bounds.0 / container_w;
-    // height ratio
-    let h_r = bounds.1 / container_h;
+    let object_bounds = target_box.bounds;
+    let container_bounds = inv_config.container_bounds;
 
-    // We assume only skew X, maybe expose as config option as well at some point
-    let rotation = parts.rotation;
-    let dx = parts.origin.x;
-    let dy = parts.origin.y;
-
-    let skew = parts.skew.x;
-    let mut parts_without_translation = parts.clone();
-    parts_without_translation.origin = Vector2::new(0.0, 0.0);
     #[allow(non_snake_case)]
-    let A = Into::<Transform2>::into(parts_without_translation).coeffs();
-
+    let A = target_box.transform.coeffs();
     #[allow(non_snake_case)]
     let M = [
-        // this transform matrix represents
-        // skew and then rotation
+        // All transformation coefficients
+        // not related to translation,
+        // (skew, scale, rotation),
+        // to be used to figure out anchor point
         [A[0], A[2]],
         [A[1], A[3]],
     ];
+    let dx = parts.origin.x;
+    let dy = parts.origin.y;
+    // width ratio
+    let w_r = object_bounds.0 / container_bounds.0;
+    // height ratio
+    let h_r = object_bounds.1 / container_bounds.1;
 
-    // This is solving the system of equations:
+    // The code below is solving the system of equations for x and y:
 
     // p = d + Ma
     // where:
     // p = [x, y]^T
     // d = [dx , dy]^T
-    // M = transforms applied to anchor point
+    // M = skew, scale, rotation components of TransformAndBounds
     // a = [ax, ay]^T <-- anchor points
 
     // If x or y is in pixels, but anchor isn't set,
@@ -379,22 +375,22 @@ pub(crate) fn transform_to_properties(
         }
         // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {
-            let ay = anchor_y.evaluate(bounds, Axis::Y);
+            let ay = anchor_y.evaluate(object_bounds, Axis::Y);
             let x = (dx + M[0][1] * ay) / (1.0 - M[0][0] * w_r);
             let y = dy + M[1][1] * ay + M[1][0] * w_r * x;
             (x, y)
         }
         // ax fixed, ay = h*y
         (Some(anchor_x), None) => {
-            let ax = anchor_x.evaluate(bounds, Axis::X);
+            let ax = anchor_x.evaluate(object_bounds, Axis::X);
             let y = (dy + M[1][0] * ax) / (1.0 - M[1][1] * h_r);
             let x = dx + M[0][0] * ax + M[0][1] * h_r * y;
             (x, y)
         }
         // ax and ay fixed
         (Some(anchor_x), Some(anchor_y)) => {
-            let ax = anchor_x.evaluate(bounds, Axis::X);
-            let ay = anchor_y.evaluate(bounds, Axis::Y);
+            let ax = anchor_x.evaluate(object_bounds, Axis::X);
+            let ay = anchor_y.evaluate(object_bounds, Axis::Y);
             let x = dx + ax * M[0][0] + ay * M[0][1];
             let y = dy + ax * M[1][0] + ay * M[1][1];
             (x, y)
@@ -402,12 +398,13 @@ pub(crate) fn transform_to_properties(
     };
 
     // use config units for all values
+
     let width = match inv_config.unit_width {
-        SizeUnit::Pixels => Size::Pixels(bounds.0.into()),
+        SizeUnit::Pixels => Size::Pixels(object_bounds.0.into()),
         SizeUnit::Percent => Size::Percent((100.0 * w_r).into()),
     };
     let height = match inv_config.unit_height {
-        SizeUnit::Pixels => Size::Pixels(bounds.1.into()),
+        SizeUnit::Pixels => Size::Pixels(object_bounds.1.into()),
         SizeUnit::Percent => Size::Percent((100.0 * h_r).into()),
     };
 
@@ -416,23 +413,23 @@ pub(crate) fn transform_to_properties(
 
     let x = match inv_config.unit_x_pos {
         SizeUnit::Pixels => Size::Pixels(x.into()),
-        SizeUnit::Percent => Size::Percent((100.0 * x / container_w).into()),
+        SizeUnit::Percent => Size::Percent((100.0 * x / container_bounds.0).into()),
     };
     let y = match inv_config.unit_y_pos {
         SizeUnit::Pixels => Size::Pixels(y.into()),
-        SizeUnit::Percent => Size::Percent((100.0 * y / container_h).into()),
+        SizeUnit::Percent => Size::Percent((100.0 * y / container_bounds.1).into()),
     };
 
     let rotation = match inv_config.unit_rotation {
-        RotationUnit::Radians => Rotation::Radians(rotation.into()),
-        RotationUnit::Degrees => Rotation::Degrees(rotation.to_degrees().into()),
-        RotationUnit::Percent => Rotation::Percent((100.0 * rotation / 2.0 / PI).into()),
+        RotationUnit::Radians => Rotation::Radians(parts.rotation.into()),
+        RotationUnit::Degrees => Rotation::Degrees(parts.rotation.to_degrees().into()),
+        RotationUnit::Percent => Rotation::Percent((100.0 * parts.rotation / 2.0 / PI).into()),
     };
 
     let skew_x = Some(match inv_config.unit_skew_x {
-        RotationUnit::Radians => Rotation::Radians(skew.into()),
-        RotationUnit::Degrees => Rotation::Degrees(skew.to_degrees().into()),
-        RotationUnit::Percent => Rotation::Percent((100.0 * skew / 2.0 / PI).into()),
+        RotationUnit::Radians => Rotation::Radians(parts.skew.x.into()),
+        RotationUnit::Degrees => Rotation::Degrees(parts.skew.x.to_degrees().into()),
+        RotationUnit::Percent => Rotation::Percent((100.0 * parts.skew.x / 2.0 / PI).into()),
     });
 
     // First assume everything is in pixels, then after that
