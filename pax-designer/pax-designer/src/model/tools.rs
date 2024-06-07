@@ -7,7 +7,7 @@ use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::{AxisAlignedBox, Unit};
+use crate::math::{AxisAlignedBox, SizeUnit};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::USERLAND_PROJECT_ID;
@@ -15,9 +15,10 @@ use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::Size;
+use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
-use pax_engine::{log, NodeLocal, Properties};
+use pax_engine::{log, NodeLocal};
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::{Axis, Window};
@@ -98,8 +99,8 @@ impl ToolBehaviour for CreateComponentTool {
 pub enum PointerTool {
     Moving {
         pickup_point: Point2<Glass>,
-        transform_origin: Transform2<NodeLocal, Glass>,
-        props: Properties,
+        start_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
+        props: LayoutProperties,
     },
     Selecting {
         p1: Point2<Glass>,
@@ -143,15 +144,16 @@ impl PointerTool {
                 overwrite: false,
             });
 
-            let layout_props = hit.layout_properties();
-            let bounds = layout_props.bounds.get();
-            let transform = ctx.glass_transform().get()
-                * layout_props.transform.get()
-                * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
-            let props = hit.common_properties();
+            let t_and_b = hit.transform_and_bounds().get();
+            let transform = TransformAndBounds {
+                transform: ctx.glass_transform().get(),
+                bounds: (1.0, 1.0),
+            };
+            let props = hit.layout_properties();
+
             Self::Moving {
                 pickup_point: point,
-                transform_origin: transform,
+                start_transform_and_bounds: transform * t_and_b,
                 props,
             }
         } else {
@@ -173,7 +175,7 @@ impl ToolBehaviour for PointerTool {
             &mut PointerTool::Moving {
                 pickup_point,
                 ref props,
-                transform_origin,
+                ref start_transform_and_bounds,
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
                     // don't commit any movement for very small pixel changes,
@@ -183,10 +185,13 @@ impl ToolBehaviour for PointerTool {
                     return ControlFlow::Continue(());
                 }
                 let translation = point - pickup_point;
-                let node_box = Transform2::translate(translation) * transform_origin;
+                let node_box = TransformAndBounds {
+                    transform: Transform2::translate(translation),
+                    bounds: (1.0, 1.0),
+                } * start_transform_and_bounds.clone();
 
                 if let Err(e) = ctx.execute(SetBoxSelected {
-                    node_box: node_box.cast_spaces(),
+                    node_box,
                     old_props: props,
                 }) {
                     pax_engine::log::error!("Error moving selected: {:?}", e);

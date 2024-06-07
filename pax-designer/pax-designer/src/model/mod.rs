@@ -17,11 +17,11 @@ use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
 use pax_engine::api::MouseButton;
+use pax_engine::layout::LayoutProperties;
 use pax_engine::math::Generic;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::pax;
 use pax_engine::NodeLocal;
-use pax_engine::Properties;
 use pax_engine::Property;
 use pax_engine::{api::NodeContext, math::Point2};
 use pax_manifest::TemplateNodeId;
@@ -236,7 +236,7 @@ pub struct SelectedItem {
     // unit rectangle to object bounds transform
     pub bounds: Property<Transform2<NodeLocal, Glass>>,
     pub origin: Point2<Glass>,
-    pub props: Properties,
+    pub props: LayoutProperties,
     pub id: UniqueTemplateNodeIdentifier,
 }
 
