@@ -535,8 +535,8 @@ pub struct CommonProperties {
     // Fixed units (independent of container bounds)
     pub scale_x: Property<Option<Size>>,
     pub scale_y: Property<Option<Size>>,
-    pub skew_x: Property<Option<f64>>,
-    pub skew_y: Property<Option<f64>>,
+    pub skew_x: Property<Option<Rotation>>,
+    pub skew_y: Property<Option<Rotation>>,
     pub rotate: Property<Option<Rotation>>,
     // extra transform
     pub transform: Property<Option<Transform2D>>,

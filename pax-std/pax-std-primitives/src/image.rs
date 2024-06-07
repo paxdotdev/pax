@@ -67,10 +67,7 @@ impl InstanceNode for ImageInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([
-                expanded_node.layout_properties.transform.untyped(),
-                expanded_node.layout_properties.bounds.untyped(),
-            ])
+            .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             expanded_node.id,
@@ -113,10 +110,8 @@ impl InstanceNode for ImageInstance {
         _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let transform = expanded_node.layout_properties.transform.get();
-        let bounding_dimens = expanded_node.layout_properties.bounds.get();
-        let container_width = bounding_dimens.0;
-        let container_height = bounding_dimens.1;
+        let t_and_b = expanded_node.transform_and_bounds.get();
+        let (container_width, container_height) = t_and_b.bounds;
 
         expanded_node.with_properties_unwrapped(|props: &mut Image| {
             let path = props.path.get();
@@ -145,7 +140,7 @@ impl InstanceNode for ImageInstance {
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
             let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
             rc.save(&layer_id);
-            rc.transform(&layer_id, transform.into());
+            rc.transform(&layer_id, t_and_b.transform.into());
             rc.draw_image(&layer_id, &path, transformed_bounds);
             rc.restore(&layer_id);
         });
