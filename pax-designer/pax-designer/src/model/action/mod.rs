@@ -77,10 +77,10 @@ impl ActionContext<'_> {
     pub fn transform_from_id<F: Space, T: Space>(&self, id: &str) -> Property<Transform2<F, T>> {
         let container = self.engine_context.get_nodes_by_id(id);
         if let Some(userland_proj) = container.first() {
-            let layout_props = userland_proj.layout_properties();
-            let deps = [layout_props.transform.untyped()];
+            let t_and_b = userland_proj.transform_and_bounds();
+            let deps = [t_and_b.untyped()];
             Property::computed(
-                move || layout_props.transform.get().inverse().cast_spaces::<F, T>(),
+                move || t_and_b.get().transform.inverse().cast_spaces::<F, T>(),
                 &deps,
             )
         } else {
@@ -149,24 +149,21 @@ impl ActionContext<'_> {
             .flat_map(|(id, n)| {
                 Some(SelectedItem {
                     bounds: {
-                        let layout_props = n.layout_properties();
-                        let deps = [
-                            layout_props.transform.untyped(),
-                            layout_props.bounds.untyped(),
-                            to_glass_transform.untyped(),
-                        ];
+                        let t_and_b = n.transform_and_bounds();
+                        let deps = [t_and_b.untyped(), to_glass_transform.untyped()];
                         let to_glass = to_glass_transform.clone();
                         Property::computed(
                             move || {
-                                let bounds = layout_props.bounds.get();
+                                let t_and_b = t_and_b.get();
+                                let bounds = t_and_b.bounds;
                                 let width_height_scaling =
                                     Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
-                                to_glass.get() * layout_props.transform.get() * width_height_scaling
+                                to_glass.get() * t_and_b.transform * width_height_scaling
                             },
                             &deps,
                         )
                     },
-                    props: n.common_properties(),
+                    props: n.layout_properties(),
                     origin: to_glass_transform.get() * n.origin()?,
                     id,
                 })
