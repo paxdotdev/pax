@@ -70,20 +70,28 @@ impl Action for SelectedIntoNewComponent {
             .items
             .iter()
             .map(|e| {
-                let b = world_transform * e.bounds.get();
-                let parts: Parts = b.into();
+                let b = TransformAndBounds {
+                    transform: world_transform,
+                    bounds: (1.0, 1.0),
+                } * e.transform_and_bounds.get();
+                let parts: Parts = b.transform.into();
                 MoveToComponentEntry {
                     x: parts.origin.x,
                     y: parts.origin.y,
-                    width: parts.scale.x,
-                    height: parts.scale.y,
+                    width: parts.scale.x * b.bounds.0,
+                    height: parts.scale.y * b.bounds.1,
                     id: e.id.clone(),
                 }
             })
             .collect();
 
-        let tb = world_transform * selection.total_bounds.get();
-        let (o, u, v) = tb.decompose();
+        let tb = TransformAndBounds {
+            transform: world_transform,
+            bounds: (1.0, 1.0),
+        } * selection.total_bounds.get();
+        let (o, u, v) = tb.transform.decompose();
+        let u = u * tb.bounds.0;
+        let v = v * tb.bounds.0;
         dt.get_orm_mut()
             .move_to_new_component(&entries, o.x, o.y, u.length(), v.length())
             .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
@@ -207,34 +215,50 @@ impl<'a> Action for SetBoxSelected<'a> {
     }
 }
 
-pub struct ResizeSelected<'props> {
-    pub attachment_point: Point2<BoxPoint>,
-    pub original_bounds: (AxisAlignedBox<World>, Point2<World>),
+pub struct Resize<'props> {
+    pub fixed_point: Point2<BoxPoint>,
+    pub new_point: Point2<Glass>,
+    pub selection_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub props: &'props LayoutProperties,
-    pub point: Point2<World>,
 }
 
-impl<'props> Action for ResizeSelected<'props> {
-    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> Result<CanUndo> {
-        // let (bounds, _) = self.original_bounds;
+impl<'props> Action for Resize<'props> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let mut is_shift_key_down = false;
+        let mut is_alt_key_down = false;
+        ctx.app_state.keys_pressed.read(|keys| {
+            is_shift_key_down = keys.contains(&InputEvent::Shift);
+            is_alt_key_down = keys.contains(&InputEvent::Alt);
+        });
 
-        // TODO resize in new system
-        // let mut is_shift_key_down = false;
-        // let mut is_alt_key_down = false;
-        // ctx.app_state.keys_pressed.read(|keys| {
-        //     is_shift_key_down = keys.contains(&InputEvent::Shift);
-        //     is_alt_key_down = keys.contains(&InputEvent::Alt);
-        // });
+        let bounds = self.selection_transform_and_bounds.bounds;
+        let (o, vx, vy) = self.selection_transform_and_bounds.transform.decompose();
+        let vx = vx * bounds.0;
+        let vy = vy * bounds.1;
+        let anchor = vx * self.fixed_point.x + vy * self.fixed_point.y;
+        let world_anchor: Point2<Glass> = o + anchor;
+        let grab_point = o + vx * (1.0 - self.fixed_point.x) + vy * (1.0 - self.fixed_point.y);
+        let diff_start = world_anchor - grab_point;
+        let diff_now = world_anchor - self.new_point;
 
-        // let world_anchor = bounds.from_inner_space(self.attachment_point);
-        // let new_bounds = bounds
-        //     .morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down)
-        //     .as_transform();
+        let anchor_relative = self.selection_transform_and_bounds.transform.inverse() * anchor;
+        let diff_start_selection_relative =
+            self.selection_transform_and_bounds.transform.inverse() * diff_start;
+        let diff_now_selection_relative =
+            self.selection_transform_and_bounds.transform.inverse() * diff_now;
 
-        // ctx.execute(SetBoxSelected {
-        //     node_box: new_bounds.cast_spaces(),
-        //     old_props: self.props,
-        // })?;
+        let scale = diff_now_selection_relative / diff_start_selection_relative;
+        let anchor_shift: Transform2<NodeLocal> = Transform2::translate(anchor_relative);
+        let new_box = self.selection_transform_and_bounds
+            * TransformAndBounds {
+                transform: anchor_shift * Transform2::scale_sep(scale) * anchor_shift.inverse(),
+                bounds: (1.0, 1.0),
+            };
+
+        ctx.execute(SetBoxSelected {
+            node_box: new_box,
+            old_props: self.props,
+        })?;
 
         Ok(CanUndo::No)
     }

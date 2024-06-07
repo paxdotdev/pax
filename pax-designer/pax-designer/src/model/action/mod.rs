@@ -5,6 +5,7 @@ use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
 use pax_engine::{
     api::{NodeContext, Window},
@@ -148,17 +149,16 @@ impl ActionContext<'_> {
             .into_iter()
             .flat_map(|(id, n)| {
                 Some(SelectedItem {
-                    bounds: {
+                    transform_and_bounds: {
                         let t_and_b = n.transform_and_bounds();
                         let deps = [t_and_b.untyped(), to_glass_transform.untyped()];
                         let to_glass = to_glass_transform.clone();
                         Property::computed(
                             move || {
-                                let t_and_b = t_and_b.get();
-                                let bounds = t_and_b.bounds;
-                                let width_height_scaling =
-                                    Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
-                                to_glass.get() * t_and_b.transform * width_height_scaling
+                                TransformAndBounds {
+                                    transform: to_glass.get(),
+                                    bounds: (1.0, 1.0),
+                                } * t_and_b.get()
                             },
                             &deps,
                         )
@@ -170,13 +170,22 @@ impl ActionContext<'_> {
             })
             .collect();
 
-        let deps: Vec<_> = items.iter().map(|i| i.bounds.untyped()).collect();
-        let bounds: Vec<_> = items.iter().map(|i| i.bounds.clone()).collect();
+        let deps: Vec<_> = items
+            .iter()
+            .map(|i| i.transform_and_bounds.untyped())
+            .collect();
+        let bounds: Vec<_> = items
+            .iter()
+            .map(|i| i.transform_and_bounds.clone())
+            .collect();
         // TODO make conversion nicer (remove AxisAlignedBox? Or make conversion methods nice)
         let total_bounds = Property::computed(
             move || {
-                let axis_box = AxisAlignedBox::bound_of_points(bounds.iter().flat_map(|v| {
-                    let (o, u, v) = v.get().decompose();
+                let axis_box = AxisAlignedBox::bound_of_points(bounds.iter().flat_map(|t_and_b| {
+                    let t_and_b = t_and_b.get();
+                    let (o, u, v) = t_and_b.transform.decompose();
+                    let u = u * t_and_b.bounds.0;
+                    let v = v * t_and_b.bounds.1;
                     [o, o + v, o + u, o + v + u]
                 }));
                 let transform = Transform2::compose(
@@ -184,7 +193,10 @@ impl ActionContext<'_> {
                     Vector2::new(axis_box.width(), 0.0),
                     Vector2::new(0.0, axis_box.height()),
                 );
-                transform
+                TransformAndBounds {
+                    transform,
+                    bounds: (1.0, 1.0),
+                }
             },
             &deps,
         );
