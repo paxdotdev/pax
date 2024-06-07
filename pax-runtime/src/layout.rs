@@ -1,6 +1,6 @@
 use std::ops::Mul;
 
-use pax_runtime_api::math::{Parts, Point2, Space};
+use pax_runtime_api::math::{Generic, Parts, Point2, Space};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
@@ -161,11 +161,55 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
     type Output = TransformAndBounds<W1, W3>;
 
     fn mul(self, rhs: TransformAndBounds<W1, W2>) -> Self::Output {
+        // This could most likey be made much more efficient,
+        // possibly by just writing out the quantities/math parts
+        // and deriving the answer sumbolically.
+        // Main invariant: act as Transform2 being multiplied,
+        // but keep bounds/scaling as separately multiplied quantities
+        // (which might need to change rotation/skew)
+
+        let self_parts: Parts = self.transform.into();
+        let mut rhs_parts: Parts = rhs.transform.into();
+        // self_parts.scale.x *= self.bounds.0;
+        // self_parts.scale.y *= self.bounds.1;
+        rhs_parts.scale.x *= rhs.bounds.0;
+        rhs_parts.scale.y *= rhs.bounds.1;
+        let self_transform: Transform2 = self_parts.into();
+        let rhs_transform: Transform2 = rhs_parts.into();
+        let res = self_transform * rhs_transform;
+        let mut res_parts: Parts = res.into();
+        let res_bounds = (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1);
+        res_parts.scale.x /= rhs.bounds.0;
+        res_parts.scale.y /= rhs.bounds.1;
+        let res_transform = res_parts.into();
         TransformAndBounds {
-            transform: self.transform * rhs.transform,
-            bounds: (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1),
+            transform: res_transform,
+            bounds: res_bounds,
         }
     }
+}
+
+#[test]
+fn test_transform_and_bounds_mult() {
+    let t_and_b_1 = TransformAndBounds::<Generic> {
+        transform: Transform2::translate(Vector2::new(4.0, 5.0)),
+        bounds: (2.0, 2.0),
+    };
+    let t_and_b_2 = TransformAndBounds::<Generic> {
+        transform: Transform2::new([1.1, 1.2, 5.3, 9.2, 1.0, 2.0]),
+        bounds: (1.9, 4.5),
+    };
+
+    let t_and_b_res = t_and_b_1.clone() * t_and_b_2.clone();
+    eprintln!("TEST t_and_b: {:?}", t_and_b_res);
+
+    // This is not the right thing to test
+    // let only_transform_1 = t_and_b_1.transform
+    //     * Transform2::<Generic>::scale_sep(Vector2::new(t_and_b_1.bounds.0, t_and_b_1.bounds.1));
+    // let only_transform_2 = t_and_b_2.transform
+    //     * Transform2::<Generic>::scale_sep(Vector2::new(t_and_b_2.bounds.0, t_and_b_2.bounds.1));
+    // let transform_res = only_transform_1 * only_transform_2;
+    // eprintln!("manual: {:?}", transform_res);
 }
 
 impl Interpolatable for LayoutProperties {}
@@ -186,6 +230,15 @@ pub struct LayoutProperties {
 }
 
 impl<F: Space, T: Space> TransformAndBounds<F, T> {
+    pub fn inverse(&self) -> TransformAndBounds<T, F> {
+        let t_inv = self.transform.inverse();
+        let b_inv = (1.0 / self.bounds.0, 1.0 / self.bounds.1);
+        TransformAndBounds {
+            transform: t_inv,
+            bounds: b_inv,
+        }
+    }
+
     pub fn corners(&self) -> [Point2<T>; 4] {
         let (width, height) = self.bounds;
 
