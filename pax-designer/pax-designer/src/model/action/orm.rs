@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::{self, AxisAlignedBox, Unit};
+use crate::math::{self, AxisAlignedBox, GetUnit, InversionConfiguration, RotationUnit, SizeUnit};
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
 use crate::{math::BoxPoint, model, model::AppState};
@@ -10,15 +10,16 @@ use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow_mut, Rotation};
+use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::{Parts, Transform2};
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
     serde,
 };
-use pax_engine::{log, NodeInterface, NodeLocal, Properties};
+use pax_engine::{log, NodeInterface, NodeLocal};
 use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
-use pax_runtime_api::Axis;
+use pax_runtime_api::{Axis, Percent};
 
 pub struct CreateComponent {
     pub bounds: AxisAlignedBox<World>,
@@ -95,8 +96,8 @@ impl Action for SelectedIntoNewComponent {
 }
 
 pub struct SetBoxSelected<'a> {
-    pub node_box: Transform2<NodeLocal, Glass>,
-    pub old_props: &'a Properties,
+    pub node_box: TransformAndBounds<NodeLocal, Glass>,
+    pub old_props: &'a LayoutProperties,
 }
 
 impl<'a> Action for SetBoxSelected<'a> {
@@ -130,39 +131,65 @@ impl<'a> Action for SetBoxSelected<'a> {
             .stage
             .read(|stage| (stage.width as f64, stage.height as f64));
 
-        let new_props: Properties = math::transform_to_properties(
-            bounds,
-            ctx.world_transform() * self.node_box,
-            self.old_props,
+        let inv_config = InversionConfiguration {
+            anchor_x: self.old_props.anchor_x,
+            anchor_y: self.old_props.anchor_y,
+            container_bounds: bounds,
+            unit_width: self.old_props.width.unit(),
+            unit_height: self.old_props.height.unit(),
+            unit_rotation: self.old_props.rotate.unit(),
+            unit_x_pos: self.old_props.x.unit(),
+            unit_y_pos: self.old_props.y.unit(),
+            unit_skew_x: self.old_props.skew_x.unit(),
+        };
+        let new_props: LayoutProperties = math::transform_to_properties(
+            inv_config,
+            TransformAndBounds {
+                transform: ctx.world_transform(),
+                bounds: (1.0, 1.0),
+            } * self.node_box,
         );
 
+        let LayoutProperties {
+            x,
+            y,
+            width,
+            height,
+            rotate,
+            scale_x,
+            scale_y,
+            anchor_x,
+            anchor_y,
+            skew_x,
+            skew_y,
+        } = new_props;
+
         // Write new_prop values to ORM
-        if let Some(x) = new_props.x {
+        if let Some(x) = x {
             builder.set_property("x", &x.to_string())?;
         }
-        if let Some(width) = new_props.width {
+        if let Some(width) = width {
             builder.set_property("width", &width.to_string())?;
         }
-        if let Some(y) = new_props.y {
+        if let Some(y) = y {
             builder.set_property("y", &y.to_string())?;
         }
-        if let Some(height) = new_props.height {
+        if let Some(height) = height {
             builder.set_property("height", &height.to_string())?;
         }
-        if let Some(scale_x) = new_props.scale_x {
+        if let Some(scale_x) = scale_x {
             builder.set_property("scale_x", &scale_x.to_string())?;
         }
-        if let Some(scale_y) = new_props.scale_y {
+        if let Some(scale_y) = scale_y {
             builder.set_property("scale_y", &scale_y.to_string())?;
         }
-        if let Some(skew_x) = new_props.skew_x {
+        if let Some(skew_x) = skew_x {
             builder.set_property("skew_x", &skew_x.to_string())?;
         }
-        if let Some(skew_y) = new_props.skew_y {
+        if let Some(skew_y) = skew_y {
             builder.set_property("skew_y", &skew_y.to_string())?;
         }
-        if let Some(rotation) = new_props.local_rotation {
-            log::debug!("set rotate");
+        if let Some(rotation) = rotate {
             builder.set_property("rotate", &rotation.to_string())?;
         }
 
@@ -182,30 +209,31 @@ impl<'a> Action for SetBoxSelected<'a> {
 pub struct ResizeSelected<'props> {
     pub attachment_point: Point2<BoxPoint>,
     pub original_bounds: (AxisAlignedBox<World>, Point2<World>),
-    pub props: &'props Properties,
+    pub props: &'props LayoutProperties,
     pub point: Point2<World>,
 }
 
 impl<'props> Action for ResizeSelected<'props> {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let (bounds, _) = self.original_bounds;
+    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> Result<CanUndo> {
+        // let (bounds, _) = self.original_bounds;
 
-        let mut is_shift_key_down = false;
-        let mut is_alt_key_down = false;
-        ctx.app_state.keys_pressed.read(|keys| {
-            is_shift_key_down = keys.contains(&InputEvent::Shift);
-            is_alt_key_down = keys.contains(&InputEvent::Alt);
-        });
+        // TODO resize in new system
+        // let mut is_shift_key_down = false;
+        // let mut is_alt_key_down = false;
+        // ctx.app_state.keys_pressed.read(|keys| {
+        //     is_shift_key_down = keys.contains(&InputEvent::Shift);
+        //     is_alt_key_down = keys.contains(&InputEvent::Alt);
+        // });
 
-        let world_anchor = bounds.from_inner_space(self.attachment_point);
-        let new_bounds = bounds
-            .morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down)
-            .as_transform();
+        // let world_anchor = bounds.from_inner_space(self.attachment_point);
+        // let new_bounds = bounds
+        //     .morph_constrained(self.point, world_anchor, is_alt_key_down, is_shift_key_down)
+        //     .as_transform();
 
-        ctx.execute(SetBoxSelected {
-            node_box: new_bounds.cast_spaces(),
-            old_props: self.props,
-        })?;
+        // ctx.execute(SetBoxSelected {
+        //     node_box: new_bounds.cast_spaces(),
+        //     old_props: self.props,
+        // })?;
 
         Ok(CanUndo::No)
     }

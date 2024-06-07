@@ -1,8 +1,9 @@
-use std::ops::Mul;
+use std::{f64::consts::PI, ops::Mul};
 
 use pax_engine::{
+    layout::{LayoutProperties, TransformAndBounds},
     math::{Generic, Parts, Point2, Space, Transform2, Vector2},
-    NodeLocal, Properties,
+    NodeLocal,
 };
 use pax_runtime_api::{Axis, Interpolatable, Percent, Rotation, Size};
 
@@ -10,10 +11,63 @@ use crate::math::coordinate_spaces::Glass;
 
 use self::coordinate_spaces::World;
 
-#[derive(PartialEq)]
-pub enum Unit {
+#[derive(PartialEq, Default)]
+pub enum SizeUnit {
     Pixels,
+    #[default]
     Percent,
+}
+
+#[derive(PartialEq, Default)]
+pub enum RotationUnit {
+    Radians,
+    #[default]
+    Degrees,
+    Percent,
+}
+
+pub trait GetUnit {
+    type UnitType;
+    fn unit(&self) -> Self::UnitType;
+}
+
+impl GetUnit for Size {
+    type UnitType = SizeUnit;
+
+    fn unit(&self) -> Self::UnitType {
+        match self {
+            Size::Pixels(_) => SizeUnit::Pixels,
+            Size::Percent(_) => SizeUnit::Percent,
+            // TODO introduce combined type
+            Size::Combined(_, _) => SizeUnit::Percent,
+        }
+    }
+}
+
+impl GetUnit for Rotation {
+    type UnitType = RotationUnit;
+
+    fn unit(&self) -> Self::UnitType {
+        match self {
+            Rotation::Radians(_) => RotationUnit::Radians,
+            Rotation::Degrees(_) => RotationUnit::Degrees,
+            Rotation::Percent(_) => RotationUnit::Percent,
+        }
+    }
+}
+
+impl<T: GetUnit> GetUnit for Option<T>
+where
+    T::UnitType: Default,
+{
+    type UnitType = T::UnitType;
+
+    fn unit(&self) -> Self::UnitType {
+        match self {
+            Some(v) => v.unit(),
+            None => T::UnitType::default(),
+        }
+    }
 }
 
 pub mod coordinate_spaces {
@@ -220,40 +274,77 @@ mod tests {
     }
 }
 
-// This inversion method goes from a general transform2 describing the bounding box and some optional parameters,
-// and the old property values to the new property values if the object is moved to the new location.
-// This needs to be updated whenever the layout calculation is updated in the engine.
-// TODO expose method for layout calc in engine, right tests in the designer to make sure that this
-// is doing inversion correctly.
+/// Describes all needed information
+/// to go from a transform back to
+/// layout properties
+/// TODO is this behaviour correct? Might want to
+/// always return correct values, that can then be handled during write
+/// NOTE:
+/// - If an optional unit is set to some, the returned
+///   property struct might still return none in the
+///   case that the computed new value is the same as the default
+///   value for that parameter
+///   if an optional value is none, this parameter will NEVER
+///   be returned as some, this means the overall transform is not
+///   recoverable from this again
+pub(crate) struct InversionConfiguration {
+    // Actual data needed about object
+    pub(crate) anchor_x: Option<Size>,
+    pub(crate) anchor_y: Option<Size>,
+    pub(crate) container_bounds: (f64, f64),
+    // Configuration values needed for what units to output
+    pub(crate) unit_width: SizeUnit,
+    pub(crate) unit_height: SizeUnit,
+    pub(crate) unit_rotation: RotationUnit,
+    pub(crate) unit_skew_x: RotationUnit,
+    pub(crate) unit_x_pos: SizeUnit,
+    pub(crate) unit_y_pos: SizeUnit,
+}
+
+pub enum ScaleOrDimFixed {
+    Scale {
+        fixed_scale: Percent,
+        dim_unit: SizeUnit,
+    },
+    Dim(Size),
+}
+
+// This inversion method goes from:
+// * InversionConfiguration - this objects old property values
+// * TransformAndBounds - describing the new targeted area for this object
+// to:
+// * LayoutProperties - x, y, width, scale, skew, etc. that can we written
+// to ORM, to get an identical bounding box to TransformAndBounds
 pub(crate) fn transform_to_properties(
-    bounds: (f64, f64),
-    target_box: Transform2<NodeLocal, World>,
-    old_props: &Properties,
-) -> Properties {
-    let parts: Parts = target_box.into();
+    inv_config: InversionConfiguration,
+    target_box: TransformAndBounds<NodeLocal, World>,
+) -> LayoutProperties {
+    let parts: Parts = target_box.transform.into();
+    let bounds = target_box.bounds;
+    let container_w = inv_config.container_bounds.0;
+    let container_h = inv_config.container_bounds.1;
+    // width ratio
+    let w_r = bounds.0 / container_w;
+    // height ratio
+    let h_r = bounds.1 / container_h;
 
-    // TODO accept config flag for if width/height or scale should be modified to fit new bounds
-    let width_px = parts.scale.x;
-    let height_px = parts.scale.y;
-
-    // TODO how to handle skew Y?
-    let skew = parts.skew.x;
+    // We assume only skew X, maybe expose as config option as well at some point
     let rotation = parts.rotation;
-    let (sin, cos) = rotation.sin_cos();
     let dx = parts.origin.x;
     let dy = parts.origin.y;
-    let w = width_px / bounds.0;
-    let h = height_px / bounds.1;
-    // TODO understand why scaling skew by width/height works
-    // (just tested random constants until it did)
-    let tan = skew * width_px / height_px;
+
+    let skew = parts.skew.x;
+    let mut parts_without_translation = parts.clone();
+    parts_without_translation.origin = Vector2::new(0.0, 0.0);
+    #[allow(non_snake_case)]
+    let A = Into::<Transform2>::into(parts_without_translation).coeffs();
 
     #[allow(non_snake_case)]
     let M = [
         // this transform matrix represents
         // skew and then rotation
-        [cos, -sin + tan * cos],
-        [sin, tan * sin + cos],
+        [A[0], A[2]],
+        [A[1], A[3]],
     ];
 
     // This is solving the system of equations:
@@ -267,14 +358,12 @@ pub(crate) fn transform_to_properties(
 
     // If x or y is in pixels, but anchor isn't set,
     // anchor is defaulted to 0%
-    let anchor_x = old_props.anchor_x.or(old_props
-        .x
-        .is_some_and(|v| matches!(v, Size::Pixels(_)))
-        .then_some(Size::ZERO()));
-    let anchor_y = old_props.anchor_y.or(old_props
-        .y
-        .is_some_and(|v| matches!(v, Size::Pixels(_)))
-        .then_some(Size::ZERO()));
+    let anchor_x = inv_config
+        .anchor_x
+        .or((inv_config.unit_x_pos == SizeUnit::Pixels).then_some(Size::ZERO()));
+    let anchor_y = inv_config
+        .anchor_y
+        .or((inv_config.unit_y_pos == SizeUnit::Pixels).then_some(Size::ZERO()));
 
     // for the four different cases of ax and ay
     // either being a function of x/y, or being "constants".
@@ -282,97 +371,85 @@ pub(crate) fn transform_to_properties(
     let (x, y) = match (anchor_x, anchor_y) {
         // ax = w*x, ay = h*y
         (None, None) => {
-            let denom = -h * w * M[0][1] * M[1][0] + (1.0 - h * M[1][1]) * (1.0 - w * M[0][0]);
-            let x = (dx * (1.0 - h * M[1][1]) + dy * h * M[0][1]) / denom;
-            let y = (dy * (1.0 - w * M[0][0]) + dx * w * M[1][0]) / denom;
+            let denom =
+                -h_r * w_r * M[0][1] * M[1][0] + (1.0 - h_r * M[1][1]) * (1.0 - w_r * M[0][0]);
+            let x = (dx * (1.0 - h_r * M[1][1]) + dy * h_r * M[0][1]) / denom;
+            let y = (dy * (1.0 - w_r * M[0][0]) + dx * w_r * M[1][0]) / denom;
             (x, y)
         }
         // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {
-            let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
-            let x = (dx + M[0][1] * ay) / (1.0 - M[0][0] * w);
-            let y = dy + M[1][1] * ay + M[1][0] * w * x;
+            let ay = anchor_y.evaluate(bounds, Axis::Y);
+            let x = (dx + M[0][1] * ay) / (1.0 - M[0][0] * w_r);
+            let y = dy + M[1][1] * ay + M[1][0] * w_r * x;
             (x, y)
         }
         // ax fixed, ay = h*y
         (Some(anchor_x), None) => {
-            let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
-            let y = (dy + M[1][0] * ax) / (1.0 - M[1][1] * h);
-            let x = dx + M[0][0] * ax + M[0][1] * h * y;
+            let ax = anchor_x.evaluate(bounds, Axis::X);
+            let y = (dy + M[1][0] * ax) / (1.0 - M[1][1] * h_r);
+            let x = dx + M[0][0] * ax + M[0][1] * h_r * y;
             (x, y)
         }
         // ax and ay fixed
         (Some(anchor_x), Some(anchor_y)) => {
-            let ax = anchor_x.evaluate((width_px, height_px), Axis::X);
-            let ay = anchor_y.evaluate((width_px, height_px), Axis::Y);
+            let ax = anchor_x.evaluate(bounds, Axis::X);
+            let ay = anchor_y.evaluate(bounds, Axis::Y);
             let x = dx + ax * M[0][0] + ay * M[0][1];
             let y = dy + ax * M[1][0] + ay * M[1][1];
             (x, y)
         }
     };
 
-    // use same unit as old value
-    let x = old_props.x.map(|s| s.with_same_unit(bounds.0, x));
-    let y = old_props.y.map(|s| s.with_same_unit(bounds.1, y));
-    // TODO make this keep old unit
-    let rotation = old_props
-        .local_rotation
-        .is_some()
-        .then_some(Rotation::Radians(parts.rotation.into()));
+    // use config units for all values
+    let width = match inv_config.unit_width {
+        SizeUnit::Pixels => Size::Pixels(bounds.0.into()),
+        SizeUnit::Percent => Size::Percent((100.0 * w_r).into()),
+    };
+    let height = match inv_config.unit_height {
+        SizeUnit::Pixels => Size::Pixels(bounds.1.into()),
+        SizeUnit::Percent => Size::Percent((100.0 * h_r).into()),
+    };
 
-    let width = old_props.width.map(|s| {
-        s.with_same_unit(
-            bounds.0,
-            width_px * 100.0
-                / old_props
-                    .scale_x
-                    .as_ref()
-                    .unwrap_or(&Percent(100.into()))
-                    .0
-                    .to_float(),
-        )
+    let scale_x = Percent((100.0 * parts.scale.x).into());
+    let scale_y = Percent((100.0 * parts.scale.y).into());
+
+    let x = match inv_config.unit_x_pos {
+        SizeUnit::Pixels => Size::Pixels(x.into()),
+        SizeUnit::Percent => Size::Percent((100.0 * x / container_w).into()),
+    };
+    let y = match inv_config.unit_y_pos {
+        SizeUnit::Pixels => Size::Pixels(y.into()),
+        SizeUnit::Percent => Size::Percent((100.0 * y / container_h).into()),
+    };
+
+    let rotation = match inv_config.unit_rotation {
+        RotationUnit::Radians => Rotation::Radians(rotation.into()),
+        RotationUnit::Degrees => Rotation::Degrees(rotation.to_degrees().into()),
+        RotationUnit::Percent => Rotation::Percent((100.0 * rotation / 2.0 / PI).into()),
+    };
+
+    let skew_x = Some(match inv_config.unit_skew_x {
+        RotationUnit::Radians => Rotation::Radians(skew.into()),
+        RotationUnit::Degrees => Rotation::Degrees(skew.to_degrees().into()),
+        RotationUnit::Percent => Rotation::Percent((100.0 * skew / 2.0 / PI).into()),
     });
-    let height = old_props.height.map(|s| {
-        s.with_same_unit(
-            bounds.1,
-            height_px * 100.0
-                / old_props
-                    .scale_y
-                    .as_ref()
-                    .unwrap_or(&Percent(100.into()))
-                    .0
-                    .to_float(),
-        )
-    });
+
     // First assume everything is in pixels, then after that
     // convert into percent using bounds if the old property value was of that type
-    // (TODO expose overrides for pix/perc)
-    Properties {
-        x,
-        y,
-        width,
-        height,
+    LayoutProperties {
+        x: Some(x),
+        y: Some(y),
+        width: Some(width),
+        height: Some(height),
         anchor_x,
         anchor_y,
         // TODO
-        local_rotation: rotation,
-        scale_x: None,
-        scale_y: None,
-        skew_x: None,
-        skew_y: None,
-    }
-}
-
-trait UpdateSize {
-    fn with_same_unit(&self, dim: f64, val: f64) -> Self;
-}
-
-impl UpdateSize for Size {
-    fn with_same_unit(&self, dim: f64, val: f64) -> Self {
-        match self {
-            Size::Pixels(_) => Size::Pixels(val.into()),
-            Size::Percent(_) => Size::Percent((100.0 * val / dim).into()),
-            Size::Combined(_, _) => panic!("can't update combined, is this an expression?"),
-        }
+        rotate: Some(rotation),
+        scale_x: Some(scale_x),
+        scale_y: Some(scale_y),
+        // TODO return the skew
+        skew_x,
+        skew_y: Some(Rotation::Radians(0.0.into())),
     }
 }

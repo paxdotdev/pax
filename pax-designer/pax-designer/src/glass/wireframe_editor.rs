@@ -254,8 +254,8 @@ fn get_generic_object_editor(selection_bounds: &Transform2<Generic, Glass>) -> E
                 .first()
                 .unwrap()
                 .1
-                .common_properties()
-                .local_rotation;
+                .layout_properties()
+                .rotate;
             let start_dir = point - rotation_anchor;
             Rc::new(RefCell::new(RotationBehaviour {
                 rotation_anchor,
