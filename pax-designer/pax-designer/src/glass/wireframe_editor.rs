@@ -4,6 +4,7 @@ use std::sync::Mutex;
 
 use super::model::ToolBehaviour;
 use pax_engine::api::*;
+use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::{Generic, Point2, Transform2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
@@ -56,11 +57,13 @@ impl WireframeEditor {
         self.on_selection_changed.replace_with(Property::computed(
             move || {
                 let selected = selected_cp.get();
-                let bounds = selected.total_bounds();
-                if let Some(bounds) = bounds {
-                    let deps = [bounds.untyped()];
-                    let editor =
-                        Property::computed(move || get_generic_object_editor(&bounds.get()), &deps);
+                let t_and_b = selected.total_bounds();
+                if let Some(t_and_b) = t_and_b {
+                    let deps = [t_and_b.untyped()];
+                    let editor = Property::computed(
+                        move || get_generic_object_editor(&t_and_b.get()),
+                        &deps,
+                    );
                     bind_props_to_editor(editor, control_points.clone(), bounding_segments.clone());
                 }
 
@@ -115,9 +118,11 @@ fn bind_props_to_editor(
     bounding_segments_prop.replace_with(Property::computed(move || editor.get().segments, &deps));
 }
 
-fn get_generic_object_editor(selection_bounds: &Transform2<Generic, Glass>) -> Editor {
-    let (o, u, v) = selection_bounds.decompose();
-    let [p1, p4, p3, p2] = [o, o + u, o + u + v, o + v];
+fn get_generic_object_editor(selection_bounds: &TransformAndBounds<Generic, Glass>) -> Editor {
+    let (o, u, v) = selection_bounds.transform.decompose();
+    let u = u * selection_bounds.bounds.0;
+    let v = v * selection_bounds.bounds.1;
+    let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
 
     let mut editor = Editor::new();
 
@@ -140,21 +145,15 @@ fn get_generic_object_editor(selection_bounds: &Transform2<Generic, Glass>) -> E
 
     impl ControlPointBehaviour for ResizeBehaviour {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-            let world_point = ctx.world_transform() * point;
             let Some(item) = self.initial_selection_state.get_single() else {
                 // TODO handle multi-selection
                 return;
             };
-            // todo make conversion nicer
-            let axis_box_world = ctx.world_transform() * item.bounds.get();
-            let (o, u, v) = axis_box_world.decompose();
-            let axis_box_world = AxisAlignedBox::new(o, o + u + v);
-            let origin_world = ctx.world_transform() * item.origin;
-            if let Err(e) = ctx.execute(action::orm::ResizeSelected {
-                attachment_point: self.attachment_point,
-                original_bounds: (axis_box_world, origin_world),
+            if let Err(e) = ctx.execute(action::orm::Resize {
+                selection_transform_and_bounds: item.transform_and_bounds.get(),
+                fixed_point: self.attachment_point,
+                new_point: point,
                 props: &item.props,
-                point: world_point,
             }) {
                 pax_engine::log::warn!("resize failed: {:?}", e);
             };
@@ -179,31 +178,31 @@ fn get_generic_object_editor(selection_bounds: &Transform2<Generic, Glass>) -> E
             ),
             CPoint::new(
                 p1.midpoint_towards(p2),
-                resize_factory(Point2::new(0.0, 1.0)),
+                resize_factory(Point2::new(0.5, 1.0)),
             ),
             CPoint::new(
                 p2, //
-                resize_factory(Point2::new(-1.0, 1.0)),
+                resize_factory(Point2::new(0.0, 1.0)),
             ),
             CPoint::new(
                 p2.midpoint_towards(p3),
-                resize_factory(Point2::new(-1.0, 0.0)),
+                resize_factory(Point2::new(0.0, 0.5)),
             ),
             CPoint::new(
                 p3, //
-                resize_factory(Point2::new(-1.0, -1.0)),
+                resize_factory(Point2::new(0.0, 0.0)),
             ),
             CPoint::new(
                 p3.midpoint_towards(p4),
-                resize_factory(Point2::new(0.0, -1.0)),
+                resize_factory(Point2::new(0.5, 0.0)),
             ),
             CPoint::new(
                 p4, //
-                resize_factory(Point2::new(1.0, -1.0)),
+                resize_factory(Point2::new(1.0, 0.0)),
             ),
             CPoint::new(
                 p4.midpoint_towards(p1),
-                resize_factory(Point2::new(1.0, 0.0)),
+                resize_factory(Point2::new(1.0, 0.5)),
             ),
         ],
         ControlPointStyling {
