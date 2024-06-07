@@ -1,8 +1,12 @@
 use crate::api::TextInput;
+use crate::node_interface::NodeLocal;
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Property};
+use pax_runtime_api::{
+    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Rotation, Transform2D,
+};
+use wasm_bindgen::UnwrapThrowExt;
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -14,8 +18,7 @@ use crate::constants::{
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::node_interface::NodeLocal;
-use crate::{ExpandedNodeIdentifier, Globals};
+use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -82,7 +85,7 @@ pub struct ExpandedNode {
     /// Properties that are currently re-computed each frame before rendering.
     /// Only contains computed_tab atm. Might be possible to retire if tab comp
     /// would be part of render pass?
-    pub layout_properties: LayoutProperties,
+    pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
 
     /// For component instances only, tracks the expanded slot_children in it's
     /// non-collapsed form (repeat and conditionals still present). This allows
@@ -175,14 +178,16 @@ impl ExpandedNode {
         let root_node = Self::new(template, root_env, ctx, Weak::new());
         Rc::clone(&root_node).recurse_mount(ctx);
         let globals = ctx.globals();
-        let parent_bounds = globals.viewport.bounds.clone();
-        let parent_transform = globals.viewport.transform.clone();
-        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
-        root_node.layout_properties.bounds.replace_with(bounds);
+        let container_transform_and_bounds = globals.viewport.clone();
+        let layout_properties = root_node.layout_properties();
+        let transform_and_bounds = compute_tab(
+            layout_properties,
+            Property::default(),
+            container_transform_and_bounds,
+        );
         root_node
-            .layout_properties
-            .transform
-            .replace_with(transform);
+            .transform_and_bounds
+            .replace_with(transform_and_bounds);
         root_node
     }
 
@@ -230,7 +235,7 @@ impl ExpandedNode {
                 &format!("node children (node id: {})", id.0),
             ),
             mounted_children: RefCell::new(Vec::new()),
-            layout_properties: LayoutProperties::default(),
+            transform_and_bounds: Property::new(TransformAndBounds::default()),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
@@ -331,11 +336,42 @@ impl ExpandedNode {
 
     fn bind_to_parent_bounds(self: &Rc<Self>) {
         let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
-        let parent_bounds = parent.layout_properties.bounds.clone();
-        let parent_transform = parent.layout_properties.transform.clone();
-        let (transform, bounds) = compute_tab(&self, parent_transform, parent_bounds);
-        self.layout_properties.bounds.replace_with(bounds);
-        self.layout_properties.transform.replace_with(transform);
+        let parent_transform_and_bounds = parent.transform_and_bounds.clone();
+        let layout_properties = self.layout_properties();
+        let rendered_size = self.rendered_size.clone();
+
+        let deps = [layout_properties.untyped(), rendered_size.untyped()];
+        let layout_properties_with_fallback = Property::computed(
+            move || {
+                let mut lp = layout_properties.get();
+                let fallback = rendered_size.get();
+                let (w_fallback, h_fallback) = match fallback {
+                    Some((wf, hf)) => (Some(wf), Some(hf)),
+                    None => (None, None),
+                };
+                lp.width = if lp.width.is_none() {
+                    w_fallback.map(|v| Size::Pixels(v.into()))
+                } else {
+                    lp.width
+                };
+                lp.height = if lp.height.is_none() {
+                    h_fallback.map(|v| Size::Pixels(v.into()))
+                } else {
+                    lp.height
+                };
+                lp
+            },
+            &deps,
+        );
+        let common_props = borrow!(self.common_properties);
+        let extra_transform = borrow!(common_props).transform.clone();
+
+        let transform_and_bounds = compute_tab(
+            layout_properties_with_fallback,
+            extra_transform,
+            parent_transform_and_bounds,
+        );
+        self.transform_and_bounds.replace_with(transform_and_bounds);
     }
 
     pub fn generate_children(
@@ -483,12 +519,16 @@ impl ExpandedNode {
 
     pub fn get_node_context<'a>(&'a self, ctx: &Rc<RuntimeContext>) -> NodeContext {
         let globals = ctx.globals();
-        let bounds_self = self.layout_properties.bounds.clone();
-        let bounds_parent = if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
-            parent.layout_properties.bounds.clone()
+        let t_and_b = self.transform_and_bounds.clone();
+        let deps = [t_and_b.untyped()];
+        let bounds_self = Property::computed(move || t_and_b.get().bounds, &deps);
+        let t_and_b_parent = if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+            parent.transform_and_bounds.clone()
         } else {
-            globals.viewport.bounds.clone()
+            globals.viewport.clone()
         };
+        let deps = [t_and_b_parent.untyped()];
+        let bounds_parent = Property::computed(move || t_and_b_parent.get().bounds, &deps);
 
         let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
             self.flattened_slot_children_count.clone()
@@ -530,11 +570,11 @@ impl ExpandedNode {
         {
             return false;
         }
+        let t_and_b = self.transform_and_bounds.get();
 
-        let inverted_transform = self.layout_properties.transform.get().inverse();
+        let inverted_transform = t_and_b.transform.inverse();
         let transformed_ray = inverted_transform * ray;
-
-        let (width, height) = self.layout_properties.bounds.get();
+        let (width, height) = t_and_b.bounds;
         //Default implementation: rectilinear bounding hull
         let res = transformed_ray.x > 0.0
             && transformed_ray.y > 0.0
@@ -688,69 +728,60 @@ impl ExpandedNode {
     pub fn chassis_resize_request(self: &Rc<ExpandedNode>, width: f64, height: f64) {
         self.rendered_size.set(Some((width, height)));
     }
-}
 
-/// Properties that are currently re-computed each frame before rendering.
+    // might be able to just embed layout properties as a thing in CommonProps directly?
+    pub fn layout_properties(self: &Rc<ExpandedNode>) -> Property<LayoutProperties> {
+        let common_props = self.get_common_properties();
+        let common_props = borrow!(common_props);
+        let cp_width = common_props.width.clone();
+        let cp_height = common_props.height.clone();
+        let cp_transform = common_props.transform.clone();
+        let cp_anchor_x = common_props.anchor_x.clone();
+        let cp_anchor_y = common_props.anchor_y.clone();
+        let cp_scale_x = common_props.scale_x.clone();
+        let cp_scale_y = common_props.scale_y.clone();
+        let cp_skew_x = common_props.skew_x.clone();
+        let cp_skew_y = common_props.skew_y.clone();
+        let cp_rotate = common_props.rotate.clone();
+        let cp_x = common_props.x.clone();
+        let cp_y = common_props.y.clone();
+        let deps = [
+            cp_width.untyped(),
+            cp_height.untyped(),
+            cp_transform.untyped(),
+            cp_anchor_x.untyped(),
+            cp_anchor_y.untyped(),
+            cp_scale_x.untyped(),
+            cp_scale_y.untyped(),
+            cp_skew_x.untyped(),
+            cp_skew_y.untyped(),
+            cp_rotate.untyped(),
+            cp_x.untyped(),
+            cp_y.untyped(),
+        ];
 
-#[derive(Debug, Default, Clone)]
-pub struct LayoutProperties {
-    pub transform: Property<Transform2<NodeLocal, Window>>,
-    pub bounds: Property<(f64, f64)>,
-}
-
-impl LayoutProperties {
-    pub fn corners(&self) -> [Point2<Window>; 4] {
-        let (width, height) = self.bounds.get();
-
-        let top_left = self.transform.get() * Point2::new(0.0, 0.0);
-        let top_right = self.transform.get() * Point2::new(width, 0.0);
-        let bottom_left = self.transform.get() * Point2::new(0.0, height);
-        let bottom_right = self.transform.get() * Point2::new(width, height);
-
-        let res = [top_left, top_right, bottom_right, bottom_left];
-        res
+        Property::computed(
+            move || LayoutProperties {
+                x: cp_x.get(),
+                y: cp_y.get(),
+                width: cp_width.get(),
+                height: cp_height.get(),
+                rotate: cp_rotate.get(),
+                // TODO make the common prop only accept percent
+                scale_x: cp_scale_x
+                    .get()
+                    .map(|v| Percent((100.0 * v.expect_percent()).into())),
+                scale_y: cp_scale_y
+                    .get()
+                    .map(|v| Percent((100.0 * v.expect_percent()).into())),
+                anchor_x: cp_anchor_x.get(),
+                anchor_y: cp_anchor_y.get(),
+                skew_x: cp_skew_x.get(),
+                skew_y: cp_skew_y.get(),
+            },
+            &deps,
+        )
     }
-
-    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
-    pub fn intersects(&self, other: &Self) -> bool {
-        let corners_self = self.corners();
-        let corners_other = other.corners();
-
-        for i in 0..2 {
-            let axis = (corners_self[i] - corners_self[(i + 1) % 4]).normal();
-
-            let self_projections: Vec<_> = corners_self
-                .iter()
-                .map(|&p| p.to_vector().project_onto(axis).length())
-                .collect();
-            let other_projections: Vec<_> = corners_other
-                .iter()
-                .map(|&p| p.to_vector().project_onto(axis).length())
-                .collect();
-
-            let (min_self, max_self) = min_max_projections(&self_projections);
-            let (min_other, max_other) = min_max_projections(&other_projections);
-
-            // Check for non-overlapping projections
-            if max_self < min_other || max_other < min_self {
-                // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
-                return false;
-            }
-        }
-        true
-    }
-}
-
-fn min_max_projections(projections: &[f64]) -> (f64, f64) {
-    let min_projection = *projections
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    let max_projection = *projections
-        .iter()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    (min_projection, max_projection)
 }
 
 /// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
@@ -798,7 +829,7 @@ impl std::fmt::Debug for ExpandedNode {
             )
             .field("id", &self.id)
             .field("common_properties", &borrow!(self.common_properties))
-            .field("layout_properties", &self.layout_properties)
+            .field("layout_properties", &self.transform_and_bounds)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field("parent", &borrow!(self.parent_expanded_node).upgrade())
             .field(

@@ -104,10 +104,7 @@ impl InstanceNode for TextInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([
-                expanded_node.layout_properties.transform.untyped(),
-                expanded_node.layout_properties.bounds.untyped(),
-            ])
+            .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
 
         borrow_mut!(self.native_message_props).insert(
@@ -124,8 +121,8 @@ impl InstanceNode for TextInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-                        let computed_tab = &expanded_node.layout_properties;
-                        let (width, height) = computed_tab.bounds.get();
+                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let (width, height) = computed_tab.bounds;
                         let cp = expanded_node.get_common_properties();
                         let cp = borrow!(cp);
                         // send width/height only if common props exist, otherwise we are in "listening mode"
@@ -165,7 +162,7 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                computed_tab.transform.get().coeffs().to_vec(),
+                                computed_tab.transform.coeffs().to_vec(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

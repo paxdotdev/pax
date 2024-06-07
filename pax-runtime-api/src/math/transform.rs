@@ -22,7 +22,7 @@ pub struct Transform2<WFrom = Generic, WTo = WFrom> {
 // Implement Clone, Copy, PartialEq, etc manually, as
 // to not require the Space to implement these.
 
-impl<F: Space, T: Space> Clone for Transform2<F, T> {
+impl<F, T> Clone for Transform2<F, T> {
     fn clone(&self) -> Self {
         Self {
             m: self.m,
@@ -32,20 +32,20 @@ impl<F: Space, T: Space> Clone for Transform2<F, T> {
     }
 }
 
-impl<F: Space, T: Space> std::fmt::Debug for Transform2<F, T> {
+impl<F, T> std::fmt::Debug for Transform2<F, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{} {} {}", self.m[0], self.m[2], self.m[4])?;
         write!(f, "{} {} {}", self.m[1], self.m[3], self.m[5])
     }
 }
 
-impl<F: Space, T: Space> PartialEq for Transform2<F, T> {
+impl<F, T> PartialEq for Transform2<F, T> {
     fn eq(&self, other: &Self) -> bool {
         self.m == other.m
     }
 }
 
-impl<F: Space, T: Space> Copy for Transform2<F, T> {}
+impl<F, T> Copy for Transform2<F, T> {}
 
 impl<F: Space, T: Space> Default for Transform2<F, T> {
     fn default() -> Self {
