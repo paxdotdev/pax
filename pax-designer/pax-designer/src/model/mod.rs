@@ -18,6 +18,7 @@ use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
 use pax_engine::api::MouseButton;
 use pax_engine::layout::LayoutProperties;
+use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Generic;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::pax;
@@ -195,7 +196,7 @@ impl Interpolatable for SelectionState {}
 pub struct Selection {}
 #[derive(Clone, Default)]
 pub struct SelectionState {
-    total_bounds: Property<Transform2<Generic, Glass>>,
+    total_bounds: Property<TransformAndBounds<Generic, Glass>>,
     items: Vec<SelectedItem>,
 }
 
@@ -215,14 +216,21 @@ impl SelectionState {
         self.items.len()
     }
 
-    pub fn total_bounds(&self) -> Option<Property<Transform2<Generic, Glass>>> {
+    pub fn total_bounds(&self) -> Option<Property<TransformAndBounds<Generic, Glass>>> {
         if self.items.is_empty() {
             None
         } else if self.items.len() == 1 {
-            let bounds = self.items[0].bounds.clone();
-            let deps = [bounds.untyped()];
+            let t_and_b = self.items[0].transform_and_bounds.clone();
+            let deps = [t_and_b.untyped()];
             Some(Property::computed(
-                move || bounds.get().cast_spaces(),
+                move || {
+                    let t_and_b = t_and_b.get();
+                    let transform = t_and_b.transform.cast_spaces();
+                    TransformAndBounds {
+                        transform,
+                        bounds: t_and_b.bounds,
+                    }
+                },
                 &deps,
             ))
         } else {
@@ -234,7 +242,7 @@ impl SelectionState {
 #[derive(Default, Clone)]
 pub struct SelectedItem {
     // unit rectangle to object bounds transform
-    pub bounds: Property<Transform2<NodeLocal, Glass>>,
+    pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
     pub origin: Point2<Glass>,
     pub props: LayoutProperties,
     pub id: UniqueTemplateNodeIdentifier,
