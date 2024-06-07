@@ -70,7 +70,19 @@ pub fn calculate_transform_and_bounds(
 
     let x = x.unwrap_or(Size::ZERO());
     let y = y.unwrap_or(Size::ZERO());
-    let [anchor_x, anchor_y] = get_position_adjusted_anchor(anchor_x, anchor_y, x, y);
+
+    let anchor_x = anchor_x.unwrap_or_else(|| match x {
+        Size::Pixels(_) => Size::ZERO(),
+        Size::Percent(per) => Size::Percent(per),
+        Size::Combined(_, per) => Size::Percent(per),
+    });
+
+    let anchor_y = anchor_y.unwrap_or_else(|| match y {
+        Size::Pixels(_) => Size::ZERO(),
+        Size::Percent(per) => Size::Percent(per),
+        Size::Combined(_, per) => Size::Percent(per),
+    });
+
     let anchor_transform = Transform2::translate(Vector2::new(
         -anchor_x.evaluate(bounds, Axis::X),
         -anchor_y.evaluate(bounds, Axis::Y),
@@ -106,39 +118,6 @@ pub fn calculate_transform_and_bounds(
         transform: container_transform * combined_transform * anchor_transform,
         bounds,
     }
-}
-
-//Anchor behavior:
-//  if no anchor is specified:
-//     if x/y values are present and have an explicit percent value or component, use those percent values
-//     otherwise, default to 0
-pub fn get_position_adjusted_anchor(
-    anchor_x: Option<Size>,
-    anchor_y: Option<Size>,
-    x: Size,
-    y: Size,
-) -> [Size; 2] {
-    let anchor = [
-        if let Some(val) = anchor_x {
-            val
-        } else {
-            match x {
-                Size::Pixels(_) => Size::ZERO(),
-                Size::Percent(per) => Size::Percent(per),
-                Size::Combined(_, per) => Size::Percent(per),
-            }
-        },
-        if let Some(val) = anchor_y {
-            val
-        } else {
-            match y {
-                Size::Pixels(_) => Size::ZERO(),
-                Size::Percent(per) => Size::Percent(per),
-                Size::Combined(_, per) => Size::Percent(per),
-            }
-        },
-    ];
-    anchor
 }
 
 /// Properties that are currently re-computed each frame before rendering.
