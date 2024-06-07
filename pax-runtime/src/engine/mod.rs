@@ -1,4 +1,4 @@
-use crate::{api::Property, ExpandedNodeIdentifier};
+use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
 use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
@@ -7,7 +7,9 @@ use std::rc::Rc;
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
-use pax_runtime_api::{borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, OS};
+use pax_runtime_api::{
+    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, Window, OS,
+};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
 use piet::InterpolationMode;
@@ -28,19 +30,15 @@ pub mod node_interface;
 mod expanded_node;
 pub use expanded_node::ExpandedNode;
 
-#[cfg(feature = "designtime")]
-use {
-    self::node_interface::NodeLocal,
-    pax_designtime::DesigntimeManager,
-    pax_runtime_api::{properties, Window},
-};
+use self::node_interface::NodeLocal;
 
-use self::expanded_node::LayoutProperties;
+#[cfg(feature = "designtime")]
+use {pax_designtime::DesigntimeManager, pax_runtime_api::properties};
 
 #[derive(Clone)]
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
-    pub viewport: LayoutProperties,
+    pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
     pub platform: Platform,
     pub os: OS,
     #[cfg(feature = "designtime")]
@@ -264,10 +262,10 @@ impl PaxEngine {
         properties::register_time(&frames_elapsed);
         let globals = Globals {
             frames_elapsed,
-            viewport: LayoutProperties {
-                transform: Property::new(Transform2::identity()),
-                bounds: Property::new(viewport_size),
-            },
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: viewport_size,
+            }),
             platform,
             os,
         };
@@ -296,10 +294,10 @@ impl PaxEngine {
         properties::register_time(&frames_elapsed);
         let globals = Globals {
             frames_elapsed,
-            viewport: LayoutProperties {
-                transform: Property::new(Transform2::identity()),
-                bounds: Property::new(viewport_size),
-            },
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: viewport_size,
+            }),
             platform,
             os,
             designtime: designtime.clone(),
@@ -460,7 +458,9 @@ impl PaxEngine {
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.runtime_context.edit_globals(|globals| {
-            globals.viewport.bounds.set(new_viewport_size);
+            globals
+                .viewport
+                .update(|t_and_b| t_and_b.bounds = new_viewport_size);
         });
     }
 

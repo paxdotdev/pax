@@ -63,8 +63,9 @@ impl InstanceNode for FrameInstance {
         _context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        let transform = expanded_node.layout_properties.transform.get();
-        let (width, height) = expanded_node.layout_properties.bounds.get();
+        let t_and_b = expanded_node.transform_and_bounds.get();
+        let transform = t_and_b.transform;
+        let (width, height) = t_and_b.bounds;
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -141,10 +142,7 @@ impl InstanceNode for FrameInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([
-                expanded_node.layout_properties.transform.untyped(),
-                expanded_node.layout_properties.bounds.untyped(),
-            ])
+            .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
@@ -161,8 +159,8 @@ impl InstanceNode for FrameInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|_properties: &mut Frame| {
-                        let computed_tab = &expanded_node.layout_properties;
-                        let (width, height) = computed_tab.bounds.get();
+                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let (width, height) = computed_tab.bounds;
 
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
@@ -170,7 +168,7 @@ impl InstanceNode for FrameInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                computed_tab.transform.get().coeffs().to_vec(),
+                                computed_tab.transform.coeffs().to_vec(),
                             ),
                         ];
 

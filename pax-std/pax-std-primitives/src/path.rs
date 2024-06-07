@@ -79,7 +79,7 @@ impl InstanceNode for PathInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let mut bez_path = BezPath::new();
 
-            let bounds = expanded_node.layout_properties.bounds.get();
+            let bounds = expanded_node.transform_and_bounds.get().bounds;
 
             let elems = properties.elements.get();
             let mut itr_elems = elems.iter();
@@ -122,8 +122,8 @@ impl InstanceNode for PathInstance {
                 }
             }
 
-            let tab = &expanded_node.layout_properties;
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform.get()) * bez_path;
+            let tab = expanded_node.transform_and_bounds.get();
+            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
             let color = properties.fill.get().to_piet_color();

@@ -1,15 +1,16 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Percent, Size};
+use pax_runtime_api::Property;
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Percent};
 
 use crate::{
-    api::math::{Point2, Space},
-    api::{Rotation, Window},
-    ExpandedNode,
+    api::{
+        math::{Point2, Space},
+        Window,
+    },
+    ExpandedNode, LayoutProperties, TransformAndBounds,
 };
-
-use super::expanded_node::LayoutProperties;
 
 impl Interpolatable for NodeInterface {}
 #[derive(Clone)]
@@ -27,21 +28,6 @@ impl From<Rc<ExpandedNode>> for NodeInterface {
 
 pub struct NodeLocal;
 
-#[derive(Clone, Default)]
-pub struct Properties {
-    pub x: Option<Size>,
-    pub y: Option<Size>,
-    pub width: Option<Size>,
-    pub height: Option<Size>,
-    pub local_rotation: Option<Rotation>,
-    pub scale_x: Option<Percent>,
-    pub scale_y: Option<Percent>,
-    pub anchor_x: Option<Size>,
-    pub anchor_y: Option<Size>,
-    pub skew_x: Option<Rotation>,
-    pub skew_y: Option<Rotation>,
-}
-
 impl Space for NodeLocal {}
 
 impl NodeInterface {
@@ -51,36 +37,15 @@ impl NodeInterface {
         base.template_node_identifier.clone()
     }
 
-    pub fn common_properties(&self) -> Properties {
-        let cp = self.inner.get_common_properties();
-        let cp = borrow!(cp);
-        // Common props should most likely contain the types
-        // that is coerced into here directly instead of having them converted
-        Properties {
-            x: cp.x.get(),
-            y: cp.y.get(),
-            local_rotation: cp.rotate.get(),
-            width: cp.width.get(),
-            height: cp.height.get(),
-            anchor_x: cp.anchor_x.get(),
-            anchor_y: cp.anchor_y.get(),
-            scale_x: cp
-                .scale_x
-                .get()
-                .map(|v| Percent((100.0 * v.expect_percent()).into())),
-            scale_y: cp
-                .scale_y
-                .get()
-                .map(|v| Percent((100.0 * v.expect_percent()).into())),
-            skew_x: cp.skew_x.get().map(|v| Rotation::Radians(v.into())),
-            skew_y: cp.skew_y.get().map(|v| Rotation::Radians(v.into())),
-        }
+    pub fn layout_properties(&self) -> LayoutProperties {
+        self.inner.layout_properties().get()
     }
 
     pub fn origin(&self) -> Option<Point2<Window>> {
         let common_props = self.inner.get_common_properties();
         let common_props = borrow!(common_props);
-        let (width, height) = self.inner.layout_properties.bounds.get();
+        let t_and_b = self.inner.transform_and_bounds.get();
+        let (width, height) = t_and_b.bounds;
         let p_anchor = Point2::new(
             common_props
                 .anchor_x
@@ -93,7 +58,7 @@ impl NodeInterface {
                 .map(|y| y.get_pixels(height))
                 .unwrap_or(0.0),
         );
-        let origin_window = self.inner.layout_properties.transform.get() * p_anchor;
+        let origin_window = t_and_b.transform * p_anchor;
         Some(origin_window)
     }
 
@@ -101,8 +66,8 @@ impl NodeInterface {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
-    pub fn layout_properties(&self) -> LayoutProperties {
-        self.inner.layout_properties.clone()
+    pub fn transform_and_bounds(&self) -> Property<TransformAndBounds<NodeLocal, Window>> {
+        self.inner.transform_and_bounds.clone()
     }
 
     pub fn parent(&self) -> Option<NodeInterface> {
