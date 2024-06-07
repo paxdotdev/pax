@@ -25,6 +25,7 @@ pub struct CreateComponent {
     pub bounds: AxisAlignedBox<World>,
     pub type_id: TypeId,
 }
+
 impl Action for CreateComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -142,7 +143,7 @@ impl<'a> Action for SetBoxSelected<'a> {
             unit_y_pos: self.old_props.y.unit(),
             unit_skew_x: self.old_props.skew_x.unit(),
         };
-        let new_props: LayoutProperties = math::transform_to_properties(
+        let new_props: LayoutProperties = math::transform_and_bounds_inversion(
             inv_config,
             TransformAndBounds {
                 transform: ctx.world_transform(),
