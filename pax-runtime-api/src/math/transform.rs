@@ -231,7 +231,7 @@ impl<T: Space, F: Space> From<Transform2<T, F>> for kurbo::Affine {
 mod tests {
     use std::f64::consts::PI;
 
-    use crate::math::Vector2;
+    use crate::math::{Generic, Vector2};
 
     use super::{Parts, Transform2};
 
@@ -281,5 +281,25 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_scale_and_resize() {
+        let transform = Transform2::<Generic>::new([1.0, 0.4, 0.8, 0.2, 0.1, 0.5]);
+        // method 1
+        let mut parts: Parts = transform.into();
+        parts.scale.x = 2.6 * parts.scale.x;
+        parts.scale.y = 1.8 * parts.scale.y;
+        let res_transform: Transform2<Generic> = parts.into();
+        let res2_transform = transform * Transform2::<Generic>::scale_sep(Vector2::new(2.6, 1.8));
+        assert!(
+            !(res_transform
+                .coeffs()
+                .into_iter()
+                .zip(res2_transform.coeffs())
+                .map(|(a, b)| (a - b).abs())
+                .sum::<f64>()
+                < 1e-3)
+        );
     }
 }
