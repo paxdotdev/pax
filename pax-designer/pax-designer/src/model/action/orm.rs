@@ -204,26 +204,32 @@ impl Action for Resize<'_> {
         });
 
         let bounds = self.selection_transform_and_bounds.bounds;
-        let transform = self.selection_transform_and_bounds.transform
+        let selection_space = self.selection_transform_and_bounds.transform
             * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
         let fixed: Point2<SelectionSpace> = self.fixed_point.cast_space();
         let grab = (Vector2::new(1.0, 1.0) - fixed.to_vector()).to_point();
-        let new_in_selec = transform.inverse() * self.new_point;
+        let new_in_selec = selection_space.inverse() * self.new_point;
         let diff_start = fixed - grab;
         let diff_now = fixed - new_in_selec;
 
         let scale = diff_now / diff_start;
-        let anchor = Transform2::translate(fixed.to_vector());
+        let anchor: Transform2<SelectionSpace> = Transform2::translate(fixed.to_vector());
 
         // this is the transform to apply to all of the objects that are being resized
-        let resize_transform = TransformAndBounds {
-            transform: transform
-                * anchor
-                * Transform2::scale_sep(scale)
-                * anchor.inverse()
-                * transform.inverse(),
+        let to_local = TransformAndBounds {
+            transform: selection_space * anchor,
             bounds: (1.0, 1.0),
         };
+        // let local_resize = TransformAndBounds {
+        //     transform: Transform2::scale_sep(scale),
+        //     bounds: (1.0, 1.0),
+        // };
+        let local_resize = TransformAndBounds {
+            transform: Transform2::identity(),
+            bounds: (scale.x, scale.y),
+        };
+
+        let resize = to_local * local_resize * to_local.inverse();
 
         // TODO this should be relative to each nodes parent later on (when we have contextual drilling)
         // (most likely there's always only one parent?)
@@ -247,7 +253,7 @@ impl Action for Resize<'_> {
             };
             ctx.execute(SetBoxSelected {
                 id: object.id.clone(),
-                node_box: resize_transform * object.transform_and_bounds,
+                node_box: resize * object.transform_and_bounds,
                 inv_config,
             })?;
         }
