@@ -163,30 +163,22 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
     type Output = TransformAndBounds<W1, W3>;
 
     fn mul(self, rhs: TransformAndBounds<W1, W2>) -> Self::Output {
-        // This could most likey be made much more efficient,
+        // This could most likey be made more efficient,
         // possibly by just writing out the quantities/math parts
         // and deriving the answer sumbolically.
         // Main invariant: act as Transform2 being multiplied,
         // but keep bounds/scaling as separately multiplied quantities
         // (which might need to change rotation/skew)
+        let s_s = Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1));
+        let r_s = Transform2::scale_sep(Vector2::new(rhs.bounds.0, rhs.bounds.1));
 
-        let self_parts: Parts = self.transform.into();
-        let mut rhs_parts: Parts = rhs.transform.into();
-        // self_parts.scale.x *= self.bounds.0;
-        // self_parts.scale.y *= self.bounds.1;
-        // rhs_parts.scale.x *= rhs.bounds.0;
-        // rhs_parts.scale.y *= rhs.bounds.1;
-        let self_transform: Transform2 = self_parts.into();
-        let rhs_transform: Transform2 = rhs_parts.into();
-        let res = self_transform * rhs_transform;
-        let mut res_parts: Parts = res.into();
-        let res_bounds = (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1);
-        // res_parts.scale.x /= rhs.bounds.0;
-        // res_parts.scale.y /= rhs.bounds.1;
-        let res_transform = res_parts.into();
+        let s_t = self.transform * s_s;
+        let r_t = rhs.transform * r_s;
+        let res = s_t * r_t * s_s.inverse() * r_s.inverse();
+
         TransformAndBounds {
-            transform: res_transform,
-            bounds: res_bounds,
+            transform: res,
+            bounds: (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1),
         }
     }
 }
