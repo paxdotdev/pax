@@ -1,13 +1,13 @@
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateComponent, SetBoxSelected};
+use super::action::orm::{CreateComponent, SelectedObject, SetBoxSelected};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::{AxisAlignedBox, SizeUnit};
+use crate::math::{AxisAlignedBox, GetUnit, InversionConfiguration, SizeUnit};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::USERLAND_PROJECT_ID;
@@ -99,8 +99,7 @@ impl ToolBehaviour for CreateComponentTool {
 pub enum PointerTool {
     Moving {
         pickup_point: Point2<Glass>,
-        start_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
-        props: LayoutProperties,
+        objects: Vec<SelectedObject>,
     },
     Selecting {
         p1: Point2<Glass>,
@@ -117,6 +116,9 @@ pub struct SelectNode {
 impl Action for SelectNode {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut ids = ctx.app_state.selected_template_node_ids.get();
+        if ids.contains(&self.id) {
+            return Ok(CanUndo::No);
+        };
         if self.overwrite
             || !ctx
                 .app_state
@@ -144,17 +146,19 @@ impl PointerTool {
                 overwrite: false,
             });
 
-            let t_and_b = hit.transform_and_bounds().get();
-            let transform = TransformAndBounds {
-                transform: ctx.glass_transform().get(),
-                bounds: (1.0, 1.0),
-            };
-            let props = hit.layout_properties();
+            let selection = ctx.selection_state();
 
             Self::Moving {
                 pickup_point: point,
-                start_transform_and_bounds: transform * t_and_b,
-                props,
+                objects: selection
+                    .items
+                    .iter()
+                    .map(|n| SelectedObject {
+                        id: n.id.clone(),
+                        transform_and_bounds: n.transform_and_bounds.get(),
+                        layout_properties: n.props.clone(),
+                    })
+                    .collect(),
             }
         } else {
             Self::Selecting {
@@ -174,8 +178,7 @@ impl ToolBehaviour for PointerTool {
         match self {
             &mut PointerTool::Moving {
                 pickup_point,
-                ref props,
-                ref start_transform_and_bounds,
+                ref objects,
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
                     // don't commit any movement for very small pixel changes,
@@ -185,16 +188,39 @@ impl ToolBehaviour for PointerTool {
                     return ControlFlow::Continue(());
                 }
                 let translation = point - pickup_point;
-                let node_box = TransformAndBounds {
+
+                let move_translation = TransformAndBounds {
                     transform: Transform2::translate(translation),
                     bounds: (1.0, 1.0),
-                } * start_transform_and_bounds.clone();
+                };
 
-                if let Err(e) = ctx.execute(SetBoxSelected {
-                    node_box,
-                    old_props: props,
-                }) {
-                    pax_engine::log::error!("Error moving selected: {:?}", e);
+                for object in objects {
+                    let node_box = move_translation * object.transform_and_bounds;
+
+                    let container_bounds = ctx
+                        .app_state
+                        .stage
+                        .read(|stage| (stage.width as f64, stage.height as f64));
+                    let inv_config = InversionConfiguration {
+                        container_bounds,
+                        anchor_x: object.layout_properties.anchor_x,
+                        anchor_y: object.layout_properties.anchor_y,
+                        // TODO override some units here
+                        unit_width: object.layout_properties.width.unit(),
+                        unit_height: object.layout_properties.height.unit(),
+                        unit_rotation: object.layout_properties.rotate.unit(),
+                        unit_x_pos: object.layout_properties.x.unit(),
+                        unit_y_pos: object.layout_properties.y.unit(),
+                        unit_skew_x: object.layout_properties.skew_x.unit(),
+                    };
+
+                    if let Err(e) = ctx.execute(SetBoxSelected {
+                        id: object.id.clone(),
+                        node_box,
+                        inv_config,
+                    }) {
+                        pax_engine::log::error!("Error moving selected: {:?}", e);
+                    }
                 }
             }
             PointerTool::Selecting { ref mut p2, .. } => *p2 = point,
