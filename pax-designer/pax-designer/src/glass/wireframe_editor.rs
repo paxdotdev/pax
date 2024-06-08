@@ -19,6 +19,7 @@ use crate::glass::control_point::{
 };
 use crate::math::coordinate_spaces::Glass;
 use crate::math::{AxisAlignedBox, BoxPoint};
+use crate::model::action::orm::SelectedObject;
 use crate::model::action::ActionContext;
 use crate::model::{self, action, SelectionState};
 use pax_engine::api::Fill;
@@ -128,7 +129,8 @@ fn get_generic_object_editor(selection_bounds: &TransformAndBounds<Generic, Glas
 
     struct ResizeBehaviour {
         attachment_point: Point2<BoxPoint>,
-        initial_selection_state: SelectionState,
+        initial_selection: TransformAndBounds<Generic, Glass>,
+        initial_objects: Vec<SelectedObject>,
     }
 
     impl ResizeBehaviour {
@@ -138,22 +140,27 @@ fn get_generic_object_editor(selection_bounds: &TransformAndBounds<Generic, Glas
         ) -> Self {
             Self {
                 attachment_point,
-                initial_selection_state,
+                initial_selection: initial_selection_state.total_bounds().unwrap().get(),
+                initial_objects: initial_selection_state
+                    .items
+                    .iter()
+                    .map(|n| SelectedObject {
+                        id: n.id.clone(),
+                        transform_and_bounds: n.transform_and_bounds.get(),
+                        layout_properties: n.props.clone(),
+                    })
+                    .collect(),
             }
         }
     }
 
     impl ControlPointBehaviour for ResizeBehaviour {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-            let Some(item) = self.initial_selection_state.get_single() else {
-                // TODO handle multi-selection
-                return;
-            };
             if let Err(e) = ctx.execute(action::orm::Resize {
-                selection_transform_and_bounds: item.transform_and_bounds.get(),
+                selection_transform_and_bounds: self.initial_selection,
                 fixed_point: self.attachment_point,
                 new_point: point,
-                props: &item.props,
+                objects: &self.initial_objects,
             }) {
                 pax_engine::log::warn!("resize failed: {:?}", e);
             };

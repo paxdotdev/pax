@@ -11,7 +11,7 @@ use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow_mut, Rotation};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
-use pax_engine::math::{Parts, Transform2};
+use pax_engine::math::{Generic, Parts, Transform2};
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
@@ -91,7 +91,7 @@ impl Action for SelectedIntoNewComponent {
         } * selection.total_bounds.get();
         let (o, u, v) = tb.transform.decompose();
         let u = u * tb.bounds.0;
-        let v = v * tb.bounds.0;
+        let v = v * tb.bounds.1;
         dt.get_orm_mut()
             .move_to_new_component(&entries, o.x, o.y, u.length(), v.length())
             .map_err(|e| anyhow!("couldn't move to component: {}", e))?;
@@ -104,55 +104,21 @@ impl Action for SelectedIntoNewComponent {
     }
 }
 
-pub struct SetBoxSelected<'a> {
+pub struct SetBoxSelected {
+    pub id: UniqueTemplateNodeIdentifier,
     pub node_box: TransformAndBounds<NodeLocal, Glass>,
-    pub old_props: &'a LayoutProperties,
+    pub inv_config: InversionConfiguration,
 }
 
-impl<'a> Action for SetBoxSelected<'a> {
+impl Action for SetBoxSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        if ctx.app_state.selected_template_node_ids.get().len() > 1 {
-            // TODO support multi-selection movement
-            return Ok(CanUndo::No);
-        }
-        let Some(selected) = ctx
-            .app_state
-            .selected_template_node_ids
-            .read(|ids| ids.get(0).cloned())
-        else {
-            return Err(anyhow!("tried to move selected but no selected object"));
-        };
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-
-        let Some(mut builder) = dt
-            .get_orm_mut()
-            .get_node(UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.get(),
-                selected.clone(),
-            ))
-        else {
-            return Err(anyhow!("can't move: selected node doesn't exist in orm"));
+        let Some(mut builder) = dt.get_orm_mut().get_node(self.id) else {
+            return Err(anyhow!("can't move: node doesn't exist in orm"));
         };
 
-        // TODO this should be relative to parent later on (when we have contextual drilling)
-        let bounds = ctx
-            .app_state
-            .stage
-            .read(|stage| (stage.width as f64, stage.height as f64));
-
-        let inv_config = InversionConfiguration {
-            anchor_x: self.old_props.anchor_x,
-            anchor_y: self.old_props.anchor_y,
-            container_bounds: bounds,
-            unit_width: self.old_props.width.unit(),
-            unit_height: self.old_props.height.unit(),
-            unit_rotation: self.old_props.rotate.unit(),
-            unit_x_pos: self.old_props.x.unit(),
-            unit_y_pos: self.old_props.y.unit(),
-            unit_skew_x: self.old_props.skew_x.unit(),
-        };
         let new_props: LayoutProperties = math::transform_and_bounds_inversion(
-            inv_config,
+            self.inv_config,
             TransformAndBounds {
                 transform: ctx.world_transform(),
                 bounds: (1.0, 1.0),
@@ -215,14 +181,20 @@ impl<'a> Action for SetBoxSelected<'a> {
     }
 }
 
-pub struct Resize<'props> {
+pub struct Resize<'a> {
     pub fixed_point: Point2<BoxPoint>,
     pub new_point: Point2<Glass>,
-    pub selection_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
-    pub props: &'props LayoutProperties,
+    pub selection_transform_and_bounds: TransformAndBounds<Generic, Glass>,
+    pub objects: &'a [SelectedObject],
 }
 
-impl<'props> Action for Resize<'props> {
+pub struct SelectedObject {
+    pub id: UniqueTemplateNodeIdentifier,
+    pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
+    pub layout_properties: LayoutProperties,
+}
+
+impl Action for Resize<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut is_shift_key_down = false;
         let mut is_alt_key_down = false;
@@ -241,24 +213,42 @@ impl<'props> Action for Resize<'props> {
         let diff_start = world_anchor - grab_point;
         let diff_now = world_anchor - self.new_point;
 
-        let anchor_relative = self.selection_transform_and_bounds.transform.inverse() * anchor;
-        let diff_start_selection_relative =
-            self.selection_transform_and_bounds.transform.inverse() * diff_start;
-        let diff_now_selection_relative =
-            self.selection_transform_and_bounds.transform.inverse() * diff_now;
+        // Why are these cast spaces needed?
+        let scale = diff_now / diff_start;
+        let anchor_shift = Transform2::translate(world_anchor.to_vector());
 
-        let scale = diff_now_selection_relative / diff_start_selection_relative;
-        let anchor_shift: Transform2<NodeLocal> = Transform2::translate(anchor_relative);
-        let new_box = self.selection_transform_and_bounds
-            * TransformAndBounds {
-                transform: anchor_shift * Transform2::scale_sep(scale) * anchor_shift.inverse(),
-                bounds: (1.0, 1.0),
+        // this is the transform to apply to all of the objects that are being resized
+        let resize_transform = TransformAndBounds {
+            transform: anchor_shift * Transform2::scale_sep(scale) * anchor_shift.inverse(),
+            bounds: (1.0, 1.0),
+        };
+
+        // TODO this should be relative to each nodes parent later on (when we have contextual drilling)
+        // (most likely there's always only one parent?)
+        let container_bounds = ctx
+            .app_state
+            .stage
+            .read(|stage| (stage.width as f64, stage.height as f64));
+
+        for object in self.objects {
+            let inv_config = InversionConfiguration {
+                container_bounds,
+                anchor_x: object.layout_properties.anchor_x,
+                anchor_y: object.layout_properties.anchor_y,
+                // TODO override some units here
+                unit_width: object.layout_properties.width.unit(),
+                unit_height: object.layout_properties.height.unit(),
+                unit_rotation: object.layout_properties.rotate.unit(),
+                unit_x_pos: object.layout_properties.x.unit(),
+                unit_y_pos: object.layout_properties.y.unit(),
+                unit_skew_x: object.layout_properties.skew_x.unit(),
             };
-
-        ctx.execute(SetBoxSelected {
-            node_box: new_box,
-            old_props: self.props,
-        })?;
+            ctx.execute(SetBoxSelected {
+                id: object.id.clone(),
+                node_box: resize_transform * object.transform_and_bounds,
+                inv_config,
+            })?;
+        }
 
         Ok(CanUndo::No)
     }

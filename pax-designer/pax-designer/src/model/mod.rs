@@ -197,7 +197,7 @@ pub struct Selection {}
 #[derive(Clone, Default)]
 pub struct SelectionState {
     total_bounds: Property<TransformAndBounds<Generic, Glass>>,
-    items: Vec<SelectedItem>,
+    pub items: Vec<SelectedItem>,
 }
 
 impl SelectionState {
