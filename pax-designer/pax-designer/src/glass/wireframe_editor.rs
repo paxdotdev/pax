@@ -17,7 +17,7 @@ use super::control_point::{ControlPoint, ControlPointBehaviour};
 use crate::glass::control_point::{
     ControlPointBehaviourFactory, ControlPointDef, ControlPointStyling,
 };
-use crate::math::coordinate_spaces::Glass;
+use crate::math::coordinate_spaces::{Glass, SelectionSpace};
 use crate::math::{AxisAlignedBox, BoxPoint};
 use crate::model::action::orm::SelectedObject;
 use crate::model::action::ActionContext;
@@ -119,7 +119,9 @@ fn bind_props_to_editor(
     bounding_segments_prop.replace_with(Property::computed(move || editor.get().segments, &deps));
 }
 
-fn get_generic_object_editor(selection_bounds: &TransformAndBounds<Generic, Glass>) -> Editor {
+fn get_generic_object_editor(
+    selection_bounds: &TransformAndBounds<SelectionSpace, Glass>,
+) -> Editor {
     let (o, u, v) = selection_bounds.transform.decompose();
     let u = u * selection_bounds.bounds.0;
     let v = v * selection_bounds.bounds.1;
@@ -129,7 +131,7 @@ fn get_generic_object_editor(selection_bounds: &TransformAndBounds<Generic, Glas
 
     struct ResizeBehaviour {
         attachment_point: Point2<BoxPoint>,
-        initial_selection: TransformAndBounds<Generic, Glass>,
+        initial_selection: TransformAndBounds<SelectionSpace, Glass>,
         initial_objects: Vec<SelectedObject>,
     }
 

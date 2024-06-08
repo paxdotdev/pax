@@ -4,6 +4,7 @@ pub mod tools;
 
 use crate::glass;
 use crate::glass::control_point::ControlPointBehaviour;
+use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
@@ -196,7 +197,7 @@ impl Interpolatable for SelectionState {}
 pub struct Selection {}
 #[derive(Clone, Default)]
 pub struct SelectionState {
-    total_bounds: Property<TransformAndBounds<Generic, Glass>>,
+    total_bounds: Property<TransformAndBounds<SelectionSpace, Glass>>,
     pub items: Vec<SelectedItem>,
 }
 
@@ -216,7 +217,7 @@ impl SelectionState {
         self.items.len()
     }
 
-    pub fn total_bounds(&self) -> Option<Property<TransformAndBounds<Generic, Glass>>> {
+    pub fn total_bounds(&self) -> Option<Property<TransformAndBounds<SelectionSpace, Glass>>> {
         if self.items.is_empty() {
             None
         } else if self.items.len() == 1 {
