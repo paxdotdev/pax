@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext, CanUndo};
-use crate::math::coordinate_spaces::{Glass, World};
+use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{self, AxisAlignedBox, GetUnit, InversionConfiguration, RotationUnit, SizeUnit};
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
@@ -184,7 +184,7 @@ impl Action for SetBoxSelected {
 pub struct Resize<'a> {
     pub fixed_point: Point2<BoxPoint>,
     pub new_point: Point2<Glass>,
-    pub selection_transform_and_bounds: TransformAndBounds<Generic, Glass>,
+    pub selection_transform_and_bounds: TransformAndBounds<SelectionSpace, Glass>,
     pub objects: &'a [SelectedObject],
 }
 
@@ -204,22 +204,24 @@ impl Action for Resize<'_> {
         });
 
         let bounds = self.selection_transform_and_bounds.bounds;
-        let (o, vx, vy) = self.selection_transform_and_bounds.transform.decompose();
-        let vx = vx * bounds.0;
-        let vy = vy * bounds.1;
-        let anchor = vx * self.fixed_point.x + vy * self.fixed_point.y;
-        let world_anchor: Point2<Glass> = o + anchor;
-        let grab_point = o + vx * (1.0 - self.fixed_point.x) + vy * (1.0 - self.fixed_point.y);
-        let diff_start = world_anchor - grab_point;
-        let diff_now = world_anchor - self.new_point;
+        let transform = self.selection_transform_and_bounds.transform
+            * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
+        let fixed: Point2<SelectionSpace> = self.fixed_point.cast_space();
+        let grab = (Vector2::new(1.0, 1.0) - fixed.to_vector()).to_point();
+        let new_in_selec = transform.inverse() * self.new_point;
+        let diff_start = fixed - grab;
+        let diff_now = fixed - new_in_selec;
 
-        // Why are these cast spaces needed?
         let scale = diff_now / diff_start;
-        let anchor_shift = Transform2::translate(world_anchor.to_vector());
+        let anchor = Transform2::translate(fixed.to_vector());
 
         // this is the transform to apply to all of the objects that are being resized
         let resize_transform = TransformAndBounds {
-            transform: anchor_shift * Transform2::scale_sep(scale) * anchor_shift.inverse(),
+            transform: transform
+                * anchor
+                * Transform2::scale_sep(scale)
+                * anchor.inverse()
+                * transform.inverse(),
             bounds: (1.0, 1.0),
         };
 

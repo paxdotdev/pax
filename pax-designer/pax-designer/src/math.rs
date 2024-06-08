@@ -81,6 +81,10 @@ pub mod coordinate_spaces {
     pub struct World;
 
     impl math::Space for World {}
+
+    pub struct SelectionSpace;
+
+    impl math::Space for SelectionSpace {}
 }
 
 // min (-1.0, -1.0) for top left
