@@ -107,8 +107,8 @@ impl DesigntimeManager {
         self.orm.get_manifest()
     }
 
-    pub fn get_reload_queue(&self) -> Option<ReloadType> {
-        self.orm.get_reload_queue()
+    pub fn take_reload_queue(&mut self) -> Vec<ReloadType> {
+        self.orm.take_reload_queue()
     }
 
     pub fn reload_play(&mut self) {
@@ -138,23 +138,25 @@ impl DesigntimeManager {
         if current_manifest_version != self.last_written_manifest_version
             && current_manifest_version % 5 == 0
         {
-            match self.get_orm().get_reload_queue() {
-                Some(ReloadType::FullEdit) => {
-                    self.send_component_update(&TypeId::build_singleton(
-                        "pax_designer::pax_reexports::designer_project::Example",
-                        None,
-                    ))?;
+            let queue = self.get_orm_mut().take_reload_queue();
+            for item in queue {
+                match item {
+                    ReloadType::FullEdit => {
+                        self.send_component_update(&TypeId::build_singleton(
+                            "pax_designer::pax_reexports::designer_project::Example",
+                            None,
+                        ))?;
+                    }
+                    ReloadType::FullPlay => {
+                        self.send_component_update(&TypeId::build_singleton(
+                            "pax_designer::pax_reexports::designer_project::Example",
+                            None,
+                        ))?;
+                    }
+                    ReloadType::Partial(uni) => {
+                        self.send_component_update(&uni.get_containing_component_type_id())?;
+                    }
                 }
-                Some(ReloadType::FullPlay) => {
-                    self.send_component_update(&TypeId::build_singleton(
-                        "pax_designer::pax_reexports::designer_project::Example",
-                        None,
-                    ))?;
-                }
-                Some(ReloadType::Partial(uni)) => {
-                    self.send_component_update(&uni.get_containing_component_type_id())?;
-                }
-                _ => {}
             }
             self.last_written_manifest_version = current_manifest_version;
         }

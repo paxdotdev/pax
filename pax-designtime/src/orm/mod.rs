@@ -68,7 +68,7 @@ pub struct PaxManifestORM {
     manifest_version: Property<usize>,
     next_new_component_id: usize,
     new_components: Vec<TypeId>,
-    reload_queue: Option<ReloadType>,
+    reload_queue: Vec<ReloadType>,
 }
 
 impl PaxManifestORM {
@@ -81,7 +81,7 @@ impl PaxManifestORM {
             manifest_version: Property::new(0),
             next_new_component_id: 1,
             new_components: Vec::new(),
-            reload_queue: None,
+            reload_queue: Vec::new(),
         }
     }
 
@@ -106,11 +106,11 @@ impl PaxManifestORM {
     }
 
     pub fn set_reload(&mut self, reload_type: ReloadType) {
-        self.reload_queue = Some(reload_type);
+        self.reload_queue.push(reload_type);
     }
 
-    pub fn get_reload_queue(&self) -> Option<ReloadType> {
-        self.reload_queue.clone()
+    pub fn take_reload_queue(&mut self) -> Vec<ReloadType> {
+        std::mem::take(&mut self.reload_queue)
     }
 
     pub fn increment_manifest_version(&mut self) {
