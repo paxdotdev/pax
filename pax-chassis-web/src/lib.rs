@@ -634,9 +634,9 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
-        let reload_type = borrow!(self.designtime_manager).get_reload_queue();
+        let reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
         if current_manifest_version.get() != self.last_manifest_version_rendered {
-            if let Some(reload_type) = reload_type {
+            for reload_type in reload_queue {
                 match reload_type {
                     ReloadType::FullEdit => {
                         if let Some(instance_node) = self

@@ -155,6 +155,8 @@ impl<F, T> Clone for TransformAndBounds<F, T> {
     }
 }
 
+impl<F, T> Copy for TransformAndBounds<F, T> {}
+
 impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
     for TransformAndBounds<W2, W3>
 {
@@ -172,15 +174,15 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
         let mut rhs_parts: Parts = rhs.transform.into();
         // self_parts.scale.x *= self.bounds.0;
         // self_parts.scale.y *= self.bounds.1;
-        rhs_parts.scale.x *= rhs.bounds.0;
-        rhs_parts.scale.y *= rhs.bounds.1;
+        // rhs_parts.scale.x *= rhs.bounds.0;
+        // rhs_parts.scale.y *= rhs.bounds.1;
         let self_transform: Transform2 = self_parts.into();
         let rhs_transform: Transform2 = rhs_parts.into();
         let res = self_transform * rhs_transform;
         let mut res_parts: Parts = res.into();
         let res_bounds = (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1);
-        res_parts.scale.x /= rhs.bounds.0;
-        res_parts.scale.y /= rhs.bounds.1;
+        // res_parts.scale.x /= rhs.bounds.0;
+        // res_parts.scale.y /= rhs.bounds.1;
         let res_transform = res_parts.into();
         TransformAndBounds {
             transform: res_transform,
