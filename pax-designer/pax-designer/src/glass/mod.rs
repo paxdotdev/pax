@@ -169,9 +169,10 @@ impl Glass {
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
-        args.prevent_default();
+        let prevent_default = || args.prevent_default();
         model::perform_action(
             crate::model::action::pointer::PointerAction {
+                prevent_default: &prevent_default,
                 event: Pointer::Down,
                 button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
@@ -181,8 +182,10 @@ impl Glass {
     }
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
+        let prevent_default = || args.prevent_default();
         model::perform_action(
             crate::model::action::pointer::PointerAction {
+                prevent_default: &prevent_default,
                 event: Pointer::Move,
                 button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
@@ -192,8 +195,10 @@ impl Glass {
     }
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
+        let prevent_default = || args.prevent_default();
         model::perform_action(
             crate::model::action::pointer::PointerAction {
+                prevent_default: &prevent_default,
                 event: Pointer::Up,
                 button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
