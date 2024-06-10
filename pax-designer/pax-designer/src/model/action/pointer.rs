@@ -18,7 +18,8 @@ use pax_engine::api::{MouseButton, Window};
 use pax_engine::math::Point2;
 use pax_manifest::TypeId;
 
-pub struct PointerAction {
+pub struct PointerAction<'a> {
+    pub prevent_default: &'a dyn Fn(),
     pub event: Pointer,
     pub button: MouseButton,
     pub point: Point2<Window>,
@@ -31,7 +32,7 @@ pub enum Pointer {
     Up,
 }
 
-impl Action for PointerAction {
+impl Action for PointerAction<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
@@ -59,6 +60,7 @@ impl Action for PointerAction {
             match (self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     Tool::Pointer => {
+                        (self.prevent_default)();
                         tool_behaviour.set(Some(Rc::new(RefCell::new(PointerTool::new(
                             ctx,
                             point_glass,
