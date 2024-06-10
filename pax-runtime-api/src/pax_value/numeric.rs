@@ -23,19 +23,25 @@ pub enum Numeric {
 
 impl Display for Numeric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt_num<V: Display>(
+            f: &mut std::fmt::Formatter<'_>,
+            v: V,
+        ) -> Result<(), std::fmt::Error> {
+            write!(f, "{:.2}", v)
+        }
         match self {
-            Numeric::I8(v) => write!(f, "{}", v),
-            Numeric::I16(v) => write!(f, "{}", v),
-            Numeric::I32(v) => write!(f, "{}", v),
-            Numeric::I64(v) => write!(f, "{}", v),
-            Numeric::U8(v) => write!(f, "{}", v),
-            Numeric::U16(v) => write!(f, "{}", v),
-            Numeric::U32(v) => write!(f, "{}", v),
-            Numeric::U64(v) => write!(f, "{}", v),
-            Numeric::F64(v) => write!(f, "{}", v),
-            Numeric::F32(v) => write!(f, "{}", v),
-            Numeric::ISize(v) => write!(f, "{}", v),
-            Numeric::USize(v) => write!(f, "{}", v),
+            Numeric::I8(v) => fmt_num(f, v),
+            Numeric::I16(v) => fmt_num(f, v),
+            Numeric::I32(v) => fmt_num(f, v),
+            Numeric::I64(v) => fmt_num(f, v),
+            Numeric::U8(v) => fmt_num(f, v),
+            Numeric::U16(v) => fmt_num(f, v),
+            Numeric::U32(v) => fmt_num(f, v),
+            Numeric::U64(v) => fmt_num(f, v),
+            Numeric::F64(v) => fmt_num(f, v),
+            Numeric::F32(v) => fmt_num(f, v),
+            Numeric::ISize(v) => fmt_num(f, v),
+            Numeric::USize(v) => fmt_num(f, v),
         }
     }
 }
