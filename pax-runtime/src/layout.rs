@@ -180,6 +180,24 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
             transform: res,
             bounds: (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1),
         }
+
+        // other possible method?
+
+        // let s_s = Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1));
+        // let r_s = Transform2::scale_sep(Vector2::new(rhs.bounds.0, rhs.bounds.1));
+        // let s_t = self.transform * s_s;
+        // let r_t = rhs.transform * r_s;
+
+        // let self_scale_before = self.transform.get_scale();
+        // let rhs_scale_before = rhs.transform.get_scale();
+        // let res = s_t * r_t;
+        // let new_scale = res.get_scale();
+        // let size = new_scale / (self_scale_before.mult(rhs_scale_before.cast_space()));
+
+        // TransformAndBounds {
+        //     transform: res * Transform2::scale_sep(Vector2::new(1.0, 1.0) / size),
+        //     bounds: (size.x, size.y),
+        // }
     }
 }
 
