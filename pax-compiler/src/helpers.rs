@@ -50,6 +50,7 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-component-library",
     "pax-manifest",
     "pax-lang",
+    "pax-property",
 ];
 
 #[derive(Debug, Deserialize)]

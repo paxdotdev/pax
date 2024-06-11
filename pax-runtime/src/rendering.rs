@@ -7,8 +7,7 @@ use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
-use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, use_RefCell};
+use pax_runtime_api::{borrow, use_RefCell, PropertyId};
 use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll};
@@ -38,7 +37,7 @@ pub struct InstantiationArgs {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, PropertyId>>>,
 }
 
 #[derive(Clone)]
@@ -140,9 +139,8 @@ pub trait InstanceNode {
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-
-        let new_children = expanded_node.generate_children(children_with_envs, context);
-        expanded_node.children.set(new_children);
+        let new_children =  expanded_node.generate_children(children_with_envs, context);
+        expanded_node.attach_children(new_children, context);
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
@@ -188,7 +186,7 @@ pub struct BaseInstance {
     >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, PropertyId>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }

@@ -82,10 +82,12 @@ pub fn no_touches() -> bool {
 
 impl Scroller {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let slot_children_count = ctx.slot_children_count.clone();
-        let deps = [slot_children_count.untyped()];
-        self.slot_children_count
-            .replace_with(Property::computed(move || slot_children_count.get(), &deps));
+        let slot_children_count = self.slot_children_count;
+        let ctx_slot_children_count = ctx.slot_children_count;
+        ctx.slot_children_count.clone().subscribe(move || {
+            let count = ctx_slot_children_count.get();
+            slot_children_count.set(count);
+        });
         let scroll_params = match ctx.os {
             OS::Android => PlatformSpecificScrollParams {
                 deacceleration: 0.02,

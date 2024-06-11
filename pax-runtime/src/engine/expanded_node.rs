@@ -2,9 +2,8 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
-use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Rotation, Transform2D,
+    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D,
 };
 use wasm_bindgen::UnwrapThrowExt;
 
@@ -18,7 +17,7 @@ use crate::constants::{
     TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
+use crate::{layout, ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -68,7 +67,7 @@ pub struct ExpandedNode {
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
     /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    pub children: Property<Vec<Rc<ExpandedNode>>>,
+    pub children: Vec<Rc<ExpandedNode>>,
 
     /// A list of mounted children that need to be dismounted when children is recalculated
     pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -82,9 +81,10 @@ pub struct ExpandedNode {
     /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
     pub rendered_size: Property<Option<(f64, f64)>>,
 
-    /// The layout information (width, height, transform) used to render this node.
-    /// computed property based on parent bounds + common properties
-    pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
+    /// Properties that are currently re-computed each frame before rendering.
+    /// Only contains computed_tab atm. Might be possible to retire if tab comp
+    /// would be part of render pass?
+    pub layout_properties: RefCell<LayoutProperties>,
 
     /// For component instances only, tracks the expanded slot_children in it's
     /// non-collapsed form (repeat and conditionals still present). This allows
@@ -113,11 +113,7 @@ pub struct ExpandedNode {
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
-    pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
-
-    /// The flattened index of this node in it's container (if this container
-    /// cares about slot children, ex: component, path).
-    pub slot_index: Property<Option<usize>>,
+    pub properties_scope: RefCell<HashMap<String, PropertyId>>,
 }
 
 impl ImplToFromPaxAny for ExpandedNode {}
@@ -175,18 +171,18 @@ impl ExpandedNode {
             Rc::new(RefCell::new(().to_pax_any())),
         );
         let root_node = Self::new(template, root_env, ctx, Weak::new());
-        Rc::clone(&root_node).recurse_mount(ctx);
         let globals = ctx.globals();
-        let container_transform_and_bounds = globals.viewport.clone();
-        let layout_properties = root_node.layout_properties();
-        let transform_and_bounds = compute_tab(
-            layout_properties,
-            Property::default(),
-            container_transform_and_bounds,
-        );
-        root_node
-            .transform_and_bounds
-            .replace_with(transform_and_bounds);
+        let parent_bounds = globals.viewport.bounds.clone();
+        let parent_transform = globals.viewport.transform.clone();
+        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
+        {
+            let mut layout_properties = borrow_mut!(root_node.layout_properties);
+            layout_properties.bounds = bounds;
+            layout_properties
+                .transform
+                = transform;
+        }
+        Rc::clone(&root_node).recurse_mount(ctx);
         root_node
     }
 
@@ -229,12 +225,9 @@ impl ExpandedNode {
             parent_frame: Default::default(),
 
             containing_component,
-            children: Property::new_with_name(
-                Vec::new(),
-                &format!("node children (node id: {})", id.0),
-            ),
+            children: Vec::new(),
             mounted_children: RefCell::new(Vec::new()),
-            transform_and_bounds: Property::new(TransformAndBounds::default()),
+            layout_properties: RefCell::new(LayoutProperties::default()),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
@@ -323,8 +316,8 @@ impl ExpandedNode {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
-                Rc::clone(child).recurse_mount(context);
                 child.bind_to_parent_bounds();
+                Rc::clone(child).recurse_mount(context);
                 // set frame clipping reference
                 child.parent_frame.set(self.parent_frame.get());
             }
@@ -333,6 +326,7 @@ impl ExpandedNode {
         new_children
     }
 
+    // mutates self
     fn bind_to_parent_bounds(self: &Rc<Self>) {
         let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
         let parent_transform_and_bounds = parent.transform_and_bounds.clone();
@@ -413,7 +407,7 @@ impl ExpandedNode {
                 )
             }
         }
-        for child in self.children.get().iter() {
+        for child in self.children.iter() {
             child.recurse_update(context);
         }
     }
@@ -480,7 +474,7 @@ impl ExpandedNode {
 
     pub fn recurse_render(&self, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
-        for child in self.children.get().iter().rev() {
+        for child in self.children.iter().rev() {
             child.recurse_render(ctx, rcs);
         }
         borrow!(self.instance_node).render(&self, ctx, rcs);
@@ -510,7 +504,7 @@ impl ExpandedNode {
     }
 
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
-        for child in self.children.get().iter().rev() {
+        for child in self.children.iter().rev() {
             child.recurse_visit_postorder(func)
         }
         func(self);
@@ -793,7 +787,6 @@ fn flatten_expanded_nodes_for_slot(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<Expande
         if borrow!(node.instance_node).base().flags().invisible_to_slot {
             result.extend(flatten_expanded_nodes_for_slot(
                 node.children
-                    .get()
                     .clone()
                     .into_iter()
                     .collect::<Vec<_>>()

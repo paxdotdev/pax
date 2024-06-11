@@ -65,26 +65,19 @@ impl InstanceNode for SlotInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
                 properties.showing_node.clone()
             });
-        let deps = vec![showing_node.untyped()];
 
-        expanded_node
-            .children
-            .replace_with(Property::computed_with_name(
-                move || {
-                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                        panic!("ran evaluator after expanded node dropped (repeat elem)")
-                    };
+        let cloned_showing_node = showing_node.clone();
 
-                    let ret = if let Some(node) = showing_node.get().upgrade() {
-                        cloned_expanded_node.attach_children(vec![node], &cloned_context)
-                    } else {
-                        vec![]
-                    };
-                    ret
-                },
-                &deps,
-                &format!("slot_children (node id: {})", expanded_node.id.0),
-            ));
+        showing_node.subscribe( move || {
+            let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                panic!("ran evaluator after expanded node dropped (repeat elem)")
+            };
+           if let Some(node) = cloned_showing_node.get().upgrade() {
+                cloned_expanded_node.attach_children(vec![node], &cloned_context)
+            } else {
+                vec![]
+            };
+        },);
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {

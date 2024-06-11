@@ -1,0 +1,26 @@
+[package]
+name = "pax-property"
+version = "0.15.2"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+petgraph = "0.6"
+svg = "0.8"
+serde = {version = "1.0.159", features=["derive"] }
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "my_benchmark"
+harness = false
+
+[profile.bench]
+debug = true
+opt-level = 3
+
+[profile.release]
+debug = true
+opt-level = 3

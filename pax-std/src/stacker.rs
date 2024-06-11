@@ -13,13 +13,7 @@ use pax_runtime::api::NodeContext;
 #[custom(Default)]
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
-        <Group
-            transform={Transform2D::translate((cell_spec.x_px)px, (cell_spec.y_px)px)}
-            width={(cell_spec.width_px)px}
-            height={(cell_spec.height_px)px}
-        >
-            slot(i)
-        </Group>
+
     }
 
     @settings {
@@ -57,15 +51,15 @@ impl Stacker {
         let direction = self.direction.clone();
 
         let deps = [
-            bound.untyped(),
-            direction.untyped(),
-            sizes.untyped(),
-            gutter.untyped(),
-            slot_children_count.untyped(),
+            bound.get_id(),
+            direction.get_id(),
+            sizes.get_id(),
+            gutter.get_id(),
+            slot_children_count.get_id(),
         ];
 
         //NOTE: replace with is needed since the for loop already has a connection to the prop
-        self._cell_specs.replace_with(Property::computed_with_name(
+        self._cell_specs = Property::expression(
             move || {
                 let cells: f64 = slot_children_count.get() as f64;
                 let bounds = bound.get();
@@ -75,7 +69,7 @@ impl Stacker {
                     StackerDirection::Vertical => bounds.1,
                 };
 
-                let gutter_calc = match gutter.get() {
+                let gutter_calc = match gutter.get().clone() {
                     Size::Pixels(pix) => pix,
                     Size::Percent(per) => Numeric::F64(active_bound) * (per / Numeric::F64(100.0)),
                     Size::Combined(pix, per) => {
@@ -160,7 +154,6 @@ impl Stacker {
                 new_cell_specs
             },
             &deps,
-            "stacker _cell_specs",
-        ));
+        );
     }
 }

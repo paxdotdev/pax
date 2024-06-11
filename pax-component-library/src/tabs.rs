@@ -50,7 +50,7 @@ impl Tabs {
         let slot_count = ctx.slot_children_count.clone();
         let deps = [slot_count.untyped()];
         self.slot_count
-            .replace_with(Property::computed(move || slot_count.get(), &deps));
+            .replace_with(Property::computed(move || *slot_count.get(), &deps));
         let slot_count = ctx.slot_children_count.clone();
         let names = self.names.clone();
         let deps = [slot_count.untyped(), names.untyped()];
@@ -58,7 +58,7 @@ impl Tabs {
             move || {
                 let names = names.get();
                 let mut names_filled = vec![];
-                for i in 0..slot_count.get() {
+                for i in 0..*slot_count.get() {
                     names_filled.push(
                         names
                             .get(i)

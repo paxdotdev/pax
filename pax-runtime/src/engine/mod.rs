@@ -8,7 +8,7 @@ use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::{
-    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, Window, OS,
+    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, set_time, use_RefCell, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
@@ -37,8 +37,8 @@ use {pax_designtime::DesigntimeManager, pax_runtime_api::properties};
 
 #[derive(Clone)]
 pub struct Globals {
-    pub frames_elapsed: Property<u64>,
-    pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
+    pub frames_elapsed: u64,
+    pub viewport: LayoutProperties,
     pub platform: Platform,
     pub os: OS,
     #[cfg(feature = "designtime")]
@@ -256,16 +256,13 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
     ) -> Self {
-        use pax_runtime_api::properties;
-
-        let frames_elapsed = Property::new(0);
-        properties::register_time(&frames_elapsed);
+        pax_runtime_api::set_time(0);
         let globals = Globals {
-            frames_elapsed,
-            viewport: Property::new(TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: viewport_size,
-            }),
+            frames_elapsed: 0,
+            viewport: LayoutProperties {
+                transform: Property::new(Transform2::identity()),
+                bounds: Property::new(viewport_size),
+            },
             platform,
             os,
         };
@@ -290,14 +287,12 @@ impl PaxEngine {
         os: OS,
     ) -> Self {
         use pax_runtime_api::math::Transform2;
-        let frames_elapsed = Property::new(0);
-        properties::register_time(&frames_elapsed);
         let globals = Globals {
-            frames_elapsed,
-            viewport: Property::new(TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: viewport_size,
-            }),
+            frames_elapsed: 0,
+            viewport: LayoutProperties {
+                transform: Property::new(Transform2::identity()),
+                bounds: Property::new(viewport_size),
+            },
             platform,
             os,
             designtime: designtime.clone(),
@@ -357,7 +352,7 @@ impl PaxEngine {
         id: &UniqueTemplateNodeIdentifier,
         ctx: &Rc<RuntimeContext>,
     ) {
-        if parent.children.get().iter().any(|node| {
+        if parent.children.iter().any(|node| {
             borrow!(node.instance_node)
                 .base()
                 .template_node_identifier
@@ -372,9 +367,9 @@ impl PaxEngine {
             let children = borrow!(parent_template.base().get_instance_children());
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
             let children = parent.generate_children(new_templates, ctx);
-            parent.children.set(children);
+            parent.attach_children(children, ctx);
         } else {
-            for child in parent.children.get().iter() {
+            for child in parent.children.iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
             }
         }
@@ -436,8 +431,7 @@ impl PaxEngine {
 
         let time = &ctx.globals().frames_elapsed;
 
-        time.set(time.get() + 1);
-
+        set_time(*time);
         ctx.flush_custom_events().unwrap();
         ctx.take_native_messages()
     }

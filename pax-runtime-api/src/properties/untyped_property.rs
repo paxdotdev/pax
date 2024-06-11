@@ -1,6 +1,5 @@
 use super::{
-    private::PropertyId,
-    properties_table::{PropertyType, PROPERTY_TABLE},
+    properties_table::{PropertyId, PropertyType, PROPERTY_TABLE},
     PropertyValue,
 };
 
@@ -36,11 +35,10 @@ impl UntypedProperty {
     pub(crate) fn new<T: PropertyValue>(
         val: T,
         inbound: Vec<PropertyId>,
-        data: PropertyType<T>,
-        debug_name: Option<&str>,
+        data: PropertyType,
     ) -> Self {
         UntypedProperty {
-            id: PROPERTY_TABLE.with(|t| t.add_entry(val, inbound, data, debug_name)),
+            id: PROPERTY_TABLE.with(|t| t.add_entry(val, inbound, data)),
         }
     }
 

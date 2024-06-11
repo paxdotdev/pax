@@ -37,16 +37,16 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
             font_size: Some(self.font_size.get().expect_pixels().to_float()),
-            fill: Some(Into::<ColorMessage>::into(&self.fill.get())),
+            fill: Some(Into::<ColorMessage>::into(&self.fill.get().clone())),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
-                &self.align_multiline.get(),
+                &self.align_multiline.get().clone(),
             )),
             align_vertical: Some(Into::<TextAlignVerticalMessage>::into(
-                &self.align_vertical.get(),
+                &self.align_vertical.get().clone(),
             )),
             align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(
-                &self.align_horizontal.get(),
+                &self.align_horizontal.get().clone(),
             )),
         }
     }

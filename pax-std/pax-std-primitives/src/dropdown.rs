@@ -104,12 +104,12 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                (&properties.style.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get()).into(),
+                                (&properties.stroke.get().color.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
@@ -119,7 +119,7 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.selected_id,
@@ -129,7 +129,7 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.options,
                                 &mut patch.options,
-                                properties.options.get(),
+                                properties.options.get().clone(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

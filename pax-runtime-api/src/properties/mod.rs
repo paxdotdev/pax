@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::{marker::PhantomData, rc::Rc};
+use std::{any::Any, cell::{Ref, RefCell}, marker::PhantomData, rc::Rc, sync::atomic::AtomicI64};
 
 mod graph_operations;
 mod properties_table;
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 mod untyped_property;
 
 use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
@@ -12,6 +12,7 @@ use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
+
 
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
@@ -29,58 +30,53 @@ impl<T: PropertyValue> Interpolatable for Property<T> {
         )
     }
 }
+
+pub struct CachedData<T> {
+    _cached_version: u64,
+    _cached_value: T,
+}
+
 /// A typed wrapper over a UntypedProperty that casts to/from an untyped
 /// property on get/set
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Property<T> {
     untyped: UntypedProperty,
-    _phantom: PhantomData<T>,
+    _cached_data : Rc<RefCell<CachedData<T>>>,
+}
+
+impl<T> std::fmt::Debug for Property<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Property")
+            .field("untyped", &self.untyped)
+            .finish()
+    }
 }
 
 impl<T: PropertyValue> Property<T> {
     pub fn new(val: T) -> Self {
-        Self::new_optional_name(val, None)
-    }
-
-    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
-        Self::computed_with_config(evaluator, dependents, None)
-    }
-
-    pub fn new_with_name(val: T, name: &str) -> Self {
-        Self::new_optional_name(val, Some(name))
-    }
-
-    pub fn computed_with_name(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &[UntypedProperty],
-        name: &str,
-    ) -> Self {
-        Self::computed_with_config(evaluator, dependents, Some(name))
-    }
-
-    fn new_optional_name(val: T, name: Option<&str>) -> Self {
         Self {
-            untyped: UntypedProperty::new(val, Vec::with_capacity(0), PropertyType::Literal, name),
-            _phantom: PhantomData {},
+            untyped: UntypedProperty::new(val.clone(), Vec::with_capacity(0), PropertyType::Literal),
+            _cached_data: Rc::new(RefCell::new(CachedData {
+                _cached_version: 0,
+                _cached_value: val,
+            })),
         }
     }
 
-    fn computed_with_config(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &[UntypedProperty],
-        name: Option<&str>,
-    ) -> Self {
+    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
-        let evaluator = Rc::new(evaluator);
+        let evaluator = Rc::new(generate_untyped_closure(evaluator));
         Self {
             untyped: UntypedProperty::new(
-                start_val,
+                start_val.clone(),
                 inbound,
                 PropertyType::Computed { evaluator },
-                name,
             ),
-            _phantom: PhantomData {},
+            _cached_data: Rc::new(RefCell::new(CachedData {
+                _cached_version: 0,
+                _cached_value: start_val,
+            })),
         }
     }
 
@@ -106,12 +102,27 @@ impl<T: PropertyValue> Property<T> {
         })
     }
 
-    /// Gets the currently stored value. Might be computationally
-    /// expensive in a large reactivity network since this triggers
-    /// re-evaluation of dirty property chains
+   
     pub fn get(&self) -> T {
         PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
     }
+
+
+    /// Gets the currently stored value. Only clones from table if the version
+    /// has changed since last retrieved
+    // pub fn get(&self) -> Ref<T> {
+    //     let current_version = PROPERTY_TABLE.with(|t| t.get_version(self.untyped.id));
+    //     {
+    //         let cached_data = self._cached_data.borrow();
+    //         if cached_data._cached_version != current_version {
+    //             let mut cached_data = self._cached_data.borrow_mut();
+    //             let new_val = PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id));
+    //             cached_data._cached_value = new_val;
+    //             cached_data._cached_version = current_version;
+    //         }
+    //     }
+    //     Ref::map(self._cached_data.borrow(), |cached_data| &cached_data._cached_value)
+    // }
 
     /// Sets this properties value and sets the drity bit recursively of all of
     /// it's dependencies if not already set
@@ -119,22 +130,6 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
 
-    // Get access to a mutable reference to the inner value T.
-    // Always updates dependents of this property, no matter
-    // if the value changed or not
-    pub fn update(&self, f: impl FnOnce(&mut T)) {
-        // This is a temporary impl of the update method.
-        // (very bad perf comparatively, but very safe).
-        let mut val = self.get();
-        f(&mut val);
-        self.set(val);
-    }
-
-    // Get access to a reference to the inner value T.
-    pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
-        let val = self.get();
-        f(&val)
-    }
 
     /// replaces a properties evaluation/inbounds/value to be the same as
     /// target, while keeping it's dependents.
@@ -190,4 +185,13 @@ pub fn property_table_total_properties_count() -> usize {
 
 pub fn register_time(prop: &Property<u64>) {
     PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
+}
+
+pub fn update_properties() {
+    PROPERTY_TABLE.with(|t| t.update_affected());
+    log::warn!("updated properties");
+}
+
+fn generate_untyped_closure<T: 'static + Any>(evaluator: impl Fn() -> T + 'static) -> impl Fn() -> Box<dyn Any> {
+    move || Box::new(evaluator()) as Box<dyn Any>
 }

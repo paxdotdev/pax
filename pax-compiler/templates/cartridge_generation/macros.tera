@@ -13,19 +13,19 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         let mut properties = {{component.pascal_identifier}}::default();
         {% for property in component.properties %}
             if let Some(vd) = defined_properties.get("{{property.name}}") {
-                properties.{{property.name}}.replace_with(
+                properties.{{property.name}} =
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
                                 let val = from_pax_try_coerce::<{{property.property_type.type_id._type_id}}>(&lv.raw_value)
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
-                            Property::new_with_name(val, &lv.raw_value)
+                            Property::new(val)
                         },
                         ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                         {
                             if let Some(info) = info {
                                 let mut dependents = vec![];
                                 for dependency in &info.dependencies {
-                                    if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                    if let Some(p) = stack_frame.resolve_symbol_as_property(dependency) {
                                         dependents.push(p);
                                     } else {
                                         panic!("Failed to resolve symbol {}", dependency);
@@ -33,20 +33,20 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                 }
                                 let cloned_stack = stack_frame.clone();
                                 let cloned_table = table.clone();
-                                Property::computed_with_name(move || {
+                                Property::expression(move || {
                                     let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                     let coerced = new_value_wrapped.try_coerce::<{{property.property_type.type_id._type_id}}>().unwrap();
                                     coerced
-                                }, &dependents, &token.raw_value)
+                                }, &dependents)
                             } else {
                                 unreachable!("No info for expression")
                             }
                         },
                         ValueDefinition::Block(block) => {
-                            Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
+                            Property::new({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
                         }
                         _ => unreachable!("Invalid value definition for {{property.name}}")
-                    });
+                    };
             }
         {% endfor %}
         properties.to_pax_any()
@@ -114,13 +114,13 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         {% endif %}    
     }
 
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>  {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, PropertyId>>  {
         Box::new(|props| {
             let properties = &mut *borrow_mut!(props.as_ref());
             if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
                 let mut scope = HashMap::new();
                 {% for prop in component.properties %}
-                    scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.untyped());
+                    scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.get_id());
                 {% endfor %}
                 scope
             } else {
@@ -153,14 +153,14 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                 match vd {
                                     ValueDefinition::LiteralValue(lv) => {
                                         let val = from_pax_try_coerce::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap();
-                                        Property::new_with_name(val, &lv.raw_value)
+                                        Property::new(val)
                                     },
                                     ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token, info ) =>
                                     {
                                         if let Some(info) = info {
                                             let mut dependents = vec![];
                                             for dependency in &info.dependencies {
-                                                if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                if let Some(p) = stack_frame.resolve_symbol_as_property(dependency) {
                                                     dependents.push(p);
                                                 } else {
                                                     panic!("Failed to resolve symbol {}", dependency);
@@ -169,17 +169,17 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             let cloned_stack = stack_frame.clone();
                                             let cloned_table = table.clone();
                                             let cloned_info = info.clone();
-                                            Property::computed_with_name(move || {
+                                            Property::expression(move || {
                                                 let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
                                                 let coerced = new_value_wrapped.try_coerce::<{{prop.type_id._type_id}}>().unwrap();
                                                 coerced
-                                            }, &dependents, &token.raw_value)
+                                            }, &dependents)
                                         } else {
                                             unreachable!("No info for expression")
                                         }
                                     },
                                     ValueDefinition::Block(block) => {
-                                        Property::new_with_name({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
+                                        Property::new({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };

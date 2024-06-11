@@ -50,7 +50,7 @@ impl InstanceNode for EllipseInstance {
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-            let color = if let Fill::Solid(properties_color) = properties.fill.get() {
+            let color = if let Fill::Solid(properties_color) = properties.fill.get().clone() {
                 properties_color.to_piet_color()
             } else {
                 unimplemented!("gradients not supported on ellipse")

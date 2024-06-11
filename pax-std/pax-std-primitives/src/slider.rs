@@ -102,7 +102,7 @@ impl InstanceNode for SliderInstance {
                             patch_if_needed(
                                 &mut old_state.accent,
                                 &mut patch.accent,
-                                (&properties.accent.get()).into(),
+                                (&properties.accent.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.value,
