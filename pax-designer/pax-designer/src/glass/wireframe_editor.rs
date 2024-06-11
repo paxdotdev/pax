@@ -78,6 +78,11 @@ impl WireframeEditor {
                         &deps,
                     );
                     bind_props_to_editor(editor, control_points.clone(), bounding_segments.clone());
+                } else {
+                    control_points.set(vec![]);
+                    bounding_segments.set(vec![]);
+                    anchor_x.set(-100.0);
+                    anchor_y.set(-100.0);
                 }
 
                 true
