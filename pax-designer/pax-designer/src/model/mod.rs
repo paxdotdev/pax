@@ -197,45 +197,40 @@ impl Interpolatable for SelectionState {}
 pub struct Selection {}
 #[derive(Clone, Default)]
 pub struct SelectionState {
-    total_bounds: Property<TransformAndBounds<SelectionSpace, Glass>>,
+    pub total_bounds: Property<TransformAndBounds<SelectionSpace, Glass>>,
+    // Either center if multiple objects selected, or the anchor point for single objects
+    pub total_origin: Property<Point2<Glass>>,
     pub items: Vec<SelectedItem>,
 }
 
-impl SelectionState {
-    // Temporary way to get the signle selected object, or none.
-    // This will be superseded once all operations on selectionstate
-    // accept multiple objects
-    pub fn get_single(&self) -> Option<&SelectedItem> {
-        if self.items.len() == 1 {
-            Some(&self.items[0])
-        } else {
-            None
-        }
-    }
+pub struct SelectionStateSnapshot {
+    pub total_bounds: TransformAndBounds<SelectionSpace, Glass>,
+    pub total_origin: Point2<Glass>,
+    pub items: Vec<SelectedItemSnapshot>,
+}
 
-    pub fn selected_count(&self) -> usize {
-        self.items.len()
-    }
+pub struct SelectedItemSnapshot {
+    pub id: UniqueTemplateNodeIdentifier,
+    pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
+    pub origin: Point2<Glass>,
+    pub layout_properties: LayoutProperties,
+}
 
-    pub fn total_bounds(&self) -> Option<Property<TransformAndBounds<SelectionSpace, Glass>>> {
-        if self.items.is_empty() {
-            None
-        } else if self.items.len() == 1 {
-            let t_and_b = self.items[0].transform_and_bounds.clone();
-            let deps = [t_and_b.untyped()];
-            Some(Property::computed(
-                move || {
-                    let t_and_b = t_and_b.get();
-                    let transform = t_and_b.transform.cast_spaces();
-                    TransformAndBounds {
-                        transform,
-                        bounds: t_and_b.bounds,
-                    }
-                },
-                &deps,
-            ))
-        } else {
-            Some(self.total_bounds.clone())
+impl From<&SelectionState> for SelectionStateSnapshot {
+    fn from(value: &SelectionState) -> Self {
+        Self {
+            total_bounds: value.total_bounds.get(),
+            total_origin: value.total_origin.get(),
+            items: value
+                .items
+                .iter()
+                .map(|itm| SelectedItemSnapshot {
+                    id: itm.id.clone(),
+                    origin: itm.origin.get(),
+                    transform_and_bounds: itm.transform_and_bounds.get(),
+                    layout_properties: itm.layout_properties.clone(),
+                })
+                .collect(),
         }
     }
 }
@@ -244,8 +239,8 @@ impl SelectionState {
 pub struct SelectedItem {
     // unit rectangle to object bounds transform
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
-    pub origin: Point2<Glass>,
-    pub props: LayoutProperties,
+    pub origin: Property<Point2<Glass>>,
+    pub layout_properties: LayoutProperties,
     pub id: UniqueTemplateNodeIdentifier,
 }
 
