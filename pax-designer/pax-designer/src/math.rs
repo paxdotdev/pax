@@ -306,10 +306,10 @@ pub struct InversionConfiguration {
 // to ORM, to get an identical bounding box to TransformAndBounds
 // NOTE: this inverts the operations specified in: pax_runtime/src/layout.rs,
 // function calculate_transform_and_bounds
-pub(crate) fn transform_and_bounds_inversion(
+pub(crate) fn transform_and_bounds_inversion<S: Space>(
     inv_config: InversionConfiguration,
-    parent_box: TransformAndBounds<NodeLocal, World>,
-    target_box: TransformAndBounds<NodeLocal, World>,
+    parent_box: TransformAndBounds<NodeLocal, S>,
+    target_box: TransformAndBounds<NodeLocal, S>,
 ) -> LayoutProperties {
     let container_bounds = parent_box.bounds;
     // change to target to be in the frame of reference of parent
@@ -320,7 +320,6 @@ pub(crate) fn transform_and_bounds_inversion(
 
     let parts: Parts = target_box.transform.into();
     let object_bounds = target_box.bounds;
-    // TODO obs need to do more here than convert bounds, pre invert target_box somehow?
 
     #[allow(non_snake_case)]
     let A = target_box.transform.coeffs();

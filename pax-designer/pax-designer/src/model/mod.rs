@@ -243,7 +243,6 @@ pub struct SelectedItemSnapshot {
     pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub origin: Point2<Glass>,
-    pub parent_id: Option<UniqueTemplateNodeIdentifier>,
     pub layout_properties: LayoutProperties,
 }
 
@@ -251,7 +250,6 @@ impl SelectedItemSnapshot {
     fn copy_with_new_bounds(&self, node_box: TransformAndBounds<NodeLocal, Glass>) -> Self {
         Self {
             id: self.id.clone(),
-            parent_id: self.parent_id.clone(),
             transform_and_bounds: node_box,
             parent_transform_and_bounds: self.parent_transform_and_bounds,
             origin: self.origin,
@@ -270,7 +268,6 @@ impl From<&SelectionState> for SelectionStateSnapshot {
                 .iter()
                 .map(|itm| SelectedItemSnapshot {
                     id: itm.id.clone(),
-                    parent_id: itm.parent_id.clone(),
                     origin: itm.origin.get(),
                     transform_and_bounds: itm.transform_and_bounds.get(),
                     parent_transform_and_bounds: itm.parent_transform_and_bounds.get(),
@@ -288,7 +285,6 @@ pub struct SelectedItem {
     pub parent_transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
     pub origin: Property<Point2<Glass>>,
     pub layout_properties: LayoutProperties,
-    pub parent_id: Option<UniqueTemplateNodeIdentifier>,
     pub id: UniqueTemplateNodeIdentifier,
 }
 
