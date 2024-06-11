@@ -150,7 +150,9 @@ impl Action for SetBoxSelected {
         ) -> Result<()> {
             if let Some(val) = value {
                 if !is_close_to_default(&val) {
-                    builder.set_property(name, &pax_designtime::to_pax(&val)?)?;
+                    let val = pax_designtime::to_pax(&val);
+                    log::debug!("{}: {:?}", name, val);
+                    builder.set_property(name, &val?)?;
                 } else {
                     builder.set_property(name, "")?;
                 }
@@ -160,14 +162,14 @@ impl Action for SetBoxSelected {
         const EPS: f64 = 1e-3;
         fn is_size_default(s: &Size) -> bool {
             match s {
-                Size::Pixels(p) => p.to_float() < EPS,
+                Size::Pixels(p) => p.to_float().abs() < EPS,
                 Size::Percent(p) => (p.to_float() - 100.0).abs() < EPS,
                 Size::Combined(pix, per) => {
                     pix.to_float() < EPS && (per.to_float() - 100.0).abs() < EPS
                 }
             }
         }
-        let is_rotation_default = |r: &Rotation| r.get_as_degrees() % 360.0 < EPS;
+        let is_rotation_default = |r: &Rotation| (r.get_as_degrees() % 360.0).abs() < EPS;
 
         write_to_orm(&mut builder, "x", x, is_size_default)?;
         write_to_orm(&mut builder, "y", y, is_size_default)?;
