@@ -5,13 +5,16 @@ use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{self, AxisAlignedBox, GetUnit, InversionConfiguration, RotationUnit, SizeUnit};
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
+use crate::model::SelectionStateSnapshot;
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
+use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_designtime::orm::MoveToComponentEntry;
-use pax_designtime::DesigntimeManager;
+use pax_designtime::{DesigntimeManager, Serializer};
 use pax_engine::api::{borrow_mut, Rotation};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::{Generic, Parts, Transform2};
+use pax_engine::serde::Serialize;
 use pax_engine::{
     api::Size,
     math::{Point2, Space, Vector2},
@@ -60,7 +63,7 @@ pub struct SelectedIntoNewComponent {}
 impl Action for SelectedIntoNewComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let selection = ctx.selection_state();
-        if selection.selected_count() == 0 {
+        if selection.items.len() == 0 {
             return Err(anyhow!("can't create new embty component"));
         };
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -133,40 +136,57 @@ impl Action for SetBoxSelected {
             rotate,
             scale_x,
             scale_y,
-            anchor_x,
-            anchor_y,
+            anchor_x: _,
+            anchor_y: _,
             skew_x,
             skew_y,
         } = new_props;
 
-        // Write new_prop values to ORM
-        if let Some(x) = x {
-            builder.set_property("x", &x.to_string())?;
+        fn write_to_orm<T: Serialize + Default + PartialEq>(
+            builder: &mut NodeBuilder,
+            name: &str,
+            value: Option<T>,
+            is_close_to_default: impl Fn(&T) -> bool + 'static,
+        ) -> Result<()> {
+            if let Some(val) = value {
+                if !is_close_to_default(&val) {
+                    builder.set_property(name, &pax_designtime::to_pax(&val)?)?;
+                }
+            };
+            Ok(())
         }
-        if let Some(width) = width {
-            builder.set_property("width", &width.to_string())?;
+        const EPS: f64 = 1e-3;
+        fn is_size_default(s: &Size) -> bool {
+            match s {
+                Size::Pixels(p) => p.to_float() < EPS,
+                Size::Percent(p) => (p.to_float() - 100.0).abs() < EPS,
+                Size::Combined(pix, per) => {
+                    pix.to_float() < EPS && (per.to_float() - 100.0).abs() < EPS
+                }
+            }
         }
-        if let Some(y) = y {
-            builder.set_property("y", &y.to_string())?;
-        }
-        if let Some(height) = height {
-            builder.set_property("height", &height.to_string())?;
-        }
-        if let Some(scale_x) = scale_x {
-            builder.set_property("scale_x", &scale_x.to_string())?;
-        }
-        if let Some(scale_y) = scale_y {
-            builder.set_property("scale_y", &scale_y.to_string())?;
-        }
-        if let Some(skew_x) = skew_x {
-            builder.set_property("skew_x", &skew_x.to_string())?;
-        }
-        if let Some(skew_y) = skew_y {
-            builder.set_property("skew_y", &skew_y.to_string())?;
-        }
-        if let Some(rotation) = rotate {
-            builder.set_property("rotate", &rotation.to_string())?;
-        }
+        let is_rotation_default = |r: &Rotation| r.get_as_degrees() % 360.0 < EPS;
+
+        write_to_orm(&mut builder, "x", x, is_size_default)?;
+        write_to_orm(&mut builder, "y", y, is_size_default)?;
+        write_to_orm(&mut builder, "width", width, is_size_default)?;
+        write_to_orm(&mut builder, "height", height, is_size_default)?;
+        write_to_orm(&mut builder, "rotate", rotate, is_rotation_default)?;
+        write_to_orm(
+            &mut builder,
+            "scale_x",
+            scale_x.map(|v| Size::Percent(v.0)),
+            is_size_default,
+        )?;
+        write_to_orm(
+            &mut builder,
+            "scale_y",
+            scale_y.map(|v| Size::Percent(v.0)),
+            is_size_default,
+        )?;
+        write_to_orm(&mut builder, "skew_x", skew_x, is_rotation_default)?;
+        write_to_orm(&mut builder, "skew_y", skew_y, is_rotation_default)?;
+        // always skip writing anchor? (separate method)
 
         builder
             .save()
@@ -184,14 +204,7 @@ impl Action for SetBoxSelected {
 pub struct Resize<'a> {
     pub fixed_point: Point2<BoxPoint>,
     pub new_point: Point2<Glass>,
-    pub selection_transform_and_bounds: TransformAndBounds<SelectionSpace, Glass>,
-    pub objects: &'a [SelectedObject],
-}
-
-pub struct SelectedObject {
-    pub id: UniqueTemplateNodeIdentifier,
-    pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
-    pub layout_properties: LayoutProperties,
+    pub initial_selection: &'a SelectionStateSnapshot,
 }
 
 impl Action for Resize<'_> {
@@ -203,8 +216,8 @@ impl Action for Resize<'_> {
             is_alt_key_down = keys.contains(&InputEvent::Alt);
         });
 
-        let bounds = self.selection_transform_and_bounds.bounds;
-        let selection_space = self.selection_transform_and_bounds.transform
+        let bounds = self.initial_selection.total_bounds.bounds;
+        let selection_space = self.initial_selection.total_bounds.transform
             * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
         let fixed: Point2<SelectionSpace> = self.fixed_point.cast_space();
         let grab = (Vector2::new(1.0, 1.0) - fixed.to_vector()).to_point();
@@ -215,20 +228,27 @@ impl Action for Resize<'_> {
         let scale = diff_now / diff_start;
         let anchor: Transform2<SelectionSpace> = Transform2::translate(fixed.to_vector());
 
-        // this is the transform to apply to all of the objects that are being resized
+        // This is the "frame of refernce" from which all objects that
+        // are currently selected should be resized
         let to_local = TransformAndBounds {
             transform: selection_space * anchor,
             bounds: (1.0, 1.0),
         };
+
+        // TODO hook up switching between scaling and resizing mode (commented out scaling for now):
+        // this is the transform to apply to all of the objects that are being resized
         // let local_resize = TransformAndBounds {
-        //     transform: Transform2::scale_sep(scale),
-        //     bounds: (1.0, 1.0),
+        //     transform: Transform2::identity(),
+        //     bounds: (scale.x, scale.y),
         // };
         let local_resize = TransformAndBounds {
-            transform: Transform2::identity(),
-            bounds: (scale.x, scale.y),
+            transform: Transform2::scale_sep(scale),
+            bounds: (1.0, 1.0),
         };
 
+        // nove to "frame of reference", perform operation, move back
+        // TODO refactor so that things like rotation are also just a "local_resize" transform that is performing a rotation,
+        // most likely from center of selection (at least when multiple)?
         let resize = to_local * local_resize * to_local.inverse();
 
         // TODO this should be relative to each nodes parent later on (when we have contextual drilling)
@@ -238,22 +258,22 @@ impl Action for Resize<'_> {
             .stage
             .read(|stage| (stage.width as f64, stage.height as f64));
 
-        for object in self.objects {
+        for item in &self.initial_selection.items {
             let inv_config = InversionConfiguration {
                 container_bounds,
-                anchor_x: object.layout_properties.anchor_x,
-                anchor_y: object.layout_properties.anchor_y,
+                anchor_x: item.layout_properties.anchor_x,
+                anchor_y: item.layout_properties.anchor_y,
                 // TODO override some units here
-                unit_width: object.layout_properties.width.unit(),
-                unit_height: object.layout_properties.height.unit(),
-                unit_rotation: object.layout_properties.rotate.unit(),
-                unit_x_pos: object.layout_properties.x.unit(),
-                unit_y_pos: object.layout_properties.y.unit(),
-                unit_skew_x: object.layout_properties.skew_x.unit(),
+                unit_width: item.layout_properties.width.unit(),
+                unit_height: item.layout_properties.height.unit(),
+                unit_rotation: item.layout_properties.rotate.unit(),
+                unit_x_pos: item.layout_properties.x.unit(),
+                unit_y_pos: item.layout_properties.y.unit(),
+                unit_skew_x: item.layout_properties.skew_x.unit(),
             };
             ctx.execute(SetBoxSelected {
-                id: object.id.clone(),
-                node_box: resize * object.transform_and_bounds,
+                id: item.id.clone(),
+                node_box: resize * item.transform_and_bounds,
                 inv_config,
             })?;
         }
@@ -264,60 +284,77 @@ impl Action for Resize<'_> {
 
 const ANGLE_SNAP_DEG: f64 = 45.0;
 
-pub struct RotateSelected {
-    pub rotation_anchor: Point2<Glass>,
-    pub moving_from: Vector2<Glass>,
-    pub moving_to: Vector2<Glass>,
-    pub start_angle: Rotation,
+pub struct RotateSelected<'a> {
+    pub start_pos: Point2<Glass>,
+    pub curr_pos: Point2<Glass>,
+    pub initial_selection: &'a SelectionStateSnapshot,
 }
 
-impl Action for RotateSelected {
+impl Action for RotateSelected<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let angle_diff = self.moving_from.angle_to(self.moving_to);
-        let new_rot = angle_diff + self.start_angle;
+        let anchor_point = self.initial_selection.total_origin;
+        let start = self.start_pos - anchor_point;
+        let curr = self.curr_pos - anchor_point;
+        let rotation = start.angle_to(curr);
 
-        let mut angle_deg = new_rot.get_as_degrees().rem_euclid(360.0);
-        if ctx
-            .app_state
-            .keys_pressed
-            .get()
-            .contains(&InputEvent::Shift)
-        {
-            angle_deg = (angle_deg / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
-            if angle_deg >= 360.0 - f64::EPSILON {
-                angle_deg = 0.0;
-            }
-        }
+        // let mut angle_deg = rotation.get_as_degrees().rem_euclid(360.0);
+        // if ctx
+        //     .app_state
+        //     .keys_pressed
+        //     .get()
+        //     .contains(&InputEvent::Shift)
+        // {
+        //     angle_deg = (angle_deg / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
+        //     if angle_deg >= 360.0 - f64::EPSILON {
+        //         angle_deg = 0.0;
+        //     }
+        // }
 
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let selected = ctx
-            .app_state
-            .selected_template_node_ids
-            // TODO multi-select
-            .get()
-            .first()
-            .expect("executed action ResizeSelected without a selected object")
-            .clone();
-        let Some(mut builder) = dt
-            .get_orm_mut()
-            .get_node(UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.get().clone(),
-                selected,
-            ))
-        else {
-            return Err(anyhow!("can't rotate: selected node doesn't exist in orm"));
+        // This is the "frame of refernce" from which all objects that
+        // are currently selected should be resized
+        let to_local = TransformAndBounds {
+            transform: Transform2::<SelectionSpace, Glass>::translate(anchor_point.to_vector()),
+            bounds: (1.0, 1.0),
         };
 
-        builder.set_property("rotate", &format!("{}deg", angle_deg))?;
-        builder
-            .save()
-            .map_err(|e| anyhow!("could not move thing: {}", e))?;
-        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            dt.get_orm_mut()
-                .undo()
-                .map_err(|e| anyhow!("cound't undo: {:?}", e))
-        })))
+        let local_resize = TransformAndBounds {
+            transform: Transform2::rotate(rotation.get_as_radians()),
+            bounds: (1.0, 1.0),
+        };
+
+        // nove to "frame of reference", perform operation, move back
+        // TODO refactor so that things like rotation are also just a "local_resize" transform that is performing a rotation,
+        // most likely from center of selection (at least when multiple)?
+        let resize = to_local * local_resize * to_local.inverse();
+
+        // TODO this should be relative to each nodes parent later on (when we have contextual drilling)
+        // (most likely there's always only one parent?)
+        let container_bounds = ctx
+            .app_state
+            .stage
+            .read(|stage| (stage.width as f64, stage.height as f64));
+
+        for item in &self.initial_selection.items {
+            let inv_config = InversionConfiguration {
+                container_bounds,
+                anchor_x: item.layout_properties.anchor_x,
+                anchor_y: item.layout_properties.anchor_y,
+                // TODO override some units here
+                unit_width: item.layout_properties.width.unit(),
+                unit_height: item.layout_properties.height.unit(),
+                unit_rotation: item.layout_properties.rotate.unit(),
+                unit_x_pos: item.layout_properties.x.unit(),
+                unit_y_pos: item.layout_properties.y.unit(),
+                unit_skew_x: item.layout_properties.skew_x.unit(),
+            };
+            ctx.execute(SetBoxSelected {
+                id: item.id.clone(),
+                node_box: resize * item.transform_and_bounds,
+                inv_config,
+            })?;
+        }
+
+        Ok(CanUndo::No)
     }
 }
 

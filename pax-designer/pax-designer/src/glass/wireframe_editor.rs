@@ -9,6 +9,7 @@ use pax_engine::math::{Generic, Point2, Transform2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
+use pax_std::primitives::Ellipse;
 use pax_std::primitives::{Group, Path, Rectangle, Text, Textbox};
 use pax_std::types::text::TextStyle;
 use serde::Deserialize;
@@ -19,9 +20,8 @@ use crate::glass::control_point::{
 };
 use crate::math::coordinate_spaces::{Glass, SelectionSpace};
 use crate::math::{AxisAlignedBox, BoxPoint};
-use crate::model::action::orm::SelectedObject;
 use crate::model::action::ActionContext;
-use crate::model::{self, action, SelectionState};
+use crate::model::{self, action, SelectionState, SelectionStateSnapshot};
 use pax_engine::api::Fill;
 
 #[pax]
@@ -31,6 +31,8 @@ pub struct WireframeEditor {
     pub anchor_point: Property<GlassPoint>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
     pub on_selection_changed: Property<bool>,
+    pub anchor_x: Property<f64>,
+    pub anchor_y: Property<f64>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -50,6 +52,8 @@ impl WireframeEditor {
 
         let control_points = self.control_points.clone();
         let bounding_segments = self.bounding_segments.clone();
+        let anchor_x = self.anchor_x.clone();
+        let anchor_y = self.anchor_y.clone();
         // This is an example of hierarchical binding.
         // whenever the selection ID changes,
         // the selection bounds (among other things)
@@ -58,8 +62,16 @@ impl WireframeEditor {
         self.on_selection_changed.replace_with(Property::computed(
             move || {
                 let selected = selected_cp.get();
-                let t_and_b = selected.total_bounds();
-                if let Some(t_and_b) = t_and_b {
+
+                if selected.items.len() > 0 {
+                    // hook up anchor point
+                    let orig = selected.total_origin.clone();
+                    let deps = [orig.untyped()];
+                    let cp_orig = orig.clone();
+                    anchor_x.replace_with(Property::computed(move || cp_orig.get().x, &deps));
+                    anchor_y.replace_with(Property::computed(move || orig.get().y, &deps));
+                    // hook up outline + control points
+                    let t_and_b = selected.total_bounds;
                     let deps = [t_and_b.untyped()];
                     let editor = Property::computed(
                         move || get_generic_object_editor(&t_and_b.get()),
@@ -131,27 +143,17 @@ fn get_generic_object_editor(
 
     struct ResizeBehaviour {
         attachment_point: Point2<BoxPoint>,
-        initial_selection: TransformAndBounds<SelectionSpace, Glass>,
-        initial_objects: Vec<SelectedObject>,
+        initial_selection: SelectionStateSnapshot,
     }
 
     impl ResizeBehaviour {
         fn new(
             attachment_point: Point2<BoxPoint>,
-            initial_selection_state: SelectionState,
+            initial_selection_state: &SelectionState,
         ) -> Self {
             Self {
                 attachment_point,
-                initial_selection: initial_selection_state.total_bounds().unwrap().get(),
-                initial_objects: initial_selection_state
-                    .items
-                    .iter()
-                    .map(|n| SelectedObject {
-                        id: n.id.clone(),
-                        transform_and_bounds: n.transform_and_bounds.get(),
-                        layout_properties: n.props.clone(),
-                    })
-                    .collect(),
+                initial_selection: initial_selection_state.into(),
             }
         }
     }
@@ -159,10 +161,9 @@ fn get_generic_object_editor(
     impl ControlPointBehaviour for ResizeBehaviour {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
             if let Err(e) = ctx.execute(action::orm::Resize {
-                selection_transform_and_bounds: self.initial_selection,
+                initial_selection: &self.initial_selection,
                 fixed_point: self.attachment_point,
                 new_point: point,
-                objects: &self.initial_objects,
             }) {
                 pax_engine::log::warn!("resize failed: {:?}", e);
             };
@@ -173,7 +174,7 @@ fn get_generic_object_editor(
         Rc::new(move |ac, _p| {
             Rc::new(RefCell::new(ResizeBehaviour::new(
                 anchor,
-                ac.selection_state(),
+                &ac.selection_state(),
             )))
         })
     }
@@ -230,20 +231,16 @@ fn get_generic_object_editor(
     ]);
 
     struct RotationBehaviour {
-        rotation_anchor: Point2<Glass>,
-        start_dir: Vector2<Glass>,
-        start_angle: Rotation,
+        initial_selection: SelectionStateSnapshot,
+        start_pos: Point2<Glass>,
     }
 
     impl ControlPointBehaviour for RotationBehaviour {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-            let rotation_anchor = self.rotation_anchor;
-            let moving_to = point - rotation_anchor;
             if let Err(e) = ctx.execute(action::orm::RotateSelected {
-                rotation_anchor,
-                moving_from: self.start_dir,
-                moving_to,
-                start_angle: self.start_angle.clone(),
+                curr_pos: point,
+                start_pos: self.start_pos,
+                initial_selection: &self.initial_selection,
             }) {
                 pax_engine::log::warn!("rotation failed: {:?}", e);
             };
@@ -252,23 +249,10 @@ fn get_generic_object_editor(
 
     fn rotate_factory() -> ControlPointBehaviourFactory {
         Rc::new(|ctx, point| {
-            let rotation_anchor = ctx
-                .selection_state()
-                .get_single()
-                .expect("an object is selected")
-                .origin;
-            let start_angle = ctx
-                .selected_nodes()
-                .first()
-                .unwrap()
-                .1
-                .layout_properties()
-                .rotate;
-            let start_dir = point - rotation_anchor;
+            let initial_selection = (&ctx.selection_state()).into();
             Rc::new(RefCell::new(RotationBehaviour {
-                rotation_anchor,
-                start_dir,
-                start_angle: start_angle.unwrap_or(Rotation::Degrees(0.into())),
+                start_pos: point,
+                initial_selection,
             }))
         })
     }

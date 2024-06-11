@@ -281,37 +281,23 @@ mod tests {
 /// Describes all needed information
 /// to go from a transform back to
 /// layout properties
-/// TODO is this behaviour correct? Might want to
-/// always return correct values, that can then be handled during write
-/// NOTE:
-/// - If an optional unit is set to some, the returned
-///   property struct might still return none in the
-///   case that the computed new value is the same as the default
-///   value for that parameter
-///   if an optional value is none, this parameter will NEVER
-///   be returned as some, this means the overall transform is not
-///   recoverable from this again
-pub(crate) struct InversionConfiguration {
+pub struct InversionConfiguration {
     // Actual data needed about object
-    pub(crate) anchor_x: Option<Size>,
-    pub(crate) anchor_y: Option<Size>,
-    pub(crate) container_bounds: (f64, f64),
+    pub anchor_x: Option<Size>,
+    pub anchor_y: Option<Size>,
+    pub container_bounds: (f64, f64),
     // Configuration values needed for what units to output
-    pub(crate) unit_width: SizeUnit,
-    pub(crate) unit_height: SizeUnit,
-    pub(crate) unit_rotation: RotationUnit,
-    pub(crate) unit_skew_x: RotationUnit,
-    pub(crate) unit_x_pos: SizeUnit,
-    pub(crate) unit_y_pos: SizeUnit,
+    pub unit_width: SizeUnit,
+    pub unit_height: SizeUnit,
+    pub unit_rotation: RotationUnit,
+    pub unit_skew_x: RotationUnit,
+    pub unit_x_pos: SizeUnit,
+    pub unit_y_pos: SizeUnit,
 }
 
-pub enum ScaleOrDimFixed {
-    Scale {
-        fixed_scale: Percent,
-        dim_unit: SizeUnit,
-    },
-    Dim(Size),
-}
+// TODO
+// might want to create ToInversionConfiguration trait that is implemented
+// by LayoutProperties? (that just uses the same units).
 
 // This inversion method goes from:
 // * InversionConfiguration - this objects old property values
@@ -424,10 +410,11 @@ pub(crate) fn transform_and_bounds_inversion(
         SizeUnit::Percent => Size::Percent((100.0 * y / container_bounds.1).into()),
     };
 
+    let rotation = parts.rotation.rem_euclid(2.0 * PI);
     let rotation = match inv_config.unit_rotation {
-        RotationUnit::Radians => Rotation::Radians(parts.rotation.into()),
-        RotationUnit::Degrees => Rotation::Degrees(parts.rotation.to_degrees().into()),
-        RotationUnit::Percent => Rotation::Percent((100.0 * parts.rotation / 2.0 / PI).into()),
+        RotationUnit::Radians => Rotation::Radians(rotation.into()),
+        RotationUnit::Degrees => Rotation::Degrees(rotation.to_degrees().into()),
+        RotationUnit::Percent => Rotation::Percent((100.0 * rotation / 2.0 / PI).into()),
     };
 
     let skew_x = Some(match inv_config.unit_skew_x {
@@ -436,8 +423,6 @@ pub(crate) fn transform_and_bounds_inversion(
         RotationUnit::Percent => Rotation::Percent((100.0 * parts.skew.x / 2.0 / PI).into()),
     });
 
-    // First assume everything is in pixels, then after that
-    // convert into percent using bounds if the old property value was of that type
     LayoutProperties {
         x: Some(x),
         y: Some(y),
@@ -445,11 +430,9 @@ pub(crate) fn transform_and_bounds_inversion(
         height: Some(height),
         anchor_x,
         anchor_y,
-        // TODO
         rotate: Some(rotation),
         scale_x: Some(scale_x),
         scale_y: Some(scale_y),
-        // TODO return the skew
         skew_x,
         skew_y: Some(Rotation::Radians(0.0.into())),
     }

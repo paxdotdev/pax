@@ -1,10 +1,11 @@
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateComponent, SelectedObject, SetBoxSelected};
+use super::action::orm::{CreateComponent, SetBoxSelected};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
+use super::SelectionStateSnapshot;
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{AxisAlignedBox, GetUnit, InversionConfiguration, SizeUnit};
@@ -99,7 +100,7 @@ impl ToolBehaviour for CreateComponentTool {
 pub enum PointerTool {
     Moving {
         pickup_point: Point2<Glass>,
-        objects: Vec<SelectedObject>,
+        initial_selection: SelectionStateSnapshot,
     },
     Selecting {
         p1: Point2<Glass>,
@@ -150,15 +151,7 @@ impl PointerTool {
 
             Self::Moving {
                 pickup_point: point,
-                objects: selection
-                    .items
-                    .iter()
-                    .map(|n| SelectedObject {
-                        id: n.id.clone(),
-                        transform_and_bounds: n.transform_and_bounds.get(),
-                        layout_properties: n.props.clone(),
-                    })
-                    .collect(),
+                initial_selection: (&selection).into(),
             }
         } else {
             Self::Selecting {
@@ -178,7 +171,7 @@ impl ToolBehaviour for PointerTool {
         match self {
             &mut PointerTool::Moving {
                 pickup_point,
-                ref objects,
+                ref initial_selection,
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
                     // don't commit any movement for very small pixel changes,
@@ -194,8 +187,8 @@ impl ToolBehaviour for PointerTool {
                     bounds: (1.0, 1.0),
                 };
 
-                for object in objects {
-                    let node_box = move_translation * object.transform_and_bounds;
+                for item in &initial_selection.items {
+                    let node_box = move_translation * item.transform_and_bounds;
 
                     let container_bounds = ctx
                         .app_state
@@ -203,19 +196,19 @@ impl ToolBehaviour for PointerTool {
                         .read(|stage| (stage.width as f64, stage.height as f64));
                     let inv_config = InversionConfiguration {
                         container_bounds,
-                        anchor_x: object.layout_properties.anchor_x,
-                        anchor_y: object.layout_properties.anchor_y,
+                        anchor_x: item.layout_properties.anchor_x,
+                        anchor_y: item.layout_properties.anchor_y,
                         // TODO override some units here
-                        unit_width: object.layout_properties.width.unit(),
-                        unit_height: object.layout_properties.height.unit(),
-                        unit_rotation: object.layout_properties.rotate.unit(),
-                        unit_x_pos: object.layout_properties.x.unit(),
-                        unit_y_pos: object.layout_properties.y.unit(),
-                        unit_skew_x: object.layout_properties.skew_x.unit(),
+                        unit_width: item.layout_properties.width.unit(),
+                        unit_height: item.layout_properties.height.unit(),
+                        unit_rotation: item.layout_properties.rotate.unit(),
+                        unit_x_pos: item.layout_properties.x.unit(),
+                        unit_y_pos: item.layout_properties.y.unit(),
+                        unit_skew_x: item.layout_properties.skew_x.unit(),
                     };
 
                     if let Err(e) = ctx.execute(SetBoxSelected {
-                        id: object.id.clone(),
+                        id: item.id.clone(),
                         node_box,
                         inv_config,
                     }) {

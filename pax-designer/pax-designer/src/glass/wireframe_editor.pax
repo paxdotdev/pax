@@ -1,3 +1,8 @@
+
+<Ellipse width=5px height=5px anchor_x=50% anchor_y=50% fill=WHITE
+    x={(self.anchor_x)px} y={(self.anchor_y)px}
+/>
+
 for (data, i) in self.control_points {
     <ControlPoint
 		data=data
@@ -8,6 +13,7 @@ for (data, i) in self.control_points {
 for segment in self.bounding_segments {
     <Path class=bounding_segment/>
 }
+
 
 @settings {
     @mount: on_mount,
