@@ -119,14 +119,10 @@ impl Action for SetBoxSelected {
             return Err(anyhow!("can't move: node doesn't exist in orm"));
         };
 
-        let world_transform = TransformAndBounds {
-            transform: ctx.world_transform(),
-            bounds: (1.0, 1.0),
-        };
         let new_props: LayoutProperties = math::transform_and_bounds_inversion(
             self.inv_config,
-            world_transform * self.item.parent_transform_and_bounds,
-            world_transform * self.item.transform_and_bounds,
+            self.item.parent_transform_and_bounds,
+            self.item.transform_and_bounds,
         );
 
         let LayoutProperties {
