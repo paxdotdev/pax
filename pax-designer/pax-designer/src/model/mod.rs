@@ -30,6 +30,7 @@ use pax_manifest::TemplateNodeId;
 use pax_manifest::TypeId;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::borrow;
+use std::any::Any;
 use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -69,7 +70,7 @@ pub fn init_model(ctx: &NodeContext) {
         ..Default::default()
     };
 
-    let ctx = ctx.clone();
+    let cp_ctx = ctx.clone();
     let comp_id = app_state.selected_component_id.clone();
     let node_ids = app_state.selected_template_node_ids.clone();
     // NOTE: ideally, the dependencies below are at some point removed and
@@ -84,13 +85,39 @@ pub fn init_model(ctx: &NodeContext) {
     ];
     let selected_bounds = Property::computed(
         move || {
-            let selected_bounds = with_action_context(&ctx, |ac| ac.selection_state());
+            let selected_bounds = with_action_context(&cp_ctx, |ac| ac.selection_state());
             selected_bounds
         },
         &deps,
     );
 
-    let derived_state = DerivedAppState { selected_bounds };
+    let selected_comp = app_state.selected_component_id.clone();
+    let node_ids = app_state.selected_template_node_ids.clone();
+    let ctx = ctx.clone();
+    let deps = [selected_comp.untyped(), node_ids.untyped()];
+    let open_containers = Property::computed(
+        move || {
+            let mut containers = vec![];
+            for n in node_ids.get() {
+                let uid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), n);
+                let interface = ctx.get_nodes_by_global_id(uid);
+                let parent_uid = interface
+                    .first()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .global_id()
+                    .unwrap();
+                containers.push(parent_uid);
+            }
+            containers
+        },
+        &deps,
+    );
+    let derived_state = DerivedAppState {
+        selected_bounds,
+        open_containers,
+    };
 
     GLOBAL_STATE.with_borrow_mut(|state| {
         *state = Some(GlobalDesignerState {
@@ -98,7 +125,7 @@ pub fn init_model(ctx: &NodeContext) {
             app_state,
             derived_state,
         })
-    });
+    })
 }
 
 /// Represents the global source-of-truth for the desinger.
@@ -182,12 +209,14 @@ pub fn with_action_context<R: 'static>(
         let GlobalDesignerState {
             ref mut undo_stack,
             ref mut app_state,
+            ref mut derived_state,
             ..
         } = model.as_mut().expect(INITIALIZED);
         func(&mut ActionContext {
             undo_stack,
             engine_context: ctx,
             app_state,
+            derived_state,
         })
     })
 }
@@ -212,8 +241,23 @@ pub struct SelectionStateSnapshot {
 pub struct SelectedItemSnapshot {
     pub id: UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
+    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub origin: Point2<Glass>,
+    pub parent_id: Option<UniqueTemplateNodeIdentifier>,
     pub layout_properties: LayoutProperties,
+}
+
+impl SelectedItemSnapshot {
+    fn copy_with_new_bounds(&self, node_box: TransformAndBounds<NodeLocal, Glass>) -> Self {
+        Self {
+            id: self.id.clone(),
+            parent_id: self.parent_id.clone(),
+            transform_and_bounds: node_box,
+            parent_transform_and_bounds: self.parent_transform_and_bounds,
+            origin: self.origin,
+            layout_properties: self.layout_properties.clone(),
+        }
+    }
 }
 
 impl From<&SelectionState> for SelectionStateSnapshot {
@@ -226,8 +270,10 @@ impl From<&SelectionState> for SelectionStateSnapshot {
                 .iter()
                 .map(|itm| SelectedItemSnapshot {
                     id: itm.id.clone(),
+                    parent_id: itm.parent_id.clone(),
                     origin: itm.origin.get(),
                     transform_and_bounds: itm.transform_and_bounds.get(),
+                    parent_transform_and_bounds: itm.parent_transform_and_bounds.get(),
                     layout_properties: itm.layout_properties.clone(),
                 })
                 .collect(),
@@ -239,8 +285,10 @@ impl From<&SelectionState> for SelectionStateSnapshot {
 pub struct SelectedItem {
     // unit rectangle to object bounds transform
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
+    pub parent_transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
     pub origin: Property<Point2<Glass>>,
     pub layout_properties: LayoutProperties,
+    pub parent_id: Option<UniqueTemplateNodeIdentifier>,
     pub id: UniqueTemplateNodeIdentifier,
 }
 
@@ -248,6 +296,8 @@ pub struct SelectedItem {
 // state and the projects manifest
 pub struct DerivedAppState {
     pub selected_bounds: Property<SelectionState>,
+    // The currently open containers are the parents of the currently selected nodes
+    pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
 }
 
 pub fn read_app_state_with_derived<V>(closure: impl FnOnce(&AppState, &DerivedAppState) -> V) -> V {

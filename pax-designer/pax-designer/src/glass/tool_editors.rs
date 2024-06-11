@@ -70,7 +70,7 @@ impl TextEditTool {
 
 impl ToolBehaviour for TextEditTool {
     fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        if let Some(hit) = ctx.raycast_glass(point) {
+        if let Some(hit) = ctx.raycast_glass(point, false) {
             let node_id = hit.global_id().unwrap().get_template_node_id();
             if node_id == self.uid.get_template_node_id() {
                 ControlFlow::Continue(())

@@ -2,11 +2,12 @@ use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
-use pax_manifest::{PaxType, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::primitives::{Group, Path, Rectangle};
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
+use crate::model::tools::SelectNode;
 use crate::model::AppState;
 use crate::{model, SetStage, StageInfo, USERLAND_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
 
@@ -111,6 +112,7 @@ impl Action for SetEditingComponent {
             .save()
             .map_err(|_| anyhow!("builder couldn't save"))?;
         dt.reload_edit();
+        // reset other relevant app state
         ctx.app_state
             .selected_template_node_ids
             .update(|v| v.clear());
@@ -139,7 +141,7 @@ impl Glass {
         args.prevent_default();
     }
 
-    pub fn handle_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
+    pub fn handle_double_click(&mut self, ctx: &NodeContext, args: Event<DoubleClick>) {
         let info = model::read_app_state(|app_state| {
             let selected_nodes = app_state.selected_template_node_ids.get();
 
@@ -156,10 +158,28 @@ impl Glass {
         });
         if let Some((node_id, uid)) = info {
             let import_path = node_id.import_path();
+            log::debug!("import path: {:?}", import_path);
             match import_path.as_ref().map(|v| v.as_str()) {
                 Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
-                    // model::perform_action(object_editor::EditText(true), ctx);
                     model::perform_action(TextEdit { uid }, ctx);
+                }
+                Some("pax_designer::pax_reexports::pax_std::primitives::Group") => {
+                    model::with_action_context(ctx, |ax| {
+                        let hit = ax.raycast_glass(
+                            ax.glass_transform().get()
+                                * Point2::<Window>::new(args.mouse.x, args.mouse.y),
+                            true,
+                        );
+                        if let Some(hit) = hit {
+                            log::debug!("setting edit root to: {:?}", hit.global_id());
+                            if let Err(e) = ax.execute(SelectNode {
+                                id: hit.global_id().unwrap().get_template_node_id(),
+                                overwrite: false,
+                            }) {
+                                log::warn!("failed to drill into group: {}", e);
+                            };
+                        }
+                    });
                 }
                 // Assume it's a component if it didn't have a custom impl for double click behaviour
                 Some(_) => model::perform_action(SetEditingComponent(node_id), ctx),

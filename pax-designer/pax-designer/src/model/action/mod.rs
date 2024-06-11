@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
-use super::{SelectedItem, SelectionState};
+use super::{DerivedAppState, SelectedItem, SelectionState};
 use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
 use anyhow::{anyhow, Result};
@@ -48,6 +48,7 @@ pub enum CanUndo {
 pub struct ActionContext<'a> {
     pub engine_context: &'a NodeContext,
     pub app_state: &'a mut AppState,
+    pub derived_state: &'a DerivedAppState,
     pub undo_stack: &'a mut UndoStack,
 }
 
@@ -90,7 +91,8 @@ impl ActionContext<'_> {
         }
     }
 
-    pub fn raycast_glass(&self, point: Point2<Glass>) -> Option<NodeInterface> {
+    // if inner = true, look "one layer deeper", ie return objects inside groups that are currently not selected
+    pub fn raycast_glass(&self, point: Point2<Glass>, drill: bool) -> Option<NodeInterface> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
@@ -104,10 +106,29 @@ impl ActionContext<'_> {
                 .find(|elem| elem.is_descendant_of(&container))?;
 
             // Find the ancestor that is a direct root element inside container
-            while target
-                .parent()
-                .is_some_and(|p| p.global_id() != container.global_id())
-            {
+            // or one that's in the current edit root
+            loop {
+                let Some(mut parent) = target.parent() else {
+                    break;
+                };
+
+                // check one step ahead if we are drilling into a group or similar
+                if drill {
+                    let Some(next_parent) = parent.parent() else {
+                        break;
+                    };
+                    parent = next_parent;
+                }
+
+                if parent.global_id() == container.global_id() {
+                    break;
+                };
+                if parent
+                    .global_id()
+                    .is_some_and(|v| self.derived_state.open_containers.get().contains(&v))
+                {
+                    break;
+                }
                 target = target.parent().unwrap();
             }
             return Some(target);
@@ -164,6 +185,20 @@ impl ActionContext<'_> {
                             &deps,
                         )
                     },
+                    parent_transform_and_bounds: {
+                        let to_glass = to_glass_transform.clone();
+                        let parent_t_and_b = n.parent().unwrap().transform_and_bounds();
+                        let deps = [parent_t_and_b.untyped(), to_glass_transform.untyped()];
+                        Property::computed(
+                            move || {
+                                TransformAndBounds {
+                                    transform: to_glass.get(),
+                                    bounds: (1.0, 1.0),
+                                } * parent_t_and_b.get()
+                            },
+                            &deps,
+                        )
+                    },
                     origin: {
                         let parent_t_and_b = n
                             .parent()
@@ -193,6 +228,7 @@ impl ActionContext<'_> {
                     },
                     layout_properties: n.layout_properties(),
                     id,
+                    parent_id: n.parent().unwrap().global_id(),
                 })
             })
             .collect();
