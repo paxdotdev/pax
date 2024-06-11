@@ -285,7 +285,6 @@ pub struct InversionConfiguration {
     // Actual data needed about object
     pub anchor_x: Option<Size>,
     pub anchor_y: Option<Size>,
-    pub container_bounds: (f64, f64),
     // Configuration values needed for what units to output
     pub unit_width: SizeUnit,
     pub unit_height: SizeUnit,
@@ -309,11 +308,19 @@ pub struct InversionConfiguration {
 // function calculate_transform_and_bounds
 pub(crate) fn transform_and_bounds_inversion(
     inv_config: InversionConfiguration,
+    parent_box: TransformAndBounds<NodeLocal, World>,
     target_box: TransformAndBounds<NodeLocal, World>,
 ) -> LayoutProperties {
+    let container_bounds = parent_box.bounds;
+    // change to target to be in the frame of reference of parent
+    let target_box = TransformAndBounds {
+        transform: parent_box.transform.inverse(),
+        bounds: (1.0, 1.0),
+    } * target_box;
+
     let parts: Parts = target_box.transform.into();
     let object_bounds = target_box.bounds;
-    let container_bounds = inv_config.container_bounds;
+    // TODO obs need to do more here than convert bounds, pre invert target_box somehow?
 
     #[allow(non_snake_case)]
     let A = target_box.transform.coeffs();

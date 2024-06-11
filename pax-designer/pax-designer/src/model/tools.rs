@@ -5,7 +5,7 @@ use super::action::orm::{CreateComponent, SetBoxSelected};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
-use super::SelectionStateSnapshot;
+use super::{SelectedItemSnapshot, SelectionStateSnapshot};
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{AxisAlignedBox, GetUnit, InversionConfiguration, SizeUnit};
@@ -140,7 +140,7 @@ impl Action for SelectNode {
 
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
-        if let Some(hit) = ctx.raycast_glass(point) {
+        if let Some(hit) = ctx.raycast_glass(point, false) {
             let node_id = hit.global_id().unwrap().get_template_node_id();
             let _ = ctx.execute(SelectNode {
                 id: node_id,
@@ -188,14 +188,7 @@ impl ToolBehaviour for PointerTool {
                 };
 
                 for item in &initial_selection.items {
-                    let node_box = move_translation * item.transform_and_bounds;
-
-                    let container_bounds = ctx
-                        .app_state
-                        .stage
-                        .read(|stage| (stage.width as f64, stage.height as f64));
                     let inv_config = InversionConfiguration {
-                        container_bounds,
                         anchor_x: item.layout_properties.anchor_x,
                         anchor_y: item.layout_properties.anchor_y,
                         // TODO override some units here
@@ -206,10 +199,10 @@ impl ToolBehaviour for PointerTool {
                         unit_y_pos: item.layout_properties.y.unit(),
                         unit_skew_x: item.layout_properties.skew_x.unit(),
                     };
-
+                    let node_box = move_translation * item.transform_and_bounds;
+                    let new_item = item.copy_with_new_bounds(node_box);
                     if let Err(e) = ctx.execute(SetBoxSelected {
-                        id: item.id.clone(),
-                        node_box,
+                        item: new_item,
                         inv_config,
                     }) {
                         pax_engine::log::error!("Error moving selected: {:?}", e);
