@@ -223,13 +223,39 @@ impl Action for Resize<'_> {
         let bounds = self.initial_selection.total_bounds.bounds;
         let selection_space = self.initial_selection.total_bounds.transform
             * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
-        let fixed: Point2<SelectionSpace> = self.fixed_point.cast_space();
-        let grab = (Vector2::new(1.0, 1.0) - fixed.to_vector()).to_point();
+        let grab = (Vector2::new(1.0, 1.0) - self.fixed_point.cast_space().to_vector()).to_point();
         let new_in_selec = selection_space.inverse() * self.new_point;
-        let diff_start = fixed - grab;
-        let diff_now = fixed - new_in_selec;
 
-        let scale = diff_now / diff_start;
+        // if alt key is down, resize from anchor instead
+        let fixed: Point2<SelectionSpace> = if is_alt_key_down {
+            let anchor = self.initial_selection.total_origin;
+            selection_space.inverse() * anchor
+        } else {
+            self.fixed_point.cast_space()
+        };
+
+        let diff_start = fixed - grab;
+        let mut diff_now = fixed - new_in_selec;
+
+        // if shift key down, the project diff_now on diff start
+        // either along x or y axis (whichever is closest)
+        if is_shift_key_down {
+            diff_now = diff_now
+                .coord_abs()
+                .project_axis_aligned(diff_start)
+                .to_signums_of(diff_now);
+        }
+
+        let mut scale = diff_now / diff_start;
+
+        // if grabbing from sides, only resize in one direciton
+        if self.fixed_point.x == 0.5 {
+            scale.x = 1.0;
+        }
+        if self.fixed_point.y == 0.5 {
+            scale.y = 1.0;
+        }
+
         let anchor: Transform2<SelectionSpace> = Transform2::translate(fixed.to_vector());
 
         // This is the "frame of refernce" from which all objects that
