@@ -609,6 +609,8 @@ impl TypeId {
     }
 }
 
+impl Interpolatable for UniqueTemplateNodeIdentifier {}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct UniqueTemplateNodeIdentifier {
@@ -983,6 +985,9 @@ impl ComponentTemplate {
             }
             self.nodes.remove(&id);
             self.children.remove(&id);
+            for c in self.children.values_mut() {
+                c.retain(|v| v != &id);
+            }
             self.root.retain(|child| *child != id);
             node
         } else {
