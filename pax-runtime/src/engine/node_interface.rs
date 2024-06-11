@@ -41,27 +41,6 @@ impl NodeInterface {
         self.inner.layout_properties().get()
     }
 
-    pub fn origin(&self) -> Option<Point2<Window>> {
-        let common_props = self.inner.get_common_properties();
-        let common_props = borrow!(common_props);
-        let t_and_b = self.inner.transform_and_bounds.get();
-        let (width, height) = t_and_b.bounds;
-        let p_anchor = Point2::new(
-            common_props
-                .anchor_x
-                .get()
-                .map(|x| x.get_pixels(width))
-                .unwrap_or(0.0),
-            common_props
-                .anchor_y
-                .get()
-                .map(|y| y.get_pixels(height))
-                .unwrap_or(0.0),
-        );
-        let origin_window = t_and_b.transform * p_anchor;
-        Some(origin_window)
-    }
-
     pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> V {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }

@@ -286,7 +286,6 @@ mod tests {
     #[test]
     fn test_scale_and_resize() {
         let transform = Transform2::<Generic>::new([1.0, 0.4, 0.8, 0.2, 0.1, 0.5]);
-        // method 1
         let mut parts: Parts = transform.into();
         parts.scale.x = 2.6 * parts.scale.x;
         parts.scale.y = 1.8 * parts.scale.y;

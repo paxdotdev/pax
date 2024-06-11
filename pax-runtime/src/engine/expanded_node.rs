@@ -82,9 +82,8 @@ pub struct ExpandedNode {
     /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
     pub rendered_size: Property<Option<(f64, f64)>>,
 
-    /// Properties that are currently re-computed each frame before rendering.
-    /// Only contains computed_tab atm. Might be possible to retire if tab comp
-    /// would be part of render pass?
+    /// The layout information (width, height, transform) used to render this node.
+    /// computed property based on parent bounds + common properties
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
 
     /// For component instances only, tracks the expanded slot_children in it's
@@ -729,7 +728,8 @@ impl ExpandedNode {
         self.rendered_size.set(Some((width, height)));
     }
 
-    // might be able to just embed layout properties as a thing in CommonProps directly?
+    /// Helper method that returns a collection of common properties
+    /// related to layout (position, size, scale, anchor, etc),
     pub fn layout_properties(self: &Rc<ExpandedNode>) -> Property<LayoutProperties> {
         let common_props = self.get_common_properties();
         let common_props = borrow!(common_props);
@@ -829,7 +829,7 @@ impl std::fmt::Debug for ExpandedNode {
             )
             .field("id", &self.id)
             .field("common_properties", &borrow!(self.common_properties))
-            .field("layout_properties", &self.transform_and_bounds)
+            .field("transform_and_bounds", &self.transform_and_bounds)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field("parent", &borrow!(self.parent_expanded_node).upgrade())
             .field(
