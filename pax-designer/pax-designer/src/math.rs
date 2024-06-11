@@ -410,7 +410,7 @@ pub(crate) fn transform_and_bounds_inversion(
         SizeUnit::Percent => Size::Percent((100.0 * y / container_bounds.1).into()),
     };
 
-    let rotation = parts.rotation.rem_euclid(2.0 * PI);
+    let rotation = parts.rotation;
     let rotation = match inv_config.unit_rotation {
         RotationUnit::Radians => Rotation::Radians(rotation.into()),
         RotationUnit::Degrees => Rotation::Degrees(rotation.to_degrees().into()),
