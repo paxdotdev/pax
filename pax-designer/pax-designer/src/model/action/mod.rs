@@ -91,7 +91,7 @@ impl ActionContext<'_> {
         }
     }
 
-    // if inner = true, look "one layer deeper", ie return objects inside groups that are currently not selected
+    // if drill = true, look "one layer deeper", ie return objects inside groups that are currently not selected
     pub fn raycast_glass(&self, point: Point2<Glass>, drill: bool) -> Option<NodeInterface> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
@@ -228,7 +228,6 @@ impl ActionContext<'_> {
                     },
                     layout_properties: n.layout_properties(),
                     id,
-                    parent_id: n.parent().unwrap().global_id(),
                 })
             })
             .collect();
