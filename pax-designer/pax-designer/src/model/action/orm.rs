@@ -151,6 +151,8 @@ impl Action for SetBoxSelected {
             if let Some(val) = value {
                 if !is_close_to_default(&val) {
                     builder.set_property(name, &pax_designtime::to_pax(&val)?)?;
+                } else {
+                    builder.set_property(name, "")?;
                 }
             };
             Ok(())
@@ -295,20 +297,19 @@ impl Action for RotateSelected<'_> {
         let anchor_point = self.initial_selection.total_origin;
         let start = self.start_pos - anchor_point;
         let curr = self.curr_pos - anchor_point;
-        let rotation = start.angle_to(curr);
+        let mut rotation = start.angle_to(curr).get_as_degrees();
 
-        // let mut angle_deg = rotation.get_as_degrees().rem_euclid(360.0);
-        // if ctx
-        //     .app_state
-        //     .keys_pressed
-        //     .get()
-        //     .contains(&InputEvent::Shift)
-        // {
-        //     angle_deg = (angle_deg / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
-        //     if angle_deg >= 360.0 - f64::EPSILON {
-        //         angle_deg = 0.0;
-        //     }
-        // }
+        if ctx
+            .app_state
+            .keys_pressed
+            .get()
+            .contains(&InputEvent::Shift)
+        {
+            rotation = (rotation / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
+            if rotation >= 360.0 - f64::EPSILON {
+                rotation = 0.0;
+            }
+        }
 
         // This is the "frame of refernce" from which all objects that
         // are currently selected should be resized
@@ -318,7 +319,7 @@ impl Action for RotateSelected<'_> {
         };
 
         let local_resize = TransformAndBounds {
-            transform: Transform2::rotate(rotation.get_as_radians()),
+            transform: Transform2::rotate(rotation.to_radians()),
             bounds: (1.0, 1.0),
         };
 
