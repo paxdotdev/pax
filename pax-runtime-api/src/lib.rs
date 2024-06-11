@@ -360,16 +360,6 @@ pub enum Size {
     Combined(Numeric, Numeric),
 }
 
-impl Display for Size {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Size::Pixels(pix) => write!(f, "{}px", pix),
-            Size::Percent(perc) => write!(f, "{}%", perc),
-            Size::Combined(pix, perc) => write!(f, "{}px + {}%", pix, perc),
-        }
-    }
-}
-
 impl Neg for Size {
     type Output = Size;
     fn neg(self) -> Self::Output {
@@ -492,10 +482,10 @@ pub enum Axis {
 impl Size {
     //Evaluate a Size in the context of `bounds` and a target `axis`.
     //Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
-    pub fn evaluate(&self, container_bounds: (f64, f64), axis: Axis) -> f64 {
+    pub fn evaluate(&self, bounds: (f64, f64), axis: Axis) -> f64 {
         let target_bound = match axis {
-            Axis::X => container_bounds.0,
-            Axis::Y => container_bounds.1,
+            Axis::X => bounds.0,
+            Axis::Y => bounds.1,
         };
         match &self {
             Size::Pixels(num) => num.to_float(),
@@ -521,24 +511,19 @@ pub struct CommonProperty {
 
 #[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
-    // non transform related
     pub id: Property<Option<String>>,
-
-    // Size relative parent
     pub x: Property<Option<Size>>,
     pub y: Property<Option<Size>>,
     pub width: Property<Option<Size>>,
     pub height: Property<Option<Size>>,
-    // Size relative self bounds
     pub anchor_x: Property<Option<Size>>,
     pub anchor_y: Property<Option<Size>>,
-    // Fixed units (independent of container bounds)
+    //TODO change scale to Percent (can't be px)
     pub scale_x: Property<Option<Size>>,
     pub scale_y: Property<Option<Size>>,
     pub skew_x: Property<Option<Rotation>>,
     pub skew_y: Property<Option<Rotation>>,
     pub rotate: Property<Option<Rotation>>,
-    // extra transform
     pub transform: Property<Option<Transform2D>>,
 }
 
@@ -931,12 +916,6 @@ impl OcclusionLayerGen {
 /// type through `into` inference.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Percent(pub Numeric);
-
-impl Display for Percent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}%", self.0)
-    }
-}
 
 impl Interpolatable for Percent {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
@@ -1364,16 +1343,6 @@ pub enum Rotation {
     Percent(Numeric),
 }
 
-impl Display for Rotation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Rotation::Radians(rad) => write!(f, "{}rad", rad),
-            Rotation::Degrees(deg) => write!(f, "{}deg", deg),
-            Rotation::Percent(perc) => write!(f, "{}%", perc),
-        }
-    }
-}
-
 impl Default for Rotation {
     fn default() -> Self {
         Self::Percent(Numeric::F64(0.0))
@@ -1683,7 +1652,7 @@ pub struct Transform2D {
     pub rotate: Option<Rotation>,
     pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
-    pub scale: Option<[Percent; 2]>,
+    pub scale: Option<[Size; 2]>,
     pub skew: Option<[Rotation; 2]>,
 }
 
@@ -1701,7 +1670,7 @@ impl Mul for Transform2D {
 
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
-    pub fn scale(x: Percent, y: Percent) -> Self {
+    pub fn scale(x: Size, y: Size) -> Self {
         let mut ret = Transform2D::default();
         ret.scale = Some([x, y]);
         ret
