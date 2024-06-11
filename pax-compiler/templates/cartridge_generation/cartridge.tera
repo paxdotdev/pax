@@ -6,7 +6,7 @@ use pax_runtime::api::*;
 use pax_runtime::*;
 use pax_manifest::deserializer::{from_pax_try_coerce};
 use std::cell::Ref;
-use pax_runtime::api::properties::UntypedProperty;
+use pax_runtime::api::PropertyId;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 use pax_runtime_api::pax_value::PaxValue;
@@ -15,6 +15,7 @@ use pax_runtime_api::pax_value::ToFromPaxAny;
 use pax_runtime_api::{borrow, borrow_mut};
 use pax_runtime::api::pax_value::ToFromPaxValue;
 use std::collections::BTreeMap;
+use pax_engine::log;
 
 pub const INITIAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
@@ -46,8 +47,8 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     // binding repeat elem
                     if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_any(&*borrowed) {
-                        let i = unwrapped_repeat_item.i.get();
-                        let elem = Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
+                        let i = unwrapped_repeat_item.i.get().clone();
+                        let elem = Rc::clone(&unwrapped_repeat_item.elem.get().clone().unwrap());
 
                         {% if invocation.is_numeric %}
                             //iterable numeric as `elem`
@@ -83,7 +84,7 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
                     let mut unwrapped_repeat_item = if let Ok(val) = RepeatItem::mut_from_pax_any(&mut *borrowed) {val} else {panic!()}; // Failed to downcast
-                    let i = unwrapped_repeat_item.i.get();
+                    let i = unwrapped_repeat_item.i.get().clone();
                     Numeric::from(i)
                 {% else %}
 
@@ -91,10 +92,10 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
 
                         {% if invocation.is_numeric %}
                             //binding simple numeric property
-                            Numeric::from(p.{{invocation.root_identifier}}.get())
+                            Numeric::from(p.{{invocation.root_identifier}}.get().clone())
                         {% elif invocation.is_string %}
                             //binding simple string property
-                            p.{{invocation.root_identifier}}.get()
+                            p.{{invocation.root_identifier}}.get().clone()
                         {% else %}
                             //binding cloneable property
                             p.{{invocation.root_identifier}}.get().clone()
@@ -152,14 +153,14 @@ pub trait ComponentFactory {
                             ValueDefinition::LiteralValue(lv) => {
                                 let val = from_pax_try_coerce::<{{common_property.property_type._type_id}}>(&lv.raw_value)
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
-                                Property::new_with_name(Some(val), &lv.raw_value)
+                                Property::new(Some(val))
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                             {
                                 if let Some(info) = info {
                                     let mut dependents = vec![];
                                     for dependency in &info.dependencies {
-                                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                        if let Some(p) = stack_frame.resolve_symbol_as_property(dependency) {
                                             dependents.push(p);
                                         } else {
                                             panic!("Failed to resolve symbol {}", dependency);
@@ -167,11 +168,11 @@ pub trait ComponentFactory {
                                     }
                                     let cloned_stack = stack_frame.clone();
                                     let cloned_table = table.clone();
-                                    Property::computed_with_name(move || {
+                                    Property::expression(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                         let coerced = new_value_wrapped.try_coerce::<{{common_property.property_type._type_id}}>().unwrap();
                                         Some(coerced)
-                                    }, &dependents, &token.raw_value)
+                                    }, &dependents)
                                 } else {
                                     unreachable!("No info for expression")
                                 }
@@ -206,7 +207,7 @@ pub trait ComponentFactory {
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
     // Returns the property scope for the component
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>> {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, PropertyId>> {
         Box::new(|_| HashMap::new())
     }
 }
@@ -374,18 +375,18 @@ impl DefinitionToInstanceTraverser {
 
                         let mut dependencies = Vec::new();
                         for dependency in &dep_symbols {
-                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                            if let Some(p) = stack_frame.resolve_symbol_as_property(dependency) {
                                 dependencies.push(p);
                             } else {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
 
-                        properties.boolean_expression =  Property::computed_with_name(move || {
+                        properties.boolean_expression =  Property::expression(move || {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             let coerced = new_value_wrapped.try_coerce::<bool>().map_err(|e| format!("expr with vtable_id {} failed: {}", vtable_id, e)).unwrap();
                             coerced
-                        }, &dependencies, "conditional (if) expr");
+                        }, &dependencies);
                         properties.to_pax_any()
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -417,17 +418,17 @@ impl DefinitionToInstanceTraverser {
 
                         let mut dependencies = Vec::new();
                         for dependency in &dep_symbols {
-                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                            if let Some(p) = stack_frame.resolve_symbol_as_property(dependency) {
                                 dependencies.push(p);
                             } else {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
-                        properties.index = Property::computed_with_name(move || {
+                        properties.index = Property::expression(move || {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             let coerced = new_value_wrapped.try_coerce::<Numeric>().unwrap();
                             coerced
-                        }, &dependencies, "slot index");
+                        }, &dependencies);
                         properties.to_pax_any()
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -463,7 +464,7 @@ impl DefinitionToInstanceTraverser {
 
                         let mut dependencies = Vec::new();
                         for dependency in &dep_symbols {
-                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                            if let Some(p) = stack_frame.resolve_symbol_as_property(dependency) {
                                 dependencies.push(p);
                             } else {
                                 panic!("Failed to resolve symbol {}", dependency);
@@ -475,11 +476,11 @@ impl DefinitionToInstanceTraverser {
                                 let cloned_table = table.clone();
                                 let cloned_stack = stack_frame.clone();
                                 Some(
-                                    Property::computed_with_name(move || {
+                                    Property::expression(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<Vec<Rc<RefCell<PaxAny>>>>().unwrap();
                                         coerced
-                                    }, &dependencies, "repeat source vec")
+                                    }, &dependencies)
                                     ) 
                             } else {
                                 None
@@ -489,12 +490,14 @@ impl DefinitionToInstanceTraverser {
                             if let Some(t) = &rsd.range_expression_paxel {
                                 let cloned_table = table.clone();
                                 let cloned_stack = stack_frame.clone();
+                                log::warn!("creating range property");
                                 Some(
-                                    Property::computed_with_name(move || {
+                                    Property::expression(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<std::ops::Range::<isize>>().unwrap();
+                                        log::warn!("computed range: {:?}", coerced);
                                         coerced
-                                    }, &dependencies, "repeat source range")
+                                    }, &dependencies)
                                 )
                             } else {
                                 None

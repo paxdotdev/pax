@@ -95,7 +95,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.text,
                                 &mut patch.text,
-                                properties.text.get(),
+                                properties.text.get().clone(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -107,12 +107,12 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                (&properties.style.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get()).into(),
+                                (&properties.stroke.get().color.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
@@ -122,7 +122,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.border_radius,

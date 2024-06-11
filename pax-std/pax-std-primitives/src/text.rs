@@ -138,18 +138,18 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.text.get(),
+                                properties.text.get().clone(),
                             ),
                             // Styles
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                (&properties.style.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style_link,
                                 &mut patch.style_link,
-                                (&properties.style_link.get()).into(),
+                                (&properties.style_link.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.editable,

@@ -94,17 +94,17 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.label.get(),
+                                properties.label.get().clone(),
                             ),
                             patch_if_needed(
                                 &mut old_state.color,
                                 &mut patch.color,
-                                (&properties.color.get()).into(),
+                                (&properties.color.get().clone()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                (&properties.style.get().clone()).into(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),

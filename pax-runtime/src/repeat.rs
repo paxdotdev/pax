@@ -4,8 +4,7 @@ use std::rc::Rc;
 use_RefCell!();
 
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property, PropertyId};
 
 use crate::api::Layer;
 use crate::{
@@ -76,20 +75,25 @@ impl InstanceNode for RepeatInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+
+        log::warn!("Repeat handle_mount");
         // No-op: wait with creating child-nodes until update tick, since the
         // condition has then been evaluated
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_self = Rc::clone(&self);
         let cloned_context = Rc::clone(context);
+        
         let source_expression =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 let source = if let Some(range) = &properties.source_expression_range {
                     let cp_range = range.clone();
-                    let dep = [range.untyped()];
-                    Property::computed(
+                    log::warn!("range: {:?}", cp_range);
+                    let dep = [range.get_id()];
+                    Property::expression(
                         move || {
                             cp_range
                                 .get()
+                                .clone()
                                 .map(|v| Rc::new(RefCell::new(v.to_pax_any())))
                                 .collect::<Vec<_>>()
                         },
@@ -112,68 +116,62 @@ impl InstanceNode for RepeatInstance {
                 properties.iterator_elem_symbol.clone()
             });
 
-        let deps = [source_expression.untyped()];
+        
 
         let last_length = Rc::new(RefCell::new(0));
+        let cloned_source_expression = source_expression.clone();
+        
+        let _ = source_expression.clone().subscribe(  move || {
+            let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                panic!("ran evaluator after expanded node dropped (repeat elem)")
+            };
+            let source = cloned_source_expression.get();
+            let source_len = source.len();
+            if source_len == *borrow!(last_length) {
+                return;
+            }
+            log::warn!("source_len: {}", source_len);
+            *borrow_mut!(last_length) = source_len;
+            let template_children = cloned_self.base().get_instance_children();
+            let children_with_envs = iter::repeat(template_children)
+                .take(source_len)
+                .enumerate()
+                .flat_map(|(i, children)| {
+                    let property_i = Property::new(i);
+                    let cp_source_expression = cloned_source_expression.clone();
+                    let property_elem = Property::expression(
+                        move || {
+                            Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
+                                "engine error: tried to access index {} of an array source that now only contains {} elements",
+                                i, cp_source_expression.get().len()
+                            ))))
+                        },
+                        &[cloned_source_expression.get_id()],
+                    );
+                    let new_repeat_item = Rc::new(RefCell::new(
+                        RepeatItem {
+                            i: property_i.clone(),
+                            elem: property_elem.clone(),
+                        }
+                        .to_pax_any(),
+                    ));
 
-        expanded_node
-            .children
-            .replace_with(Property::computed_with_name(
-                move || {
-                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                        panic!("ran evaluator after expanded node dropped (repeat elem)")
-                    };
-                    let source = source_expression.get();
-                    let source_len = source.len();
-                    if source_len == *borrow!(last_length) {
-                        return cloned_expanded_node.children.get();
+                    let mut scope: HashMap<String, PropertyId> = HashMap::new();
+                    if let Some(ref i_symbol) = i_symbol {
+                        scope.insert(i_symbol.clone(), property_i.get_id());
                     }
-                    *borrow_mut!(last_length) = source_len;
-                    let template_children = cloned_self.base().get_instance_children();
-                    let children_with_envs = iter::repeat(template_children)
-                        .take(source_len)
-                        .enumerate()
-                        .flat_map(|(i, children)| {
-                            let property_i = Property::new(i);
-                            let cp_source_expression = source_expression.clone();
-                            let property_elem = Property::computed_with_name(
-                                move || {
-                                    Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
-                                        "engine error: tried to access index {} of an array source that now only contains {} elements",
-                                        i, cp_source_expression.get().len()
-                                    ))))
-                                },
-                                &[source_expression.untyped()],
-                                "repeat elem",
-                            );
-                            let new_repeat_item = Rc::new(RefCell::new(
-                                RepeatItem {
-                                    i: property_i.clone(),
-                                    elem: property_elem.clone(),
-                                }
-                                .to_pax_any(),
-                            ));
+                    if let Some(ref elem_symbol) = elem_symbol {
+                        scope.insert(elem_symbol.clone(), property_elem.get_id());
+                    }
 
-                            let mut scope: HashMap<String, UntypedProperty> = HashMap::new();
-                            if let Some(ref i_symbol) = i_symbol {
-                                scope.insert(i_symbol.clone(), property_i.untyped());
-                            }
-                            if let Some(ref elem_symbol) = elem_symbol {
-                                scope.insert(elem_symbol.clone(), property_elem.untyped());
-                            }
-
-                            let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
-                            borrow!(children)
-                                .clone()
-                                .into_iter()
-                                .zip(iter::repeat(new_env))
-                        });
-                    let ret =
-                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
-                    ret
-                },
-                &deps,
-                &format!("repeat_children (node id: {})", expanded_node.id.0),
-            ));
+                    let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
+                    borrow!(children)
+                        .clone()
+                        .into_iter()
+                        .zip(iter::repeat(new_env))
+                });
+            let _ = cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
+        });
+        source_expression.set(source_expression.get());
     }
 }

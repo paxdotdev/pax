@@ -58,35 +58,30 @@ impl InstanceNode for ConditionalInstance {
                 properties.boolean_expression.clone()
             });
 
-        let dep = cond_expr.untyped();
 
         let old_val = RefCell::new(false);
-        expanded_node
-            .children
-            .replace_with(Property::computed_with_name(
-                move || {
-                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                        panic!("ran evaluator after expanded node dropped (conditional elem)")
-                    };
-                    let val = cond_expr.get();
-                    if val == *borrow!(old_val) {
-                        return cloned_expanded_node.children.get();
-                    }
-                    *borrow_mut!(old_val) = val;
-                    if val {
-                        let env = Rc::clone(&cloned_expanded_node.stack);
-                        let children = borrow!(cloned_self.base().get_instance_children());
-                        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                        let res = cloned_expanded_node
-                            .generate_children(children_with_envs, &cloned_context);
-                        res
-                    } else {
-                        cloned_expanded_node.generate_children(vec![], &cloned_context)
-                    }
-                },
-                &[dep],
-                &format!("conditional_children (node id: {})", expanded_node.id.0),
-            ));
+        let _ = cond_expr.subscribe(
+            move || {
+                let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                    panic!("ran evaluator after expanded node dropped (conditional elem)")
+                };
+                let val = cond_expr.get();
+                if val == *borrow!(old_val) {
+                    return;
+                }
+                *borrow_mut!(old_val) = val;
+                cloned_expanded_node.attach_children(if val {
+                    let env = Rc::clone(&cloned_expanded_node.stack);
+                    let children = borrow!(cloned_self.base().get_instance_children());
+                    let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+                    let res = cloned_expanded_node
+                        .generate_children(children_with_envs, &cloned_context);
+                    res
+                } else {
+                    cloned_expanded_node.generate_children(vec![], &cloned_context)
+                }, &cloned_context);
+            },
+        );
     }
 
     fn resolve_debug(
