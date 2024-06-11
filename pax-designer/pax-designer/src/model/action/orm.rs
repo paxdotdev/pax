@@ -150,9 +150,8 @@ impl Action for SetBoxSelected {
         ) -> Result<()> {
             if let Some(val) = value {
                 if !is_close_to_default(&val) {
-                    let val = pax_designtime::to_pax(&val);
-                    log::debug!("{}: {:?}", name, val);
-                    builder.set_property(name, &val?)?;
+                    let val = pax_designtime::to_pax(&val)?;
+                    builder.set_property(name, &val)?;
                 } else {
                     builder.set_property(name, "")?;
                 }
@@ -267,14 +266,14 @@ impl Action for Resize<'_> {
 
         // TODO hook up switching between scaling and resizing mode (commented out scaling for now):
         // this is the transform to apply to all of the objects that are being resized
-        // let local_resize = TransformAndBounds {
-        //     transform: Transform2::identity(),
-        //     bounds: (scale.x, scale.y),
-        // };
         let local_resize = TransformAndBounds {
-            transform: Transform2::scale_sep(scale),
-            bounds: (1.0, 1.0),
+            transform: Transform2::identity(),
+            bounds: (scale.x, scale.y),
         };
+        // let local_resize = TransformAndBounds {
+        //     transform: Transform2::scale_sep(scale),
+        //     bounds: (1.0, 1.0),
+        // };
 
         // nove to "frame of reference", perform operation, move back
         // TODO refactor so that things like rotation are also just a "local_resize" transform that is performing a rotation,
