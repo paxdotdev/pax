@@ -59,18 +59,24 @@ pub fn calculate_transform_and_bounds(
         bounds: container_bounds,
     }: TransformAndBounds<NodeLocal, Window>,
 ) -> TransformAndBounds<NodeLocal, Window> {
+    let x = x.unwrap_or(Size::ZERO());
+    let y = y.unwrap_or(Size::ZERO());
     let width = width
         .map(|v| v.evaluate(container_bounds, Axis::X))
         .unwrap_or(container_bounds.0);
     let height = height
         .map(|v| v.evaluate(container_bounds, Axis::Y))
         .unwrap_or(container_bounds.1);
+    let origin = Vector2::new(
+        x.evaluate(container_bounds, Axis::X),
+        y.evaluate(container_bounds, Axis::Y),
+    );
 
     let bounds = (width, height);
 
-    let x = x.unwrap_or(Size::ZERO());
-    let y = y.unwrap_or(Size::ZERO());
-
+    // Anchor behavior:  if no anchor is specified and if x/y values are present
+    //and have an explicit percent value or component, use those percent values
+    //otherwise, default to 0
     let anchor_x = anchor_x.unwrap_or_else(|| match x {
         Size::Pixels(_) => Size::ZERO(),
         Size::Percent(per) => Size::Percent(per),
@@ -87,11 +93,6 @@ pub fn calculate_transform_and_bounds(
         -anchor_x.evaluate(bounds, Axis::X),
         -anchor_y.evaluate(bounds, Axis::Y),
     ));
-
-    let origin = Vector2::new(
-        x.evaluate(container_bounds, Axis::X),
-        y.evaluate(container_bounds, Axis::Y),
-    );
 
     let scale = Vector2::new(
         scale_x.map(|s| s.0.to_float() / 100.0).unwrap_or(1.0),
@@ -162,13 +163,15 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
 {
     type Output = TransformAndBounds<W1, W3>;
 
+    // - if T(M) = M.transform * Transform::scale_sep(M.bounds.0, M.bounds.1),
+    //   then T(A) * T(B) = T(A*B).
+    // (
+    // - some other rule regarding multiplying scaling and width/height values being constant,
+    //   related to how width/height scale x/y change for A or B, how that affects A*B.
+    // TODO figure this rule out, this is that would fix resize skew introducing un-needed scaling
+    // (compare with figma)
+    //)
     fn mul(self, rhs: TransformAndBounds<W1, W2>) -> Self::Output {
-        // This could most likey be made more efficient,
-        // possibly by just writing out the quantities/math parts
-        // and deriving the answer sumbolically.
-        // Main invariant: act as Transform2 being multiplied,
-        // but keep bounds/scaling as separately multiplied quantities
-        // (which might need to change rotation/skew)
         let s_s = Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1));
         let r_s = Transform2::scale_sep(Vector2::new(rhs.bounds.0, rhs.bounds.1));
 
@@ -180,48 +183,66 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
             transform: res,
             bounds: (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1),
         }
-
-        // other possible method?
-
-        // let s_s = Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1));
-        // let r_s = Transform2::scale_sep(Vector2::new(rhs.bounds.0, rhs.bounds.1));
-        // let s_t = self.transform * s_s;
-        // let r_t = rhs.transform * r_s;
-
-        // let self_scale_before = self.transform.get_scale();
-        // let rhs_scale_before = rhs.transform.get_scale();
-        // let res = s_t * r_t;
-        // let new_scale = res.get_scale();
-        // let size = new_scale / (self_scale_before.mult(rhs_scale_before.cast_space()));
-
-        // TransformAndBounds {
-        //     transform: res * Transform2::scale_sep(Vector2::new(1.0, 1.0) / size),
-        //     bounds: (size.x, size.y),
-        // }
     }
 }
 
 #[test]
 fn test_transform_and_bounds_mult() {
-    let t_and_b_1 = TransformAndBounds::<Generic> {
-        transform: Transform2::translate(Vector2::new(4.0, 5.0)),
-        bounds: (2.0, 2.0),
+    let dvx = 0.6;
+    let dvy = 0.3;
+
+    let t_and_b_with_scale = TransformAndBounds::<Generic> {
+        transform: Transform2::new([1.5, 1.1, 2.3, 3.2, 1.2, 1.0])
+            * Transform2::scale_sep(Vector2::<Generic>::new(dvx, dvy)),
+        bounds: (2.1, 1.2),
     };
-    let t_and_b_2 = TransformAndBounds::<Generic> {
+
+    let t_and_b_with_size = TransformAndBounds::<Generic> {
+        transform: Transform2::new([1.5, 1.1, 2.3, 3.2, 1.2, 1.0]),
+        bounds: (2.1 * dvx, 1.2 * dvy),
+    };
+    let some_other_transform = TransformAndBounds::<Generic> {
         transform: Transform2::new([1.1, 1.2, 5.3, 9.2, 1.0, 2.0]),
         bounds: (1.9, 4.5),
     };
 
-    let t_and_b_res = t_and_b_1.clone() * t_and_b_2.clone();
-    eprintln!("TEST t_and_b: {:?}", t_and_b_res);
+    let res_scale = t_and_b_with_scale * some_other_transform;
+    let res_size = t_and_b_with_size * some_other_transform;
 
-    // This is not the right thing to test
-    // let only_transform_1 = t_and_b_1.transform
-    //     * Transform2::<Generic>::scale_sep(Vector2::new(t_and_b_1.bounds.0, t_and_b_1.bounds.1));
-    // let only_transform_2 = t_and_b_2.transform
-    //     * Transform2::<Generic>::scale_sep(Vector2::new(t_and_b_2.bounds.0, t_and_b_2.bounds.1));
-    // let transform_res = only_transform_1 * only_transform_2;
-    // eprintln!("manual: {:?}", transform_res);
+    let t_scale = res_scale.transform
+        * Transform2::<Generic>::scale_sep(Vector2::new(res_scale.bounds.0, res_scale.bounds.1));
+    let t_scale_c = t_scale.coeffs();
+    let t_size = res_size.transform
+        * Transform2::<Generic>::scale_sep(Vector2::new(res_size.bounds.0, res_size.bounds.1));
+    let t_size_c = t_size.coeffs();
+    let diff_sum = t_scale_c
+        .iter()
+        .zip(t_size_c)
+        .map(|(a, b)| (a - b).abs())
+        .sum::<f64>();
+    assert!(diff_sum < 1e-4);
+
+    let res_scale_other_way = some_other_transform * t_and_b_with_scale;
+    let res_size_other_way = some_other_transform * t_and_b_with_size;
+
+    let t_scale = res_scale_other_way.transform
+        * Transform2::<Generic>::scale_sep(Vector2::new(
+            res_scale_other_way.bounds.0,
+            res_scale_other_way.bounds.1,
+        ));
+    let t_scale_c = t_scale.coeffs();
+    let t_size = res_size_other_way.transform
+        * Transform2::<Generic>::scale_sep(Vector2::new(
+            res_size_other_way.bounds.0,
+            res_size_other_way.bounds.1,
+        ));
+    let t_size_c = t_size.coeffs();
+    let diff_sum = t_scale_c
+        .iter()
+        .zip(t_size_c)
+        .map(|(a, b)| (a - b).abs())
+        .sum::<f64>();
+    assert!(diff_sum < 1e-4);
 }
 
 impl Interpolatable for LayoutProperties {}
@@ -320,8 +341,14 @@ impl ComputableTransform<NodeLocal, Window> for Transform2D {
             width: Some(Size::Pixels(bounds.bounds.0.into())),
             height: Some(Size::Pixels(bounds.bounds.1.into())),
             rotate: self.rotate.clone(),
-            scale_x: self.scale.as_ref().map(|v| v[0].clone()),
-            scale_y: self.scale.as_ref().map(|v| v[1].clone()),
+            scale_x: self
+                .scale
+                .as_ref()
+                .map(|v| Percent((100.0 * v[0].clone().expect_percent()).into())),
+            scale_y: self
+                .scale
+                .as_ref()
+                .map(|v| Percent((100.0 * v[1].clone().expect_percent()).into())),
             anchor_x: self.anchor.map(|v| v[0]),
             anchor_y: self.anchor.map(|v| v[1]),
             skew_x: self.skew.as_ref().map(|v| v[0].clone()),
