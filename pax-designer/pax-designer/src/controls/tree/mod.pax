@@ -2,6 +2,8 @@ for (obj, i) in self.tree_objects {
 	<TreeObj
 		 ind={obj.ind}
 		 y={(40 + i*42)px}
+		 anchor_x=0%
+		 anchor_y=0%
 		 x={(obj.indent_level*6)%}
 		 is_selected={obj.is_selected}
 		 height=40px
