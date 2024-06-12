@@ -158,7 +158,6 @@ impl Glass {
         });
         if let Some((node_id, uid)) = info {
             let import_path = node_id.import_path();
-            log::debug!("import path: {:?}", import_path);
             match import_path.as_ref().map(|v| v.as_str()) {
                 Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
                     model::perform_action(TextEdit { uid }, ctx);
@@ -171,7 +170,6 @@ impl Glass {
                             true,
                         );
                         if let Some(hit) = hit {
-                            log::debug!("setting edit root to: {:?}", hit.global_id());
                             if let Err(e) = ax.execute(SelectNode {
                                 id: hit.global_id().unwrap().get_template_node_id(),
                                 overwrite: false,
