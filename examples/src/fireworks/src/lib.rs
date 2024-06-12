@@ -23,5 +23,6 @@ impl Fireworks {
     pub fn handle_tick(&mut self, _ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
+        
     }
 }
