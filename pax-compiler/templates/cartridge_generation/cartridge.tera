@@ -38,69 +38,27 @@ pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionCon
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} =
             {
-                let properties = if let Some(sf) = ec.stack_frame.resolve_symbol("{{ invocation.root_identifier }}") {
-                    Rc::clone(&sf)
+                let property_id = if let Some(prop_id) = ec.stack_frame.resolve_symbol_as_property("{{ invocation.root_identifier }}") {
+                    prop_id
                 } else {
                     panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
                 };
-                let mut borrowed = &mut *borrow_mut!(*properties);
                 {% if invocation.property_flags.is_binding_repeat_elem %}
-                    // binding repeat elem
-                    if let Ok(unwrapped_repeat_item) = RepeatItem::ref_from_pax_any(&*borrowed) {
-                        let i = unwrapped_repeat_item.i.get().clone();
-                        let elem = Rc::clone(&unwrapped_repeat_item.elem.get().clone().unwrap());
-
-                        {% if invocation.is_numeric %}
-                            //iterable numeric as `elem`
-                            let elem_borrowed = borrow!(elem);
-                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
-                                *unwrapped
-                            } else {
-                                panic!();//Failed to unpack string from PaxAny
-                            }
-                        {% elif invocation.is_string %}
-                            //string as `elem`
-
-                            let elem_borrowed = borrow!(elem);
-                            if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
-                                unwrapped.clone()
-                            } else {
-                                panic!();//Failed to unpack string from PaxAny
-                            }
-
-                        {% elif invocation.is_bool %}
-                            //bool as `elem`
-                            elem.clone()
-                        {% else %}
-                            //iterable complex type
-                            let mut elem_borrowed = &mut *borrow_mut!(elem);
-                            if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(elem_borrowed) {
-                                dc.clone()
-                            } else {unreachable!()}
-                        {% endif %}
-                    } else {panic!()} // Failed to downcast
-
-
+                    let property = property_id.get_property::<Option<Rc<RefCell<PaxAny>>>>();
+                    let elem = property.get().clone().unwrap();
+                    let elem_borrowed = borrow!(elem);
+                    if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
+                        unwrapped.clone()
+                    } else {
+                        panic!();//Failed to unpack string from PaxAny
+                    }
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
-                    let mut unwrapped_repeat_item = if let Ok(val) = RepeatItem::mut_from_pax_any(&mut *borrowed) {val} else {panic!()}; // Failed to downcast
-                    let i = unwrapped_repeat_item.i.get().clone();
-                    Numeric::from(i)
+                    let property = property_id.get_property::<usize>();
+                    Numeric::from(property.get().clone())
                 {% else %}
-
-                    if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_any(&*borrowed) {
-
-                        {% if invocation.is_numeric %}
-                            //binding simple numeric property
-                            Numeric::from(p.{{invocation.root_identifier}}.get().clone())
-                        {% elif invocation.is_string %}
-                            //binding simple string property
-                            p.{{invocation.root_identifier}}.get().clone()
-                        {% else %}
-                            //binding cloneable property
-                            p.{{invocation.root_identifier}}.get().clone()
-                        {% endif %}
-                    } else {unreachable!()}
+                    let property = property_id.get_property::<{{invocation.fully_qualified_iterable_type}}>();
+                    property.get().clone()
                 {% endif %}
             }{{ invocation.nested_symbol_tail_literal }};
             {% if invocation.is_nested_numeric %}
