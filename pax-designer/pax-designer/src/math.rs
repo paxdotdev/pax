@@ -281,6 +281,7 @@ mod tests {
 /// Describes all needed information
 /// to go from a transform back to
 /// layout properties
+#[derive(Default)]
 pub struct InversionConfiguration {
     // Actual data needed about object
     pub anchor_x: Option<Size>,

@@ -5,7 +5,7 @@ use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{self, AxisAlignedBox, GetUnit, InversionConfiguration, RotationUnit, SizeUnit};
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNode;
-use crate::model::{SelectedItemSnapshot, SelectionStateSnapshot};
+use crate::model::{RuntimeNodeInfo, SelectionStateSnapshot};
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::builder::NodeBuilder;
@@ -23,6 +23,7 @@ use pax_engine::{
 use pax_engine::{log, NodeInterface, NodeLocal};
 use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::{Axis, Percent};
+pub mod group_ungroup;
 
 pub struct CreateComponent {
     pub bounds: AxisAlignedBox<World>,
@@ -107,22 +108,24 @@ impl Action for SelectedIntoNewComponent {
     }
 }
 
-pub struct SetBoxSelected {
-    pub item: SelectedItemSnapshot,
+pub struct SetNodeTransformProperties {
+    pub id: UniqueTemplateNodeIdentifier,
+    pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
+    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub inv_config: InversionConfiguration,
 }
 
-impl Action for SetBoxSelected {
+impl Action for SetNodeTransformProperties {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let Some(mut builder) = dt.get_orm_mut().get_node(self.item.id) else {
+        let Some(mut builder) = dt.get_orm_mut().get_node(self.id) else {
             return Err(anyhow!("can't move: node doesn't exist in orm"));
         };
 
         let new_props: LayoutProperties = math::transform_and_bounds_inversion(
             self.inv_config,
-            self.item.parent_transform_and_bounds,
-            self.item.transform_and_bounds,
+            self.parent_transform_and_bounds,
+            self.transform_and_bounds,
         );
 
         let LayoutProperties {
@@ -289,9 +292,10 @@ impl Action for Resize<'_> {
                 unit_y_pos: item.layout_properties.y.unit(),
                 unit_skew_x: item.layout_properties.skew_x.unit(),
             };
-            let new_item = item.copy_with_new_bounds(resize * item.transform_and_bounds);
-            ctx.execute(SetBoxSelected {
-                item: new_item,
+            ctx.execute(SetNodeTransformProperties {
+                id: item.id.clone(),
+                transform_and_bounds: resize * item.transform_and_bounds,
+                parent_transform_and_bounds: item.parent_transform_and_bounds,
                 inv_config,
             })?;
         }
@@ -356,9 +360,10 @@ impl Action for RotateSelected<'_> {
                 unit_y_pos: item.layout_properties.y.unit(),
                 unit_skew_x: item.layout_properties.skew_x.unit(),
             };
-            let new_item = item.copy_with_new_bounds(rotate * item.transform_and_bounds);
-            ctx.execute(SetBoxSelected {
-                item: new_item,
+            ctx.execute(SetNodeTransformProperties {
+                id: item.id.clone(),
+                transform_and_bounds: rotate * item.transform_and_bounds,
+                parent_transform_and_bounds: item.parent_transform_and_bounds,
                 inv_config,
             })?;
         }
