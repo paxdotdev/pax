@@ -22,13 +22,14 @@
 
 use pax_manifest::pax_runtime_api::Property;
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, SettingElement, TypeId,
+    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement, TypeId,
     UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
+use self::template::MoveTemplateNodeRequest;
 use self::template::{builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest};
 
 use anyhow::{anyhow, Result};
@@ -123,6 +124,15 @@ impl PaxManifestORM {
         node_type_id: TypeId,
     ) -> NodeBuilder {
         NodeBuilder::new(self, containing_component_type_id, node_type_id)
+    }
+
+    pub fn move_node(
+        &mut self,
+        uni: UniqueTemplateNodeIdentifier,
+        location: NodeLocation,
+    ) -> Result<usize, String> {
+        let res = self.execute_command(MoveTemplateNodeRequest::new(uni, location))?;
+        Ok(res.get_id())
     }
 
     pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Option<NodeBuilder> {
