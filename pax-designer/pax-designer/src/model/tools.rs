@@ -1,11 +1,11 @@
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateComponent, SetBoxSelected};
+use super::action::orm::{CreateComponent, SetNodeTransformProperties};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
-use super::{SelectedItemSnapshot, SelectionStateSnapshot};
+use super::{RuntimeNodeInfo, SelectionStateSnapshot};
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{AxisAlignedBox, GetUnit, InversionConfiguration, SizeUnit};
@@ -199,10 +199,10 @@ impl ToolBehaviour for PointerTool {
                         unit_y_pos: item.layout_properties.y.unit(),
                         unit_skew_x: item.layout_properties.skew_x.unit(),
                     };
-                    let node_box = move_translation * item.transform_and_bounds;
-                    let new_item = item.copy_with_new_bounds(node_box);
-                    if let Err(e) = ctx.execute(SetBoxSelected {
-                        item: new_item,
+                    if let Err(e) = ctx.execute(SetNodeTransformProperties {
+                        id: item.id.clone(),
+                        transform_and_bounds: move_translation * item.transform_and_bounds,
+                        parent_transform_and_bounds: item.parent_transform_and_bounds,
                         inv_config,
                     }) {
                         pax_engine::log::error!("Error moving selected: {:?}", e);

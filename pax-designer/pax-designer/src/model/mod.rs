@@ -235,27 +235,15 @@ pub struct SelectionState {
 pub struct SelectionStateSnapshot {
     pub total_bounds: TransformAndBounds<SelectionSpace, Glass>,
     pub total_origin: Point2<Glass>,
-    pub items: Vec<SelectedItemSnapshot>,
+    pub items: Vec<RuntimeNodeInfo>,
 }
 
-pub struct SelectedItemSnapshot {
+pub struct RuntimeNodeInfo {
     pub id: UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub origin: Point2<Glass>,
     pub layout_properties: LayoutProperties,
-}
-
-impl SelectedItemSnapshot {
-    fn copy_with_new_bounds(&self, node_box: TransformAndBounds<NodeLocal, Glass>) -> Self {
-        Self {
-            id: self.id.clone(),
-            transform_and_bounds: node_box,
-            parent_transform_and_bounds: self.parent_transform_and_bounds,
-            origin: self.origin,
-            layout_properties: self.layout_properties.clone(),
-        }
-    }
 }
 
 impl From<&SelectionState> for SelectionStateSnapshot {
@@ -266,7 +254,7 @@ impl From<&SelectionState> for SelectionStateSnapshot {
             items: value
                 .items
                 .iter()
-                .map(|itm| SelectedItemSnapshot {
+                .map(|itm| RuntimeNodeInfo {
                     id: itm.id.clone(),
                     origin: itm.origin.get(),
                     transform_and_bounds: itm.transform_and_bounds.get(),
