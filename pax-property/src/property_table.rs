@@ -134,7 +134,12 @@ impl TransitionManagerWrapper {
 
 impl PropertyData {
     pub fn get_value<T: PropertyValue>(&self) -> T {
-        self.value.downcast_ref::<T>().unwrap().clone()
+        match self.value.downcast_ref::<T>() {
+            Some(value) => value.clone(),
+            None => {
+                panic!("Failed to downcast to the requested type: {}", std::any::type_name::<T>());
+            },
+        }
     }
 
     pub fn set_value<T: PropertyValue>(&mut self, new_val: T) {
@@ -246,7 +251,7 @@ impl PropertyTable {
         entry.data.subscriptions.remove(sub_id);
     }
 
-    pub fn transition<T: PropertyValue>(
+    pub fn transition<T: PropertyValue + Interpolatable>(
         &self,
         id: PropertyId,
         transition: TransitionQueueEntry<T>,
@@ -342,7 +347,7 @@ impl PropertyTable {
     }
 
 
-    pub fn add_transitioning_subscription<T: PropertyValue>(&self, id: PropertyId) {
+    pub fn add_transitioning_subscription<T: PropertyValue + Interpolatable>(&self, id: PropertyId) {
         let time: &PropertyId = &PROPERTY_TIME.with(|t| t.borrow().get_id());
         
         // get transitioning properties

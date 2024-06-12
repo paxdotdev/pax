@@ -1,18 +1,22 @@
-use std::{any::Any, cell::{Ref, RefCell}, collections::HashMap, rc::Rc};
+use std::{
+    any::Any,
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use property_table::{PropertyType, SubscriptionId, PROPERTY_TABLE, PROPERTY_TIME};
 
-mod property_table;
 mod graph;
-pub mod transitions;
 pub mod property_id;
+mod property_table;
+pub mod transitions;
 
 pub use property_id::PropertyId;
 use serde::{Deserialize, Serialize};
 use transitions::{EasingCurve, Interpolatable, TransitionQueueEntry};
-pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
-impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
-
+pub trait PropertyValue: Default + Clone + 'static {}
+impl<T: Default + Clone + 'static> PropertyValue for T {}
 
 #[derive(Clone, Copy)]
 pub struct Property<T> {
@@ -20,11 +24,9 @@ pub struct Property<T> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl <T> std::fmt::Debug for Property<T> {
+impl<T> std::fmt::Debug for Property<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Property")
-            .field("id", &self.id)
-            .finish()
+        f.debug_struct("Property").field("id", &self.id).finish()
     }
 }
 
@@ -56,42 +58,7 @@ impl<T: PropertyValue + Serialize> Serialize for Property<T> {
     }
 }
 
-
-impl <T:PropertyValue> Property<T> {
-    pub fn new(val: T) -> Self {
-        Self {
-            id: PROPERTY_TABLE.with(|t| t.insert(PropertyType::Literal, val.clone(), Vec::new())),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub fn expression(evaluator: impl Fn() -> T + 'static, dependents: &[PropertyId]) -> Self {
-        let inbound = dependents.to_vec();
-        let start_val = evaluator();
-        let evaluator = Rc::new(generate_untyped_closure(evaluator));
-        Self {
-            id: PROPERTY_TABLE.with(|t| t.insert(PropertyType::Expression { evaluator }, start_val.clone(), inbound)),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub(crate) fn time() -> Self {
-        Self {
-            id: PROPERTY_TABLE.with(|t| t.insert(PropertyType::Time { transitioning: HashMap::new() }, 0, Vec::new())),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    /// Gets the value of the property
-    pub fn get(&self) -> T {
-         PROPERTY_TABLE.with(|t| t.get(self.id))
-    }
-
-    /// Sets the value of the property and runs relevant subscriptions
-    pub fn set(&self, val: T) {
-        PROPERTY_TABLE.with(|t| t.set(self.id, val));
-    }
-
+impl<T: PropertyValue + Interpolatable> Property<T> {
     /// Eases the property to a new value over a given time right away
     pub fn ease_to(&self, end_val: T, time: u64, curve: EasingCurve) {
         self.ease_to_value(end_val, time, curve, true);
@@ -115,6 +82,56 @@ impl <T:PropertyValue> Property<T> {
             )
         })
     }
+}
+
+impl<T: PropertyValue> Property<T> {
+    pub fn new(val: T) -> Self {
+        Self {
+            id: PROPERTY_TABLE.with(|t| t.insert(PropertyType::Literal, val.clone(), Vec::new())),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn expression(evaluator: impl Fn() -> T + 'static, dependents: &[PropertyId]) -> Self {
+        let inbound = dependents.to_vec();
+        let start_val = evaluator();
+        let evaluator = Rc::new(generate_untyped_closure(evaluator));
+        Self {
+            id: PROPERTY_TABLE.with(|t| {
+                t.insert(
+                    PropertyType::Expression { evaluator },
+                    start_val.clone(),
+                    inbound,
+                )
+            }),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub(crate) fn time() -> Self {
+        Self {
+            id: PROPERTY_TABLE.with(|t| {
+                t.insert(
+                    PropertyType::Time {
+                        transitioning: HashMap::new(),
+                    },
+                    0,
+                    Vec::new(),
+                )
+            }),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Gets the value of the property
+    pub fn get(&self) -> T {
+        PROPERTY_TABLE.with(|t| t.get(self.id))
+    }
+
+    /// Sets the value of the property and runs relevant subscriptions
+    pub fn set(&self, val: T) {
+        PROPERTY_TABLE.with(|t| t.set(self.id, val));
+    }
 
     /// Adds a callback to be run when the property is set
     pub fn subscribe(&self, sub: impl Fn() + 'static) -> SubscriptionId {
@@ -136,11 +153,11 @@ impl <T:PropertyValue> Property<T> {
             _phantom: std::marker::PhantomData,
         }
     }
-
 }
 
-
-fn generate_untyped_closure<T: 'static + Any>(evaluator: impl Fn() -> T + 'static) -> impl Fn() -> Box<dyn Any> {
+fn generate_untyped_closure<T: 'static + Any>(
+    evaluator: impl Fn() -> T + 'static,
+) -> impl Fn() -> Box<dyn Any> {
     move || Box::new(evaluator()) as Box<dyn Any>
 }
 
@@ -156,7 +173,6 @@ pub fn set_time(frames_elapsed: u64) {
 fn get_time() -> u64 {
     PROPERTY_TIME.with(|t| t.borrow().get())
 }
-
 
 #[cfg(test)]
 mod tests {

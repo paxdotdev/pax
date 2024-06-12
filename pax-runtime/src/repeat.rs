@@ -158,9 +158,11 @@ impl InstanceNode for RepeatInstance {
 
                     let mut scope: HashMap<String, PropertyId> = HashMap::new();
                     if let Some(ref i_symbol) = i_symbol {
+                        log::warn!("i_symbol: {:?}", i_symbol);
                         scope.insert(i_symbol.clone(), property_i.get_id());
                     }
                     if let Some(ref elem_symbol) = elem_symbol {
+                        log::warn!("elem_symbol: {:?}", elem_symbol);
                         scope.insert(elem_symbol.clone(), property_elem.get_id());
                     }
 
