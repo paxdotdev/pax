@@ -162,7 +162,7 @@ fn generate_untyped_closure<T: 'static + Any>(
 }
 
 pub fn print_graph() {
-    PROPERTY_TABLE.with(|t| t.render_graph_to_file("graph.svg"));
+    PROPERTY_TABLE.with(|t| t.render_graph_to_file("/Users/warfa/Documents/Projects/Pax/paxcorp/pax/examples/src/fireworks/graph.svg"));
 }
 
 pub fn set_time(frames_elapsed: u64) {

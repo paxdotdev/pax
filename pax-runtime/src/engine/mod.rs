@@ -352,7 +352,7 @@ impl PaxEngine {
         id: &UniqueTemplateNodeIdentifier,
         ctx: &Rc<RuntimeContext>,
     ) {
-        if parent.children.iter().any(|node| {
+        if borrow!(parent.children).iter().any(|node| {
             borrow!(node.instance_node)
                 .base()
                 .template_node_identifier
@@ -369,7 +369,7 @@ impl PaxEngine {
             let children = parent.generate_children(new_templates, ctx);
             parent.attach_children(children, ctx);
         } else {
-            for child in parent.children.iter() {
+            for child in borrow!(parent.children).iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
             }
         }

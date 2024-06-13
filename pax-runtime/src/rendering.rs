@@ -136,6 +136,8 @@ pub trait InstanceNode {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+
+        log::warn!("Mounting: {}", self.base().template_node_identifier.as_ref().unwrap());
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
