@@ -40,8 +40,6 @@ impl InstanceNode for RectangleInstance {
         let tab = &expanded_node.layout_properties;
         let (width, height) = borrow!(tab).bounds.get();
 
-        log::info!("Rectangle render: width: {}, height: {}", width, height);
-
         let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
