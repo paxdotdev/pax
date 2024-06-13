@@ -15,6 +15,7 @@ use pax_runtime_api::pax_value::ToFromPaxAny;
 use pax_runtime_api::{borrow, borrow_mut};
 use pax_runtime::api::pax_value::ToFromPaxValue;
 use pax_engine::log;
+use nohash_hasher::BuildNoHashHasher;
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
@@ -24,8 +25,8 @@ use {{ import }};
 
 use_RefCell!();
 
-pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> {
-    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> = HashMap::new();
+pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>, BuildNoHashHasher<usize>> {
+    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>, BuildNoHashHasher<usize>> = HashMap::with_hasher(BuildNoHashHasher::default());
 
     {% for expression_spec in expression_specs %}
     // {{ expression_spec.input_statement.content}}

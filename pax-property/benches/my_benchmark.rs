@@ -1,14 +1,24 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use pax_property::{print_graph, Property, PropertyId};
 
-pub fn property_set_benchmark(c: &mut Criterion) {
-    let properties = generate_dependency_graph(10, 10);
+// pub fn property_set_benchmark(c: &mut Criterion) {
+//     let properties = generate_dependency_graph(10, 10);
+//     print_graph();
+    
+//     c.bench_function("set property", |b| b.iter(|| {
+//         for prop in &properties {
+//             prop.set(black_box(1));
+//         }
+//     }));
+// }
+
+pub fn property_get_benchmark(c: &mut Criterion) {
+    let properties = generate_dependency_graph(1, 2000);
     print_graph();
     
-    c.bench_function("set property", |b| b.iter(|| {
-        for prop in &properties {
-            prop.set(black_box(1));
-        }
+    c.bench_function("get property", |b| b.iter(|| {
+        let prop = &properties[0];
+        prop.get();
     }));
 }
 
@@ -54,7 +64,7 @@ fn get_untyped_dependencies(properties: Vec<Property<i32>>) -> Vec<PropertyId> {
 }
 
 
-criterion_group!(benches, property_set_benchmark);
+criterion_group!(benches, property_get_benchmark);
 
 criterion_main!(benches);
 

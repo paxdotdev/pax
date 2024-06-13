@@ -18,6 +18,7 @@ use crate::{
     ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
 use pax_runtime_api::Platform;
+use nohash_hasher::BuildNoHashHasher;
 
 pub mod node_interface;
 
@@ -212,7 +213,7 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
 }
 
 pub struct ExpressionTable {
-    pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>>,
+    pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>, BuildNoHashHasher<usize>>,
 }
 
 #[cfg(debug_assertions)]
@@ -225,7 +226,7 @@ impl std::fmt::Debug for ExpressionTable {
 impl ExpressionTable {
     pub fn new() -> Self {
         Self {
-            table: HashMap::new(),
+            table: HashMap::with_hasher(BuildNoHashHasher::default()),
         }
     }
 
@@ -409,7 +410,7 @@ impl PaxEngine {
         // completely remove once reactive properties dirty-dag is a thing.
         //
         self.root_node.recurse_update(&mut self.runtime_context);
-
+        
         let ctx = &self.runtime_context;
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
@@ -429,9 +430,11 @@ impl PaxEngine {
             *curr_occlusion_ind = new_occlusion_ind;
         });
 
-        let time = &ctx.globals().frames_elapsed;
+        ctx.edit_globals(|globals| {
+            globals.frames_elapsed += 1;
+        });
 
-        set_time(*time);
+        set_time(ctx.globals().frames_elapsed);
         ctx.flush_custom_events().unwrap();
         ctx.take_native_messages()
     }
