@@ -1,6 +1,8 @@
 
-use std::{any::Any, borrow::BorrowMut, cell::{RefCell, RefMut}, collections::{HashMap, HashSet}, fmt::{Display, Formatter}, ops::Sub, sync::atomic::{AtomicU64, Ordering}};
-
+use std::{any::Any, borrow::BorrowMut, cell::{RefCell, RefMut}, collections::{HashMap, HashSet}, fmt::{Display, Formatter}, ops::Sub, sync::atomic::{AtomicU64, Ordering}, time::Instant};
+use wasm_bindgen::prelude::*;
+use web_sys::{window, Performance};
+use nohash_hasher::BuildNoHashHasher;
 
 
 use std::rc::Rc;
@@ -12,10 +14,80 @@ thread_local! {
     pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
     /// Property time variable, to be used by
     pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::time());
+     /// Statistics for tracking get requests
+     pub static GET_STATISTICS: RefCell<GetStatistics> = RefCell::new(GetStatistics::new());
+
+    pub static PERFORMANCE : Performance = window().unwrap().performance().unwrap();
+}
+
+/// Statistics for tracking get requests
+pub struct GetStatistics {
+    total_gets: u64,
+    total_time: f64,
+    max_get_time: f64,
+    bucket_0_01: u64,
+    bucket_0_05_01: u64,
+    bucket_0_1_05: u64,
+    bucket_0_15_1: u64,
+    bucket_0_15_plus: u64,
+}
+
+impl GetStatistics {
+    fn new() -> Self {
+        Self {
+            total_gets: 0,
+            total_time: 0.0,
+            max_get_time: 0.0,
+            bucket_0_01: 0,
+            bucket_0_05_01: 0,
+            bucket_0_1_05: 0,
+            bucket_0_15_1: 0,
+            bucket_0_15_plus: 0,
+        }
+    }
+
+    fn record_get(&mut self, duration: f64) {
+        self.total_gets += 1;
+        self.total_time += duration;
+        self.max_get_time = self.max_get_time.max(duration);
+        
+        match duration {
+            d if d <= 0.01 => self.bucket_0_01 += 1,
+            d if d <= 0.05 => self.bucket_0_05_01 += 1,
+            d if d <= 0.1 => self.bucket_0_1_05 += 1,
+            d if d <= 0.15 => self.bucket_0_15_1 += 1,
+            _ => self.bucket_0_15_plus += 1,
+        }
+    }
+
+    pub fn print_stats(&mut self) {
+        let average_time = if self.total_gets > 0 {
+            self.total_time / self.total_gets as f64
+        } else {
+            0.0
+        };
+        log::info!(
+            "# of gets: {}, average time per get: {} ms, max get time: {} ms",
+            self.total_gets, average_time, self.max_get_time
+        );
+        log::info!(
+            "Buckets: 0-0.01: {}, 0.01-0.05: {}, 0.05-0.1: {}, 0.1-0.15: {}, 0.15+: {}",
+            self.bucket_0_01, self.bucket_0_05_01, self.bucket_0_1_05, self.bucket_0_15_1, self.bucket_0_15_plus
+        );
+        // Reset counters
+        self.total_gets = 0;
+        self.total_time = 0.0;
+        self.max_get_time = 0.0;
+        self.bucket_0_01 = 0;
+        self.bucket_0_05_01 = 0;
+        self.bucket_0_1_05 = 0;
+        self.bucket_0_15_1 = 0;
+        self.bucket_0_15_plus = 0;
+    }
 }
 
 pub struct PropertyTable {
-    pub properties: RefCell<HashMap<PropertyId, Entry>>,
+    pub properties: RefCell<HashMap<PropertyId, Entry, BuildNoHashHasher<u64>>>,
 }
 
 pub struct Entry {
@@ -177,9 +249,18 @@ impl PropertyTable {
     }
 
     pub fn get<T: PropertyValue>(&self, id: PropertyId) -> T {
+        
+        //let start_time = PERFORMANCE.with(|p| p.now());
         let sm = self.properties.borrow();
         let entry = sm.get(&id).expect("Property not found");
-        entry.data.get_value()
+        let value = entry.data.get_value();
+        //let end_time = PERFORMANCE.with(|p| p.now());
+        //let duration = end_time - start_time;
+        // if duration > 0.09 {
+        //     log::warn!("Long get time: {} ms for type: {}", duration, std::any::type_name::<T>());
+        // }
+        //GET_STATISTICS.with(|s| s.borrow_mut().record_get(duration));
+        value
     }
 
     pub fn set<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
@@ -381,7 +462,7 @@ impl PropertyTable {
 impl Default for PropertyTable {
     fn default() -> Self {
         PropertyTable {
-            properties: RefCell::new(HashMap::new()),
+            properties: RefCell::new(HashMap::with_hasher(BuildNoHashHasher::default())),
         }
     }
 }

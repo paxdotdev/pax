@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use property_table::{PropertyType, SubscriptionId, PROPERTY_TABLE, PROPERTY_TIME};
+use property_table::{PropertyType, SubscriptionId, GET_STATISTICS, PROPERTY_TABLE, PROPERTY_TIME};
 
 mod graph;
 pub mod property_id;
@@ -168,6 +168,10 @@ pub fn print_graph() {
 pub fn set_time(frames_elapsed: u64) {
     PROPERTY_TABLE.with(|t| t.cleanup_finished_transitions());
     PROPERTY_TIME.with(|t| t.borrow().set(frames_elapsed));
+    // if frames_elapsed % 1 == 0 {
+    //     log::info!("Time: {}", frames_elapsed);
+    //     GET_STATISTICS.with(|s| s.borrow_mut().print_stats());
+    // }
 }
 
 fn get_time() -> u64 {
