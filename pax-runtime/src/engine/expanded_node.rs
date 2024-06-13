@@ -2,8 +2,8 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation,
-    Transform2D,
+    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
+    Rotation, Transform2D,
 };
 
 use crate::api::math::Point2;
@@ -69,11 +69,8 @@ pub struct ExpandedNode {
     /// explicitly updated to accommodate.)
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
-    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
-    pub children: Vec<Rc<ExpandedNode>>,
-
     /// A list of mounted children that need to be dismounted when children is recalculated
-    pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
+    pub children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     pub properties: RefCell<Rc<RefCell<PaxAny>>>,
@@ -229,8 +226,7 @@ impl ExpandedNode {
             template_parent: parent,
 
             containing_component,
-            children: Vec::new(),
-            mounted_children: RefCell::new(Vec::new()),
+            children: RefCell::new(Vec::new()),
             layout_properties: RefCell::new(LayoutProperties::default()),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
@@ -312,7 +308,7 @@ impl ExpandedNode {
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-        let mut curr_children = borrow_mut!(self.mounted_children);
+        let mut curr_children = borrow_mut!(self.children);
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
@@ -380,13 +376,14 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context, &Rc::downgrade(&self));
-        let res = self.attach_children(new_children, context);
-        res
+        new_children
     }
 
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        //print_graph();
+        //panic!();
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             for handler in borrow!(registry)
                 .handlers
@@ -414,7 +411,7 @@ impl ExpandedNode {
                 )
             }
         }
-        for child in self.children.iter() {
+        for child in borrow!(self.children).iter() {
             child.recurse_update(context);
         }
     }
@@ -456,7 +453,7 @@ impl ExpandedNode {
         // in this case: do not refer to self.children expression.
         // expr evaluation in this context can trigger get's of "old data", ie try to get
         // an index of a for loop source that doesn't exist anymore
-        for child in borrow!(self.mounted_children).iter() {
+        for child in borrow!(self.children).iter() {
             Rc::clone(child).recurse_unmount(context);
         }
         if *borrow!(self.attached) == 1 {
@@ -481,7 +478,7 @@ impl ExpandedNode {
 
     pub fn recurse_render(&self, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
-        for child in self.children.iter().rev() {
+        for child in borrow!(self.children).iter().rev() {
             child.recurse_render(ctx, rcs);
         }
         borrow!(self.instance_node).render(&self, ctx, rcs);
@@ -525,7 +522,7 @@ impl ExpandedNode {
     }
 
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
-        for child in self.children.iter().rev() {
+        for child in borrow!(self.children).iter().rev() {
             child.recurse_visit_postorder(func)
         }
         func(self);
@@ -807,7 +804,7 @@ fn flatten_expanded_nodes_for_slot(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<Expande
     for node in nodes {
         if borrow!(node.instance_node).base().flags().invisible_to_slot {
             result.extend(flatten_expanded_nodes_for_slot(
-                node.children
+                borrow!(node.children)
                     .clone()
                     .into_iter()
                     .collect::<Vec<_>>()
