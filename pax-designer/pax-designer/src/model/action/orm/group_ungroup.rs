@@ -1,9 +1,10 @@
 use std::any::Any;
 
 use crate::{
-    math::InversionConfiguration,
+    math::{IntoInversionConfiguration, InversionConfiguration},
     model::{
         action::{Action, ActionContext, CanUndo},
+        tools::SelectNodes,
         RuntimeNodeInfo, SelectionStateSnapshot,
     },
     USERLAND_PROJECT_ID,
@@ -21,6 +22,8 @@ pub struct GroupSelected {}
 impl Action for GroupSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let selected: SelectionStateSnapshot = (&ctx.selection_state()).into();
+
+        // ------------ Figure out the location the group should be at ---------
         let Some(root) = selected.items.first() else {
             return Err(anyhow!("nothing selected to group"));
         };
@@ -28,8 +31,7 @@ impl Action for GroupSelected {
             .derived_state
             .open_containers
             .read(|v| v.first().cloned());
-        // this is the location the group will be created
-        let group_location = if ctx
+        let group_parent_location = if ctx
             .engine_context
             .get_nodes_by_id(USERLAND_PROJECT_ID)
             .first()
@@ -41,16 +43,11 @@ impl Action for GroupSelected {
         } else {
             NodeLocation::parent(
                 root.id.get_containing_component_type_id(),
-                root.id.get_template_node_id(),
+                root_parent.as_ref().unwrap().get_template_node_id(),
             )
         };
-        let group_parent_data = ctx
-            .engine_context
-            .get_nodes_by_global_id(root_parent.unwrap())
-            .first()
-            .unwrap()
-            .clone();
-        let group_parent_transform = group_parent_data.transform_and_bounds().get();
+
+        // -------- Create a group ------------
         let group_creation_save_data = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt.get_orm_mut().build_new_node(
@@ -60,28 +57,11 @@ impl Action for GroupSelected {
                     None,
                 ),
             );
-            builder.set_location(group_location);
+            builder.set_location(group_parent_location);
             builder
                 .save()
                 .map_err(|e| anyhow!("could not save: {}", e))?
         };
-
-        let selected_scale = selected.total_bounds.transform.get_scale();
-        let new_selected_transform =
-            selected.total_bounds.transform * Transform2::scale_sep(selected_scale).inverse();
-        // Set the bounds of the group to selection bounds
-        ctx.execute(SetNodeTransformProperties {
-            id: group_creation_save_data.unique_id.clone(),
-            transform_and_bounds: TransformAndBounds {
-                transform: new_selected_transform.cast_spaces(),
-                bounds: (selected_scale.x, selected_scale.y),
-            },
-            parent_transform_and_bounds: TransformAndBounds {
-                transform: ctx.glass_transform().get() * group_parent_transform.transform,
-                bounds: group_parent_transform.bounds,
-            },
-            inv_config: InversionConfiguration::default(),
-        })?;
 
         let group_location = NodeLocation::parent(
             group_creation_save_data
@@ -89,15 +69,56 @@ impl Action for GroupSelected {
                 .get_containing_component_type_id(),
             group_creation_save_data.unique_id.get_template_node_id(),
         );
+
+        log::debug!("group has location: {:?}", group_location);
+        // -------- Move the nodes to the newly created group ------------
         let _move_selected_into_group_command_ids = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut command_ids = vec![];
-            for node in selected.items {
-                let cmd_id = dt.get_orm_mut().move_node(node.id, group_location.clone());
+            for node in &selected.items {
+                let cmd_id = dt
+                    .get_orm_mut()
+                    .move_node(node.id.clone(), group_location.clone());
                 command_ids.push(cmd_id);
             }
             command_ids
         };
+
+        log::debug!("set group position");
+        // --------- Position the newly created group -------------------
+        let group_parent_data = ctx
+            .engine_context
+            .get_nodes_by_global_id(root_parent.unwrap())
+            .first()
+            .unwrap()
+            .clone();
+        let group_parent_transform = group_parent_data.transform_and_bounds().get();
+        let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
+        ctx.execute(SetNodeTransformProperties {
+            id: group_creation_save_data.unique_id.clone(),
+            transform_and_bounds: group_transform_and_bounds,
+            parent_transform_and_bounds: TransformAndBounds {
+                transform: ctx.glass_transform().get() * group_parent_transform.transform,
+                bounds: group_parent_transform.bounds,
+            },
+            inv_config: InversionConfiguration::default(),
+        })?;
+
+        log::debug!("set child positions");
+        // ---------- Reposition the children relative to the newly created group
+        for node in selected.items {
+            ctx.execute(SetNodeTransformProperties {
+                id: node.id.clone(),
+                transform_and_bounds: node.transform_and_bounds,
+                parent_transform_and_bounds: group_transform_and_bounds,
+                inv_config: node.layout_properties.into_inv_config(),
+            })?;
+        }
+        // ---------- Select the newly created group -----
+        ctx.execute(SelectNodes {
+            ids: &[group_creation_save_data.unique_id.get_template_node_id()],
+            overwrite: true,
+        })?;
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);

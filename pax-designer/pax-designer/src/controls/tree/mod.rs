@@ -23,7 +23,7 @@ use treeobj::TreeObj;
 
 use crate::glass::SetEditingComponent;
 use crate::model;
-use crate::model::tools::SelectNode;
+use crate::model::tools::SelectNodes;
 
 #[pax]
 #[file("controls/tree/mod.pax")]
@@ -177,8 +177,8 @@ impl Tree {
                 match msg {
                     TreeMsg::ObjClicked(sender) => {
                         model::perform_action(
-                            SelectNode {
-                                id: tree_obj.read(|t| t[sender].node_id.clone()),
+                            SelectNodes {
+                                ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
                                 overwrite: false,
                             },
                             &ctxp,

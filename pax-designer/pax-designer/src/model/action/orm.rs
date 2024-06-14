@@ -2,9 +2,12 @@ use std::f64::consts::PI;
 
 use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
-use crate::math::{self, AxisAlignedBox, GetUnit, InversionConfiguration, RotationUnit, SizeUnit};
+use crate::math::{
+    self, AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration,
+    RotationUnit, SizeUnit,
+};
 use crate::model::input::InputEvent;
-use crate::model::tools::SelectNode;
+use crate::model::tools::SelectNodes;
 use crate::model::{RuntimeNodeInfo, SelectionStateSnapshot};
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
@@ -45,8 +48,8 @@ impl Action for CreateComponent {
         let save_data = builder
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
-        ctx.execute(SelectNode {
-            id: save_data.unique_id.get_template_node_id(),
+        ctx.execute(SelectNodes {
+            ids: &[save_data.unique_id.get_template_node_id()],
             overwrite: true,
         })?;
 
@@ -108,14 +111,14 @@ impl Action for SelectedIntoNewComponent {
     }
 }
 
-pub struct SetNodeTransformProperties {
+pub struct SetNodeTransformProperties<T> {
     pub id: UniqueTemplateNodeIdentifier,
-    pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
-    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
+    pub transform_and_bounds: TransformAndBounds<NodeLocal, T>,
+    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, T>,
     pub inv_config: InversionConfiguration,
 }
 
-impl Action for SetNodeTransformProperties {
+impl<T: Space> Action for SetNodeTransformProperties<T> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let Some(mut builder) = dt.get_orm_mut().get_node(self.id) else {
@@ -146,7 +149,7 @@ impl Action for SetNodeTransformProperties {
             builder: &mut NodeBuilder,
             name: &str,
             value: Option<T>,
-            is_close_to_default: impl Fn(&T) -> bool + 'static,
+            is_close_to_default: impl FnOnce(&T) -> bool,
         ) -> Result<()> {
             if let Some(val) = value {
                 if !is_close_to_default(&val) {
@@ -158,35 +161,34 @@ impl Action for SetNodeTransformProperties {
             };
             Ok(())
         }
+
         const EPS: f64 = 1e-3;
-        fn is_size_default(s: &Size) -> bool {
-            match s {
-                Size::Pixels(p) => p.to_float().abs() < EPS,
-                Size::Percent(p) => (p.to_float() - 100.0).abs() < EPS,
-                Size::Combined(pix, per) => {
-                    pix.to_float() < EPS && (per.to_float() - 100.0).abs() < EPS
-                }
-            }
-        }
+        let is_size_default = |s: &Size, d_p: f64| match s {
+            Size::Pixels(p) => p.to_float().abs() < EPS,
+            Size::Percent(p) => (p.to_float() - d_p).abs() < EPS,
+            Size::Combined(pix, per) => pix.to_float() < EPS && (per.to_float() - d_p).abs() < EPS,
+        };
+        let is_size_default_100 = |s: &Size| is_size_default(s, 100.0);
+        let is_size_default_0 = |s: &Size| is_size_default(s, 0.0);
         let is_rotation_default = |r: &Rotation| (r.get_as_degrees() % 360.0).abs() < EPS;
 
-        write_to_orm(&mut builder, "x", x, is_size_default)?;
-        write_to_orm(&mut builder, "y", y, is_size_default)?;
-        write_to_orm(&mut builder, "width", width, is_size_default)?;
-        write_to_orm(&mut builder, "height", height, is_size_default)?;
-        write_to_orm(&mut builder, "rotate", rotate, is_rotation_default)?;
+        write_to_orm(&mut builder, "x", x, is_size_default_0)?;
+        write_to_orm(&mut builder, "y", y, is_size_default_0)?;
+        write_to_orm(&mut builder, "width", width, is_size_default_100)?;
+        write_to_orm(&mut builder, "height", height, is_size_default_100)?;
         write_to_orm(
             &mut builder,
             "scale_x",
             scale_x.map(|v| Size::Percent(v.0)),
-            is_size_default,
+            is_size_default_100,
         )?;
         write_to_orm(
             &mut builder,
             "scale_y",
             scale_y.map(|v| Size::Percent(v.0)),
-            is_size_default,
+            is_size_default_100,
         )?;
+        write_to_orm(&mut builder, "rotate", rotate, is_rotation_default)?;
         write_to_orm(&mut builder, "skew_x", skew_x, is_rotation_default)?;
         write_to_orm(&mut builder, "skew_y", skew_y, is_rotation_default)?;
         // always skip writing anchor? (separate method)
@@ -281,22 +283,11 @@ impl Action for Resize<'_> {
         let resize = to_local * local_resize * to_local.inverse();
 
         for item in &self.initial_selection.items {
-            let inv_config = InversionConfiguration {
-                anchor_x: item.layout_properties.anchor_x,
-                anchor_y: item.layout_properties.anchor_y,
-                // TODO override some units here
-                unit_width: item.layout_properties.width.unit(),
-                unit_height: item.layout_properties.height.unit(),
-                unit_rotation: item.layout_properties.rotate.unit(),
-                unit_x_pos: item.layout_properties.x.unit(),
-                unit_y_pos: item.layout_properties.y.unit(),
-                unit_skew_x: item.layout_properties.skew_x.unit(),
-            };
             ctx.execute(SetNodeTransformProperties {
                 id: item.id.clone(),
                 transform_and_bounds: resize * item.transform_and_bounds,
                 parent_transform_and_bounds: item.parent_transform_and_bounds,
-                inv_config,
+                inv_config: item.layout_properties.into_inv_config(),
             })?;
         }
 
@@ -349,22 +340,11 @@ impl Action for RotateSelected<'_> {
         let rotate = to_local * local_resize * to_local.inverse();
 
         for item in &self.initial_selection.items {
-            let inv_config = InversionConfiguration {
-                anchor_x: item.layout_properties.anchor_x,
-                anchor_y: item.layout_properties.anchor_y,
-                // TODO override some units here
-                unit_width: item.layout_properties.width.unit(),
-                unit_height: item.layout_properties.height.unit(),
-                unit_rotation: item.layout_properties.rotate.unit(),
-                unit_x_pos: item.layout_properties.x.unit(),
-                unit_y_pos: item.layout_properties.y.unit(),
-                unit_skew_x: item.layout_properties.skew_x.unit(),
-            };
             ctx.execute(SetNodeTransformProperties {
                 id: item.id.clone(),
                 transform_and_bounds: rotate * item.transform_and_bounds,
                 parent_transform_and_bounds: item.parent_transform_and_bounds,
-                inv_config,
+                inv_config: item.layout_properties.into_inv_config(),
             })?;
         }
 
