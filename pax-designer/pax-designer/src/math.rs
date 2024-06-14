@@ -335,8 +335,12 @@ pub(crate) fn transform_and_bounds_inversion<S: Space>(
         bounds: (1.0, 1.0),
     } * target_box;
 
-    let parts: Parts = target_box.transform.into();
+    let mut parts: Parts = target_box.transform.into();
     let object_bounds = target_box.bounds;
+    let signs = (object_bounds.0.signum(), object_bounds.1.signum());
+    parts.scale.x *= signs.0;
+    parts.scale.y *= signs.1;
+    let object_bounds = (object_bounds.0 * signs.0, object_bounds.1 * signs.1);
 
     #[allow(non_snake_case)]
     let A = target_box.transform.coeffs();

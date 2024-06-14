@@ -1,7 +1,4 @@
 
-<Ellipse width=5px height=5px anchor_x=50% anchor_y=50% fill=WHITE
-    x={(self.anchor_x)px} y={(self.anchor_y)px}
-/>
 
 for (data, i) in self.control_points {
     <ControlPoint
@@ -9,6 +6,11 @@ for (data, i) in self.control_points {
 		ind=i
 	/>
 }
+
+<Ellipse width=8px height=8px anchor_x=50% anchor_y=50% fill=rgba(255, 255, 255, 150) stroke={color: BLUE, width: 1px}
+    x={(self.anchor_x)px} y={(self.anchor_y)px}
+    @mouse_down=self.anchor_move
+/>
 
 for segment in self.bounding_segments {
     <Path class=bounding_segment/>

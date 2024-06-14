@@ -99,17 +99,6 @@ impl ToolBehaviour for CreateComponentTool {
     }
 }
 
-pub enum PointerTool {
-    Moving {
-        pickup_point: Point2<Glass>,
-        initial_selection: SelectionStateSnapshot,
-    },
-    Selecting {
-        p1: Point2<Glass>,
-        p2: Point2<Glass>,
-    },
-}
-
 pub struct SelectNodes<'a> {
     pub ids: &'a [TemplateNodeId],
     //if true, deselects all other objects first
@@ -121,9 +110,6 @@ impl Action for SelectNodes<'_> {
         let mut ids = ctx.app_state.selected_template_node_ids.get();
         // TODO this is not it, should instead not trigger selectnodes if
         // clicking on group of nodes that is already selected and was moved
-        if ids.iter().any(|v| self.ids.contains(v)) {
-            return Ok(CanUndo::No);
-        };
         if self.overwrite
             || !ctx
                 .app_state
@@ -142,25 +128,49 @@ impl Action for SelectNodes<'_> {
     }
 }
 
+pub struct PointerTool {
+    action: PointerToolAction,
+}
+
+pub enum PointerToolAction {
+    Moving {
+        has_moved: bool,
+        hit: UniqueTemplateNodeIdentifier,
+        pickup_point: Point2<Glass>,
+        initial_selection: SelectionStateSnapshot,
+    },
+    Selecting {
+        p1: Point2<Glass>,
+        p2: Point2<Glass>,
+    },
+}
+
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
         if let Some(hit) = ctx.raycast_glass(point, false) {
-            let node_id = hit.global_id().unwrap().get_template_node_id();
-            let _ = ctx.execute(SelectNodes {
-                ids: &[node_id],
-                overwrite: false,
-            });
-
+            let node_id = hit.global_id().unwrap();
+            let selected = ctx.selection_state();
+            if !selected.items.iter().any(|s| s.id == node_id) {
+                let _ = ctx.execute(SelectNodes {
+                    ids: &[node_id.get_template_node_id()],
+                    overwrite: false,
+                });
+            }
             let selection = ctx.selection_state();
-
-            Self::Moving {
-                pickup_point: point,
-                initial_selection: (&selection).into(),
+            Self {
+                action: PointerToolAction::Moving {
+                    hit: node_id.clone(),
+                    has_moved: false,
+                    pickup_point: point,
+                    initial_selection: (&selection).into(),
+                },
             }
         } else {
-            Self::Selecting {
-                p1: point,
-                p2: point,
+            Self {
+                action: PointerToolAction::Selecting {
+                    p1: point,
+                    p2: point,
+                },
             }
         }
     }
@@ -172,10 +182,12 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        match self {
-            &mut PointerTool::Moving {
+        match &mut self.action {
+            &mut PointerToolAction::Moving {
                 pickup_point,
                 ref initial_selection,
+                ref mut has_moved,
+                ..
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
                     // don't commit any movement for very small pixel changes,
@@ -184,6 +196,7 @@ impl ToolBehaviour for PointerTool {
                     // text editing not work
                     return ControlFlow::Continue(());
                 }
+                *has_moved = true;
                 let translation = point - pickup_point;
 
                 let move_translation = TransformAndBounds {
@@ -202,7 +215,7 @@ impl ToolBehaviour for PointerTool {
                     }
                 }
             }
-            PointerTool::Selecting { ref mut p2, .. } => *p2 = point,
+            PointerToolAction::Selecting { ref mut p2, .. } => *p2 = point,
         }
         ControlFlow::Continue(())
     }
@@ -211,12 +224,27 @@ impl ToolBehaviour for PointerTool {
         // move last little distance to pointer up position
         self.pointer_move(point, ctx);
 
-        if let PointerTool::Selecting { .. } = self {
-            // TODO select multiple objects
-            let _ = ctx.execute(SelectNodes {
-                ids: &[],
-                overwrite: false,
-            });
+        match self.action {
+            PointerToolAction::Selecting { .. } => {
+                // TODO select multiple objects
+                let _ = ctx.execute(SelectNodes {
+                    ids: &[],
+                    overwrite: false,
+                });
+            }
+            PointerToolAction::Moving {
+                has_moved, ref hit, ..
+            } => {
+                if !has_moved {
+                    let _ = ctx.execute(SelectNodes {
+                        ids: &[hit.get_template_node_id()],
+                        overwrite: false,
+                    });
+                }
+            }
+        }
+        if let PointerToolAction::Selecting { .. } = self.action {
+        } else {
         }
         ControlFlow::Break(())
     }
@@ -231,7 +259,7 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn visualize(&self, glass: &mut crate::glass::Glass) {
-        if let PointerTool::Selecting { p1, p2 } = self {
+        if let PointerToolAction::Selecting { p1, p2 } = self.action {
             glass.is_rect_tool_active.set(true);
             glass.rect_tool.set(RectTool {
                 x: Size::Pixels(p1.x.into()),
