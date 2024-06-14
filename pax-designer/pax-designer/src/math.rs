@@ -337,13 +337,16 @@ pub(crate) fn transform_and_bounds_inversion<S: Space>(
 
     let mut parts: Parts = target_box.transform.into();
     let object_bounds = target_box.bounds;
+
+    // flip sign of object bounds if negative, and apply a negative scaling instead
     let signs = (object_bounds.0.signum(), object_bounds.1.signum());
+    let object_bounds = (object_bounds.0 * signs.0, object_bounds.1 * signs.1);
     parts.scale.x *= signs.0;
     parts.scale.y *= signs.1;
-    let object_bounds = (object_bounds.0 * signs.0, object_bounds.1 * signs.1);
+    let target_box_transform: Transform2 = parts.clone().into();
 
     #[allow(non_snake_case)]
-    let A = target_box.transform.coeffs();
+    let A = target_box_transform.coeffs();
     #[allow(non_snake_case)]
     let M = [
         // All transformation coefficients
