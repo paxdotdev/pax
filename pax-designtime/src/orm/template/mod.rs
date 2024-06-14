@@ -511,6 +511,61 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
     }
 }
 
+pub struct GetChildrenRequest {
+    pub uni: UniqueTemplateNodeIdentifier,
+}
+
+pub struct GetChildrenResponse {
+    command_id: Option<usize>,
+    #[allow(unused)]
+    pub children: Vec<UniqueTemplateNodeIdentifier>,
+}
+
+impl Request for GetChildrenRequest {
+    type Response = GetChildrenResponse;
+}
+
+impl Response for GetChildrenResponse {
+    fn set_id(&mut self, id: usize) {
+        self.command_id = Some(id);
+    }
+    fn get_id(&self) -> usize {
+        self.command_id.unwrap()
+    }
+}
+
+impl Command<GetChildrenRequest> for GetChildrenRequest {
+    fn execute(
+        &mut self,
+        manifest: &mut PaxManifest,
+    ) -> Result<<GetChildrenRequest as Request>::Response, String> {
+        let component = manifest
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .unwrap();
+
+        let mut children = vec![];
+        if let Some(template) = &component.template {
+            if let Some(n) = template.get_children(&self.uni.get_template_node_id()) {
+                children = n
+                    .iter()
+                    .map(|tnid| {
+                        UniqueTemplateNodeIdentifier::build(
+                            self.uni.get_containing_component_type_id(),
+                            tnid.clone(),
+                        )
+                    })
+                    .collect();
+            }
+        }
+
+        Ok(GetChildrenResponse {
+            command_id: None,
+            children,
+        })
+    }
+}
+
 pub struct GetAllTemplateNodeRequest {
     component_type_id: TypeId,
 }

@@ -29,8 +29,8 @@ use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
-use self::template::MoveTemplateNodeRequest;
 use self::template::{builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest};
+use self::template::{GetChildrenRequest, MoveTemplateNodeRequest};
 
 use anyhow::{anyhow, Result};
 pub mod template;
@@ -133,6 +133,16 @@ impl PaxManifestORM {
     ) -> Result<usize, String> {
         let res = self.execute_command(MoveTemplateNodeRequest::new(uni, location))?;
         Ok(res.get_id())
+    }
+
+    pub fn get_node_children(
+        &mut self,
+        uni: UniqueTemplateNodeIdentifier,
+    ) -> Result<Vec<UniqueTemplateNodeIdentifier>, String> {
+        let resp = self
+            .execute_command(GetChildrenRequest { uni: uni.clone() })
+            .unwrap();
+        Ok(resp.children)
     }
 
     pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Option<NodeBuilder> {
