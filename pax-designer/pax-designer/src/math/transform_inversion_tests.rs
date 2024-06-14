@@ -499,7 +499,7 @@ fn test_to_and_back(
     parent_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
 ) {
     let t_and_b = pax_engine::layout::calculate_transform_and_bounds(
-        &original_props,
+        original_props.clone(),
         parent_transform_and_bounds,
     );
     let inv_config = original_props.into_inv_config();
