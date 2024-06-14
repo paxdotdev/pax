@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::{
     math::{IntoInversionConfiguration, InversionConfiguration},
     model::{
-        action::{Action, ActionContext, CanUndo},
+        action::{orm::group_ungroup, Action, ActionContext, CanUndo},
         tools::SelectNodes,
         RuntimeNodeInfo, SelectionStateSnapshot,
     },
@@ -70,7 +70,6 @@ impl Action for GroupSelected {
             group_creation_save_data.unique_id.get_template_node_id(),
         );
 
-        log::debug!("group has location: {:?}", group_location);
         // -------- Move the nodes to the newly created group ------------
         let _move_selected_into_group_command_ids = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -84,7 +83,6 @@ impl Action for GroupSelected {
             command_ids
         };
 
-        log::debug!("set group position");
         // --------- Position the newly created group -------------------
         let group_parent_data = ctx
             .engine_context
@@ -104,7 +102,6 @@ impl Action for GroupSelected {
             inv_config: InversionConfiguration::default(),
         })?;
 
-        log::debug!("set child positions");
         // ---------- Reposition the children relative to the newly created group
         for node in selected.items {
             ctx.execute(SetNodeTransformProperties {
@@ -119,6 +116,81 @@ impl Action for GroupSelected {
             ids: &[group_creation_save_data.unique_id.get_template_node_id()],
             overwrite: true,
         })?;
+
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            dt.get_orm_mut()
+                .undo()
+                .map_err(|e| anyhow!("cound't undo: {:?}", e))
+        })))
+    }
+}
+
+pub struct UngroupSelected {}
+
+impl Action for UngroupSelected {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let selected: SelectionStateSnapshot = (&ctx.selection_state()).into();
+        let userland_proj_uid = ctx
+            .engine_context
+            .get_nodes_by_id(USERLAND_PROJECT_ID)
+            .first()
+            .unwrap()
+            .global_id();
+
+        for group in selected.items {
+            let parent = ctx
+                .engine_context
+                .get_nodes_by_global_id(group.id.clone())
+                .first()
+                .unwrap()
+                .parent()
+                .unwrap();
+
+            let parent_id = parent.global_id();
+            let group_parent_bounds = parent.transform_and_bounds().get();
+            let new_location = if userland_proj_uid == parent_id {
+                NodeLocation::root(group.id.get_containing_component_type_id())
+            } else {
+                NodeLocation::parent(
+                    group.id.get_containing_component_type_id(),
+                    parent_id.clone().unwrap().get_template_node_id(),
+                )
+            };
+            let group_children = {
+                let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                let group_children = dt
+                    .get_orm_mut()
+                    .get_node_children(group.id.clone())
+                    .map_err(|e| anyhow!("group not found {:?}", e))?;
+
+                for child in group_children.iter() {
+                    dt.get_orm_mut()
+                        .move_node(child.clone(), new_location.clone())
+                        .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
+                }
+                dt.get_orm_mut()
+                    .remove_node(group.id)
+                    .map_err(|e| anyhow!("failed to remove group {:?}", e))?;
+                group_children
+            };
+            for child in group_children {
+                let child_runtime_node = ctx
+                    .engine_context
+                    .get_nodes_by_global_id(child.clone())
+                    .first()
+                    .cloned()
+                    .unwrap();
+                let child_t_and_b = child_runtime_node.transform_and_bounds().get();
+
+                ctx.execute(SetNodeTransformProperties {
+                    id: child,
+                    transform_and_bounds: child_t_and_b,
+                    parent_transform_and_bounds: group_parent_bounds,
+                    inv_config: child_runtime_node.layout_properties().into_inv_config(),
+                })?;
+            }
+        }
 
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
