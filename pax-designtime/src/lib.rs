@@ -32,6 +32,7 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
     priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
+    #[allow(unused)]
     last_written_manifest_version: usize,
 }
 
