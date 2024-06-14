@@ -244,11 +244,7 @@ impl ActionContext<'_> {
             move || {
                 if bounds.len() == 1 {
                     let t_and_b = bounds[0].get();
-                    let transform = t_and_b.transform.cast_spaces();
-                    TransformAndBounds {
-                        transform,
-                        bounds: t_and_b.bounds,
-                    }
+                    t_and_b.cast_spaces().as_pure_scale()
                 } else {
                     let axis_box =
                         AxisAlignedBox::bound_of_points(bounds.iter().flat_map(|t_and_b| {

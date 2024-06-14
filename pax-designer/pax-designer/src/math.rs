@@ -2,6 +2,7 @@ use std::{f64::consts::PI, ops::Mul};
 
 use pax_engine::{
     layout::{LayoutProperties, TransformAndBounds},
+    log,
     math::{Generic, Parts, Point2, Space, Transform2, Vector2},
     NodeLocal,
 };
@@ -295,9 +296,24 @@ pub struct InversionConfiguration {
     pub unit_y_pos: SizeUnit,
 }
 
-// TODO
-// might want to create ToInversionConfiguration trait that is implemented
-// by LayoutProperties? (that just uses the same units).
+pub trait IntoInversionConfiguration {
+    fn into_inv_config(&self) -> InversionConfiguration;
+}
+
+impl IntoInversionConfiguration for LayoutProperties {
+    fn into_inv_config(&self) -> InversionConfiguration {
+        InversionConfiguration {
+            anchor_x: self.anchor_x,
+            anchor_y: self.anchor_y,
+            unit_width: self.width.unit(),
+            unit_height: self.height.unit(),
+            unit_rotation: self.rotate.unit(),
+            unit_x_pos: self.x.unit(),
+            unit_y_pos: self.y.unit(),
+            unit_skew_x: self.skew_x.unit(),
+        }
+    }
+}
 
 // This inversion method goes from:
 // * InversionConfiguration - this objects old property values
@@ -364,24 +380,90 @@ pub(crate) fn transform_and_bounds_inversion<S: Space>(
     let (x, y) = match (anchor_x, anchor_y) {
         // ax = w*x, ay = h*y
         (None, None) => {
+            // This is the most complicated case, since the equation system
+            // needs to respect the boundary conditions (solutions along boundary valid):
+            // 0.0 < ax < object_bounds.0
+            // 0.0 < ay < object_bounds.1
+
+            // Start by solving as if solution was in interior (most often the case);
             let denom =
                 -h_r * w_r * M[0][1] * M[1][0] + (1.0 - h_r * M[1][1]) * (1.0 - w_r * M[0][0]);
-            let x = (dx * (1.0 - h_r * M[1][1]) + dy * h_r * M[0][1]) / denom;
-            let y = (dy * (1.0 - w_r * M[0][0]) + dx * w_r * M[1][0]) / denom;
+            let ax = w_r * (dx * (1.0 - h_r * M[1][1]) + dy * h_r * M[0][1]) / denom;
+            let ay = h_r * (dy * (1.0 - w_r * M[0][0]) + dx * w_r * M[1][0]) / denom;
+
+            // functions to get ax if we have ay, ay if we hav  ax (to find possible solutions along boundaries)
+            let ax_f = |ay| w_r * (dx + M[0][1] * ay) / (1.0 - M[0][0] * w_r);
+            let ay_f = |ax| h_r * (dy + M[1][0] * ax) / (1.0 - M[1][1] * h_r);
+
+            // enumerate all possible solutions
+            let possible_solutions = [
+                // in interior
+                (ax, ay),
+                // along an edge
+                (ax_f(object_bounds.1), object_bounds.1),
+                (ax_f(0.0), 0.0),
+                (object_bounds.0, ay_f(object_bounds.0)),
+                (0.0, ay_f(0.0)),
+                // one of the corners
+                // (edges could cover this, but doesn't due to rounding errors)
+                (0.0, 0.0),
+                (object_bounds.0, 0.0),
+                (0.0, object_bounds.1),
+                (object_bounds.0, object_bounds.1),
+            ];
+
+            let valid_pos_and_anchor = |x, y, ax, ay| {
+                // bounds are within space
+                if !(0.0 <= ax && ax <= object_bounds.0) {
+                    return false;
+                }
+                if !(0.0 <= ay && ay <= object_bounds.1) {
+                    return false;
+                }
+                // if x/y is within container, then ax/ay should not be at bounds
+                if x > 0.0 && ax == 0.0 {
+                    return false;
+                }
+                if x < container_bounds.0 && ax == object_bounds.0 {
+                    return false;
+                }
+                if y > 0.0 && ay == 0.0 {
+                    return false;
+                }
+                if y < container_bounds.1 && ay == object_bounds.1 {
+                    return false;
+                }
+                true
+            };
+
+            let mut solutions = possible_solutions.into_iter().filter_map(|(ax, ay)| {
+                let x = dx + ax * M[0][0] + ay * M[0][1];
+                let y = dy + ax * M[1][0] + ay * M[1][1];
+                valid_pos_and_anchor(x, y, ax, ay).then_some((x, y))
+            });
+
+            let (x, y) = solutions
+                .next()
+                .expect("transform inversion to common properties didn't find a solution");
             (x, y)
         }
         // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {
             let ay = anchor_y.evaluate(object_bounds, Axis::Y);
-            let x = (dx + M[0][1] * ay) / (1.0 - M[0][0] * w_r);
-            let y = dy + M[1][1] * ay + M[1][0] * w_r * x;
+            let ax = w_r * (dx + M[0][1] * ay) / (1.0 - M[0][0] * w_r);
+            let ax = ax.clamp(0.0, object_bounds.0);
+            let x = dx + ax * M[0][0] + ay * M[0][1];
+            let y = dy + ax * M[1][0] + ay * M[1][1];
             (x, y)
         }
         // ax fixed, ay = h*y
         (Some(anchor_x), None) => {
             let ax = anchor_x.evaluate(object_bounds, Axis::X);
-            let y = (dy + M[1][0] * ax) / (1.0 - M[1][1] * h_r);
-            let x = dx + M[0][0] * ax + M[0][1] * h_r * y;
+            let ay = h_r * (dy + M[1][0] * ax) / (1.0 - M[1][1] * h_r);
+            // let ay = ay.clamp(0.0, object_bounds.1);
+            let ay = ay.clamp(0.0, object_bounds.1);
+            let x = dx + ax * M[0][0] + ay * M[0][1];
+            let y = dy + ax * M[1][0] + ay * M[1][1];
             (x, y)
         }
         // ax and ay fixed
@@ -435,12 +517,15 @@ pub(crate) fn transform_and_bounds_inversion<S: Space>(
         y: Some(y),
         width: Some(width),
         height: Some(height),
-        anchor_x,
-        anchor_y,
+        anchor_x: inv_config.anchor_x,
+        anchor_y: inv_config.anchor_y,
         rotate: Some(rotation),
         scale_x: Some(scale_x),
         scale_y: Some(scale_y),
         skew_x,
-        skew_y: Some(Rotation::Radians(0.0.into())),
+        skew_y: Some(Rotation::Degrees(0.0.into())),
     }
 }
+
+#[cfg(test)]
+mod transform_inversion_tests;

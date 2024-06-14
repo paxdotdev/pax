@@ -7,7 +7,7 @@ use pax_std::primitives::{Group, Path, Rectangle};
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
-use crate::model::tools::SelectNode;
+use crate::model::tools::SelectNodes;
 use crate::model::AppState;
 use crate::{model, SetStage, StageInfo, USERLAND_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
 
@@ -170,8 +170,8 @@ impl Glass {
                             true,
                         );
                         if let Some(hit) = hit {
-                            if let Err(e) = ax.execute(SelectNode {
-                                id: hit.global_id().unwrap().get_template_node_id(),
+                            if let Err(e) = ax.execute(SelectNodes {
+                                ids: &[hit.global_id().unwrap().get_template_node_id()],
                                 overwrite: false,
                             }) {
                                 log::warn!("failed to drill into group: {}", e);
