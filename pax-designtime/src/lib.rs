@@ -134,35 +134,36 @@ impl DesigntimeManager {
     }
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
-        let current_manifest_version = self.orm.get_manifest_version().get();
-        if current_manifest_version != self.last_written_manifest_version
-            && current_manifest_version % 5 == 0
-        {
-            let queue = self.get_orm_mut().take_reload_queue();
-            for item in queue {
-                match item {
-                    ReloadType::FullEdit => {
-                        self.send_component_update(&TypeId::build_singleton(
-                            "pax_designer::pax_reexports::designer_project::Example",
-                            None,
-                        ))?;
-                    }
-                    ReloadType::FullPlay => {
-                        self.send_component_update(&TypeId::build_singleton(
-                            "pax_designer::pax_reexports::designer_project::Example",
-                            None,
-                        ))?;
-                    }
-                    ReloadType::Partial(uni) => {
-                        self.send_component_update(&uni.get_containing_component_type_id())?;
-                    }
-                }
-            }
-            self.last_written_manifest_version = current_manifest_version;
-        }
-        self.priv_agent_connection
-            .borrow_mut()
-            .handle_recv(&mut self.orm)
+        Ok(())
+        // let current_manifest_version = self.orm.get_manifest_version().get();
+        // if current_manifest_version != self.last_written_manifest_version
+        //     && current_manifest_version % 5 == 0
+        // {
+        //     let queue = self.get_orm_mut().take_reload_queue();
+        //     for item in queue {
+        //         match item {
+        //             ReloadType::FullEdit => {
+        //                 self.send_component_update(&TypeId::build_singleton(
+        //                     "pax_designer::pax_reexports::designer_project::Example",
+        //                     None,
+        //                 ))?;
+        //             }
+        //             ReloadType::FullPlay => {
+        //                 self.send_component_update(&TypeId::build_singleton(
+        //                     "pax_designer::pax_reexports::designer_project::Example",
+        //                     None,
+        //                 ))?;
+        //             }
+        //             ReloadType::Partial(uni) => {
+        //                 self.send_component_update(&uni.get_containing_component_type_id())?;
+        //             }
+        //         }
+        //     }
+        //     self.last_written_manifest_version = current_manifest_version;
+        // }
+        // self.priv_agent_connection
+        //     .borrow_mut()
+        //     .handle_recv(&mut self.orm)
     }
 }
 
