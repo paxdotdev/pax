@@ -240,6 +240,10 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 }
 
+fn trunc_two_sigfigs(val: f64) -> f64 {
+    (val * 100.0).trunc() / 100.0
+}
+
 // The following 7 impls deal with the serialization of compound types like
 // sequences and maps. Serialization of such types is begun by a Serializer
 // method and followed by zero or more calls to serialize individual elements of
@@ -385,6 +389,7 @@ impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
 }
 
 fn format_f64(value: f64) -> String {
+    let value = (value * 100.0).trunc() / 100.0;
     let value_as_string = value.to_string();
     if value_as_string.contains('.') {
         value_as_string
