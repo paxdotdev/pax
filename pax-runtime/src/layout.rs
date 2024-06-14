@@ -1,7 +1,7 @@
 use std::ops::Mul;
 
 use pax_runtime_api::math::{Generic, Parts, Point2, Space};
-use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
+use pax_runtime_api::{Interpolatable, Numeric, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
@@ -75,18 +75,32 @@ pub fn calculate_transform_and_bounds(
     let bounds = (width, height);
 
     // Anchor behavior:  if no anchor is specified and if x/y values are present
-    //and have an explicit percent value or component, use those percent values
+    //and have an explicit percent value or component, use those percent values (clamp 100% and 0%)
     //otherwise, default to 0
     let anchor_x = anchor_x.unwrap_or_else(|| match x {
         Size::Pixels(_) => Size::ZERO(),
-        Size::Percent(per) => Size::Percent(per),
-        Size::Combined(_, per) => Size::Percent(per),
+        Size::Combined(_, per) | Size::Percent(per) => {
+            if per.to_float() > 100.0 {
+                Size::default()
+            } else if per.to_float() < 0.0 {
+                Size::ZERO()
+            } else {
+                Size::Percent(per)
+            }
+        }
     });
 
     let anchor_y = anchor_y.unwrap_or_else(|| match y {
         Size::Pixels(_) => Size::ZERO(),
-        Size::Percent(per) => Size::Percent(per),
-        Size::Combined(_, per) => Size::Percent(per),
+        Size::Combined(_, per) | Size::Percent(per) => {
+            if per.to_float() > 100.0 {
+                Size::default()
+            } else if per.to_float() < 0.0 {
+                Size::ZERO()
+            } else {
+                Size::Percent(per)
+            }
+        }
     });
 
     let anchor_transform = Transform2::translate(Vector2::new(
@@ -182,6 +196,32 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
         TransformAndBounds {
             transform: res,
             bounds: (self.bounds.0 * rhs.bounds.0, self.bounds.1 * rhs.bounds.1),
+        }
+    }
+}
+
+impl<F: Space, T: Space> TransformAndBounds<F, T> {
+    pub fn as_pure_size(self) -> Self {
+        let mut parts: Parts = self.transform.into();
+        let bounds_x = std::mem::replace(&mut parts.scale.x, 1.0);
+        let bounds_y = std::mem::replace(&mut parts.scale.y, 1.0);
+        TransformAndBounds {
+            transform: parts.into(),
+            bounds: (self.bounds.0 * bounds_x, self.bounds.1 * bounds_y),
+        }
+    }
+    pub fn as_pure_scale(self) -> Self {
+        TransformAndBounds {
+            transform: self.transform
+                * Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1)),
+            bounds: (1.0, 1.0),
+        }
+    }
+
+    pub fn cast_spaces<A: Space, B: Space>(self) -> TransformAndBounds<A, B> {
+        TransformAndBounds {
+            transform: self.transform.cast_spaces(),
+            bounds: self.bounds,
         }
     }
 }
