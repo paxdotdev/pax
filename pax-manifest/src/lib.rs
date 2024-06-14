@@ -889,6 +889,9 @@ impl ComponentTemplate {
     ) -> UniqueTemplateNodeIdentifier {
         let id = self.consume_next_id();
         self.root.insert(index, id.clone());
+        self.children
+            .entry(id.clone())
+            .or_insert_with(VecDeque::new);
         self.nodes.insert(id.clone(), tnd);
         self.get_unique_identifier(id)
     }
@@ -1141,13 +1144,22 @@ impl ComponentTemplate {
             },
             TreeLocation::Parent(p) => match new_location.index {
                 TreeIndexPosition::Top => {
-                    self.children.get_mut(&p).unwrap().push_front(id.clone());
+                    self.children
+                        .entry(p.clone())
+                        .or_default()
+                        .push_front(id.clone());
                 }
                 TreeIndexPosition::Bottom => {
-                    self.children.get_mut(&p).unwrap().push_back(id.clone());
+                    self.children
+                        .entry(p.clone())
+                        .or_default()
+                        .push_back(id.clone());
                 }
                 TreeIndexPosition::At(index) => {
-                    self.children.get_mut(&p).unwrap().insert(index, id.clone());
+                    self.children
+                        .entry(p.clone())
+                        .or_default()
+                        .insert(index, id.clone());
                 }
             },
         }
