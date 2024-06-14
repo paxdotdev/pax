@@ -73,33 +73,29 @@ impl ToolBehaviour for TextEditTool {
         if let Some(hit) = ctx.raycast_glass(point, false) {
             let node_id = hit.global_id().unwrap().get_template_node_id();
             if node_id == self.uid.get_template_node_id() {
-                ControlFlow::Continue(())
-            } else {
-                let node = ctx
-                    .engine_context
-                    .get_nodes_by_global_id(self.uid.clone())
-                    .into_iter()
-                    .next()
-                    .unwrap();
-
-                node.with_properties(|text: &mut Text| {
-                    text.editable.replace_with(Property::new(false));
-                });
-
-                // commit text changes
-                let mut dt = borrow_mut!(ctx.engine_context.designtime);
-                if let Some(mut builder) = dt.get_orm_mut().get_node(self.uid.clone()) {
-                    builder
-                        .set_typed_property("text", self.text_binding.get())
-                        .unwrap();
-                    builder.save().unwrap();
-                }
-                ControlFlow::Break(())
+                return ControlFlow::Continue(());
             }
-        } else {
-            // clicked outside glass
-            ControlFlow::Continue(())
         }
+        let node = ctx
+            .engine_context
+            .get_nodes_by_global_id(self.uid.clone())
+            .into_iter()
+            .next()
+            .unwrap();
+
+        node.with_properties(|text: &mut Text| {
+            text.editable.replace_with(Property::new(false));
+        });
+
+        // commit text changes
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        if let Some(mut builder) = dt.get_orm_mut().get_node(self.uid.clone()) {
+            builder
+                .set_typed_property("text", self.text_binding.get())
+                .unwrap();
+            builder.save().unwrap();
+        }
+        ControlFlow::Break(())
     }
 
     fn pointer_move(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {

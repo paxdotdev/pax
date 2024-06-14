@@ -139,28 +139,11 @@ impl<T: Space> Action for SetNodeTransformProperties<T> {
             rotate,
             scale_x,
             scale_y,
-            anchor_x: _,
-            anchor_y: _,
+            anchor_x,
+            anchor_y,
             skew_x,
             skew_y,
         } = new_props;
-
-        fn write_to_orm<T: Serialize + Default + PartialEq>(
-            builder: &mut NodeBuilder,
-            name: &str,
-            value: Option<T>,
-            is_close_to_default: impl FnOnce(&T) -> bool,
-        ) -> Result<()> {
-            if let Some(val) = value {
-                if !is_close_to_default(&val) {
-                    let val = pax_designtime::to_pax(&val)?;
-                    builder.set_property(name, &val)?;
-                } else {
-                    builder.set_property(name, "")?;
-                }
-            };
-            Ok(())
-        }
 
         const EPS: f64 = 1e-3;
         let is_size_default = |s: &Size, d_p: f64| match s {
@@ -191,7 +174,8 @@ impl<T: Space> Action for SetNodeTransformProperties<T> {
         write_to_orm(&mut builder, "rotate", rotate, is_rotation_default)?;
         write_to_orm(&mut builder, "skew_x", skew_x, is_rotation_default)?;
         write_to_orm(&mut builder, "skew_y", skew_y, is_rotation_default)?;
-        // always skip writing anchor? (separate method)
+        write_to_orm(&mut builder, "anchor_x", anchor_x, |_| false)?;
+        write_to_orm(&mut builder, "anchor_y", anchor_y, |_| false)?;
 
         builder
             .save()
@@ -203,6 +187,39 @@ impl<T: Space> Action for SetNodeTransformProperties<T> {
                 .undo()
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
         })))
+    }
+}
+
+pub struct SetAnchor<'a> {
+    pub object: &'a RuntimeNodeInfo,
+    pub point: Point2<NodeLocal>,
+}
+
+impl Action for SetAnchor<'_> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let t_and_b = self.object.transform_and_bounds;
+        let anchor_x = match self.object.layout_properties.anchor_x.unit() {
+            SizeUnit::Pixels => Size::Pixels(self.point.x.into()),
+            SizeUnit::Percent => Size::Percent((100.0 * self.point.x / t_and_b.bounds.0).into()),
+        };
+        let anchor_y = match self.object.layout_properties.anchor_y.unit() {
+            SizeUnit::Pixels => Size::Pixels(self.point.y.into()),
+            SizeUnit::Percent => Size::Percent((100.0 * self.point.y / t_and_b.bounds.1).into()),
+        };
+
+        let new_anchor = LayoutProperties {
+            anchor_x: Some(anchor_x),
+            anchor_y: Some(anchor_y),
+            ..self.object.layout_properties.clone()
+        };
+        ctx.execute(SetNodeTransformProperties {
+            id: self.object.id.clone(),
+            transform_and_bounds: self.object.transform_and_bounds,
+            parent_transform_and_bounds: self.object.parent_transform_and_bounds,
+            inv_config: new_anchor.into_inv_config(),
+        })?;
+
+        Ok(CanUndo::No)
     }
 }
 
@@ -410,4 +427,21 @@ fn to_pixels(v: f64) -> String {
 
 fn to_percent(v: f64) -> String {
     format!("{:.2?}%", v)
+}
+
+pub fn write_to_orm<T: Serialize + Default + PartialEq>(
+    builder: &mut NodeBuilder,
+    name: &str,
+    value: Option<T>,
+    is_close_to_default: impl FnOnce(&T) -> bool,
+) -> Result<()> {
+    if let Some(val) = value {
+        if !is_close_to_default(&val) {
+            let val = pax_designtime::to_pax(&val)?;
+            builder.set_property(name, &val)?;
+        } else {
+            builder.set_property(name, "")?;
+        }
+    };
+    Ok(())
 }

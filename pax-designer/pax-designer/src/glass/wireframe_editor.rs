@@ -1,4 +1,6 @@
+use anyhow::anyhow;
 use std::cell::RefCell;
+use std::ops::ControlFlow;
 use std::rc::Rc;
 use std::sync::Mutex;
 
@@ -19,9 +21,10 @@ use crate::glass::control_point::{
     ControlPointBehaviourFactory, ControlPointDef, ControlPointStyling,
 };
 use crate::math::coordinate_spaces::{Glass, SelectionSpace};
-use crate::math::{AxisAlignedBox, BoxPoint};
+use crate::math::{AxisAlignedBox, BoxPoint, GetUnit, SizeUnit};
+use crate::model::action::orm::{write_to_orm, SetAnchor};
 use crate::model::action::ActionContext;
-use crate::model::{self, action, SelectionState, SelectionStateSnapshot};
+use crate::model::{self, action, RuntimeNodeInfo, SelectionState, SelectionStateSnapshot};
 use pax_engine::api::Fill;
 
 #[pax]
@@ -94,6 +97,18 @@ impl WireframeEditor {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         // Fire lazy prop if dirty every tick
         self.on_selection_changed.get();
+    }
+
+    pub fn anchor_move(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
+        model::with_action_context(ctx, |ac| {
+            let selection: SelectionStateSnapshot = (&ac.selection_state()).into();
+            if selection.items.len() == 1 {
+                let item = selection.items.into_iter().next().unwrap();
+                ac.app_state
+                    .tool_behaviour
+                    .set(Some(Rc::new(RefCell::new(MoveAnchorTool { object: item }))));
+            }
+        });
     }
 }
 
@@ -355,4 +370,47 @@ impl From<(Point2<Glass>, Point2<Glass>)> for BoundingSegment {
             y1: p1.y,
         }
     }
+}
+
+struct MoveAnchorTool {
+    object: RuntimeNodeInfo,
+}
+
+impl ToolBehaviour for MoveAnchorTool {
+    fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        ControlFlow::Break(())
+    }
+
+    fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        let t_and_b = self.object.transform_and_bounds;
+        let point_in_space = t_and_b.transform.inverse() * point;
+        if ctx
+            .execute(SetAnchor {
+                object: &self.object,
+                point: point_in_space,
+            })
+            .is_err()
+        {
+            log::warn!("failed to move anchor");
+            ControlFlow::Break(())
+        } else {
+            ControlFlow::Continue(())
+        }
+    }
+
+    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        self.pointer_move(point, ctx);
+        ControlFlow::Break(())
+    }
+
+    fn keyboard(
+        &mut self,
+        _event: model::input::InputEvent,
+        _dir: model::input::Dir,
+        _ctx: &mut ActionContext,
+    ) -> ControlFlow<()> {
+        ControlFlow::Break(())
+    }
+
+    fn visualize(&self, _glass: &mut crate::glass::Glass) {}
 }
