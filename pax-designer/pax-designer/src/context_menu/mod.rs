@@ -6,7 +6,7 @@ use pax_engine::*;
 
 use crate::math::coordinate_spaces::Glass;
 use crate::model;
-use crate::model::action::orm::group_ungroup::GroupSelected;
+use crate::model::action::orm::group_ungroup::{GroupSelected, UngroupSelected};
 use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext, CanUndo};
 use pax_std::primitives::*;
@@ -84,6 +84,10 @@ impl DesignerContextMenu {
 
     pub fn group(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(GroupSelected {}, ctx);
+        self.visible.set(false);
+    }
+    pub fn ungroup(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        model::perform_action(UngroupSelected {}, ctx);
         self.visible.set(false);
     }
 }

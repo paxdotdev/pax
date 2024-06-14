@@ -414,7 +414,7 @@ fn test_all_quadrants() {
 //         .expect("transform inversion to common properties didn't find a solution");
 //  >   let extra_solutions = solutions.count();
 //  >   if extra_solutions > 0 {
-//  >       log::debug!("found {} extra solutions!", extra_solutions);
+//  >       log::warn!("found {} extra solutions!", extra_solutions);
 //  >   }
 //     (x, y)
 // }

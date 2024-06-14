@@ -1,34 +1,41 @@
 if self.visible {
     <Group x={(self.pos_x)px} y={(self.pos_y)px} width=200px height=300px>
-        //Create component
-        <Group height=25px @click=self.create_component>
-            <Text height=100% text="Create Component" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=25px height=25px>
-            <Text height=100% text="Undo" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=50px height=25px>
-            <Text height=100% text="Redo" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=75px height=25px @click=self.group>
+        <Group y=0px height=25px @click=self.group>
             <Text height=100% text="Group" id=text x=5px/>
             <Rectangle
                 fill=TRANSPARENT
                 stroke={color: GRAY, width: 1px}
             />
         </Group>
+        <Group y=25px height=25px @click=self.ungroup>
+            <Text height=100% text="Unroup" id=text x=5px/>
+            <Rectangle
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
+            />
+        </Group>
+        //Create component
+        // <Group height=25px @click=self.create_component>
+        //     <Text height=100% text="Create Component" id=text x=5px/>
+        //     <Rectangle
+        //         fill=TRANSPARENT
+        //         stroke={color: GRAY, width: 1px}
+        //     />
+        // </Group>
+        // <Group y=25px height=25px>
+        //     <Text height=100% text="Undo" id=text x=5px/>
+        //     <Rectangle
+        //         fill=TRANSPARENT
+        //         stroke={color: GRAY, width: 1px}
+        //     />
+        // </Group>
+        // <Group y=50px height=25px>
+        //     <Text height=100% text="Redo" id=text x=5px/>
+        //     <Rectangle
+        //         fill=TRANSPARENT
+        //         stroke={color: GRAY, width: 1px}
+        //     />
+        // </Group>
         //Background 
         <Rectangle  fill=BLACK/>
     </Group>
