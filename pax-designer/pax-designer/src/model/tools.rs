@@ -8,7 +8,9 @@ use super::input::InputEvent;
 use super::{RuntimeNodeInfo, SelectionStateSnapshot};
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::math::{AxisAlignedBox, GetUnit, InversionConfiguration, SizeUnit};
+use crate::math::{
+    AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration, SizeUnit,
+};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::USERLAND_PROJECT_ID;
@@ -108,16 +110,18 @@ pub enum PointerTool {
     },
 }
 
-pub struct SelectNode {
-    pub id: TemplateNodeId,
+pub struct SelectNodes<'a> {
+    pub ids: &'a [TemplateNodeId],
     //if true, deselects all other objects first
     pub overwrite: bool,
 }
 
-impl Action for SelectNode {
+impl Action for SelectNodes<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut ids = ctx.app_state.selected_template_node_ids.get();
-        if ids.contains(&self.id) {
+        // TODO this is not it, should instead not trigger selectnodes if
+        // clicking on group of nodes that is already selected and was moved
+        if ids.iter().any(|v| self.ids.contains(v)) {
             return Ok(CanUndo::No);
         };
         if self.overwrite
@@ -129,7 +133,7 @@ impl Action for SelectNode {
         {
             ids.clear();
         }
-        ids.push(self.id);
+        ids.extend_from_slice(self.ids);
         // Only set if changed, otherwise re-triggers when same object gets re-selected
         if ids != ctx.app_state.selected_template_node_ids.get() {
             ctx.app_state.selected_template_node_ids.set(ids);
@@ -142,8 +146,8 @@ impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
         if let Some(hit) = ctx.raycast_glass(point, false) {
             let node_id = hit.global_id().unwrap().get_template_node_id();
-            let _ = ctx.execute(SelectNode {
-                id: node_id,
+            let _ = ctx.execute(SelectNodes {
+                ids: &[node_id],
                 overwrite: false,
             });
 
@@ -188,22 +192,11 @@ impl ToolBehaviour for PointerTool {
                 };
 
                 for item in &initial_selection.items {
-                    let inv_config = InversionConfiguration {
-                        anchor_x: item.layout_properties.anchor_x,
-                        anchor_y: item.layout_properties.anchor_y,
-                        // TODO override some units here
-                        unit_width: item.layout_properties.width.unit(),
-                        unit_height: item.layout_properties.height.unit(),
-                        unit_rotation: item.layout_properties.rotate.unit(),
-                        unit_x_pos: item.layout_properties.x.unit(),
-                        unit_y_pos: item.layout_properties.y.unit(),
-                        unit_skew_x: item.layout_properties.skew_x.unit(),
-                    };
                     if let Err(e) = ctx.execute(SetNodeTransformProperties {
                         id: item.id.clone(),
                         transform_and_bounds: move_translation * item.transform_and_bounds,
                         parent_transform_and_bounds: item.parent_transform_and_bounds,
-                        inv_config,
+                        inv_config: item.layout_properties.into_inv_config(),
                     }) {
                         pax_engine::log::error!("Error moving selected: {:?}", e);
                     }
@@ -220,6 +213,10 @@ impl ToolBehaviour for PointerTool {
 
         if let PointerTool::Selecting { .. } = self {
             // TODO select multiple objects
+            let _ = ctx.execute(SelectNodes {
+                ids: &[],
+                overwrite: false,
+            });
         }
         ControlFlow::Break(())
     }
