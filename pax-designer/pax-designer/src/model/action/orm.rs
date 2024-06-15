@@ -35,19 +35,31 @@ pub struct CreateComponent {
 
 impl Action for CreateComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let mut builder = dt.get_orm_mut().build_new_node(
-            ctx.app_state.selected_component_id.get().clone(),
-            self.type_id,
-        );
-        builder.set_property("x", &to_pixels(self.bounds.top_left().x))?;
-        builder.set_property("y", &to_pixels(self.bounds.top_left().y))?;
-        builder.set_property("width", &to_pixels(self.bounds.width()))?;
-        builder.set_property("height", &to_pixels(self.bounds.height()))?;
-
-        let save_data = builder
+        let save_data = borrow_mut!(ctx.engine_context.designtime)
+            .get_orm_mut()
+            .build_new_node(
+                ctx.app_state.selected_component_id.get().clone(),
+                self.type_id,
+            )
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
+
+        let stage = ctx.app_state.stage.get();
+
+        ctx.execute(SetNodeTransformProperties::<World> {
+            id: save_data.unique_id.clone(),
+            transform_and_bounds: TransformAndBounds {
+                transform: self.bounds.as_transform().cast_spaces(),
+                bounds: (1.0, 1.0),
+            }
+            .as_pure_size(),
+            parent_transform_and_bounds: TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: (stage.width as f64, stage.height as f64),
+            },
+            inv_config: Default::default(),
+        })?;
+
         ctx.execute(SelectNodes {
             ids: &[save_data.unique_id.get_template_node_id()],
             overwrite: true,
@@ -419,14 +431,6 @@ impl Action for DeleteSelected {
                 .map_err(|e| anyhow!("cound't undo: {:?}", e))
         })))
     }
-}
-
-fn to_pixels(v: f64) -> String {
-    format!("{:?}px", v.round())
-}
-
-fn to_percent(v: f64) -> String {
-    format!("{:.2?}%", v)
 }
 
 pub fn write_to_orm<T: Serialize + Default + PartialEq>(
