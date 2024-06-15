@@ -82,10 +82,10 @@ impl WireframeEditor {
                     );
                     bind_props_to_editor(editor, control_points.clone(), bounding_segments.clone());
                 } else {
-                    control_points.set(vec![]);
-                    bounding_segments.set(vec![]);
-                    anchor_x.set(-100.0);
-                    anchor_y.set(-100.0);
+                    control_points.replace_with(Property::new(vec![]));
+                    bounding_segments.replace_with(Property::new(vec![]));
+                    anchor_x.replace_with(Property::new(-100.0));
+                    anchor_y.replace_with(Property::new(-100.0));
                 }
 
                 true
