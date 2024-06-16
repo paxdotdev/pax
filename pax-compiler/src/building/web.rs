@@ -67,7 +67,7 @@ pub fn build_web_chassis_with_cartridge(
     if is_release || cfg!(not(debug_assertions)) {
         cmd.arg("--release");
     } else {
-        cmd.arg("--release");
+        cmd.arg("--dev");
     }
     if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");

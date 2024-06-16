@@ -321,6 +321,7 @@ impl PropertyTable {
     }
 
     pub fn subscribe(&self, id: PropertyId, sub: Rc<dyn Fn()>) -> SubscriptionId {
+        sub();
         let mut sm = self.properties.borrow_mut();
         let entry = sm.get_mut(&id).expect("Property not found");
         entry.data.subscriptions.add(sub)
@@ -462,7 +463,7 @@ impl PropertyTable {
 impl Default for PropertyTable {
     fn default() -> Self {
         PropertyTable {
-            properties: RefCell::new(HashMap::with_hasher(BuildNoHashHasher::default())),
+            properties: RefCell::new(HashMap::with_capacity_and_hasher(5000, BuildNoHashHasher::default())),
         }
     }
 }

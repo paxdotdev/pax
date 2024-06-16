@@ -39,8 +39,8 @@ impl InstanceNode for EllipseInstance {
         _context: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let tab = expanded_node.transform_and_bounds.get();
-        let (width, height) = tab.bounds;
+        let tab = borrow!(&expanded_node.layout_properties);
+        let (width, height) = tab.bounds.get();
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);

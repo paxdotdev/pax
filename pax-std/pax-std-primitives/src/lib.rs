@@ -1,7 +1,7 @@
 // pub mod button;
 // pub mod checkbox;
 // pub mod dropdown;
-// pub mod ellipse;
+pub mod ellipse;
 // pub mod frame;
 pub mod group;
 // pub mod image;
@@ -10,7 +10,7 @@ pub mod group;
 pub mod rectangle;
 // pub mod scrollbar;
 // pub mod slider;
-// pub mod text;
+pub mod text;
 // pub mod textbox;
 
 fn patch_if_needed<T: PartialEq + Clone>(

@@ -176,6 +176,5 @@ impl InstanceNode for RepeatInstance {
             let children = cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
             cloned_expanded_node.attach_children(children, &cloned_context);
         });
-        source_expression.set(source_expression.get());
     }
 }

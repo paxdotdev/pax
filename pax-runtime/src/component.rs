@@ -2,6 +2,7 @@ use std::iter;
 use std::rc::Rc;
 
 use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Property};
+use rustc_hash::FxHashMap;
 
 use_RefCell!();
 use crate::api::{Layer, Timeline};
