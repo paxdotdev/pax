@@ -17,6 +17,7 @@ use pax_runtime::api::pax_value::ToFromPaxValue;
 use std::collections::BTreeMap;
 use pax_engine::log;
 use nohash_hasher::BuildNoHashHasher;
+use rustc_hash::FxHashMap;
 
 pub const INITIAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
@@ -166,8 +167,8 @@ pub trait ComponentFactory {
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
     // Returns the property scope for the component
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, PropertyId>> {
-        Box::new(|_| HashMap::new())
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> FxHashMap<String, PropertyId>> {
+        Box::new(|_| FxHashMap::default())
     }
 }
 

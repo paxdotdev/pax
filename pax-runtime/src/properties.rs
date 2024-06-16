@@ -4,6 +4,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, borrow_mut, use_RefCell, PropertyId, Store};
+use rustc_hash::FxHashMap;
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
@@ -250,7 +251,7 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 
 pub struct RuntimePropertiesStackFrame {
-    symbols_within_frame: HashMap<String, PropertyId>,
+    symbols_within_frame: FxHashMap<String, PropertyId>,
     local_stores: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
     properties: Rc<RefCell<PaxAny>>,
     parent: Weak<RuntimePropertiesStackFrame>,
@@ -258,7 +259,7 @@ pub struct RuntimePropertiesStackFrame {
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
-        symbols_within_frame: HashMap<String, PropertyId>,
+        symbols_within_frame: FxHashMap<String, PropertyId>,
         properties: Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(Self {
@@ -271,7 +272,7 @@ impl RuntimePropertiesStackFrame {
 
     pub fn push(
         self: &Rc<Self>,
-        symbols_within_frame: HashMap<String, PropertyId>,
+        symbols_within_frame: FxHashMap<String, PropertyId>,
         properties: &Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
