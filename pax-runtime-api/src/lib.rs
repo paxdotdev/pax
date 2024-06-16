@@ -9,6 +9,7 @@ pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 pub mod refcell_debug;
 pub use refcell_debug::*;
+use rustc_hash::FxHashMap;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store
@@ -561,8 +562,8 @@ impl CommonProperties {
             .collect()
     }
 
-    pub fn retrieve_property_scope(&self) -> HashMap<String, PropertyId> {
-        let mut scope = HashMap::new();
+    pub fn retrieve_property_scope(&self) -> FxHashMap<String, PropertyId> {
+        let mut scope = FxHashMap::default();
 
         scope.insert("id".to_string(), self.id.get_id());
         scope.insert("x".to_string(), self.x.get_id());

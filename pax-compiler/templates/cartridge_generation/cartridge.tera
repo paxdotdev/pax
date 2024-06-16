@@ -16,6 +16,8 @@ use pax_runtime_api::{borrow, borrow_mut};
 use pax_runtime::api::pax_value::ToFromPaxValue;
 use pax_engine::log;
 use nohash_hasher::BuildNoHashHasher;
+use rustc_hash::FxHashMap;
+
 const INITAL_MANIFEST: &str = include_str!("../initial-manifest.json");
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
@@ -164,8 +166,8 @@ pub trait ComponentFactory {
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
     // Returns the property scope for the component
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, PropertyId>> {
-        Box::new(|_| HashMap::new())
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> FxHashMap<String, PropertyId>> {
+        Box::new(|_| FxHashMap::default())
     }
 }
 
