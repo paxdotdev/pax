@@ -33,6 +33,7 @@ pub mod pax_value;
 pub use pax_property::Property;
 pub use pax_property::PropertyId;
 pub use pax_property::transitions::Interpolatable;
+pub use pax_property::transitions::EasingCurve;
 pub use pax_property::set_time;
 pub use pax_property::print_graph;
 
