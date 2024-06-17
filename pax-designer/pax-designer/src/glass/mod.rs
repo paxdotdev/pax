@@ -237,13 +237,6 @@ impl Glass {
                 log::warn!("wheel action failed: {}", e);
             };
         });
-        log::debug!(
-            "dx: {}, dy: {}, x: {}, y: {}",
-            args.delta_x,
-            args.delta_y,
-            args.x,
-            args.y
-        );
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, args: Event<KeyDown>) {
