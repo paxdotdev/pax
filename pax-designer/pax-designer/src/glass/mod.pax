@@ -1,6 +1,9 @@
-<Group @mouse_move=handle_mouse_move @mouse_up=handle_mouse_up>
+<Group
+    @mouse_move=handle_mouse_move
+    @mouse_up=handle_mouse_up
+    @wheel=handle_wheel
+>
     <WireframeEditor/>
-
     if self.is_rect_tool_active {
         <Rectangle id=rect_tool
             x={self.rect_tool.x}
