@@ -1,12 +1,13 @@
 use pax_engine::api::Fill;
 use pax_engine::api::*;
-use pax_engine::math::Point2;
+use pax_engine::math::{Point2, Vector2};
 use pax_engine::*;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::primitives::{Group, Path, Rectangle};
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
+use crate::model::action::world::Translate;
 use crate::model::tools::SelectNodes;
 use crate::model::AppState;
 use crate::{model, SetStage, StageInfo, USERLAND_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
@@ -222,6 +223,26 @@ impl Glass {
                 point: Point2::new(args.mouse.x, args.mouse.y),
             },
             ctx,
+        );
+    }
+
+    pub fn handle_wheel(&mut self, ctx: &NodeContext, args: Event<Wheel>) {
+        args.prevent_default();
+        model::with_action_context(ctx, |ac| {
+            let original = ac.app_state.glass_to_world_transform.get();
+            if let Err(e) = ac.execute(Translate {
+                translation: Vector2::new(args.delta_x, args.delta_y),
+                original_transform: original,
+            }) {
+                log::warn!("wheel action failed: {}", e);
+            };
+        });
+        log::debug!(
+            "dx: {}, dy: {}, x: {}, y: {}",
+            args.delta_x,
+            args.delta_y,
+            args.x,
+            args.y
         );
     }
 

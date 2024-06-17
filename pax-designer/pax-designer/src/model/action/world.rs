@@ -5,6 +5,7 @@ use crate::math::coordinate_spaces::{Glass, World};
 use crate::model::{input::InputEvent, AppState, ToolBehaviour};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::log;
 use pax_engine::{
     api::{Size, Transform2D},
     math::{Generic, Point2, Transform2, Vector2},
@@ -26,12 +27,16 @@ impl ToolBehaviour for Pan {
     }
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        let diff = ctx.world_transform() * (self.start_point - point);
-        let translation = Transform2::translate(diff);
-        ctx.app_state
-            .glass_to_world_transform
-            .set(translation * self.original_transform);
-        ControlFlow::Continue(())
+        let diff = self.start_point - point;
+        if let Err(e) = ctx.execute(Translate {
+            translation: diff,
+            original_transform: self.original_transform,
+        }) {
+            log::warn!("failed to translate: {}", e);
+            ControlFlow::Break(())
+        } else {
+            ControlFlow::Continue(())
+        }
     }
 
     fn pointer_up(
@@ -52,6 +57,22 @@ impl ToolBehaviour for Pan {
     }
 
     fn visualize(&self, _glass: &mut crate::glass::Glass) {}
+}
+
+pub struct Translate {
+    pub translation: Vector2<Glass>,
+    pub original_transform: Transform2<Glass, World>,
+}
+
+impl Action for Translate {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let diff = ctx.world_transform() * self.translation;
+        let translation = Transform2::translate(diff);
+        ctx.app_state
+            .glass_to_world_transform
+            .set(translation * self.original_transform);
+        Ok(CanUndo::No)
+    }
 }
 
 pub struct Zoom {
