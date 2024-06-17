@@ -104,7 +104,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         if (res.prevent_default) {
             evt.preventDefault();
         }
-    }, {"passive": true, "capture": true});
+    }, {"passive": false, "capture": true});
     window.addEventListener('mousedown', (evt) => {
         let button = getMouseButton(evt);
         // set non-existent window prop to keep track of value
