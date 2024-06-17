@@ -101,6 +101,7 @@ impl InstanceNode for RepeatInstance {
                         &dep,
                     )
                 } else if let Some(vec) = &properties.source_expression_vec {
+                    log::warn!("vec length: {}", vec.get().len());
                     vec.clone()
                 } else {
                     unreachable!("range or vec source must exist")

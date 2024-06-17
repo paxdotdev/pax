@@ -21,7 +21,7 @@ pub struct NodeContext {
     /// Registered handlers on the instance node
     pub(crate) component_origin: Weak<ExpandedNode>,
     /// The current global engine tick count
-    pub frames_elapsed: u64,
+    pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
     pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px
