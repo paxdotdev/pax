@@ -72,11 +72,14 @@ impl InstanceNode for ButtonInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([
+                borrow!(expanded_node.layout_properties).transform.get_id(),
+                borrow!(expanded_node.layout_properties).bounds.get_id(),
+            ])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
-            Property::computed(
+            Property::expression(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()

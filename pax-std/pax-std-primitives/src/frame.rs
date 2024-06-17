@@ -125,7 +125,7 @@ impl InstanceNode for FrameInstance {
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
         let new_children = expanded_node.generate_children(children_with_envs, context);
-        expanded_node.children.set(new_children);
+        expanded_node.attach_children(new_children, context);
 
         // reset parent_frame. Needed for if multiple mounts/dissmounts of this
         // frame occurs
@@ -146,7 +146,7 @@ impl InstanceNode for FrameInstance {
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
-            Property::computed(
+            Property::expression(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()

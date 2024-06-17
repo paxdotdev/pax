@@ -76,7 +76,7 @@ impl InstanceNode for TextboxInstance {
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
-            Property::computed(
+            Property::expression(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()

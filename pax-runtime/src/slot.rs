@@ -57,6 +57,8 @@ impl InstanceNode for SlotInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+
+        log::warn!("Slot handle_mount");
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_context = Rc::clone(context);
 

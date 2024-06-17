@@ -5,10 +5,10 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.15.2"}
-pax-std = { version = "0.15.2"}
-pax-compiler = { version = "0.15.2", optional = true }
-pax-manifest = { version = "0.15.2", optional = true }
+pax-engine = { version = "0.15.2", path = ".pax/pkg/pax-engine" }
+pax-std = { version = "0.15.2", path = ".pax/pkg/pax-std" }
+pax-compiler = { version = "0.15.2", optional = true , path = ".pax/pkg/pax-compiler" }
+pax-manifest = { version = "0.15.2", optional = true , path = ".pax/pkg/pax-manifest" }
 serde_json = {version = "1.0.95", optional = true}
 rand = {version = "0.8.5"}
 getrandom = { version = "0.2.14", features = ["js"] }

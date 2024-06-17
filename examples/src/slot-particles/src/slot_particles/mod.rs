@@ -29,8 +29,8 @@ impl SlotParticles {
         let bounds = ctx.bounds_self.clone();
         let store = Rc::new(RefCell::new(Vec::new()));
         let config = self.config.clone();
-        let deps = [num.untyped(), self.config.untyped()];
-        self.persistent_rng_data.replace_with(Property::computed(
+        let deps = [num.get_id(), self.config.get_id()];
+        self.persistent_rng_data = Property::expression(
             move || {
                 let mut store = store.borrow_mut();
                 let config = config.get();
@@ -55,30 +55,24 @@ impl SlotParticles {
                 store.clone()
             },
             &deps,
-        ));
+        );
         let bounds = ctx.bounds_self.clone();
         let base_data = self.persistent_rng_data.clone();
-        self.particles.replace_with(Property::computed(
-            move || {
-                let t = tick.get() as f64;
-                let base = base_data.get();
-                let (w, h) = bounds.get();
-                base.iter()
-                    .map(|b| ParticleData {
-                        x: (b.x + t * b.dx).rem_euclid(w + 4.0 * b.s) - 2.0 * b.s,
-                        y: (b.y + t * b.dy).rem_euclid(h + 4.0 * b.s) - 2.0 * b.s,
-                        width: b.s,
-                        height: b.s,
-                        rotate: t * b.r,
-                    })
-                    .collect()
-            },
-            &[
-                self.persistent_rng_data.untyped(),
-                ctx.frames_elapsed.untyped(),
-                ctx.bounds_self.untyped(),
-            ],
-        ));
+        let particles = self.particles.clone();
+        ctx.frames_elapsed.subscribe( move || {
+            let t = tick.get() as f64;
+            let base = base_data.get();
+            let (w, h) = bounds.get();
+            particles.set(base.iter()
+                .map(|b| ParticleData {
+                    x: (b.x + t * b.dx).rem_euclid(w + 4.0 * b.s) - 2.0 * b.s,
+                    y: (b.y + t * b.dy).rem_euclid(h + 4.0 * b.s) - 2.0 * b.s,
+                    width: b.s,
+                    height: b.s,
+                    rotate: t * b.r,
+                })
+                .collect());
+        });
     }
 }
 

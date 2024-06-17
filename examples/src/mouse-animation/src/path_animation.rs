@@ -39,43 +39,7 @@ impl Default for PathAnimation {
             thickness_ramp: Property::new(0.3.into()),
             span: Property::new(0.3.into()),
         });
-
-        let path_elements = {
-            let t = t.clone();
-            let resolution = resolution.clone();
-            let path_config = path_config.clone();
-            let deps = [t.untyped(), resolution.untyped(), path_config.untyped()];
-            Property::computed(
-                move || {
-                    let profile = |t: f64| t * (t - 1.0);
-                    let conf = path_config.get();
-                    let path = |t: f64| PathPoint {
-                        point: Point2::<Generic>::new(
-                            t,
-                            0.5 + (conf.amplitude.get().to_float()
-                                + conf.amplitude_ramp.get().to_float() * t)
-                                * ((conf.frequency.get().to_float()
-                                    + conf.frequency_ramp.get().to_float() * t)
-                                    * t
-                                    * PI
-                                    * 2.0)
-                                    .sin(),
-                        ),
-                        thickness: conf.thickness.get().to_float()
-                            + conf.thickness_ramp.get().to_float() * t,
-                    };
-                    parametric_path(
-                        resolution.get().to_int() as usize,
-                        path,
-                        profile,
-                        conf.span.get().to_float(),
-                        t.get().to_float(),
-                    )
-                },
-                &deps,
-            )
-        };
-
+        let path_elements = Property::new(Vec::new());
         Self {
             fill,
             path_config,
@@ -85,6 +49,43 @@ impl Default for PathAnimation {
         }
     }
 }
+
+impl PathAnimation {
+    pub fn handle_mount(&mut self, _ctx: &NodeContext) {
+        let t = self.t.clone();
+        let path_config = self.path_config.clone();
+        let resolution = self.resolution.clone();
+        let path_elements = self.path_elements.clone();
+        let closure = move || {
+            let profile = |t: f64| t * (t - 1.0);
+            let conf = path_config.get();
+            let path = |t: f64| PathPoint {
+                point: Point2::<Generic>::new(
+                    t,
+                    0.5 + (conf.amplitude.get().to_float()
+                        + conf.amplitude_ramp.get().to_float() * t)
+                        * ((conf.frequency.get().to_float()
+                            + conf.frequency_ramp.get().to_float() * t)
+                            * t
+                            * PI
+                            * 2.0)
+                            .sin(),
+                ),
+                thickness: conf.thickness.get().to_float()
+                    + conf.thickness_ramp.get().to_float() * t,
+            };
+            path_elements.set(parametric_path(
+                resolution.get().to_int() as usize,
+                path,
+                profile,
+                conf.span.get().to_float(),
+                t.get().to_float(),
+            ));
+        };
+        self.t.subscribe(closure.clone());
+    }
+}
+
 
 #[pax]
 pub struct PathConfig {

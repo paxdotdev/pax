@@ -38,7 +38,7 @@ use {pax_designtime::DesigntimeManager, pax_runtime_api::properties};
 
 #[derive(Clone)]
 pub struct Globals {
-    pub frames_elapsed: u64,
+    pub frames_elapsed: Property<u64>,
     pub viewport: LayoutProperties,
     pub platform: Platform,
     pub os: OS,
@@ -259,7 +259,7 @@ impl PaxEngine {
     ) -> Self {
         pax_runtime_api::set_time(0);
         let globals = Globals {
-            frames_elapsed: 0,
+            frames_elapsed: Property::new(0),
             viewport: LayoutProperties {
                 transform: Property::new(Transform2::identity()),
                 bounds: Property::new(viewport_size),
@@ -431,10 +431,10 @@ impl PaxEngine {
         });
 
         ctx.edit_globals(|globals| {
-            globals.frames_elapsed += 1;
+            globals.frames_elapsed.set(globals.frames_elapsed.get() + 1);
         });
 
-        set_time(ctx.globals().frames_elapsed);
+        set_time(ctx.globals().frames_elapsed.get());
         ctx.flush_custom_events().unwrap();
         ctx.take_native_messages()
     }
