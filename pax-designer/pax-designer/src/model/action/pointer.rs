@@ -11,7 +11,7 @@ use crate::model::tools::{CreateComponentTool, PointerTool};
 use crate::model::AppState;
 use crate::model::Component;
 use crate::model::{action, Tool};
-use crate::USERLAND_PROJECT_ID;
+use crate::ROOT_PROJECT_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{MouseButton, Window};

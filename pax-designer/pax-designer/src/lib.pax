@@ -1,28 +1,36 @@
-<Group>
-    <ProjectModeToggle x=100% width=90px height=55px/>
-    if self.glass_active {
-        <LLMInterface/>
-        <Controls/>
-        <Group id=designer_glass>
-            //Optionally turned on on right click
-            <DesignerContextMenu/>
-            <Glass/>
-            <Group transform={self.transform2d}>
-                // Stage has a fixed size, regardless of window size
-                <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
-                    // The example project replaces all of the children of the project_container
-                    <Group id=project_container>
-                        <Example id=userland_project/>
-                    </Group>
-                    <Rectangle fill={self.stage.color}/>
+<ProjectModeToggle x=100% width=90px height=55px/>
+if self.glass_active {
+    <LLMInterface/>
+    <Controls/>
+    <Group id=designer_glass>
+        //Optionally turned on on right click
+        <DesignerContextMenu/>
+        <Glass/>
+        <Group transform={self.transform2d}>
+            // Stage has a fixed size, regardless of window size
+            <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
+                // The example project replaces all of the children of the project_container
+                <Group id=project_container>
+                    <Example
+                        stage_width={self.stage.width}
+                        stage_height={self.stage.height}
+                        running=false
+                        id=designer_root_project
+                    />
                 </Group>
+                <Rectangle fill={self.stage.color}/>
             </Group>
         </Group>
-    }
-    if self.interaction_mode {
-        <Example id=running_project/>
-    }
-</Group>
+    </Group>
+}
+if self.interaction_mode {
+    <Example
+        stage_width={self.stage.width}
+        stage_height={self.stage.height}
+        running=true
+        id=running_project
+    />
+}
 <Rectangle id=global_background />
 
 @settings {
