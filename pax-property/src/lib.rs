@@ -143,6 +143,14 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.unsubscribe(self.id, sub_id))
     }
 
+    // Replace a property with a new one, keeping all its dependencies and subscriptions
+    pub fn replace_with(&self, new_property: Property<T>) {
+        PROPERTY_TABLE.with(|t| t.replace_with(self.id, new_property.get_id()));
+        self.set(new_property.get());
+        let cloned_self = self.clone();
+        self.subscribe(move || new_property.set(cloned_self.get()));
+    }
+
     pub fn get_id(&self) -> PropertyId {
         self.id
     }
@@ -152,6 +160,14 @@ impl<T: PropertyValue> Property<T> {
             id,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    pub fn print_outbound(&self) {
+        PROPERTY_TABLE.with(|t| t.print_outbound(self.id));
+    }
+
+    pub fn print_inbound(&self) {
+        PROPERTY_TABLE.with(|t| t.print_inbound(self.id));
     }
 }
 

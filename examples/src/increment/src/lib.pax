@@ -1,5 +1,5 @@
 <Group x=50% y=50% width=120px height=120px @click=self.increment >
-    <Text text={self.num_clicks + " clicks"} id=text />
+    <Text text={self.num_clicks + " clicks"} id=text width=90% height=50px x=50% />
     <Rectangle
         fill={rgb(ticks, 75, 150)}
         corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}

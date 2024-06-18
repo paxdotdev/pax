@@ -10,7 +10,42 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
+
+// pub struct PropertyData {
+//     // Data associated with the property
+//     pub value: Box<dyn Any>,
+//     // Closures to run when this property is set
+//     pub subscriptions: Subscriptions,
+//     // The type of the property
+//     pub property_type: PropertyType,
+//     // List of properties that this property depends on
+//     pub inbound: HashSet<PropertyId>,
+//     // List of properties that depend on this value
+//     pub outbound: HashSet<PropertyId>,
+//     // Topologically sorted dependencies (None if not computed yet)
+//     pub dependents_to_update: Option<Vec<PropertyId>>,
+//     // Type agnostic transition manager
+//     pub transition_manager: Option<TransitionManagerWrapper>,
+// }
+
+
 impl PropertyTable {
+
+    // Function that recurses up inbound properties and deletes saved dependents to update so it's recommputed
+    pub fn clear_memoized_dependents(&self, id: PropertyId) {
+        let inbound = {
+            let mut sm = self.properties.borrow_mut();
+            let entry = sm.get_mut(&id).expect("Property not found");
+            entry.data.dependents_to_update = None;
+            entry.data.inbound.clone()
+        };
+        for &inbound_id in inbound.iter() {
+            self.clear_memoized_dependents(inbound_id);
+        }
+    }
+
+
+
     // Function to perform a topological sort on affected properties and return a sorted vector of property ids
     pub fn topological_sort_affected(&self, start_id: PropertyId) -> Vec<PropertyId> {
         let mut in_degree = HashMap::new();
