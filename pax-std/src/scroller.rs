@@ -19,15 +19,15 @@ use pax_runtime::api::{NodeContext, Platform, TouchEnd, TouchMove, TouchStart, O
             x=100%
             size_inner_pane_y={self.scroll_height}
         />
-        <Scrollbar
-            scroll_x={self.scroll_pos_x}
-            height=20px
-            anchor_y=100%
-            y=100%
-            size_inner_pane_x={self.scroll_width}
-        />
-        <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px}>
-            for i in 0..self.slot_children {
+        // <Scrollbar
+        //     scroll_x={self.scroll_pos_x}
+        //     height=20px
+        //     anchor_y=100%
+        //     y=100%
+        //     size_inner_pane_x={self.scroll_width}
+        // />
+        <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width} height={self.scroll_height}>
+            for i in 0..self.slot_children_count {
                 slot(i)
             }
         </Group>
@@ -82,8 +82,10 @@ pub fn no_touches() -> bool {
 
 impl Scroller {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let slot_children_count = ctx.slot_children_count.clone();
+        let deps = [slot_children_count.untyped()];
         self.slot_children_count
-            .replace_with(ctx.slot_children_count.clone());
+            .replace_with(Property::computed(move || slot_children_count.get(), &deps));
         let scroll_params = match ctx.os {
             OS::Android => PlatformSpecificScrollParams {
                 deacceleration: 0.02,
@@ -158,8 +160,8 @@ impl Scroller {
         let old_y = self.scroll_pos_y.get().to_float();
         let target_x = old_x + dx;
         let target_y = old_y + dy;
-        let clamped_target_x = target_x.clamp(0.0, max_bounds_x - bounds_x);
-        let clamped_target_y = target_y.clamp(0.0, max_bounds_y - bounds_y);
+        let clamped_target_x = target_x.clamp(0.0, (max_bounds_x - bounds_x).max(0.0));
+        let clamped_target_y = target_y.clamp(0.0, (max_bounds_y - bounds_y).max(0.0));
         self.scroll_pos_x.set(Numeric::F64(clamped_target_x));
         self.scroll_pos_y.set(Numeric::F64(clamped_target_y));
     }

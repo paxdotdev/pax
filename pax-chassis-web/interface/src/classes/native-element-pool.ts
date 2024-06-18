@@ -696,7 +696,9 @@ export class NativeElementPool {
 
         scrollerDiv.appendChild(scroller);
         scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
-        scrollerDiv.style.overflow = "scroll";
+        // NOTE: add property to specify this?
+        scrollerDiv.style.overflowY = "auto";
+        scrollerDiv.style.overflowX = "hidden";
         scrollerDiv.setAttribute("pax_id", String(patch.id));
 
 
