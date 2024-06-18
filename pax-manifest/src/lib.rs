@@ -1074,6 +1074,25 @@ impl ComponentTemplate {
         }
     }
 
+    pub fn find_node_with_str_id(&self, id: &str) -> Option<&TemplateNodeId> {
+        for (i, n) in &self.nodes {
+            if let Some(settings) = &n.settings {
+                for setting in settings {
+                    if let SettingElement::Setting(setting, value) = setting {
+                        if setting.raw_value == "id" {
+                            if let ValueDefinition::LiteralValue(val) = value {
+                                if val.raw_value == id {
+                                    return Some(i);
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn get_nodes(&self) -> Vec<&TemplateNodeDefinition> {
         self.nodes.values().collect()
     }
