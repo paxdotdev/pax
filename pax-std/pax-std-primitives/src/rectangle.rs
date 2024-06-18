@@ -8,7 +8,7 @@ use pax_std::primitives::Rectangle;
 
 use pax_runtime::api::{Layer, RenderContext};
 use_RefCell!();
-use std::rc::Rc;
+use std::{borrow::Borrow, rc::Rc};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -37,8 +37,14 @@ impl InstanceNode for RectangleInstance {
         _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
+  
         let tab = &expanded_node.layout_properties;
         let (width, height) = borrow!(tab).bounds.get();
+
+        let cp = expanded_node.get_common_properties();
+        let borrowed = borrow!(cp);
+        let anchor = borrowed.anchor_x.get();
+
 
         let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
 

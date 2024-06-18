@@ -172,13 +172,13 @@ impl ExpandedNode {
         let globals = ctx.globals();
         let parent_bounds = globals.viewport.bounds.clone();
         let parent_transform = globals.viewport.transform.clone();
+     
         let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
         {
-            let mut layout_properties = borrow_mut!(root_node.layout_properties);
-            layout_properties.bounds = bounds;
+            let layout_properties = borrow!(root_node.layout_properties);
+            layout_properties.bounds.replace_with(bounds);
             layout_properties
-                .transform
-                = transform;
+                .transform.replace_with(transform);
         }
         Rc::clone(&root_node).recurse_mount(ctx);
         root_node
@@ -314,9 +314,10 @@ impl ExpandedNode {
             }
             for child in new_children.iter() {
                 child.bind_to_parent_bounds();
+                    // set frame clipping reference
+                    child.parent_frame.set(self.parent_frame.get());
                 Rc::clone(child).recurse_mount(context);
-                // set frame clipping reference
-                child.parent_frame.set(self.parent_frame.get());
+
             }
         }
         *curr_children = new_children.clone();

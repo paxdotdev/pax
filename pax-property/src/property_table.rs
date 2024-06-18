@@ -134,6 +134,9 @@ impl TransitionCleanupInfo {
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct SubscriptionId(usize);
+
+
+#[derive(Clone)]
 pub struct Subscriptions {
     pub subscriptions: HashMap<SubscriptionId, Rc<dyn Fn()>>,
     pub next_id: SubscriptionId,
@@ -222,6 +225,10 @@ impl PropertyData {
 
 impl PropertyTable {
     pub fn insert<T: PropertyValue>(&self, property_type: PropertyType, value: T, inbound: Vec<PropertyId>) -> PropertyId {
+       for i in &inbound {
+           self.clear_memoized_dependents(i.clone());
+       }
+
         let Ok(mut sm) = self.properties.try_borrow_mut() else {
             panic!("Failed to borrow property table");
         };
@@ -252,6 +259,10 @@ impl PropertyTable {
         
         //let start_time = PERFORMANCE.with(|p| p.now());
         let sm = self.properties.borrow();
+        if !sm.contains_key(&id){
+            return T::default();
+        }
+
         let entry = sm.get(&id).expect("Property not found");
         let value = entry.data.get_value();
         //let end_time = PERFORMANCE.with(|p| p.now());
@@ -278,13 +289,13 @@ impl PropertyTable {
 
         // if dependencies have not been computed, compute them and memoize them
         if deps.is_none() {
-            deps = Some(self.topological_sort_affected(id));
-            {
-                let mut sm = self.properties.borrow_mut();
-                let entry = sm.get_mut(&id).expect("Property not found");
-                entry.data.dependents_to_update = deps.clone();
-            }
-        }
+           deps = Some(self.topological_sort_affected(id));
+           {
+                 let mut sm = self.properties.borrow_mut();
+                 let entry = sm.get_mut(&id).expect("Property not found");
+                 entry.data.dependents_to_update = deps.clone();
+             }
+         }
 
         // update all dependent properties & collect subscriptions
         for dep_id in deps.unwrap() {
@@ -318,6 +329,76 @@ impl PropertyTable {
             entry.data.value = new_value;
             entry.version += 1;
         }
+    }
+
+
+    pub fn replace_with(&self, older_property: PropertyId, new_property: PropertyId) {
+
+        self.clear_memoized_dependents(older_property);
+        self.clear_memoized_dependents(new_property);
+
+        // Get properties that depend on id and its subscriptions
+        let (new_inbound, new_outbound, new_property_type)  = {
+            let mut sm = self.properties.borrow_mut();
+            let entry = sm.get_mut(&new_property).expect("Property not found");
+            let ret = (entry.data.inbound.clone(), entry.data.outbound.clone(), entry.data.property_type.clone());
+            entry.data.inbound = HashSet::new();
+            entry.data.outbound = HashSet::new();
+            ret
+        };
+        // For new inbound change each of their outbounds to point to older_property id
+        for id in new_inbound.clone() {
+            {
+                let mut sm = self.properties.borrow_mut();
+                let entry = sm.get_mut(&id).expect("Property not found");
+                entry.data.outbound.remove(&new_property);
+                entry.data.outbound.insert(older_property);
+            }
+        }
+
+        for id in new_outbound.clone() {
+            {
+                let mut sm = self.properties.borrow_mut();
+                let entry = sm.get_mut(&id).expect("Property not found");
+                entry.data.inbound.remove(&new_property);
+                entry.data.inbound.insert(older_property);
+            }
+        }
+
+        let old_inbound = {
+            let mut sm = self.properties.borrow_mut();
+            let entry = sm.get_mut(&older_property).expect("Property not found");
+            let ret = entry.data.inbound.clone();
+            entry.data.inbound = new_inbound.clone();
+            entry.data.outbound.extend(new_outbound.clone());
+            entry.data.property_type = new_property_type.clone();
+            ret
+        };
+
+        // Unplug unnecessary dependencies from pointing to this node
+        let diff = old_inbound.difference(&new_inbound);
+
+        for id in diff.clone() {
+            {
+                let mut sm = self.properties.borrow_mut();
+                let entry = sm.get_mut(&id).expect("Property not found");
+                entry.data.inbound.remove(&older_property);
+            }
+        }
+
+    
+    }
+
+    pub fn print_outbound(&self, id: PropertyId) {
+        let sm = self.properties.borrow();
+        let entry = sm.get(&id).expect("Property not found");
+        log::warn!("Outbound for property: {:?}", entry.data.outbound.iter().collect::<Vec<&PropertyId>>());
+    }
+
+    pub fn print_inbound(&self, id: PropertyId) {
+        let sm = self.properties.borrow();
+        let entry = sm.get(&id).expect("Property not found");
+        log::warn!("Inbound for property: {:?}", entry.data.inbound.iter().collect::<Vec<&PropertyId>>());
     }
 
     pub fn subscribe(&self, id: PropertyId, sub: Rc<dyn Fn()>) -> SubscriptionId {

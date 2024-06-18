@@ -138,7 +138,7 @@ pub trait ComponentFactory {
                             },
                             _ => unreachable!("Invalid value definition for {{common_property.name}}")
                         };
-                        cp.{{common_property.name}} = resolved_property;
+                        cp.{{common_property.name}}.replace_with(resolved_property);
                     },
                     {% endfor %}
                     _ => {}

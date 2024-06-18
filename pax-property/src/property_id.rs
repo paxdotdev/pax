@@ -6,7 +6,7 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct PropertyId {
-    id: u64,
+    pub id: u64,
 }
 
 impl Display for PropertyId {

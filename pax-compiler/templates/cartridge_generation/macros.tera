@@ -13,7 +13,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         let mut properties = {{component.pascal_identifier}}::default();
         {% for property in component.properties %}
             if let Some(vd) = defined_properties.get("{{property.name}}") {
-                properties.{{property.name}} =
+                properties.{{property.name}}.replace_with(
                     match vd.clone() {
                         ValueDefinition::LiteralValue(lv) => {
                                 let val = from_pax_try_coerce::<{{property.property_type.type_id._type_id}}>(&lv.raw_value)
@@ -46,7 +46,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                             Property::new({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()))
                         }
                         _ => unreachable!("Invalid value definition for {{property.name}}")
-                    };
+                    });
             }
         {% endfor %}
         properties.to_pax_any()

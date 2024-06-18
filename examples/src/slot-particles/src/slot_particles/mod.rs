@@ -29,33 +29,35 @@ impl SlotParticles {
         let bounds = ctx.bounds_self.clone();
         let store = Rc::new(RefCell::new(Vec::new()));
         let config = self.config.clone();
-        let deps = [num.get_id(), self.config.get_id()];
-        self.persistent_rng_data = Property::expression(
-            move || {
-                let mut store = store.borrow_mut();
-                let config = config.get();
-                let min_size = config.min_size.get().to_float();
-                let max_size = config.max_size.get().to_float();
-                let max_speed = config.max_speed.get().to_float();
-                let max_rotation = config.max_rotation.get().to_float();
-                let mut rng = rng.borrow_mut();
-                let (w, h) = bounds.get();
-                let w = w.max(1.0);
-                let h = h.max(1.0);
-                while store.len() < num.get() {
-                    store.push(RngData {
-                        x: rng.gen_range(0.0..w),
-                        y: rng.gen_range(0.0..h),
-                        s: rng.gen_range(min_size..max_size),
-                        dx: rng.gen_range(-max_speed..max_speed),
-                        dy: rng.gen_range(-max_speed..max_speed),
-                        r: rng.gen_range(-max_rotation..max_rotation),
-                    });
-                }
-                store.clone()
-            },
-            &deps,
-        );
+        let cloned_persistent_rng_data = self.persistent_rng_data.clone();
+        
+        let closure =  move || {
+            let mut store = store.borrow_mut();
+            let config = config.get();
+            let min_size = config.min_size.get().to_float();
+            let max_size = config.max_size.get().to_float();
+            let max_speed = config.max_speed.get().to_float();
+            let max_rotation = config.max_rotation.get().to_float();
+            let mut rng = rng.borrow_mut();
+            let (w, h) = bounds.get();
+            let w = w.max(1.0);
+            let h = h.max(1.0);
+            while store.len() < num.get() {
+                store.push(RngData {
+                    x: rng.gen_range(0.0..w),
+                    y: rng.gen_range(0.0..h),
+                    s: rng.gen_range(min_size..max_size),
+                    dx: rng.gen_range(-max_speed..max_speed),
+                    dy: rng.gen_range(-max_speed..max_speed),
+                    r: rng.gen_range(-max_rotation..max_rotation),
+                });
+            }
+            cloned_persistent_rng_data.set(store.clone());
+        };
+
+        ctx.slot_children_count.subscribe(closure.clone());
+        self.config.subscribe(closure.clone());
+
         let bounds = ctx.bounds_self.clone();
         let base_data = self.persistent_rng_data.clone();
         let particles = self.particles.clone();
@@ -63,15 +65,16 @@ impl SlotParticles {
             let t = tick.get() as f64;
             let base = base_data.get();
             let (w, h) = bounds.get();
-            particles.set(base.iter()
-                .map(|b| ParticleData {
-                    x: (b.x + t * b.dx).rem_euclid(w + 4.0 * b.s) - 2.0 * b.s,
-                    y: (b.y + t * b.dy).rem_euclid(h + 4.0 * b.s) - 2.0 * b.s,
-                    width: b.s,
-                    height: b.s,
-                    rotate: t * b.r,
-                })
-                .collect());
+            let new_particles : Vec<_> = base.iter()
+            .map(|b| ParticleData {
+                x: (b.x + t * b.dx).rem_euclid(w + 4.0 * b.s) - 2.0 * b.s,
+                y: (b.y + t * b.dy).rem_euclid(h + 4.0 * b.s) - 2.0 * b.s,
+                width: b.s,
+                height: b.s,
+                rotate: t * b.r,
+            })
+            .collect();
+            particles.set(new_particles.clone());
         });
     }
 }
