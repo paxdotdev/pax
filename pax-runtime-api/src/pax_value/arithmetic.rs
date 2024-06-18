@@ -1,7 +1,7 @@
 use std::{
     cmp::Ordering,
     f64::consts::PI,
-    ops::{Add, Div, Mul, Neg, Rem, Sub},
+    ops::{Add, Div, Mul, Neg, Not, Rem, Sub},
 };
 
 use crate::{Numeric, PaxValue, Percent, Rotation, Size, ToFromPaxValue};
@@ -123,6 +123,17 @@ impl Rem for PaxValue {
     }
 }
 
+impl Not for PaxValue {
+    type Output = PaxValue;
+
+    fn not(self) -> Self::Output {
+        match self {
+            PaxValue::Bool(v) => PaxValue::Bool(!v),
+            v => panic!("! operator not valid for {:?}", v),
+        }
+    }
+}
+
 impl PaxValue {
     // the operator && currently can't be overloaded, we use this function instead
     // NOTE: this does not short circuit in the normal way that && does
@@ -230,6 +241,17 @@ impl PartialOrd for PaxAny {
     fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
         match (self, rhs) {
             (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.partial_cmp(b),
+            _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
+        }
+    }
+}
+
+impl Not for PaxAny {
+    type Output = PaxAny;
+
+    fn not(self) -> Self::Output {
+        match self {
+            PaxAny::Builtin(v) => (!v).to_pax_any(),
             _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
         }
     }
