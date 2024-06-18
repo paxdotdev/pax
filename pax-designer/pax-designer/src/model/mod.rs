@@ -9,6 +9,8 @@ use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::EDIT_MODE_STAGE_GROUP;
+use crate::SCHIM_COMPONENT;
+use crate::USERLAND_EDIT_ID;
 use crate::USER_PROJ_ROOT_COMPONENT;
 use crate::USER_PROJ_ROOT_IMPORT_PATH;
 use action::Action;
@@ -21,16 +23,20 @@ use pax_engine::api::Interpolatable;
 use pax_engine::api::MouseButton;
 use pax_engine::layout::LayoutProperties;
 use pax_engine::layout::TransformAndBounds;
+use pax_engine::log;
 use pax_engine::math::Generic;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::pax;
 use pax_engine::NodeLocal;
 use pax_engine::Property;
 use pax_engine::{api::NodeContext, math::Point2};
+use pax_manifest::PropertyDefinition;
 use pax_manifest::TemplateNodeId;
 use pax_manifest::TypeId;
 use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_manifest::ValueDefinition;
 use pax_runtime_api::borrow;
+use pax_runtime_api::borrow_mut;
 use std::any::Any;
 use std::cell::OnceCell;
 use std::cell::RefCell;
@@ -119,14 +125,30 @@ pub fn init_model(ctx: &NodeContext) {
     let deps = [manifest_ver.untyped()];
     let stage = Property::computed(
         move || {
-            // let t_and_b = ctx
-            //     .get_nodes_by_id(EDIT_MODE_STAGE_GROUP)
-            //     .first()
-            //     .cloned()
-            //     .unwrap()
-            //     .transform_and_bounds();
-            // let (width, height) = t_and_b.get().bounds;
-            let (width, height): (f64, f64) = (1000.0, 4000.0);
+            let mut dt = borrow_mut!(ctx.designtime);
+            let orm = dt.get_orm_mut();
+            let mut builder = orm
+                .get_node_by_str_id(
+                    &TypeId::build_singleton(SCHIM_COMPONENT, None),
+                    EDIT_MODE_STAGE_GROUP,
+                )
+                .unwrap();
+            let props: Vec<(PropertyDefinition, Option<ValueDefinition>)> =
+                builder.get_all_properties();
+            let height = props
+                .iter()
+                .find_map(|(p, v)| {
+                    if p.name == "height" {
+                        if let Some(ValueDefinition::LiteralValue(v)) = v {
+                            log::debug!("{}", v.raw_value);
+                            return Some(v.raw_value.clone());
+                        }
+                    }
+                    None
+                })
+                .unwrap();
+            let (width, height): (f64, f64) =
+                (1000.0, height.trim_end_matches("px").parse().unwrap());
             StageInfo {
                 width: width.round() as u32,
                 height: height.round() as u32,
