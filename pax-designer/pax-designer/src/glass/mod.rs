@@ -10,7 +10,7 @@ use crate::controls::file_and_component_picker::SetLibraryState;
 use crate::model::action::world::Translate;
 use crate::model::tools::SelectNodes;
 use crate::model::AppState;
-use crate::{model, SetStage, StageInfo, USERLAND_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
+use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, World};
@@ -85,8 +85,8 @@ impl Action for SetEditingComponent {
             name => {
                 log::warn!("component with import path: {:?} didn't have a specified stage size, using fallback", name);
                 StageInfo {
-                    width: 2561 / 2,
-                    height: 1440 / 2,
+                    width: 100,
+                    height: 100,
                     color: Color::WHITE,
                 }
             }
@@ -97,7 +97,7 @@ impl Action for SetEditingComponent {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let node = ctx
             .engine_context
-            .get_nodes_by_id(USERLAND_PROJECT_ID)
+            .get_nodes_by_id(ROOT_PROJECT_ID)
             .into_iter()
             .next()
             .ok_or(anyhow!("couldn't find node with userland id"))?;

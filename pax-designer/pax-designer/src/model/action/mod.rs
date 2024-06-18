@@ -2,7 +2,8 @@ use std::{rc::Rc, sync::Arc};
 
 use super::{DerivedAppState, SelectedItem, SelectionState};
 use crate::math::coordinate_spaces::World;
-use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, USERLAND_PROJECT_ID};
+use crate::USERLAND_EDIT_ID;
+use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::layout::TransformAndBounds;
@@ -98,7 +99,7 @@ impl ActionContext<'_> {
 
         if let Some(container) = self
             .engine_context
-            .get_nodes_by_id(USERLAND_PROJECT_ID)
+            .get_nodes_by_id(USERLAND_EDIT_ID)
             .first()
         {
             let mut target = all_elements_beneath_ray

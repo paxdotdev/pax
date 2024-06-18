@@ -28,10 +28,12 @@ pub mod project_mode_toggle;
 
 use llm_interface::LLMInterface;
 
-pub const USERLAND_PROJECT_ID: &'static str = "userland_project";
+pub const ROOT_PROJECT_ID: &'static str = "designer_root_project";
+pub const USERLAND_EDIT_ID: &'static str = "userland_project";
 pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
-pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "pax_designer::pax_reexports::designer_project";
-pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
+pub const USER_PROJ_ROOT_IMPORT_PATH: &str =
+    "pax_designer::pax_reexports::designer_project::userland";
+pub const USER_PROJ_ROOT_COMPONENT: &str = "Userland";
 
 #[pax]
 #[main]
@@ -65,7 +67,7 @@ impl PaxDesigner {
             // init stage to some reasonable size
             stage.set(StageInfo {
                 width: 2561 / 2,
-                height: 1440 / 2,
+                height: 1440 / 2 * 5,
                 color: Color::WHITE,
             });
             let deps = [stage.untyped()];
