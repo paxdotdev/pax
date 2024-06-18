@@ -149,6 +149,15 @@ impl PaxManifestORM {
         NodeBuilder::retrieve_node(self, uni)
     }
 
+    pub fn get_node_by_str_id(&mut self, component: &TypeId, id: &str) -> Option<NodeBuilder> {
+        let temp = self.get_component(component).ok()?.template.as_ref()?;
+        let template_id = temp.find_node_with_str_id(id)?;
+        NodeBuilder::retrieve_node(
+            self,
+            UniqueTemplateNodeIdentifier::build(component.clone(), template_id.clone()),
+        )
+    }
+
     pub fn get_main_component(&self) -> &TypeId {
         &self.manifest.main_component_type_id
     }
