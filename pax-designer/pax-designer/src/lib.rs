@@ -3,6 +3,7 @@
 use std::sync::Mutex;
 
 use crate::math::coordinate_spaces::{self, World};
+use anyhow::anyhow;
 use model::{
     action::{Action, ActionContext, CanUndo},
     ProjectMode, StageInfo,
@@ -28,9 +29,11 @@ pub mod project_mode_toggle;
 
 use llm_interface::LLMInterface;
 
-pub const ROOT_PROJECT_ID: &'static str = "designer_root_project";
-pub const USERLAND_EDIT_ID: &'static str = "userland_project";
+pub const ROOT_PROJECT_ID: &'static str = "userland_project";
+pub const USERLAND_EDIT_ID: &'static str = "userland_project_edit_root";
 pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
+pub const RUNNING_MODE_STAGE_GROUP: &'static str = "running_mode_stage_group";
+pub const EDIT_MODE_STAGE_GROUP: &'static str = "edit_mode_stage_group";
 pub const USER_PROJ_ROOT_IMPORT_PATH: &str =
     "pax_designer::pax_reexports::designer_project::userland";
 pub const USER_PROJ_ROOT_COMPONENT: &str = "Userland";
@@ -62,14 +65,9 @@ impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::init_model(ctx);
 
-        model::read_app_state(|app_state| {
-            let stage = app_state.stage.clone();
+        model::read_app_state_with_derived(|app_state, derived| {
+            let stage = derived.stage.clone();
             // init stage to some reasonable size
-            stage.set(StageInfo {
-                width: 2561 / 2,
-                height: 1440 / 2 * 5,
-                color: Color::WHITE,
-            });
             let deps = [stage.untyped()];
             self.stage
                 .replace_with(Property::computed(move || stage.get(), &deps));
@@ -111,7 +109,39 @@ pub struct SetStage(pub StageInfo);
 
 impl Action for SetStage {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        ctx.app_state.stage.set(self.0);
+        // TODO can't find expanded node for this since none exist?
+        // // set running mode size
+        // let uid = ctx
+        //     .engine_context
+        //     .get_nodes_by_id(RUNNING_MODE_STAGE_GROUP)
+        //     .first()
+        //     .cloned()
+        //     .unwrap()
+        //     .global_id()
+        //     .unwrap();
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        // let mut builder = dt
+        //     .get_orm_mut()
+        //     .get_node(uid)
+        //     .ok_or_else(|| anyhow!("cound't find node"))?;
+        // builder.set_property("scroll_height", &format!("{}px", self.0.height))?;
+        // builder.save().map_err(|_| anyhow!("cound't find node"))?;
+
+        // set edit mode size
+        let uid = ctx
+            .engine_context
+            .get_nodes_by_id(EDIT_MODE_STAGE_GROUP)
+            .first()
+            .cloned()
+            .unwrap()
+            .global_id()
+            .unwrap();
+        let mut builder = (&mut *dt)
+            .get_orm_mut()
+            .get_node(uid)
+            .ok_or_else(|| anyhow!("cound't find node"))?;
+        builder.set_property("height", &format!("{}px", self.0.height))?;
+        builder.save().map_err(|_| anyhow!("cound't find node"))?;
         Ok(CanUndo::No)
     }
 }
