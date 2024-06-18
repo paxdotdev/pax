@@ -44,7 +44,7 @@ impl Action for CreateComponent {
             .save()
             .map_err(|e| anyhow!("could not save: {}", e))?;
 
-        let stage = ctx.app_state.stage.get();
+        let stage = ctx.derived_state.stage.get();
 
         ctx.execute(SetNodeTransformProperties::<World> {
             id: save_data.unique_id.clone(),

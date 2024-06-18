@@ -15,7 +15,7 @@ if self.glass_active {
                         stage_width={self.stage.width}
                         stage_height={self.stage.height}
                         running=false
-                        id=designer_root_project
+                        id=userland_project
                     />
                 </Group>
                 <Rectangle fill={self.stage.color}/>

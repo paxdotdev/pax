@@ -8,15 +8,17 @@ use crate::math::coordinate_spaces::Glass;
 use crate::model::action::world::Pan;
 use crate::model::input::InputEvent;
 use crate::model::tools::{CreateComponentTool, PointerTool};
-use crate::model::AppState;
 use crate::model::Component;
 use crate::model::{action, Tool};
-use crate::ROOT_PROJECT_ID;
+use crate::model::{AppState, StageInfo};
+use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{MouseButton, Window};
+use pax_engine::log;
 use pax_engine::math::Point2;
 use pax_manifest::TypeId;
+use pax_runtime_api::Color;
 
 pub struct PointerAction<'a> {
     pub prevent_default: &'a dyn Fn(),
@@ -35,6 +37,15 @@ pub enum Pointer {
 impl Action for PointerAction<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let point_glass = ctx.glass_transform().get() * self.point;
+        if point_glass.to_vector().length() < 10.0 {
+            log::debug!("set stage");
+            ctx.execute(SetStage(StageInfo {
+                width: 1000,
+                height: 100,
+                color: Color::WHITE,
+            }))?;
+            return Ok(CanUndo::No);
+        }
         ctx.app_state.mouse_position.set(point_glass);
         let spacebar = ctx
             .app_state

@@ -8,6 +8,7 @@ use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
+use crate::EDIT_MODE_STAGE_GROUP;
 use crate::USER_PROJ_ROOT_COMPONENT;
 use crate::USER_PROJ_ROOT_IMPORT_PATH;
 use action::Action;
@@ -93,14 +94,14 @@ pub fn init_model(ctx: &NodeContext) {
 
     let selected_comp = app_state.selected_component_id.clone();
     let node_ids = app_state.selected_template_node_ids.clone();
-    let ctx = ctx.clone();
+    let cp_ctx = ctx.clone();
     let deps = [selected_comp.untyped(), node_ids.untyped()];
     let open_containers = Property::computed(
         move || {
             let mut containers = vec![];
             for n in node_ids.get() {
                 let uid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), n);
-                let interface = ctx.get_nodes_by_global_id(uid);
+                let interface = cp_ctx.get_nodes_by_global_id(uid);
                 let parent_uid = interface
                     .first()
                     .unwrap()
@@ -114,7 +115,28 @@ pub fn init_model(ctx: &NodeContext) {
         },
         &deps,
     );
+    let ctx = ctx.clone();
+    let deps = [manifest_ver.untyped()];
+    let stage = Property::computed(
+        move || {
+            // let t_and_b = ctx
+            //     .get_nodes_by_id(EDIT_MODE_STAGE_GROUP)
+            //     .first()
+            //     .cloned()
+            //     .unwrap()
+            //     .transform_and_bounds();
+            // let (width, height) = t_and_b.get().bounds;
+            let (width, height): (f64, f64) = (1000.0, 4000.0);
+            StageInfo {
+                width: width.round() as u32,
+                height: height.round() as u32,
+                color: Color::WHITE,
+            }
+        },
+        &deps,
+    );
     let derived_state = DerivedAppState {
+        stage,
         selected_bounds,
         open_containers,
     };
@@ -170,12 +192,6 @@ pub struct AppState {
     /// action_context which contains app_state
     /// INVALID_IF: no invalid states
     pub tool_behaviour: Property<Option<Rc<RefCell<dyn ToolBehaviour>>>>,
-    /// Size and color of the glass stage for the current view, this is the
-    /// container that objects sized based on percentage in the view is sized
-    /// from.
-    /// INVALID_IF: no invalid states, but should probably not be very small
-    /// or be of a very ugly color!
-    pub stage: Property<StageInfo>,
 
     //---------------toolbar----------------
     /// Currently selected tool in the top tool bar
@@ -279,6 +295,12 @@ pub struct SelectedItem {
 // This represents values that can be deterministically produced from the app
 // state and the projects manifest
 pub struct DerivedAppState {
+    /// Size and color of the glass stage for the current view, this is the
+    /// container that objects sized based on percentage in the view is sized
+    /// from.
+    /// INVALID_IF: no invalid states, but should probably not be very small
+    /// or be of a very ugly color!
+    pub stage: Property<StageInfo>,
     pub selected_bounds: Property<SelectionState>,
     // The currently open containers are the parents of the currently selected nodes
     pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
