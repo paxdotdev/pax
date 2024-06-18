@@ -41,11 +41,6 @@ impl InstanceNode for RectangleInstance {
         let tab = &expanded_node.layout_properties;
         let (width, height) = borrow!(tab).bounds.get();
 
-        let cp = expanded_node.get_common_properties();
-        let borrowed = borrow!(cp);
-        let anchor = borrowed.anchor_x.get();
-
-
         let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
