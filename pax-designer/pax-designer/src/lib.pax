@@ -12,8 +12,6 @@ if self.glass_active {
                 // The example project replaces all of the children of the project_container
                 <Group id=project_container>
                     <Example
-                        stage_width={self.stage.width}
-                        stage_height={self.stage.height}
                         running=false
                         id=userland_project
                     />
@@ -26,8 +24,6 @@ if self.glass_active {
 }
 if self.interaction_mode {
     <Example
-        stage_width={self.stage.width}
-        stage_height={self.stage.height}
         running=true
         id=running_project
     />

@@ -55,44 +55,7 @@ impl Action for SetEditingComponent {
         }
         ctx.execute(SetLibraryState { open: false })?;
 
-        let stage = match type_id
-            .import_path()
-            .unwrap()
-            .trim_start_matches(&user_import_prefix)
-        {
-            // TODO make these hard coded stages
-            // queriable from the ORM (default values)
-            "Example" => StageInfo {
-                width: 2561 / 2,
-                height: 1440 / 2,
-                color: Color::WHITE,
-            },
-            "menu_bar::MenuBar" => StageInfo {
-                width: 2561 / 2,
-                height: 60,
-                color: Color::BLACK,
-            },
-            "movie_selector::MovieSelector" => StageInfo {
-                width: 2561 / 2,
-                height: 160,
-                color: Color::WHITE,
-            },
-            "main_button::MainButton" => StageInfo {
-                width: 110,
-                height: 35,
-                color: Color::WHITE,
-            },
-            name => {
-                log::warn!("component with import path: {:?} didn't have a specified stage size, using fallback", name);
-                StageInfo {
-                    width: 100,
-                    height: 100,
-                    color: Color::WHITE,
-                }
-            }
-        };
-
-        ctx.execute(SetStage(stage))?;
+        // TODO set stage defaults for opened component using "SetStage" action
 
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let node = ctx
