@@ -124,7 +124,7 @@ impl Action for SetStage {
         builder.set_property("scroll_height", &format!("{}px", self.0.height))?;
         builder.save().map_err(|_| anyhow!("cound't find node"))?;
 
-        // Set height (edit mode)
+        // Set width/height (edit mode)
         let mut builder = orm
             .get_node_by_str_id(
                 &TypeId::build_singleton(SCHIM_COMPONENT, None),
@@ -132,7 +132,9 @@ impl Action for SetStage {
             )
             .ok_or_else(|| anyhow!("cound't find node"))?;
         builder.set_property("height", &format!("{}px", self.0.height))?;
+        builder.set_property("width", &format!("{}px", self.0.width))?;
         builder.save().map_err(|_| anyhow!("cound't find node"))?;
+
         Ok(CanUndo::No)
     }
 }

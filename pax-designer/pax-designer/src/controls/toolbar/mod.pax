@@ -16,6 +16,7 @@ for (view, i) in self.entries {
 
 @settings {
     @mount: on_mount
+    @unmount: on_unmount
 
     #save_button {
         x: 100%,
