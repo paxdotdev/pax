@@ -4,12 +4,12 @@ use std::iter;
 use std::rc::Rc;
 use_RefCell!();
 use crate::api::{CommonProperties, RenderContext};
+use ahash::AHashMap;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, use_RefCell, PropertyId};
 use piet::{Color, StrokeStyle};
-use rustc_hash::FxHashMap;
 
 use crate::api::{Layer, Scroll};
 
@@ -38,7 +38,7 @@ pub struct InstantiationArgs {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> FxHashMap<String, PropertyId>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> AHashMap<String, PropertyId>>>,
 }
 
 #[derive(Clone)]
@@ -189,7 +189,7 @@ pub struct BaseInstance {
     >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> FxHashMap<String, PropertyId>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> AHashMap<String, PropertyId>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }

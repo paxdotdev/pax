@@ -3,9 +3,9 @@ use std::iter;
 use std::rc::Rc;
 use_RefCell!();
 
+use ahash::AHashMap;
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property, PropertyId};
-use rustc_hash::FxHashMap;
 
 use crate::api::Layer;
 use crate::{
@@ -157,7 +157,7 @@ impl InstanceNode for RepeatInstance {
                         .to_pax_any(),
                     ));
 
-                    let mut scope: FxHashMap<String, PropertyId> = FxHashMap::default();
+                    let mut scope: AHashMap<String, PropertyId> = AHashMap::default();
                     if let Some(ref i_symbol) = i_symbol {
                         log::warn!("i_symbol: {:?}", i_symbol);
                         scope.insert(i_symbol.clone(), property_i.get_id());
