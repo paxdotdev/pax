@@ -19,6 +19,7 @@ if self.glass_active {
                     />
                 </Group>
                 <Rectangle fill={self.stage.color}/>
+                <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
             </Group>
         </Group>
     </Group>
@@ -45,5 +46,20 @@ if self.interaction_mode {
         y: 65px,
         width: {100% - 530px},
         height: {100% - 65px},
+    }
+
+    #annot {
+        style: {
+            font: {Font::web(
+                "Inconsolata, monospace",
+                "https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)}
+            font_size: 20px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
     }
 }

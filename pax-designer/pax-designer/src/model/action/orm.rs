@@ -9,6 +9,7 @@ use crate::math::{
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNodes;
 use crate::model::{RuntimeNodeInfo, SelectionStateSnapshot};
+use crate::SCHIM_COMPONENT;
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::builder::NodeBuilder;
@@ -390,8 +391,12 @@ pub struct SerializeRequested {}
 impl Action for SerializeRequested {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        log::debug!("tried to serialize");
         if let Err(e) = dt.send_component_update(&ctx.app_state.selected_component_id.get()) {
             pax_engine::log::error!("failed to save component to file: {:?}", e);
+        }
+        if let Err(e) = dt.send_component_update(&TypeId::build_singleton(SCHIM_COMPONENT, None)) {
+            pax_engine::log::error!("failed to save chim component to file: {:?}", e);
         }
         Ok(CanUndo::No)
     }
