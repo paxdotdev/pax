@@ -697,8 +697,6 @@ export class NativeElementPool {
         scrollerDiv.appendChild(scroller);
         scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         // NOTE: add property to specify this?
-        scrollerDiv.style.overflowY = "auto";
-        scrollerDiv.style.overflowX = "hidden";
         scrollerDiv.setAttribute("pax_id", String(patch.id));
 
 
@@ -736,9 +734,19 @@ export class NativeElementPool {
         }
 
         if (patch.sizeInnerPaneX != null) {
+            if (patch.sizeInnerPaneX! <= parseFloat(leaf.style.width)) {
+                leaf.style.overflowX = "hidden";
+            } else {
+                leaf.style.overflowX = "auto";
+            }
             scroller_inner.style.width = patch.sizeInnerPaneX + "px";
         }
         if (patch.sizeInnerPaneY != null) {
+            if (patch.sizeInnerPaneY! <= parseFloat(leaf.style.height)) {
+                leaf.style.overflowY = "hidden";
+            } else {
+                leaf.style.overflowY = "auto";
+            }
             scroller_inner.style.height = patch.sizeInnerPaneY + "px";
         }
     }
