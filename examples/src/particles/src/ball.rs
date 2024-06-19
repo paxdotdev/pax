@@ -20,7 +20,7 @@ impl Ball {
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
-        if ctx.frames_elapsed % (crate::LOOP_FRAMES as u64) == 0 {
+        if ctx.frames_elapsed.get() % (crate::LOOP_FRAMES as u64) == 0 {
             let magnitude = self.magnitude.get().to_float();
             self.magnitude.set(random::<f64>().into());
 

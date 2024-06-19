@@ -74,7 +74,7 @@ impl InstanceNode for ImageInstance {
             Property::expression(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
-                        unreachable!()
+                        return Default::default()
                     };
                     let mut old_state = borrow_mut!(last_patch);
 

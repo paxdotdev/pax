@@ -450,12 +450,10 @@ impl DefinitionToInstanceTraverser {
                             if let Some(t) = &rsd.range_expression_paxel {
                                 let cloned_table = table.clone();
                                 let cloned_stack = stack_frame.clone();
-                                log::warn!("creating range property");
                                 Some(
                                     Property::expression(move || {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<std::ops::Range::<isize>>().unwrap();
-                                        log::warn!("computed range: {:?}", coerced);
                                         coerced
                                     }, &dependencies)
                                 )
