@@ -19,13 +19,13 @@ use pax_runtime::api::{NodeContext, Platform, TouchEnd, TouchMove, TouchStart, O
             x=100%
             size_inner_pane_y={self.scroll_height}
         />
-        // <Scrollbar
-        //     scroll_x={self.scroll_pos_x}
-        //     height=20px
-        //     anchor_y=100%
-        //     y=100%
-        //     size_inner_pane_x={self.scroll_width}
-        // />
+        <Scrollbar
+            scroll_x={self.scroll_pos_x}
+            height=20px
+            anchor_y=100%
+            y=100%
+            size_inner_pane_x={self.scroll_width}
+        />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width} height={self.scroll_height}>
             for i in 0..self.slot_children_count {
                 slot(i)
