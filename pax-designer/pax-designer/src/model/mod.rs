@@ -140,15 +140,27 @@ pub fn init_model(ctx: &NodeContext) {
                 .find_map(|(p, v)| {
                     if p.name == "height" {
                         if let Some(ValueDefinition::LiteralValue(v)) = v {
-                            log::debug!("{}", v.raw_value);
                             return Some(v.raw_value.clone());
                         }
                     }
                     None
                 })
                 .unwrap();
-            let (width, height): (f64, f64) =
-                (1000.0, height.trim_end_matches("px").parse().unwrap());
+            let width = props
+                .iter()
+                .find_map(|(p, v)| {
+                    if p.name == "width" {
+                        if let Some(ValueDefinition::LiteralValue(v)) = v {
+                            return Some(v.raw_value.clone());
+                        }
+                    }
+                    None
+                })
+                .unwrap();
+            let (width, height): (f64, f64) = (
+                width.trim_end_matches("px").parse().unwrap(),
+                height.trim_end_matches("px").parse().unwrap(),
+            );
             StageInfo {
                 width: width.round() as u32,
                 height: height.round() as u32,

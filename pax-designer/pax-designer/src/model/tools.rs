@@ -5,7 +5,7 @@ use super::action::orm::{CreateComponent, SetNodeTransformProperties};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo};
 use super::input::InputEvent;
-use super::{RuntimeNodeInfo, SelectionStateSnapshot};
+use super::{RuntimeNodeInfo, SelectionStateSnapshot, StageInfo};
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
@@ -13,7 +13,7 @@ use crate::math::{
 };
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
-use crate::ROOT_PROJECT_ID;
+use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
@@ -143,6 +143,12 @@ pub enum PointerToolAction {
         p1: Point2<Glass>,
         p2: Point2<Glass>,
     },
+    ResizingStage(ResizeStageDim),
+}
+
+pub enum ResizeStageDim {
+    Height,
+    Width,
 }
 
 impl PointerTool {
@@ -166,11 +172,24 @@ impl PointerTool {
                 },
             }
         } else {
-            Self {
-                action: PointerToolAction::Selecting {
-                    p1: point,
-                    p2: point,
-                },
+            // resize stage if we are at edge
+            let stage = ctx.derived_state.stage.get();
+            let world_point = ctx.world_transform() * point;
+            if (world_point.y - stage.height as f64).abs() < 10.0 {
+                Self {
+                    action: PointerToolAction::ResizingStage(ResizeStageDim::Height),
+                }
+            } else if (world_point.x - stage.width as f64).abs() < 10.0 {
+                Self {
+                    action: PointerToolAction::ResizingStage(ResizeStageDim::Width),
+                }
+            } else {
+                Self {
+                    action: PointerToolAction::Selecting {
+                        p1: point,
+                        p2: point,
+                    },
+                }
             }
         }
     }
@@ -216,6 +235,20 @@ impl ToolBehaviour for PointerTool {
                 }
             }
             PointerToolAction::Selecting { ref mut p2, .. } => *p2 = point,
+            PointerToolAction::ResizingStage(dir) => {
+                let world_point = ctx.world_transform() * point;
+                let size_before = ctx.derived_state.stage.get();
+                let (new_width, new_height) = match dir {
+                    ResizeStageDim::Height => (size_before.width, world_point.y as u32),
+                    ResizeStageDim::Width => (world_point.x as u32, size_before.height),
+                };
+                ctx.execute(SetStage(StageInfo {
+                    width: new_width,
+                    height: new_height,
+                    color: Color::BLUE,
+                }))
+                .unwrap();
+            }
         }
         ControlFlow::Continue(())
     }
@@ -224,7 +257,7 @@ impl ToolBehaviour for PointerTool {
         // move last little distance to pointer up position
         self.pointer_move(point, ctx);
 
-        match self.action {
+        match &self.action {
             PointerToolAction::Selecting { .. } => {
                 // TODO select multiple objects
                 let _ = ctx.execute(SelectNodes {
@@ -242,9 +275,7 @@ impl ToolBehaviour for PointerTool {
                     });
                 }
             }
-        }
-        if let PointerToolAction::Selecting { .. } = self.action {
-        } else {
+            PointerToolAction::ResizingStage(_dir) => {}
         }
         ControlFlow::Break(())
     }

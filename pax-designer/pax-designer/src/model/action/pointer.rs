@@ -37,15 +37,6 @@ pub enum Pointer {
 impl Action for PointerAction<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let point_glass = ctx.glass_transform().get() * self.point;
-        if point_glass.to_vector().length() < 10.0 {
-            log::debug!("set stage");
-            ctx.execute(SetStage(StageInfo {
-                width: 1000,
-                height: 100,
-                color: Color::WHITE,
-            }))?;
-            return Ok(CanUndo::No);
-        }
         ctx.app_state.mouse_position.set(point_glass);
         let spacebar = ctx
             .app_state
