@@ -114,11 +114,11 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         {% endif %}    
     }
 
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> FxHashMap<String, PropertyId>>  {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> AHashMap<String, PropertyId>>  {
         Box::new(|props| {
             let properties = &mut *borrow_mut!(props.as_ref());
             if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
-                let mut scope = FxHashMap::with_capacity_and_hasher(100, Default::default());
+                let mut scope = AHashMap::with_capacity(100);
                 {% for prop in component.properties %}
                     scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.get_id());
                 {% endfor %}

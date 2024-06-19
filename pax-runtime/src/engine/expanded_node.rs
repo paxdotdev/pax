@@ -1,11 +1,11 @@
 use crate::api::TextInput;
+use ahash::AHashMap;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
     borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
     Rotation, Transform2D,
 };
-use rustc_hash::FxHashMap;
 use wasm_bindgen::UnwrapThrowExt;
 
 use crate::api::math::Point2;
@@ -115,7 +115,7 @@ pub struct ExpandedNode {
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
-    pub properties_scope: RefCell<FxHashMap<String, PropertyId>>,
+    pub properties_scope: RefCell<AHashMap<String, PropertyId>>,
 }
 
 impl ImplToFromPaxAny for ExpandedNode {}
@@ -169,7 +169,7 @@ macro_rules! dispatch_event_handler {
 impl ExpandedNode {
     pub fn root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
         let root_env = RuntimePropertiesStackFrame::new(
-            FxHashMap::default(),
+            AHashMap::default(),
             Rc::new(RefCell::new(().to_pax_any())),
         );
         let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());

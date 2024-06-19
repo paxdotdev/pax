@@ -139,6 +139,7 @@ pub struct SubscriptionId(usize);
 #[derive(Clone)]
 pub struct Subscriptions {
     pub subscriptions: HashMap<SubscriptionId, Rc<dyn Fn()>>,
+    pub cached_subscriptions: Vec<Rc<dyn Fn()>>,
     pub next_id: SubscriptionId,
 }
 
@@ -146,6 +147,7 @@ impl Default for Subscriptions {
     fn default() -> Self {
         Self {
             subscriptions: HashMap::new(),
+            cached_subscriptions: Vec::new(),
             next_id: SubscriptionId(0),
         }
     }
@@ -156,15 +158,21 @@ impl Subscriptions {
         let id = self.next_id.clone();
         self.subscriptions.insert(id.clone(), sub);
         self.next_id = SubscriptionId(id.0 + 1);
+        self.update_cached_subscriptions();
         id
     }
 
     pub fn remove(&mut self, id: SubscriptionId) {
         self.subscriptions.remove(&id);
+        self.update_cached_subscriptions();
+    }
+
+    fn update_cached_subscriptions(&mut self) {
+        self.cached_subscriptions =  self.subscriptions.values().cloned().collect();
     }
 
     pub fn get_cloned_subscriptions(&self) -> Vec<Rc<dyn Fn()>> {
-        self.subscriptions.values().cloned().collect()
+        self.cached_subscriptions.clone()
     }
 }
 
@@ -544,7 +552,7 @@ impl PropertyTable {
 impl Default for PropertyTable {
     fn default() -> Self {
         PropertyTable {
-            properties: RefCell::new(HashMap::with_capacity_and_hasher(5000, BuildNoHashHasher::default())),
+            properties: RefCell::new(HashMap::with_capacity_and_hasher(100, BuildNoHashHasher::default())),
         }
     }
 }

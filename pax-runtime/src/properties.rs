@@ -1,10 +1,11 @@
 use crate::api::math::Point2;
 use crate::api::Window;
+use ahash::AHashMap;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, borrow_mut, use_RefCell, PropertyId, Store};
-use rustc_hash::FxHashMap;
+
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
@@ -251,7 +252,7 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 
 pub struct RuntimePropertiesStackFrame {
-    symbols_within_frame: FxHashMap<String, PropertyId>,
+    symbols_within_frame: Vec<(String, PropertyId)>,
     local_stores: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
     properties: Rc<RefCell<PaxAny>>,
     parent: Weak<RuntimePropertiesStackFrame>,
@@ -259,11 +260,11 @@ pub struct RuntimePropertiesStackFrame {
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
-        symbols_within_frame: FxHashMap<String, PropertyId>,
+        symbols_within_frame: AHashMap<String, PropertyId>,
         properties: Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(Self {
-            symbols_within_frame,
+            symbols_within_frame: symbols_within_frame.into_iter().collect(),
             properties,
             local_stores: Default::default(),
             parent: Weak::new(),
@@ -272,11 +273,11 @@ impl RuntimePropertiesStackFrame {
 
     pub fn push(
         self: &Rc<Self>,
-        symbols_within_frame: FxHashMap<String, PropertyId>,
+        symbols_within_frame: AHashMap<String, PropertyId>,
         properties: &Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
-            symbols_within_frame,
+            symbols_within_frame: symbols_within_frame.into_iter().collect(),
             local_stores: Default::default(),
             parent: Rc::downgrade(&self),
             properties: Rc::clone(properties),
@@ -298,8 +299,15 @@ impl RuntimePropertiesStackFrame {
         Some(Rc::clone(&curr.properties))
     }
 
+    fn find_symbol(&self, symbol: &str) -> Option<PropertyId> {
+        self.symbols_within_frame
+            .iter()
+            .find(|(s, _)| s == symbol)
+            .map(|(_, p)| p.clone())
+    }
+
     pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<PaxAny>>> {
-        if let Some(_) = self.symbols_within_frame.get(symbol) {
+        if let Some(_) = self.find_symbol(symbol) {
             Some(Rc::clone(&self.properties))
         } else {
             self.parent.upgrade()?.resolve_symbol(symbol)
@@ -333,7 +341,7 @@ impl RuntimePropertiesStackFrame {
     }
 
     pub fn resolve_symbol_as_property(&self, symbol: &str) -> Option<PropertyId> {
-        if let Some(e) = self.symbols_within_frame.get(symbol) {
+        if let Some(e) = self.find_symbol(symbol) {
             Some(e.clone())
         } else {
             self.parent
