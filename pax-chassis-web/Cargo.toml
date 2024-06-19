@@ -35,5 +35,5 @@ features = ["Navigator", "console", "CanvasRenderingContext2d", "Window", "Docum
 
 [profile.release]
 lto = true
-opt-level = "z" 
 codegen-units = 1  
+debug = true

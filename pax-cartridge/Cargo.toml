@@ -24,5 +24,4 @@ ahash = "0.7"
 
 [profile.release]
 lto = true
-opt-level = "z" 
 codegen-units = 1  
