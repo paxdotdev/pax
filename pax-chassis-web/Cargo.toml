@@ -51,5 +51,5 @@ features = [
 
 [profile.release]
 lto = true
-# opt-level = "z" 
 codegen-units = 1  
+debug = true
