@@ -391,6 +391,7 @@ pub struct SerializeRequested {}
 impl Action for SerializeRequested {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        log::debug!("tried to serialize");
         if let Err(e) = dt.send_component_update(&ctx.app_state.selected_component_id.get()) {
             pax_engine::log::error!("failed to save component to file: {:?}", e);
         }
