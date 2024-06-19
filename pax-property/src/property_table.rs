@@ -7,7 +7,7 @@ use nohash_hasher::BuildNoHashHasher;
 
 use std::rc::Rc;
 
-use crate::{transitions::{Interpolatable, TransitionManager, TransitionQueueEntry}, Property, PropertyId, PropertyValue};
+use crate::{generate_untyped_closure, transitions::{Interpolatable, TransitionManager, TransitionQueueEntry}, Property, PropertyId, PropertyValue};
 
 thread_local! {
     /// Global property table used to store data backing dirty-dag
@@ -340,61 +340,65 @@ impl PropertyTable {
     }
 
 
-    pub fn replace_with(&self, older_property: PropertyId, new_property: PropertyId) {
-
-        self.clear_memoized_dependents(older_property);
-        self.clear_memoized_dependents(new_property);
+    pub fn replace_with<T: PropertyValue>(&self, older_property: PropertyId, new_property: PropertyId) {
 
         // Get properties that depend on id and its subscriptions
-        let (new_inbound, new_outbound, new_property_type)  = {
-            let mut sm = self.properties.borrow_mut();
-            let entry = sm.get_mut(&new_property).expect("Property not found");
-            let ret = (entry.data.inbound.clone(), entry.data.outbound.clone(), entry.data.property_type.clone());
-            entry.data.inbound = HashSet::new();
-            entry.data.outbound = HashSet::new();
-            ret
-        };
+        // let (new_inbound, new_outbound, new_property_type)  = {
+        //     let mut sm = self.properties.borrow_mut();
+        //     let entry = sm.get_mut(&new_property).expect("Property not found");
+        //     let ret = (entry.data.inbound.clone(), entry.data.outbound.clone(), entry.data.property_type.clone());
+        //     entry.data.inbound = HashSet::new();
+        //     entry.data.outbound = HashSet::new();
+        //     ret
+        // };
         // For new inbound change each of their outbounds to point to older_property id
-        for id in new_inbound.clone() {
-            {
-                let mut sm = self.properties.borrow_mut();
-                let entry = sm.get_mut(&id).expect("Property not found");
-                entry.data.outbound.remove(&new_property);
-                entry.data.outbound.insert(older_property);
-            }
-        }
+        // for id in new_inbound.clone() {
+        //     {
+        //         let mut sm = self.properties.borrow_mut();
+        //         let entry = sm.get_mut(&id).expect("Property not found");
+        //         entry.data.outbound.insert(older_property);
+        //     }
+        // }
 
-        for id in new_outbound.clone() {
-            {
-                let mut sm = self.properties.borrow_mut();
-                let entry = sm.get_mut(&id).expect("Property not found");
-                entry.data.inbound.remove(&new_property);
-                entry.data.inbound.insert(older_property);
-            }
-        }
+        // for id in new_outbound.clone() {
+        //     {
+        //         let mut sm = self.properties.borrow_mut();
+        //         let entry = sm.get_mut(&id).expect("Property not found");
+        //         entry.data.inbound.remove(&new_property);
+        //         entry.data.inbound.insert(older_property);
+        //     }
+        // }
 
         let old_inbound = {
             let mut sm = self.properties.borrow_mut();
-            let entry = sm.get_mut(&older_property).expect("Property not found");
-            let ret = entry.data.inbound.clone();
-            entry.data.inbound = new_inbound.clone();
-            entry.data.outbound.extend(new_outbound.clone());
-            entry.data.property_type = new_property_type.clone();
+            let new_property_entry = sm.get_mut(&new_property).expect("Property not found");
+            new_property_entry.data.outbound.insert(older_property);
+
+            let old_property_entry = sm.get_mut(&older_property).expect("Property not found");
+            let ret = old_property_entry.data.inbound.clone();
+            old_property_entry.data.inbound = HashSet::new();
+            old_property_entry.data.inbound.insert(new_property);
+
+            let new_property: Property<T> = new_property.get_property();
+            let mirror_closure = move || {
+                new_property.get()
+            };
+            let untyped_closure = generate_untyped_closure(mirror_closure);
+            let property_type = PropertyType::Expression { evaluator: 
+                Rc::new(untyped_closure)
+            };
+            old_property_entry.data.property_type = property_type;
             ret
         };
 
-        // Unplug unnecessary dependencies from pointing to this node
-        let diff = old_inbound.difference(&new_inbound);
-
-        for id in diff.clone() {
+        for id in old_inbound.clone() {
             {
                 let mut sm = self.properties.borrow_mut();
                 let entry = sm.get_mut(&id).expect("Property not found");
-                entry.data.inbound.remove(&older_property);
+                entry.data.outbound.remove(&older_property);
             }
         }
-
-    
+        self.clear_memoized_dependents(older_property);
     }
 
     pub fn print_outbound(&self, id: PropertyId) {

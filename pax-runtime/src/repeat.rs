@@ -76,8 +76,6 @@ impl InstanceNode for RepeatInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-
-        log::warn!("Repeat handle_mount");
         // No-op: wait with creating child-nodes until update tick, since the
         // condition has then been evaluated
         let weak_ref_self = Rc::downgrade(expanded_node);
@@ -88,7 +86,6 @@ impl InstanceNode for RepeatInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 let source = if let Some(range) = &properties.source_expression_range {
                     let cp_range = range.clone();
-                    log::warn!("range: {:?}", cp_range);
                     let dep = [range.get_id()];
                     Property::expression(
                         move || {
@@ -101,7 +98,6 @@ impl InstanceNode for RepeatInstance {
                         &dep,
                     )
                 } else if let Some(vec) = &properties.source_expression_vec {
-                    log::warn!("vec length: {}", vec.get().len());
                     vec.clone()
                 } else {
                     unreachable!("range or vec source must exist")
@@ -159,11 +155,9 @@ impl InstanceNode for RepeatInstance {
 
                     let mut scope: AHashMap<String, PropertyId> = AHashMap::default();
                     if let Some(ref i_symbol) = i_symbol {
-                        log::warn!("i_symbol: {:?}", i_symbol);
                         scope.insert(i_symbol.clone(), property_i.get_id());
                     }
                     if let Some(ref elem_symbol) = elem_symbol {
-                        log::warn!("elem_symbol: {:?}", elem_symbol);
                         scope.insert(elem_symbol.clone(), property_elem.get_id());
                     }
 

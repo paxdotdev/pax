@@ -145,10 +145,8 @@ impl<T: PropertyValue> Property<T> {
 
     // Replace a property with a new one, keeping all its dependencies and subscriptions
     pub fn replace_with(&self, new_property: Property<T>) {
-        PROPERTY_TABLE.with(|t| t.replace_with(self.id, new_property.get_id()));
+        PROPERTY_TABLE.with(|t| t.replace_with::<T>(self.id, new_property.get_id()));
         self.set(new_property.get());
-        let cloned_self = self.clone();
-        self.subscribe(move || new_property.set(cloned_self.get()));
     }
 
     pub fn get_id(&self) -> PropertyId {
