@@ -166,40 +166,37 @@ impl Toolbar {
         let toolbar_click = CLICK_PROP.with(|p| p.clone());
         let deps = [toolbar_click.untyped()];
         self.dropdown_entries.replace_with(Property::computed(
-            move || {
-                let entries = match toolbar_click.get() {
-                    ToolbarClickEvent::Select(row, col) => {
-                        let action = TOOLBAR_ENTRIES.with(|entries| {
-                            let event = &entries[row].items[col].event;
-                            match event {
-                                &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
-                                ToolbarEvent::PerformAction(action_factory) => action_factory(),
-                            }
-                        });
-                        model::perform_action(action, &ctx);
-                        vec![]
-                    }
-                    ToolbarClickEvent::None => {
-                        vec![]
-                    }
-                    ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
-                        let items = &entries[row].items;
-                        items
-                            .iter()
-                            .enumerate()
-                            .map(|(col, item)| ToolbarItemView {
-                                background: true,
-                                icon: String::from(item.icon),
-                                more_than_one_item: false,
-                                row,
-                                col,
-                                x: Size::Pixels((row * 65).into()),
-                                y: Size::Pixels((col * 65).into()),
-                            })
-                            .collect()
-                    }),
-                };
-                entries
+            move || match toolbar_click.get() {
+                ToolbarClickEvent::Select(row, col) => {
+                    let action = TOOLBAR_ENTRIES.with(|entries| {
+                        let event = &entries[row].items[col].event;
+                        match event {
+                            &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
+                            ToolbarEvent::PerformAction(action_factory) => action_factory(),
+                        }
+                    });
+                    model::perform_action(action, &ctx);
+                    vec![]
+                }
+                ToolbarClickEvent::None => {
+                    vec![]
+                }
+                ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
+                    let items = &entries[row].items;
+                    items
+                        .iter()
+                        .enumerate()
+                        .map(|(col, item)| ToolbarItemView {
+                            background: true,
+                            icon: String::from(item.icon),
+                            more_than_one_item: false,
+                            row,
+                            col,
+                            x: Size::Pixels((row * 65).into()),
+                            y: Size::Pixels((col * 65).into()),
+                        })
+                        .collect()
+                }),
             },
             &deps,
         ));
