@@ -1,9 +1,10 @@
+use std::any::Any;
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
 use super::action::orm::{CreateComponent, SetNodeTransformProperties};
 use super::action::pointer::Pointer;
-use super::action::{Action, ActionContext, CanUndo};
+use super::action::{Action, ActionContext, CanUndo, RaycastMode};
 use super::input::InputEvent;
 use super::{RuntimeNodeInfo, SelectionStateSnapshot, StageInfo};
 use crate::glass::RectTool;
@@ -154,7 +155,7 @@ pub enum ResizeStageDim {
 
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
-        if let Some(hit) = ctx.raycast_glass(point, false) {
+        if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top) {
             let node_id = hit.global_id().unwrap();
             let selected = ctx.selection_state();
             if !selected.items.iter().any(|s| s.id == node_id) {
@@ -269,7 +270,31 @@ impl ToolBehaviour for PointerTool {
             PointerToolAction::Moving {
                 has_moved, ref hit, ..
             } => {
-                if !has_moved {
+                if *has_moved {
+                    if let Some(mut drop_hit) = ctx.raycast_glass(point, RaycastMode::Nth(1)) {
+                        log::debug!("original hit: {:?}", hit);
+                        let drop_slot_object = loop {
+                            if drop_hit
+                                .parent()
+                                .is_some_and(|n| n.is_of_type::<pax_engine::Slot>())
+                            {
+                                break Some(hit);
+                            }
+                            if let Some(par) = drop_hit.parent() {
+                                drop_hit = par;
+                            } else {
+                                break None;
+                            };
+                        };
+                        if let Some(drop_slot) = drop_slot_object {
+                            ctx.execute(SwapNodes {
+                                n1: drop_slot,
+                                n2: hit,
+                            });
+                        }
+                        log::debug!("thing to replace: {:?}", drop_slot_object);
+                    }
+                } else {
                     let _ = ctx.execute(SelectNodes {
                         ids: &[hit.get_template_node_id()],
                         overwrite: false,
