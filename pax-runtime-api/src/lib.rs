@@ -273,6 +273,16 @@ pub struct Click {
     pub mouse: MouseEventArgs,
 }
 
+/// User clicks a mouse button over an element.
+#[derive(Clone)]
+pub struct Drop {
+    pub x: f64,
+    pub y: f64,
+    pub name: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
+}
+
 /// User double-clicks a mouse button over an element.
 #[derive(Clone)]
 pub struct DoubleClick {

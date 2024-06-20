@@ -299,6 +299,7 @@ lazy_static! {
             ("wheel", "Set Wheel event handler"),
             ("tick", "Set Tick event handler"),
             ("pre_render", "Set Will Render event handler"),
+            ("drop", "Set drop event handler"),
             ("mount", "Set Did Mount event handler"),
             ("unmount", "Set Unmount event handler"),
         ];
