@@ -1,13 +1,21 @@
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
-    const response = await fetch(imagePath);
-    const blob = await response.blob();
-    const img = await createImageBitmap(blob);
-    const canvas = new OffscreenCanvas(img.width+1000, img.height);
-    const ctx = canvas.getContext('2d');
-    ctx!.drawImage(img, 0, 0, img.width, img.height);
-    const imageData = ctx!.getImageData(0, 0, img.width, img.height);
-    let pixels = imageData.data;
-    return { pixels, width: img.width, height: img.height };
+    let attempts = 5;
+    while (attempts > 0) {
+        const response = await fetch(imagePath);
+        if (response.ok) {
+            const blob = await response.blob();
+            const img = await createImageBitmap(blob);
+            const canvas = new OffscreenCanvas(img.width + 1000, img.height);
+            const ctx = canvas.getContext('2d');
+            ctx!.drawImage(img, 0, 0, img.width, img.height);
+            const imageData = ctx!.getImageData(0, 0, img.width, img.height);
+            let pixels = imageData.data;
+            return { pixels, width: img.width, height: img.height };
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts--;
+    }
+    return Promise.reject('Failed to fetch image after maximum retries.')
 }
 
 //Required due to Safari bug, unable to clip DOM elements to SVG=>`transform: matrix(...)` elements; see https://bugs.webkit.org/show_bug.cgi?id=126207
