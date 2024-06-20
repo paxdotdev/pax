@@ -1,6 +1,5 @@
 use actix_http::ws::Item;
 use actix_web_actors::ws;
-use bytes::BytesMut;
 
 pub struct SocketMessageAccumulator {
     partial_binary: Vec<u8>,
