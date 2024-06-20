@@ -64,6 +64,14 @@ impl DesigntimeManager {
         Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8252)))
     }
 
+    pub fn send_file_to_static_dir(&self, name: &str, data: Vec<u8>) -> anyhow::Result<()> {
+        let data = data.into();
+        self.priv_agent_connection
+            .borrow_mut()
+            .send_file_to_static_dir(name, data)?;
+        Ok(())
+    }
+
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         let component = self.orm.get_component(type_id)?;
         self.priv_agent_connection

@@ -2,7 +2,8 @@ use std::net::SocketAddr;
 
 use crate::{
     messages::{
-        AgentMessage, ComponentSerializationRequest, LLMHelpRequest, LLMUpdatedTemplateNotification,
+        AgentMessage, ComponentSerializationRequest, LLMHelpRequest,
+        LLMUpdatedTemplateNotification, LoadFileToStaticDirRequest,
     },
     orm::{template::NodeAction, PaxManifestORM},
 };
@@ -28,6 +29,18 @@ impl PrivilegedAgentConnection {
             ComponentSerializationRequest { component_bytes },
         ))?;
 
+        self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+        Ok(())
+    }
+
+    pub fn send_file_to_static_dir(&mut self, name: &str, data: Vec<u8>) -> Result<()> {
+        let msg_bytes = rmp_serde::to_vec(&AgentMessage::LoadFileToStaticDirRequest(
+            LoadFileToStaticDirRequest {
+                name: name.to_owned(),
+                data,
+            },
+        ))?;
+        log::debug!("file size: {}", msg_bytes.len());
         self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
         Ok(())
     }
