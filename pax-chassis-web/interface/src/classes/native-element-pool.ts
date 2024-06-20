@@ -696,7 +696,6 @@ export class NativeElementPool {
 
         scrollerDiv.appendChild(scroller);
         scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
-        // NOTE: add property to specify this?
         scrollerDiv.setAttribute("pax_id", String(patch.id));
 
 

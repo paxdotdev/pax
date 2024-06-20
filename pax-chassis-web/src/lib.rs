@@ -29,7 +29,7 @@ use pax_runtime::{PaxEngine, Renderer};
 
 use pax_message::NativeInterrupt;
 use pax_runtime::api::{
-    Clap, Click, ContextMenu, DoubleClick, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
+    Clap, Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
     ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp,
     Touch, TouchEnd, TouchMove, TouchStart, Wheel,
 };
@@ -182,6 +182,24 @@ impl PaxChassisWeb {
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match &x {
+            NativeInterrupt::DropFile(args) => {
+                let data = Uint8Array::new(additional_payload).to_vec();
+                let prospective_hit = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
+                if let Some(topmost_node) = prospective_hit {
+                    let args_drop = Drop {
+                        x: args.x,
+                        y: args.y,
+                        name: args.name.clone(),
+                        mime_type: args.mime_type.clone(),
+                        data,
+                    };
+                    topmost_node.dispatch_drop(args_drop, &globals, &engine.runtime_context)
+                } else {
+                    false
+                }
+            }
             NativeInterrupt::FormRadioSetChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
