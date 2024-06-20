@@ -9,12 +9,13 @@ use colored::Colorize;
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
-use pax_designtime::messages::LLMHelpResponse;
+use pax_designtime::messages::{LLMHelpResponse, LoadFileToStaticDirRequest};
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::{PaxManifest, TypeId};
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,30 +27,29 @@ pub mod websocket;
 const PORT: u16 = 8252;
 
 pub struct AppState {
+    serve_dir: PathBuf,
+    userland_project_root: PathBuf,
     active_websocket_client: Mutex<Option<Addr<PrivilegedAgentWebSocket>>>,
     request_id_counter: Mutex<usize>,
     manifest: Option<PaxManifest>,
     last_written_timestamp: Mutex<SystemTime>,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl AppState {
-    pub fn new() -> Self {
-        AppState {
+    pub fn new_empty() -> Self {
+        Self {
+            serve_dir: PathBuf::new(),
+            userland_project_root: PathBuf::new(),
             active_websocket_client: Mutex::new(None),
             request_id_counter: Mutex::new(0),
             manifest: None,
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
         }
     }
-
-    pub fn new_with_manifest(manifest: PaxManifest) -> Self {
+    pub fn new(serve_dir: PathBuf, project_root: PathBuf, manifest: PaxManifest) -> Self {
         AppState {
+            serve_dir,
+            userland_project_root: project_root,
             active_websocket_client: Mutex::new(None),
             request_id_counter: Mutex::new(0),
             manifest: Some(manifest),
@@ -93,7 +93,11 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
 
     let (manifest, fs_path) = pax_compiler::perform_build(&ctx).unwrap();
 
-    let state = Data::new(AppState::new_with_manifest(manifest));
+    let state = Data::new(AppState::new(
+        fs_path.clone().expect("serve directory should exist"),
+        PathBuf::from_str(folder_to_watch).unwrap(),
+        manifest,
+    ));
     let _watcher =
         setup_file_watcher(state.clone(), folder_to_watch).expect("Failed to setup file watcher");
 
@@ -125,6 +129,7 @@ pub enum FileContent {
     #[default]
     Unknown,
 }
+
 #[derive(Default)]
 struct WatcherFileChanged {
     pub contents: FileContent,
