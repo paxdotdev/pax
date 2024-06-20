@@ -2,13 +2,10 @@ use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::Property;
-use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable, Percent};
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable};
 
 use crate::{
-    api::{
-        math::{Point2, Space},
-        Window,
-    },
+    api::{math::Space, Window},
     ExpandedNode, LayoutProperties, TransformAndBounds,
 };
 
@@ -23,6 +20,12 @@ impl From<Rc<ExpandedNode>> for NodeInterface {
         Self {
             inner: expanded_node,
         }
+    }
+}
+
+impl std::fmt::Debug for NodeInterface {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NodeInterface({:?})", self.inner)
     }
 }
 
@@ -43,6 +46,12 @@ impl NodeInterface {
 
     pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> V {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
+    }
+
+    pub fn is_of_type<T: ToFromPaxAny>(&self) -> bool {
+        self.inner
+            .try_with_properties_unwrapped::<T, _>(|_| ())
+            .is_some()
     }
 
     pub fn transform_and_bounds(&self) -> Property<TransformAndBounds<NodeLocal, Window>> {
