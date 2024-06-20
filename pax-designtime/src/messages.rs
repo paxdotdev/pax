@@ -12,6 +12,13 @@ pub enum AgentMessage {
     LLMHelpRequest(LLMHelpRequest),
     LLMHelpResponse(LLMHelpResponse),
     LLMUpdatedTemplateNotification(LLMUpdatedTemplateNotification),
+    LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LoadFileToStaticDirRequest {
+    pub name: String,
+    pub data: Vec<u8>,
 }
 
 /// A notification indicating that a project file has changed.
