@@ -7,11 +7,13 @@ use crate::{
         tools::SelectNodes,
         RuntimeNodeInfo, SelectionStateSnapshot,
     },
-    ROOT_PROJECT_ID,
+    ROOT_PROJECT_ID, USERLAND_EDIT_ID,
 };
 use anyhow::{anyhow, Context, Result};
 use pax_engine::{layout::TransformAndBounds, log, math::Transform2};
-use pax_manifest::{NodeLocation, TypeId};
+use pax_manifest::{
+    NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_runtime_api::borrow_mut;
 use pax_std::primitives::Group;
 
@@ -33,7 +35,7 @@ impl Action for GroupSelected {
             .read(|v| v.first().cloned());
         let group_parent_location = if ctx
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .get_nodes_by_id(USERLAND_EDIT_ID)
             .first()
             .unwrap()
             .global_id()
@@ -133,7 +135,7 @@ impl Action for UngroupSelected {
         let selected: SelectionStateSnapshot = (&ctx.selection_state()).into();
         let userland_proj_uid = ctx
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .get_nodes_by_id(USERLAND_EDIT_ID)
             .first()
             .unwrap()
             .global_id();
@@ -192,6 +194,65 @@ impl Action for UngroupSelected {
             }
         }
 
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            dt.get_orm_mut()
+                .undo()
+                .map_err(|e| anyhow!("cound't undo: {:?}", e))
+        })))
+    }
+}
+
+pub struct MoveNodeKeepScreenPos<'a> {
+    node: &'a UniqueTemplateNodeIdentifier,
+    new_parent: &'a UniqueTemplateNodeIdentifier,
+    index: TreeIndexPosition,
+}
+
+impl Action for MoveNodeKeepScreenPos<'_> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let parent_location = if ctx
+            .engine_context
+            .get_nodes_by_id(USERLAND_EDIT_ID)
+            .first()
+            .unwrap()
+            .global_id()
+            == Some(self.new_parent.clone())
+        {
+            NodeLocation::root(self.node.get_containing_component_type_id())
+        } else {
+            NodeLocation::parent(
+                self.node.get_containing_component_type_id(),
+                self.new_parent.get_template_node_id(),
+            )
+        };
+        {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let _undo_id = dt
+                .get_orm_mut()
+                .move_node(self.node.clone(), parent_location)
+                .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
+        }
+        let t_and_b_node = ctx
+            .engine_context
+            .get_nodes_by_global_id(self.node.clone())
+            .first()
+            .ok_or_else(|| anyhow!("child not in render tree"))?
+            .transform_and_bounds()
+            .get();
+        let t_and_b_parent = ctx
+            .engine_context
+            .get_nodes_by_global_id(self.new_parent.clone())
+            .first()
+            .ok_or_else(|| anyhow!("parent not in render tree"))?
+            .transform_and_bounds()
+            .get();
+        ctx.execute(SetNodeTransformProperties {
+            id: self.node.clone(),
+            transform_and_bounds: child_t_and_b,
+            parent_transform_and_bounds: group_parent_bounds,
+            inv_config: child_runtime_node.layout_properties().into_inv_config(),
+        })?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
