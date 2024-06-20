@@ -27,7 +27,7 @@ const EXPECTED_PAX: &str = "// Hello world
 pub fn get_test_server() -> actix_test::TestServer {
     actix_test::start(|| {
         App::new()
-            .app_data(Data::new(AppState::new()))
+            .app_data(Data::new(AppState::new_empty()))
             .service(web_socket)
     })
 }

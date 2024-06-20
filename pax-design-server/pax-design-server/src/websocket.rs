@@ -5,7 +5,7 @@ use pax_compiler::parsing::TemplateNodeParseContext;
 use pax_designtime::{
     messages::{
         AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
-        ManifestSerializationRequest, UpdateTemplateRequest,
+        LoadFileToStaticDirRequest, ManifestSerializationRequest, UpdateTemplateRequest,
     },
     orm::template::NodeAction,
 };
@@ -134,6 +134,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        println!("recieved socket message");
         if let Ok(ws::Message::Binary(bin_data)) = msg {
             match rmp_serde::from_slice::<AgentMessage>(&bin_data) {
                 Ok(AgentMessage::ComponentSerializationRequest(request)) => {
@@ -209,7 +210,28 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     //     format!("{}/{}", folder_path, TRAINING_DATA_AFTER_REQUEST),
                     // );
                 }
-                Ok(_) => {}
+                Ok(AgentMessage::LoadFileToStaticDirRequest(load_info)) => {
+                    let LoadFileToStaticDirRequest { name, data } = load_info;
+                    println!(
+                        "recieved a file {} (size: {})! root dir to write to: {:?}",
+                        name,
+                        data.len(),
+                        self.state.userland_project_root
+                    );
+                    let path = format!("../pax-designer/assets/{}", name);
+                    if std::fs::write(&path, data.clone()).is_err() {
+                        eprintln!("server couldn't write to assets folder: {}", path);
+                    };
+                    let path = self.state.serve_dir.join("assets").join(name);
+                    if std::fs::write(&path, data).is_err() {
+                        eprintln!("server couldn't write to served folder: {:?}", path);
+                    };
+                }
+                Ok(
+                    AgentMessage::LLMHelpResponse(_)
+                    | AgentMessage::UpdateTemplateRequest(_)
+                    | AgentMessage::ProjectFileChangedNotification(_),
+                ) => {}
                 Err(e) => {
                     eprintln!("Deserialization error: {:?}", e);
                 }
