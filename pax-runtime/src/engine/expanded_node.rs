@@ -509,6 +509,20 @@ impl ExpandedNode {
         callback(&mut unwrapped_value)
     }
 
+    pub fn try_with_properties_unwrapped<T: ToFromPaxAny, R>(
+        &self,
+        callback: impl FnOnce(&mut T) -> R,
+    ) -> Option<R> {
+        // Borrow the contents of the RefCell mutably.
+        let properties = borrow_mut!(self.properties);
+        let mut borrowed = borrow_mut!(properties);
+        // Downcast the unwrapped value to the specified `target_type` (or panic)
+        let Ok(mut val) = T::mut_from_pax_any(&mut *borrowed) else {
+            return None;
+        };
+        Some(callback(&mut val))
+    }
+
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
         for child in self.children.get().iter().rev() {
             child.recurse_visit_postorder(func)
@@ -832,7 +846,7 @@ impl std::fmt::Debug for ExpandedNode {
             .field("common_properties", &borrow!(self.common_properties))
             .field("transform_and_bounds", &self.transform_and_bounds)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
-            .field("parent", &borrow!(self.parent_expanded_node).upgrade())
+            // .field("parent", &borrow!(self.parent_expanded_node).upgrade())
             .field(
                 "slot_children",
                 &self

@@ -411,7 +411,7 @@ impl DefinitionToInstanceTraverser {
                 let dep_symbols = expression_info.dependencies.clone();
 
                 let prototypical_properties_factory : Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>  = Box::new(move |stack_frame, table| Rc::new(RefCell::new( {
-                        let mut properties = SlotProperties::default();
+                        let mut properties = Slot::default();
                         let cloned_table = table.clone();
                         let cloned_stack = stack_frame.clone();
 

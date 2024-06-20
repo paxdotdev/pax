@@ -7,6 +7,7 @@ pub use pax_runtime::api::math;
 pub use pax_runtime::engine::node_interface::*;
 pub use pax_runtime::layout;
 pub use pax_runtime::rendering;
+pub use pax_runtime::Slot;
 
 pub use pax_runtime::api::serde;
 pub use pax_runtime::api::Property;

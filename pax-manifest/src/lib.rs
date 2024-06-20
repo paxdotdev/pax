@@ -1926,7 +1926,7 @@ pub const IMPORTS_BUILTINS: &[&str] = &[
     "pax_runtime::RepeatItem",
     "pax_runtime::RepeatProperties",
     "pax_runtime::ConditionalProperties",
-    "pax_runtime::SlotProperties",
+    "pax_runtime::Slot",
     "pax_runtime::api::Property",
     "pax_runtime::api::CommonProperties",
     "pax_runtime::api::Color::*",
