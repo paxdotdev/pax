@@ -22,11 +22,11 @@ pub struct SlotInstance {
     base: BaseInstance,
 }
 
-impl ImplToFromPaxAny for SlotProperties {}
+impl ImplToFromPaxAny for Slot {}
 
 ///Contains the index value for slot, either a literal or an expression.
 #[derive(Default)]
-pub struct SlotProperties {
+pub struct Slot {
     // HACK: these two properties are being used in update:
     pub index: Property<Numeric>,
     pub last_node_id: Property<usize>,
@@ -61,10 +61,8 @@ impl InstanceNode for SlotInstance {
         let cloned_context = Rc::clone(context);
 
         // index should be renamed slot_node_id
-        let showing_node =
-            expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-                properties.showing_node.clone()
-            });
+        let showing_node = expanded_node
+            .with_properties_unwrapped(|properties: &mut Slot| properties.showing_node.clone());
         let deps = vec![showing_node.untyped()];
 
         expanded_node
@@ -93,7 +91,7 @@ impl InstanceNode for SlotInstance {
             .as_ref()
             .expect("slot to have a containing component")
             .expanded_and_flattened_slot_children;
-        expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
+        expanded_node.with_properties_unwrapped(|properties: &mut Slot| {
             let node_rc =
                 nodes.read(|nodes| nodes.get(properties.index.get().to_int() as usize).cloned());
             let node = match &node_rc {
