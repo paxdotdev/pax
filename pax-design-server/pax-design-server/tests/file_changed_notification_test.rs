@@ -27,7 +27,7 @@ async fn test_file_changed_notification() {
     let dir_path = dir.path().to_str().unwrap();
 
     // setup file watcher
-    let state = Data::new(AppState::new());
+    let state = Data::new(AppState::new_empty());
     let _watcher =
         setup_file_watcher(state.clone(), dir_path).expect("Failed to setup file watcher");
 
