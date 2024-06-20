@@ -1,5 +1,6 @@
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
-    let attempts = 5;
+    let attempts = 8;
+    let delay = 100;
     while (attempts > 0) {
         const response = await fetch(imagePath);
         if (response.ok) {
@@ -12,7 +13,8 @@ export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels
             let pixels = imageData.data;
             return { pixels, width: img.width, height: img.height };
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
         attempts--;
     }
     return Promise.reject('Failed to fetch image after maximum retries.')
