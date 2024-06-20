@@ -29,22 +29,29 @@ use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::{Axis, Percent};
 pub mod group_ungroup;
 
-pub struct CreateComponent {
+pub struct CreateComponent<'a> {
     pub bounds: AxisAlignedBox<World>,
     pub type_id: TypeId,
+    pub custom_props: Vec<(&'a str, &'a str)>,
 }
 
-impl Action for CreateComponent {
+impl Action for CreateComponent<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let save_data = borrow_mut!(ctx.engine_context.designtime)
-            .get_orm_mut()
-            .build_new_node(
+        let save_data = {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut builder = dt.get_orm_mut().build_new_node(
                 ctx.app_state.selected_component_id.get().clone(),
                 self.type_id,
-            )
-            .save()
-            .map_err(|e| anyhow!("could not save: {}", e))?;
+            );
 
+            for (name, value) in self.custom_props {
+                builder.set_property(name, value)?;
+            }
+
+            builder
+                .save()
+                .map_err(|e| anyhow!("could not save: {}", e))?
+        };
         let stage = ctx.derived_state.stage.get();
 
         ctx.execute(SetNodeTransformProperties::<World> {
