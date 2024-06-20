@@ -275,4 +275,48 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
+    window.addEventListener('drop', async (evt) => {
+        evt.stopPropagation();
+        evt.preventDefault();
+        if (document.activeElement != document.body) {
+            return;
+        }
+        let file = evt.dataTransfer?.files[0];
+        let bytes = await readFileAsByteArray(file);
+        let event = {
+            "DropFile": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "name": file.name,
+                "mime_type": file.type,
+                "size": file.size,
+            }
+        };
+        let res = chassis.interrupt(JSON.stringify(event), bytes);
+        if (res.prevent_default) {
+            evt.preventDefault();
+        }
+    }, true);
+    window.addEventListener('dragover', (evt) => {
+        evt.stopPropagation();
+        evt.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    }, {"passive": false, "capture": true});
+}
+
+function readFileAsByteArray(file: File): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event: ProgressEvent<FileReader>) => {
+            if (event.target && event.target.result instanceof ArrayBuffer) {
+                const arrayBuffer: ArrayBuffer = event.target.result;
+                const byteArray: Uint8Array = new Uint8Array(arrayBuffer);
+                resolve(byteArray); // Resolve the promise with the byte array
+            } else {
+                reject(new Error('File reading did not return an ArrayBuffer'));
+            }
+        };
+        reader.onerror = () => reject(reader.error); // Reject the promise on error
+        reader.readAsArrayBuffer(file); // Read the file as an ArrayBuffer
+    });
 }

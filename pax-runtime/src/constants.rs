@@ -12,6 +12,7 @@ pub const TEXTBOX_CHANGE_HANDLERS: &str = "textbox_change";
 pub const TEXT_INPUT_HANDLERS: &str = "text_input";
 pub const TEXTBOX_INPUT_HANDLERS: &str = "textbox_input";
 pub const CLICK_HANDLERS: &str = "click";
+pub const DROP_HANDLERS: &str = "drop";
 pub const MOUSE_DOWN_HANDLERS: &str = "mouse_down";
 pub const MOUSE_UP_HANDLERS: &str = "mouse_up";
 pub const MOUSE_MOVE_HANDLERS: &str = "mouse_move";

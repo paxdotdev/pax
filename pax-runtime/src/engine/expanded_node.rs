@@ -11,11 +11,11 @@ use wasm_bindgen::UnwrapThrowExt;
 use crate::api::math::Point2;
 use crate::constants::{
     BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS,
-    CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS,
-    KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS,
-    MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
-    TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
-    TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, KEY_DOWN_HANDLERS,
+    KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS,
+    MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS, SCROLL_HANDLERS,
+    TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS,
+    TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
@@ -26,7 +26,7 @@ use std::rc::{Rc, Weak};
 
 use crate::api::{
     Axis, ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick,
-    Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
+    Drop, Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
     NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
     TouchStart, Wheel, Window,
 };
@@ -692,6 +692,7 @@ impl ExpandedNode {
     );
     dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
+    dispatch_event_handler!(dispatch_drop, Drop, DROP_HANDLERS, true);
 
     pub fn dispatch_custom_event(
         &self,

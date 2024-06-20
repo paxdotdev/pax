@@ -73,6 +73,7 @@ pub enum NativeInterrupt {
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
+    DropFile(DropFileArgs),
 }
 
 #[derive(Deserialize)]
@@ -178,6 +179,16 @@ pub struct TouchMoveInterruptArgs {
 #[repr(C)]
 pub struct TouchEndInterruptArgs {
     pub touches: Vec<TouchMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct DropFileArgs {
+    pub x: f64,
+    pub y: f64,
+    pub name: String,
+    pub mime_type: String,
+    pub size: u64,
 }
 
 #[derive(Deserialize, Clone)]
