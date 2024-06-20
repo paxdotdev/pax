@@ -2,6 +2,7 @@
     @mouse_move=handle_mouse_move
     @mouse_up=handle_mouse_up
     @wheel=handle_wheel
+    @drop=handle_drop
 >
     <WireframeEditor/>
     if self.is_rect_tool_active {

@@ -58,6 +58,7 @@ impl ToolBehaviour for DropComponent {
         ctx.execute(CreateComponent {
             bounds,
             type_id: self.type_id.clone(),
+            custom_props: vec![],
         })
         .unwrap();
         ctx.execute(SetLibraryState { open: false }).unwrap();

@@ -72,6 +72,7 @@ impl ToolBehaviour for CreateComponentTool {
         ctx.execute(CreateComponent {
             bounds: world_box,
             type_id: self.type_id.clone(),
+            custom_props: vec![],
         })
         .unwrap();
         ControlFlow::Break(())

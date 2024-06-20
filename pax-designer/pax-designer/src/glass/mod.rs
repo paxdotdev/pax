@@ -7,13 +7,14 @@ use pax_std::primitives::{Group, Path, Rectangle};
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
+use crate::model::action::orm::CreateComponent;
 use crate::model::action::world::Translate;
 use crate::model::tools::SelectNodes;
 use crate::model::AppState;
 use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
 
-use crate::math;
 use crate::math::coordinate_spaces::{self, World};
+use crate::math::{self, AxisAlignedBox};
 use crate::model::action::pointer::Pointer;
 use crate::model::action::{Action, ActionContext, CanUndo};
 use crate::model::input::Dir;
@@ -208,6 +209,33 @@ impl Glass {
 
     pub fn handle_key_up(&mut self, ctx: &NodeContext, args: Event<KeyUp>) {
         model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key.clone());
+    }
+
+    pub fn handle_drop(&mut self, ctx: &NodeContext, event: Event<Drop>) {
+        {
+            let dt = borrow_mut!(ctx.designtime);
+            if let Err(e) = dt.send_file_to_static_dir(&event.args.name, event.args.data) {
+                log::warn!("failed to send file to server {}", e);
+            } else {
+                log::debug!("sent file to server!!");
+            };
+        }
+        model::with_action_context(ctx, |ac| {
+            let cw = ac.world_transform()
+                * ac.glass_transform().get()
+                * Point2::new(event.args.x, event.args.y);
+            let v = Vector2::new(150.0, 150.0);
+            if let Err(e) = ac.execute(CreateComponent {
+                bounds: AxisAlignedBox::new(cw + v, cw - v),
+                type_id: TypeId::build_singleton(
+                    "pax_designer::pax_reexports::pax_std::primitives::Image",
+                    None,
+                ),
+                custom_props: vec![("path", &format!("\"assets/{}\"", event.args.name))],
+            }) {
+                log::warn!("failed to create image: {}", e);
+            }
+        });
     }
 }
 
