@@ -93,48 +93,53 @@ impl ActionContext<'_> {
     }
 
     // if drill = true, look "one layer deeper", ie return objects inside groups that are currently not selected
-    pub fn raycast_glass(&self, point: Point2<Glass>, drill: bool) -> Option<NodeInterface> {
+    pub fn raycast_glass(&self, point: Point2<Glass>, mode: RaycastMode) -> Option<NodeInterface> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
-        if let Some(container) = self
+        let userland = self
             .engine_context
             .get_nodes_by_id(USERLAND_EDIT_ID)
-            .first()
-        {
-            let mut target = all_elements_beneath_ray
-                .into_iter()
-                .find(|elem| elem.is_descendant_of(&container))?;
+            .pop()?;
+        let userland_id = userland.global_id();
 
-            // Find the ancestor that is a direct root element inside container
-            // or one that's in the current edit root
-            loop {
-                let Some(mut parent) = target.parent() else {
-                    break;
-                };
+        let mut potential_targets = all_elements_beneath_ray
+            .into_iter()
+            .filter(|elem| elem.is_descendant_of(&userland));
 
-                // check one step ahead if we are drilling into a group or similar
-                if drill {
-                    let Some(next_parent) = parent.parent() else {
-                        break;
-                    };
-                    parent = next_parent;
-                }
-
-                if parent.global_id() == container.global_id() {
-                    break;
-                };
-                if parent
-                    .global_id()
-                    .is_some_and(|v| self.derived_state.open_containers.get().contains(&v))
-                {
-                    break;
-                }
-                target = target.parent().unwrap();
-            }
-            return Some(target);
+        if let RaycastMode::Nth(index) = mode {
+            return potential_targets.nth(index);
         }
-        None
+
+        let mut target = potential_targets.next()?;
+
+        // Find the ancestor that is a direct root element inside container
+        // or one that's in the current edit root
+        loop {
+            let Some(mut parent) = target.parent() else {
+                break;
+            };
+
+            // check one step ahead if we are drilling into a group or similar
+            if matches!(mode, RaycastMode::DrillOne) {
+                let Some(next_parent) = parent.parent() else {
+                    break;
+                };
+                parent = next_parent;
+            }
+
+            if parent.global_id() == userland_id {
+                break;
+            };
+            if parent
+                .global_id()
+                .is_some_and(|v| self.derived_state.open_containers.get().contains(&v))
+            {
+                break;
+            }
+            target = target.parent().unwrap();
+        }
+        Some(target)
     }
 
     pub fn selected_nodes(&mut self) -> Vec<(UniqueTemplateNodeIdentifier, NodeInterface)> {
@@ -293,4 +298,14 @@ impl ActionContext<'_> {
             total_bounds,
         }
     }
+}
+
+pub enum RaycastMode {
+    // Only hit elements that are either directly bellow the userland project
+    // root, or ones that are at the same level as an already selected node
+    Top,
+    // Hit the children of the "Top" elements
+    DrillOne,
+    // Hit all elements, and choose the nth hit
+    Nth(usize),
 }

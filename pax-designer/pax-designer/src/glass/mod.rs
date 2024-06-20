@@ -16,7 +16,7 @@ use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID, USER_PROJ_ROOT_IMPORT_P
 use crate::math::coordinate_spaces::{self, World};
 use crate::math::{self, AxisAlignedBox};
 use crate::model::action::pointer::Pointer;
-use crate::model::action::{Action, ActionContext, CanUndo};
+use crate::model::action::{Action, ActionContext, CanUndo, RaycastMode};
 use crate::model::input::Dir;
 
 pub mod control_point;
@@ -132,7 +132,7 @@ impl Glass {
                         let hit = ax.raycast_glass(
                             ax.glass_transform().get()
                                 * Point2::<Window>::new(args.mouse.x, args.mouse.y),
-                            true,
+                            RaycastMode::DrillOne,
                         );
                         if let Some(hit) = hit {
                             if let Err(e) = ax.execute(SelectNodes {
