@@ -9,7 +9,7 @@ use colored::Colorize;
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
 use pax_compiler::RunContext;
-use pax_designtime::messages::{LLMHelpResponse, LoadFileToStaticDirRequest};
+use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::{PaxManifest, TypeId};
 
@@ -75,7 +75,9 @@ pub async fn web_socket(
     stream: web::Payload,
     state: web::Data<AppState>,
 ) -> impl Responder {
-    ws::start(PrivilegedAgentWebSocket::new(state), &req, stream)
+    ws::WsResponseBuilder::new(PrivilegedAgentWebSocket::new(state), &req, stream)
+        .frame_size(2_000_000)
+        .start()
 }
 
 #[allow(unused_assignments)]

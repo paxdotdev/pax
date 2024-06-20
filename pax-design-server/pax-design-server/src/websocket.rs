@@ -1,6 +1,6 @@
 use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
-use actix_web_actors::ws;
+use actix_web_actors::ws::{self};
 use pax_compiler::parsing::TemplateNodeParseContext;
 use pax_designtime::{
     messages::{
@@ -12,6 +12,7 @@ use pax_designtime::{
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{collections::HashMap, fs, time::SystemTime};
 
+use crate::llm::constants::TRAINING_DATA_PATH;
 use crate::{
     code_serialization::serialize_component_to_file,
     llm::{
@@ -22,15 +23,21 @@ use crate::{
     AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
 };
 
-use crate::llm::constants::TRAINING_DATA_PATH;
+use self::socket_message_accumulator::SocketMessageAccumulator;
+
+mod socket_message_accumulator;
 
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
+    socket_msg_accum: SocketMessageAccumulator,
 }
 
 impl PrivilegedAgentWebSocket {
     pub fn new(state: Data<AppState>) -> Self {
-        Self { state }
+        Self {
+            state,
+            socket_msg_accum: SocketMessageAccumulator::new(),
+        }
     }
 }
 
@@ -134,8 +141,13 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        println!("recieved socket message");
-        if let Ok(ws::Message::Binary(bin_data)) = msg {
+        let Ok(msg) = msg else {
+            eprintln!("failed to recieve on socket");
+            return;
+        };
+
+        let processed_message = self.socket_msg_accum.process(msg);
+        if let Ok(Some(bin_data)) = processed_message {
             match rmp_serde::from_slice::<AgentMessage>(&bin_data) {
                 Ok(AgentMessage::ComponentSerializationRequest(request)) => {
                     handle_component_serialization_request(request);
@@ -236,6 +248,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     eprintln!("Deserialization error: {:?}", e);
                 }
             }
+        } else if let Ok(None) = processed_message {
+            // Do nothing, wait until entire message has been recieved
+        } else {
+            eprintln!("unhandled socket message");
         }
     }
 }
