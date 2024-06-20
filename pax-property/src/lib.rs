@@ -13,6 +13,7 @@ mod property_table;
 pub mod transitions;
 
 pub use property_id::PropertyId;
+pub use property_table::PropertyScopeManager;
 use serde::{Deserialize, Serialize};
 use transitions::{EasingCurve, Interpolatable, TransitionQueueEntry};
 pub trait PropertyValue: Default + Clone + 'static {}

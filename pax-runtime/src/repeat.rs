@@ -136,15 +136,25 @@ impl InstanceNode for RepeatInstance {
                 .flat_map(|(i, children)| {
                     let property_i = Property::new(i);
                     let cp_source_expression = cloned_source_expression.clone();
-                    let property_elem = Property::expression(
-                        move || {
-                            Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
-                                "engine error: tried to access index {} of an array source that now only contains {} elements",
-                                i, cp_source_expression.get().len()
-                            ))))
-                        },
-                        &[cloned_source_expression.get_id()],
-                    );
+                    let elem = Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
+                        "engine error: tried to access index {} of an array source that now only contains {} elements",
+                        i, cp_source_expression.get().len()
+                    ))));
+                    let property_elem = Property::new(elem);
+                    let cloned_pe = property_elem.clone();
+                    cloned_source_expression.subscribe(move || {
+                        let se = cp_source_expression.get();
+                        // only update elem if it still exists
+                        if i >= se.len() {
+                            return;
+                        }
+                        let elem = se.get(i).unwrap_or_else(|| panic!(
+                            "engine error: tried to access index {} of an array source that now only contains {} elements",
+                            i, cp_source_expression.get().len()
+                        ));
+                        cloned_pe.set(Some(Rc::clone(elem)));
+                    });
+
                     let new_repeat_item = Rc::new(RefCell::new(
                         RepeatItem {
                             i: property_i.clone(),

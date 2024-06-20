@@ -3,9 +3,14 @@ use ahash::AHashMap;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
+<<<<<<< HEAD
     borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
     Rotation, Transform2D,
 };
+=======
+    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D,
+, PropertyScopeManager};
+>>>>>>> 7de1aea7 (garbage collecting)
 use wasm_bindgen::UnwrapThrowExt;
 
 use crate::api::math::Point2;
@@ -116,6 +121,10 @@ pub struct ExpandedNode {
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<AHashMap<String, PropertyId>>,
+
+    /// A manager to keep track of all the properties created by this expanded node
+    /// Used to clean up properties when the node is dropped
+    pub property_scope_manager: RefCell<PropertyScopeManager>,
 }
 
 impl ImplToFromPaxAny for ExpandedNode {}
@@ -195,6 +204,11 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
+
+        let mut property_scope_manager = PropertyScopeManager::new();
+
+        property_scope_manager.start_scope();
+
         let properties = (&template.base().instance_prototypical_properties_factory)(
             env.clone(),
             context.expression_table(),
@@ -213,6 +227,13 @@ impl ExpandedNode {
         }
 
         let id = context.gen_uid();
+
+        let rendered_size = Property::default();
+        let layout_properties = LayoutProperties::default();
+        let flattened_slot_children_count = Property::new(0);
+
+        property_scope_manager.end_scope();
+
         let res = Rc::new(ExpandedNode {
             id,
             stack: env,
@@ -220,7 +241,7 @@ impl ExpandedNode {
             attached: RefCell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
-            rendered_size: Property::default(),
+            rendered_size,
 
             // these two refer to their rendering parent, not their
             // template parent
@@ -230,15 +251,24 @@ impl ExpandedNode {
 
             containing_component,
             children: RefCell::new(Vec::new()),
-            layout_properties: RefCell::new(LayoutProperties::default()),
+            layout_properties: RefCell::new(layout_properties),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
-            flattened_slot_children_count: Property::new(0),
+            flattened_slot_children_count,
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
-            // slot_index: Property::default(),
+            slot_index: Property::default(),
+            property_scope_manager: RefCell::new(property_scope_manager),
         });
         res
+    }
+
+    fn start_scope(&self) {
+        borrow_mut!(self.property_scope_manager).start_scope();
+    }
+
+    fn end_scope(&self) {
+        borrow_mut!(self.property_scope_manager).end_scope();
     }
 
     pub fn recreate_with_new_data(
@@ -246,6 +276,7 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        self.start_scope();
         Rc::clone(self).recurse_unmount(context);
         let new_expanded_node = Self::new(
             template.clone(),
@@ -262,6 +293,7 @@ impl ExpandedNode {
 
         Rc::clone(self).recurse_mount(context);
         self.bind_to_parent_bounds();
+        self.end_scope();
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -286,6 +318,7 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
         template_parent: &Weak<ExpandedNode>,
     ) -> Vec<Rc<ExpandedNode>> {
+        self.start_scope();
         let containing_component = if borrow!(self.instance_node).base().flags().is_component {
             Rc::downgrade(&self)
         } else {
@@ -303,6 +336,7 @@ impl ExpandedNode {
                 Weak::clone(&template_parent),
             ));
         }
+        self.end_scope();
         children
     }
 
@@ -311,6 +345,7 @@ impl ExpandedNode {
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
+        self.start_scope();
         let mut curr_children = borrow_mut!(self.children);
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         for child in new_children.iter() {
@@ -329,11 +364,13 @@ impl ExpandedNode {
             }
         }
         *curr_children = new_children.clone();
+        self.end_scope();
         new_children
     }
 
     // mutates self
     fn bind_to_parent_bounds(self: &Rc<Self>) {
+        self.start_scope();
         let parent = borrow!(self.render_parent).upgrade().unwrap();
         let parent_transform_and_bounds = parent.transform_and_bounds.clone();
         let layout_properties = self.layout_properties();
@@ -385,8 +422,7 @@ impl ExpandedNode {
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        //print_graph();
-        //panic!();
+        self.start_scope();
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             for handler in borrow!(registry)
                 .handlers
@@ -417,9 +453,11 @@ impl ExpandedNode {
         for child in borrow!(self.children).iter() {
             child.recurse_update(context);
         }
+        self.end_scope();
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.start_scope();
         if *borrow!(self.attached) == 0 {
             *borrow_mut!(self.attached) += 1;
             context.add_to_cache(&self);
@@ -449,9 +487,11 @@ impl ExpandedNode {
         for child in self.children.iter() {
             Rc::clone(child).recurse_mount(context);
         }
+        self.end_scope();
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.start_scope();
         // WARNING: do NOT make recurse_unmount result in expr evaluation,
         // in this case: do not refer to self.children expression.
         // expr evaluation in this context can trigger get's of "old data", ie try to get
@@ -477,15 +517,21 @@ impl ExpandedNode {
             }
             borrow!(self.instance_node).handle_unmount(&self, context);
         }
+
+        self.end_scope()
     }
 
     pub fn recurse_render(&self, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
+        self.start_scope();
+
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
         for child in borrow!(self.children).iter().rev() {
             child.recurse_render(ctx, rcs);
         }
         borrow!(self.instance_node).render(&self, ctx, rcs);
         borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
+
+        self.end_scope();
     }
 
     /// Manages unpacking an Rc<RefCell<PaxValue>>, downcasting into
@@ -528,7 +574,9 @@ impl ExpandedNode {
         for child in borrow!(self.children).iter().rev() {
             child.recurse_visit_postorder(func)
         }
+        self.start_scope();
         func(self);
+        self.end_scope();
     }
 
     pub fn get_node_context<'a>(&'a self, ctx: &Rc<RuntimeContext>) -> NodeContext {
@@ -623,6 +671,7 @@ impl ExpandedNode {
     }
 
     pub fn compute_flattened_slot_children(&self) {
+        self.start_scope();
         // All of this should ideally be reactively updated,
         // but currently doesn't exist a way to "listen to"
         // an entire node tree, and generate the flattened list
@@ -652,6 +701,7 @@ impl ExpandedNode {
                 }
             }
         }
+        self.end_scope();
     }
 
     dispatch_event_handler!(dispatch_scroll, Scroll, SCROLL_HANDLERS, true);
