@@ -1,5 +1,5 @@
 
-use std::{any::Any, borrow::BorrowMut, cell::{RefCell, RefMut}, collections::{HashMap, HashSet}, fmt::{Display, Formatter}, ops::Sub, sync::atomic::{AtomicU64, Ordering}, time::Instant};
+use std::{any::Any, borrow::BorrowMut, cell::{RefCell, RefMut}, collections::{HashMap, HashSet, VecDeque}, fmt::{Display, Formatter}, ops::Sub, sync::atomic::{AtomicU64, Ordering}, time::Instant};
 use wasm_bindgen::prelude::*;
 use web_sys::{window, Performance};
 use nohash_hasher::BuildNoHashHasher;
@@ -88,12 +88,11 @@ impl GetStatistics {
 
 pub struct PropertyTable {
     pub properties: RefCell<HashMap<PropertyId, Entry, BuildNoHashHasher<u64>>>,
+    pub property_scopes: RefCell<Vec<Vec<PropertyId>>>,
 }
 
 pub struct Entry {
-    pub ref_count: usize,
     pub data: PropertyData,
-    pub version: u64,
 }
 
 /// Specialization data only needed for different kinds of properties
@@ -129,6 +128,55 @@ impl TransitionCleanupInfo {
         if (self.is_finished)() {
             PROPERTY_TIME.with(|t| t.borrow_mut().unsubscribe(self.sub_id.clone()));
         }
+    }
+}
+
+
+#[derive(Clone)]
+pub struct PropertyScopeManager {
+    pub property_ids: Vec<PropertyId>,
+}
+
+impl PropertyScopeManager {
+    pub fn new() -> Self {
+        Self {
+            property_ids: Vec::new(),
+        }
+    }
+
+    pub fn start_scope(&mut self) {
+        PROPERTY_TABLE.with(|t| {
+            t.start_scope();
+        });
+    }
+    pub fn end_scope(&mut self) {
+        PROPERTY_TABLE.with(|t| {
+            self.property_ids.extend(t.end_scope());
+        });
+    }
+
+    pub fn run_with_scope(&mut self, f:impl FnOnce()) {
+        PROPERTY_TABLE.with(|t| {
+            t.start_scope();
+        });
+        f();
+        PROPERTY_TABLE.with(|t| {
+            self.property_ids.extend(t.end_scope());
+        });
+    }
+
+    pub fn drop_scope(&self) {
+        PROPERTY_TABLE.with(|t| {
+            for id in &self.property_ids {
+               t.remove_entry(*id);
+            }
+        });
+    }
+}
+
+impl Drop for PropertyScopeManager {
+    fn drop(&mut self) {
+        self.drop_scope();
     }
 }
 
@@ -232,6 +280,25 @@ impl PropertyData {
 
 
 impl PropertyTable {
+
+    fn start_scope(&self) {
+        let mut scopes = self.property_scopes.borrow_mut();
+        scopes.push(Vec::new());
+    }
+
+    fn end_scope(&self) -> Vec<PropertyId> {
+        let mut scopes = self.property_scopes.borrow_mut();
+        let scope = scopes.pop().expect("No scope to end");
+        scope
+    }
+
+    pub fn push_to_scope_if_exists(&self, id: PropertyId) {
+        let mut scopes = self.property_scopes.borrow_mut();
+        if let Some(scope) = scopes.last_mut() {
+            scope.push(id);
+        }
+    }
+
     pub fn insert<T: PropertyValue>(&self, property_type: PropertyType, value: T, inbound: Vec<PropertyId>) -> PropertyId {
        for i in &inbound {
            self.clear_memoized_dependents(i.clone());
@@ -242,8 +309,6 @@ impl PropertyTable {
         };
         let id = PropertyId::new();
         sm.insert(id, Entry {
-            ref_count: 1,
-            version: 0,
             data: PropertyData {
                 value: Box::new(value),
                 subscriptions: Subscriptions::default(),
@@ -260,12 +325,13 @@ impl PropertyTable {
                 entry.data.outbound.insert(id);
             });
         }
+
+        self.push_to_scope_if_exists(id);
+
         id
     }
 
     pub fn get<T: PropertyValue>(&self, id: PropertyId) -> T {
-        
-        //let start_time = PERFORMANCE.with(|p| p.now());
         let sm = self.properties.borrow();
         if !sm.contains_key(&id){
             return T::default();
@@ -273,16 +339,14 @@ impl PropertyTable {
 
         let entry = sm.get(&id).expect("Property not found");
         let value = entry.data.get_value();
-        //let end_time = PERFORMANCE.with(|p| p.now());
-        //let duration = end_time - start_time;
-        // if duration > 0.09 {
-        //     log::warn!("Long get time: {} ms for type: {}", duration, std::any::type_name::<T>());
-        // }
-        //GET_STATISTICS.with(|s| s.borrow_mut().record_get(duration));
         value
     }
 
     pub fn set<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
+        if !self.properties.borrow().contains_key(&id){
+            return;
+        }
+
         let mut all_subscriptions = Vec::new();
         
         // update value of property and grab dependencies to update
@@ -335,40 +399,11 @@ impl PropertyTable {
             let mut sm = self.properties.borrow_mut();
             let entry = sm.get_mut(&id).expect("Property not found");
             entry.data.value = new_value;
-            entry.version += 1;
         }
     }
 
 
     pub fn replace_with<T: PropertyValue>(&self, older_property: PropertyId, new_property: PropertyId) {
-
-        // Get properties that depend on id and its subscriptions
-        // let (new_inbound, new_outbound, new_property_type)  = {
-        //     let mut sm = self.properties.borrow_mut();
-        //     let entry = sm.get_mut(&new_property).expect("Property not found");
-        //     let ret = (entry.data.inbound.clone(), entry.data.outbound.clone(), entry.data.property_type.clone());
-        //     entry.data.inbound = HashSet::new();
-        //     entry.data.outbound = HashSet::new();
-        //     ret
-        // };
-        // For new inbound change each of their outbounds to point to older_property id
-        // for id in new_inbound.clone() {
-        //     {
-        //         let mut sm = self.properties.borrow_mut();
-        //         let entry = sm.get_mut(&id).expect("Property not found");
-        //         entry.data.outbound.insert(older_property);
-        //     }
-        // }
-
-        // for id in new_outbound.clone() {
-        //     {
-        //         let mut sm = self.properties.borrow_mut();
-        //         let entry = sm.get_mut(&id).expect("Property not found");
-        //         entry.data.inbound.remove(&new_property);
-        //         entry.data.inbound.insert(older_property);
-        //     }
-        // }
-
         let old_inbound = {
             let mut sm = self.properties.borrow_mut();
             let new_property_entry = sm.get_mut(&new_property).expect("Property not found");
@@ -551,12 +586,41 @@ impl PropertyTable {
         }
     }
 
+
+    pub fn remove_entry(&self, id: PropertyId) {
+        let inbound = {
+            let mut sm = self.properties.borrow_mut();
+            let (outbound, inbound) = {
+                let entry = sm.get(&id).expect("Property not found");
+                (entry.data.outbound.clone(), entry.data.inbound.clone())
+            };
+
+            for outbound_id in outbound {
+                if let Some(entry) = sm.get_mut(&outbound_id) {
+                    entry.data.inbound.remove(&id);
+                }
+            }
+            for inbound_id in inbound.clone() {
+                if let Some(entry) = sm.get_mut(&inbound_id) {
+                    entry.data.outbound.remove(&id);
+                }
+            }
+            sm.remove(&id);
+            inbound.clone()
+        };
+        for id in inbound {
+            self.clear_memoized_dependents(id);
+        }
+
+    }
+
 }
 
 impl Default for PropertyTable {
     fn default() -> Self {
         PropertyTable {
             properties: RefCell::new(HashMap::with_capacity_and_hasher(100, BuildNoHashHasher::default())),
+            property_scopes: RefCell::new(Vec::new()),
         }
     }
 }
