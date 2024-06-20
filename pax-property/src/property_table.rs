@@ -300,10 +300,7 @@ impl PropertyTable {
     }
 
     pub fn insert<T: PropertyValue>(&self, property_type: PropertyType, value: T, inbound: Vec<PropertyId>) -> PropertyId {
-       for i in &inbound {
-           self.clear_memoized_dependents(i.clone());
-       }
-
+        let id = {
         let Ok(mut sm) = self.properties.try_borrow_mut() else {
             panic!("Failed to borrow property table");
         };
@@ -325,9 +322,11 @@ impl PropertyTable {
                 entry.data.outbound.insert(id);
             });
         }
+            id
+        };
 
         self.push_to_scope_if_exists(id);
-
+        self.clear_memoized_dependents(id);
         id
     }
 
@@ -588,7 +587,8 @@ impl PropertyTable {
 
 
     pub fn remove_entry(&self, id: PropertyId) {
-        let inbound = {
+        self.clear_memoized_dependents(id);
+        {
             let mut sm = self.properties.borrow_mut();
             let (outbound, inbound) = {
                 let entry = sm.get(&id).expect("Property not found");
@@ -606,12 +606,7 @@ impl PropertyTable {
                 }
             }
             sm.remove(&id);
-            inbound.clone()
-        };
-        for id in inbound {
-            self.clear_memoized_dependents(id);
         }
-
     }
 
 }
