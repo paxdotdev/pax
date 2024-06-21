@@ -72,7 +72,7 @@ impl InstanceNode for TextboxInstance {
         let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([expanded_node.transform_and_bounds.get_id()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
@@ -95,7 +95,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.text,
                                 &mut patch.text,
-                                properties.text.get().clone(),
+                                properties.text.get(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -107,12 +107,12 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get().clone()).into(),
+                                (&properties.style.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get().clone()).into(),
+                                (&properties.stroke.get().color.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
@@ -122,7 +122,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get().clone()).into(),
+                                (&properties.background.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.border_radius,

@@ -57,7 +57,6 @@ impl InstanceNode for SlotInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-
         log::warn!("Slot handle_mount");
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_context = Rc::clone(context);
@@ -87,8 +86,10 @@ impl InstanceNode for SlotInstance {
             .expect("slot to have a containing component")
             .expanded_and_flattened_slot_children;
         expanded_node.with_properties_unwrapped(|properties: &mut Slot| {
-            let node_rc =
-                nodes.read(|nodes| nodes.get(properties.index.get().to_int() as usize).cloned());
+            let node_rc = nodes
+                .get()
+                .get(properties.index.get().to_int() as usize)
+                .cloned();
             let node = match &node_rc {
                 Some(rc) => Rc::downgrade(rc),
                 None => Weak::new(),

@@ -79,7 +79,7 @@ impl InstanceNode for ScrollbarInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([expanded_node.transform_and_bounds.get_id()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             expanded_node.id,

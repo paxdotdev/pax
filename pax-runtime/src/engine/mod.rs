@@ -1,4 +1,4 @@
-use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
+use crate::{api::Property, ExpandedNodeIdentifier, LayoutProperties, TransformAndBounds};
 use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
@@ -39,7 +39,7 @@ use {pax_designtime::DesigntimeManager, pax_runtime_api::properties};
 #[derive(Clone)]
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
-    pub viewport: LayoutProperties,
+    pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
     pub platform: Platform,
     pub os: OS,
     #[cfg(feature = "designtime")]
@@ -260,10 +260,10 @@ impl PaxEngine {
         pax_runtime_api::set_time(0);
         let globals = Globals {
             frames_elapsed: Property::new(0),
-            viewport: LayoutProperties {
-                transform: Property::new(Transform2::identity()),
-                bounds: Property::new(viewport_size),
-            },
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: viewport_size,
+            }),
             platform,
             os,
         };
@@ -455,9 +455,13 @@ impl PaxEngine {
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.runtime_context.edit_globals(|globals| {
-            globals
-                .viewport
-                .update(|t_and_b| t_and_b.bounds = new_viewport_size);
+
+            let vp = globals.viewport.get();
+            let new_viewport_size = TransformAndBounds {
+                transform: vp.transform,
+                bounds: new_viewport_size,
+            };
+            globals.viewport.set(new_viewport_size);
         });
     }
 

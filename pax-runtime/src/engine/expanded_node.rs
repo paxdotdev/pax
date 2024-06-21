@@ -4,6 +4,7 @@ use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
 <<<<<<< HEAD
+<<<<<<< HEAD
     borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
     Rotation, Transform2D,
 };
@@ -11,6 +12,9 @@ use pax_runtime_api::{
     borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D,
 , PropertyScopeManager};
 >>>>>>> 7de1aea7 (garbage collecting)
+=======
+    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D, PropertyScopeManager};
+>>>>>>> 9e94d1d4 (rebased off dev)
 use wasm_bindgen::UnwrapThrowExt;
 
 use crate::api::math::Point2;
@@ -76,7 +80,7 @@ pub struct ExpandedNode {
     /// explicitly updated to accommodate.)
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
-    /// A list of mounted children that need to be dismounted when children is recalculated
+    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
     pub children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
@@ -88,10 +92,9 @@ pub struct ExpandedNode {
     /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
     pub rendered_size: Property<Option<(f64, f64)>>,
 
-    /// Properties that are currently re-computed each frame before rendering.
-    /// Only contains computed_tab atm. Might be possible to retire if tab comp
-    /// would be part of render pass?
-    pub layout_properties: RefCell<LayoutProperties>,
+    /// The layout information (width, height, transform) used to render this node.
+    /// computed property based on parent bounds + common properties
+    pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
 
     /// For component instances only, tracks the expanded slot_children in it's
     /// non-collapsed form (repeat and conditionals still present). This allows
@@ -122,11 +125,14 @@ pub struct ExpandedNode {
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<AHashMap<String, PropertyId>>,
 
+    /// The flattened index of this node in it's container (if this container
+    /// cares about slot children, ex: component, path).
+    pub slot_index: Property<Option<usize>>,
+
     /// A manager to keep track of all the properties created by this expanded node
     /// Used to clean up properties when the node is dropped
     pub property_scope_manager: RefCell<PropertyScopeManager>,
 }
-
 impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
 
@@ -178,9 +184,10 @@ macro_rules! dispatch_event_handler {
 impl ExpandedNode {
     pub fn root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
         let root_env = RuntimePropertiesStackFrame::new(
-            AHashMap::default(),
+            AHashMap::new(),
             Rc::new(RefCell::new(().to_pax_any())),
         );
+<<<<<<< HEAD
         let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());
         // Rc::clone(&root_node).recurse_mount(ctx);
         let globals = ctx.globals();
@@ -193,7 +200,21 @@ impl ExpandedNode {
             layout_properties.bounds.replace_with(bounds);
             layout_properties.transform.replace_with(transform);
         }
+=======
+        let root_node = Self::new(template, root_env, ctx, Weak::new());
+>>>>>>> 9e94d1d4 (rebased off dev)
         Rc::clone(&root_node).recurse_mount(ctx);
+        let globals = ctx.globals();
+        let container_transform_and_bounds = globals.viewport.clone();
+        let layout_properties = root_node.layout_properties();
+        let transform_and_bounds = compute_tab(
+            layout_properties,
+            Property::default(),
+            container_transform_and_bounds,
+        );
+        root_node
+            .transform_and_bounds
+            .replace_with(transform_and_bounds);
         root_node
     }
 
@@ -229,8 +250,10 @@ impl ExpandedNode {
         let id = context.gen_uid();
 
         let rendered_size = Property::default();
-        let layout_properties = LayoutProperties::default();
         let flattened_slot_children_count = Property::new(0);
+
+        let slot_index = Property::default();
+        let transform_and_bounds = Property::new(TransformAndBounds::default());
 
         property_scope_manager.end_scope();
 
@@ -251,14 +274,14 @@ impl ExpandedNode {
 
             containing_component,
             children: RefCell::new(Vec::new()),
-            layout_properties: RefCell::new(layout_properties),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count,
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
-            slot_index: Property::default(),
+            slot_index,
             property_scope_manager: RefCell::new(property_scope_manager),
+            transform_and_bounds,
         });
         res
     }
@@ -376,8 +399,8 @@ impl ExpandedNode {
         let layout_properties = self.layout_properties();
         let rendered_size = self.rendered_size.clone();
 
-        let deps = [layout_properties.untyped(), rendered_size.untyped()];
-        let layout_properties_with_fallback = Property::computed(
+        let deps = [layout_properties.get_id(), rendered_size.get_id()];
+        let layout_properties_with_fallback = Property::expression(
             move || {
                 let mut lp = layout_properties.get();
                 let fallback = rendered_size.get();
@@ -582,15 +605,15 @@ impl ExpandedNode {
     pub fn get_node_context<'a>(&'a self, ctx: &Rc<RuntimeContext>) -> NodeContext {
         let globals = ctx.globals();
         let t_and_b = self.transform_and_bounds.clone();
-        let deps = [t_and_b.untyped()];
-        let bounds_self = Property::computed(move || t_and_b.get().bounds, &deps);
+        let deps = [t_and_b.get_id()];
+        let bounds_self = Property::expression(move || t_and_b.get().bounds, &deps);
         let t_and_b_parent = if let Some(parent) = borrow!(self.render_parent).upgrade() {
             parent.transform_and_bounds.clone()
         } else {
             globals.viewport.clone()
         };
-        let deps = [t_and_b_parent.untyped()];
-        let bounds_parent = Property::computed(move || t_and_b_parent.get().bounds, &deps);
+        let deps = [t_and_b_parent.get_id()];
+        let bounds_parent = Property::expression(move || t_and_b_parent.get().bounds, &deps);
 
         let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
             self.flattened_slot_children_count.clone()
@@ -678,13 +701,11 @@ impl ExpandedNode {
         // only when changed.
         if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
             let new_flattened = flatten_expanded_nodes_for_slot(&slot_children);
-            let old_and_new_filtered_same =
-                self.expanded_and_flattened_slot_children.read(|flattened| {
-                    flattened
-                        .iter()
-                        .map(|n| n.id)
-                        .eq(new_flattened.iter().map(|n| n.id))
-                });
+            let exp_flat_slot_children = self.expanded_and_flattened_slot_children.get();
+            let old_and_new_filtered_same =   exp_flat_slot_children
+                .iter()
+                .map(|n| n.id)
+                .eq(new_flattened.iter().map(|n| n.id));
 
             if !old_and_new_filtered_same {
                 self.flattened_slot_children_count.set(new_flattened.len());
@@ -812,21 +833,21 @@ impl ExpandedNode {
         let cp_x = common_props.x.clone();
         let cp_y = common_props.y.clone();
         let deps = [
-            cp_width.untyped(),
-            cp_height.untyped(),
-            cp_transform.untyped(),
-            cp_anchor_x.untyped(),
-            cp_anchor_y.untyped(),
-            cp_scale_x.untyped(),
-            cp_scale_y.untyped(),
-            cp_skew_x.untyped(),
-            cp_skew_y.untyped(),
-            cp_rotate.untyped(),
-            cp_x.untyped(),
-            cp_y.untyped(),
+            cp_width.get_id(),
+            cp_height.get_id(),
+            cp_transform.get_id(),
+            cp_anchor_x.get_id(),
+            cp_anchor_y.get_id(),
+            cp_scale_x.get_id(),
+            cp_scale_y.get_id(),
+            cp_skew_x.get_id(),
+            cp_skew_y.get_id(),
+            cp_rotate.get_id(),
+            cp_x.get_id(),
+            cp_y.get_id(),
         ];
 
-        Property::computed(
+        Property::expression(
             move || LayoutProperties {
                 x: cp_x.get(),
                 y: cp_y.get(),
@@ -894,8 +915,13 @@ impl std::fmt::Debug for ExpandedNode {
             )
             .field("id", &self.id)
             .field("common_properties", &borrow!(self.common_properties))
+<<<<<<< HEAD
             .field("transform_and_bounds", &self.transform_and_bounds)
             .field("children", &self.children.iter().collect::<Vec<_>>())
+=======
+            .field("children", &borrow!(self.children).iter().collect::<Vec<_>>())
+            .field("parent", &borrow!(self.parent_expanded_node).upgrade())
+>>>>>>> 9e94d1d4 (rebased off dev)
             .field(
                 "slot_children",
                 &self

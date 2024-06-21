@@ -104,10 +104,7 @@ impl InstanceNode for TextInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([
-                borrow!(expanded_node.layout_properties).transform.get_id(),
-                borrow!(expanded_node.layout_properties).bounds.get_id(),
-            ])
+            .chain([expanded_node.transform_and_bounds.get_id()])
             .collect();
 
         borrow_mut!(self.native_message_props).insert(
@@ -124,8 +121,8 @@ impl InstanceNode for TextInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-                        let computed_tab = borrow!(&expanded_node.layout_properties);
-                        let (width, height) = computed_tab.bounds.get();
+                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let (width, height) = computed_tab.bounds;
                         let cp = expanded_node.get_common_properties();
                         let cp = borrow!(cp);
                         // send width/height only if common props exist, otherwise we are in "listening mode"
@@ -141,18 +138,18 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.text.get().clone(),
+                                properties.text.get(),
                             ),
                             // Styles
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get().clone()).into(),
+                                (&properties.style.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style_link,
                                 &mut patch.style_link,
-                                (&properties.style_link.get().clone()).into(),
+                                (&properties.style_link.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.editable,

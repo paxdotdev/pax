@@ -39,8 +39,8 @@ impl InstanceNode for EllipseInstance {
         _context: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let tab = borrow!(&expanded_node.layout_properties);
-        let (width, height) = tab.bounds.get();
+        let tab = expanded_node.transform_and_bounds.get();
+        let (width, height) = tab.bounds;
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);
@@ -50,7 +50,7 @@ impl InstanceNode for EllipseInstance {
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-            let color = if let Fill::Solid(properties_color) = properties.fill.get().clone() {
+            let color = if let Fill::Solid(properties_color) = properties.fill.get() {
                 properties_color.to_piet_color()
             } else {
                 unimplemented!("gradients not supported on ellipse")

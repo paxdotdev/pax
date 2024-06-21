@@ -1,3 +1,4 @@
+use ahash::AHashMap;
 use kurbo::BezPath;
 
 use pax_runtime::api::{Layer, RenderContext};
@@ -46,7 +47,7 @@ impl InstanceNode for PathInstance {
         // ones bellow. If not done, things above this node could potentially access it
         let env = expanded_node
             .stack
-            .push(HashMap::new(), &*borrow!(expanded_node.properties));
+            .push(AHashMap::new(), &*borrow!(expanded_node.properties));
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             env.insert_stack_local_store(PathContext {
                 elements: properties.elements.clone(),
@@ -57,7 +58,7 @@ impl InstanceNode for PathInstance {
             // set slot children to all to make children compute and update their slot index
             // (see expanded_node compute_expanded and flattened children)
             *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_children.clone());
-            expanded_node.children.set(new_children);
+            expanded_node.attach_children(new_children, context);
         });
     }
 

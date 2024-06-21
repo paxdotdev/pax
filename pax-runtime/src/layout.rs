@@ -19,12 +19,12 @@ pub fn compute_tab(
     //and for this node itself (e.g. for specifying the size of a Rectangle node)
 
     let deps = [
-        layout_properties.untyped(),
-        container_transform_and_bounds.untyped(),
-        extra_transform.untyped(),
+        layout_properties.get_id(),
+        container_transform_and_bounds.get_id(),
+        extra_transform.get_id(),
     ];
 
-    Property::computed(
+    Property::expression(
         move || {
             let container_t_and_b = container_transform_and_bounds.get();
             let transform_and_bounds =
