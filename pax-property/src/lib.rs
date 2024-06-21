@@ -84,21 +84,14 @@ impl<T: PropertyValue + Interpolatable> Property<T> {
 }
 
 impl<T: PropertyValue> Property<T> {
-    pub fn new(val: T, name: &str) -> Self {
-        // if name != "bounds_self" && name != "bounds_parent" {
-        //     log::warn!("Creating literal property with name: {}", name);
-        // }
+    pub fn new(val: T, _name: &str) -> Self {
         Self {
             id: PROPERTY_TABLE.with(|t| t.insert(PropertyType::Literal, val.clone(), Vec::new())),
             _phantom: std::marker::PhantomData,
         }
     }
 
-    pub fn expression(evaluator: impl Fn() -> T + 'static, dependents: &[PropertyId], name: &str) -> Self {
-        // if name != "bounds_self" && name != "bounds_parent" {
-        //     log::warn!("Creating expression property with name: {}", name);
-        // }
-       
+    pub fn expression(evaluator: impl Fn() -> T + 'static, dependents: &[PropertyId], _name: &str) -> Self {
         let inbound = dependents.to_vec();
         let start_val = evaluator();
         let evaluator = Rc::new(generate_untyped_closure(evaluator));
@@ -195,14 +188,6 @@ pub fn print_graph() {
 pub fn set_time(frames_elapsed: u64) {
     PROPERTY_TABLE.with(|t| t.cleanup_finished_transitions());
     PROPERTY_TIME.with(|t| t.borrow().set(frames_elapsed));
-    if frames_elapsed % 200 == 0 {
-        PROPERTY_TABLE.with(|t| {t.print_number_of_properties();
-        t.print_scope_stack();});
-    }
-    // if frames_elapsed % 1 == 0 {
-    //     log::info!("Time: {}", frames_elapsed);
-    //     GET_STATISTICS.with(|s| s.borrow_mut().print_stats());
-    // }
 }
 
 fn get_time() -> u64 {
