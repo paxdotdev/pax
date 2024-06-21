@@ -28,8 +28,8 @@ impl PathPoint {
         let x = self.x.clone();
         let y = self.y.clone();
         let id = ctx.slot_index.clone();
-        let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        let deps = [x.get_id(), y.get_id(), id.get_id()];
+        self.on_change.replace_with(Property::expression(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -75,8 +75,8 @@ impl PathLine {
             .expect("path line can only exist in <Path> tag");
 
         let id = ctx.slot_index.clone();
-        let deps = [id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        let deps = [id.get_id()];
+        self.on_change.replace_with(Property::expression(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -121,8 +121,8 @@ impl PathClose {
             .expect("path line can only exist in <Path> tag");
 
         let id = ctx.slot_index.clone();
-        let deps = [id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        let deps = [id.get_id()];
+        self.on_change.replace_with(Property::expression(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -172,8 +172,8 @@ impl PathCurve {
         let x = self.x.clone();
         let y = self.y.clone();
         let id = ctx.slot_index.clone();
-        let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        let deps = [x.get_id(), y.get_id(), id.get_id()];
+        self.on_change.replace_with(Property::expression(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();

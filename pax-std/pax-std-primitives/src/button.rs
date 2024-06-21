@@ -72,10 +72,7 @@ impl InstanceNode for ButtonInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([
-                borrow!(expanded_node.layout_properties).transform.get_id(),
-                borrow!(expanded_node.layout_properties).bounds.get_id(),
-            ])
+            .chain([expanded_node.transform_and_bounds.get_id()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
@@ -97,17 +94,17 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.label.get().clone(),
+                                properties.label.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.color,
                                 &mut patch.color,
-                                (&properties.color.get().clone()).into(),
+                                (&properties.color.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get().clone()).into(),
+                                (&properties.style.get()).into(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),

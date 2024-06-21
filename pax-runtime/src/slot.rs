@@ -89,8 +89,7 @@ impl InstanceNode for SlotInstance {
             .expect("slot to have a containing component")
             .expanded_and_flattened_slot_children;
         expanded_node.with_properties_unwrapped(|properties: &mut SlotProperties| {
-            let node_rc =
-                nodes.read(|nodes| nodes.get(properties.index.get().to_int() as usize).cloned());
+            let node_rc = nodes.get().get(properties.index.get().to_int() as usize).cloned();
             let node = match &node_rc {
                 Some(rc) => Rc::downgrade(rc),
                 None => Weak::new(),

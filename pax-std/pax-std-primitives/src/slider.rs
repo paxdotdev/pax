@@ -72,7 +72,7 @@ impl InstanceNode for SliderInstance {
         let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([expanded_node.transform_and_bounds.get_id()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
@@ -102,7 +102,7 @@ impl InstanceNode for SliderInstance {
                             patch_if_needed(
                                 &mut old_state.accent,
                                 &mut patch.accent,
-                                (&properties.accent.get().clone()).into(),
+                                (&properties.accent.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.value,

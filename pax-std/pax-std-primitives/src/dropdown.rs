@@ -74,7 +74,7 @@ impl InstanceNode for DropdownInstance {
         let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
             .cloned()
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([expanded_node.transform_and_bounds.get_id()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
             id,
@@ -104,12 +104,12 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get().clone()).into(),
+                                (&properties.style.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get().clone()).into(),
+                                (&properties.stroke.get().color.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
@@ -119,7 +119,7 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get().clone()).into(),
+                                (&properties.background.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.selected_id,
@@ -129,7 +129,7 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.options,
                                 &mut patch.options,
-                                properties.options.get().clone(),
+                                properties.options.get(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

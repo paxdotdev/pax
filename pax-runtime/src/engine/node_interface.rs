@@ -45,8 +45,8 @@ impl NodeInterface {
         self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
-    pub fn layout_properties(&self) -> LayoutProperties {
-        borrow!(self.inner.layout_properties).clone()
+    pub fn transform_and_bounds(&self) -> Property<TransformAndBounds<NodeLocal, Window>> {
+        self.inner.transform_and_bounds.clone()
     }
 
     pub fn parent(&self) -> Option<NodeInterface> {

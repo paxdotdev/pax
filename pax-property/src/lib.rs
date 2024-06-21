@@ -134,6 +134,13 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set(self.id, val));
     }
 
+    pub fn update(&self, update_fn: impl Fn(&mut T)) {
+        let value = self.get();
+        let mut new_value = value.clone();
+        update_fn(&mut new_value);
+        self.set(new_value);
+    }
+
     /// Adds a callback to be run when the property is set
     pub fn subscribe(&self, sub: impl Fn() + 'static) -> SubscriptionId {
         PROPERTY_TABLE.with(|t| t.subscribe(self.id, Rc::new(sub)))
