@@ -34,10 +34,10 @@ pub struct Stacker {
 impl Default for Stacker {
     fn default() -> Self {
         Self {
-            direction: Property::new(StackerDirection::Vertical),
-            _cell_specs: Property::new(vec![]),
-            gutter: Property::new(Size::Pixels(Numeric::I32(0))),
-            sizes: Property::new(vec![]),
+            direction: Property::new(StackerDirection::Vertical, "Stacker::direction"),
+            _cell_specs: Property::new(vec![], "Stacker::_cell_specs"),
+            gutter: Property::new(Size::Pixels(Numeric::I32(0)), "Stacker::gutter"),
+            sizes: Property::new(vec![], "Stacker::sizes"),
         }
     }
 }
@@ -45,13 +45,13 @@ impl Default for Stacker {
 impl Stacker {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let sizes = self.sizes.clone();
-        let bound = ctx.bounds_self.clone();
+        let transform_and_bounds_self = ctx.transform_and_bounds_self.clone();
         let slot_children_count = ctx.slot_children_count.clone();
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
 
         let deps = [
-            bound.get_id(),
+            transform_and_bounds_self.get_id(),
             direction.get_id(),
             sizes.get_id(),
             gutter.get_id(),
@@ -62,7 +62,7 @@ impl Stacker {
         self._cell_specs = Property::expression(
             move || {
                 let cells: f64 = slot_children_count.get() as f64;
-                let bounds = bound.get();
+                let bounds = transform_and_bounds_self.get().bounds;
 
                 let active_bound = match direction.get() {
                     StackerDirection::Horizontal => bounds.0,
@@ -153,7 +153,7 @@ impl Stacker {
                     .collect();
                 new_cell_specs
             },
-            &deps,
+            &deps, "Stacker::_cell_specs",
         );
     }
 }

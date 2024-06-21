@@ -53,67 +53,69 @@ impl InstanceNode for CheckboxInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let id = expanded_node.id.to_u32();
-        context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
-            AnyCreatePatch {
-                id,
-                parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
-            },
-        ));
-        let weak_self_ref = Rc::downgrade(&expanded_node);
-        let context = Rc::clone(context);
-        let last_patch = Rc::new(RefCell::new(CheckboxPatch {
-            id,
-            ..Default::default()
-        }));
-
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
-            .values()
-            .cloned()
-            .chain([expanded_node.transform_and_bounds.get_id()])
-            .collect();
-        borrow_mut!(self.native_message_props).insert(
-            expanded_node.id,
-            Property::expression(
-                move || {
-                    let Some(expanded_node) = weak_self_ref.upgrade() else {
-                        unreachable!()
-                    };
-                    let mut old_state = borrow_mut!(last_patch);
-
-                    let mut patch = CheckboxPatch {
-                        id,
-                        ..Default::default()
-                    };
-                    expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
-                        let computed_tab = expanded_node.transform_and_bounds.get();
-                        let (width, height) = computed_tab.bounds;
-                        let updates = [
-                            patch_if_needed(
-                                &mut old_state.checked,
-                                &mut patch.checked,
-                                properties.checked.get(),
-                            ),
-                            patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
-                            patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
-                            patch_if_needed(
-                                &mut old_state.transform,
-                                &mut patch.transform,
-                                computed_tab.transform.coeffs().to_vec(),
-                            ),
-                        ];
-                        if updates.into_iter().any(|v| v == true) {
-                            context.enqueue_native_message(
-                                pax_message::NativeMessage::CheckboxUpdate(patch),
-                            );
-                        }
-                    });
-                    ()
+        expanded_node.property_scope_manager.run_with_scope(|| {
+            let id = expanded_node.id.to_u32();
+            context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
+                AnyCreatePatch {
+                    id,
+                    parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                    occlusion_layer_id: 0,
                 },
-                &deps,
-            ),
-        );
+            ));
+            let weak_self_ref = Rc::downgrade(&expanded_node);
+            let context = Rc::clone(context);
+            let last_patch = Rc::new(RefCell::new(CheckboxPatch {
+                id,
+                ..Default::default()
+            }));
+
+            let deps: Vec<_> = borrow!(expanded_node.properties_scope)
+                .values()
+                .cloned()
+                .chain([expanded_node.transform_and_bounds.get_id()])
+                .collect();
+            borrow_mut!(self.native_message_props).insert(
+                expanded_node.id,
+                Property::expression(
+                    move || {
+                        let Some(expanded_node) = weak_self_ref.upgrade() else {
+                            unreachable!()
+                        };
+                        let mut old_state = borrow_mut!(last_patch);
+
+                        let mut patch = CheckboxPatch {
+                            id,
+                            ..Default::default()
+                        };
+                        expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
+                            let computed_tab = expanded_node.transform_and_bounds.get();
+                            let (width, height) = computed_tab.bounds;
+                            let updates = [
+                                patch_if_needed(
+                                    &mut old_state.checked,
+                                    &mut patch.checked,
+                                    properties.checked.get(),
+                                ),
+                                patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                                patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                                patch_if_needed(
+                                    &mut old_state.transform,
+                                    &mut patch.transform,
+                                    computed_tab.transform.coeffs().to_vec(),
+                                ),
+                            ];
+                            if updates.into_iter().any(|v| v == true) {
+                                context.enqueue_native_message(
+                                    pax_message::NativeMessage::CheckboxUpdate(patch),
+                                );
+                            }
+                        });
+                        ()
+                    },
+                    &deps, "CheckboxInstance::update"
+                ),
+            );
+        });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

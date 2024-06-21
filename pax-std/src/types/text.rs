@@ -21,13 +21,13 @@ pub struct TextStyle {
 impl Default for TextStyle {
     fn default() -> Self {
         Self {
-            font: Property::new(Font::default()),
-            font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
-            fill: Property::new(Default::default()),
-            underline: Property::new(false),
-            align_multiline: Property::new(TextAlignHorizontal::Left),
-            align_vertical: Property::new(TextAlignVertical::Top),
-            align_horizontal: Property::new(TextAlignHorizontal::Left),
+            font: Property::new(Font::default(), "font"),
+            font_size: Property::new(Size::Pixels(Numeric::F64(20.0)), "font_size"),
+            fill: Property::new(Default::default(), "fill"),
+            underline: Property::new(false, "underline"),
+            align_multiline: Property::new(TextAlignHorizontal::Left, "align_multiline"),
+            align_vertical: Property::new(TextAlignVertical::Top, "align_vertical"),
+            align_horizontal: Property::new(TextAlignHorizontal::Left, "align_horizontal"),
         }
     }
 }

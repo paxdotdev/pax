@@ -74,7 +74,7 @@ impl Tabs {
     }
 
     pub fn on_click(&mut self, ctx: &NodeContext, event: Event<Click>) {
-        let bounds = ctx.bounds_self.get();
+        let bounds = ctx.transform_and_bounds_self.get();
         let parts = self.slot_count.get();
         let x = event.mouse.x;
         let id = (x * parts as f64 / bounds.0) as usize;

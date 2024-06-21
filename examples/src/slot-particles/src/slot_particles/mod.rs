@@ -58,13 +58,13 @@ impl SlotParticles {
         ctx.slot_children_count.subscribe(closure.clone());
         self.config.subscribe(closure.clone());
 
-        let bounds = ctx.bounds_self.clone();
+        let t_and_b = ctx.transform_and_bounds_self.clone();
         let base_data = self.persistent_rng_data.clone();
         let particles = self.particles.clone();
         ctx.frames_elapsed.subscribe( move || {
             let t = tick.get() as f64;
             let base = base_data.get();
-            let (w, h) = bounds.get();
+            let (w, h) = t_and_b.get().bounds;
             let new_particles : Vec<_> = base.iter()
             .map(|b| ParticleData {
                 x: (b.x + t * b.dx).rem_euclid(w + 4.0 * b.s) - 2.0 * b.s,

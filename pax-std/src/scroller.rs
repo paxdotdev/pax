@@ -153,7 +153,7 @@ impl Scroller {
     }
 
     pub fn add_position(&self, ctx: &NodeContext, dx: f64, dy: f64) {
-        let (bounds_x, bounds_y) = ctx.bounds_self.get();
+        let (bounds_x, bounds_y) = ctx.transform_and_bounds_self.get().bounds;
         let (max_bounds_x, max_bounds_y) = (
             self.scroll_width.get().get_pixels(bounds_x),
             self.scroll_height.get().get_pixels(bounds_y),

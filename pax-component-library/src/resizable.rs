@@ -108,7 +108,7 @@ impl Resizable {
     }
 
     pub fn on_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
-        let bounds = ctx.bounds_self.get();
+        let bounds = ctx.transform_and_bounds_self.get();
 
         let (dim, axis) = match self.direction.get() {
             ResizableDirection::Vertical => (event.mouse.y, Axis::Y),
@@ -128,7 +128,7 @@ impl Resizable {
     }
 
     pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        let bounds = ctx.bounds_self.get();
+        let bounds = ctx.transform_and_bounds_self.get();
 
         let (dim, bound) = match self.direction.get() {
             ResizableDirection::Vertical => (event.mouse.y, bounds.1),

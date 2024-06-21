@@ -5,7 +5,7 @@ use_RefCell!();
 
 use ahash::AHashMap;
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property, PropertyId};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property, PropertyId, PropertyScopeManager};
 
 use crate::api::Layer;
 use crate::{
@@ -95,7 +95,7 @@ impl InstanceNode for RepeatInstance {
                                 .map(|v| Rc::new(RefCell::new(v.to_pax_any())))
                                 .collect::<Vec<_>>()
                         },
-                        &dep,
+                        &dep, "range source expression"
                     )
                 } else if let Some(vec) = &properties.source_expression_vec {
                     vec.clone()
@@ -118,7 +118,7 @@ impl InstanceNode for RepeatInstance {
 
         let last_length = Rc::new(RefCell::new(0));
         let cloned_source_expression = source_expression.clone();
-        
+        let scope_stack = Rc::new(RefCell::new(PropertyScopeManager::new()));
         let _ = source_expression.clone().subscribe(  move || {
             let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                 panic!("ran evaluator after expanded node dropped (repeat elem)")
@@ -128,57 +128,60 @@ impl InstanceNode for RepeatInstance {
             if source_len == *borrow!(last_length) {
                 return;
             }
-            *borrow_mut!(last_length) = source_len;
-            let template_children = cloned_self.base().get_instance_children();
-            let children_with_envs = iter::repeat(template_children)
-                .take(source_len)
-                .enumerate()
-                .flat_map(|(i, children)| {
-                    let property_i = Property::new(i);
-                    let cp_source_expression = cloned_source_expression.clone();
-                    let elem = Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
-                        "engine error: tried to access index {} of an array source that now only contains {} elements",
-                        i, cp_source_expression.get().len()
-                    ))));
-                    let property_elem = Property::new(elem);
-                    let cloned_pe = property_elem.clone();
-                    cloned_source_expression.subscribe(move || {
-                        let se = cp_source_expression.get();
-                        // only update elem if it still exists
-                        if i >= se.len() {
-                            return;
-                        }
-                        let elem = se.get(i).unwrap_or_else(|| panic!(
+            borrow_mut!(scope_stack).drop_scope();
+            borrow_mut!(scope_stack).run_with_scope(||{
+                *borrow_mut!(last_length) = source_len;
+                let template_children = cloned_self.base().get_instance_children();
+                let children_with_envs = iter::repeat(template_children)
+                    .take(source_len)
+                    .enumerate()
+                    .flat_map(|(i, children)| {
+                        let cp_source_expression = cloned_source_expression.clone();
+                        let elem = Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
                             "engine error: tried to access index {} of an array source that now only contains {} elements",
                             i, cp_source_expression.get().len()
+                        ))));
+                        let property_i = Property::new(i, "repeat i");
+                        let property_elem = Property::new(elem, "repeat elem");
+                        let new_repeat_item = Rc::new(RefCell::new(
+                            RepeatItem {
+                                i: property_i.clone(),
+                                elem: property_elem.clone(),
+                            }
+                            .to_pax_any(),
                         ));
-                        cloned_pe.set(Some(Rc::clone(elem)));
-                    });
 
-                    let new_repeat_item = Rc::new(RefCell::new(
-                        RepeatItem {
-                            i: property_i.clone(),
-                            elem: property_elem.clone(),
+                        let cloned_pe = property_elem.clone();
+                        cloned_source_expression.subscribe(move || {
+                            let se = cp_source_expression.get();
+                            // only update elem if it still exists
+                            if i >= se.len() {
+                                return;
+                            }
+                            let elem = se.get(i).unwrap_or_else(|| panic!(
+                                "engine error: tried to access index {} of an array source that now only contains {} elements",
+                                i, cp_source_expression.get().len()
+                            ));
+                            cloned_pe.set(Some(Rc::clone(elem)));
+                        });
+
+                        let mut scope: AHashMap<String, PropertyId> = AHashMap::default();
+                        if let Some(ref i_symbol) = i_symbol {
+                            scope.insert(i_symbol.clone(), property_i.get_id());
                         }
-                        .to_pax_any(),
-                    ));
+                        if let Some(ref elem_symbol) = elem_symbol {
+                            scope.insert(elem_symbol.clone(), property_elem.get_id());
+                        }
 
-                    let mut scope: AHashMap<String, PropertyId> = AHashMap::default();
-                    if let Some(ref i_symbol) = i_symbol {
-                        scope.insert(i_symbol.clone(), property_i.get_id());
-                    }
-                    if let Some(ref elem_symbol) = elem_symbol {
-                        scope.insert(elem_symbol.clone(), property_elem.get_id());
-                    }
-
-                    let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
-                    borrow!(children)
-                        .clone()
-                        .into_iter()
-                        .zip(iter::repeat(new_env))
-                });
-            let children = cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
-            cloned_expanded_node.attach_children(children, &cloned_context);
+                        let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
+                        borrow!(children)
+                            .clone()
+                            .into_iter()
+                            .zip(iter::repeat(new_env))
+                    });
+                let children = cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
+                cloned_expanded_node.attach_children(children, &cloned_context);
+            });
         });
     }
 }

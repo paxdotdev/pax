@@ -1,10 +1,12 @@
 use crate::api::TextInput;
-use ahash::AHashMap;
 use crate::node_interface::NodeLocal;
+use ahash::AHashMap;
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D, PropertyScopeManager};
+    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
+    PropertyScopeManager, Rotation, Transform2D,
+};
 use wasm_bindgen::UnwrapThrowExt;
 
 use crate::api::math::Point2;
@@ -117,7 +119,7 @@ pub struct ExpandedNode {
 
     /// A manager to keep track of all the properties created by this expanded node
     /// Used to clean up properties when the node is dropped
-    pub property_scope_manager: RefCell<PropertyScopeManager>,
+    pub property_scope_manager: PropertyScopeManager,
 }
 impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
@@ -130,39 +132,43 @@ macro_rules! dispatch_event_handler {
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
         ) -> bool {
-            let event = Event::new(args.clone());
-            if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
-                let component_properties = if let Some(cc) = self.containing_component.upgrade() {
-                    Rc::clone(&*borrow!(cc.properties))
-                } else {
-                    Rc::clone(&*borrow!(self.properties))
-                };
+            self.run_with_scope(|| {
+                let event = Event::new(args.clone());
+                if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
+                    let component_properties = if let Some(cc) = self.containing_component.upgrade() {
+                        Rc::clone(&*borrow!(cc.properties))
+                    } else {
+                        Rc::clone(&*borrow!(self.properties))
+                    };
 
-                let context = self.get_node_context(ctx);
-                let borrowed_registry = &borrow!(*registry);
-                if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
-                    handlers.iter().for_each(|handler| {
-                        let properties = if let HandlerLocation::Component = &handler.location {
-                            Rc::clone(&*borrow!(self.properties))
-                        } else {
-                            Rc::clone(&component_properties)
-                        };
-                        (handler.function)(
-                            Rc::clone(&properties),
-                            &context,
-                            Some(event.clone().to_pax_any()),
-                        );
-                    });
-                };
-            }
-
-            if $recurse {
-                if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
-                    let parent_prevent_default = parent.$fn_name(args, globals, ctx);
-                    return event.cancelled() || parent_prevent_default;
+                    let borrowed_registry = &borrow!(*registry);
+                    if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
+                        if handlers.len() > 0 {
+                            let context = self.get_node_context(ctx);
+                            handlers.iter().for_each(|handler| {
+                                let properties = if let HandlerLocation::Component = &handler.location {
+                                    Rc::clone(&*borrow!(self.properties))
+                                } else {
+                                    Rc::clone(&component_properties)
+                                };
+                                (handler.function)(
+                                    Rc::clone(&properties),
+                                    &context,
+                                    Some(event.clone().to_pax_any()),
+                                );
+                            });
+                        }
+                    };
                 }
-            }
-            event.cancelled()
+
+                if $recurse {
+                    if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+                        let parent_prevent_default = parent.$fn_name(args, globals, ctx);
+                        return event.cancelled() || parent_prevent_default;
+                    }
+                }
+                event.cancelled()
+            })
         }
     };
 }
@@ -195,7 +201,6 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
         containing_component: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-
         let mut property_scope_manager = PropertyScopeManager::new();
 
         property_scope_manager.start_scope();
@@ -220,11 +225,11 @@ impl ExpandedNode {
         let id = context.gen_uid();
 
         let rendered_size = Property::default();
-        let flattened_slot_children_count = Property::new(0);
+        let flattened_slot_children_count = Property::new(0, "flattened_slot_children_count");
 
         let slot_index = Property::default();
-        let transform_and_bounds = Property::new(TransformAndBounds::default());
-
+        let transform_and_bounds = Property::new(TransformAndBounds::default(), "transform_and_bounds");
+        let expanded_and_flattened_slot_children = Property::default();
         property_scope_manager.end_scope();
 
         let res = Rc::new(ExpandedNode {
@@ -244,23 +249,19 @@ impl ExpandedNode {
             containing_component,
             children: RefCell::new(Vec::new()),
             expanded_slot_children: Default::default(),
-            expanded_and_flattened_slot_children: Default::default(),
+            expanded_and_flattened_slot_children,
             flattened_slot_children_count,
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
             slot_index,
-            property_scope_manager: RefCell::new(property_scope_manager),
+            property_scope_manager: property_scope_manager,
             transform_and_bounds,
         });
         res
     }
 
-    fn start_scope(&self) {
-        borrow_mut!(self.property_scope_manager).start_scope();
-    }
-
-    fn end_scope(&self) {
-        borrow_mut!(self.property_scope_manager).end_scope();
+    fn run_with_scope<V>(&self, f: impl FnOnce() -> V) -> V {
+        self.property_scope_manager.run_with_scope(f)
     }
 
     pub fn recreate_with_new_data(
@@ -268,23 +269,25 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        self.start_scope();
-        Rc::clone(self).recurse_unmount(context);
-        let new_expanded_node = Self::new(
-            template.clone(),
-            Rc::clone(&borrow!(self.parent_expanded_node).upgrade().unwrap().stack),
-            context,
-            Weak::clone(&self.containing_component),
-        );
-        *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
-        *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
-        *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
-        *borrow_mut!(self.common_properties) =
-            Rc::clone(&*borrow!(new_expanded_node.common_properties));
+        self.run_with_scope(|| {
+            Rc::clone(self).recurse_unmount(context);
+            let new_expanded_node = Self::new(
+                template.clone(),
+                Rc::clone(&borrow!(self.parent_expanded_node).upgrade().unwrap().stack),
+                context,
+                Weak::clone(&self.containing_component),
+            );
+            *borrow_mut!(self.instance_node) =
+                Rc::clone(&*borrow!(new_expanded_node.instance_node));
+            *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
+            *borrow_mut!(self.properties_scope) =
+                borrow!(new_expanded_node.properties_scope).clone();
+            *borrow_mut!(self.common_properties) =
+                Rc::clone(&*borrow!(new_expanded_node.common_properties));
 
-        Rc::clone(self).recurse_mount(context);
+            Rc::clone(self).recurse_mount(context);
+        });
         self.bind_to_parent_bounds();
-        self.end_scope();
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -308,25 +311,25 @@ impl ExpandedNode {
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-        self.start_scope();
-        let containing_component = if borrow!(self.instance_node).base().flags().is_component {
-            Rc::downgrade(&self)
-        } else {
-            Weak::clone(&self.containing_component)
-        };
+        self.run_with_scope(|| {
+            let containing_component = if borrow!(self.instance_node).base().flags().is_component {
+                Rc::downgrade(&self)
+            } else {
+                Weak::clone(&self.containing_component)
+            };
 
-        let mut children = Vec::new();
+            let mut children = Vec::new();
 
-        for (template, env) in templates {
-            children.push(Self::new(
-                template,
-                env,
-                context,
-                Weak::clone(&containing_component),
-            ));
-        }
-        self.end_scope();
-        children
+            for (template, env) in templates {
+                children.push(Self::new(
+                    template,
+                    env,
+                    context,
+                    Weak::clone(&containing_component),
+                ));
+            }
+            children
+        })
     }
 
     pub fn attach_children(
@@ -334,70 +337,70 @@ impl ExpandedNode {
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-        self.start_scope();
-        let mut curr_children = borrow_mut!(self.children);
-        //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
-        for child in new_children.iter() {
-            // set parent and connect up viewport bounds to new parent
-            *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
-        }
-        if *borrow!(self.attached) > 0 {
-            for child in curr_children.iter() {
-                Rc::clone(child).recurse_unmount(context);
-            }
+        self.run_with_scope(|| {
+            let mut curr_children = borrow_mut!(self.children);
+            //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
             for child in new_children.iter() {
-                child.bind_to_parent_bounds();
+                // set parent and connect up viewport bounds to new parent
+                *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
+            }
+            if *borrow!(self.attached) > 0 {
+                for child in curr_children.iter() {
+                    Rc::clone(child).recurse_unmount(context);
+                }
+                for child in new_children.iter() {
+                    child.bind_to_parent_bounds();
                     // set frame clipping reference
                     child.parent_frame.set(self.parent_frame.get());
-                Rc::clone(child).recurse_mount(context);
-
+                    Rc::clone(child).recurse_mount(context);
+                }
             }
-        }
-        *curr_children = new_children.clone();
-        self.end_scope();
-        new_children
+            *curr_children = new_children.clone();
+            new_children
+        })
     }
 
     // mutates self
     fn bind_to_parent_bounds(self: &Rc<Self>) {
-        self.start_scope();
-        let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
-        let parent_transform_and_bounds = parent.transform_and_bounds.clone();
-        let layout_properties = self.layout_properties();
-        let rendered_size = self.rendered_size.clone();
+        self.run_with_scope(|| {
+            let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
+            let parent_transform_and_bounds = parent.transform_and_bounds.clone();
+            let layout_properties = self.layout_properties();
+            let rendered_size = self.rendered_size.clone();
 
-        let deps = [layout_properties.get_id(), rendered_size.get_id()];
-        let layout_properties_with_fallback = Property::expression(
-            move || {
-                let mut lp = layout_properties.get();
-                let fallback = rendered_size.get();
-                let (w_fallback, h_fallback) = match fallback {
-                    Some((wf, hf)) => (Some(wf), Some(hf)),
-                    None => (None, None),
-                };
-                lp.width = if lp.width.is_none() {
-                    w_fallback.map(|v| Size::Pixels(v.into()))
-                } else {
-                    lp.width
-                };
-                lp.height = if lp.height.is_none() {
-                    h_fallback.map(|v| Size::Pixels(v.into()))
-                } else {
-                    lp.height
-                };
-                lp
-            },
-            &deps,
-        );
-        let common_props = borrow!(self.common_properties);
-        let extra_transform = borrow!(common_props).transform.clone();
+            let deps = [layout_properties.get_id(), rendered_size.get_id()];
+            let layout_properties_with_fallback = Property::expression(
+                move || {
+                    let mut lp = layout_properties.get();
+                    let fallback = rendered_size.get();
+                    let (w_fallback, h_fallback) = match fallback {
+                        Some((wf, hf)) => (Some(wf), Some(hf)),
+                        None => (None, None),
+                    };
+                    lp.width = if lp.width.is_none() {
+                        w_fallback.map(|v| Size::Pixels(v.into()))
+                    } else {
+                        lp.width
+                    };
+                    lp.height = if lp.height.is_none() {
+                        h_fallback.map(|v| Size::Pixels(v.into()))
+                    } else {
+                        lp.height
+                    };
+                    lp
+                },
+                &deps, "layout_properties_with_fallback"
+            );
+            let common_props = borrow!(self.common_properties);
+            let extra_transform = borrow!(common_props).transform.clone();
 
-        let transform_and_bounds = compute_tab(
-            layout_properties_with_fallback,
-            extra_transform,
-            parent_transform_and_bounds,
-        );
-        self.transform_and_bounds.replace_with(transform_and_bounds);
+            let transform_and_bounds = compute_tab(
+                layout_properties_with_fallback,
+                extra_transform,
+                parent_transform_and_bounds,
+            );
+            self.transform_and_bounds.replace_with(transform_and_bounds);
+        });
     }
 
     pub fn generate_children(
@@ -412,116 +415,113 @@ impl ExpandedNode {
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        self.start_scope();
-        if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            for handler in borrow!(registry)
-                .handlers
-                .get("tick")
-                .unwrap_or(&Vec::new())
-            {
-                (handler.function)(
-                    Rc::clone(&*borrow!(self.properties)),
-                    &self.get_node_context(context),
-                    None,
-                )
+        self.run_with_scope(|| {
+            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("tick")
+                    .unwrap_or(&Vec::new())
+                {
+                    (handler.function)(
+                        Rc::clone(&*borrow!(self.properties)),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
             }
-        }
-        Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
-        if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            for handler in borrow!(registry)
-                .handlers
-                .get("pre_render")
-                .unwrap_or(&Vec::new())
-            {
-                (handler.function)(
-                    Rc::clone(&*borrow!(self.properties)),
-                    &self.get_node_context(context),
-                    None,
-                )
+            Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
+            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("pre_render")
+                    .unwrap_or(&Vec::new())
+                {
+                    (handler.function)(
+                        Rc::clone(&*borrow!(self.properties)),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
             }
-        }
-        for child in borrow!(self.children).iter() {
-            child.recurse_update(context);
-        }
-        self.end_scope();
+            for child in borrow!(self.children).iter() {
+                child.recurse_update(context);
+            }
+        });
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        self.start_scope();
-        if *borrow!(self.attached) == 0 {
-            *borrow_mut!(self.attached) += 1;
-            context.add_to_cache(&self);
-            borrow!(self.instance_node)
-                .clone()
-                .handle_mount(&self, context);
-            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("mount")
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
+        self.run_with_scope(|| {
+            if *borrow!(self.attached) == 0 {
+                *borrow_mut!(self.attached) += 1;
+                context.add_to_cache(&self);
+                borrow!(self.instance_node)
+                    .clone()
+                    .handle_mount(&self, context);
+                if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+                    for handler in borrow!(registry)
+                        .handlers
+                        .get("mount")
+                        .unwrap_or(&Vec::new())
+                    {
+                        (handler.function)(
+                            Rc::clone(&*borrow!(self.properties)),
+                            &self.get_node_context(context),
+                            None,
+                        )
+                    }
                 }
             }
-        }
-        // Mount slot children and children AFTER mounting self
-        if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-            for slot_child in slot_children {
-                slot_child.recurse_mount(context);
+            // Mount slot children and children AFTER mounting self
+            if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
+                for slot_child in slot_children {
+                    slot_child.recurse_mount(context);
+                }
             }
-        }
-        for child in borrow!(self.children).iter() {
-            Rc::clone(child).recurse_mount(context);
-        }
-        self.end_scope();
+            for child in borrow!(self.children).iter() {
+                Rc::clone(child).recurse_mount(context);
+            }
+        });
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
-        self.start_scope();
-        // WARNING: do NOT make recurse_unmount result in expr evaluation,
-        // in this case: do not refer to self.children expression.
-        // expr evaluation in this context can trigger get's of "old data", ie try to get
-        // an index of a for loop source that doesn't exist anymore
-        for child in borrow!(self.children).iter() {
-            Rc::clone(child).recurse_unmount(context);
-        }
-        if *borrow!(self.attached) == 1 {
-            *borrow_mut!(self.attached) -= 1;
-            context.remove_from_cache(&self);
-            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("unmount")
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
+        self.run_with_scope(|| {
+            // WARNING: do NOT make recurse_unmount result in expr evaluation,
+            // in this case: do not refer to self.children expression.
+            // expr evaluation in this context can trigger get's of "old data", ie try to get
+            // an index of a for loop source that doesn't exist anymore
+            for child in borrow!(self.children).iter() {
+                Rc::clone(child).recurse_unmount(context);
             }
-            borrow!(self.instance_node).handle_unmount(&self, context);
-        }
-
-        self.end_scope()
+            if *borrow!(self.attached) == 1 {
+                *borrow_mut!(self.attached) -= 1;
+                context.remove_from_cache(&self);
+                if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
+                    for handler in borrow!(registry)
+                        .handlers
+                        .get("unmount")
+                        .unwrap_or(&Vec::new())
+                    {
+                        (handler.function)(
+                            Rc::clone(&*borrow!(self.properties)),
+                            &self.get_node_context(context),
+                            None,
+                        )
+                    }
+                }
+                borrow!(self.instance_node).handle_unmount(&self, context);
+            }
+        });
     }
 
     pub fn recurse_render(&self, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
-        self.start_scope();
-
-        borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
-        for child in borrow!(self.children).iter().rev() {
-            child.recurse_render(ctx, rcs);
-        }
-        borrow!(self.instance_node).render(&self, ctx, rcs);
-        borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
-
-        self.end_scope();
+        self.run_with_scope(|| {
+            borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
+            for child in borrow!(self.children).iter().rev() {
+                child.recurse_render(ctx, rcs);
+            }
+            borrow!(self.instance_node).render(&self, ctx, rcs);
+            borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
+        });
     }
 
     /// Manages unpacking an Rc<RefCell<PaxValue>>, downcasting into
@@ -550,47 +550,44 @@ impl ExpandedNode {
         for child in borrow!(self.children).iter().rev() {
             child.recurse_visit_postorder(func)
         }
-        self.start_scope();
-        func(self);
-        self.end_scope();
+        self.run_with_scope(|| {
+            func(self);
+        });
     }
 
     pub fn get_node_context<'a>(&'a self, ctx: &Rc<RuntimeContext>) -> NodeContext {
-        let globals = ctx.globals();
-        let t_and_b = self.transform_and_bounds.clone();
-        let deps = [t_and_b.get_id()];
-        let bounds_self = Property::expression(move || t_and_b.get().bounds, &deps);
-        let t_and_b_parent = if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
-            parent.transform_and_bounds.clone()
-        } else {
-            globals.viewport.clone()
-        };
-        let deps = [t_and_b_parent.get_id()];
-        let bounds_parent = Property::expression(move || t_and_b_parent.get().bounds, &deps);
+        self.run_with_scope(|| {
+            let globals = ctx.globals();
+            let t_and_b = self.transform_and_bounds.clone();
+            let t_and_b_parent = if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+                parent.transform_and_bounds.clone()
+            } else {
+                globals.viewport.clone()
+            };
+            let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
+                self.flattened_slot_children_count.clone()
+            } else {
+                self.containing_component
+                    .upgrade()
+                    .map(|v| v.flattened_slot_children_count.clone())
+                    .unwrap_or_default()
+            };
 
-        let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
-            self.flattened_slot_children_count.clone()
-        } else {
-            self.containing_component
-                .upgrade()
-                .map(|v| v.flattened_slot_children_count.clone())
-                .unwrap_or_default()
-        };
-
-        NodeContext {
-            slot_index: self.slot_index.clone(),
-            local_stack_frame: Rc::clone(&self.stack),
-            component_origin: Weak::clone(&self.containing_component),
-            frames_elapsed: globals.frames_elapsed.clone(),
-            bounds_self,
-            bounds_parent,
-            runtime_context: ctx.clone(),
-            platform: globals.platform.clone(),
-            os: globals.os.clone(),
-            slot_children_count,
-            #[cfg(feature = "designtime")]
-            designtime: globals.designtime.clone(),
-        }
+            NodeContext {
+                slot_index: self.slot_index.clone(),
+                local_stack_frame: Rc::clone(&self.stack),
+                component_origin: Weak::clone(&self.containing_component),
+                frames_elapsed: globals.frames_elapsed.clone(),
+                transform_and_bounds_self: t_and_b.clone(),
+                transform_and_bounds_parent: t_and_b_parent.clone(),
+                runtime_context: ctx.clone(),
+                platform: globals.platform.clone(),
+                os: globals.os.clone(),
+                slot_children_count,
+                #[cfg(feature = "designtime")]
+                designtime: globals.designtime.clone(),
+            }
+        })
     }
 
     pub fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
@@ -647,35 +644,35 @@ impl ExpandedNode {
     }
 
     pub fn compute_flattened_slot_children(&self) {
-        self.start_scope();
-        // All of this should ideally be reactively updated,
-        // but currently doesn't exist a way to "listen to"
-        // an entire node tree, and generate the flattened list
-        // only when changed.
-        if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-            let new_flattened = flatten_expanded_nodes_for_slot(&slot_children);
-            let exp_flat_slot_children = self.expanded_and_flattened_slot_children.get();
-            let old_and_new_filtered_same =   exp_flat_slot_children
-                .iter()
-                .map(|n| n.id)
-                .eq(new_flattened.iter().map(|n| n.id));
-
-            if !old_and_new_filtered_same {
-                self.flattened_slot_children_count.set(new_flattened.len());
-                self.expanded_and_flattened_slot_children.set(new_flattened);
-                for (i, slot_child) in self
-                    .expanded_and_flattened_slot_children
-                    .get()
+        self.run_with_scope(|| {
+            // All of this should ideally be reactively updated,
+            // but currently doesn't exist a way to "listen to"
+            // an entire node tree, and generate the flattened list
+            // only when changed.
+            if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
+                let new_flattened = flatten_expanded_nodes_for_slot(&slot_children);
+                let exp_flat_slot_children = self.expanded_and_flattened_slot_children.get();
+                let old_and_new_filtered_same = exp_flat_slot_children
                     .iter()
-                    .enumerate()
-                {
-                    if slot_child.slot_index.get() != Some(i) {
-                        slot_child.slot_index.set(Some(i));
-                    };
+                    .map(|n| n.id)
+                    .eq(new_flattened.iter().map(|n| n.id));
+
+                if !old_and_new_filtered_same {
+                    self.flattened_slot_children_count.set(new_flattened.len());
+                    self.expanded_and_flattened_slot_children.set(new_flattened);
+                    for (i, slot_child) in self
+                        .expanded_and_flattened_slot_children
+                        .get()
+                        .iter()
+                        .enumerate()
+                    {
+                        if slot_child.slot_index.get() != Some(i) {
+                            slot_child.slot_index.set(Some(i));
+                        };
+                    }
                 }
             }
-        }
-        self.end_scope();
+        });
     }
 
     dispatch_event_handler!(dispatch_scroll, Scroll, SCROLL_HANDLERS, true);
@@ -819,7 +816,7 @@ impl ExpandedNode {
                 skew_x: cp_skew_x.get(),
                 skew_y: cp_skew_y.get(),
             },
-            &deps,
+            &deps, "layout_properties"
         )
     }
 }
@@ -868,7 +865,10 @@ impl std::fmt::Debug for ExpandedNode {
             )
             .field("id", &self.id)
             .field("common_properties", &borrow!(self.common_properties))
-            .field("children", &borrow!(self.children).iter().collect::<Vec<_>>())
+            .field(
+                "children",
+                &borrow!(self.children).iter().collect::<Vec<_>>(),
+            )
             .field("parent", &borrow!(self.parent_expanded_node).upgrade())
             .field(
                 "slot_children",

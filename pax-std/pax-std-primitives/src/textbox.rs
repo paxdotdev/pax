@@ -53,6 +53,7 @@ impl InstanceNode for TextboxInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        expanded_node.property_scope_manager.run_with_scope(|| {
         // Send creation message
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::TextboxCreate(AnyCreatePatch {
@@ -143,9 +144,10 @@ impl InstanceNode for TextboxInstance {
                     });
                     ()
                 },
-                &deps,
+                &deps, "TextboxInstance::update"
             ),
         );
+        });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

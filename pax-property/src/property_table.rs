@@ -1,5 +1,5 @@
 
-use std::{any::Any, borrow::BorrowMut, cell::{RefCell, RefMut}, collections::{HashMap, HashSet, VecDeque}, fmt::{Display, Formatter}, ops::Sub, sync::atomic::{AtomicU64, Ordering}, time::Instant};
+use std::{any::Any, cell::{RefCell, RefMut}, collections::{HashMap, HashSet, VecDeque}, fmt::{Display, Formatter}, ops::Sub, sync::atomic::{AtomicU64, Ordering}, time::Instant};
 use wasm_bindgen::prelude::*;
 use web_sys::{window, Performance};
 use nohash_hasher::BuildNoHashHasher;
@@ -134,41 +134,42 @@ impl TransitionCleanupInfo {
 
 #[derive(Clone)]
 pub struct PropertyScopeManager {
-    pub property_ids: Vec<PropertyId>,
+    pub property_ids: Rc<RefCell<Vec<PropertyId>>>,
 }
 
 impl PropertyScopeManager {
     pub fn new() -> Self {
         Self {
-            property_ids: Vec::new(),
+            property_ids: Rc::default(),
         }
     }
 
-    pub fn start_scope(&mut self) {
+    pub fn start_scope(&self) {
         PROPERTY_TABLE.with(|t| {
             t.start_scope();
         });
     }
-    pub fn end_scope(&mut self) {
+    pub fn end_scope(&self) {
         PROPERTY_TABLE.with(|t| {
-            self.property_ids.extend(t.end_scope());
+            self.property_ids.borrow_mut().extend(t.end_scope());
         });
     }
 
-    pub fn run_with_scope(&mut self, f:impl FnOnce()) {
+    pub fn run_with_scope<V>(&self, f:impl FnOnce() -> V) -> V {
         PROPERTY_TABLE.with(|t| {
             t.start_scope();
         });
-        f();
+        let res = f();
         PROPERTY_TABLE.with(|t| {
-            self.property_ids.extend(t.end_scope());
+            self.property_ids.borrow_mut().extend(t.end_scope());
         });
+        res
     }
 
     pub fn drop_scope(&self) {
         PROPERTY_TABLE.with(|t| {
-            for id in &self.property_ids {
-               t.remove_entry(*id);
+            for id in self.property_ids.borrow_mut().drain(0..) {
+               t.remove_entry(id);
             }
         });
     }
@@ -280,6 +281,16 @@ impl PropertyData {
 
 
 impl PropertyTable {
+
+    pub fn print_number_of_properties(&self) {
+        let num_properties = self.properties.borrow().len();
+        log::info!("Number of properties: {}", num_properties);
+    }
+
+    pub fn print_scope_stack(&self) {
+        let scopes = self.property_scopes.borrow();
+        log::info!("Scope stack: {:?}", scopes.len());
+    }
 
     fn start_scope(&self) {
         let mut scopes = self.property_scopes.borrow_mut();
