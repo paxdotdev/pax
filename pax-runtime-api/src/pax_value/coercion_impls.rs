@@ -58,8 +58,8 @@ impl CoercionRules for Stroke {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Color(color) => Stroke {
-                color: Property::new(color),
-                width: Property::new(Size::Pixels(1.into())),
+                color: Property::new(color, "Stroke coercion rules"),
+                width: Property::new(Size::Pixels(1.into()), "Stroke coercion rules"),
             },
             PaxValue::Stroke(stroke) => stroke,
             _ => return Err(format!("{:?} can't be coerced into a Stroke", pax_value)),

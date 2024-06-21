@@ -86,7 +86,7 @@ impl Asteroid {
 impl SpaceGame {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         let mut rng = rand::thread_rng();
-        let (w_o, h_o) = ctx.bounds_parent.get();
+        let (w_o, h_o) = ctx.transform_and_bounds_parent.get().bounds;
         let (w, h) = (w_o / SCALE, h_o / SCALE);
         self.ship_x.set(32.0);
         self.ship_y.set(h / 2.0);
@@ -97,7 +97,7 @@ impl SpaceGame {
         let mut rng = rand::thread_rng();
 
         // Read properties
-        let (w_o, h_o) = ctx.bounds_parent.get();
+        let (w_o, h_o) = ctx.transform_and_bounds_parent.get().bounds;
         let (w, h) = (w_o / SCALE, h_o / SCALE);
         let ticks = ctx.frames_elapsed.get();
         let mut bullets = self.bullets.get();

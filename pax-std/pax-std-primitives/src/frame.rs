@@ -106,83 +106,87 @@ impl InstanceNode for FrameInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let id = expanded_node.id.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-            id: id.to_u32(),
-            parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            occlusion_layer_id: 0,
-        }));
-
-        // When a frame has been mounted (and it's sucessfully attached itself
-        // already to it's own parent) it sets itself as it's parent frame, so
-        // that children of this frame created below end up attaching to it
-        let old_val = expanded_node.parent_frame.get();
-        expanded_node.parent_frame.set(Some(expanded_node.id));
-
-        // bellow is the same as default impl for adding children in instance_node
-        let env = Rc::clone(&expanded_node.stack);
-        let children = borrow!(self.base().get_instance_children());
-        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-
-        let new_children = expanded_node.generate_children(children_with_envs, context);
-        expanded_node.attach_children(new_children, context);
-
-        // reset parent_frame. Needed for if multiple mounts/dissmounts of this
-        // frame occurs
-        expanded_node.parent_frame.set(old_val);
-
-        // send update message when relevant properties change
-        let weak_self_ref = Rc::downgrade(&expanded_node);
-        let context = Rc::clone(context);
-        let last_patch = Rc::new(RefCell::new(FramePatch {
-            id: id.to_u32(),
-            ..Default::default()
-        }));
-
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
-            .values()
-            .cloned()
-            .chain([expanded_node.transform_and_bounds.get_id()])
-            .collect();
-        borrow_mut!(self.native_message_props).insert(
-            id,
-            Property::expression(
-                move || {
-                    let Some(expanded_node) = weak_self_ref.upgrade() else {
-                        unreachable!()
-                    };
-                    let id = expanded_node.id.to_u32();
-                    let mut old_state = borrow_mut!(last_patch);
-
-                    let mut patch = FramePatch {
-                        id,
-                        ..Default::default()
-                    };
-                    expanded_node.with_properties_unwrapped(|_properties: &mut Frame| {
-                        let computed_tab = expanded_node.transform_and_bounds.get();
-                        let (width, height) = computed_tab.bounds;
-
-                        let updates = [
-                            patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
-                            patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
-                            patch_if_needed(
-                                &mut old_state.transform,
-                                &mut patch.transform,
-                                computed_tab.transform.coeffs().to_vec(),
-                            ),
-                        ];
-
-                        if updates.into_iter().any(|v| v == true) {
-                            context.enqueue_native_message(
-                                pax_message::NativeMessage::FrameUpdate(patch),
-                            );
-                        }
-                    });
-                    ()
+        expanded_node.property_scope_manager.run_with_scope(|| {
+            let id = expanded_node.id.clone();
+            context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(
+                AnyCreatePatch {
+                    id: id.to_u32(),
+                    parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                    occlusion_layer_id: 0,
                 },
-                &deps,
-            ),
-        );
+            ));
+
+            // When a frame has been mounted (and it's sucessfully attached itself
+            // already to it's own parent) it sets itself as it's parent frame, so
+            // that children of this frame created below end up attaching to it
+            let old_val = expanded_node.parent_frame.get();
+            expanded_node.parent_frame.set(Some(expanded_node.id));
+
+            // bellow is the same as default impl for adding children in instance_node
+            let env = Rc::clone(&expanded_node.stack);
+            let children = borrow!(self.base().get_instance_children());
+            let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+
+            let new_children = expanded_node.generate_children(children_with_envs, context);
+            expanded_node.attach_children(new_children, context);
+
+            // reset parent_frame. Needed for if multiple mounts/dissmounts of this
+            // frame occurs
+            expanded_node.parent_frame.set(old_val);
+
+            // send update message when relevant properties change
+            let weak_self_ref = Rc::downgrade(&expanded_node);
+            let context = Rc::clone(context);
+            let last_patch = Rc::new(RefCell::new(FramePatch {
+                id: id.to_u32(),
+                ..Default::default()
+            }));
+
+            let deps: Vec<_> = borrow!(expanded_node.properties_scope)
+                .values()
+                .cloned()
+                .chain([expanded_node.transform_and_bounds.get_id()])
+                .collect();
+            borrow_mut!(self.native_message_props).insert(
+                id,
+                Property::expression(
+                    move || {
+                        let Some(expanded_node) = weak_self_ref.upgrade() else {
+                            unreachable!()
+                        };
+                        let id = expanded_node.id.to_u32();
+                        let mut old_state = borrow_mut!(last_patch);
+
+                        let mut patch = FramePatch {
+                            id,
+                            ..Default::default()
+                        };
+                        expanded_node.with_properties_unwrapped(|_properties: &mut Frame| {
+                            let computed_tab = expanded_node.transform_and_bounds.get();
+                            let (width, height) = computed_tab.bounds;
+
+                            let updates = [
+                                patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                                patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                                patch_if_needed(
+                                    &mut old_state.transform,
+                                    &mut patch.transform,
+                                    computed_tab.transform.coeffs().to_vec(),
+                                ),
+                            ];
+
+                            if updates.into_iter().any(|v| v == true) {
+                                context.enqueue_native_message(
+                                    pax_message::NativeMessage::FrameUpdate(patch),
+                                );
+                            }
+                        });
+                        ()
+                    },
+                    &deps, "FrameInstance::update"
+                ),
+            );
+        });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

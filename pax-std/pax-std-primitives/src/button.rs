@@ -53,6 +53,7 @@ impl InstanceNode for ButtonInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        expanded_node.property_scope_manager.run_with_scope(|| {
         // Send creation message
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
@@ -122,9 +123,10 @@ impl InstanceNode for ButtonInstance {
                     });
                     ()
                 },
-                &deps,
-            ),
+                &deps,"Button update message"
+            ), 
         );
+    });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

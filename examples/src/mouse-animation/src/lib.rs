@@ -23,7 +23,7 @@ pub struct Example {
 
 impl Example {
     pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        let (_, h) = ctx.bounds_self.get();
+        let (_, h) = ctx.transform_and_bounds_self.get().bounds;
         let part = event.mouse.y / h;
         self.scroll.set(part);
     }

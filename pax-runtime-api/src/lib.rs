@@ -1176,7 +1176,7 @@ impl Default for Stroke {
     fn default() -> Self {
         Self {
             color: Default::default(),
-            width: Property::new(Size::Pixels(Numeric::F64(0.0))),
+            width: Property::new(Size::Pixels(Numeric::F64(0.0)), "width"),
         }
     }
 }

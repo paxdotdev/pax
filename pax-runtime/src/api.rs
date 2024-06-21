@@ -2,7 +2,7 @@ use std::rc::{Rc, Weak};
 
 use_RefCell!();
 use crate::{
-    node_interface::NodeInterface, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
+    node_interface::{NodeInterface, NodeLocal}, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
 };
 pub use pax_runtime_api::*;
 
@@ -23,9 +23,9 @@ pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
-    pub bounds_parent: Property<(f64, f64)>,
+    pub transform_and_bounds_parent: Property<TransformAndBounds<NodeLocal, Window>>,
     /// The bounds of this element in px
-    pub bounds_self: Property<(f64, f64)>,
+    pub transform_and_bounds_self: Property<TransformAndBounds<NodeLocal, Window>>,
     /// Current platform (Web/Native) this app is running on
     pub platform: Platform,
     /// Current os (Android/Windows/Mac/Linux) this app is running on

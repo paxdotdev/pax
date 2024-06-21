@@ -259,11 +259,11 @@ impl PaxEngine {
     ) -> Self {
         pax_runtime_api::set_time(0);
         let globals = Globals {
-            frames_elapsed: Property::new(0),
+            frames_elapsed: Property::new(0, "frames_elapsed"),
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
-            }),
+            }, "viewport"),
             platform,
             os,
         };

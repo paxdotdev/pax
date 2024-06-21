@@ -113,7 +113,7 @@ pub trait ComponentFactory {
                             ValueDefinition::LiteralValue(lv) => {
                                 let val = from_pax_try_coerce::<{{common_property.property_type._type_id}}>(&lv.raw_value)
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
-                                Property::new(Some(val))
+                                Property::new(Some(val), "inline_common_properties literal")
                             },
                             ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
                             {
@@ -132,7 +132,7 @@ pub trait ComponentFactory {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
                                         let coerced = new_value_wrapped.try_coerce::<{{common_property.property_type._type_id}}>().unwrap();
                                         Some(coerced)
-                                    }, &dependents)
+                                    }, &dependents, "inline_common_properties expression")
                                 } else {
                                     unreachable!("No info for expression")
                                 }
@@ -346,7 +346,7 @@ impl DefinitionToInstanceTraverser {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             let coerced = new_value_wrapped.try_coerce::<bool>().map_err(|e| format!("expr with vtable_id {} failed: {}", vtable_id, e)).unwrap();
                             coerced
-                        }, &dependencies);
+                        }, &dependencies, "conditional expression");
                         properties.to_pax_any()
                     })));
                 ConditionalInstance::instantiate(InstantiationArgs {
@@ -388,7 +388,7 @@ impl DefinitionToInstanceTraverser {
                             let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                             let coerced = new_value_wrapped.try_coerce::<Numeric>().unwrap();
                             coerced
-                        }, &dependencies);
+                        }, &dependencies, "slot index expression");
                         properties.to_pax_any()
                     })));
                 SlotInstance::instantiate(InstantiationArgs {
@@ -440,8 +440,8 @@ impl DefinitionToInstanceTraverser {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<Vec<Rc<RefCell<PaxAny>>>>().unwrap();
                                         coerced
-                                    }, &dependencies)
-                                    ) 
+                                    }, &dependencies, "repeat source expression")
+                                ) 
                             } else {
                                 None
                             };
@@ -455,7 +455,7 @@ impl DefinitionToInstanceTraverser {
                                         let new_value_wrapped: PaxAny = cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
                                         let coerced = new_value_wrapped.try_coerce::<std::ops::Range::<isize>>().unwrap();
                                         coerced
-                                    }, &dependencies)
+                                    }, &dependencies, "repeat source expression")
                                 )
                             } else {
                                 None

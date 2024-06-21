@@ -53,6 +53,7 @@ impl InstanceNode for RadioSetInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        expanded_node.property_scope_manager.run_with_scope(|| {
         // Send creation message
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::RadioSetCreate(
@@ -130,9 +131,10 @@ impl InstanceNode for RadioSetInstance {
                     });
                     ()
                 },
-                &deps,
+                &deps, "RadioSetInstance::update"
             ),
         );
+        });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

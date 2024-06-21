@@ -37,6 +37,7 @@ pub fn compute_tab(
             }
         },
         &deps,
+        "compute_tab"
     )
 }
 

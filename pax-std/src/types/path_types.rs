@@ -40,7 +40,7 @@ impl PathPoint {
                 });
                 false
             },
-            &deps,
+            &deps, "PathPoint.on_change"
         ));
     }
 
@@ -87,7 +87,7 @@ impl PathLine {
                 });
                 false
             },
-            &deps,
+            &deps, "PathLine.on_change"
         ));
     }
 
@@ -133,7 +133,7 @@ impl PathClose {
                 });
                 false
             },
-            &deps,
+            &deps, "PathClose.on_change"
         ));
     }
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
@@ -184,7 +184,7 @@ impl PathCurve {
                 });
                 false
             },
-            &deps,
+            &deps, "PathCurve.on_change"
         ));
     }
 

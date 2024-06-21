@@ -54,6 +54,7 @@ impl InstanceNode for ImageInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        expanded_node.property_scope_manager.run_with_scope(|| {
         let id = expanded_node.id.to_u32();
 
         // send update message when relevant properties change
@@ -93,9 +94,10 @@ impl InstanceNode for ImageInstance {
                     }
                     ()
                 },
-                &deps,
+                &deps, "ImageInstance::native_message_props"
             ),
         );
+    });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {

@@ -22,7 +22,7 @@ pub const PARTICLE_COUNT: usize = 200;
 pub const LOOP_FRAMES: f64 = 200.0;
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        let bounds_parent = ctx.bounds_parent.get();
+        let bounds_parent = ctx.transform_and_bounds_parent.get().bounds;
         self.particles.set(
             (0..PARTICLE_COUNT)
                 .map(|i| Particle {
