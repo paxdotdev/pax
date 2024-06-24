@@ -91,7 +91,6 @@ pub fn generate_and_overwrite_cartridge(
     // write manifest to cartridge
     let manifest_path = target_dir.join(INITIAL_MANIFEST_FILE_NAME);
     let manifest_str = serde_json::to_string(manifest).unwrap();
-    eprintln!("MANIFEST_AS_STR: {}", manifest_str);
     fs::write(manifest_path, manifest_str).unwrap();
 
     // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
