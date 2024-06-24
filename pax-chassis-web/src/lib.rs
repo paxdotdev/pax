@@ -77,9 +77,6 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub async fn new() -> Self {
         let (width, height, os_info, expression_table) = Self::init_common();
-        // log::debug!("stored manifest: {}", pax_cartridge::INITIAL_MANIFEST);
-        // log::debug!("retrieved manif: {}", manifest);
-
         let query_string = window()
             .unwrap()
             .location()
