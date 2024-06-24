@@ -24,7 +24,7 @@ export class PaxChassisWeb {
 /**
 * @returns {PaxChassisWeb}
 */
-  static new(): PaxChassisWeb;
+  static async new(): PaxChassisWeb;
 /**
 * @param {string} id
 */

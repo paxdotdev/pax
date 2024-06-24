@@ -2,6 +2,7 @@
 
 use js_sys::Uint8Array;
 use log::Level;
+use pax_manifest::PaxManifest;
 use pax_message::ImageLoadInterruptArgs;
 use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
@@ -16,6 +17,7 @@ use pax_runtime::api::TextboxInput;
 use pax_runtime::api::OS;
 use pax_runtime::ExpressionTable;
 use pax_runtime_api::borrow_mut;
+use web_sys::Response;
 use_RefCell!();
 
 use std::rc::Rc;
@@ -71,7 +73,94 @@ pub struct InterruptResult {
 #[wasm_bindgen]
 impl PaxChassisWeb {
     //called from JS, this is essentially `main`
-    pub fn new() -> Self {
+
+    #[cfg(feature = "designtime")]
+    pub async fn new() -> Self {
+        let (width, height, os_info, expression_table) = Self::init_common();
+        // log::debug!("stored manifest: {}", pax_cartridge::INITIAL_MANIFEST);
+        // log::debug!("retrieved manif: {}", manifest);
+
+        let query_string = window()
+            .unwrap()
+            .location()
+            .search()
+            .expect("no search exists");
+        log::debug!("query string: {}", query_string);
+        let manifest = Self::fetch(&format!("http://localhost:9000/create/load{query_string}"))
+            .await
+            .expect("failed to fetch manifest from remote");
+
+        let mut definition_to_instance_traverser =
+            pax_cartridge::DefinitionToInstanceTraverser::new(Some(manifest));
+        let main_component_instance = definition_to_instance_traverser.get_main_component();
+        let designtime_manager =
+            definition_to_instance_traverser.get_designtime_manager(query_string);
+        let engine = pax_runtime::PaxEngine::new_with_designtime(
+            main_component_instance,
+            expression_table,
+            (width, height),
+            designtime_manager.clone(),
+            Platform::Web,
+            os_info,
+        );
+        let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
+        Self {
+            engine: engine_container,
+            drawing_contexts: Renderer::new(),
+            definition_to_instance_traverser,
+            designtime_manager,
+            last_manifest_version_rendered: 0,
+        }
+    }
+
+    // #[cfg(feature = "designtime")]
+    async fn fetch(url: &str) -> Result<PaxManifest, String> {
+        // Fetch the URL
+        let response =
+            Into::<wasm_bindgen_futures::JsFuture>::into(window().unwrap().fetch_with_str(url))
+                .await
+                .map_err(|err| format!("Failed to fetch: {:?}", err))?;
+
+        // Convert the response to JSON
+        let text: String = Into::<wasm_bindgen_futures::JsFuture>::into(
+            Response::from(response)
+                .text()
+                .map_err(|err| format!("Failed to parse JSON: {:?}", err))?,
+        )
+        .await
+        .map_err(|err| format!("Failed to get text: {:?}", err))?
+        .as_string()
+        .unwrap();
+
+        let manifest = serde_json::from_str(&text)
+            .map_err(|err| format!("Failed to deserialize: {:?}", err))?;
+
+        Ok(manifest)
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    pub async fn new() -> Self {
+        let (width, height, os_info, expression_table) = Self::init_common();
+        let mut definition_to_instance_traverser =
+            pax_cartridge::DefinitionToInstanceTraverser::new(None);
+        let main_component_instance = definition_to_instance_traverser.get_main_component();
+        let engine = pax_runtime::PaxEngine::new(
+            main_component_instance,
+            expression_table,
+            (width, height),
+            Platform::Web,
+            os_info,
+        );
+
+        let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
+
+        Self {
+            engine: engine_container,
+            drawing_contexts: Renderer::new(),
+        }
+    }
+
+    fn init_common() -> (f64, f64, OS, ExpressionTable) {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
@@ -91,50 +180,10 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let mut definition_to_instance_traverser =
-            pax_cartridge::DefinitionToInstanceTraverser::new();
-        let main_component_instance = definition_to_instance_traverser.get_main_component();
         let expression_table = ExpressionTable {
             table: pax_cartridge::instantiate_expression_table(),
         };
-
-        #[cfg(feature = "designtime")]
-        {
-            let designtime_manager = definition_to_instance_traverser.get_designtime_manager();
-            let engine = pax_runtime::PaxEngine::new_with_designtime(
-                main_component_instance,
-                expression_table,
-                (width, height),
-                designtime_manager.clone(),
-                Platform::Web,
-                os_info,
-            );
-            let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
-            Self {
-                engine: engine_container,
-                drawing_contexts: Renderer::new(),
-                definition_to_instance_traverser,
-                designtime_manager,
-                last_manifest_version_rendered: 0,
-            }
-        }
-        #[cfg(not(feature = "designtime"))]
-        {
-            let engine = pax_runtime::PaxEngine::new(
-                main_component_instance,
-                expression_table,
-                (width, height),
-                Platform::Web,
-                os_info,
-            );
-
-            let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
-
-            Self {
-                engine: engine_container,
-                drawing_contexts: Renderer::new(),
-            }
-        }
+        (width, height, os_info, expression_table)
     }
 
     pub fn add_context(&mut self, id: String) {
