@@ -82,13 +82,12 @@ impl PaxChassisWeb {
             .location()
             .search()
             .expect("no search exists");
-        log::debug!("query string: {}", query_string);
         let manifest = Self::fetch(&format!("http://localhost:9000/create/load{query_string}"))
             .await
             .expect("failed to fetch manifest from remote");
 
         let mut definition_to_instance_traverser =
-            pax_cartridge::DefinitionToInstanceTraverser::new(Some(manifest));
+            pax_cartridge::DefinitionToInstanceTraverser::new(manifest);
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let designtime_manager =
             definition_to_instance_traverser.get_designtime_manager(query_string);
@@ -110,7 +109,7 @@ impl PaxChassisWeb {
         }
     }
 
-    // #[cfg(feature = "designtime")]
+    #[cfg(feature = "designtime")]
     async fn fetch(url: &str) -> Result<PaxManifest, String> {
         // Fetch the URL
         let response =
@@ -138,8 +137,9 @@ impl PaxChassisWeb {
     #[cfg(not(feature = "designtime"))]
     pub async fn new() -> Self {
         let (width, height, os_info, expression_table) = Self::init_common();
+        let manifest = serde_json::from_str(&pax_cartridge::INITIAL_MANIFEST).unwrap();
         let mut definition_to_instance_traverser =
-            pax_cartridge::DefinitionToInstanceTraverser::new(None);
+            pax_cartridge::DefinitionToInstanceTraverser::new(manifest);
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let engine = pax_runtime::PaxEngine::new(
             main_component_instance,
