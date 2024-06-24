@@ -235,8 +235,7 @@ pub struct DefinitionToInstanceTraverser {
 impl DefinitionToInstanceTraverser {
 
     #[cfg(not(feature = "designtime"))]
-    pub fn new(manifest: Option<PaxManifest>) -> Self {
-        let manifest_old: PaxManifest = serde_json::from_str(INITIAL_MANIFEST).expect("Failed to deserialize initial manifest");
+    pub fn new(manifest: PaxManifest) -> Self {
         Self {
             manifest,
         }
@@ -248,8 +247,7 @@ impl DefinitionToInstanceTraverser {
     }
 
     #[cfg(feature = "designtime")]
-    pub fn new(manifest: Option<PaxManifest>) -> Self {
-        let manifest = manifest.expect("designtime needs to be provided a manifest to load");
+    pub fn new(manifest: PaxManifest) -> Self {
         let designtime_manager = Rc::new(RefCell::new(pax_designtime::DesigntimeManager::new(manifest)));
         Self {
             designtime_manager,

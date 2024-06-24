@@ -27,7 +27,7 @@ pub fn instantiate_main_component() -> Rc<ComponentInstance> {
 pub struct DefinitionToInstanceTraverser {}
 
 impl DefinitionToInstanceTraverser {
-    pub fn new(_manifest: Option<PaxManifest>) -> Self {
+    pub fn new(_manifest: PaxManifest) -> Self {
         unreachable!("{}", PLACEHOLDER_ERROR)
     }
 
