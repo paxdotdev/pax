@@ -2014,6 +2014,9 @@ dependencies = [
  "serde_json",
  "tera",
  "toml_edit 0.21.0",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
