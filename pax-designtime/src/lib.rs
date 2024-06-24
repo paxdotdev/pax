@@ -9,6 +9,7 @@ pub mod messages;
 pub mod serde_pax;
 
 mod setup;
+use anyhow::anyhow;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
 pub use setup::add_additional_dependencies_to_cargo_toml;
@@ -20,7 +21,7 @@ pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Request, RequestInit, RequestMode, Response};
+use web_sys::{window, Request, RequestInit, RequestMode, Response};
 
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
@@ -76,29 +77,32 @@ impl DesigntimeManager {
         Ok(())
     }
 
+    pub fn send_manifest_update(&mut self) -> anyhow::Result<()> {
+        // Serialize the manifest to JSON
+        let json = serde_json::to_string(self.orm.get_manifest()).unwrap();
+        let proj_str = self.project_query.clone();
+        let url = format!("http://localhost:9000/create/save{}", proj_str.unwrap());
+        wasm_bindgen_futures::spawn_local(async move {
+            // Create a RequestInit object with the method and body
+            let mut opts = web_sys::RequestInit::new();
+            opts.method("POST");
+            opts.body(Some(&JsValue::from_str(&json)));
+
+            // Create the request
+            let request = web_sys::Request::new_with_str_and_init(&url, &opts).unwrap();
+
+            // Send the request
+            Into::<wasm_bindgen_futures::JsFuture>::into(
+                window().unwrap().fetch_with_request(&request),
+            )
+            .await
+            .unwrap();
+            log::debug!("sucessfully saved")
+        });
+        Ok(())
+    }
+
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
-        let mut opts = RequestInit::new();
-        opts.method("GET");
-        opts.mode(RequestMode::Cors);
-
-        let url = format!("https://localhost", repo);
-
-        let request = Request::new_with_str_and_init(&url, &opts)?;
-
-        request
-            .headers()
-            .set("Accept", "application/vnd.github.v3+json")?;
-
-        let window = web_sys::window().unwrap();
-        let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
-
-        // `resp_value` is a `Response` object.
-        assert!(resp_value.is_instance_of::<Response>());
-        let resp: Response = resp_value.dyn_into().unwrap();
-
-        // Convert this other `Promise` into a rust `Future`.
-        let json = JsFuture::from(resp.json()?).await?;
-
         // Send the JSON response back to JS.
         // let component = self.orm.get_component(type_id)?;
         // self.priv_agent_connection
