@@ -12,6 +12,7 @@ use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
     AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration, SizeUnit,
 };
+use crate::model::action::orm::group_ungroup::MoveNodeKeepScreenPos;
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::{SetStage, ROOT_PROJECT_ID};
@@ -287,10 +288,13 @@ impl ToolBehaviour for PointerTool {
                             };
                         };
                         if let Some(drop_slot) = drop_slot_object {
-                            ctx.execute(SwapNodes {
-                                n1: drop_slot,
-                                n2: hit,
-                            });
+                            if let Err(e) = ctx.execute(MoveNodeKeepScreenPos {
+                                node: drop_slot,
+                                new_parent: hit,
+                                index: pax_manifest::TreeIndexPosition::Top,
+                            }) {
+                                log::warn!("failed to swap nodes: {}", e);
+                            };
                         }
                         log::debug!("thing to replace: {:?}", drop_slot_object);
                     }
