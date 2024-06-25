@@ -213,6 +213,7 @@ pub struct MoveNodeKeepScreenPos<'a> {
 
 impl Action for MoveNodeKeepScreenPos<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        log::debug!("start of MoveNodeKeepScreenPos");
         let parent_location = if ctx
             .engine_context
             .get_nodes_by_id(USERLAND_EDIT_ID)
@@ -230,31 +231,33 @@ impl Action for MoveNodeKeepScreenPos<'_> {
         };
         {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            log::debug!("moving from {:?} to {:?}", self.node, parent_location);
             let _undo_id = dt
                 .get_orm_mut()
                 .move_node(self.node.clone(), parent_location)
                 .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
         }
-        let child_runtime_node = ctx
-            .engine_context
-            .get_nodes_by_global_id(self.node.clone())
-            .first()
-            .ok_or_else(|| anyhow!("child not in render tree"))?
-            .clone();
-        let child_t_and_b = child_runtime_node.transform_and_bounds().get();
-        let group_parent_bounds = ctx
-            .engine_context
-            .get_nodes_by_global_id(self.new_parent.clone())
-            .first()
-            .ok_or_else(|| anyhow!("parent not in render tree"))?
-            .transform_and_bounds()
-            .get();
-        ctx.execute(SetNodeTransformProperties {
-            id: self.node.clone(),
-            transform_and_bounds: child_t_and_b,
-            parent_transform_and_bounds: group_parent_bounds,
-            inv_config: child_runtime_node.layout_properties().into_inv_config(),
-        })?;
+        // let child_runtime_node = ctx
+        //     .engine_context
+        //     .get_nodes_by_global_id(self.node.clone())
+        //     .first()
+        //     .ok_or_else(|| anyhow!("child not in render tree"))?
+        //     .clone();
+        // let child_t_and_b = child_runtime_node.transform_and_bounds().get();
+        // let group_parent_bounds = ctx
+        //     .engine_context
+        //     .get_nodes_by_global_id(self.new_parent.clone())
+        //     .first()
+        //     .ok_or_else(|| anyhow!("parent not in render tree"))?
+        //     .transform_and_bounds()
+        //     .get();
+        //     log::debug!("moving from {:?} to {:?}", self.node, parent_location);
+        // ctx.execute(SetNodeTransformProperties {
+        //     id: self.node.clone(),
+        //     transform_and_bounds: child_t_and_b,
+        //     parent_transform_and_bounds: group_parent_bounds,
+        //     inv_config: child_runtime_node.layout_properties().into_inv_config(),
+        // })?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
