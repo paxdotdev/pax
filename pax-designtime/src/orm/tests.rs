@@ -5,10 +5,10 @@ mod tests {
         ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token,
         TokenType, TypeId,
     };
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{BTreeMap, HashMap, HashSet};
 
     fn create_basic_manifest() -> PaxManifest {
-        let mut components = HashMap::new();
+        let mut components = BTreeMap::new();
         let type_id: TypeId = TypeId::build_singleton("Component1", Some("Component1"));
         components.insert(
             type_id.clone(),
