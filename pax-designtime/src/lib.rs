@@ -9,7 +9,6 @@ pub mod messages;
 pub mod serde_pax;
 
 mod setup;
-use anyhow::anyhow;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
 pub use setup::add_additional_dependencies_to_cargo_toml;
@@ -20,8 +19,7 @@ use pax_manifest::{ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeI
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{window, Request, RequestInit, RequestMode, Response};
+use web_sys::window;
 
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
@@ -45,7 +43,7 @@ impl Debug for DesigntimeManager {
 }
 
 impl DesigntimeManager {
-    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
+    pub fn new_with_addr(manifest: PaxManifest, _priv_addr: SocketAddr) -> Self {
         // let priv_agent = Rc::new(RefCell::new(
         //     PrivilegedAgentConnection::new(priv_addr)
         //         .expect("couldn't connect to privileged agent"),
@@ -102,7 +100,7 @@ impl DesigntimeManager {
         Ok(())
     }
 
-    pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
+    pub fn send_component_update(&mut self, _type_id: &TypeId) -> anyhow::Result<()> {
         // Send the JSON response back to JS.
         // let component = self.orm.get_component(type_id)?;
         // self.priv_agent_connection
@@ -118,7 +116,7 @@ impl DesigntimeManager {
         Ok(())
     }
 
-    pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
+    pub fn llm_request(&mut self, _request: &str) -> anyhow::Result<()> {
         // let manifest = self.orm.get_manifest();
         // let userland_type_id = TypeId::build_singleton(
         //     "pax_designer::pax_reexports::designer_project::Example",
