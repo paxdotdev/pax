@@ -90,7 +90,7 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
         should_also_run: false,
         is_libdev_mode: true,
         process_child_ids: Arc::new(Mutex::new(vec![])),
-        is_release: true,
+        is_release: false,
     };
 
     let (manifest, fs_path) = pax_compiler::perform_build(&ctx).unwrap();
