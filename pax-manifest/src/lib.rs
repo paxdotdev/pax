@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
@@ -23,8 +23,8 @@ pub mod deserializer;
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "pax_message::serde")]
 pub struct PaxManifest {
-    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
-    pub components: HashMap<TypeId, ComponentDefinition>,
+    #[serde_as(as = "BTreeMap<serde_with::json::JsonString, _>")]
+    pub components: BTreeMap<TypeId, ComponentDefinition>,
     pub main_component_type_id: TypeId,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
@@ -364,6 +364,18 @@ pub struct TypeId {
 
     _type_id: String,
     _type_id_escaped: String,
+}
+
+impl PartialOrd for TypeId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self._type_id.partial_cmp(&other._type_id)
+    }
+}
+
+impl Ord for TypeId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self._type_id.cmp(&other._type_id)
+    }
 }
 
 impl ImplToFromPaxAny for TypeId {}

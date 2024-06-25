@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
 use pax_lang::{parse_pax_str, Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
@@ -1032,7 +1032,7 @@ pub struct ParsingContext {
 
     pub main_component_type_id: TypeId,
 
-    pub component_definitions: HashMap<TypeId, ComponentDefinition>,
+    pub component_definitions: BTreeMap<TypeId, ComponentDefinition>,
 
     pub template_map: HashMap<String, TypeId>,
 
@@ -1048,7 +1048,7 @@ impl Default for ParsingContext {
         Self {
             main_component_type_id: TypeId::default(),
             visited_type_ids: HashSet::new(),
-            component_definitions: HashMap::new(),
+            component_definitions: BTreeMap::new(),
             template_map: HashMap::new(),
             type_table: get_primitive_type_table(),
             template_node_definitions: ComponentTemplate::default(),

@@ -5,7 +5,7 @@ use pax_manifest::{
     PropertyDefinitionFlags, SettingElement, TemplateNodeId, Token, TypeDefinition, TypeId,
     TypeTable, ValueDefinition,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeFrom;
 use std::slice::IterMut;
 
@@ -738,7 +738,7 @@ pub struct ExpressionCompilationContext<'a> {
     pub active_node_id: Option<TemplateNodeId>,
 
     /// All components, by ID
-    pub all_components: HashMap<TypeId, ComponentDefinition>,
+    pub all_components: BTreeMap<TypeId, ComponentDefinition>,
 
     /// Type table, used for looking up property types by string type_ids
     pub type_table: &'a TypeTable,
