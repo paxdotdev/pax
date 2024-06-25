@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     env,
 };
 
@@ -33,7 +33,7 @@ pub fn get_test_server() -> actix_test::TestServer {
 }
 
 fn create_basic_manifest(source_path: String) -> PaxManifest {
-    let mut components = HashMap::new();
+    let mut components = BTreeMap::new();
     let component_type_id = TypeId::build_singleton("Component1", Some("Component1"));
     let special_component_type_id =
         TypeId::build_singleton("SpecialComponent", Some("SpecialComponent"));
