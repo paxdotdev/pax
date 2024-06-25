@@ -21,6 +21,8 @@ use super::SetNodeTransformProperties;
 
 pub struct GroupSelected {}
 
+// TODO refactor these to use MoveKeepScreenPos
+
 impl Action for GroupSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let selected: SelectionStateSnapshot = (&ctx.selection_state()).into();
@@ -204,9 +206,9 @@ impl Action for UngroupSelected {
 }
 
 pub struct MoveNodeKeepScreenPos<'a> {
-    node: &'a UniqueTemplateNodeIdentifier,
-    new_parent: &'a UniqueTemplateNodeIdentifier,
-    index: TreeIndexPosition,
+    pub node: &'a UniqueTemplateNodeIdentifier,
+    pub new_parent: &'a UniqueTemplateNodeIdentifier,
+    pub index: TreeIndexPosition,
 }
 
 impl Action for MoveNodeKeepScreenPos<'_> {
@@ -233,14 +235,14 @@ impl Action for MoveNodeKeepScreenPos<'_> {
                 .move_node(self.node.clone(), parent_location)
                 .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
         }
-        let t_and_b_node = ctx
+        let child_runtime_node = ctx
             .engine_context
             .get_nodes_by_global_id(self.node.clone())
             .first()
             .ok_or_else(|| anyhow!("child not in render tree"))?
-            .transform_and_bounds()
-            .get();
-        let t_and_b_parent = ctx
+            .clone();
+        let child_t_and_b = child_runtime_node.transform_and_bounds().get();
+        let group_parent_bounds = ctx
             .engine_context
             .get_nodes_by_global_id(self.new_parent.clone())
             .first()
