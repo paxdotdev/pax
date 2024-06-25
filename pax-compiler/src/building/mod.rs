@@ -7,7 +7,7 @@ use flate2::read::GzDecoder;
 use libc::EXIT_FAILURE;
 use pax_manifest::{HostCrateInfo, PaxManifest};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     path::PathBuf,
     str::FromStr,
@@ -108,7 +108,7 @@ pub fn update_type_id_prefixes_in_place(
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 
-    let mut updated_component_table = HashMap::new();
+    let mut updated_component_table = BTreeMap::new();
     manifest.components.iter_mut().for_each(|c| {
         c.1.type_id.fully_qualify_type_id(host_crate_info);
 
