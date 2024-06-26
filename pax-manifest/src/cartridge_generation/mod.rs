@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
@@ -163,11 +163,11 @@ impl PaxManifest {
         &self,
         containing_component_type_id: &TypeId,
         tnd: &TemplateNodeDefinition,
-    ) -> HashMap<String, ValueDefinition> {
+    ) -> BTreeMap<String, ValueDefinition> {
         let component = self.components.get(&containing_component_type_id).unwrap();
         let settings =
             Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         if let Some(settings) = &settings {
             for setting in settings {
                 if let SettingElement::Setting(key, value) = setting {
@@ -190,11 +190,11 @@ impl PaxManifest {
         &self,
         containing_component_type_id: &TypeId,
         tnd: &TemplateNodeDefinition,
-    ) -> HashMap<String, ValueDefinition> {
+    ) -> BTreeMap<String, ValueDefinition> {
         let component = self.components.get(containing_component_type_id).unwrap();
         let settings =
             Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         if let Some(settings) = &settings {
             for setting in settings {
                 if let SettingElement::Setting(key, value) = setting {
@@ -311,7 +311,7 @@ impl PaxManifest {
             }
         }
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
 
         // Iterate in reverse order of priority (class, then id, then inline)
         for e in class_settings.into_iter() {
