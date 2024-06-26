@@ -111,7 +111,7 @@ pub fn init_model(ctx: &NodeContext) {
                 let parent_uid = interface
                     .first()
                     .unwrap()
-                    .parent()
+                    .template_parent()
                     .unwrap()
                     .global_id()
                     .unwrap();

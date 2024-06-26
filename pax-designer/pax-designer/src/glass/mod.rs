@@ -52,7 +52,10 @@ impl Action for SetEditingComponent {
         let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
 
         if !is_userland_component && !is_mock {
-            return Err(anyhow!("tried to edit a non-userland comp"));
+            return Err(anyhow!(
+                "tried to edit a non-userland comp: {:?}",
+                type_id.import_path()
+            ));
         }
         ctx.execute(SetLibraryState { open: false })?;
 
@@ -127,12 +130,16 @@ impl Glass {
                 Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
                     model::perform_action(TextEdit { uid }, ctx);
                 }
-                Some("pax_designer::pax_reexports::pax_std::primitives::Group") => {
+                Some(
+                    "pax_designer::pax_reexports::pax_std::primitives::Group"
+                    | "pax_designer::pax_reexports::pax_std::stacker::Stacker",
+                ) => {
                     model::with_action_context(ctx, |ax| {
                         let hit = ax.raycast_glass(
                             ax.glass_transform().get()
                                 * Point2::<Window>::new(args.mouse.x, args.mouse.y),
                             RaycastMode::DrillOne,
+                            &[],
                         );
                         if let Some(hit) = hit {
                             if let Err(e) = ax.execute(SelectNodes {
@@ -217,7 +224,7 @@ impl Glass {
             if let Err(e) = dt.send_file_to_static_dir(&event.args.name, event.args.data) {
                 log::warn!("failed to send file to server {}", e);
             } else {
-                log::debug!("sent file to server!!");
+                log::info!("sent file to server!!");
             };
         }
         model::with_action_context(ctx, |ac| {
