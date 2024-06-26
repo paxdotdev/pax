@@ -82,10 +82,10 @@ impl PaxChassisWeb {
             .location()
             .search()
             .expect("no search exists");
-        // let manifest = Self::fetch(&format!("http://localhost:9000/create/load{query_string}"))
-        //     .await
-        //     .expect("failed to fetch manifest from remote");
-        let manifest = serde_json::from_str(&pax_cartridge::INITIAL_MANIFEST).unwrap();
+        let manifest = Self::fetch(&format!("http://localhost:9000/create/load{query_string}"))
+            .await
+            .expect("failed to fetch manifest from remote");
+        // let manifest = serde_json::from_str(&pax_cartridge::INITIAL_MANIFEST).unwrap();
 
         let mut definition_to_instance_traverser =
             pax_cartridge::DefinitionToInstanceTraverser::new(manifest);

@@ -1752,6 +1752,17 @@ pub struct Token {
     pub token_location: Option<LocationInfo>,
 }
 
+impl PartialOrd for Token {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.raw_value.partial_cmp(&other.raw_value)
+    }
+}
+impl Ord for Token {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.raw_value.cmp(&other.raw_value)
+    }
+}
+
 impl PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
         self.raw_value == other.raw_value

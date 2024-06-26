@@ -7,7 +7,7 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
         Box::new(|_,_| Rc::new(RefCell::new({{component.pascal_identifier}}::default().to_pax_any())))
     }
 
-    fn build_inline_properties(&self, defined_properties: HashMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>> {
+    fn build_inline_properties(&self, defined_properties: BTreeMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>> {
         Box::new(move |stack_frame , table | Rc::new(RefCell::new(
             {
         let mut properties = {{component.pascal_identifier}}::default();
