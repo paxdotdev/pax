@@ -2,7 +2,7 @@ use std::any::Any;
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateComponent, SetNodeTransformProperties};
+use super::action::orm::{CreateComponent, SetNodePropertiesFromTransform};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo, RaycastMode};
 use super::input::InputEvent;
@@ -12,7 +12,7 @@ use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
     AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration, SizeUnit,
 };
-use crate::model::action::orm::group_ungroup::MoveNodeKeepScreenPos;
+use crate::model::action::orm::{MoveNode, ResizeNode};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::{SetStage, ROOT_PROJECT_ID};
@@ -23,10 +23,11 @@ use pax_engine::api::Size;
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
-use pax_engine::{log, NodeLocal};
+use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::{Axis, Window};
+use pax_std::stacker::Stacker;
 
 pub struct CreateComponentTool {
     type_id: TypeId,
@@ -138,7 +139,7 @@ pub struct PointerTool {
 pub enum PointerToolAction {
     Moving {
         has_moved: bool,
-        hit: UniqueTemplateNodeIdentifier,
+        hit: NodeInterface,
         pickup_point: Point2<Glass>,
         initial_selection: SelectionStateSnapshot,
     },
@@ -156,7 +157,7 @@ pub enum ResizeStageDim {
 
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
-        if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top) {
+        if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top, &[]) {
             let node_id = hit.global_id().unwrap();
             let selected = ctx.selection_state();
             if !selected.items.iter().any(|s| s.id == node_id) {
@@ -168,7 +169,7 @@ impl PointerTool {
             let selection = ctx.selection_state();
             Self {
                 action: PointerToolAction::Moving {
-                    hit: node_id.clone(),
+                    hit,
                     has_moved: false,
                     pickup_point: point,
                     initial_selection: (&selection).into(),
@@ -227,7 +228,7 @@ impl ToolBehaviour for PointerTool {
                 };
 
                 for item in &initial_selection.items {
-                    if let Err(e) = ctx.execute(SetNodeTransformProperties {
+                    if let Err(e) = ctx.execute(SetNodePropertiesFromTransform {
                         id: item.id.clone(),
                         transform_and_bounds: move_translation * item.transform_and_bounds,
                         parent_transform_and_bounds: item.parent_transform_and_bounds,
@@ -272,35 +273,52 @@ impl ToolBehaviour for PointerTool {
                 has_moved, ref hit, ..
             } => {
                 if *has_moved {
-                    if let Some(mut drop_hit) = ctx.raycast_glass(point, RaycastMode::Nth(1)) {
-                        log::debug!("original hit: {:?}", hit);
-                        let drop_slot_object = loop {
-                            if drop_hit
-                                .parent()
-                                .is_some_and(|n| n.is_of_type::<pax_engine::Slot>())
+                    // If we drop on another object, check if it's an object in a slot.
+                    // If it is, add this object to the same parent
+                    if let Some(drop_hit) =
+                        ctx.raycast_glass(point, RaycastMode::RawNth(0), &[hit.clone()])
+                    {
+                        let mut drop_slot_container = drop_hit.clone();
+                        let drop_slot_topmost_container = loop {
+                            if drop_slot_container
+                                .containing_component()
+                                .is_some_and(|v| v.is_of_type::<Stacker>())
                             {
-                                break Some(hit);
+                                break Some(drop_slot_container);
                             }
-                            if let Some(par) = drop_hit.parent() {
-                                drop_hit = par;
+                            if let Some(par) = drop_slot_container.render_parent() {
+                                drop_slot_container = par;
                             } else {
                                 break None;
                             };
                         };
-                        if let Some(drop_slot) = drop_slot_object {
-                            if let Err(e) = ctx.execute(MoveNodeKeepScreenPos {
-                                node: drop_slot,
-                                new_parent: hit,
-                                index: pax_manifest::TreeIndexPosition::Top,
+                        if let Some(drop_container) = drop_slot_topmost_container {
+                            let mut slot_index = None;
+                            let mut curr = drop_hit.clone();
+                            let cc = drop_container.containing_component().unwrap();
+                            while curr.is_descendant_of(&cc) {
+                                if curr.is_of_type::<Slot>() {
+                                    slot_index = Some(curr.with_properties(|props: &mut Slot| {
+                                        props.index.get().to_int()
+                                    }));
+                                }
+                                curr = curr.render_parent().unwrap();
+                            }
+                            if let Err(e) = ctx.execute(MoveNode {
+                                node: hit.clone(),
+                                new_parent: cc,
+                                index: pax_manifest::TreeIndexPosition::At(
+                                    slot_index.unwrap() as usize
+                                ),
+                                resize_mode: ResizeNode::Fill,
                             }) {
                                 log::warn!("failed to swap nodes: {}", e);
                             };
                         }
-                        log::debug!("thing to replace: {:?}", drop_slot_object);
                     }
                 } else {
                     let _ = ctx.execute(SelectNodes {
-                        ids: &[hit.get_template_node_id()],
+                        ids: &[hit.global_id().unwrap().get_template_node_id()],
                         overwrite: false,
                     });
                 }

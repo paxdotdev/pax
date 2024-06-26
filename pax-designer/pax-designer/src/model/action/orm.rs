@@ -9,8 +9,8 @@ use crate::math::{
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNodes;
 use crate::model::{RuntimeNodeInfo, SelectionStateSnapshot};
-use crate::SCHIM_COMPONENT;
 use crate::{math::BoxPoint, model, model::AppState};
+use crate::{SCHIM_COMPONENT, USERLAND_EDIT_ID};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_designtime::orm::MoveToComponentEntry;
@@ -25,7 +25,9 @@ use pax_engine::{
     serde,
 };
 use pax_engine::{log, NodeInterface, NodeLocal};
-use pax_manifest::{TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{
+    NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_runtime_api::{Axis, Percent};
 pub mod group_ungroup;
 
@@ -54,7 +56,7 @@ impl Action for CreateComponent<'_> {
         };
         let stage = ctx.derived_state.stage.get();
 
-        ctx.execute(SetNodeTransformProperties::<World> {
+        ctx.execute(SetNodePropertiesFromTransform::<World> {
             id: save_data.unique_id.clone(),
             transform_and_bounds: TransformAndBounds {
                 transform: self.bounds.as_transform().cast_spaces(),
@@ -131,26 +133,17 @@ impl Action for SelectedIntoNewComponent {
     }
 }
 
-pub struct SetNodeTransformProperties<T> {
-    pub id: UniqueTemplateNodeIdentifier,
-    pub transform_and_bounds: TransformAndBounds<NodeLocal, T>,
-    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, T>,
-    pub inv_config: InversionConfiguration,
+pub struct SetNodeProperties {
+    id: UniqueTemplateNodeIdentifier,
+    properties: LayoutProperties,
 }
 
-impl<T: Space> Action for SetNodeTransformProperties<T> {
+impl Action for SetNodeProperties {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let Some(mut builder) = dt.get_orm_mut().get_node(self.id) else {
             return Err(anyhow!("can't move: node doesn't exist in orm"));
         };
-
-        let new_props: LayoutProperties = math::transform_and_bounds_inversion(
-            self.inv_config,
-            self.parent_transform_and_bounds,
-            self.transform_and_bounds,
-        );
-
         let LayoutProperties {
             x,
             y,
@@ -163,7 +156,7 @@ impl<T: Space> Action for SetNodeTransformProperties<T> {
             anchor_y,
             skew_x,
             skew_y,
-        } = new_props;
+        } = self.properties;
 
         const EPS: f64 = 1e-3;
         let is_size_default = |s: &Size, d_p: f64| match s {
@@ -209,6 +202,28 @@ impl<T: Space> Action for SetNodeTransformProperties<T> {
         })))
     }
 }
+pub struct SetNodePropertiesFromTransform<T> {
+    pub id: UniqueTemplateNodeIdentifier,
+    pub transform_and_bounds: TransformAndBounds<NodeLocal, T>,
+    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, T>,
+    pub inv_config: InversionConfiguration,
+}
+
+impl<T: Space> Action for SetNodePropertiesFromTransform<T> {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let new_props: LayoutProperties = math::transform_and_bounds_inversion(
+            self.inv_config,
+            self.parent_transform_and_bounds,
+            self.transform_and_bounds,
+        );
+
+        ctx.execute(SetNodeProperties {
+            id: self.id,
+            properties: new_props,
+        })?;
+        Ok(CanUndo::No)
+    }
+}
 
 pub struct SetAnchor<'a> {
     pub object: &'a RuntimeNodeInfo,
@@ -232,7 +247,7 @@ impl Action for SetAnchor<'_> {
             anchor_y: Some(anchor_y),
             ..self.object.layout_properties.clone()
         };
-        ctx.execute(SetNodeTransformProperties {
+        ctx.execute(SetNodePropertiesFromTransform {
             id: self.object.id.clone(),
             transform_and_bounds: self.object.transform_and_bounds,
             parent_transform_and_bounds: self.object.parent_transform_and_bounds,
@@ -320,7 +335,7 @@ impl Action for Resize<'_> {
         let resize = to_local * local_resize * to_local.inverse();
 
         for item in &self.initial_selection.items {
-            ctx.execute(SetNodeTransformProperties {
+            ctx.execute(SetNodePropertiesFromTransform {
                 id: item.id.clone(),
                 transform_and_bounds: resize * item.transform_and_bounds,
                 parent_transform_and_bounds: item.parent_transform_and_bounds,
@@ -377,7 +392,7 @@ impl Action for RotateSelected<'_> {
         let rotate = to_local * local_resize * to_local.inverse();
 
         for item in &self.initial_selection.items {
-            ctx.execute(SetNodeTransformProperties {
+            ctx.execute(SetNodePropertiesFromTransform {
                 id: item.id.clone(),
                 transform_and_bounds: rotate * item.transform_and_bounds,
                 parent_transform_and_bounds: item.parent_transform_and_bounds,
@@ -460,4 +475,70 @@ pub fn write_to_orm<T: Serialize + Default + PartialEq>(
         }
     };
     Ok(())
+}
+
+pub struct MoveNode {
+    pub node: NodeInterface,
+    pub new_parent: NodeInterface,
+    pub index: TreeIndexPosition,
+    pub resize_mode: ResizeNode,
+}
+
+pub enum ResizeNode {
+    Fill,
+    KeepScreenBounds,
+}
+
+impl Action for MoveNode {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+        let node_uid = self.node.global_id().unwrap();
+        match self.resize_mode {
+            ResizeNode::KeepScreenBounds => ctx.execute(SetNodePropertiesFromTransform {
+                id: node_uid.clone(),
+                transform_and_bounds: self.node.transform_and_bounds().get(),
+                parent_transform_and_bounds: self.new_parent.transform_and_bounds().get(),
+                inv_config: self.node.layout_properties().into_inv_config(),
+            })?,
+            ResizeNode::Fill => ctx.execute(SetNodeProperties {
+                id: node_uid.clone(),
+                properties: LayoutProperties::fill(),
+            })?,
+        }
+
+        let new_parent_uid = self.new_parent.global_id().unwrap();
+        let parent_location = if ctx
+            .engine_context
+            .get_nodes_by_id(USERLAND_EDIT_ID)
+            .first()
+            .unwrap()
+            .global_id()
+            == Some(new_parent_uid.clone())
+        {
+            NodeLocation::new(
+                node_uid.get_containing_component_type_id(),
+                TreeLocation::Root,
+                self.index,
+            )
+        } else {
+            NodeLocation::new(
+                node_uid.get_containing_component_type_id(),
+                TreeLocation::Parent(new_parent_uid.get_template_node_id()),
+                self.index,
+            )
+        };
+        {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let _undo_id = dt
+                .get_orm_mut()
+                .move_node(node_uid.clone(), parent_location)
+                .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
+        }
+
+        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            dt.get_orm_mut()
+                .undo()
+                .map_err(|e| anyhow!("cound't undo: {:?}", e))
+        })))
+    }
 }

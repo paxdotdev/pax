@@ -3,21 +3,29 @@ use std::any::Any;
 use crate::{
     math::{IntoInversionConfiguration, InversionConfiguration},
     model::{
-        action::{orm::group_ungroup, Action, ActionContext, CanUndo},
+        action::{
+            orm::{group_ungroup, SetNodeProperties},
+            Action, ActionContext, CanUndo,
+        },
         tools::SelectNodes,
         RuntimeNodeInfo, SelectionStateSnapshot,
     },
     ROOT_PROJECT_ID, USERLAND_EDIT_ID,
 };
 use anyhow::{anyhow, Context, Result};
-use pax_engine::{layout::TransformAndBounds, log, math::Transform2};
+use pax_engine::{
+    layout::{LayoutProperties, TransformAndBounds},
+    log,
+    math::Transform2,
+    NodeInterface,
+};
 use pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
 use pax_runtime_api::borrow_mut;
 use pax_std::primitives::Group;
 
-use super::SetNodeTransformProperties;
+use super::SetNodePropertiesFromTransform;
 
 pub struct GroupSelected {}
 
@@ -96,7 +104,7 @@ impl Action for GroupSelected {
             .clone();
         let group_parent_transform = group_parent_data.transform_and_bounds().get();
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
-        ctx.execute(SetNodeTransformProperties {
+        ctx.execute(SetNodePropertiesFromTransform {
             id: group_creation_save_data.unique_id.clone(),
             transform_and_bounds: group_transform_and_bounds,
             parent_transform_and_bounds: TransformAndBounds {
@@ -108,7 +116,7 @@ impl Action for GroupSelected {
 
         // ---------- Reposition the children relative to the newly created group
         for node in selected.items {
-            ctx.execute(SetNodeTransformProperties {
+            ctx.execute(SetNodePropertiesFromTransform {
                 id: node.id.clone(),
                 transform_and_bounds: node.transform_and_bounds,
                 parent_transform_and_bounds: group_transform_and_bounds,
@@ -148,7 +156,7 @@ impl Action for UngroupSelected {
                 .get_nodes_by_global_id(group.id.clone())
                 .first()
                 .unwrap()
-                .parent()
+                .render_parent()
                 .unwrap();
 
             let parent_id = parent.global_id();
@@ -187,7 +195,7 @@ impl Action for UngroupSelected {
                     .unwrap();
                 let child_t_and_b = child_runtime_node.transform_and_bounds().get();
 
-                ctx.execute(SetNodeTransformProperties {
+                ctx.execute(SetNodePropertiesFromTransform {
                     id: child,
                     transform_and_bounds: child_t_and_b,
                     parent_transform_and_bounds: group_parent_bounds,
@@ -196,68 +204,6 @@ impl Action for UngroupSelected {
             }
         }
 
-        Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            dt.get_orm_mut()
-                .undo()
-                .map_err(|e| anyhow!("cound't undo: {:?}", e))
-        })))
-    }
-}
-
-pub struct MoveNodeKeepScreenPos<'a> {
-    pub node: &'a UniqueTemplateNodeIdentifier,
-    pub new_parent: &'a UniqueTemplateNodeIdentifier,
-    pub index: TreeIndexPosition,
-}
-
-impl Action for MoveNodeKeepScreenPos<'_> {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        log::debug!("start of MoveNodeKeepScreenPos");
-        let parent_location = if ctx
-            .engine_context
-            .get_nodes_by_id(USERLAND_EDIT_ID)
-            .first()
-            .unwrap()
-            .global_id()
-            == Some(self.new_parent.clone())
-        {
-            NodeLocation::root(self.node.get_containing_component_type_id())
-        } else {
-            NodeLocation::parent(
-                self.node.get_containing_component_type_id(),
-                self.new_parent.get_template_node_id(),
-            )
-        };
-        {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            log::debug!("moving from {:?} to {:?}", self.node, parent_location);
-            let _undo_id = dt
-                .get_orm_mut()
-                .move_node(self.node.clone(), parent_location)
-                .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
-        }
-        // let child_runtime_node = ctx
-        //     .engine_context
-        //     .get_nodes_by_global_id(self.node.clone())
-        //     .first()
-        //     .ok_or_else(|| anyhow!("child not in render tree"))?
-        //     .clone();
-        // let child_t_and_b = child_runtime_node.transform_and_bounds().get();
-        // let group_parent_bounds = ctx
-        //     .engine_context
-        //     .get_nodes_by_global_id(self.new_parent.clone())
-        //     .first()
-        //     .ok_or_else(|| anyhow!("parent not in render tree"))?
-        //     .transform_and_bounds()
-        //     .get();
-        //     log::debug!("moving from {:?} to {:?}", self.node, parent_location);
-        // ctx.execute(SetNodeTransformProperties {
-        //     id: self.node.clone(),
-        //     transform_and_bounds: child_t_and_b,
-        //     parent_transform_and_bounds: group_parent_bounds,
-        //     inv_config: child_runtime_node.layout_properties().into_inv_config(),
-        // })?;
         Ok(CanUndo::Yes(Box::new(|ctx: &mut ActionContext| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.get_orm_mut()
