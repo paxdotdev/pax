@@ -302,6 +302,24 @@ pub struct LayoutProperties {
     pub skew_y: Option<Rotation>,
 }
 
+impl LayoutProperties {
+    pub fn fill() -> Self {
+        Self {
+            x: Some(Size::ZERO()),
+            y: Some(Size::ZERO()),
+            width: Some(Size::default()),
+            height: Some(Size::default()),
+            rotate: Some(Rotation::ZERO()),
+            scale_x: Some(Percent(100.into())),
+            scale_y: Some(Percent(100.into())),
+            anchor_x: None,
+            anchor_y: None,
+            skew_x: Some(Rotation::ZERO()),
+            skew_y: Some(Rotation::ZERO()),
+        }
+    }
+}
+
 impl<F: Space, T: Space> TransformAndBounds<F, T> {
     pub fn inverse(&self) -> TransformAndBounds<T, F> {
         let t_inv = self.transform.inverse();

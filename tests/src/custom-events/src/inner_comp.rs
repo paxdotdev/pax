@@ -20,6 +20,6 @@ impl InnerComp {
     }
 
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        log::debug!("unmounted!");
+        log::info!("unmounted!");
     }
 }
