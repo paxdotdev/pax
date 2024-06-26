@@ -95,7 +95,7 @@ impl DesigntimeManager {
             )
             .await
             .unwrap();
-            log::debug!("sucessfully saved")
+            log::info!("sucessfully saved")
         });
         Ok(())
     }
