@@ -40,7 +40,6 @@ impl PrivilegedAgentConnection {
                 data,
             },
         ))?;
-        log::debug!("file size: {}", msg_bytes.len());
         self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
         Ok(())
     }
