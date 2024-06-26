@@ -160,8 +160,7 @@ impl RuntimeContext {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode>> =
-                    borrow!(node.parent_expanded_node).upgrade();
+                let mut parent: Option<Rc<ExpandedNode>> = borrow!(node.render_parent).upgrade();
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
@@ -170,7 +169,7 @@ impl RuntimeContext {
                                 (*unwrapped_parent).ray_cast_test(ray);
                             break;
                         }
-                        parent = borrow!(unwrapped_parent.parent_expanded_node).upgrade();
+                        parent = borrow!(unwrapped_parent.render_parent).upgrade();
                     } else {
                         break;
                     }

@@ -1,12 +1,8 @@
 use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
-use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Rotation, Transform2D,
-};
-use wasm_bindgen::UnwrapThrowExt;
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property};
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -46,9 +42,13 @@ pub struct ExpandedNode {
     /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
     pub instance_node: RefCell<InstanceNodePtr>,
 
-    /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
-    /// this one.  Used for e.g. event propagation.
-    pub parent_expanded_node: RefCell<Weak<ExpandedNode>>,
+    /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode
+    /// redered directly above this one.
+    pub render_parent: RefCell<Weak<ExpandedNode>>,
+
+    /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode
+    /// in the template directy aboe this one.
+    pub template_parent: Weak<ExpandedNode>,
 
     /// Id of closest frame present in the node tree.
     /// included as a parameter on AnyCreatePatch when
@@ -158,7 +158,7 @@ macro_rules! dispatch_event_handler {
             }
 
             if $recurse {
-                if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+                if let Some(parent) = self.template_parent.upgrade() {
                     let parent_prevent_default = parent.$fn_name(args, globals, ctx);
                     return event.cancelled() || parent_prevent_default;
                 }
@@ -174,7 +174,7 @@ impl ExpandedNode {
             HashMap::new(),
             Rc::new(RefCell::new(().to_pax_any())),
         );
-        let root_node = Self::new(template, root_env, ctx, Weak::new());
+        let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());
         Rc::clone(&root_node).recurse_mount(ctx);
         let globals = ctx.globals();
         let container_transform_and_bounds = globals.viewport.clone();
@@ -195,6 +195,7 @@ impl ExpandedNode {
         env: Rc<RuntimePropertiesStackFrame>,
         context: &Rc<RuntimeContext>,
         containing_component: Weak<ExpandedNode>,
+        parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
         let properties = (&template.base().instance_prototypical_properties_factory)(
             env.clone(),
@@ -225,8 +226,9 @@ impl ExpandedNode {
 
             // these two refer to their rendering parent, not their
             // template parent
-            parent_expanded_node: Default::default(),
+            render_parent: Default::default(),
             parent_frame: Default::default(),
+            template_parent: parent,
 
             containing_component,
             children: Property::new_with_name(
@@ -253,9 +255,10 @@ impl ExpandedNode {
         Rc::clone(self).recurse_unmount(context);
         let new_expanded_node = Self::new(
             template.clone(),
-            Rc::clone(&borrow!(self.parent_expanded_node).upgrade().unwrap().stack),
+            Rc::clone(&self.template_parent.upgrade().unwrap().stack),
             context,
             Weak::clone(&self.containing_component),
+            Weak::clone(&self.template_parent),
         );
         *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
         *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
@@ -271,7 +274,7 @@ impl ExpandedNode {
     /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
     /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.
     pub fn is_descendant_of(&self, other_expanded_node_id: &ExpandedNodeIdentifier) -> bool {
-        if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+        if let Some(parent) = borrow!(self.render_parent).upgrade() {
             // We have a parent — if it matches the ID, this node is indeed an ancestor of other_expanded_node_id.  Otherwise, recurse upward.
             if parent.id.eq(other_expanded_node_id) {
                 true
@@ -287,6 +290,7 @@ impl ExpandedNode {
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
+        template_parent: &Weak<ExpandedNode>,
     ) -> Vec<Rc<ExpandedNode>> {
         let containing_component = if borrow!(self.instance_node).base().flags().is_component {
             Rc::downgrade(&self)
@@ -302,6 +306,7 @@ impl ExpandedNode {
                 env,
                 context,
                 Weak::clone(&containing_component),
+                Weak::clone(&template_parent),
             ));
         }
         children
@@ -316,7 +321,7 @@ impl ExpandedNode {
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
-            *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
+            *borrow_mut!(child.render_parent) = Rc::downgrade(self);
         }
         if *borrow!(self.attached) > 0 {
             for child in curr_children.iter() {
@@ -334,7 +339,7 @@ impl ExpandedNode {
     }
 
     fn bind_to_parent_bounds(self: &Rc<Self>) {
-        let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
+        let parent = borrow!(self.render_parent).upgrade().unwrap();
         let parent_transform_and_bounds = parent.transform_and_bounds.clone();
         let layout_properties = self.layout_properties();
         let rendered_size = self.rendered_size.clone();
@@ -378,7 +383,7 @@ impl ExpandedNode {
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-        let new_children = self.create_children_detached(templates, context);
+        let new_children = self.create_children_detached(templates, context, &Rc::downgrade(&self));
         let res = self.attach_children(new_children, context);
         res
     }
@@ -535,7 +540,7 @@ impl ExpandedNode {
         let t_and_b = self.transform_and_bounds.clone();
         let deps = [t_and_b.untyped()];
         let bounds_self = Property::computed(move || t_and_b.get().bounds, &deps);
-        let t_and_b_parent = if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+        let t_and_b_parent = if let Some(parent) = borrow!(self.render_parent).upgrade() {
             parent.transform_and_bounds.clone()
         } else {
             globals.viewport.clone()
@@ -846,7 +851,6 @@ impl std::fmt::Debug for ExpandedNode {
             .field("common_properties", &borrow!(self.common_properties))
             .field("transform_and_bounds", &self.transform_and_bounds)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
-            // .field("parent", &borrow!(self.parent_expanded_node).upgrade())
             .field(
                 "slot_children",
                 &self

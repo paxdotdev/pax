@@ -10,6 +10,13 @@ use crate::{
 };
 
 impl Interpolatable for NodeInterface {}
+
+impl PartialEq for NodeInterface {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.id.eq(&other.inner.id)
+    }
+}
+
 #[derive(Clone)]
 pub struct NodeInterface {
     inner: Rc<ExpandedNode>,
@@ -58,9 +65,17 @@ impl NodeInterface {
         self.inner.transform_and_bounds.clone()
     }
 
-    pub fn parent(&self) -> Option<NodeInterface> {
-        let parent = borrow!(self.inner.parent_expanded_node);
+    pub fn render_parent(&self) -> Option<NodeInterface> {
+        let parent = borrow!(self.inner.render_parent);
         Some(parent.upgrade()?.into())
+    }
+
+    pub fn containing_component(&self) -> Option<NodeInterface> {
+        Some(self.inner.containing_component.upgrade()?.into())
+    }
+
+    pub fn template_parent(&self) -> Option<NodeInterface> {
+        Some(self.inner.template_parent.upgrade()?.into())
     }
 
     pub fn is_descendant_of(&self, node: &NodeInterface) -> bool {
