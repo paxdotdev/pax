@@ -16,6 +16,7 @@ use pax_engine::{
 use pax_engine::{log, Property};
 use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::{Axis, Size};
+use pax_std::primitives::Rectangle;
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -93,7 +94,12 @@ impl ActionContext<'_> {
     }
 
     // if drill = true, look "one layer deeper", ie return objects inside groups that are currently not selected
-    pub fn raycast_glass(&self, point: Point2<Glass>, mode: RaycastMode) -> Option<NodeInterface> {
+    pub fn raycast_glass(
+        &self,
+        point: Point2<Glass>,
+        mode: RaycastMode,
+        skip: &[NodeInterface],
+    ) -> Option<NodeInterface> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
@@ -105,9 +111,10 @@ impl ActionContext<'_> {
 
         let mut potential_targets = all_elements_beneath_ray
             .into_iter()
+            .filter(|elem| !skip.iter().any(|v| elem == v || elem.is_descendant_of(v)))
             .filter(|elem| elem.is_descendant_of(&userland));
 
-        if let RaycastMode::Nth(index) = mode {
+        if let RaycastMode::RawNth(index) = mode {
             return potential_targets.nth(index);
         }
 
@@ -116,17 +123,11 @@ impl ActionContext<'_> {
         // Find the ancestor that is a direct root element inside container
         // or one that's in the current edit root
         loop {
-            let Some(mut parent) = target.parent() else {
+            let Some(parent) = target.template_parent() else {
                 break;
             };
 
             // check one step ahead if we are drilling into a group or similar
-            if matches!(mode, RaycastMode::DrillOne) {
-                let Some(next_parent) = parent.parent() else {
-                    break;
-                };
-                parent = next_parent;
-            }
 
             if parent.global_id() == userland_id {
                 break;
@@ -137,7 +138,21 @@ impl ActionContext<'_> {
             {
                 break;
             }
-            target = target.parent().unwrap();
+            if matches!(mode, RaycastMode::DrillOne) {
+                let Some(next_parent) = parent.template_parent() else {
+                    break;
+                };
+                if next_parent.global_id() == userland_id {
+                    break;
+                };
+                if next_parent
+                    .global_id()
+                    .is_some_and(|v| self.derived_state.open_containers.get().contains(&v))
+                {
+                    break;
+                }
+            }
+            target = target.template_parent().unwrap();
         }
         Some(target)
     }
@@ -193,7 +208,10 @@ impl ActionContext<'_> {
                     },
                     parent_transform_and_bounds: {
                         let to_glass = to_glass_transform.clone();
-                        let parent_t_and_b = n.parent().unwrap().transform_and_bounds();
+                        let parent_t_and_b = n
+                            .render_parent()
+                            .map(|v| v.transform_and_bounds())
+                            .unwrap_or_default();
                         let deps = [parent_t_and_b.untyped(), to_glass_transform.untyped()];
                         Property::computed(
                             move || {
@@ -207,7 +225,7 @@ impl ActionContext<'_> {
                     },
                     origin: {
                         let parent_t_and_b = n
-                            .parent()
+                            .render_parent()
                             .map(|p| p.transform_and_bounds())
                             .unwrap_or_default();
                         let properties = n.layout_properties();
@@ -307,5 +325,5 @@ pub enum RaycastMode {
     // Hit the children of the "Top" elements
     DrillOne,
     // Hit all elements, and choose the nth hit
-    Nth(usize),
+    RawNth(usize),
 }
