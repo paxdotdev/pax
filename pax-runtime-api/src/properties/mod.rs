@@ -38,10 +38,16 @@ impl<T: PropertyValue> Interpolatable for Property<T> {
 }
 /// A typed wrapper over a UntypedProperty that casts to/from an untyped
 /// property on get/set
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Property<T> {
     untyped: UntypedProperty,
     _phantom: PhantomData<T>,
+}
+
+impl<T: PropertyValue + std::fmt::Debug> std::fmt::Debug for Property<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Property ({:?})", self.get())
+    }
 }
 
 impl<T: PropertyValue> Property<T> {
