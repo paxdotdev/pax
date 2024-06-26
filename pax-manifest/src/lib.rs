@@ -1187,10 +1187,8 @@ impl ComponentTemplate {
                         .push_back(id.clone());
                 }
                 TreeIndexPosition::At(index) => {
-                    self.children
-                        .entry(p.clone())
-                        .or_default()
-                        .insert(index, id.clone());
+                    let children = self.children.entry(p.clone()).or_default();
+                    children.insert(index, id.clone());
                 }
             },
         }
