@@ -1,4 +1,4 @@
-use crate::{api::Property, ExpandedNodeIdentifier, LayoutProperties, TransformAndBounds};
+use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
 use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
@@ -17,8 +17,8 @@ use piet::InterpolationMode;
 use crate::{
     ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
-use pax_runtime_api::Platform;
 use nohash_hasher::BuildNoHashHasher;
+use pax_runtime_api::Platform;
 
 pub mod node_interface;
 
@@ -34,7 +34,7 @@ pub use expanded_node::ExpandedNode;
 use self::node_interface::NodeLocal;
 
 #[cfg(feature = "designtime")]
-use {pax_designtime::DesigntimeManager, pax_runtime_api::properties};
+use pax_designtime::DesigntimeManager;
 
 #[derive(Clone)]
 pub struct Globals {
@@ -260,10 +260,13 @@ impl PaxEngine {
         pax_runtime_api::set_time(0);
         let globals = Globals {
             frames_elapsed: Property::new(0, "frames_elapsed"),
-            viewport: Property::new(TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: viewport_size,
-            }, "viewport"),
+            viewport: Property::new(
+                TransformAndBounds {
+                    transform: Transform2::identity(),
+                    bounds: viewport_size,
+                },
+                "viewport",
+            ),
             platform,
             os,
         };
@@ -289,16 +292,18 @@ impl PaxEngine {
     ) -> Self {
         use pax_runtime_api::math::Transform2;
         let globals = Globals {
-            frames_elapsed: 0,
-            viewport: LayoutProperties {
-                transform: Property::new(Transform2::identity()),
-                bounds: Property::new(viewport_size),
-            },
+            frames_elapsed: Property::new(0, "frames_elapsed"),
+            viewport: Property::new(
+                TransformAndBounds {
+                    transform: Transform2::identity(),
+                    bounds: viewport_size,
+                },
+                "viewport",
+            ),
             platform,
             os,
             designtime: designtime.clone(),
         };
-
         let mut runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
         let root_node =
             ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
@@ -410,7 +415,7 @@ impl PaxEngine {
         // completely remove once reactive properties dirty-dag is a thing.
         //
         self.root_node.recurse_update(&mut self.runtime_context);
-        
+
         let ctx = &self.runtime_context;
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
@@ -455,7 +460,6 @@ impl PaxEngine {
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.runtime_context.edit_globals(|globals| {
-
             let vp = globals.viewport.get();
             let new_viewport_size = TransformAndBounds {
                 transform: vp.transform,

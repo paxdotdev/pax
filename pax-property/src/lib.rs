@@ -1,8 +1,4 @@
-use std::{
-    any::Any,
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{any::Any, collections::HashMap, rc::Rc};
 
 use property_table::{PropertyType, SubscriptionId, GET_STATISTICS, PROPERTY_TABLE, PROPERTY_TIME};
 mod graph;
@@ -91,7 +87,11 @@ impl<T: PropertyValue> Property<T> {
         }
     }
 
-    pub fn expression(evaluator: impl Fn() -> T + 'static, dependents: &[PropertyId], _name: &str) -> Self {
+    pub fn expression(
+        evaluator: impl Fn() -> T + 'static,
+        dependents: &[PropertyId],
+        _name: &str,
+    ) -> Self {
         let inbound = dependents.to_vec();
         let start_val = evaluator();
         let evaluator = Rc::new(generate_untyped_closure(evaluator));
@@ -132,11 +132,16 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set(self.id, val));
     }
 
-    pub fn update(&self, update_fn: impl Fn(&mut T)) {
+    pub fn update(&self, update_fn: impl FnOnce(&mut T)) {
         let value = self.get();
         let mut new_value = value.clone();
         update_fn(&mut new_value);
         self.set(new_value);
+    }
+
+    pub fn read<V>(&self, read_fn: impl FnOnce(&T) -> V) -> V {
+        let value = self.get();
+        read_fn(&value)
     }
 
     /// Adds a callback to be run when the property is set
@@ -182,7 +187,11 @@ fn generate_untyped_closure<T: 'static + Any>(
 }
 
 pub fn print_graph() {
-    PROPERTY_TABLE.with(|t| t.render_graph_to_file("/Users/warfa/Documents/Projects/Pax/paxcorp/pax/examples/src/fireworks/graph.svg"));
+    PROPERTY_TABLE.with(|t| {
+        t.render_graph_to_file(
+            "/Users/warfa/Documents/Projects/Pax/paxcorp/pax/examples/src/fireworks/graph.svg",
+        )
+    });
 }
 
 pub fn set_time(frames_elapsed: u64) {

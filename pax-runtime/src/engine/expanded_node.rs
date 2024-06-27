@@ -205,7 +205,7 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let mut property_scope_manager = PropertyScopeManager::new();
+        let property_scope_manager = PropertyScopeManager::new();
 
         property_scope_manager.start_scope();
 
@@ -260,7 +260,7 @@ impl ExpandedNode {
             occlusion_id: RefCell::new(0),
             properties_scope: RefCell::new(property_scope),
             slot_index,
-            property_scope_manager: property_scope_manager,
+            property_scope_manager,
             transform_and_bounds,
         });
         res
