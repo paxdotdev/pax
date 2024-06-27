@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::{any::Any, cell::{Ref, RefCell}, marker::PhantomData, rc::Rc, sync::atomic::AtomicI64};
+use std::{
+    any::Any,
+    cell::{Ref, RefCell},
+    marker::PhantomData,
+    rc::Rc,
+    sync::atomic::AtomicI64,
+};
 
 mod graph_operations;
 mod properties_table;
@@ -12,7 +18,6 @@ use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
 use self::properties_table::{PropertyType, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
-
 
 /// PropertyValue represents a restriction on valid generic types that a property
 /// can contain. All T need to be Clone (to enable .get()) + 'static (no
@@ -41,7 +46,7 @@ pub struct CachedData<T> {
 #[derive(Clone)]
 pub struct Property<T> {
     untyped: UntypedProperty,
-    _cached_data : Rc<RefCell<CachedData<T>>>,
+    _cached_data: Rc<RefCell<CachedData<T>>>,
 }
 
 impl<T> std::fmt::Debug for Property<T> {
@@ -61,7 +66,11 @@ impl<T: PropertyValue + std::fmt::Debug> std::fmt::Debug for Property<T> {
 impl<T: PropertyValue> Property<T> {
     pub fn new(val: T) -> Self {
         Self {
-            untyped: UntypedProperty::new(val.clone(), Vec::with_capacity(0), PropertyType::Literal),
+            untyped: UntypedProperty::new(
+                val.clone(),
+                Vec::with_capacity(0),
+                PropertyType::Literal,
+            ),
             _cached_data: Rc::new(RefCell::new(CachedData {
                 _cached_version: 0,
                 _cached_value: val,
@@ -108,11 +117,9 @@ impl<T: PropertyValue> Property<T> {
         })
     }
 
-   
     pub fn get(&self) -> T {
         PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
     }
-
 
     /// Gets the currently stored value. Only clones from table if the version
     /// has changed since last retrieved
@@ -135,7 +142,6 @@ impl<T: PropertyValue> Property<T> {
     pub fn set(&self, val: T) {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
-
 
     /// replaces a properties evaluation/inbounds/value to be the same as
     /// target, while keeping it's dependents.
@@ -198,6 +204,8 @@ pub fn update_properties() {
     log::warn!("updated properties");
 }
 
-fn generate_untyped_closure<T: 'static + Any>(evaluator: impl Fn() -> T + 'static) -> impl Fn() -> Box<dyn Any> {
+fn generate_untyped_closure<T: 'static + Any>(
+    evaluator: impl Fn() -> T + 'static,
+) -> impl Fn() -> Box<dyn Any> {
     move || Box::new(evaluator()) as Box<dyn Any>
 }

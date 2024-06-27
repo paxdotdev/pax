@@ -1,30 +1,11 @@
 use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
-<<<<<<< HEAD
-use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
-use pax_runtime_api::{
-<<<<<<< HEAD
-<<<<<<< HEAD
-    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
-    Rotation, Transform2D,
-};
-=======
-    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D,
-, PropertyScopeManager};
->>>>>>> 7de1aea7 (garbage collecting)
-=======
-    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId, Rotation, Transform2D, PropertyScopeManager};
->>>>>>> 9e94d1d4 (rebased off dev)
-=======
 use ahash::AHashMap;
-use pax_runtime_api::math::Transform2;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, print_graph, use_RefCell, Interpolatable, Percent, Property, PropertyId,
-    PropertyScopeManager, Rotation, Transform2D,
+    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, PropertyId,
+    PropertyScopeManager,
 };
->>>>>>> 47e71598 (fixed bound_self property creation bug)
-use wasm_bindgen::UnwrapThrowExt;
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -36,10 +17,9 @@ use crate::constants::{
     TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::{layout, ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
+use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
@@ -156,46 +136,24 @@ macro_rules! dispatch_event_handler {
             self.run_with_scope(|| {
                 let event = Event::new(args.clone());
                 if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
-                    let component_properties = if let Some(cc) = self.containing_component.upgrade() {
+                    let component_properties = if let Some(cc) = self.containing_component.upgrade()
+                    {
                         Rc::clone(&*borrow!(cc.properties))
                     } else {
                         Rc::clone(&*borrow!(self.properties))
                     };
 
-<<<<<<< HEAD
-                let context = self.get_node_context(ctx);
-                let borrowed_registry = &borrow!(*registry);
-                if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
-                    handlers.iter().for_each(|handler| {
-                        let properties = if let HandlerLocation::Component = &handler.location {
-                            Rc::clone(&*borrow!(self.properties))
-                        } else {
-                            Rc::clone(&component_properties)
-                        };
-                        (handler.function)(
-                            Rc::clone(&properties),
-                            &context,
-                            Some(event.clone().to_pax_any()),
-                        );
-                    });
-                };
-            }
-
-            if $recurse {
-                if let Some(parent) = self.template_parent.upgrade() {
-                    let parent_prevent_default = parent.$fn_name(args, globals, ctx);
-                    return event.cancelled() || parent_prevent_default;
-=======
                     let borrowed_registry = &borrow!(*registry);
                     if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
                         if handlers.len() > 0 {
                             let context = self.get_node_context(ctx);
                             handlers.iter().for_each(|handler| {
-                                let properties = if let HandlerLocation::Component = &handler.location {
-                                    Rc::clone(&*borrow!(self.properties))
-                                } else {
-                                    Rc::clone(&component_properties)
-                                };
+                                let properties =
+                                    if let HandlerLocation::Component = &handler.location {
+                                        Rc::clone(&*borrow!(self.properties))
+                                    } else {
+                                        Rc::clone(&component_properties)
+                                    };
                                 (handler.function)(
                                     Rc::clone(&properties),
                                     &context,
@@ -204,11 +162,10 @@ macro_rules! dispatch_event_handler {
                             });
                         }
                     };
->>>>>>> 47e71598 (fixed bound_self property creation bug)
                 }
 
                 if $recurse {
-                    if let Some(parent) = borrow!(self.parent_expanded_node).upgrade() {
+                    if let Some(parent) = self.template_parent.upgrade() {
                         let parent_prevent_default = parent.$fn_name(args, globals, ctx);
                         return event.cancelled() || parent_prevent_default;
                     }
@@ -225,22 +182,7 @@ impl ExpandedNode {
             AHashMap::new(),
             Rc::new(RefCell::new(().to_pax_any())),
         );
-<<<<<<< HEAD
         let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());
-        // Rc::clone(&root_node).recurse_mount(ctx);
-        let globals = ctx.globals();
-        let parent_bounds = globals.viewport.bounds.clone();
-        let parent_transform = globals.viewport.transform.clone();
-
-        let (transform, bounds) = compute_tab(&root_node, parent_transform, parent_bounds);
-        {
-            let layout_properties = borrow!(root_node.layout_properties);
-            layout_properties.bounds.replace_with(bounds);
-            layout_properties.transform.replace_with(transform);
-        }
-=======
-        let root_node = Self::new(template, root_env, ctx, Weak::new());
->>>>>>> 9e94d1d4 (rebased off dev)
         Rc::clone(&root_node).recurse_mount(ctx);
         let globals = ctx.globals();
         let container_transform_and_bounds = globals.viewport.clone();
@@ -290,7 +232,8 @@ impl ExpandedNode {
         let flattened_slot_children_count = Property::new(0, "flattened_slot_children_count");
 
         let slot_index = Property::default();
-        let transform_and_bounds = Property::new(TransformAndBounds::default(), "transform_and_bounds");
+        let transform_and_bounds =
+            Property::new(TransformAndBounds::default(), "transform_and_bounds");
         let expanded_and_flattened_slot_children = Property::default();
         property_scope_manager.end_scope();
 
@@ -332,29 +275,14 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
-<<<<<<< HEAD
-        self.start_scope();
-        Rc::clone(self).recurse_unmount(context);
-        let new_expanded_node = Self::new(
-            template.clone(),
-            Rc::clone(&self.template_parent.upgrade().unwrap().stack),
-            context,
-            Weak::clone(&self.containing_component),
-            Weak::clone(&self.template_parent),
-        );
-        *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
-        *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
-        *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
-        *borrow_mut!(self.common_properties) =
-            Rc::clone(&*borrow!(new_expanded_node.common_properties));
-=======
         self.run_with_scope(|| {
             Rc::clone(self).recurse_unmount(context);
             let new_expanded_node = Self::new(
                 template.clone(),
-                Rc::clone(&borrow!(self.parent_expanded_node).upgrade().unwrap().stack),
+                Rc::clone(&self.template_parent.upgrade().unwrap().stack),
                 context,
                 Weak::clone(&self.containing_component),
+                Weak::clone(&self.template_parent),
             );
             *borrow_mut!(self.instance_node) =
                 Rc::clone(&*borrow!(new_expanded_node.instance_node));
@@ -363,7 +291,6 @@ impl ExpandedNode {
                 borrow!(new_expanded_node.properties_scope).clone();
             *borrow_mut!(self.common_properties) =
                 Rc::clone(&*borrow!(new_expanded_node.common_properties));
->>>>>>> 47e71598 (fixed bound_self property creation bug)
 
             Rc::clone(self).recurse_mount(context);
         });
@@ -401,30 +328,17 @@ impl ExpandedNode {
 
             let mut children = Vec::new();
 
-<<<<<<< HEAD
-        for (template, env) in templates {
-            children.push(Self::new(
-                template,
-                env,
-                context,
-                Weak::clone(&containing_component),
-                Weak::clone(&template_parent),
-            ));
-        }
-        self.end_scope();
-        children
-=======
             for (template, env) in templates {
                 children.push(Self::new(
                     template,
                     env,
                     context,
                     Weak::clone(&containing_component),
+                    Weak::clone(&template_parent),
                 ));
             }
             children
         })
->>>>>>> 47e71598 (fixed bound_self property creation bug)
     }
 
     pub fn attach_children(
@@ -432,30 +346,12 @@ impl ExpandedNode {
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
     ) -> Vec<Rc<ExpandedNode>> {
-<<<<<<< HEAD
-        self.start_scope();
-        let mut curr_children = borrow_mut!(self.children);
-        //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
-        for child in new_children.iter() {
-            // set parent and connect up viewport bounds to new parent
-            *borrow_mut!(child.render_parent) = Rc::downgrade(self);
-        }
-        if *borrow!(self.attached) > 0 {
-            for child in curr_children.iter() {
-                Rc::clone(child).recurse_unmount(context);
-            }
-            for child in new_children.iter() {
-                child.bind_to_parent_bounds();
-                // set frame clipping reference
-                child.parent_frame.set(self.parent_frame.get());
-                Rc::clone(child).recurse_mount(context);
-=======
         self.run_with_scope(|| {
             let mut curr_children = borrow_mut!(self.children);
             //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
             for child in new_children.iter() {
                 // set parent and connect up viewport bounds to new parent
-                *borrow_mut!(child.parent_expanded_node) = Rc::downgrade(self);
+                *borrow_mut!(child.render_parent) = Rc::downgrade(self);
             }
             if *borrow!(self.attached) > 0 {
                 for child in curr_children.iter() {
@@ -467,7 +363,6 @@ impl ExpandedNode {
                     child.parent_frame.set(self.parent_frame.get());
                     Rc::clone(child).recurse_mount(context);
                 }
->>>>>>> 47e71598 (fixed bound_self property creation bug)
             }
             *curr_children = new_children.clone();
             new_children
@@ -476,19 +371,11 @@ impl ExpandedNode {
 
     // mutates self
     fn bind_to_parent_bounds(self: &Rc<Self>) {
-<<<<<<< HEAD
-        self.start_scope();
-        let parent = borrow!(self.render_parent).upgrade().unwrap();
-        let parent_transform_and_bounds = parent.transform_and_bounds.clone();
-        let layout_properties = self.layout_properties();
-        let rendered_size = self.rendered_size.clone();
-=======
         self.run_with_scope(|| {
-            let parent = borrow!(self.parent_expanded_node).upgrade().unwrap();
+            let parent = borrow!(self.render_parent).upgrade().unwrap();
             let parent_transform_and_bounds = parent.transform_and_bounds.clone();
             let layout_properties = self.layout_properties();
             let rendered_size = self.rendered_size.clone();
->>>>>>> 47e71598 (fixed bound_self property creation bug)
 
             let deps = [layout_properties.get_id(), rendered_size.get_id()];
             let layout_properties_with_fallback = Property::expression(
@@ -511,7 +398,8 @@ impl ExpandedNode {
                     };
                     lp
                 },
-                &deps, "layout_properties_with_fallback"
+                &deps,
+                "layout_properties_with_fallback",
             );
             let common_props = borrow!(self.common_properties);
             let extra_transform = borrow!(common_props).transform.clone();
@@ -599,18 +487,10 @@ impl ExpandedNode {
                     slot_child.recurse_mount(context);
                 }
             }
-<<<<<<< HEAD
-        }
-        for child in self.children.iter() {
-            Rc::clone(child).recurse_mount(context);
-        }
-        self.end_scope();
-=======
             for child in borrow!(self.children).iter() {
                 Rc::clone(child).recurse_mount(context);
             }
         });
->>>>>>> 47e71598 (fixed bound_self property creation bug)
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -960,7 +840,8 @@ impl ExpandedNode {
                 skew_x: cp_skew_x.get(),
                 skew_y: cp_skew_y.get(),
             },
-            &deps, "layout_properties"
+            &deps,
+            "layout_properties",
         )
     }
 }
@@ -1009,20 +890,11 @@ impl std::fmt::Debug for ExpandedNode {
             )
             .field("id", &self.id)
             .field("common_properties", &borrow!(self.common_properties))
-<<<<<<< HEAD
-<<<<<<< HEAD
             .field("transform_and_bounds", &self.transform_and_bounds)
-            .field("children", &self.children.iter().collect::<Vec<_>>())
-=======
-            .field("children", &borrow!(self.children).iter().collect::<Vec<_>>())
-=======
             .field(
                 "children",
                 &borrow!(self.children).iter().collect::<Vec<_>>(),
             )
->>>>>>> 47e71598 (fixed bound_self property creation bug)
-            .field("parent", &borrow!(self.parent_expanded_node).upgrade())
->>>>>>> 9e94d1d4 (rebased off dev)
             .field(
                 "slot_children",
                 &self
