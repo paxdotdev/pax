@@ -747,8 +747,25 @@ impl PaxChassisWeb {
 
     #[cfg(feature = "designtime")]
     pub fn designtime_tick(&mut self) {
+        use pax_runtime_api::PropertyScopeManager;
         self.handle_recv_designtime();
         self.update_userland_component();
+        let (mv_prop, curr_val) = {
+            let dt = borrow!(self.designtime_manager);
+            let orm = dt.get_orm();
+            let mv_prop = orm.manifest_version_prop.clone();
+            let curr_val = orm.manifest_version;
+            (mv_prop, curr_val)
+        };
+        if mv_prop.get() != curr_val {
+            // this might evaluate arbitrary designer code, and so must be wrapped in scope
+            let new_scope = PropertyScopeManager::new();
+            new_scope.run_with_scope(|| {
+                mv_prop.set(curr_val);
+            });
+            let mut dt = borrow_mut!(self.designtime_manager);
+            dt.designtime_triggers_scope = new_scope;
+        }
     }
 
     pub fn tick(&mut self) -> MemorySlice {

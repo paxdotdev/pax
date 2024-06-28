@@ -1,21 +1,11 @@
-<Group x=50% y=50% width=10% height=10% @click=self.increment >
-    <Text text={self.num_clicks + " clicks"} id=text />
-    <Rectangle
-        fill={rgb(ticks, 75, 150)}
-        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-    />
-</Group>
+if self.showing {
+    for i in 0..self.num {
+        <Rectangle fill={hsl(i*20, 40, 150)} width=20% height=20% x={(i*100/self.num)%} y={(i*100/self.num)%} @click=self.click/>
+    }
+}
+
+<Rectangle fill=BLUE y=100% width=20% height=20% @click=self.toggle/>
 
 @settings {
-     @pre_render: handle_pre_render,
-    #text {
-        style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
-                font_size: 22px,
-                fill: WHITE,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
-        }
-    }
+    @mount: on_mount
 }

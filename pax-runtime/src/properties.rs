@@ -344,12 +344,9 @@ impl RuntimePropertiesStackFrame {
         if let Some(e) = self.find_symbol(symbol) {
             Some(e.clone())
         } else {
-            self.parent
-                .upgrade()?
-                .resolve_symbol_as_property(symbol)
+            self.parent.upgrade()?.resolve_symbol_as_property(symbol)
         }
     }
-
 
     pub fn get_properties(&self) -> Rc<RefCell<PaxAny>> {
         Rc::clone(&self.properties)

@@ -10,6 +10,7 @@ pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 pub mod refcell_debug;
 pub use refcell_debug::*;
+pub mod stats;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store
@@ -30,19 +31,18 @@ pub mod constants;
 pub mod math;
 pub mod pax_value;
 
-pub use pax_property::Property;
+pub use pax_property::print_graph;
+pub use pax_property::set_time;
+pub use pax_property::transitions::EasingCurve;
+pub use pax_property::transitions::Interpolatable;
 pub use pax_property::PropertyId;
 pub use pax_property::PropertyScopeManager;
-pub use pax_property::transitions::Interpolatable;
-pub use pax_property::transitions::EasingCurve;
-pub use pax_property::set_time;
-pub use pax_property::print_graph;
+pub use pax_property::*;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
-
 
 pub trait RenderContext {
     fn fill(&mut self, layer: &str, path: BezPath, brush: &PaintBrush);
@@ -56,8 +56,6 @@ pub trait RenderContext {
     fn transform(&mut self, layer: &str, affine: kurbo::Affine);
     fn layers(&self) -> Vec<&str>;
 }
-
-
 
 #[derive(Default, Debug, Clone, Copy)]
 pub enum OS {
@@ -591,7 +589,6 @@ impl<T: Clone + 'static> ImplToFromPaxAny for Weak<T> {}
 impl<T: Clone + 'static> ImplToFromPaxAny for Option<T> {}
 
 impl<T1: Clone + 'static, T2: Clone + 'static> ImplToFromPaxAny for (T1, T2) {}
-
 
 pub struct Timeline {
     pub playhead_position: usize,

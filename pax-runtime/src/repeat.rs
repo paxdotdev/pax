@@ -1,11 +1,12 @@
-use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 use_RefCell!();
 
 use ahash::AHashMap;
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property, PropertyId, PropertyScopeManager};
+use pax_runtime_api::{
+    borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property, PropertyId, PropertyScopeManager,
+};
 
 use crate::api::Layer;
 use crate::{
@@ -81,7 +82,7 @@ impl InstanceNode for RepeatInstance {
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_self = Rc::clone(&self);
         let cloned_context = Rc::clone(context);
-        
+
         let source_expression =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
                 let source = if let Some(range) = &properties.source_expression_range {
@@ -95,7 +96,8 @@ impl InstanceNode for RepeatInstance {
                                 .map(|v| Rc::new(RefCell::new(v.to_pax_any())))
                                 .collect::<Vec<_>>()
                         },
-                        &dep, "range source expression"
+                        &dep,
+                        "range source expression",
                     )
                 } else if let Some(vec) = &properties.source_expression_vec {
                     vec.clone()
@@ -114,22 +116,23 @@ impl InstanceNode for RepeatInstance {
                 properties.iterator_elem_symbol.clone()
             });
 
-        
-
         let last_length = Rc::new(RefCell::new(0));
         let cloned_source_expression = source_expression.clone();
-        let scope_stack = Rc::new(RefCell::new(PropertyScopeManager::new()));
-        let _ = source_expression.clone().subscribe(  move || {
+        let scope_stack = PropertyScopeManager::new();
+
+        let id = expanded_node.id;
+        let _ = source_expression.subscribe(  move || {
             let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                panic!("ran evaluator after expanded node dropped (repeat elem)")
+                log::warn!("tried to run subscription for node that's been removed {:?}", id);
+                return;
             };
             let source = cloned_source_expression.get();
             let source_len = source.len();
             if source_len == *borrow!(last_length) {
                 return;
             }
-            borrow_mut!(scope_stack).drop_scope();
-            borrow_mut!(scope_stack).run_with_scope(||{
+            scope_stack.drop_scope();
+            scope_stack.run_with_scope(||{
                 *borrow_mut!(last_length) = source_len;
                 let template_children = cloned_self.base().get_instance_children();
                 let children_with_envs = iter::repeat(template_children)

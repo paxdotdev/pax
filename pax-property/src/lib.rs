@@ -1,9 +1,10 @@
 use std::{any::Any, collections::HashMap, rc::Rc};
 
-use property_table::{PropertyType, SubscriptionId, GET_STATISTICS, PROPERTY_TABLE, PROPERTY_TIME};
+use property_table::{PropertyType, SubscriptionId, PROPERTY_TABLE, PROPERTY_TIME};
 mod graph;
 pub mod property_id;
 mod property_table;
+pub use property_table::{print_number_of_properties, print_scope_stack};
 pub mod transitions;
 
 pub use property_id::PropertyId;
@@ -82,7 +83,16 @@ impl<T: PropertyValue + Interpolatable> Property<T> {
 impl<T: PropertyValue> Property<T> {
     pub fn new(val: T, _name: &str) -> Self {
         Self {
-            id: PROPERTY_TABLE.with(|t| t.insert(PropertyType::Literal, val.clone(), Vec::new())),
+            id: PROPERTY_TABLE
+                .with(|t| t.insert(PropertyType::Literal, val.clone(), Vec::new(), false)),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn new_static(val: T, _name: &str) -> Self {
+        Self {
+            id: PROPERTY_TABLE
+                .with(|t| t.insert(PropertyType::Literal, val.clone(), Vec::new(), true)),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -101,6 +111,7 @@ impl<T: PropertyValue> Property<T> {
                     PropertyType::Expression { evaluator },
                     start_val.clone(),
                     inbound,
+                    false,
                 )
             }),
             _phantom: std::marker::PhantomData,
@@ -116,6 +127,7 @@ impl<T: PropertyValue> Property<T> {
                     },
                     0,
                     Vec::new(),
+                    true,
                 )
             }),
             _phantom: std::marker::PhantomData,

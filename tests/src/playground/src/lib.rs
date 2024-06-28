@@ -12,18 +12,21 @@ use pax_std::types::*;
 #[main]
 #[file("lib.pax")]
 pub struct Example {
-    pub ticks: Property<usize>,
-    pub num_clicks: Property<usize>,
+    pub num: Property<usize>,
+    pub showing: Property<bool>,
 }
 
 impl Example {
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        let old_ticks = self.ticks.get();
-        self.ticks.set((old_ticks + 1) % 255);
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        self.num.set(100);
+    }
+    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {}
+
+    pub fn click(&mut self, ctx: &NodeContext, args: Event<Click>) {
+        self.num.set(self.num.get() - 1);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
-        let old_num_clicks = self.num_clicks.get();
-        self.num_clicks.set(old_num_clicks + 1);
+    pub fn toggle(&mut self, ctx: &NodeContext, args: Event<Click>) {
+        self.showing.set(!self.showing.get());
     }
 }

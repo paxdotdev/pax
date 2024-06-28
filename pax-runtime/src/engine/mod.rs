@@ -1,4 +1,7 @@
-use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
+use crate::{
+    api::{self, Property},
+    ExpandedNodeIdentifier, TransformAndBounds,
+};
 use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
@@ -19,7 +22,6 @@ use crate::{
 };
 use nohash_hasher::BuildNoHashHasher;
 use pax_runtime_api::Platform;
-
 pub mod node_interface;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
@@ -259,8 +261,8 @@ impl PaxEngine {
     ) -> Self {
         pax_runtime_api::set_time(0);
         let globals = Globals {
-            frames_elapsed: Property::new(0, "frames_elapsed"),
-            viewport: Property::new(
+            frames_elapsed: Property::new_static(0, "frames_elapsed"),
+            viewport: Property::new_static(
                 TransformAndBounds {
                     transform: Transform2::identity(),
                     bounds: viewport_size,
@@ -292,8 +294,8 @@ impl PaxEngine {
     ) -> Self {
         use pax_runtime_api::math::Transform2;
         let globals = Globals {
-            frames_elapsed: Property::new(0, "frames_elapsed"),
-            viewport: Property::new(
+            frames_elapsed: Property::new_static(0, "frames_elapsed"),
+            viewport: Property::new_static(
                 TransformAndBounds {
                     transform: Transform2::identity(),
                     bounds: viewport_size,
@@ -441,6 +443,10 @@ impl PaxEngine {
 
         set_time(ctx.globals().frames_elapsed.get());
         ctx.flush_custom_events().unwrap();
+        if ctx.globals().frames_elapsed.get() % 100 == 0 {
+            api::print_number_of_properties();
+            api::print_scope_stack();
+        }
         ctx.take_native_messages()
     }
 

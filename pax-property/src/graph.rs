@@ -1,15 +1,21 @@
 use core::panic;
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::{property_table::{PropertyTable, PropertyType}, PropertyId};
-use petgraph::{algo::toposort, dot::{Config, Dot}, visit::EdgeRef};
+use crate::{
+    property_table::{PropertyTable, PropertyType},
+    PropertyId,
+};
 use petgraph::graph::{DiGraph, NodeIndex};
-use svg::node::element::{Circle, Definitions, Group, Line, Marker, Polygon, Text};
-use svg::Document;
+use petgraph::{
+    algo::toposort,
+    dot::{Config, Dot},
+    visit::EdgeRef,
+};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-
+use svg::node::element::{Circle, Definitions, Group, Line, Marker, Polygon, Text};
+use svg::Document;
 
 // pub struct PropertyData {
 //     // Data associated with the property
@@ -28,9 +34,7 @@ use std::path::Path;
 //     pub transition_manager: Option<TransitionManagerWrapper>,
 // }
 
-
 impl PropertyTable {
-
     // Function that recurses up inbound properties and deletes saved dependents to update so it's recommputed
     pub fn clear_memoized_dependents(&self, id: PropertyId) {
         let inbound = {
@@ -43,8 +47,6 @@ impl PropertyTable {
             self.clear_memoized_dependents(inbound_id);
         }
     }
-
-
 
     // Function to perform a topological sort on affected properties and return a sorted vector of property ids
     pub fn topological_sort_affected(&self, start_id: PropertyId) -> Vec<PropertyId> {
@@ -88,7 +90,11 @@ impl PropertyTable {
             sorted.push(id);
             let outbound = {
                 let sm = self.properties.borrow();
-                sm.get(&id).expect("Property not found").data.outbound.clone()
+                sm.get(&id)
+                    .expect("Property not found")
+                    .data
+                    .outbound
+                    .clone()
             };
             for &out_id in outbound.iter() {
                 let degree = in_degree.get_mut(&out_id).unwrap();
@@ -100,7 +106,6 @@ impl PropertyTable {
         }
 
         sorted[1..].to_vec()
-
     }
 
     pub fn render_graph_to_file(&self, file_path: &str) {
@@ -202,7 +207,11 @@ impl PropertyTable {
             if subscriptions_count > 0 {
                 num_subscriptions += subscriptions_count;
             }
-            let fill_color = if subscriptions_count > 0 { "blue" } else { "red" };
+            let fill_color = if subscriptions_count > 0 {
+                "blue"
+            } else {
+                "red"
+            };
 
             let circle = Circle::new()
                 .set("cx", x)
@@ -230,7 +239,10 @@ impl PropertyTable {
             .set("font-family", "Arial")
             .set("font-size", 20)
             .set("fill", "black")
-            .add(svg::node::Text::new(format!("Number of nodes: {}, Number of edges: {}, Number of subscriptions: {}", num_nodes, num_edges, num_subscriptions)));
+            .add(svg::node::Text::new(format!(
+                "Number of nodes: {}, Number of edges: {}, Number of subscriptions: {}",
+                num_nodes, num_edges, num_subscriptions
+            )));
         document = document.add(summary);
 
         // Write the SVG document to a file

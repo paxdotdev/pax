@@ -24,9 +24,9 @@ use std::rc::{Rc, Weak};
 
 use crate::api::{
     Axis, ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick,
-    Drop, Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
-    NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
-    TouchStart, Wheel, Window,
+    Drop as PaxDrop, Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver,
+    MouseUp, NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd,
+    TouchMove, TouchStart, Wheel, Window,
 };
 
 use crate::{
@@ -121,6 +121,8 @@ pub struct ExpandedNode {
     /// A manager to keep track of all the properties created by this expanded node
     /// Used to clean up properties when the node is dropped
     pub property_scope_manager: PropertyScopeManager,
+    /// properties that are overwritten during a "recreation" of a node
+    pub recreate_property_scope_manager: RefCell<PropertyScopeManager>,
 }
 impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
@@ -133,8 +135,8 @@ macro_rules! dispatch_event_handler {
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
         ) -> bool {
+            let event = Event::new(args.clone());
             self.run_with_scope(|| {
-                let event = Event::new(args.clone());
                 if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
                     let component_properties = if let Some(cc) = self.containing_component.upgrade()
                     {
@@ -163,15 +165,14 @@ macro_rules! dispatch_event_handler {
                         }
                     };
                 }
-
-                if $recurse {
-                    if let Some(parent) = self.template_parent.upgrade() {
-                        let parent_prevent_default = parent.$fn_name(args, globals, ctx);
-                        return event.cancelled() || parent_prevent_default;
-                    }
+            });
+            if $recurse {
+                if let Some(parent) = self.template_parent.upgrade() {
+                    let parent_prevent_default = parent.$fn_name(args, globals, ctx);
+                    return event.cancelled() || parent_prevent_default;
                 }
-                event.cancelled()
-            })
+            }
+            event.cancelled()
         }
     };
 }
@@ -187,11 +188,13 @@ impl ExpandedNode {
         let globals = ctx.globals();
         let container_transform_and_bounds = globals.viewport.clone();
         let layout_properties = root_node.layout_properties();
-        let transform_and_bounds = compute_tab(
-            layout_properties,
-            Property::default(),
-            container_transform_and_bounds,
-        );
+        let transform_and_bounds = root_node.run_with_scope(|| {
+            compute_tab(
+                layout_properties,
+                Property::default(),
+                container_transform_and_bounds,
+            )
+        });
         root_node
             .transform_and_bounds
             .replace_with(transform_and_bounds);
@@ -205,10 +208,8 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let property_scope_manager = PropertyScopeManager::new();
-
-        property_scope_manager.start_scope();
-
+        let recreate_property_scope_manager = PropertyScopeManager::new();
+        recreate_property_scope_manager.start_scope();
         let properties = (&template.base().instance_prototypical_properties_factory)(
             env.clone(),
             context.expression_table(),
@@ -219,8 +220,11 @@ impl ExpandedNode {
             env.clone(),
             context.expression_table(),
         );
-
         let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
+        recreate_property_scope_manager.end_scope();
+
+        let property_scope_manager = PropertyScopeManager::new();
+        property_scope_manager.start_scope();
 
         if let Some(scope) = &template.base().properties_scope_factory {
             property_scope.extend(scope(properties.clone()));
@@ -261,6 +265,7 @@ impl ExpandedNode {
             properties_scope: RefCell::new(property_scope),
             slot_index,
             property_scope_manager,
+            recreate_property_scope_manager: RefCell::new(recreate_property_scope_manager),
             transform_and_bounds,
         });
         res
@@ -275,25 +280,25 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        self.run_with_scope(|| {
-            Rc::clone(self).recurse_unmount(context);
-            let new_expanded_node = Self::new(
-                template.clone(),
-                Rc::clone(&self.template_parent.upgrade().unwrap().stack),
-                context,
-                Weak::clone(&self.containing_component),
-                Weak::clone(&self.template_parent),
-            );
-            *borrow_mut!(self.instance_node) =
-                Rc::clone(&*borrow!(new_expanded_node.instance_node));
-            *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
-            *borrow_mut!(self.properties_scope) =
-                borrow!(new_expanded_node.properties_scope).clone();
-            *borrow_mut!(self.common_properties) =
-                Rc::clone(&*borrow!(new_expanded_node.common_properties));
+        Rc::clone(self).recurse_unmount(context);
+        let new_expanded_node = Self::new(
+            template.clone(),
+            Rc::clone(&self.template_parent.upgrade().unwrap().stack),
+            context,
+            Weak::clone(&self.containing_component),
+            Weak::clone(&self.template_parent),
+        );
+        *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
+        *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
+        *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
+        *borrow_mut!(self.common_properties) =
+            Rc::clone(&*borrow!(new_expanded_node.common_properties));
 
-            Rc::clone(self).recurse_mount(context);
-        });
+        // discard old property scope, set new one
+        *borrow_mut!(self.recreate_property_scope_manager) =
+            borrow!(new_expanded_node.recreate_property_scope_manager).clone();
+
+        Rc::clone(self).recurse_mount(context);
         self.bind_to_parent_bounds();
     }
 
@@ -464,9 +469,6 @@ impl ExpandedNode {
             if *borrow!(self.attached) == 0 {
                 *borrow_mut!(self.attached) += 1;
                 context.add_to_cache(&self);
-                borrow!(self.instance_node)
-                    .clone()
-                    .handle_mount(&self, context);
                 if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                     for handler in borrow!(registry)
                         .handlers
@@ -477,9 +479,12 @@ impl ExpandedNode {
                             Rc::clone(&*borrow!(self.properties)),
                             &self.get_node_context(context),
                             None,
-                        )
+                        );
                     }
                 }
+                borrow!(self.instance_node)
+                    .clone()
+                    .handle_mount(&self, context);
             }
             // Mount slot children and children AFTER mounting self
             if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
@@ -487,9 +492,9 @@ impl ExpandedNode {
                     slot_child.recurse_mount(context);
                 }
             }
-            for child in borrow!(self.children).iter() {
-                Rc::clone(child).recurse_mount(context);
-            }
+            // for child in borrow!(self.children).iter() {
+            //     Rc::clone(child).recurse_mount(context);
+            // }
         });
     }
 
@@ -752,7 +757,7 @@ impl ExpandedNode {
     );
     dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
-    dispatch_event_handler!(dispatch_drop, Drop, DROP_HANDLERS, true);
+    dispatch_event_handler!(dispatch_drop, PaxDrop, DROP_HANDLERS, true);
 
     pub fn dispatch_custom_event(
         &self,
@@ -792,57 +797,59 @@ impl ExpandedNode {
     /// Helper method that returns a collection of common properties
     /// related to layout (position, size, scale, anchor, etc),
     pub fn layout_properties(self: &Rc<ExpandedNode>) -> Property<LayoutProperties> {
-        let common_props = self.get_common_properties();
-        let common_props = borrow!(common_props);
-        let cp_width = common_props.width.clone();
-        let cp_height = common_props.height.clone();
-        let cp_transform = common_props.transform.clone();
-        let cp_anchor_x = common_props.anchor_x.clone();
-        let cp_anchor_y = common_props.anchor_y.clone();
-        let cp_scale_x = common_props.scale_x.clone();
-        let cp_scale_y = common_props.scale_y.clone();
-        let cp_skew_x = common_props.skew_x.clone();
-        let cp_skew_y = common_props.skew_y.clone();
-        let cp_rotate = common_props.rotate.clone();
-        let cp_x = common_props.x.clone();
-        let cp_y = common_props.y.clone();
-        let deps = [
-            cp_width.get_id(),
-            cp_height.get_id(),
-            cp_transform.get_id(),
-            cp_anchor_x.get_id(),
-            cp_anchor_y.get_id(),
-            cp_scale_x.get_id(),
-            cp_scale_y.get_id(),
-            cp_skew_x.get_id(),
-            cp_skew_y.get_id(),
-            cp_rotate.get_id(),
-            cp_x.get_id(),
-            cp_y.get_id(),
-        ];
+        self.run_with_scope(|| {
+            let common_props = self.get_common_properties();
+            let common_props = borrow!(common_props);
+            let cp_width = common_props.width.clone();
+            let cp_height = common_props.height.clone();
+            let cp_transform = common_props.transform.clone();
+            let cp_anchor_x = common_props.anchor_x.clone();
+            let cp_anchor_y = common_props.anchor_y.clone();
+            let cp_scale_x = common_props.scale_x.clone();
+            let cp_scale_y = common_props.scale_y.clone();
+            let cp_skew_x = common_props.skew_x.clone();
+            let cp_skew_y = common_props.skew_y.clone();
+            let cp_rotate = common_props.rotate.clone();
+            let cp_x = common_props.x.clone();
+            let cp_y = common_props.y.clone();
+            let deps = [
+                cp_width.get_id(),
+                cp_height.get_id(),
+                cp_transform.get_id(),
+                cp_anchor_x.get_id(),
+                cp_anchor_y.get_id(),
+                cp_scale_x.get_id(),
+                cp_scale_y.get_id(),
+                cp_skew_x.get_id(),
+                cp_skew_y.get_id(),
+                cp_rotate.get_id(),
+                cp_x.get_id(),
+                cp_y.get_id(),
+            ];
 
-        Property::expression(
-            move || LayoutProperties {
-                x: cp_x.get(),
-                y: cp_y.get(),
-                width: cp_width.get(),
-                height: cp_height.get(),
-                rotate: cp_rotate.get(),
-                // TODO make the common prop only accept percent
-                scale_x: cp_scale_x
-                    .get()
-                    .map(|v| Percent((100.0 * v.expect_percent()).into())),
-                scale_y: cp_scale_y
-                    .get()
-                    .map(|v| Percent((100.0 * v.expect_percent()).into())),
-                anchor_x: cp_anchor_x.get(),
-                anchor_y: cp_anchor_y.get(),
-                skew_x: cp_skew_x.get(),
-                skew_y: cp_skew_y.get(),
-            },
-            &deps,
-            "layout_properties",
-        )
+            Property::expression(
+                move || LayoutProperties {
+                    x: cp_x.get(),
+                    y: cp_y.get(),
+                    width: cp_width.get(),
+                    height: cp_height.get(),
+                    rotate: cp_rotate.get(),
+                    // TODO make the common prop only accept percent
+                    scale_x: cp_scale_x
+                        .get()
+                        .map(|v| Percent((100.0 * v.expect_percent()).into())),
+                    scale_y: cp_scale_y
+                        .get()
+                        .map(|v| Percent((100.0 * v.expect_percent()).into())),
+                    anchor_x: cp_anchor_x.get(),
+                    anchor_y: cp_anchor_y.get(),
+                    skew_x: cp_skew_x.get(),
+                    skew_y: cp_skew_y.get(),
+                },
+                &deps,
+                "layout_properties",
+            )
+        })
     }
 }
 

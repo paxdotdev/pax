@@ -58,30 +58,35 @@ impl InstanceNode for ConditionalInstance {
                 properties.boolean_expression.clone()
             });
 
-
         let old_val = RefCell::new(false);
-        let _ = cond_expr.subscribe(
-            move || {
-                let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                    panic!("ran evaluator after expanded node dropped (conditional elem)")
-                };
-                let val = cond_expr.get();
-                if val == *borrow!(old_val) {
-                    return;
-                }
-                *borrow_mut!(old_val) = val;
-                cloned_expanded_node.attach_children(if val {
+        let id = expanded_node.id.clone();
+        let _ = cond_expr.subscribe(move || {
+            let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                log::warn!(
+                    "tried to run subscription for node (conditional) that's been removed {:?}",
+                    id
+                );
+                return;
+            };
+            let val = cond_expr.get();
+            if val == *borrow!(old_val) {
+                return;
+            }
+            *borrow_mut!(old_val) = val;
+            cloned_expanded_node.attach_children(
+                if val {
                     let env = Rc::clone(&cloned_expanded_node.stack);
                     let children = borrow!(cloned_self.base().get_instance_children());
                     let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                    let res = cloned_expanded_node
-                        .generate_children(children_with_envs, &cloned_context);
+                    let res =
+                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
                     res
                 } else {
                     cloned_expanded_node.generate_children(vec![], &cloned_context)
-                }, &cloned_context);
-            },
-        );
+                },
+                &cloned_context,
+            );
+        });
     }
 
     fn resolve_debug(
