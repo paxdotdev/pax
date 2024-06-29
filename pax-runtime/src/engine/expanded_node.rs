@@ -350,7 +350,7 @@ impl ExpandedNode {
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
-    ) -> Vec<Rc<ExpandedNode>> {
+    ) {
         self.run_with_scope(|| {
             let mut curr_children = borrow_mut!(self.children);
             //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
@@ -369,8 +369,7 @@ impl ExpandedNode {
                     Rc::clone(child).recurse_mount(context);
                 }
             }
-            *curr_children = new_children.clone();
-            new_children
+            *curr_children = new_children;
         })
     }
 

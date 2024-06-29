@@ -57,7 +57,6 @@ impl InstanceNode for SlotInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        log::warn!("Slot handle_mount");
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_context = Rc::clone(context);
 
@@ -69,13 +68,11 @@ impl InstanceNode for SlotInstance {
 
         showing_node.subscribe(move || {
             let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                panic!("ran evaluator after expanded node dropped (repeat elem)")
+                log::warn!("slot show evaluated after destroyed");
+                return;
             };
-            if let Some(node) = cloned_showing_node.get().upgrade() {
-                cloned_expanded_node.attach_children(vec![node], &cloned_context)
-            } else {
-                vec![]
-            };
+            let new_children = cloned_showing_node.get().upgrade().as_slice().to_vec();
+            cloned_expanded_node.attach_children(new_children, &cloned_context)
         });
     }
 

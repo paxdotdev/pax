@@ -1,23 +1,18 @@
-if self.showing {
-    for i in 0..self.num {
-        <Group>
-            <Group>
-                <Group>
-                    <Group>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=20% height=20% x={(i*100/self.num)%} y={(i*100/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=30% height=30% x={(i*10/self.num)%} y={(i*100/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=40% height=40% x={(i*100/self.num)%} y={(i*10/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=50% height=50% x={(i*10/self.num)%} y={(i*10/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=20% height=20% x={(i*100/self.num)%} y={(i*100/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=30% height=30% x={(i*10/self.num)%} y={(i*100/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=40% height=40% x={(i*100/self.num)%} y={(i*10/self.num)%} @click=self.click/>
-                        <Rectangle fill={hsl(i*20, 40, 150)} width=50% height=50% x={(i*10/self.num)%} y={(i*10/self.num)%} @click=self.click/>
-                    </Group>
-                </Group>
-            </Group>
-        </Group>
-    }
-}
+// if self.showing {
+//     for i in 0..self.num {
+//         <Group>
+//             <Group>
+//                 <Rectangle fill={hsl(i*20, 40, 150)} width=20% height=20% x={(i*100/self.num)%} y={(i*100/self.num)%} @click=self.click/>
+//                 <Rectangle fill={hsl(i*20, 40, 150)} width=50% height=50% x={(i*10/self.num)%} y={(i*10/self.num)%} @click=self.click/>
+//             </Group>
+//         </Group>
+//     }
+// }
+<Stacker width=50% height=50%>
+    <Rectangle fill=RED/>
+    <Rectangle fill=BLUE/>
+    <Rectangle fill=GREEN/>
+</Stacker>
 
 <Rectangle fill=BLUE y=100% width=20% height=20% @click=self.toggle/>
 

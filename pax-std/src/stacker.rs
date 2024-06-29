@@ -13,7 +13,13 @@ use pax_runtime::api::NodeContext;
 #[custom(Default)]
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
-
+        <Group
+            transform={Transform2D::translate((cell_spec.x_px)px, (cell_spec.y_px)px)}
+            width={(cell_spec.width_px)px}
+            height={(cell_spec.height_px)px}
+        >
+            slot(i)
+        </Group>
     }
 
     @settings {
@@ -58,8 +64,7 @@ impl Stacker {
             slot_children_count.get_id(),
         ];
 
-        //NOTE: replace with is needed since the for loop already has a connection to the prop
-        self._cell_specs = Property::expression(
+        self._cell_specs.replace_with(Property::expression(
             move || {
                 let cells: f64 = slot_children_count.get() as f64;
                 let bounds = transform_and_bounds_self.get().bounds;
@@ -153,7 +158,8 @@ impl Stacker {
                     .collect();
                 new_cell_specs
             },
-            &deps, "Stacker::_cell_specs",
-        );
+            &deps,
+            "Stacker::_cell_specs",
+        ));
     }
 }
