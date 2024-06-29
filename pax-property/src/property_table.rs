@@ -2,13 +2,8 @@ use nohash_hasher::BuildNoHashHasher;
 use std::{
     any::Any,
     cell::{RefCell, RefMut},
-    collections::{HashMap, HashSet, VecDeque},
-    fmt::{Debug, Display, Formatter},
-    ops::Sub,
-    sync::atomic::{AtomicU64, Ordering},
-    time::Instant,
+    collections::{HashMap, HashSet},
 };
-use wasm_bindgen::prelude::*;
 use web_sys::{window, Performance};
 
 use std::rc::Rc;
@@ -25,92 +20,20 @@ thread_local! {
     /// Property time variable, to be used by
     pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::time());
      /// Statistics for tracking get requests
-     pub static GET_STATISTICS: RefCell<GetStatistics> = RefCell::new(GetStatistics::new());
+    static STATISTICS: RefCell<HashMap<String, f64>> = RefCell::default();
 
     pub static PERFORMANCE : Performance = window().unwrap().performance().unwrap();
 }
 
-/// Statistics for tracking get requests
-pub struct GetStatistics {
-    total_gets: u64,
-    total_time: f64,
-    max_get_time: f64,
-    bucket_0_01: u64,
-    bucket_0_05_01: u64,
-    bucket_0_1_05: u64,
-    bucket_0_15_1: u64,
-    bucket_0_15_plus: u64,
-}
-
-impl GetStatistics {
-    fn new() -> Self {
-        Self {
-            total_gets: 0,
-            total_time: 0.0,
-            max_get_time: 0.0,
-            bucket_0_01: 0,
-            bucket_0_05_01: 0,
-            bucket_0_1_05: 0,
-            bucket_0_15_1: 0,
-            bucket_0_15_plus: 0,
-        }
-    }
-
-    fn record_get(&mut self, duration: f64) {
-        self.total_gets += 1;
-        self.total_time += duration;
-        self.max_get_time = self.max_get_time.max(duration);
-
-        match duration {
-            d if d <= 0.01 => self.bucket_0_01 += 1,
-            d if d <= 0.05 => self.bucket_0_05_01 += 1,
-            d if d <= 0.1 => self.bucket_0_1_05 += 1,
-            d if d <= 0.15 => self.bucket_0_15_1 += 1,
-            _ => self.bucket_0_15_plus += 1,
-        }
-    }
-
-    pub fn print_stats(&mut self) {
-        let average_time = if self.total_gets > 0 {
-            self.total_time / self.total_gets as f64
-        } else {
-            0.0
-        };
-        log::info!(
-            "# of gets: {}, average time per get: {} ms, max get time: {} ms",
-            self.total_gets,
-            average_time,
-            self.max_get_time
-        );
-        log::info!(
-            "Buckets: 0-0.01: {}, 0.01-0.05: {}, 0.05-0.1: {}, 0.1-0.15: {}, 0.15+: {}",
-            self.bucket_0_01,
-            self.bucket_0_05_01,
-            self.bucket_0_1_05,
-            self.bucket_0_15_1,
-            self.bucket_0_15_plus
-        );
-        // Reset counters
-        self.total_gets = 0;
-        self.total_time = 0.0;
-        self.max_get_time = 0.0;
-        self.bucket_0_01 = 0;
-        self.bucket_0_05_01 = 0;
-        self.bucket_0_1_05 = 0;
-        self.bucket_0_15_1 = 0;
-        self.bucket_0_15_plus = 0;
-    }
+pub fn stat_add(key: &str, val: f64) {
+    STATISTICS.with_borrow_mut(|stats| {
+        *stats.entry(key.to_owned()).or_default() += val;
+    });
 }
 
 #[derive(Default, Clone)]
 pub struct PropScope {
     created_ids: Vec<PropertyId>,
-}
-
-impl PropScope {
-    fn extend(&mut self, other: PropScope) {
-        self.created_ids.extend(other.created_ids);
-    }
 }
 
 pub struct PropertyTable {
@@ -268,7 +191,7 @@ pub struct PropertyData {
     // Topologically sorted dependencies (None if not computed yet)
     pub dependents_to_update: Option<Vec<PropertyId>>,
     // Type agnostic transition manager
-    pub transition_manager: Option<TransitionManagerWrapper>,
+    transition_manager: Option<TransitionManagerWrapper>,
 }
 
 #[derive(Clone)]

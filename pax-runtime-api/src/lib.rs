@@ -1,5 +1,3 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
@@ -10,7 +8,6 @@ pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 pub mod refcell_debug;
 pub use refcell_debug::*;
-pub mod stats;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store

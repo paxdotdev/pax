@@ -18,7 +18,7 @@ pub struct Example {
 
 impl Example {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        self.num.set(100);
+        self.num.set(20);
     }
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {}
 
