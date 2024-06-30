@@ -208,6 +208,7 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
+        crate::api::stat_add("new node", 1.0);
         let recreate_property_scope_manager = PropertyScopeManager::new();
         recreate_property_scope_manager.start_scope();
         let properties = (&template.base().instance_prototypical_properties_factory)(
@@ -352,14 +353,13 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
     ) {
         self.run_with_scope(|| {
-            let mut curr_children = borrow_mut!(self.children);
             //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
             for child in new_children.iter() {
                 // set parent and connect up viewport bounds to new parent
                 *borrow_mut!(child.render_parent) = Rc::downgrade(self);
             }
             if *borrow!(self.attached) > 0 {
-                for child in curr_children.iter() {
+                for child in borrow!(self.children).iter() {
                     Rc::clone(child).recurse_unmount(context);
                 }
                 for child in new_children.iter() {
@@ -369,7 +369,7 @@ impl ExpandedNode {
                     Rc::clone(child).recurse_mount(context);
                 }
             }
-            *curr_children = new_children;
+            *borrow_mut!(self.children) = new_children;
         })
     }
 
@@ -467,6 +467,7 @@ impl ExpandedNode {
         self.run_with_scope(|| {
             if *borrow!(self.attached) == 0 {
                 *borrow_mut!(self.attached) += 1;
+                crate::api::stat_add("node mounted", 1.0);
                 context.add_to_cache(&self);
                 if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                     for handler in borrow!(registry)

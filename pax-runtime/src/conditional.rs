@@ -62,10 +62,7 @@ impl InstanceNode for ConditionalInstance {
         let id = expanded_node.id.clone();
         let _ = cond_expr.subscribe(move || {
             let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                log::warn!(
-                    "tried to run subscription for node (conditional) that's been removed {:?}",
-                    id
-                );
+                log::warn!("tried to run subscription for node (conditional) that's been removed",);
                 return;
             };
             let val = cond_expr.get();

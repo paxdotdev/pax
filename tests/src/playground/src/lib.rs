@@ -7,24 +7,21 @@ use pax_std::components::*;
 use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
+pub mod property_editor;
+
+use property_editor::PropertyEditor;
 
 #[pax]
 #[main]
 #[file("lib.pax")]
 pub struct Example {
-    pub num: Property<usize>,
     pub showing: Property<bool>,
+    pub stid: Property<usize>,
+    pub snid: Property<usize>,
 }
 
 impl Example {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        self.num.set(20);
-    }
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {}
-
-    pub fn click(&mut self, ctx: &NodeContext, args: Event<Click>) {
-        self.num.set(self.num.get() - 1);
-    }
+    pub fn on_mount(&mut self, ctx: &NodeContext) {}
 
     pub fn toggle(&mut self, ctx: &NodeContext, args: Event<Click>) {
         self.showing.set(!self.showing.get());

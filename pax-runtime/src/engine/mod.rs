@@ -443,9 +443,10 @@ impl PaxEngine {
 
         set_time(ctx.globals().frames_elapsed.get());
         ctx.flush_custom_events().unwrap();
-        if ctx.globals().frames_elapsed.get() % 100 == 0 {
+        if ctx.globals().frames_elapsed.get() % 200 == 0 {
             api::print_number_of_properties();
             api::print_scope_stack();
+            api::print_stats();
         }
         ctx.take_native_messages()
     }

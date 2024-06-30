@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{
     property_table::{PropertyTable, PropertyType},
-    PropertyId,
+    stat_add, PropertyId,
 };
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::{
@@ -37,19 +37,24 @@ use svg::Document;
 impl PropertyTable {
     // Function that recurses up inbound properties and deletes saved dependents to update so it's recommputed
     pub fn clear_memoized_dependents(&self, id: PropertyId) {
-        let inbound = {
-            let mut sm = self.properties.borrow_mut();
+        stat_add("clear-am-deps", 1.0);
+        let mut sm = self.properties.borrow_mut();
+        let mut inbound: Vec<_> = {
             let entry = sm.get_mut(&id).expect("Property not found");
             entry.data.dependents_to_update = None;
-            entry.data.inbound.clone()
+            entry.data.inbound.iter().cloned().collect()
         };
-        for &inbound_id in inbound.iter() {
-            self.clear_memoized_dependents(inbound_id);
+        while let Some(inbound_id) = inbound.pop() {
+            stat_add("clear-am-deps-total-nodes", 1.0);
+            let entry = sm.get_mut(&inbound_id).expect("Property not found");
+            entry.data.dependents_to_update = None;
+            inbound.extend(entry.data.inbound.iter());
         }
     }
 
     // Function to perform a topological sort on affected properties and return a sorted vector of property ids
     pub fn topological_sort_affected(&self, start_id: PropertyId) -> Vec<PropertyId> {
+        stat_add("top-sorts", 1.0);
         let mut in_degree = HashMap::new();
         let mut sorted = Vec::new();
         let mut queue = VecDeque::new();
@@ -81,12 +86,14 @@ impl PropertyTable {
 
         // Add properties with in-degree 0 to the queue
         for (&id, &degree) in in_degree.iter() {
+            stat_add("top-sort-indeg", 1.0);
             if degree == 0 {
                 queue.push_back(id);
             }
         }
 
         while let Some(id) = queue.pop_front() {
+            stat_add("top-sort-total-itrs", 1.0);
             sorted.push(id);
             let outbound = {
                 let sm = self.properties.borrow();

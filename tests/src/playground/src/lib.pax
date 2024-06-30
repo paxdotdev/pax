@@ -1,21 +1,177 @@
-// if self.showing {
-//     for i in 0..self.num {
-//         <Group>
-//             <Group>
-//                 <Rectangle fill={hsl(i*20, 40, 150)} width=20% height=20% x={(i*100/self.num)%} y={(i*100/self.num)%} @click=self.click/>
-//                 <Rectangle fill={hsl(i*20, 40, 150)} width=50% height=50% x={(i*10/self.num)%} y={(i*10/self.num)%} @click=self.click/>
-//             </Group>
-//         </Group>
-//     }
-// }
-<Stacker width=50% height=50%>
-    <Rectangle fill=RED/>
-    <Rectangle fill=BLUE/>
-    <Rectangle fill=GREEN/>
-</Stacker>
-
 <Rectangle fill=BLUE y=100% width=20% height=20% @click=self.toggle/>
+
+if self.showing {
+    <Group x=5px width={100% - 10px}>
+        <Text text="SomeHeaderText" class=h1 class=col_1 class=span_6 />
+        <Group height=150px y=47px>
+            <Group y=0px height=30px>
+                <Text text="x" class=property_label class=col_1 class=span_1 />
+                <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="x" class=col_2 class=span_2 />
+                <Text text="y" class=property_label class=col_4 class=span_1 />
+                <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="y" class=col_5 class=span_2 />
+            </Group>
+            <Group y=40px height=30px>
+                <Text text="w" class=property_label class=col_1 class=span_1 />
+                <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="width" class=col_2 class=span_2 />
+                <Text text="h" class=property_label class=col_4 class=span_1 />
+                <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="height" class=col_5 class=span_2 />
+            </Group>
+        </Group>
+        <Path class=hr y=135px class=col_1 class=span_6 />
+        <Group y=145px height=180px>
+            <Text text="Transform" class=h2 class=col_1 class=span_6 />
+            <Group y=30px height={100% - 30px}>
+                <Group y=0px height=30px>
+                    <Text text="⊾" class=property_label_larger class=col_1 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="rotate" class=col_2 class=span_2 />
+                </Group>
+                <Group y=40px height=30px>
+                    <Text text="↔x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="scale_x" class=col_2 class=span_2 />
+                    <Text text="↕y" class=property_label class=col_4 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="scale_y" class=col_5 class=span_2 />
+                </Group>
+                <Group y=80px height=30px>
+                    <Text text="⨁x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="anchor_x" class=col_2 class=span_2 />
+                    <Text text="⨁y" class=property_label class=col_4 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="anchor_y" class=col_5 class=span_2 />
+                </Group>
+                <Group y=120px height=30px>
+                    <Text text="▱x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="skew_x" class=col_2 class=span_2 />
+                    <Text text="▱y" class=property_label class=col_4 class=span_1 />
+                    <PropertyEditor ind=1 stid={self.stid} snid={self.snid} name="skew_y" class=col_5 class=span_2 />
+                </Group>
+            </Group>
+        </Group>
+
+        <Group y=343px>
+            for i in 0..2 {
+                <Group y={(i*50)px} height=50px>
+                    <Path class=hr/>
+                    <Text text="somecustomprop" class=h2 class=col_1 class=span_6 y=10px/>
+                    <PropertyEditor y=40px ind=3 name={"customprop" + i} stid={self.stid} snid={self.snid} />
+                </Group>
+            }
+        </Group>
+    </Group>
+}
 
 @settings {
     @mount: on_mount
+    .h1 {
+        height: 30px
+        style: {
+            font_size: 26px,
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            fill: WHITE,
+        }
+    }
+    .h2 {
+        height: 18px,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 16px,
+            fill: WHITE,
+        }
+    }
+
+    .hr {
+        height: 1px,
+        elements: {[
+            PathElement::point(0%, 0%),
+            PathElement::line(),
+            PathElement::point(100%, 0%),
+        ]},
+        stroke: {
+            color: rgb(40, 48, 54),
+            width: 1px,
+        },
+        fill: NONE
+    }
+
+    .property_label {
+        height: 20px,
+        y: 50%,
+        anchor_y: 50%,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 18px,
+            fill: rgba(255, 255, 255, 67%),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+
+    .property_label_larger {
+        height: 26px,
+        y: 50%,
+        anchor_y: 50%,
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Thin
+            )},
+            font_size: 24px,
+            fill: rgba(255, 255, 255, 67%),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+
+    //Note that columns account for a left-margin of 1.67%, so
+    // col_k = (k * 100/6) + 1.67%
+    .col_1 {
+        x: 1.67%,
+        anchor_x: 0%,
+    }
+    .col_2 {
+        x: 18.33%,
+        anchor_x: 0%,
+    }
+    .col_3 {
+        x: 35%,
+        anchor_x: 0%,
+    }
+    .col_4 {
+        x: 51.67%,
+        anchor_x: 0%,
+    }
+    .col_5 {
+        x: 68%,
+        anchor_x: 0%,
+    }
+    .col_6 {
+        x: 85%,
+        anchor_x: 0%,
+    }
+    //Note that the spans account for a total margin of 3.33%
+    //so span_k = ((k * 100/6) - 3.33)%
+    .span_1 {
+        width: 13.33%,
+    }
+    .span_2 {
+        width: 30%,
+    }
+    .span_3 {
+        width: 46.6667%,
+    }
+    .span_6 {
+        width: 96.66%,
+    }
 }
+

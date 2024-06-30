@@ -31,6 +31,16 @@ pub fn stat_add(key: &str, val: f64) {
     });
 }
 
+pub fn print_stats() {
+    log::debug!("------- Stats -------");
+    STATISTICS.with_borrow_mut(|stats| {
+        for (k, v) in stats.drain() {
+            log::debug!("{k}: {v}")
+        }
+    });
+    log::debug!("---------------------");
+}
+
 #[derive(Default, Clone)]
 pub struct PropScope {
     created_ids: Vec<PropertyId>,

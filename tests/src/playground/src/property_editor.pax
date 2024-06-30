@@ -1,0 +1,16 @@
+// OBS don't use index zero, for some reason doesn't trigger on_mount
+if self.prop_type_ident_id == 1 {
+	<TextPropertyEditor stid={self.stid} snid={self.snid}/>
+}
+
+if self.prop_type_ident_id == 2 {
+	<FillPropertyEditor stid={self.stid} snid={self.snid}/>
+}
+
+if self.prop_type_ident_id == 3 {
+	<StrokePropertyEditor stid={self.stid} snid={self.snid}/>
+}
+
+@settings {
+	@mount: on_mount
+}

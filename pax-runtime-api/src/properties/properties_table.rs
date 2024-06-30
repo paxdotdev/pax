@@ -53,15 +53,18 @@ impl PropertyData {
         self.value = Box::new(new_val);
     }
 
-    pub fn get_transition_manager<T: PropertyValue>(&mut self) -> Option<&mut TransitionManager<T>> {
-        self.transition_manager.as_mut().map(|tm| tm.downcast_mut::<TransitionManager<T>>().unwrap())
+    pub fn get_transition_manager<T: PropertyValue>(
+        &mut self,
+    ) -> Option<&mut TransitionManager<T>> {
+        self.transition_manager
+            .as_mut()
+            .map(|tm| tm.downcast_mut::<TransitionManager<T>>().unwrap())
     }
 
     pub fn clone_value<T: PropertyValue>(&self) -> Box<dyn Any> {
         Box::new(self.get_value::<T>().clone())
     }
 }
-
 
 /// Specialization data only needed for different kinds of properties
 #[derive(Clone)]
@@ -79,8 +82,6 @@ pub(crate) struct PropertyTable {
     // Main property table containing property data
     // Box<dyn Any> is of type Box<Entry<T>> where T is the proptype
     pub(crate) property_map: RefCell<HashMap<PropertyId, Entry>>,
-    // List of properties that have been set in the last tick
-    pub(crate) enqueued_sets: RefCell<Vec<PropertyId>>,
 }
 
 pub struct Entry {
@@ -89,22 +90,16 @@ pub struct Entry {
 }
 
 impl PropertyTable {
-
     // Returns version number of a property
     // This is used to invalidate the cached value of a property
     pub fn get_version(&self, id: PropertyId) -> u64 {
-        self.with_property_data(id, |property_data| {
-            property_data.version
-        })
+        self.with_property_data(id, |property_data| property_data.version)
     }
 
     // Retrieves an owned value of the property with the given id
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
-        self.with_property_data(id, |property_data| {
-            property_data.get_value::<T>()
-        })
+        self.with_property_data(id, |property_data| property_data.get_value::<T>())
     }
-
 
     // Main function to set a value of a property.
     // NOTE: This always assumes the underlying data was changed, and marks
@@ -114,7 +109,6 @@ impl PropertyTable {
             property_data.version += 1;
             property_data.set_value(new_val);
         });
-        self.enqueued_sets.borrow_mut().push(id);
     }
 
     /// Adds a new untyped property entry
@@ -144,7 +138,6 @@ impl PropertyTable {
             id
         };
         self.connect_inbound(id);
-        self.enqueued_sets.borrow_mut().push(id);
         id
     }
 
@@ -158,13 +151,13 @@ impl PropertyTable {
         overwrite: bool,
     ) {
         let mut should_connect_to_time = false;
-        let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get().clone()));
+        let (time_id, curr_time) =
+            PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get().clone()));
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let value = property_data.get_value::<T>();
             let mut manager = property_data.get_transition_manager::<T>();
             let mut new_manager = TransitionManager::new(value, curr_time);
-            let transition_manager = manager
-                .get_or_insert_with(|| &mut new_manager);
+            let transition_manager = manager.get_or_insert_with(|| &mut new_manager);
             if overwrite {
                 transition_manager.reset_transitions(curr_time);
             }
@@ -191,7 +184,7 @@ impl PropertyTable {
         return_value
     }
 
-   /// Allows mutable access to the data associated with a property id.
+    /// Allows mutable access to the data associated with a property id.
     /// WARNING while this method is being run, the entry corresponding to id
     /// is not present in the table, and methods such as .get(), .set(), and
     /// possibly others on the property with the id parameter bellow will panic.
@@ -229,8 +222,6 @@ impl PropertyTable {
     pub fn with_property_data<V>(&self, id: PropertyId, f: impl FnOnce(&PropertyData) -> V) -> V {
         self.with_property_data_mut(id, |property_data| f(&*property_data))
     }
-
-
 
     /// Allows access to the data associated with a property id.
     /// WARNING while this method is being run, the entry corresponding to id
@@ -288,9 +279,6 @@ impl PropertyTable {
         // connect self to it's new dependents (found in property_types Expr
         // type as inbound) (only does something for computed values)
         self.connect_inbound(source_id);
-
-        // enqueue source so its dependents are updated
-        self.enqueued_sets.borrow_mut().push(source_id);
     }
 
     // re-computes the value if dirty
@@ -343,9 +331,7 @@ impl PropertyTable {
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
-                panic!(
-                    "failed to remove property - propertytable already borrowed"
-                );
+                panic!("failed to remove property - propertytable already borrowed");
             };
             sm.remove(&id).expect("tried to remove non-existent prop")
         };
