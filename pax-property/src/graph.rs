@@ -41,12 +41,19 @@ impl PropertyTable {
         let mut sm = self.properties.borrow_mut();
         let mut inbound: Vec<_> = {
             let entry = sm.get_mut(&id).expect("Property not found");
+            stat_add("clear-am-deps-total-nodes", 1.0);
+            if entry.data.dependents_to_update.is_some() {
+                stat_add("clear-am-deps-total-nodes-with-data", 1.0);
+            }
             entry.data.dependents_to_update = None;
             entry.data.inbound.iter().cloned().collect()
         };
         while let Some(inbound_id) = inbound.pop() {
             stat_add("clear-am-deps-total-nodes", 1.0);
             let entry = sm.get_mut(&inbound_id).expect("Property not found");
+            if entry.data.dependents_to_update.is_some() {
+                stat_add("clear-am-deps-total-nodes-with-data", 1.0);
+            }
             entry.data.dependents_to_update = None;
             inbound.extend(entry.data.inbound.iter());
         }
@@ -67,6 +74,7 @@ impl PropertyTable {
             in_degree: &mut HashMap<PropertyId, usize>,
             visited: &mut HashSet<PropertyId>,
         ) {
+            stat_add("init-in-deg-calls", 1.0);
             if !visited.insert(id) {
                 return;
             }

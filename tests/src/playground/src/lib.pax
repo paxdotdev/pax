@@ -1,4 +1,5 @@
 <Rectangle fill=BLUE y=100% width=20% height=20% @click=self.toggle/>
+<Rectangle fill=GREEN x=100% y=100% width=20% height=20% @click=self.fake_toggle/>
 
 if self.showing {
     <Group x=5px width={100% - 10px}>

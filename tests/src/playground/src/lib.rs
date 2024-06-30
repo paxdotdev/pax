@@ -26,4 +26,8 @@ impl Example {
     pub fn toggle(&mut self, ctx: &NodeContext, args: Event<Click>) {
         self.showing.set(!self.showing.get());
     }
+
+    pub fn fake_toggle(&mut self, ctx: &NodeContext, args: Event<Click>) {
+        self.showing.set(self.showing.get());
+    }
 }

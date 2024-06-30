@@ -310,6 +310,7 @@ impl PropertyTable {
     }
 
     pub fn get<T: PropertyValue>(&self, id: PropertyId) -> T {
+        stat_add("gets", 1.0);
         let sm = self.properties.borrow();
         if !sm.contains_key(&id) {
             return T::default();
@@ -321,6 +322,7 @@ impl PropertyTable {
     }
 
     pub fn set<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
+        stat_add("sets", 1.0);
         if !self.properties.borrow().contains_key(&id) {
             log::warn!("tried to set property that doesn't exist");
             return;
@@ -366,6 +368,7 @@ impl PropertyTable {
     }
 
     fn recompute_expression(&self, id: PropertyId) {
+        stat_add("expr-recompute", 1.0);
         let evaluator: Option<Rc<dyn Fn() -> Box<dyn Any>>> = {
             let sm = self.properties.borrow();
             let entry = sm.get(&id).expect("Property not found");
