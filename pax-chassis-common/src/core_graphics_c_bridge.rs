@@ -22,7 +22,7 @@ use pax_runtime::{ExpressionTable, PaxEngine, Renderer};
 //in order to be visible to Swift
 pub use pax_message::*;
 use pax_runtime::api::{
-    borrow, Click, ModifierKey, MouseButton, MouseEventArgs, Platform, RenderContext, OS,
+    Click, ModifierKey, MouseButton, MouseEventArgs, Platform, RenderContext, OS,
 };
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
@@ -37,7 +37,9 @@ pub struct PaxEngineContainer {
 pub extern "C" fn pax_init() -> *mut PaxEngineContainer {
     env_logger::init();
 
-    let mut definition_to_instance_traverser = pax_cartridge::DefinitionToInstanceTraverser::new();
+    let manifest = serde_json::from_str(&pax_cartridge::INITIAL_MANIFEST).unwrap();
+    let mut definition_to_instance_traverser =
+        pax_cartridge::DefinitionToInstanceTraverser::new(manifest);
     let main_component_instance = definition_to_instance_traverser.get_main_component();
     let expression_table = ExpressionTable {
         table: pax_cartridge::instantiate_expression_table(),
