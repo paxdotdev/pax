@@ -133,27 +133,30 @@ macro_rules! dispatch_event_handler {
         ) -> bool {
             let event = Event::new(args.clone());
             if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
-                let component_properties = if let Some(cc) = self.containing_component.upgrade() {
-                    Rc::clone(&*borrow!(cc.properties))
-                } else {
-                    Rc::clone(&*borrow!(self.properties))
-                };
-
-                let context = self.get_node_context(ctx);
                 let borrowed_registry = &borrow!(*registry);
                 if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
-                    handlers.iter().for_each(|handler| {
-                        let properties = if let HandlerLocation::Component = &handler.location {
-                            Rc::clone(&*borrow!(self.properties))
-                        } else {
-                            Rc::clone(&component_properties)
-                        };
-                        (handler.function)(
-                            Rc::clone(&properties),
-                            &context,
-                            Some(event.clone().to_pax_any()),
-                        );
-                    });
+                    if handlers.len() > 0 {
+                        let component_properties =
+                            if let Some(cc) = self.containing_component.upgrade() {
+                                Rc::clone(&*borrow!(cc.properties))
+                            } else {
+                                Rc::clone(&*borrow!(self.properties))
+                            };
+
+                        let context = self.get_node_context(ctx);
+                        handlers.iter().for_each(|handler| {
+                            let properties = if let HandlerLocation::Component = &handler.location {
+                                Rc::clone(&*borrow!(self.properties))
+                            } else {
+                                Rc::clone(&component_properties)
+                            };
+                            (handler.function)(
+                                Rc::clone(&properties),
+                                &context,
+                                Some(event.clone().to_pax_any()),
+                            );
+                        });
+                    }
                 };
             }
 
