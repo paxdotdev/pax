@@ -30,22 +30,6 @@ pub struct Toolbar {
     pub dropdown_entries: Property<Vec<ToolbarItemView>>,
 }
 
-enum ToolbarEvent {
-    SelectTool(Tool),
-    PerformAction(Box<dyn Fn() -> Box<dyn Action>>),
-}
-
-pub struct SelectTool {
-    pub tool: Tool,
-}
-
-impl Action for SelectTool {
-    fn perform(self: Box<Self>, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
-        ctx.app_state.selected_tool.set(self.tool);
-        Ok(CanUndo::No)
-    }
-}
-
 #[pax]
 pub struct ToolbarItemView {
     pub background: bool,
@@ -139,72 +123,73 @@ thread_local! {
 }
 
 impl Toolbar {
-    pub fn on_unmount(&mut self, _ctx: &NodeContext) {
-        let toolbar_click = CLICK_PROP.with(|p| p.clone());
-        toolbar_click.set(ToolbarClickEvent::None);
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        self.set_entries_from_def();
+        self.bind_dropdown_entries(ctx.clone());
+        self.bind_selected_ind();
     }
 
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        TOOLBAR_ENTRIES.with(|entries| {
-            let mut entry_views = vec![];
-            for (row, entry) in entries.iter().enumerate() {
-                let first = entry.items.first().unwrap();
-                entry_views.push(ToolbarItemView {
-                    background: false,
-                    icon: String::from(first.icon),
-                    more_than_one_item: entry.items.len() > 1,
-                    row,
-                    col: 0,
-                    x: Size::Pixels((row * 65).into()),
-                    y: Size::Pixels(0.into()),
-                });
-            }
-            self.entries.set(entry_views);
+    fn set_entries_from_def(&mut self) {
+        let entries = TOOLBAR_ENTRIES.with(|entries| {
+            entries
+                .iter()
+                .enumerate()
+                .map(|(row, entry)| {
+                    let first = entry.items.first().unwrap();
+                    ToolbarItemView {
+                        background: false,
+                        icon: String::from(first.icon),
+                        more_than_one_item: entry.items.len() > 1,
+                        row,
+                        col: 0,
+                        x: Size::Pixels((row * 65).into()),
+                        y: Size::Pixels(0.into()),
+                    }
+                })
+                .collect()
         });
+        self.entries.replace_with(Property::new(entries));
+    }
 
-        let ctx = ctx.clone();
+    fn bind_dropdown_entries(&mut self, ctx: NodeContext) {
         let toolbar_click = CLICK_PROP.with(|p| p.clone());
         let deps = [toolbar_click.untyped()];
         self.dropdown_entries.replace_with(Property::computed(
-            move || {
-                let entries = match toolbar_click.get() {
-                    ToolbarClickEvent::Select(row, col) => {
-                        let action = TOOLBAR_ENTRIES.with(|entries| {
-                            let event = &entries[row].items[col].event;
-                            match event {
-                                &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
-                                ToolbarEvent::PerformAction(action_factory) => action_factory(),
-                            }
-                        });
-                        model::perform_action(action, &ctx);
-                        vec![]
-                    }
-                    ToolbarClickEvent::None => {
-                        vec![]
-                    }
-                    ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
-                        let items = &entries[row].items;
-                        items
-                            .iter()
-                            .enumerate()
-                            .map(|(col, item)| ToolbarItemView {
-                                background: true,
-                                icon: String::from(item.icon),
-                                more_than_one_item: false,
-                                row,
-                                col,
-                                x: Size::Pixels((row * 65).into()),
-                                y: Size::Pixels((col * 65).into()),
-                            })
-                            .collect()
-                    }),
-                };
-                entries
+            move || match toolbar_click.get() {
+                ToolbarClickEvent::Select(row, col) => {
+                    let action = TOOLBAR_ENTRIES.with(|entries| {
+                        let event = &entries[row].items[col].event;
+                        match event {
+                            &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
+                            ToolbarEvent::PerformAction(action_factory) => action_factory(),
+                        }
+                    });
+                    model::perform_action(action, &ctx);
+                    vec![]
+                }
+                ToolbarClickEvent::None => vec![],
+                ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
+                    entries[row]
+                        .items
+                        .iter()
+                        .enumerate()
+                        .map(|(col, item)| ToolbarItemView {
+                            background: true,
+                            icon: String::from(item.icon),
+                            more_than_one_item: false,
+                            row,
+                            col,
+                            x: Size::Pixels((row * 65).into()),
+                            y: Size::Pixels((col * 65).into()),
+                        })
+                        .collect()
+                }),
             },
             &deps,
         ));
+    }
 
-        // Selected index should depend on app state
+    fn bind_selected_ind(&mut self) {
         model::read_app_state(|app_state| {
             let tool = app_state.selected_tool.clone();
             let entries = self.entries.clone();
@@ -238,5 +223,24 @@ impl Toolbar {
                 &deps,
             ));
         });
+    }
+
+    pub fn on_unmount(&mut self, _ctx: &NodeContext) {
+        CLICK_PROP.with(|p| p.set(ToolbarClickEvent::None));
+    }
+}
+enum ToolbarEvent {
+    SelectTool(Tool),
+    PerformAction(Box<dyn Fn() -> Box<dyn Action>>),
+}
+
+pub struct SelectTool {
+    pub tool: Tool,
+}
+
+impl Action for SelectTool {
+    fn perform(self: Box<Self>, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
+        ctx.app_state.selected_tool.set(self.tool);
+        Ok(CanUndo::No)
     }
 }

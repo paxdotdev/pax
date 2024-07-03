@@ -18,6 +18,7 @@ pub struct ProjectModeToggle {
     pub text: Property<String>,
 }
 
+#[allow(unused)]
 impl ProjectModeToggle {
     pub fn mount(&mut self, _ctx: &NodeContext) {
         let running = match ProjectMode::default() {
@@ -44,6 +45,6 @@ impl ProjectModeToggle {
                 ProjectMode::Playing
             }
         };
-        model::perform_action(ProjectMsg::SetMode(mode), ctx);
+        model::perform_action(ProjectMsg(mode), ctx);
     }
 }

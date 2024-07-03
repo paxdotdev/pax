@@ -18,9 +18,3 @@ use tree::Tree;
 #[pax]
 #[file("controls/mod.pax")]
 pub struct Controls {}
-
-impl Controls {
-    pub fn handle_click(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        panic!("Mouse click");
-    }
-}

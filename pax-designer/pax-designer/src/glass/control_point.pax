@@ -1,7 +1,10 @@
 <Group id=invisible_hit_box @mouse_down=self.mouse_down>
-    <Rectangle
-        class=control_point
-    />
+    if !self.data.styling.round {
+        <Rectangle class=control_point/>
+    }
+    if self.data.styling.round {
+        <Ellipse class=control_point/>
+    }
 </Group>
 
 @settings {
