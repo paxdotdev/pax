@@ -1,6 +1,8 @@
 use std::any::Any;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::rc::Rc;
 
 pub mod orm;
 pub mod privileged_agent;
@@ -9,8 +11,10 @@ pub mod messages;
 pub mod serde_pax;
 
 mod setup;
+use messages::LLMHelpRequest;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
+use privileged_agent::PrivilegedAgentConnection;
 pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
@@ -18,8 +22,6 @@ pub use pax_manifest;
 use pax_manifest::{ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
-use wasm_bindgen::prelude::*;
-use web_sys::window;
 
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
 
@@ -29,7 +31,7 @@ use crate::orm::PaxManifestORM;
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
-    // priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
+    priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
     #[allow(unused)]
     last_written_manifest_version: usize,
     project_query: Option<String>,
@@ -43,18 +45,18 @@ impl Debug for DesigntimeManager {
 }
 
 impl DesigntimeManager {
-    pub fn new_with_addr(manifest: PaxManifest, _priv_addr: SocketAddr) -> Self {
-        // let priv_agent = Rc::new(RefCell::new(
-        //     PrivilegedAgentConnection::new(priv_addr)
-        //         .expect("couldn't connect to privileged agent"),
-        // ));
+    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
+        let priv_agent = Rc::new(RefCell::new(
+            PrivilegedAgentConnection::new(priv_addr)
+                .expect("couldn't connect to privileged agent"),
+        ));
 
         let orm = PaxManifestORM::new(manifest);
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
             factories,
-            // priv_agent_connection: priv_agent,
+            priv_agent_connection: priv_agent,
             last_written_manifest_version: 0,
             project_query: None,
         }
@@ -68,68 +70,67 @@ impl DesigntimeManager {
         self.project_query = Some(project_query);
     }
 
-    pub fn send_file_to_static_dir(&self, _name: &str, _data: Vec<u8>) -> anyhow::Result<()> {
-        // self.priv_agent_connection
-        //     .borrow_mut()
-        //     .send_file_to_static_dir(name, data)?;
+    pub fn send_file_to_static_dir(&self, name: &str, data: Vec<u8>) -> anyhow::Result<()> {
+        self.priv_agent_connection
+            .borrow_mut()
+            .send_file_to_static_dir(name, data)?;
         Ok(())
     }
 
-    pub fn send_manifest_update(&mut self) -> anyhow::Result<()> {
-        // Serialize the manifest to JSON
-        let json = serde_json::to_string(self.orm.get_manifest()).unwrap();
-        let proj_str = self.project_query.clone();
-        let url = format!("http://localhost:9000/create/save{}", proj_str.unwrap());
-        wasm_bindgen_futures::spawn_local(async move {
-            // Create a RequestInit object with the method and body
-            let mut opts = web_sys::RequestInit::new();
-            opts.method("POST");
-            opts.body(Some(&JsValue::from_str(&json)));
+    // pub fn send_manifest_update(&mut self) -> anyhow::Result<()> {
+    //     // Serialize the manifest to JSON
+    //     let json = serde_json::to_string(self.orm.get_manifest()).unwrap();
+    //     let proj_str = self.project_query.clone();
+    //     let url = format!("http://localhost:9000/create/save{}", proj_str.unwrap());
+    //     wasm_bindgen_futures::spawn_local(async move {
+    //         // Create a RequestInit object with the method and body
+    //         let mut opts = web_sys::RequestInit::new();
+    //         opts.method("POST");
+    //         opts.body(Some(&JsValue::from_str(&json)));
 
-            // Create the request
-            let request = web_sys::Request::new_with_str_and_init(&url, &opts).unwrap();
+    //         // Create the request
+    //         let request = web_sys::Request::new_with_str_and_init(&url, &opts).unwrap();
 
-            // Send the request
-            Into::<wasm_bindgen_futures::JsFuture>::into(
-                window().unwrap().fetch_with_request(&request),
-            )
-            .await
-            .unwrap();
-            log::info!("sucessfully saved")
-        });
+    //         // Send the request
+    //         Into::<wasm_bindgen_futures::JsFuture>::into(
+    //             window().unwrap().fetch_with_request(&request),
+    //         )
+    //         .await
+    //         .unwrap();
+    //         log::info!("sucessfully saved")
+    //     });
+    //     Ok(())
+    // }
+
+    pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
+        let component = self.orm.get_component(type_id)?;
+        self.priv_agent_connection
+            .borrow_mut()
+            .send_component_update(component)?;
+
+        for c in self.orm.get_new_components() {
+            self.priv_agent_connection
+                .borrow_mut()
+                .send_component_update(&c)?;
+        }
+
         Ok(())
     }
 
-    pub fn send_component_update(&mut self, _type_id: &TypeId) -> anyhow::Result<()> {
-        // Send the JSON response back to JS.
-        // let component = self.orm.get_component(type_id)?;
-        // self.priv_agent_connection
-        //     .borrow_mut()
-        //     .send_component_update(component)?;
-
-        // for c in self.orm.get_new_components() {
-        //     self.priv_agent_connection
-        //         .borrow_mut()
-        //         .send_component_update(&c)?;
-        // }
-
-        Ok(())
-    }
-
-    pub fn llm_request(&mut self, _request: &str) -> anyhow::Result<()> {
-        // let manifest = self.orm.get_manifest();
-        // let userland_type_id = TypeId::build_singleton(
-        //     "pax_designer::pax_reexports::designer_project::Example",
-        //     None,
-        // );
-        // let userland_component = manifest.components.get(&userland_type_id).unwrap();
-        // let request = LLMHelpRequest {
-        //     request: request.to_string(),
-        //     component: userland_component.clone(),
-        // };
-        // self.priv_agent_connection
-        //     .borrow_mut()
-        //     .send_llm_request(request)?;
+    pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
+        let manifest = self.orm.get_manifest();
+        let userland_type_id = TypeId::build_singleton(
+            "pax_designer::pax_reexports::designer_project::Example",
+            None,
+        );
+        let userland_component = manifest.components.get(&userland_type_id).unwrap();
+        let request = LLMHelpRequest {
+            request: request.to_string(),
+            component: userland_component.clone(),
+        };
+        self.priv_agent_connection
+            .borrow_mut()
+            .send_llm_request(request)?;
         Ok(())
     }
 
