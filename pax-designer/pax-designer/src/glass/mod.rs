@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::math::{Point2, Vector2};
@@ -20,81 +21,26 @@ use crate::model::action::{Action, ActionContext, CanUndo, RaycastMode};
 use crate::model::input::Dir;
 
 pub mod control_point;
-mod tool_editors;
+pub mod tool_editors;
 pub mod wireframe_editor;
-use control_point::ControlPoint;
 
-use anyhow::anyhow;
+pub use self::tool_editors::TextEdit;
+use control_point::ControlPoint;
 use wireframe_editor::WireframeEditor;
 
-use self::tool_editors::TextEdit;
-
 #[pax]
-#[custom(Default)]
 #[file("glass/mod.pax")]
 pub struct Glass {
-    // rect tool state
     pub is_rect_tool_active: Property<bool>,
     pub rect_tool: Property<RectTool>,
-}
-
-pub struct SetEditingComponent(pub TypeId);
-
-impl Action for SetEditingComponent {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        let type_id = self.0;
-
-        let user_import_prefix = format!("{}::", USER_PROJ_ROOT_IMPORT_PATH);
-        let is_userland_component = type_id
-            .import_path()
-            .is_some_and(|p| p.starts_with(&user_import_prefix));
-
-        let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
-
-        if !is_userland_component && !is_mock {
-            return Err(anyhow!(
-                "tried to edit a non-userland comp: {:?}",
-                type_id.import_path()
-            ));
-        }
-        ctx.execute(SetLibraryState { open: false })?;
-
-        // TODO set stage defaults for opened component using "SetStage" action
-
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let node = ctx
-            .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .into_iter()
-            .next()
-            .ok_or(anyhow!("couldn't find node with userland id"))?;
-        let mut builder = dt
-            .get_orm_mut()
-            .get_node(
-                node.global_id()
-                    .ok_or(anyhow!("expanded node doesn't have global id"))?,
-            )
-            .ok_or(anyhow!("no such node in manifest"))?;
-        builder.set_type_id(&type_id);
-        builder
-            .save()
-            .map_err(|_| anyhow!("builder couldn't save"))?;
-        dt.reload_edit();
-        // reset other relevant app state
-        ctx.app_state
-            .selected_template_node_ids
-            .update(|v| v.clear());
-        ctx.app_state.selected_component_id.set(type_id);
-        ctx.app_state.tool_behaviour.set(None);
-        Ok(CanUndo::No)
-    }
 }
 
 impl Glass {
     pub fn update_tool_visual(&mut self, _ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             // Draw current tool visuals
-            // this could be factored out into it's own component as well eventually
+            // TODO this could be factored out into it's own component as well eventually
+            // TODO change to not be on tick
             app_state.tool_behaviour.read(|tool| {
                 if let Some(tool) = tool {
                     tool.borrow().visualize(self);
@@ -246,12 +192,55 @@ impl Glass {
     }
 }
 
-impl Default for Glass {
-    fn default() -> Self {
-        Self {
-            is_rect_tool_active: Property::new(false),
-            rect_tool: Default::default(),
+pub struct SetEditingComponent(pub TypeId);
+
+impl Action for SetEditingComponent {
+    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+        let type_id = self.0;
+
+        let user_import_prefix = format!("{}::", USER_PROJ_ROOT_IMPORT_PATH);
+        let is_userland_component = type_id
+            .import_path()
+            .is_some_and(|p| p.starts_with(&user_import_prefix));
+
+        let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+
+        if !is_userland_component && !is_mock {
+            return Err(anyhow!(
+                "tried to edit a non-userland comp: {:?}",
+                type_id.import_path()
+            ));
         }
+        ctx.execute(SetLibraryState { open: false })?;
+
+        // TODO set stage defaults for opened component using "SetStage" action
+
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        let node = ctx
+            .engine_context
+            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .into_iter()
+            .next()
+            .ok_or(anyhow!("couldn't find node with userland id"))?;
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node(
+                node.global_id()
+                    .ok_or(anyhow!("expanded node doesn't have global id"))?,
+            )
+            .ok_or(anyhow!("no such node in manifest"))?;
+        builder.set_type_id(&type_id);
+        builder
+            .save()
+            .map_err(|_| anyhow!("builder couldn't save"))?;
+        dt.reload_edit();
+        // reset other relevant app state
+        ctx.app_state
+            .selected_template_node_ids
+            .update(|v| v.clear());
+        ctx.app_state.selected_component_id.set(type_id);
+        ctx.app_state.tool_behaviour.set(None);
+        Ok(CanUndo::No)
     }
 }
 

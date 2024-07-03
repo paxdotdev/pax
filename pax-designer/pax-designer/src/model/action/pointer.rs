@@ -86,7 +86,9 @@ impl Action for PointerAction<'_> {
                             ),
                         )))));
                     }
-                    Tool::TodoTool => todo!(),
+                    Tool::TodoTool => {
+                        log::warn!("tool has no implemented behaviour");
+                    }
                 },
                 (MouseButton::Left, true) | (MouseButton::Middle, _) => {
                     tool_behaviour.set(Some(Rc::new(RefCell::new(Pan {

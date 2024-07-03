@@ -261,17 +261,19 @@ impl From<&SelectionState> for SelectionStateSnapshot {
         Self {
             total_bounds: value.total_bounds.get(),
             total_origin: value.total_origin.get(),
-            items: value
-                .items
-                .iter()
-                .map(|itm| RuntimeNodeInfo {
-                    id: itm.id.clone(),
-                    origin: itm.origin.get(),
-                    transform_and_bounds: itm.transform_and_bounds.get(),
-                    parent_transform_and_bounds: itm.parent_transform_and_bounds.get(),
-                    layout_properties: itm.layout_properties.clone(),
-                })
-                .collect(),
+            items: value.items.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<&SelectedItem> for RuntimeNodeInfo {
+    fn from(itm: &SelectedItem) -> Self {
+        RuntimeNodeInfo {
+            id: itm.id.clone(),
+            origin: itm.origin.get(),
+            transform_and_bounds: itm.transform_and_bounds.get(),
+            parent_transform_and_bounds: itm.parent_transform_and_bounds.get(),
+            layout_properties: itm.layout_properties.clone(),
         }
     }
 }
