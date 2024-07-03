@@ -8,7 +8,7 @@ use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::math::Point2;
 use pax_engine::*;
-use pax_std::primitives::{Group, Path, Rectangle};
+use pax_std::primitives::{Ellipse, Group, Path, Rectangle};
 use serde::Deserialize;
 
 use crate::math::AxisAlignedBox;
@@ -109,6 +109,7 @@ pub struct ControlPointDef {
 
 #[pax]
 pub struct ControlPointStyling {
+    pub round: bool,
     pub stroke: Color,
     pub fill: Color,
     pub stroke_width_pixels: f64,

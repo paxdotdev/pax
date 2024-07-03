@@ -1,32 +1,18 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::atomic::AtomicI32;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::sync::Mutex;
-
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::*;
 use pax_engine::*;
-
-use pax_manifest::PaxType;
-use pax_std::components::Stacker;
-use pax_std::primitives::Text;
-use pax_std::types::StackerDirection;
-
-pub mod component_library_item;
-use component_library_item::ComponentLibraryItem;
-
-use component_library_item::ComponentLibraryItemData;
-
-use pax_std::primitives::Image;
-use pax_std::primitives::Rectangle;
+use pax_manifest::{PaxType, TypeId};
+use std::rc::Rc;
 
 use crate::model;
-use crate::model::action::Action;
-use crate::model::action::ActionContext;
-use crate::model::action::CanUndo;
+use crate::model::action::{Action, ActionContext, CanUndo};
 use crate::USER_PROJ_ROOT_IMPORT_PATH;
+
+pub mod component_library_item;
+use component_library_item::{ComponentLibraryItem, ComponentLibraryItemData};
+
+use pax_std::components::Stacker;
+use pax_std::primitives::{Image, Rectangle, Text};
 
 #[pax]
 #[file("controls/file_and_component_picker/mod.pax")]
@@ -36,98 +22,111 @@ pub struct FileAndComponentPicker {
     pub library_active_toggle_image: Property<String>,
 }
 
-impl Interpolatable for SetLibraryState {}
 #[derive(Clone, Default)]
 pub struct SetLibraryState {
     pub open: bool,
 }
 
+impl Interpolatable for SetLibraryState {}
+
 impl Action for SetLibraryState {
     fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        LIBRARY_PROP.with(|lib_prop| {
-            lib_prop.set(*self);
-        });
+        LIBRARY_STATE.with(|state| state.set(*self));
         Ok(CanUndo::No)
     }
 }
 
 thread_local! {
-    static LIBRARY_PROP: Property<SetLibraryState> = Property::new(SetLibraryState { open: false });
+    static LIBRARY_STATE: Property<SetLibraryState> = Property::new(SetLibraryState { open: false });
 }
 
 impl FileAndComponentPicker {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let lp = LIBRARY_PROP.with(|l| l.clone());
-        let deps = [lp.untyped()];
-        self.library_active
-            .replace_with(Property::computed(move || lp.get().open, &deps));
+        self.bind_library_active();
+        self.bind_library_active_toggle_image();
+        self.bind_registered_components(ctx);
+    }
 
-        let lib_active = self.library_active.clone();
-        let deps = [lib_active.untyped()];
+    fn bind_library_active(&mut self) {
+        let library_state = LIBRARY_STATE.with(|state| state.clone());
+        let deps = [library_state.untyped()];
+        self.library_active
+            .replace_with(Property::computed(move || library_state.get().open, &deps));
+    }
+
+    fn bind_library_active_toggle_image(&mut self) {
+        let library_active = self.library_active.clone();
+        let deps = [library_active.untyped()];
         self.library_active_toggle_image
             .replace_with(Property::computed(
                 move || {
-                    String::from(match lib_active.get() {
-                        true => "assets/icons/x.png",
-                        false => "assets/icons/chevron-down.png",
-                    })
+                    if library_active.get() {
+                        "assets/icons/x.png".to_string()
+                    } else {
+                        "assets/icons/chevron-down.png".to_string()
+                    }
                 },
                 &deps,
             ));
+    }
+
+    fn bind_registered_components(&mut self, ctx: &NodeContext) {
         let dt = Rc::clone(&ctx.designtime);
-        let lib_active = self.library_active.clone();
+        let library_active = self.library_active.clone();
         let selected_component =
             model::read_app_state(|app_state| app_state.selected_component_id.clone());
         let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+
         let deps = [
-            lib_active.untyped(),
+            library_active.untyped(),
             selected_component.untyped(),
             manifest_ver.untyped(),
         ];
         self.registered_components.replace_with(Property::computed(
             move || {
-                let dt = borrow_mut!(dt);
-
-                if lib_active.get() == false {
+                if !library_active.get() {
                     return vec![];
                 }
 
-                let components: Vec<_> = dt
-                    .get_orm()
+                let dt = borrow_mut!(dt);
+                dt.get_orm()
                     .get_components()
                     .iter()
                     .filter_map(|type_id| {
-                        let is_userland_component = type_id
-                            .import_path()
-                            .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH));
-
-                        let is_mock =
-                            matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
-
-                        if !is_userland_component && !is_mock {
-                            return None;
-                        }
-
-                        let comp = dt.get_orm().get_component(type_id).unwrap();
-                        let has_template = !comp.is_struct_only_component;
-                        let is_not_current = selected_component.get() != comp.type_id;
-                        if has_template && is_not_current {
-                            Some(ComponentLibraryItemData {
-                                name: comp.type_id.get_pascal_identifier().unwrap(),
-                                file_path: comp.module_path.clone(),
-                                type_id: comp.type_id.clone(),
-                                bounds_pixels: (200.0, 200.0),
-                            })
-                        } else {
-                            None
-                        }
+                        Self::get_component_data(&dt, type_id, &[selected_component.get()])
                     })
-                    .collect();
-
-                components
+                    .collect()
             },
             &deps,
         ));
+    }
+
+    fn get_component_data(
+        dt: &DesigntimeManager,
+        type_id: &TypeId,
+        filter: &[TypeId],
+    ) -> Option<ComponentLibraryItemData> {
+        let is_userland_or_mock = type_id
+            .import_path()
+            .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH))
+            || matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+
+        if !is_userland_or_mock {
+            return None;
+        }
+
+        let comp = dt.get_orm().get_component(type_id).ok()?;
+
+        if comp.is_struct_only_component || filter.contains(&comp.type_id) {
+            return None;
+        }
+
+        Some(ComponentLibraryItemData {
+            name: comp.type_id.get_pascal_identifier().unwrap_or_default(),
+            file_path: comp.module_path.clone(),
+            type_id: comp.type_id.clone(),
+            bounds_pixels: (200.0, 200.0),
+        })
     }
 
     pub fn library_toggle(&mut self, ctx: &NodeContext, _args: Event<Click>) {

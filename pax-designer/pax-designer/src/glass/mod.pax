@@ -5,6 +5,8 @@
     @drop=handle_drop
 >
     <WireframeEditor/>
+    // <SelectionTool/>
+
     if self.is_rect_tool_active {
         <Rectangle id=rect_tool
             x={self.rect_tool.x}
