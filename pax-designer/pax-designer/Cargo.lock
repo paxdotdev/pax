@@ -1937,7 +1937,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-compiler"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "log",
  "pax-compiler",
@@ -2032,7 +2032,7 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "pest",
  "pest_derive",
@@ -2040,7 +2040,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "litrs",
  "pax-lang",
@@ -2056,7 +2056,7 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "log",
  "pax-lang",
@@ -2068,7 +2068,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "serde",
  "wasm-bindgen",
@@ -2076,7 +2076,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2095,7 +2095,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2109,7 +2109,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.15.2"
+version = "0.15.4"
 dependencies = [
  "kurbo",
  "lazy_static",

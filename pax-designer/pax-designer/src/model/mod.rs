@@ -8,9 +8,6 @@ use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
-use crate::EDIT_MODE_STAGE_GROUP;
-use crate::SCHIM_COMPONENT;
-use crate::USERLAND_EDIT_ID;
 use crate::USER_PROJ_ROOT_COMPONENT;
 use crate::USER_PROJ_ROOT_IMPORT_PATH;
 use action::Action;
@@ -74,6 +71,11 @@ pub fn init_model(ctx: &NodeContext) {
     );
     let app_state = AppState {
         selected_component_id: Property::new(userland_project_root_type_id.to_owned()),
+        stage: Property::new(StageInfo {
+            width: 1380,
+            height: 786,
+            color: Color::WHITE,
+        }),
         ..Default::default()
     };
 
@@ -121,56 +123,8 @@ pub fn init_model(ctx: &NodeContext) {
         },
         &deps,
     );
-    let ctx = ctx.clone();
-    let deps = [manifest_ver.untyped()];
-    let stage = Property::computed(
-        move || {
-            let mut dt = borrow_mut!(ctx.designtime);
-            let orm = dt.get_orm_mut();
-            let mut builder = orm
-                .get_node_by_str_id(
-                    &TypeId::build_singleton(SCHIM_COMPONENT, None),
-                    EDIT_MODE_STAGE_GROUP,
-                )
-                .unwrap();
-            let props: Vec<(PropertyDefinition, Option<ValueDefinition>)> =
-                builder.get_all_properties();
-            let height = props
-                .iter()
-                .find_map(|(p, v)| {
-                    if p.name == "height" {
-                        if let Some(ValueDefinition::LiteralValue(v)) = v {
-                            return Some(v.raw_value.clone());
-                        }
-                    }
-                    None
-                })
-                .unwrap();
-            let width = props
-                .iter()
-                .find_map(|(p, v)| {
-                    if p.name == "width" {
-                        if let Some(ValueDefinition::LiteralValue(v)) = v {
-                            return Some(v.raw_value.clone());
-                        }
-                    }
-                    None
-                })
-                .unwrap();
-            let (width, height): (f64, f64) = (
-                width.trim_end_matches("px").parse().unwrap(),
-                height.trim_end_matches("px").parse().unwrap(),
-            );
-            StageInfo {
-                width: width.round() as u32,
-                height: height.round() as u32,
-                color: Color::WHITE,
-            }
-        },
-        &deps,
-    );
+
     let derived_state = DerivedAppState {
-        stage,
         selected_bounds,
         open_containers,
     };
@@ -212,6 +166,12 @@ pub struct AppState {
     pub selected_template_node_ids: Property<Vec<TemplateNodeId>>,
 
     //---------------glass------------------
+    /// Size and color of the glass stage for the current view, this is the
+    /// container that objects sized based on percentage in the view is sized
+    /// from.
+    /// INVALID_IF: no invalid states, but should probably not be very small
+    /// or be of a very ugly color!
+    pub stage: Property<StageInfo>,
     /// Glass to world/viewport to world camera transform.
     /// INVALID_IF: Composed of other transforms than uniform (positive) scaling
     /// and translation.
@@ -329,12 +289,6 @@ pub struct SelectedItem {
 // This represents values that can be deterministically produced from the app
 // state and the projects manifest
 pub struct DerivedAppState {
-    /// Size and color of the glass stage for the current view, this is the
-    /// container that objects sized based on percentage in the view is sized
-    /// from.
-    /// INVALID_IF: no invalid states, but should probably not be very small
-    /// or be of a very ugly color!
-    pub stage: Property<StageInfo>,
     pub selected_bounds: Property<SelectionState>,
     // The currently open containers are the parents of the currently selected nodes
     pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
