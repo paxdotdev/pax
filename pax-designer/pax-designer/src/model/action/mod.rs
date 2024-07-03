@@ -2,7 +2,6 @@ use std::{rc::Rc, sync::Arc};
 
 use super::{DerivedAppState, SelectedItem, SelectionState};
 use crate::math::coordinate_spaces::World;
-use crate::USERLAND_EDIT_ID;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
@@ -103,10 +102,7 @@ impl ActionContext<'_> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point);
 
-        let userland = self
-            .engine_context
-            .get_nodes_by_id(USERLAND_EDIT_ID)
-            .pop()?;
+        let userland = self.engine_context.get_nodes_by_id(ROOT_PROJECT_ID).pop()?;
         let userland_id = userland.global_id();
 
         let mut potential_targets = all_elements_beneath_ray

@@ -31,14 +31,9 @@ pub mod project_mode_toggle;
 use llm_interface::LLMInterface;
 
 pub const ROOT_PROJECT_ID: &'static str = "userland_project";
-pub const USERLAND_EDIT_ID: &'static str = "userland_project_edit_root";
 pub const DESIGNER_GLASS_ID: &'static str = "designer_glass";
-pub const RUNNING_MODE_STAGE_GROUP: &'static str = "running_mode_stage_group";
-pub const EDIT_MODE_STAGE_GROUP: &'static str = "edit_mode_stage_group";
-pub const SCHIM_COMPONENT: &str = "pax_designer::pax_reexports::designer_project::Example";
-pub const USER_PROJ_ROOT_IMPORT_PATH: &str =
-    "pax_designer::pax_reexports::designer_project::userland";
-pub const USER_PROJ_ROOT_COMPONENT: &str = "Userland";
+pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "pax_designer::pax_reexports::designer_project";
+pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
 
 #[pax]
 #[main]
@@ -67,9 +62,8 @@ impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::init_model(ctx);
 
-        model::read_app_state_with_derived(|app_state, derived| {
-            let stage = derived.stage.clone();
-            // init stage to some reasonable size
+        model::read_app_state(|app_state| {
+            let stage = app_state.stage.clone();
             let deps = [stage.untyped()];
             self.stage
                 .replace_with(Property::computed(move || stage.get(), &deps));
@@ -111,30 +105,7 @@ pub struct SetStage(pub StageInfo);
 
 impl Action for SetStage {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let orm = dt.get_orm_mut();
-
-        // Set scroll height (play mode)
-        let mut builder = orm
-            .get_node_by_str_id(
-                &TypeId::build_singleton(SCHIM_COMPONENT, None),
-                RUNNING_MODE_STAGE_GROUP,
-            )
-            .ok_or_else(|| anyhow!("cound't find node"))?;
-        builder.set_property("scroll_height", &format!("{}px", self.0.height))?;
-        builder.save().map_err(|_| anyhow!("cound't find node"))?;
-
-        // Set width/height (edit mode)
-        let mut builder = orm
-            .get_node_by_str_id(
-                &TypeId::build_singleton(SCHIM_COMPONENT, None),
-                EDIT_MODE_STAGE_GROUP,
-            )
-            .ok_or_else(|| anyhow!("cound't find node"))?;
-        builder.set_property("height", &format!("{}px", self.0.height))?;
-        builder.set_property("width", &format!("{}px", self.0.width))?;
-        builder.save().map_err(|_| anyhow!("cound't find node"))?;
-
+        ctx.app_state.stage.set(self.0);
         Ok(CanUndo::No)
     }
 }

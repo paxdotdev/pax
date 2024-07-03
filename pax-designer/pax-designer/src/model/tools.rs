@@ -177,7 +177,7 @@ impl PointerTool {
             }
         } else {
             // resize stage if we are at edge
-            let stage = ctx.derived_state.stage.get();
+            let stage = ctx.app_state.stage.get();
             let world_point = ctx.world_transform() * point;
             if (world_point.y - stage.height as f64).abs() < 10.0 {
                 Self {
@@ -241,7 +241,7 @@ impl ToolBehaviour for PointerTool {
             PointerToolAction::Selecting { ref mut p2, .. } => *p2 = point,
             PointerToolAction::ResizingStage(dir) => {
                 let world_point = ctx.world_transform() * point;
-                let size_before = ctx.derived_state.stage.get();
+                let size_before = ctx.app_state.stage.get();
                 let (new_width, new_height) = match dir {
                     ResizeStageDim::Height => (size_before.width, world_point.y as u32),
                     ResizeStageDim::Width => (world_point.x as u32, size_before.height),

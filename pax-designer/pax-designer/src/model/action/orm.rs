@@ -9,8 +9,8 @@ use crate::math::{
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNodes;
 use crate::model::{RuntimeNodeInfo, SelectionStateSnapshot};
+use crate::ROOT_PROJECT_ID;
 use crate::{math::BoxPoint, model, model::AppState};
-use crate::{SCHIM_COMPONENT, USERLAND_EDIT_ID};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_designtime::orm::MoveToComponentEntry;
@@ -54,7 +54,7 @@ impl Action for CreateComponent<'_> {
                 .save()
                 .map_err(|e| anyhow!("could not save: {}", e))?
         };
-        let stage = ctx.derived_state.stage.get();
+        let stage = ctx.app_state.stage.get();
 
         ctx.execute(SetNodePropertiesFromTransform::<World> {
             id: save_data.unique_id.clone(),
@@ -508,7 +508,7 @@ impl Action for MoveNode {
         let new_parent_uid = self.new_parent.global_id().unwrap();
         let parent_location = if ctx
             .engine_context
-            .get_nodes_by_id(USERLAND_EDIT_ID)
+            .get_nodes_by_id(ROOT_PROJECT_ID)
             .first()
             .unwrap()
             .global_id()

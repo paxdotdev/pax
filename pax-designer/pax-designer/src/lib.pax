@@ -16,7 +16,7 @@ if self.glass_active {
                         id=userland_project
                     />
                 </Group>
-                <Rectangle fill={self.stage.color}/>
+                <Rectangle width={self.stage.width} height={self.stage.height} fill={self.stage.color}/>
                 <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
             </Group>
         </Group>
