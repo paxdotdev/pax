@@ -159,14 +159,14 @@ impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
         if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top, &[]) {
             let node_id = hit.global_id().unwrap();
-            let selected = ctx.selection_state();
+            let selected = ctx.derived_state.selection_state.get();
             if !selected.items.iter().any(|s| s.id == node_id) {
                 let _ = ctx.execute(SelectNodes {
                     ids: &[node_id.get_template_node_id()],
                     overwrite: false,
                 });
             }
-            let selection = ctx.selection_state();
+            let selection = ctx.derived_state.selection_state.get();
             Self {
                 action: PointerToolAction::Moving {
                     hit,

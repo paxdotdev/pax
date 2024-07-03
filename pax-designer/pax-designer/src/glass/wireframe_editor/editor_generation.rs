@@ -72,7 +72,7 @@ impl Editor {
 
         fn rotate_factory() -> ControlPointBehaviourFactory {
             Rc::new(|ctx, point| {
-                let initial_selection = (&ctx.selection_state()).into();
+                let initial_selection = (&ctx.derived_state.selection_state.get()).into();
                 Rc::new(RefCell::new(RotationBehaviour {
                     start_pos: point,
                     initial_selection,
@@ -126,7 +126,7 @@ impl Editor {
             Rc::new(move |ac, _p| {
                 Rc::new(RefCell::new(ResizeBehaviour {
                     attachment_point: anchor,
-                    initial_selection: (&ac.selection_state()).into(),
+                    initial_selection: (&ac.derived_state.selection_state.get()).into(),
                 }))
             })
         }
@@ -204,7 +204,10 @@ impl Editor {
         fn anchor_factory() -> ControlPointBehaviourFactory {
             Rc::new(move |ac, _p| {
                 Rc::new(RefCell::new(AnchorBehaviour {
-                    initial_object: (&ac.selection_state()).items.first().map(Into::into),
+                    initial_object: (&ac.derived_state.selection_state.get())
+                        .items
+                        .first()
+                        .map(Into::into),
                 }))
             })
         }

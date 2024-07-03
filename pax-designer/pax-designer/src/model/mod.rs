@@ -8,6 +8,7 @@ use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
+use crate::DESIGNER_GLASS_ID;
 use crate::USER_PROJ_ROOT_COMPONENT;
 use crate::USER_PROJ_ROOT_IMPORT_PATH;
 use action::Action;
@@ -24,6 +25,7 @@ use pax_engine::log;
 use pax_engine::math::Generic;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::pax;
+use pax_engine::NodeInterface;
 use pax_engine::NodeLocal;
 use pax_engine::Property;
 use pax_engine::{api::NodeContext, math::Point2};
@@ -34,6 +36,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_manifest::ValueDefinition;
 use pax_runtime_api::borrow;
 use pax_runtime_api::borrow_mut;
+use pax_runtime_api::Window;
 use std::any::Any;
 use std::cell::OnceCell;
 use std::cell::RefCell;
@@ -42,101 +45,13 @@ use std::ops::ControlFlow;
 use std::rc::Rc;
 
 use crate::math::coordinate_spaces::{self, Glass};
+mod selection_state;
+pub use selection_state::*;
 
 use self::action::pointer::Pointer;
 use self::action::pointer::PointerAction;
 use self::action::UndoStack;
 use self::input::{Dir, InputEvent, InputMapper};
-
-const INITIALIZED: &'static str = "model should have been initialized";
-
-// Needs to be changed if we use a multithreaded async runtime
-thread_local! {
-    static GLOBAL_STATE: RefCell<Option<GlobalDesignerState>> = RefCell::new(None);
-}
-
-pub struct GlobalDesignerState {
-    pub undo_stack: UndoStack,
-    pub app_state: AppState,
-    pub derived_state: DerivedAppState,
-}
-
-pub fn init_model(ctx: &NodeContext) {
-    let userland_project_root_type_id = TypeId::build_singleton(
-        &format!(
-            "{}::{}",
-            USER_PROJ_ROOT_IMPORT_PATH, USER_PROJ_ROOT_COMPONENT
-        ),
-        None,
-    );
-    let app_state = AppState {
-        selected_component_id: Property::new(userland_project_root_type_id.to_owned()),
-        stage: Property::new(StageInfo {
-            width: 1380,
-            height: 786,
-            color: Color::WHITE,
-        }),
-        ..Default::default()
-    };
-
-    let cp_ctx = ctx.clone();
-    let comp_id = app_state.selected_component_id.clone();
-    let node_ids = app_state.selected_template_node_ids.clone();
-    // NOTE: ideally, the dependencies below are at some point removed and
-    // replaced by a direct property dependency of expanded nodes in the engine
-    // itself
-    let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
-
-    let deps = [
-        comp_id.untyped(),
-        node_ids.untyped(),
-        manifest_ver.untyped(),
-    ];
-    let selected_bounds = Property::computed(
-        move || {
-            let selected_bounds = with_action_context(&cp_ctx, |ac| ac.selection_state());
-            selected_bounds
-        },
-        &deps,
-    );
-
-    let selected_comp = app_state.selected_component_id.clone();
-    let node_ids = app_state.selected_template_node_ids.clone();
-    let cp_ctx = ctx.clone();
-    let deps = [selected_comp.untyped(), node_ids.untyped()];
-    let open_containers = Property::computed(
-        move || {
-            let mut containers = vec![];
-            for n in node_ids.get() {
-                let uid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), n);
-                let interface = cp_ctx.get_nodes_by_global_id(uid);
-                let parent_uid = interface
-                    .first()
-                    .unwrap()
-                    .template_parent()
-                    .unwrap()
-                    .global_id()
-                    .unwrap();
-                containers.push(parent_uid);
-            }
-            containers
-        },
-        &deps,
-    );
-
-    let derived_state = DerivedAppState {
-        selected_bounds,
-        open_containers,
-    };
-
-    GLOBAL_STATE.with_borrow_mut(|state| {
-        *state = Some(GlobalDesignerState {
-            undo_stack: UndoStack::default(),
-            app_state,
-            derived_state,
-        })
-    })
-}
 
 /// Represents the global source-of-truth for the desinger.
 /// Invalid if any of the bellow :INVALID_IF: statements hold true.
@@ -207,16 +122,199 @@ pub struct AppState {
     pub input_mapper: Property<InputMapper>,
 }
 
+// This represents values that can be deterministically produced from the app
+// state and the projects manifest
+pub struct DerivedAppState {
+    pub to_glass_transform: Property<Property<Transform2<Window, Glass>>>,
+    pub selected_nodes: Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
+    pub selection_state: Property<SelectionState>,
+    pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
+}
+
+const INITIALIZED: &'static str = "model should have been initialized";
+
+// Needs to be changed if we use a multithreaded async runtime
+thread_local! {
+    static MODEL: RefCell<Option<Model>> = RefCell::new(None);
+}
+
+pub struct Model {
+    pub undo_stack: UndoStack,
+    pub app_state: AppState,
+    pub derived_state: DerivedAppState,
+}
+
+impl Model {
+    pub fn init(ctx: &NodeContext) {
+        let app_state = Self::create_initial_app_state();
+        let derived_state = Self::create_derived_state(ctx, &app_state);
+
+        MODEL.with_borrow_mut(|state| {
+            *state = Some(Model {
+                undo_stack: UndoStack::default(),
+                app_state,
+                derived_state,
+            })
+        });
+    }
+
+    fn create_initial_app_state() -> AppState {
+        let userland_project_root_type_id = TypeId::build_singleton(
+            &format!(
+                "{}::{}",
+                USER_PROJ_ROOT_IMPORT_PATH, USER_PROJ_ROOT_COMPONENT
+            ),
+            None,
+        );
+        AppState {
+            selected_component_id: Property::new(userland_project_root_type_id.to_owned()),
+            stage: Property::new(StageInfo {
+                width: 1380,
+                height: 786,
+                color: Color::WHITE,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn create_derived_state(ctx: &NodeContext, app_state: &AppState) -> DerivedAppState {
+        let selected_nodes = Self::derive_selected_nodes(ctx, app_state);
+        let to_glass_transform = Self::derive_to_glass_transform(ctx);
+        let selection_state =
+            Self::derive_selection_state(selected_nodes.clone(), to_glass_transform.clone());
+        let open_containers = Self::derive_open_containers(ctx, app_state);
+
+        DerivedAppState {
+            to_glass_transform,
+            selection_state,
+            open_containers,
+            selected_nodes,
+        }
+    }
+
+    fn derive_selected_nodes(
+        ctx: &NodeContext,
+        app_state: &AppState,
+    ) -> Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>> {
+        let comp_id = app_state.selected_component_id.clone();
+        let node_ids = app_state.selected_template_node_ids.clone();
+        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let ctx_cp = ctx.clone();
+
+        let deps = [
+            comp_id.untyped(),
+            node_ids.untyped(),
+            manifest_ver.untyped(),
+        ];
+
+        Property::computed(
+            move || {
+                let type_id = comp_id.get();
+                let mut nodes = vec![];
+                let mut selected_ids = node_ids.get();
+                let mut discarded = false;
+                selected_ids.retain(|id| {
+                    let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
+                    let Some(node) = ctx_cp
+                        .get_nodes_by_global_id(unid.clone())
+                        .into_iter()
+                        .next()
+                    else {
+                        discarded = true;
+                        return false;
+                    };
+                    nodes.push((unid, node));
+                    true
+                });
+                if discarded {
+                    node_ids.set(selected_ids);
+                }
+                nodes
+            },
+            &deps,
+        )
+    }
+
+    fn derive_to_glass_transform(
+        ctx: &NodeContext,
+    ) -> Property<Property<Transform2<Window, Glass>>> {
+        let ctx_cp = ctx.clone();
+        Property::computed(
+            move || {
+                let container = ctx_cp.get_nodes_by_id(DESIGNER_GLASS_ID);
+                if let Some(userland_proj) = container.first() {
+                    let t_and_b = userland_proj.transform_and_bounds();
+                    let deps = [t_and_b.untyped()];
+                    Property::computed(
+                        move || {
+                            t_and_b
+                                .get()
+                                .transform
+                                .inverse()
+                                .cast_spaces::<Window, Glass>()
+                        },
+                        &deps,
+                    )
+                } else {
+                    panic!("no userland project")
+                }
+            },
+            &[],
+        )
+    }
+
+    fn derive_selection_state(
+        selected_nodes: Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
+        to_glass_transform: Property<Property<Transform2<Window, Glass>>>,
+    ) -> Property<SelectionState> {
+        let deps = [selected_nodes.untyped(), to_glass_transform.untyped()];
+        Property::computed(
+            move || SelectionState::new(selected_nodes.get(), to_glass_transform.get()),
+            &deps,
+        )
+    }
+
+    fn derive_open_containers(
+        ctx: &NodeContext,
+        app_state: &AppState,
+    ) -> Property<Vec<UniqueTemplateNodeIdentifier>> {
+        let selected_comp = app_state.selected_component_id.clone();
+        let node_ids = app_state.selected_template_node_ids.clone();
+        let ctx_cp = ctx.clone();
+
+        let deps = [selected_comp.untyped(), node_ids.untyped()];
+        Property::computed(
+            move || {
+                let mut containers = vec![];
+                for n in node_ids.get() {
+                    let uid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), n);
+                    let interface = ctx_cp.get_nodes_by_global_id(uid);
+                    let parent_uid = interface
+                        .first()
+                        .unwrap()
+                        .template_parent()
+                        .unwrap()
+                        .global_id()
+                        .unwrap();
+                    containers.push(parent_uid);
+                }
+                containers
+            },
+            &deps,
+        )
+    }
+}
+
 pub fn read_app_state<T>(closure: impl FnOnce(&AppState) -> T) -> T {
-    GLOBAL_STATE.with_borrow_mut(|model| closure(&model.as_ref().expect(INITIALIZED).app_state))
+    MODEL.with_borrow_mut(|model| closure(&model.as_ref().expect(INITIALIZED).app_state))
 }
 
 pub fn with_action_context<R: 'static>(
     ctx: &NodeContext,
     func: impl FnOnce(&mut ActionContext) -> R,
 ) -> R {
-    GLOBAL_STATE.with_borrow_mut(|model| {
-        let GlobalDesignerState {
+    MODEL.with_borrow_mut(|model| {
+        let Model {
             ref mut undo_stack,
             ref mut app_state,
             ref mut derived_state,
@@ -231,73 +329,8 @@ pub fn with_action_context<R: 'static>(
     })
 }
 
-impl Interpolatable for SelectionState {}
-
-pub struct Selection {}
-#[derive(Clone, Default)]
-pub struct SelectionState {
-    pub total_bounds: Property<TransformAndBounds<SelectionSpace, Glass>>,
-    // Either center if multiple objects selected, or the anchor point for single objects
-    pub total_origin: Property<Point2<Glass>>,
-    pub items: Vec<SelectedItem>,
-}
-
-pub struct SelectionStateSnapshot {
-    pub total_bounds: TransformAndBounds<SelectionSpace, Glass>,
-    pub total_origin: Point2<Glass>,
-    pub items: Vec<RuntimeNodeInfo>,
-}
-
-pub struct RuntimeNodeInfo {
-    pub id: UniqueTemplateNodeIdentifier,
-    pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
-    pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
-    pub origin: Point2<Glass>,
-    pub layout_properties: LayoutProperties,
-}
-
-impl From<&SelectionState> for SelectionStateSnapshot {
-    fn from(value: &SelectionState) -> Self {
-        Self {
-            total_bounds: value.total_bounds.get(),
-            total_origin: value.total_origin.get(),
-            items: value.items.iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<&SelectedItem> for RuntimeNodeInfo {
-    fn from(itm: &SelectedItem) -> Self {
-        RuntimeNodeInfo {
-            id: itm.id.clone(),
-            origin: itm.origin.get(),
-            transform_and_bounds: itm.transform_and_bounds.get(),
-            parent_transform_and_bounds: itm.parent_transform_and_bounds.get(),
-            layout_properties: itm.layout_properties.clone(),
-        }
-    }
-}
-
-#[derive(Default, Clone)]
-pub struct SelectedItem {
-    // unit rectangle to object bounds transform
-    pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
-    pub parent_transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
-    pub origin: Property<Point2<Glass>>,
-    pub layout_properties: LayoutProperties,
-    pub id: UniqueTemplateNodeIdentifier,
-}
-
-// This represents values that can be deterministically produced from the app
-// state and the projects manifest
-pub struct DerivedAppState {
-    pub selected_bounds: Property<SelectionState>,
-    // The currently open containers are the parents of the currently selected nodes
-    pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
-}
-
 pub fn read_app_state_with_derived<V>(closure: impl FnOnce(&AppState, &DerivedAppState) -> V) -> V {
-    GLOBAL_STATE.with_borrow(|model| {
+    MODEL.with_borrow(|model| {
         let model = model.as_ref().expect(INITIALIZED);
         closure(&model.app_state, &model.derived_state)
     })
@@ -312,7 +345,7 @@ pub fn perform_action(action: impl Action, ctx: &NodeContext) {
 pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     // useful! keeping around for now
     // pax_engine::log::info!("key {:?}: {}", dir, input);
-    let action = GLOBAL_STATE.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
+    let action = MODEL.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
         let raw_input = RawInput::try_from(input)?;
         let AppState {
             ref mut input_mapper,
@@ -387,13 +420,6 @@ pub enum ProjectMode {
     #[default]
     Edit,
     Playing,
-}
-
-#[derive(Clone)]
-pub enum ControlPointPos {
-    First,
-    Middle,
-    Last,
 }
 
 #[pax]

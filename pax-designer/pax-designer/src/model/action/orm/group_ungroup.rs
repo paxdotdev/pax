@@ -33,7 +33,7 @@ pub struct GroupSelected {}
 
 impl Action for GroupSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected: SelectionStateSnapshot = (&ctx.selection_state()).into();
+        let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
 
         // ------------ Figure out the location the group should be at ---------
         let Some(root) = selected.items.first() else {
@@ -142,7 +142,7 @@ pub struct UngroupSelected {}
 
 impl Action for UngroupSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected: SelectionStateSnapshot = (&ctx.selection_state()).into();
+        let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
         let userland_proj_uid = ctx
             .engine_context
             .get_nodes_by_id(ROOT_PROJECT_ID)
