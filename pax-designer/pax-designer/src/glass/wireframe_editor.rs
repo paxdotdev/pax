@@ -49,7 +49,7 @@ thread_local!(
 impl WireframeEditor {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         let selected = model::read_app_state_with_derived(|_, derived_state| {
-            derived_state.selected_bounds.clone()
+            derived_state.selection_state.clone()
         });
         let selected_cp = selected.clone();
         let deps = [selected.untyped()];

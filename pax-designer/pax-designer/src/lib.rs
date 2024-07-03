@@ -46,7 +46,7 @@ pub struct PaxDesigner {
 
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        model::init_model(ctx);
+        model::Model::init(ctx);
         model::read_app_state(|app_state| {
             self.bind_stage_property(&app_state);
             self.bind_transform2d_property(&app_state);

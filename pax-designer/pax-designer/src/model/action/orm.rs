@@ -88,7 +88,7 @@ pub struct SelectedIntoNewComponent {}
 
 impl Action for SelectedIntoNewComponent {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selection = ctx.selection_state();
+        let selection = ctx.derived_state.selection_state.get();
         if selection.items.len() == 0 {
             return Err(anyhow!("can't create new embty component"));
         };
