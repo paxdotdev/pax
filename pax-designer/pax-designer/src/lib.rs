@@ -29,6 +29,13 @@ use project_mode_toggle::ProjectModeToggle;
 
 use designer_project::Example;
 
+// TODO:
+// clean up glass::on_double_click
+// remove with_action_context and make everything actions?
+
+// Things to decide:
+// - Who/what should be allowed to modify model state? (harder to encode when everything is Properties)
+
 pub const ROOT_PROJECT_ID: &str = "userland_project";
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
 pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "pax_designer::pax_reexports::designer_project";

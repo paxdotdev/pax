@@ -6,7 +6,7 @@ use super::action::orm::{CreateComponent, SetNodePropertiesFromTransform};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo, RaycastMode};
 use super::input::InputEvent;
-use super::{RuntimeNodeInfo, SelectionStateSnapshot, StageInfo};
+use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::RectTool;
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
@@ -305,8 +305,11 @@ impl ToolBehaviour for PointerTool {
                                 curr = curr.render_parent().unwrap();
                             }
                             if let Err(e) = ctx.execute(MoveNode {
-                                node: hit.clone(),
-                                new_parent: cc,
+                                node_id: &hit.global_id().unwrap(),
+                                node_transform_and_bounds: &hit.transform_and_bounds().get(),
+                                node_inv_config: InversionConfiguration::default(),
+                                new_parent_transform_and_bounds: &cc.transform_and_bounds().get(),
+                                new_parent_uid: &cc.global_id().unwrap(),
                                 index: pax_manifest::TreeIndexPosition::At(
                                     slot_index.unwrap() as usize
                                 ),

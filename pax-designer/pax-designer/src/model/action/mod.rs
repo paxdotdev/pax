@@ -1,6 +1,7 @@
+use std::any::Any;
 use std::{rc::Rc, sync::Arc};
 
-use super::{DerivedAppState, SelectedItem, SelectionState};
+use super::{DerivedAppState, GlassNode, SelectionState};
 use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
