@@ -8,7 +8,7 @@ use crate::math::{
 };
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNodes;
-use crate::model::{RuntimeNodeInfo, SelectionStateSnapshot};
+use crate::model::{GlassNodeSnapshot, SelectionStateSnapshot};
 use crate::ROOT_PROJECT_ID;
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
@@ -226,7 +226,7 @@ impl<T: Space> Action for SetNodePropertiesFromTransform<T> {
 }
 
 pub struct SetAnchor<'a> {
-    pub object: &'a RuntimeNodeInfo,
+    pub object: &'a GlassNodeSnapshot,
     pub point: Point2<NodeLocal>,
 }
 
@@ -432,7 +432,7 @@ impl Action for UndoRequested {
 
 impl Action for DeleteSelected {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let selected = &ctx.app_state.selected_template_node_ids.get();
+        let selected = ctx.app_state.selected_template_node_ids.get();
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         for s in selected {
             let uid = UniqueTemplateNodeIdentifier::build(
@@ -473,9 +473,12 @@ pub fn write_to_orm<T: Serialize + Default + PartialEq>(
     Ok(())
 }
 
-pub struct MoveNode {
-    pub node: NodeInterface,
-    pub new_parent: NodeInterface,
+pub struct MoveNode<'a, S> {
+    pub node_id: &'a UniqueTemplateNodeIdentifier,
+    pub node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
+    pub node_inv_config: InversionConfiguration,
+    pub new_parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
+    pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
     pub index: TreeIndexPosition,
     pub resize_mode: ResizeNode,
 }
@@ -485,48 +488,47 @@ pub enum ResizeNode {
     KeepScreenBounds,
 }
 
-impl Action for MoveNode {
+impl<S: Space> Action for MoveNode<'_, S> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let node_uid = self.node.global_id().unwrap();
         match self.resize_mode {
             ResizeNode::KeepScreenBounds => ctx.execute(SetNodePropertiesFromTransform {
-                id: node_uid.clone(),
-                transform_and_bounds: self.node.transform_and_bounds().get(),
-                parent_transform_and_bounds: self.new_parent.transform_and_bounds().get(),
-                inv_config: self.node.layout_properties().into_inv_config(),
+                id: self.node_id.clone(),
+                transform_and_bounds: self.node_transform_and_bounds.clone(),
+                parent_transform_and_bounds: self.new_parent_transform_and_bounds.clone(),
+                inv_config: self.node_inv_config,
             })?,
             ResizeNode::Fill => ctx.execute(SetNodeProperties {
-                id: node_uid.clone(),
+                id: self.node_id.clone(),
                 properties: LayoutProperties::fill(),
             })?,
         }
 
-        let new_parent_uid = self.new_parent.global_id().unwrap();
         let parent_location = if ctx
             .engine_context
             .get_nodes_by_id(ROOT_PROJECT_ID)
             .first()
             .unwrap()
             .global_id()
-            == Some(new_parent_uid.clone())
+            == Some(self.new_parent_uid.clone())
         {
             NodeLocation::new(
-                node_uid.get_containing_component_type_id(),
+                self.node_id.get_containing_component_type_id(),
                 TreeLocation::Root,
                 self.index,
             )
         } else {
             NodeLocation::new(
-                node_uid.get_containing_component_type_id(),
-                TreeLocation::Parent(new_parent_uid.get_template_node_id()),
+                self.node_id.get_containing_component_type_id(),
+                TreeLocation::Parent(self.new_parent_uid.get_template_node_id()),
                 self.index,
             )
         };
+
         {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let _undo_id = dt
                 .get_orm_mut()
-                .move_node(node_uid.clone(), parent_location)
+                .move_node(self.node_id.clone(), parent_location)
                 .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
         }
 

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::CanUndo;
 use super::{Action, ActionContext};
-use crate::context_menu::ContextMenuMessage;
+use crate::context_menu::ContextMenuMsg;
 use crate::math::coordinate_spaces::Glass;
 use crate::model::action::world::Pan;
 use crate::model::input::InputEvent;
@@ -49,12 +49,12 @@ impl Action for PointerAction<'_> {
             (self.event, self.button.clone()),
             (Pointer::Down, MouseButton::Right)
         ) {
-            ctx.execute(ContextMenuMessage::Open { pos: point_glass })?;
+            ctx.execute(ContextMenuMsg::Open { pos: point_glass })?;
             return Ok(CanUndo::No);
         }
 
         if matches!(self.event, Pointer::Down) {
-            ctx.execute(ContextMenuMessage::Close)?;
+            ctx.execute(ContextMenuMsg::Close)?;
         }
 
         // If no tool is active, activate a tool on mouse down

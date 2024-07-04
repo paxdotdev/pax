@@ -9,13 +9,13 @@ use pax_std::components::*;
 use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
+use std::fmt::Write;
 
 pub mod fill_property_editor;
 pub mod stroke_property_editor;
 pub mod text_property_editor;
 
 use fill_property_editor::FillPropertyEditor;
-use std::fmt::Write;
 use stroke_property_editor::StrokePropertyEditor;
 use text_property_editor::TextPropertyEditor;
 
