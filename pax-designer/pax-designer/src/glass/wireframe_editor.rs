@@ -24,7 +24,7 @@ use crate::math::coordinate_spaces::{Glass, SelectionSpace};
 use crate::math::{AxisAlignedBox, BoxPoint, GetUnit, SizeUnit};
 use crate::model::action::orm::{write_to_orm, SetAnchor};
 use crate::model::action::ActionContext;
-use crate::model::{self, action, RuntimeNodeInfo, SelectionState, SelectionStateSnapshot};
+use crate::model::{self, action, GlassNodeSnapshot, SelectionState, SelectionStateSnapshot};
 use pax_engine::api::Fill;
 
 mod editor_generation;

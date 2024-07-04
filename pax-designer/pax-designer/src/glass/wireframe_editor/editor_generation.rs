@@ -13,7 +13,7 @@ use crate::{
     },
     model::{
         action::{self, ActionContext},
-        RuntimeNodeInfo, SelectionState, SelectionStateSnapshot, ToolBehaviour,
+        GlassNodeSnapshot, SelectionState, SelectionStateSnapshot, ToolBehaviour,
     },
 };
 
@@ -183,7 +183,7 @@ impl Editor {
 
     fn anchor_control_point_set(anchor: Point2<Glass>) -> ControlPointSet {
         struct AnchorBehaviour {
-            initial_object: Option<RuntimeNodeInfo>,
+            initial_object: Option<GlassNodeSnapshot>,
         }
 
         impl ControlPointBehaviour for AnchorBehaviour {

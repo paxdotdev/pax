@@ -26,7 +26,7 @@ impl DesignerContextMenu {
         let msg_src = CONTEXT_MENU_PROP.with(|ctx_menu_msg| ctx_menu_msg.clone());
         let deps = [msg_src.untyped()];
         self.visible.replace_with(Property::computed(
-            move || matches!(msg_src.get(), ContextMenuMessage::Open { .. }),
+            move || matches!(msg_src.get(), ContextMenuMsg::Open { .. }),
             &deps,
         ));
     }
@@ -38,7 +38,7 @@ impl DesignerContextMenu {
         let msg = msg_src.clone();
         self.pos_x.replace_with(Property::computed(
             move || {
-                if let ContextMenuMessage::Open { pos } = msg.get() {
+                if let ContextMenuMsg::Open { pos } = msg.get() {
                     pos.x
                 } else {
                     0.0
@@ -50,7 +50,7 @@ impl DesignerContextMenu {
         let msg = msg_src.clone();
         self.pos_y.replace_with(Property::computed(
             move || {
-                if let ContextMenuMessage::Open { pos } = msg.get() {
+                if let ContextMenuMsg::Open { pos } = msg.get() {
                     pos.y
                 } else {
                     0.0
@@ -81,11 +81,11 @@ impl DesignerContextMenu {
 }
 
 thread_local! {
-    static CONTEXT_MENU_PROP: Property<ContextMenuMessage> = Property::new(ContextMenuMessage::Close);
+    static CONTEXT_MENU_PROP: Property<ContextMenuMsg> = Property::new(ContextMenuMsg::Close);
 }
 
 #[derive(Clone, Default)]
-pub enum ContextMenuMessage {
+pub enum ContextMenuMsg {
     Open {
         pos: Point2<Glass>,
     },
@@ -93,9 +93,9 @@ pub enum ContextMenuMessage {
     Close,
 }
 
-impl Interpolatable for ContextMenuMessage {}
+impl Interpolatable for ContextMenuMsg {}
 
-impl Action for ContextMenuMessage {
+impl Action for ContextMenuMsg {
     fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
         CONTEXT_MENU_PROP.with(|context_menu_msg| context_menu_msg.set(*self));
         Ok(CanUndo::No)
