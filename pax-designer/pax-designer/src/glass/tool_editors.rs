@@ -115,5 +115,7 @@ impl ToolBehaviour for TextEditTool {
         ControlFlow::Continue(())
     }
 
-    fn visualize(&self, _glass: &mut crate::glass::Glass) {}
+    fn get_visual(&self) -> Property<super::ToolVisualizationState> {
+        Property::new(super::ToolVisualizationState::default())
+    }
 }

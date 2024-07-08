@@ -21,6 +21,7 @@ pub struct SelectionState {
     pub items: Vec<GlassNode>,
 }
 
+#[derive(Default, Clone)]
 pub struct SelectionStateSnapshot {
     pub total_bounds: TransformAndBounds<SelectionSpace, Glass>,
     pub total_origin: Point2<Glass>,
@@ -187,6 +188,7 @@ impl GlassNode {
     }
 }
 
+#[derive(Default, Clone)]
 pub struct GlassNodeSnapshot {
     pub id: UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,

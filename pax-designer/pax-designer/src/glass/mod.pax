@@ -5,21 +5,43 @@
     @drop=handle_drop
 >
     <WireframeEditor/>
-    // <SelectionTool/>
 
-    if self.is_rect_tool_active {
-        <Rectangle id=rect_tool
-            x={self.rect_tool.x}
-            y={self.rect_tool.y}
-            width={self.rect_tool.width}
-            height={self.rect_tool.height}
+    // -------------- tool editing visuals --------------
+
+
+    // Outline visual
+    <Group>
+        <Path 
+            elements={self.tool_visual.outline}
+            stroke={
+                color: BLUE
+                width: 1px
+            }
+            fill=TRANSPARENT
+            raycast=false
         />
-    }
+    </Group>
+
+    // Rectangle visual
+    <Group>
+        <Rectangle id=rect_tool
+            x={self.tool_visual.rect_tool.x}
+            y={self.tool_visual.rect_tool.y}
+            width={self.tool_visual.rect_tool.width}
+            height={self.tool_visual.rect_tool.height}
+            raycast=false
+        />
+    </Group>
+
+
+    // ------------------------------------------------
+  
     <Rectangle id=backing_plate  @mouse_down=handle_mouse_down/>
 </Group>
 
 @settings {
-    @pre_render: update_tool_visual,
+    @mount: on_mount,
+    @pre_render: on_pre_render,
     @key_down: handle_key_down,
     @key_up: handle_key_up,
     @double_click: handle_double_click
@@ -53,9 +75,9 @@
 
     #rect_tool {
         stroke: {
-            color: {self.rect_tool.stroke}
+            color: {self.tool_visual.rect_tool.stroke}
             width: 1px
         }
-        fill: {self.rect_tool.fill}
+        fill: {self.tool_visual.rect_tool.fill}
     }
 }

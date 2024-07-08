@@ -7,7 +7,7 @@ use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo, RaycastMode};
 use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
-use crate::glass::RectTool;
+use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
     AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration, SizeUnit,
@@ -23,7 +23,7 @@ use pax_engine::api::Size;
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
-use pax_engine::{log, NodeInterface, NodeLocal, Slot};
+use pax_engine::{log, NodeInterface, NodeLocal, Property, Slot};
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::{Axis, Window};
@@ -32,7 +32,7 @@ use pax_std::stacker::Stacker;
 pub struct CreateComponentTool {
     type_id: TypeId,
     origin: Point2<Glass>,
-    bounds: AxisAlignedBox,
+    bounds: Property<AxisAlignedBox>,
 }
 
 impl CreateComponentTool {
@@ -40,7 +40,7 @@ impl CreateComponentTool {
         Self {
             type_id: type_id.clone(),
             origin: point,
-            bounds: AxisAlignedBox::new(Point2::default(), Point2::default()),
+            bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
         }
     }
 }
@@ -61,14 +61,16 @@ impl ToolBehaviour for CreateComponentTool {
             .get()
             .contains(&InputEvent::Shift);
         let is_alt_key_down = ctx.app_state.keys_pressed.get().contains(&InputEvent::Alt);
-        self.bounds = AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
-            .morph_constrained(point, self.origin, is_alt_key_down, is_shift_key_down);
+        self.bounds.set(
+            AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
+                .morph_constrained(point, self.origin, is_alt_key_down, is_shift_key_down),
+        );
         ControlFlow::Continue(())
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         self.pointer_move(point, ctx);
-        let box_transform = ctx.world_transform() * self.bounds.as_transform();
+        let box_transform = ctx.world_transform() * self.bounds.get().as_transform();
         let (o, u, v) = box_transform.decompose();
         // TODO make CreateComponent take transform?
         let world_box = AxisAlignedBox::new(o, o + u + v);
@@ -90,16 +92,26 @@ impl ToolBehaviour for CreateComponentTool {
         ControlFlow::Continue(())
     }
 
-    fn visualize(&self, glass: &mut crate::glass::Glass) {
-        glass.is_rect_tool_active.set(true);
-        glass.rect_tool.set(RectTool {
-            x: Size::Pixels(self.bounds.top_left().x.into()),
-            y: Size::Pixels(self.bounds.top_left().y.into()),
-            width: Size::Pixels(self.bounds.width().into()),
-            height: Size::Pixels(self.bounds.height().into()),
-            stroke: Color::rgba(0.into(), 0.into(), 255.into(), 200.into()),
-            fill: Color::rgba(0.into(), 0.into(), 255.into(), 30.into()),
-        });
+    fn get_visual(&self) -> Property<ToolVisualizationState> {
+        let bounds = self.bounds.clone();
+        let deps = [bounds.untyped()];
+        Property::computed(
+            move || {
+                let bounds = bounds.get();
+                ToolVisualizationState {
+                    rect_tool: RectTool {
+                        x: Size::Pixels(bounds.top_left().x.into()),
+                        y: Size::Pixels(bounds.top_left().y.into()),
+                        width: Size::Pixels(bounds.width().into()),
+                        height: Size::Pixels(bounds.height().into()),
+                        stroke: Color::rgba(0.into(), 0.into(), 255.into(), 200.into()),
+                        fill: Color::rgba(0.into(), 0.into(), 255.into(), 30.into()),
+                    },
+                    outline: Default::default(),
+                }
+            },
+            &deps,
+        )
     }
 }
 
@@ -134,6 +146,7 @@ impl Action for SelectNodes<'_> {
 
 pub struct PointerTool {
     action: PointerToolAction,
+    vis: Property<RectTool>,
 }
 
 pub enum PointerToolAction {
@@ -174,6 +187,7 @@ impl PointerTool {
                     pickup_point: point,
                     initial_selection: (&selection).into(),
                 },
+                vis: Default::default(),
             }
         } else {
             // resize stage if we are at edge
@@ -182,10 +196,12 @@ impl PointerTool {
             if (world_point.y - stage.height as f64).abs() < 10.0 {
                 Self {
                     action: PointerToolAction::ResizingStage(ResizeStageDim::Height),
+                    vis: Default::default(),
                 }
             } else if (world_point.x - stage.width as f64).abs() < 10.0 {
                 Self {
                     action: PointerToolAction::ResizingStage(ResizeStageDim::Width),
+                    vis: Default::default(),
                 }
             } else {
                 Self {
@@ -193,6 +209,7 @@ impl PointerTool {
                         p1: point,
                         p2: point,
                     },
+                    vis: Default::default(),
                 }
             }
         }
@@ -340,17 +357,15 @@ impl ToolBehaviour for PointerTool {
         ControlFlow::Continue(())
     }
 
-    fn visualize(&self, glass: &mut crate::glass::Glass) {
-        if let PointerToolAction::Selecting { p1, p2 } = self.action {
-            glass.is_rect_tool_active.set(true);
-            glass.rect_tool.set(RectTool {
-                x: Size::Pixels(p1.x.into()),
-                y: Size::Pixels(p1.y.into()),
-                width: Size::Pixels((p2.x - p1.x).into()),
-                height: Size::Pixels((p2.y - p1.y).into()),
-                stroke: Color::rgba(0.into(), 255.into(), 255.into(), 200.into()),
-                fill: Color::rgba(0.into(), 255.into(), 255.into(), 30.into()),
-            });
-        }
+    fn get_visual(&self) -> Property<ToolVisualizationState> {
+        let vis = self.vis.clone();
+        let deps = [vis.untyped()];
+        Property::computed(
+            move || ToolVisualizationState {
+                rect_tool: vis.get(),
+                outline: Default::default(),
+            },
+            &deps,
+        )
     }
 }
