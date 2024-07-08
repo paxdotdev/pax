@@ -9,18 +9,6 @@
     // -------------- tool editing visuals --------------
 
 
-    // Outline visual
-    <Group>
-        <Path 
-            elements={self.tool_visual.outline}
-            stroke={
-                color: BLUE
-                width: 1px
-            }
-            fill=TRANSPARENT
-            raycast=false
-        />
-    </Group>
 
     // Rectangle visual
     <Group>
@@ -33,6 +21,18 @@
         />
     </Group>
 
+    // Outline visual
+    <Group>
+        <Path 
+            elements={self.tool_visual.outline}
+            stroke={
+                color: BLUE
+                width: 2px
+            }
+            fill=TRANSPARENT
+            raycast=false
+        />
+    </Group>
 
     // ------------------------------------------------
   
