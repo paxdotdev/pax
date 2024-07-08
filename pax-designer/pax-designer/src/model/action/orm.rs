@@ -3,7 +3,7 @@ use std::f64::consts::PI;
 use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{
-    self, AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration,
+    self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoInversionConfiguration,
     RotationUnit, SizeUnit,
 };
 use crate::model::input::InputEvent;
@@ -206,12 +206,12 @@ pub struct SetNodePropertiesFromTransform<T> {
     pub id: UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: TransformAndBounds<NodeLocal, T>,
     pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, T>,
-    pub inv_config: InversionConfiguration,
+    pub inv_config: DecompositionConfiguration,
 }
 
 impl<T: Space> Action for SetNodePropertiesFromTransform<T> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
-        let new_props: LayoutProperties = math::transform_and_bounds_inversion(
+        let new_props: LayoutProperties = math::transform_and_bounds_decomposition(
             self.inv_config,
             self.parent_transform_and_bounds,
             self.transform_and_bounds,
@@ -381,7 +381,7 @@ impl Action for RotateSelected<'_> {
             bounds: (1.0, 1.0),
         };
 
-        let local_resize = TransformAndBounds {
+        let local_rotation = TransformAndBounds {
             transform: Transform2::rotate(rotation.to_radians()),
             bounds: (1.0, 1.0),
         };
@@ -389,7 +389,7 @@ impl Action for RotateSelected<'_> {
         // nove to "frame of reference", perform operation, move back
         // TODO refactor so that things like rotation are also just a "local_resize" transform that is performing a rotation,
         // most likely from center of selection (at least when multiple)?
-        let rotate = to_local * local_resize * to_local.inverse();
+        let rotate = to_local * local_rotation * to_local.inverse();
 
         for item in &self.initial_selection.items {
             ctx.execute(SetNodePropertiesFromTransform {
@@ -476,7 +476,7 @@ pub fn write_to_orm<T: Serialize + Default + PartialEq>(
 pub struct MoveNode<'a, S> {
     pub node_id: &'a UniqueTemplateNodeIdentifier,
     pub node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
-    pub node_inv_config: InversionConfiguration,
+    pub node_inv_config: DecompositionConfiguration,
     pub new_parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
     pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
     pub index: TreeIndexPosition,

@@ -10,7 +10,7 @@ use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
-    AxisAlignedBox, GetUnit, IntoInversionConfiguration, InversionConfiguration, SizeUnit,
+    AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoInversionConfiguration, SizeUnit,
 };
 use crate::model::action::orm::{MoveNode, ResizeNode};
 use crate::model::Tool;
@@ -324,7 +324,7 @@ impl ToolBehaviour for PointerTool {
                             if let Err(e) = ctx.execute(MoveNode {
                                 node_id: &hit.global_id().unwrap(),
                                 node_transform_and_bounds: &hit.transform_and_bounds().get(),
-                                node_inv_config: InversionConfiguration::default(),
+                                node_inv_config: DecompositionConfiguration::default(),
                                 new_parent_transform_and_bounds: &cc.transform_and_bounds().get(),
                                 new_parent_uid: &cc.global_id().unwrap(),
                                 index: pax_manifest::TreeIndexPosition::At(
