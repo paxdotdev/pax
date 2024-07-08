@@ -535,6 +535,7 @@ pub struct CommonProperties {
     pub skew_y: Property<Option<Rotation>>,
     pub rotate: Property<Option<Rotation>>,
     pub transform: Property<Option<Transform2D>>,
+    pub raycast: Property<Option<bool>>,
 }
 
 impl CommonProperties {
@@ -588,6 +589,7 @@ impl CommonProperties {
         scope.insert("transform".to_string(), self.transform.untyped());
         scope.insert("width".to_string(), self.width.untyped());
         scope.insert("height".to_string(), self.height.untyped());
+        scope.insert("raycast".to_string(), self.raycast.untyped());
 
         scope
     }

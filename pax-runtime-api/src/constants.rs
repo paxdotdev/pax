@@ -50,7 +50,7 @@ const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 5] = [
     "pax_std::types::Fill",
 ];
 
-pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] = [
+pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("id", "String"),
     ("x", "pax_engine::api::Size"),
     ("y", "pax_engine::api::Size"),
@@ -64,4 +64,5 @@ pub const COMMON_PROPERTIES_TYPE: [(&str, &str); 13] = [
     ("transform", "pax_engine::api::Transform2D"),
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),
+    ("raycast", "bool"),
 ];
