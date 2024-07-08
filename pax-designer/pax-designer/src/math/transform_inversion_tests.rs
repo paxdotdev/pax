@@ -504,7 +504,7 @@ fn test_to_and_back(
     );
     let inv_config = original_props.into_inv_config();
     let recovered_props =
-        super::transform_and_bounds_inversion(inv_config, parent_transform_and_bounds, t_and_b);
+        super::transform_and_bounds_decomposition(inv_config, parent_transform_and_bounds, t_and_b);
 
     fn print_failure_info<T: std::fmt::Debug>(
         info: &str,

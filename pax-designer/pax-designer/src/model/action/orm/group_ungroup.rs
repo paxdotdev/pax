@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::{
-    math::{IntoInversionConfiguration, InversionConfiguration},
+    math::{DecompositionConfiguration, IntoInversionConfiguration},
     model::{
         action::{
             orm::{group_ungroup, SetNodeProperties},
@@ -92,7 +92,7 @@ impl Action for GroupSelected {
             id: group_creation_save_data.unique_id.clone(),
             transform_and_bounds: group_transform_and_bounds,
             parent_transform_and_bounds: group_parent_transform_and_bounds,
-            inv_config: InversionConfiguration::default(),
+            inv_config: DecompositionConfiguration::default(),
         })?;
 
         // ---------- Move nodes into newly created group ----------
