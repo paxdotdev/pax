@@ -23,11 +23,13 @@ use crate::model::action::{Action, ActionContext, CanUndo, RaycastMode};
 use crate::model::input::Dir;
 
 pub mod control_point;
+pub mod outline;
 pub mod tool_editors;
 pub mod wireframe_editor;
 
 pub use self::tool_editors::TextEdit;
 use control_point::ControlPoint;
+use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
 
 #[pax]
@@ -61,44 +63,18 @@ impl Glass {
                                     ac.glass_transform(),
                                 )
                             });
-                            let outline = if let Some(hit) = hit {
-                                let t_and_b = hit.transform_and_bounds().get();
-                                let t_and_b = TransformAndBounds {
-                                    transform: to_glass.get(),
-                                    bounds: (1.0, 1.0),
-                                } * t_and_b;
-                                let (o, u, v) = t_and_b.transform.decompose();
-                                let u = u * t_and_b.bounds.0;
-                                let v = v * t_and_b.bounds.1;
-                                let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
-                                vec![
-                                    PathElement::point(
-                                        Size::Pixels(p1.x.into()),
-                                        Size::Pixels(p1.y.into()),
-                                    ),
-                                    PathElement::line(),
-                                    PathElement::point(
-                                        Size::Pixels(p2.x.into()),
-                                        Size::Pixels(p2.y.into()),
-                                    ),
-                                    PathElement::line(),
-                                    PathElement::point(
-                                        Size::Pixels(p3.x.into()),
-                                        Size::Pixels(p3.y.into()),
-                                    ),
-                                    PathElement::line(),
-                                    PathElement::point(
-                                        Size::Pixels(p4.x.into()),
-                                        Size::Pixels(p4.y.into()),
-                                    ),
-                                    PathElement::close(),
-                                ]
-                            } else {
-                                Default::default()
-                            };
                             ToolVisualizationState {
                                 rect_tool: Default::default(),
-                                outline,
+                                outline: hit
+                                    .map(|h| {
+                                        PathOutline::from_bounds(
+                                            TransformAndBounds {
+                                                transform: to_glass.get(),
+                                                bounds: (1.0, 1.0),
+                                            } * h.transform_and_bounds().get(),
+                                        )
+                                    })
+                                    .unwrap_or_default(),
                             }
                         },
                         &deps,

@@ -7,6 +7,7 @@ use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, CanUndo, RaycastMode};
 use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
+use crate::glass::outline::PathOutline;
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
@@ -18,8 +19,8 @@ use crate::model::{AppState, ToolBehaviour};
 use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::Color;
 use pax_engine::api::Size;
+use pax_engine::api::{Color, NodeContext};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
@@ -146,7 +147,6 @@ impl Action for SelectNodes<'_> {
 
 pub struct PointerTool {
     action: PointerToolAction,
-    vis: Property<RectTool>,
 }
 
 pub enum PointerToolAction {
@@ -155,6 +155,7 @@ pub enum PointerToolAction {
         hit: NodeInterface,
         pickup_point: Point2<Glass>,
         initial_selection: SelectionStateSnapshot,
+        vis: Property<ToolVisualizationState>,
     },
     Selecting {
         p1: Point2<Glass>,
@@ -186,8 +187,8 @@ impl PointerTool {
                     has_moved: false,
                     pickup_point: point,
                     initial_selection: (&selection).into(),
+                    vis: Property::new(ToolVisualizationState::default()),
                 },
-                vis: Default::default(),
             }
         } else {
             // resize stage if we are at edge
@@ -196,12 +197,10 @@ impl PointerTool {
             if (world_point.y - stage.height as f64).abs() < 10.0 {
                 Self {
                     action: PointerToolAction::ResizingStage(ResizeStageDim::Height),
-                    vis: Default::default(),
                 }
             } else if (world_point.x - stage.width as f64).abs() < 10.0 {
                 Self {
                     action: PointerToolAction::ResizingStage(ResizeStageDim::Width),
-                    vis: Default::default(),
                 }
             } else {
                 Self {
@@ -209,7 +208,6 @@ impl PointerTool {
                         p1: point,
                         p2: point,
                     },
-                    vis: Default::default(),
                 }
             }
         }
@@ -227,7 +225,8 @@ impl ToolBehaviour for PointerTool {
                 pickup_point,
                 ref initial_selection,
                 ref mut has_moved,
-                ..
+                ref hit,
+                ref mut vis,
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
                     // don't commit any movement for very small pixel changes,
@@ -253,6 +252,20 @@ impl ToolBehaviour for PointerTool {
                     }) {
                         pax_engine::log::error!("Error moving selected: {:?}", e);
                     }
+                }
+
+                let raycast_hit = raycast_slot(ctx, point, hit.clone());
+                if let Some((_container, slot)) = raycast_hit {
+                    let t_and_b = TransformAndBounds {
+                        transform: ctx.glass_transform().get(),
+                        bounds: (1.0, 1.0),
+                    } * slot.transform_and_bounds().get();
+                    let outline = PathOutline::from_bounds(t_and_b);
+                    log::debug!("outline drawing for slot");
+                    vis.set(ToolVisualizationState {
+                        rect_tool: Default::default(),
+                        outline,
+                    });
                 }
             }
             PointerToolAction::Selecting { ref mut p2, .. } => *p2 = point,
@@ -290,52 +303,24 @@ impl ToolBehaviour for PointerTool {
                 has_moved, ref hit, ..
             } => {
                 if *has_moved {
-                    // If we drop on another object, check if it's an object in a slot.
-                    // If it is, add this object to the same parent
-                    if let Some(drop_hit) =
-                        ctx.raycast_glass(point, RaycastMode::RawNth(0), &[hit.clone()])
-                    {
-                        let mut drop_slot_container = drop_hit.clone();
-                        let drop_slot_topmost_container = loop {
-                            if drop_slot_container
-                                .containing_component()
-                                .is_some_and(|v| v.is_of_type::<Stacker>())
-                            {
-                                break Some(drop_slot_container);
-                            }
-                            if let Some(par) = drop_slot_container.render_parent() {
-                                drop_slot_container = par;
-                            } else {
-                                break None;
-                            };
+                    if let Some((container, slot)) = raycast_slot(ctx, point, hit.clone()) {
+                        if let Err(e) = ctx.execute(MoveNode {
+                            node_id: &hit.global_id().unwrap(),
+                            node_transform_and_bounds: &hit.transform_and_bounds().get(),
+                            node_inv_config: DecompositionConfiguration::default(),
+                            new_parent_transform_and_bounds: &container
+                                .transform_and_bounds()
+                                .get(),
+                            new_parent_uid: &container.global_id().unwrap(),
+                            index: pax_manifest::TreeIndexPosition::At(
+                                slot.with_properties(|f: &mut Slot| f.index.get().to_int())
+                                    as usize,
+                            ),
+                            resize_mode: ResizeNode::Fill,
+                        }) {
+                            log::warn!("failed to swap nodes: {}", e);
                         };
-                        if let Some(drop_container) = drop_slot_topmost_container {
-                            let mut slot_index = None;
-                            let mut curr = drop_hit.clone();
-                            let cc = drop_container.containing_component().unwrap();
-                            while curr.is_descendant_of(&cc) {
-                                if curr.is_of_type::<Slot>() {
-                                    slot_index = Some(curr.with_properties(|props: &mut Slot| {
-                                        props.index.get().to_int()
-                                    }));
-                                }
-                                curr = curr.render_parent().unwrap();
-                            }
-                            if let Err(e) = ctx.execute(MoveNode {
-                                node_id: &hit.global_id().unwrap(),
-                                node_transform_and_bounds: &hit.transform_and_bounds().get(),
-                                node_inv_config: DecompositionConfiguration::default(),
-                                new_parent_transform_and_bounds: &cc.transform_and_bounds().get(),
-                                new_parent_uid: &cc.global_id().unwrap(),
-                                index: pax_manifest::TreeIndexPosition::At(
-                                    slot_index.unwrap() as usize
-                                ),
-                                resize_mode: ResizeNode::Fill,
-                            }) {
-                                log::warn!("failed to swap nodes: {}", e);
-                            };
-                        }
-                    }
+                    };
                 } else {
                     let _ = ctx.execute(SelectNodes {
                         ids: &[hit.global_id().unwrap().get_template_node_id()],
@@ -358,14 +343,48 @@ impl ToolBehaviour for PointerTool {
     }
 
     fn get_visual(&self) -> Property<ToolVisualizationState> {
-        let vis = self.vis.clone();
-        let deps = [vis.untyped()];
-        Property::computed(
-            move || ToolVisualizationState {
-                rect_tool: vis.get(),
-                outline: Default::default(),
-            },
-            &deps,
-        )
+        match &self.action {
+            PointerToolAction::Moving { vis, .. } => {
+                let vis = vis.clone();
+                let deps = [vis.untyped()];
+                Property::computed(move || vis.get(), &deps)
+            }
+            _ => Property::new(ToolVisualizationState::default()),
+        }
     }
+}
+
+fn raycast_slot(
+    ctx: &ActionContext,
+    point: Point2<Glass>,
+    original_hit: NodeInterface,
+) -> Option<(NodeInterface, NodeInterface)> {
+    // If we drop on another object, check if it's an object in a slot.
+    // If it is, add this object to the same parent
+    let drop_hit = ctx.raycast_glass(point, RaycastMode::RawNth(0), &[original_hit.clone()])?;
+    let mut drop_slot_container = drop_hit.clone();
+    let drop_slot_topmost_container = loop {
+        if drop_slot_container
+            .containing_component()
+            .is_some_and(|v| v.is_of_type::<Stacker>())
+        {
+            break Some(drop_slot_container);
+        }
+        if let Some(par) = drop_slot_container.render_parent() {
+            drop_slot_container = par;
+        } else {
+            break None;
+        };
+    };
+    let drop_container = drop_slot_topmost_container?;
+    let mut slot = None;
+    let mut curr = drop_hit.clone();
+    let cc = drop_container.containing_component().unwrap();
+    while curr.is_descendant_of(&cc) {
+        if curr.is_of_type::<Slot>() {
+            slot = Some(curr.clone());
+        }
+        curr = curr.render_parent().unwrap();
+    }
+    Some((cc, slot.unwrap()))
 }
