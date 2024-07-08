@@ -11,6 +11,7 @@ use pax_std::primitives::Rectangle;
 use pax_std::primitives::Text;
 
 use crate::glass::SetEditingComponent;
+use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::AxisAlignedBox;
 use crate::model;
@@ -74,7 +75,9 @@ impl ToolBehaviour for DropComponent {
         ControlFlow::Continue(())
     }
 
-    fn visualize(&self, _glass: &mut crate::glass::Glass) {}
+    fn get_visual(&self) -> Property<crate::glass::ToolVisualizationState> {
+        Property::new(ToolVisualizationState::default())
+    }
 }
 
 impl ComponentLibraryItem {

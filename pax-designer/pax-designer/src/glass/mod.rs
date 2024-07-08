@@ -1,10 +1,12 @@
 use anyhow::anyhow;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
+use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::{Point2, Vector2};
 use pax_engine::*;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::primitives::{Group, Path, Rectangle};
+use pax_std::types::PathElement;
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
@@ -31,24 +33,86 @@ use wireframe_editor::WireframeEditor;
 #[pax]
 #[file("glass/mod.pax")]
 pub struct Glass {
-    pub is_rect_tool_active: Property<bool>,
-    pub rect_tool: Property<RectTool>,
+    pub tool_visual: Property<ToolVisualizationState>,
+    pub on_tool_change: Property<bool>,
 }
 
 impl Glass {
-    pub fn update_tool_visual(&mut self, _ctx: &NodeContext) {
-        model::read_app_state(|app_state| {
-            // Draw current tool visuals
-            // TODO this could be factored out into it's own component as well eventually
-            // TODO change to not be on tick
-            app_state.tool_behaviour.read(|tool| {
-                if let Some(tool) = tool {
-                    tool.borrow().visualize(self);
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let tool_behaviour = model::read_app_state(|app_state| app_state.tool_behaviour.clone());
+        let deps = [tool_behaviour.untyped()];
+        let tool_visual = self.tool_visual.clone();
+        let mouse_pos = model::read_app_state(|app_state| app_state.mouse_position.clone());
+        let ctx = ctx.clone();
+        self.on_tool_change.replace_with(Property::computed(
+            move || {
+                tool_visual.replace_with(if let Some(tool_behaviour) = tool_behaviour.get() {
+                    tool_behaviour.borrow_mut().get_visual()
                 } else {
-                    self.is_rect_tool_active.set(false);
-                }
-            });
-        });
+                    // Default ToolVisualziation behaviour
+                    let deps = [mouse_pos.untyped()];
+                    let mouse_pos = mouse_pos.clone();
+                    let ctx = ctx.clone();
+                    Property::computed(
+                        move || {
+                            let (hit, to_glass) = model::with_action_context(&ctx, |ac| {
+                                (
+                                    ac.raycast_glass(mouse_pos.get(), RaycastMode::Top, &[]),
+                                    ac.glass_transform(),
+                                )
+                            });
+                            let outline = if let Some(hit) = hit {
+                                let t_and_b = hit.transform_and_bounds().get();
+                                let t_and_b = TransformAndBounds {
+                                    transform: to_glass.get(),
+                                    bounds: (1.0, 1.0),
+                                } * t_and_b;
+                                let (o, u, v) = t_and_b.transform.decompose();
+                                let u = u * t_and_b.bounds.0;
+                                let v = v * t_and_b.bounds.1;
+                                let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
+                                vec![
+                                    PathElement::point(
+                                        Size::Pixels(p1.x.into()),
+                                        Size::Pixels(p1.y.into()),
+                                    ),
+                                    PathElement::line(),
+                                    PathElement::point(
+                                        Size::Pixels(p2.x.into()),
+                                        Size::Pixels(p2.y.into()),
+                                    ),
+                                    PathElement::line(),
+                                    PathElement::point(
+                                        Size::Pixels(p3.x.into()),
+                                        Size::Pixels(p3.y.into()),
+                                    ),
+                                    PathElement::line(),
+                                    PathElement::point(
+                                        Size::Pixels(p4.x.into()),
+                                        Size::Pixels(p4.y.into()),
+                                    ),
+                                    PathElement::close(),
+                                ]
+                            } else {
+                                Default::default()
+                            };
+                            ToolVisualizationState {
+                                rect_tool: Default::default(),
+                                outline,
+                            }
+                        },
+                        &deps,
+                    )
+                });
+                true
+            },
+            &deps,
+        ));
+    }
+
+    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
+        // update if dirty
+        self.on_tool_change.get();
     }
 
     pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
@@ -107,7 +171,7 @@ impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         let prevent_default = || args.prevent_default();
         model::perform_action(
-            crate::model::action::pointer::PointerAction {
+            crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Down,
                 button: args.mouse.button.clone(),
@@ -120,7 +184,7 @@ impl Glass {
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         let prevent_default = || args.prevent_default();
         model::perform_action(
-            crate::model::action::pointer::PointerAction {
+            crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Move,
                 button: args.mouse.button.clone(),
@@ -133,7 +197,7 @@ impl Glass {
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
         let prevent_default = || args.prevent_default();
         model::perform_action(
-            crate::model::action::pointer::PointerAction {
+            crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Up,
                 button: args.mouse.button.clone(),
@@ -245,7 +309,13 @@ impl Action for SetEditingComponent {
 }
 
 #[pax]
-// #[derive(Debug)]
+pub struct ToolVisualizationState {
+    pub rect_tool: RectTool,
+    pub outline: Vec<PathElement>,
+}
+
+#[pax]
+#[custom(Default)]
 pub struct RectTool {
     pub x: Size,
     pub y: Size,
@@ -253,4 +323,17 @@ pub struct RectTool {
     pub height: Size,
     pub fill: Color,
     pub stroke: Color,
+}
+
+impl Default for RectTool {
+    fn default() -> Self {
+        RectTool {
+            x: Size::ZERO(),
+            y: Size::ZERO(),
+            width: Size::ZERO(),
+            height: Size::ZERO(),
+            fill: Color::TRANSPARENT,
+            stroke: Color::TRANSPARENT,
+        }
+    }
 }

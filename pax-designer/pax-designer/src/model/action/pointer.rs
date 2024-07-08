@@ -20,7 +20,7 @@ use pax_engine::math::Point2;
 use pax_manifest::TypeId;
 use pax_runtime_api::Color;
 
-pub struct PointerAction<'a> {
+pub struct MouseEntryPointAction<'a> {
     pub prevent_default: &'a dyn Fn(),
     pub event: Pointer,
     pub button: MouseButton,
@@ -34,7 +34,7 @@ pub enum Pointer {
     Up,
 }
 
-impl Action for PointerAction<'_> {
+impl Action for MouseEntryPointAction<'_> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
@@ -102,29 +102,28 @@ impl Action for PointerAction<'_> {
 
         // Whatever tool behaviour exists, let it do it's thing
         let point = ctx.app_state.mouse_position.get();
-        tool_behaviour.update(|tool_behaviour| {
-            let res = if let Some(tool) = tool_behaviour {
+        let reset = tool_behaviour.read(|tool_behaviour| {
+            if let Some(tool) = tool_behaviour {
                 let mut tool = tool.borrow_mut();
                 let res = match self.event {
                     Pointer::Down => tool.pointer_down(point, ctx),
                     Pointer::Move => tool.pointer_move(point, ctx),
                     Pointer::Up => tool.pointer_up(point, ctx),
                 };
-                Some(res)
-            } else {
-                None
-            };
-            // Check if this tool is done and is returning control flow to main app
-            if let Some(res) = res {
                 match res {
-                    std::ops::ControlFlow::Continue(_) => (),
+                    std::ops::ControlFlow::Continue(_) => false,
                     std::ops::ControlFlow::Break(_) => {
-                        *tool_behaviour = None;
                         ctx.app_state.selected_tool.set(Tool::Pointer);
+                        true
                     }
                 }
+            } else {
+                false
             }
         });
+        if reset {
+            tool_behaviour.set(None);
+        }
         Ok(CanUndo::No)
     }
 }
