@@ -283,7 +283,7 @@ mod tests {
 /// to go from a transform back to
 /// layout properties
 #[derive(Default)]
-pub struct InversionConfiguration {
+pub struct DecompositionConfiguration {
     // Actual data needed about object
     pub anchor_x: Option<Size>,
     pub anchor_y: Option<Size>,
@@ -297,12 +297,12 @@ pub struct InversionConfiguration {
 }
 
 pub trait IntoInversionConfiguration {
-    fn into_inv_config(&self) -> InversionConfiguration;
+    fn into_inv_config(&self) -> DecompositionConfiguration;
 }
 
 impl IntoInversionConfiguration for LayoutProperties {
-    fn into_inv_config(&self) -> InversionConfiguration {
-        InversionConfiguration {
+    fn into_inv_config(&self) -> DecompositionConfiguration {
+        DecompositionConfiguration {
             anchor_x: self.anchor_x,
             anchor_y: self.anchor_y,
             unit_width: self.width.unit(),
@@ -323,8 +323,8 @@ impl IntoInversionConfiguration for LayoutProperties {
 // to ORM, to get an identical bounding box to TransformAndBounds
 // NOTE: this inverts the operations specified in: pax_runtime/src/layout.rs,
 // function calculate_transform_and_bounds
-pub(crate) fn transform_and_bounds_inversion<S: Space>(
-    inv_config: InversionConfiguration,
+pub(crate) fn transform_and_bounds_decomposition<S: Space>(
+    inv_config: DecompositionConfiguration,
     parent_box: TransformAndBounds<NodeLocal, S>,
     target_box: TransformAndBounds<NodeLocal, S>,
 ) -> LayoutProperties {
