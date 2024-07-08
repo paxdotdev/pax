@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::wireframe_editor::GlassPoint;
+use super::ToolVisualizationState;
 use crate::glass;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
@@ -70,7 +71,9 @@ impl<C: ControlPointBehaviour> ToolBehaviour for C {
         std::ops::ControlFlow::Continue(())
     }
 
-    fn visualize(&self, _glass: &mut glass::Glass) {}
+    fn get_visual(&self) -> Property<glass::ToolVisualizationState> {
+        Property::new(ToolVisualizationState::default())
+    }
 }
 
 pub struct ActivateControlPoint {

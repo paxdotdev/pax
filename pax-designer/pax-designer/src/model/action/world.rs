@@ -5,12 +5,12 @@ use crate::math::coordinate_spaces::{Glass, World};
 use crate::model::{input::InputEvent, AppState, ToolBehaviour};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::log;
 use pax_engine::{
     api::{Size, Transform2D},
     math::{Generic, Point2, Transform2, Vector2},
     serde,
 };
+use pax_engine::{log, Property};
 
 pub struct Pan {
     pub start_point: Point2<Glass>,
@@ -56,7 +56,9 @@ impl ToolBehaviour for Pan {
         ControlFlow::Continue(())
     }
 
-    fn visualize(&self, _glass: &mut crate::glass::Glass) {}
+    fn get_visual(&self) -> pax_engine::Property<crate::glass::ToolVisualizationState> {
+        Property::new(crate::glass::ToolVisualizationState::default())
+    }
 }
 
 pub struct Translate {

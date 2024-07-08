@@ -4,6 +4,7 @@ pub mod tools;
 
 use crate::glass;
 use crate::glass::control_point::ControlPointBehaviour;
+use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
@@ -48,8 +49,8 @@ use crate::math::coordinate_spaces::{self, Glass};
 mod selection_state;
 pub use selection_state::*;
 
+use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
-use self::action::pointer::PointerAction;
 use self::action::UndoStack;
 use self::input::{Dir, InputEvent, InputMapper};
 
@@ -410,7 +411,7 @@ pub trait ToolBehaviour {
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
     fn keyboard(&mut self, event: InputEvent, dir: Dir, ctx: &mut ActionContext)
         -> ControlFlow<()>;
-    fn visualize(&self, glass: &mut crate::glass::Glass);
+    fn get_visual(&self) -> Property<ToolVisualizationState>;
 }
 
 impl Interpolatable for ProjectMode {}
