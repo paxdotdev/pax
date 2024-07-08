@@ -82,7 +82,7 @@ impl PaxManifest {
 
 pub fn get_common_properties_type_ids() -> Vec<TypeId> {
     let mut ret = vec![];
-    for (_, import_path) in &constants::COMMON_PROPERTIES_TYPE {
+    for (_, import_path) in constants::COMMON_PROPERTIES_TYPE {
         if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path)
             || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path)
         {
@@ -96,7 +96,7 @@ pub fn get_common_properties_type_ids() -> Vec<TypeId> {
 
 pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition> {
     let mut ret = vec![];
-    for (cp, import_path) in &constants::COMMON_PROPERTIES_TYPE {
+    for (cp, import_path) in constants::COMMON_PROPERTIES_TYPE {
         if SUPPORTED_NUMERIC_PRIMITIVES.contains(import_path)
             || SUPPORTED_NONNUMERIC_PRIMITIVES.contains(import_path)
         {
