@@ -53,3 +53,6 @@ features = [
 lto = true
 # opt-level = "z" 
 codegen-units = 1  
+
+[profile.dev]
+opt-level = 3 
