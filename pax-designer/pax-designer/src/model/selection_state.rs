@@ -111,8 +111,9 @@ impl SelectionState {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct GlassNode {
+    pub raw_node_interface: NodeInterface,
     // unit rectangle to object bounds transform
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
     pub parent_transform_and_bounds: Property<TransformAndBounds<NodeLocal, Glass>>,
@@ -127,6 +128,7 @@ impl GlassNode {
         to_glass_transform: &Property<Transform2<Window, Glass>>,
     ) -> Self {
         GlassNode {
+            raw_node_interface: n.clone(),
             transform_and_bounds: {
                 let t_and_b = n.transform_and_bounds();
                 let deps = [t_and_b.untyped(), to_glass_transform.untyped()];
@@ -195,8 +197,9 @@ impl GlassNode {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct GlassNodeSnapshot {
+    pub raw_node_interface: NodeInterface,
     pub id: UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
     pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, Glass>,
@@ -207,6 +210,7 @@ pub struct GlassNodeSnapshot {
 impl From<&GlassNode> for GlassNodeSnapshot {
     fn from(itm: &GlassNode) -> Self {
         GlassNodeSnapshot {
+            raw_node_interface: itm.raw_node_interface.clone(),
             id: itm.id.clone(),
             origin: itm.origin.get(),
             transform_and_bounds: itm.transform_and_bounds.get(),

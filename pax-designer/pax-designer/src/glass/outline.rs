@@ -8,10 +8,7 @@ pub struct PathOutline {}
 
 impl PathOutline {
     pub fn from_bounds(t_and_b: TransformAndBounds<NodeLocal, Glass>) -> Vec<PathElement> {
-        let (o, u, v) = t_and_b.transform.decompose();
-        let u = u * t_and_b.bounds.0;
-        let v = v * t_and_b.bounds.1;
-        let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
+        let [p1, p4, p3, p2] = t_and_b.corners();
         vec![
             PathElement::point(Size::Pixels(p1.x.into()), Size::Pixels(p1.y.into())),
             PathElement::line(),

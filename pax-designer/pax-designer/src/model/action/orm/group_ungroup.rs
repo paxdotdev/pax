@@ -25,7 +25,7 @@ use pax_manifest::{
 use pax_runtime_api::borrow_mut;
 use pax_std::primitives::Group;
 
-use super::{MoveNode, ResizeNode, SetNodePropertiesFromTransform};
+use super::{MoveNode, ResizeMode, SetNodePropertiesFromTransform};
 
 pub struct GroupSelected {}
 
@@ -103,7 +103,7 @@ impl Action for GroupSelected {
                 new_parent_uid: &group_creation_save_data.unique_id,
                 new_parent_transform_and_bounds: &group_transform_and_bounds,
                 index: TreeIndexPosition::Bottom,
-                resize_mode: ResizeNode::KeepScreenBounds,
+                resize_mode: ResizeMode::KeepScreenBounds,
                 node_inv_config: node.layout_properties.into_decomposition_config(),
             })?;
         }
@@ -164,7 +164,7 @@ impl Action for UngroupSelected {
                     new_parent_transform_and_bounds: &group_parent_bounds,
                     node_inv_config: child_inv_config,
                     index: TreeIndexPosition::Top,
-                    resize_mode: ResizeNode::KeepScreenBounds,
+                    resize_mode: ResizeMode::KeepScreenBounds,
                 })?;
             }
 

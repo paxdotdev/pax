@@ -27,7 +27,7 @@
             elements={self.tool_visual.outline}
             stroke={
                 color: BLUE
-                width: 2px
+                width: 4px
             }
             fill=TRANSPARENT
             raycast=false

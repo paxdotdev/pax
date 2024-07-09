@@ -8,12 +8,13 @@ use super::action::{Action, ActionContext, CanUndo, RaycastMode};
 use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::outline::PathOutline;
+use crate::glass::wireframe_editor::editor_generation::stacker_control::raycast_slot;
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
     AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
 };
-use crate::model::action::orm::{MoveNode, ResizeNode};
+use crate::model::action::orm::{MoveNode, ResizeMode};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::{SetStage, ROOT_PROJECT_ID};
@@ -265,6 +266,8 @@ impl ToolBehaviour for PointerTool {
                         rect_tool: Default::default(),
                         outline,
                     });
+                } else {
+                    vis.set(ToolVisualizationState::default());
                 }
             }
             PointerToolAction::Selecting { ref mut p2, .. } => *p2 = point,
@@ -301,6 +304,7 @@ impl ToolBehaviour for PointerTool {
             PointerToolAction::Moving {
                 has_moved, ref hit, ..
             } => {
+                // TODO add check here that we're not moving something from within the same stacker
                 if *has_moved {
                     if let Some((container, slot)) = raycast_slot(ctx, point, hit.clone()) {
                         if let Err(e) = ctx.execute(MoveNode {
@@ -315,7 +319,7 @@ impl ToolBehaviour for PointerTool {
                                 slot.with_properties(|f: &mut Slot| f.index.get().to_int())
                                     as usize,
                             ),
-                            resize_mode: ResizeNode::Fill,
+                            resize_mode: ResizeMode::Fill,
                         }) {
                             log::warn!("failed to swap nodes: {}", e);
                         };
@@ -351,39 +355,4 @@ impl ToolBehaviour for PointerTool {
             _ => Property::new(ToolVisualizationState::default()),
         }
     }
-}
-
-fn raycast_slot(
-    ctx: &ActionContext,
-    point: Point2<Glass>,
-    original_hit: NodeInterface,
-) -> Option<(NodeInterface, NodeInterface)> {
-    // If we drop on another object, check if it's an object in a slot.
-    // If it is, add this object to the same parent
-    let drop_hit = ctx.raycast_glass(point, RaycastMode::RawNth(0), &[original_hit.clone()])?;
-    let mut drop_slot_container = drop_hit.clone();
-    let drop_slot_topmost_container = loop {
-        if drop_slot_container
-            .containing_component()
-            .is_some_and(|v| v.is_of_type::<Stacker>())
-        {
-            break Some(drop_slot_container);
-        }
-        if let Some(par) = drop_slot_container.render_parent() {
-            drop_slot_container = par;
-        } else {
-            break None;
-        };
-    };
-    let drop_container = drop_slot_topmost_container?;
-    let mut slot = None;
-    let mut curr = drop_hit.clone();
-    let cc = drop_container.containing_component().unwrap();
-    while curr.is_descendant_of(&cc) {
-        if curr.is_of_type::<Slot>() {
-            slot = Some(curr.clone());
-        }
-        curr = curr.render_parent().unwrap();
-    }
-    Some((cc, slot.unwrap()))
 }

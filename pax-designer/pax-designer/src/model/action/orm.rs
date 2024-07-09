@@ -473,6 +473,8 @@ pub fn write_to_orm<T: Serialize + Default + PartialEq>(
     Ok(())
 }
 
+// TODO some props here are not needed for specific values of ResizeMode,
+// move them to the specific ResizeMode enum variants instead
 pub struct MoveNode<'a, S> {
     pub node_id: &'a UniqueTemplateNodeIdentifier,
     pub node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
@@ -480,27 +482,29 @@ pub struct MoveNode<'a, S> {
     pub new_parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
     pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
     pub index: TreeIndexPosition,
-    pub resize_mode: ResizeNode,
+    pub resize_mode: ResizeMode,
 }
 
-pub enum ResizeNode {
+pub enum ResizeMode {
     Fill,
     KeepScreenBounds,
+    KeepProperties,
 }
 
 impl<S: Space> Action for MoveNode<'_, S> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         match self.resize_mode {
-            ResizeNode::KeepScreenBounds => ctx.execute(SetNodePropertiesFromTransform {
+            ResizeMode::KeepScreenBounds => ctx.execute(SetNodePropertiesFromTransform {
                 id: self.node_id.clone(),
                 transform_and_bounds: self.node_transform_and_bounds.clone(),
                 parent_transform_and_bounds: self.new_parent_transform_and_bounds.clone(),
                 decomposition_config: self.node_inv_config,
             })?,
-            ResizeNode::Fill => ctx.execute(SetNodeProperties {
+            ResizeMode::Fill => ctx.execute(SetNodeProperties {
                 id: self.node_id.clone(),
                 properties: LayoutProperties::fill(),
             })?,
+            ResizeMode::KeepProperties => (),
         }
 
         let parent_location = if ctx
