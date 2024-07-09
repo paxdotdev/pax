@@ -3,7 +3,7 @@ use std::f64::consts::PI;
 use super::{Action, ActionContext, CanUndo};
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{
-    self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoInversionConfiguration,
+    self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration,
     RotationUnit, SizeUnit,
 };
 use crate::model::input::InputEvent;
@@ -67,7 +67,7 @@ impl Action for CreateComponent<'_> {
                 transform: Transform2::identity(),
                 bounds: (stage.width as f64, stage.height as f64),
             },
-            inv_config: Default::default(),
+            decomposition_config: Default::default(),
         })?;
 
         ctx.execute(SelectNodes {
@@ -206,13 +206,13 @@ pub struct SetNodePropertiesFromTransform<T> {
     pub id: UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: TransformAndBounds<NodeLocal, T>,
     pub parent_transform_and_bounds: TransformAndBounds<NodeLocal, T>,
-    pub inv_config: DecompositionConfiguration,
+    pub decomposition_config: DecompositionConfiguration,
 }
 
 impl<T: Space> Action for SetNodePropertiesFromTransform<T> {
     fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
         let new_props: LayoutProperties = math::transform_and_bounds_decomposition(
-            self.inv_config,
+            self.decomposition_config,
             self.parent_transform_and_bounds,
             self.transform_and_bounds,
         );
@@ -251,7 +251,7 @@ impl Action for SetAnchor<'_> {
             id: self.object.id.clone(),
             transform_and_bounds: self.object.transform_and_bounds,
             parent_transform_and_bounds: self.object.parent_transform_and_bounds,
-            inv_config: new_anchor.into_inv_config(),
+            decomposition_config: new_anchor.into_decomposition_config(),
         })?;
 
         Ok(CanUndo::No)
@@ -339,7 +339,7 @@ impl Action for Resize<'_> {
                 id: item.id.clone(),
                 transform_and_bounds: resize * item.transform_and_bounds,
                 parent_transform_and_bounds: item.parent_transform_and_bounds,
-                inv_config: item.layout_properties.into_inv_config(),
+                decomposition_config: item.layout_properties.into_decomposition_config(),
             })?;
         }
 
@@ -396,7 +396,7 @@ impl Action for RotateSelected<'_> {
                 id: item.id.clone(),
                 transform_and_bounds: rotate * item.transform_and_bounds,
                 parent_transform_and_bounds: item.parent_transform_and_bounds,
-                inv_config: item.layout_properties.into_inv_config(),
+                decomposition_config: item.layout_properties.into_decomposition_config(),
             })?;
         }
 
@@ -495,7 +495,7 @@ impl<S: Space> Action for MoveNode<'_, S> {
                 id: self.node_id.clone(),
                 transform_and_bounds: self.node_transform_and_bounds.clone(),
                 parent_transform_and_bounds: self.new_parent_transform_and_bounds.clone(),
-                inv_config: self.node_inv_config,
+                decomposition_config: self.node_inv_config,
             })?,
             ResizeNode::Fill => ctx.execute(SetNodeProperties {
                 id: self.node_id.clone(),
