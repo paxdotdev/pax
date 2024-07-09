@@ -1,7 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
-use pax_engine::{layout::TransformAndBounds, math::Point2};
-use pax_runtime_api::{Color, Interpolatable};
+use pax_engine::{
+    api::NodeContext, layout::TransformAndBounds, log, math::Point2, NodeInterface, Property,
+};
+use pax_runtime_api::{borrow_mut, Color, Interpolatable};
 
 use crate::{
     glass::control_point::{
@@ -18,6 +20,7 @@ use crate::{
 };
 
 impl Interpolatable for Editor {}
+pub mod stacker_control;
 
 #[derive(Clone, Default)]
 pub struct Editor {
@@ -26,25 +29,56 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(
-        selection_bounds: &TransformAndBounds<SelectionSpace, Glass>,
-        anchor: Point2<Glass>,
-    ) -> Self {
-        let (o, u, v) = selection_bounds.transform.decompose();
-        let u = u * selection_bounds.bounds.0;
-        let v = v * selection_bounds.bounds.1;
-        let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
+    pub fn new(ctx: NodeContext, selection: SelectionState) -> Property<Self> {
+        let total_bounds = selection.total_bounds.clone();
+        let deps = [total_bounds.untyped()];
+        let total_bound_derived = Property::computed(
+            move || {
+                let total_bounds = total_bounds.get();
+                let (o, u, v) = total_bounds.transform.decompose();
+                let u = u * total_bounds.bounds.0;
+                let v = v * total_bounds.bounds.1;
+                let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
+                (
+                    vec![
+                        Self::resize_control_points_set(p1, p2, p3, p4),
+                        Self::rotate_control_points_set(p1, p2, p3, p4),
+                    ],
+                    vec![(p1, p2), (p2, p3), (p3, p4), (p4, p1)],
+                )
+            },
+            &deps,
+        );
 
-        let bounding_segments = vec![(p1, p2), (p2, p3), (p3, p4), (p4, p1)];
+        let anchor = selection.total_origin.clone();
+        let deps = [anchor.untyped()];
+        let anchor_derived = Property::computed(
+            move || {
+                let anchor = anchor.get();
+                vec![Self::anchor_control_point_set(anchor)]
+            },
+            &deps,
+        );
 
-        Self {
-            controls: vec![
-                Self::resize_control_points_set(p1, p2, p3, p4),
-                Self::rotate_control_points_set(p1, p2, p3, p4),
-                Self::anchor_control_point_set(anchor),
-            ],
-            segments: bounding_segments,
-        }
+        let mut deps = vec![total_bound_derived.untyped(), anchor_derived.untyped()];
+        let object_specific_derived = Self::object_specific_control_point_sets(ctx, selection);
+        deps.extend(object_specific_derived.iter().map(Property::untyped));
+        Property::computed(
+            move || {
+                let (resize_and_rotate_sets, bounding_segments) = total_bound_derived.get();
+                let anchor = anchor_derived.get();
+                let object_specific_derived =
+                    object_specific_derived.iter().map(Property::get).collect();
+                Self {
+                    controls: [resize_and_rotate_sets, anchor, object_specific_derived]
+                        .into_iter()
+                        .flatten()
+                        .collect(),
+                    segments: bounding_segments,
+                }
+            },
+            &deps,
+        )
     }
 
     fn rotate_control_points_set(
@@ -228,10 +262,37 @@ impl Editor {
             styling: resize_control_point_styling,
         }
     }
+
+    fn object_specific_control_point_sets(
+        ctx: NodeContext,
+        selection: SelectionState,
+    ) -> Vec<Property<ControlPointSet>> {
+        if selection.items.len() != 1 {
+            return Vec::default();
+        }
+        let item = selection.items.into_iter().next().unwrap();
+        let type_id = {
+            let mut dt = borrow_mut!(ctx.designtime);
+            let Some(builder) = dt.get_orm_mut().get_node(item.id.clone()) else {
+                return Vec::default();
+            };
+            builder.get_type_id()
+        };
+        let import_path = type_id.import_path();
+        match import_path.as_ref().map(|v| v.as_str()) {
+            Some("pax_designer::pax_reexports::pax_std::stacker::Stacker") => {
+                stacker_control::stacker_control_set(ctx, item)
+            }
+            _ => return Vec::default(),
+        }
+    }
 }
+
+impl Interpolatable for CPoint {}
 
 #[derive(Clone)]
 pub struct CPoint {
+    // make this point a prop?
     pub point: Point2<Glass>,
     pub behaviour: Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>,
 }
@@ -242,7 +303,9 @@ impl CPoint {
     }
 }
 
-#[derive(Clone)]
+impl Interpolatable for ControlPointSet {}
+
+#[derive(Clone, Default)]
 pub struct ControlPointSet {
     pub points: Vec<CPoint>,
     pub styling: ControlPointStyling,

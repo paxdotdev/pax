@@ -27,7 +27,7 @@ use crate::model::action::ActionContext;
 use crate::model::{self, action, GlassNodeSnapshot, SelectionState, SelectionStateSnapshot};
 use pax_engine::api::Fill;
 
-mod editor_generation;
+pub mod editor_generation;
 use self::editor_generation::Editor;
 
 #[pax]
@@ -47,7 +47,7 @@ thread_local!(
 
 #[allow(unused)]
 impl WireframeEditor {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
         let selected = model::read_app_state_with_derived(|_, derived_state| {
             derived_state.selection_state.clone()
         });
@@ -60,16 +60,12 @@ impl WireframeEditor {
         // whenever the selection ID changes, the transform and bounds of
         // the editor (among other things) are re-bound to the engine node
         // corresponding to that id. "bindings inside bindings"
+        let ctx = ctx.clone();
         self.on_selection_changed.replace_with(Property::computed(
             move || {
                 let selected = selected_cp.get();
-
                 if selected.items.len() > 0 {
-                    let orig = selected.total_origin;
-                    let t_and_b = selected.total_bounds;
-                    let deps = [t_and_b.untyped(), orig.untyped()];
-                    let editor =
-                        Property::computed(move || Editor::new(&t_and_b.get(), orig.get()), &deps);
+                    let editor = Editor::new(ctx.clone(), selected);
                     Self::bind_editor(control_points.clone(), bounding_segments.clone(), editor);
                 } else {
                     control_points.replace_with(Property::new(vec![]));
