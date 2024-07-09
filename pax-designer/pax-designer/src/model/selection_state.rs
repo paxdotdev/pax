@@ -1,5 +1,6 @@
 use pax_engine::{
     layout::{LayoutProperties, TransformAndBounds},
+    log,
     math::{Point2, Transform2, Vector2},
     NodeInterface, NodeLocal, Property,
 };
@@ -145,7 +146,10 @@ impl GlassNode {
                 let parent_t_and_b = n
                     .render_parent()
                     .map(|v| v.transform_and_bounds())
-                    .unwrap_or_default();
+                    .unwrap_or_else(|| {
+                        log::warn!("node has no parent bounds - used default parent bounds");
+                        Default::default()
+                    });
                 let deps = [parent_t_and_b.untyped(), to_glass_transform.untyped()];
                 Property::computed(
                     move || {
@@ -161,7 +165,10 @@ impl GlassNode {
                 let parent_t_and_b = n
                     .render_parent()
                     .map(|p| p.transform_and_bounds())
-                    .unwrap_or_default();
+                    .unwrap_or_else(|| {
+                        log::warn!("node has no parent bounds - used default parent bounds");
+                        Default::default()
+                    });
                 let properties = n.layout_properties();
                 let deps = [parent_t_and_b.untyped(), to_glass_transform.untyped()];
                 let to_glass = to_glass_transform.clone();
