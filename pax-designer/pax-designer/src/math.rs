@@ -296,12 +296,12 @@ pub struct DecompositionConfiguration {
     pub unit_y_pos: SizeUnit,
 }
 
-pub trait IntoInversionConfiguration {
-    fn into_inv_config(&self) -> DecompositionConfiguration;
+pub trait IntoDecompositionConfiguration {
+    fn into_decomposition_config(&self) -> DecompositionConfiguration;
 }
 
-impl IntoInversionConfiguration for LayoutProperties {
-    fn into_inv_config(&self) -> DecompositionConfiguration {
+impl IntoDecompositionConfiguration for LayoutProperties {
+    fn into_decomposition_config(&self) -> DecompositionConfiguration {
         DecompositionConfiguration {
             anchor_x: self.anchor_x,
             anchor_y: self.anchor_y,
@@ -324,7 +324,7 @@ impl IntoInversionConfiguration for LayoutProperties {
 // NOTE: this inverts the operations specified in: pax_runtime/src/layout.rs,
 // function calculate_transform_and_bounds
 pub(crate) fn transform_and_bounds_decomposition<S: Space>(
-    inv_config: DecompositionConfiguration,
+    decomposition_config: DecompositionConfiguration,
     parent_box: TransformAndBounds<NodeLocal, S>,
     target_box: TransformAndBounds<NodeLocal, S>,
 ) -> LayoutProperties {
@@ -374,12 +374,12 @@ pub(crate) fn transform_and_bounds_decomposition<S: Space>(
 
     // If x or y is in pixels, but anchor isn't set,
     // anchor is defaulted to 0%
-    let anchor_x = inv_config
+    let anchor_x = decomposition_config
         .anchor_x
-        .or((inv_config.unit_x_pos == SizeUnit::Pixels).then_some(Size::ZERO()));
-    let anchor_y = inv_config
+        .or((decomposition_config.unit_x_pos == SizeUnit::Pixels).then_some(Size::ZERO()));
+    let anchor_y = decomposition_config
         .anchor_y
-        .or((inv_config.unit_y_pos == SizeUnit::Pixels).then_some(Size::ZERO()));
+        .or((decomposition_config.unit_y_pos == SizeUnit::Pixels).then_some(Size::ZERO()));
 
     // for the four different cases of ax and ay
     // either being a function of x/y, or being "constants".
@@ -485,11 +485,11 @@ pub(crate) fn transform_and_bounds_decomposition<S: Space>(
 
     // use config units for all values
 
-    let width = match inv_config.unit_width {
+    let width = match decomposition_config.unit_width {
         SizeUnit::Pixels => Size::Pixels(object_bounds.0.into()),
         SizeUnit::Percent => Size::Percent((100.0 * w_r).into()),
     };
-    let height = match inv_config.unit_height {
+    let height = match decomposition_config.unit_height {
         SizeUnit::Pixels => Size::Pixels(object_bounds.1.into()),
         SizeUnit::Percent => Size::Percent((100.0 * h_r).into()),
     };
@@ -497,23 +497,23 @@ pub(crate) fn transform_and_bounds_decomposition<S: Space>(
     let scale_x = Percent((100.0 * parts.scale.x).into());
     let scale_y = Percent((100.0 * parts.scale.y).into());
 
-    let x = match inv_config.unit_x_pos {
+    let x = match decomposition_config.unit_x_pos {
         SizeUnit::Pixels => Size::Pixels(x.into()),
         SizeUnit::Percent => Size::Percent((100.0 * x / container_bounds.0).into()),
     };
-    let y = match inv_config.unit_y_pos {
+    let y = match decomposition_config.unit_y_pos {
         SizeUnit::Pixels => Size::Pixels(y.into()),
         SizeUnit::Percent => Size::Percent((100.0 * y / container_bounds.1).into()),
     };
 
     let rotation = parts.rotation;
-    let rotation = match inv_config.unit_rotation {
+    let rotation = match decomposition_config.unit_rotation {
         RotationUnit::Radians => Rotation::Radians(rotation.into()),
         RotationUnit::Degrees => Rotation::Degrees(rotation.to_degrees().into()),
         RotationUnit::Percent => Rotation::Percent((100.0 * rotation / 2.0 / PI).into()),
     };
 
-    let skew_x = Some(match inv_config.unit_skew_x {
+    let skew_x = Some(match decomposition_config.unit_skew_x {
         RotationUnit::Radians => Rotation::Radians(parts.skew.x.into()),
         RotationUnit::Degrees => Rotation::Degrees(parts.skew.x.to_degrees().into()),
         RotationUnit::Percent => Rotation::Percent((100.0 * parts.skew.x / 2.0 / PI).into()),
@@ -524,8 +524,8 @@ pub(crate) fn transform_and_bounds_decomposition<S: Space>(
         y: Some(y),
         width: Some(width),
         height: Some(height),
-        anchor_x: inv_config.anchor_x,
-        anchor_y: inv_config.anchor_y,
+        anchor_x: decomposition_config.anchor_x,
+        anchor_y: decomposition_config.anchor_y,
         rotate: Some(rotation),
         scale_x: Some(scale_x),
         scale_y: Some(scale_y),

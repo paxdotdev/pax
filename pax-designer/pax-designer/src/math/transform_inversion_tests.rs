@@ -5,7 +5,7 @@ use pax_engine::{
 };
 use pax_runtime_api::{Numeric, Percent, Rotation, Size, Window};
 
-use super::IntoInversionConfiguration;
+use super::IntoDecompositionConfiguration;
 
 #[test]
 fn test_simple_units() {
@@ -502,7 +502,7 @@ fn test_to_and_back(
         original_props.clone(),
         parent_transform_and_bounds,
     );
-    let inv_config = original_props.into_inv_config();
+    let inv_config = original_props.into_decomposition_config();
     let recovered_props =
         super::transform_and_bounds_decomposition(inv_config, parent_transform_and_bounds, t_and_b);
 

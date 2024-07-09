@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::{
-    math::{DecompositionConfiguration, IntoInversionConfiguration},
+    math::{DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
         action::{
             orm::{group_ungroup, SetNodeProperties},
@@ -92,7 +92,7 @@ impl Action for GroupSelected {
             id: group_creation_save_data.unique_id.clone(),
             transform_and_bounds: group_transform_and_bounds,
             parent_transform_and_bounds: group_parent_transform_and_bounds,
-            inv_config: DecompositionConfiguration::default(),
+            decomposition_config: DecompositionConfiguration::default(),
         })?;
 
         // ---------- Move nodes into newly created group ----------
@@ -104,7 +104,7 @@ impl Action for GroupSelected {
                 new_parent_transform_and_bounds: &group_transform_and_bounds,
                 index: TreeIndexPosition::Bottom,
                 resize_mode: ResizeNode::KeepScreenBounds,
-                node_inv_config: node.layout_properties.into_inv_config(),
+                node_inv_config: node.layout_properties.into_decomposition_config(),
             })?;
         }
 
@@ -153,7 +153,9 @@ impl Action for UngroupSelected {
                     .first()
                     .cloned()
                     .unwrap();
-                let child_inv_config = child_runtime_node.layout_properties().into_inv_config();
+                let child_inv_config = child_runtime_node
+                    .layout_properties()
+                    .into_decomposition_config();
                 let child_t_and_b = child_runtime_node.transform_and_bounds().get();
                 ctx.execute(MoveNode {
                     node_id: &child,

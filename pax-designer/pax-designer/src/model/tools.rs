@@ -11,7 +11,7 @@ use crate::glass::outline::PathOutline;
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
-    AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoInversionConfiguration, SizeUnit,
+    AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
 };
 use crate::model::action::orm::{MoveNode, ResizeNode};
 use crate::model::Tool;
@@ -248,7 +248,7 @@ impl ToolBehaviour for PointerTool {
                         id: item.id.clone(),
                         transform_and_bounds: move_translation * item.transform_and_bounds,
                         parent_transform_and_bounds: item.parent_transform_and_bounds,
-                        inv_config: item.layout_properties.into_inv_config(),
+                        decomposition_config: item.layout_properties.into_decomposition_config(),
                     }) {
                         pax_engine::log::error!("Error moving selected: {:?}", e);
                     }
@@ -261,7 +261,6 @@ impl ToolBehaviour for PointerTool {
                         bounds: (1.0, 1.0),
                     } * slot.transform_and_bounds().get();
                     let outline = PathOutline::from_bounds(t_and_b);
-                    log::debug!("outline drawing for slot");
                     vis.set(ToolVisualizationState {
                         rect_tool: Default::default(),
                         outline,
