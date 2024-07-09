@@ -270,6 +270,7 @@ impl ExpandedNode {
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
 
         Rc::clone(self).recurse_mount(context);
+        Rc::clone(self).recurse_update(context);
         self.bind_to_parent_bounds();
     }
 
