@@ -19,7 +19,6 @@ default = ["console_error_panic_hook"]
 piet = "0.6.0"
 piet-web = "0.6.0"
 pax-runtime = { path = "../pax-runtime", version="0.15.5" }
-pax-cartridge = {path="../pax-cartridge", version="0.15.5"}
 pax-message = {path = "../pax-message", version="0.15.5"}
 pax-runtime-api = { path = "../pax-runtime-api", version="0.15.5" }
 pax-manifest = {path="../pax-manifest", version="0.15.5"}

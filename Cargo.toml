@@ -26,7 +26,6 @@ members = [
 ]
 
 exclude = [
-    "pax-cartridge",
     "pax-compiler/new-project-template",
     "pax-create-sandbox",
     "examples",
