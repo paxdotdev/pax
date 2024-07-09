@@ -276,6 +276,10 @@ impl PaxManifestORM {
         Ok(())
     }
 
+    pub fn get_last_undo_id(&self) -> Option<usize> {
+        self.undo_stack.last().map(|l| l.0)
+    }
+
     pub fn undo_until(&mut self, command_id: usize) -> Result<(), String> {
         while let Some((id, _)) = self.undo_stack.last() {
             if *id == command_id {
