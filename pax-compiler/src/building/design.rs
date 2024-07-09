@@ -25,7 +25,6 @@ pub fn add_additional_dependencies_to_cargo_toml(
         "pax-chassis-web" => {
             let mut array = Array::default();
             array.push("pax-designtime");
-            array.push("pax-cartridge/designtime");
             array.push("pax-runtime/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
             doc["dependencies"]["pax-designtime"] = pax_designtime_dependency;
@@ -40,25 +39,6 @@ pub fn add_additional_dependencies_to_cargo_toml(
             let mut array = Array::default();
             array.push("pax-runtime/designtime");
             doc["features"]["designtime"] = toml_edit::value(array);
-        }
-        "pax-cartridge" => {
-            let mut array = Array::default();
-            array.push("serde_json");
-            array.push("include_dir");
-            array.push("pax-designtime");
-            array.push("pax-runtime/designtime");
-            array.push("pax-designer/designtime");
-            doc["features"]["designtime"] = toml_edit::value(array);
-
-            let mut array = Array::default();
-            array.push("designtime");
-            doc["features"]["default"] = toml_edit::value(array);
-
-            doc["dependencies"]["serde_json"] =
-                Item::from_str(r#"{ version = "1.0.95", optional = true }"#)?;
-            doc["dependencies"]["include_dir"] =
-                Item::from_str(r#"{ version = "0.7.3", features = ["glob"], optional = true }"#)?;
-            doc["dependencies"]["pax-designtime"] = pax_designtime_dependency;
         }
         "pax-designtime" => {
             doc["dependencies"]["pax-manifest"] = Item::from_str(r#"{ path="../pax-manifest" }"#)?;
