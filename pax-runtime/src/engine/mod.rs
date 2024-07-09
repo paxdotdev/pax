@@ -364,15 +364,8 @@ impl PaxEngine {
                 .as_ref()
                 .is_some_and(|i| i == id)
         }) {
-            // OBS: HACK: this is not general, works for non-for loop/if nodes only
-            // to do more generally, split expanded_node.update into prop updates and
-            // regen of children steps
-            let env = Rc::clone(&parent.stack);
-            let parent_template = borrow!(parent.instance_node);
-            let children = borrow!(parent_template.base().get_instance_children());
-            let new_templates = children.clone().into_iter().zip(iter::repeat(env));
-            let children = parent.generate_children(new_templates, ctx);
-            parent.children.set(children);
+            let parent_template = Rc::clone(&*borrow!(parent.instance_node));
+            parent.recreate_with_new_data(parent_template, ctx);
         } else {
             for child in parent.children.get().iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);
