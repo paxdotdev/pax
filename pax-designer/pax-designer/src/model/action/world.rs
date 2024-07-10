@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use super::{pointer::Pointer, Action, ActionContext, CanUndo};
+use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::model::{input::InputEvent, AppState, ToolBehaviour};
 use anyhow::{anyhow, Result};
@@ -28,10 +28,12 @@ impl ToolBehaviour for Pan {
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         let diff = self.start_point - point;
-        if let Err(e) = ctx.execute(Translate {
+        if let Err(e) = (Translate {
             translation: diff,
             original_transform: self.original_transform,
-        }) {
+        }
+        .perform(ctx))
+        {
             log::warn!("failed to translate: {}", e);
             ControlFlow::Break(())
         } else {
@@ -67,13 +69,13 @@ pub struct Translate {
 }
 
 impl Action for Translate {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let diff = ctx.world_transform() * self.translation;
         let translation = Transform2::translate(diff);
         ctx.app_state
             .glass_to_world_transform
             .set(translation * self.original_transform);
-        Ok(CanUndo::No)
+        Ok(())
     }
 }
 
@@ -82,7 +84,7 @@ pub struct Zoom {
 }
 
 impl Action for Zoom {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         if ctx
             .app_state
             .keys_pressed
@@ -94,6 +96,6 @@ impl Action for Zoom {
                 *transform = *transform * Transform2::scale(scale);
             });
         }
-        Ok(CanUndo::No)
+        Ok(())
     }
 }

@@ -337,8 +337,8 @@ pub fn read_app_state_with_derived<V>(closure: impl FnOnce(&AppState, &DerivedAp
     })
 }
 
-pub fn perform_action(action: impl Action, ctx: &NodeContext) {
-    if let Err(e) = with_action_context(ctx, |ac| ac.execute(action)) {
+pub fn perform_action(action: &dyn Action, ctx: &NodeContext) {
+    if let Err(e) = with_action_context(ctx, |ac| action.perform(ac)) {
         pax_engine::log::warn!("action failed: {:?}", e);
     }
 }
@@ -369,7 +369,7 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     });
     match action {
         Ok(Some(action)) => {
-            perform_action(action, ctx);
+            perform_action(action.as_ref(), ctx);
         }
         Ok(None) => (),
         Err(e) => pax_engine::log::warn!("couldn't keyboard mapping: {:?}", e),
@@ -403,6 +403,7 @@ pub enum Component {
     Rectangle,
     Ellipse,
     Text,
+    Stacker,
 }
 
 pub trait ToolBehaviour {

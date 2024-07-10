@@ -254,7 +254,7 @@ impl<W: Space> AxisAlignedBox<W> {
 
     /// Returns the transform that moves the unit
     /// vectors to this box
-    pub fn as_transform(&self) -> Transform2<Generic, W> {
+    pub fn as_transform(&self) -> Transform2<NodeLocal, W> {
         let origin = self.min;
         let vx = Vector2::new(self.width(), 0.0);
         let vy = Vector2::new(0.0, self.height());
@@ -324,16 +324,16 @@ impl IntoDecompositionConfiguration for LayoutProperties {
 // NOTE: this inverts the operations specified in: pax_runtime/src/layout.rs,
 // function calculate_transform_and_bounds
 pub(crate) fn transform_and_bounds_decomposition<S: Space>(
-    decomposition_config: DecompositionConfiguration,
-    parent_box: TransformAndBounds<NodeLocal, S>,
-    target_box: TransformAndBounds<NodeLocal, S>,
+    decomposition_config: &DecompositionConfiguration,
+    parent_box: &TransformAndBounds<NodeLocal, S>,
+    target_box: &TransformAndBounds<NodeLocal, S>,
 ) -> LayoutProperties {
     let container_bounds = parent_box.bounds;
     // change to target to be in the frame of reference of parent
     let target_box = TransformAndBounds {
         transform: parent_box.transform.inverse(),
         bounds: (1.0, 1.0),
-    } * target_box;
+    } * target_box.clone();
 
     let mut parts: Parts = target_box.transform.into();
     let object_bounds = target_box.bounds;

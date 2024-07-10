@@ -503,8 +503,11 @@ fn test_to_and_back(
         parent_transform_and_bounds,
     );
     let inv_config = original_props.into_decomposition_config();
-    let recovered_props =
-        super::transform_and_bounds_decomposition(inv_config, parent_transform_and_bounds, t_and_b);
+    let recovered_props = super::transform_and_bounds_decomposition(
+        &inv_config,
+        &parent_transform_and_bounds,
+        &t_and_b,
+    );
 
     fn print_failure_info<T: std::fmt::Debug>(
         info: &str,

@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use model::action::orm::CreateComponent;
 use pax_engine::api::*;
+use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
 use pax_engine::*;
 use pax_manifest::TypeId;
@@ -15,10 +16,13 @@ use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::AxisAlignedBox;
 use crate::model;
+use crate::model::action::Action;
 use crate::model::action::ActionContext;
 use crate::model::input::Dir;
 use crate::model::input::InputEvent;
+use crate::model::GlassNode;
 use crate::model::ToolBehaviour;
+use crate::ROOT_PROJECT_ID;
 use math::Point2;
 
 use super::SetLibraryState;
@@ -52,17 +56,31 @@ impl ToolBehaviour for DropComponent {
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        let w_center = ctx.world_transform() * point;
         let (w, h) = self.bounds_pixels;
         let v = Vector2::new(w, h) / 2.0;
-        let bounds = AxisAlignedBox::new(w_center + v, w_center - v);
-        ctx.execute(CreateComponent {
-            bounds,
+        let bounds = AxisAlignedBox::new(point + v, point - v);
+        let parent = ctx
+            .engine_context
+            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .into_iter()
+            .next()
+            .unwrap();
+        let parent = GlassNode::new(&parent, &ctx.glass_transform());
+        CreateComponent {
+            parent: &(&parent).into(),
+            parent_index: pax_manifest::TreeIndexPosition::Top,
+            mock_child: false,
+            bounds: TransformAndBounds {
+                transform: bounds.as_transform(),
+                bounds: (1.0, 1.0),
+            }
+            .as_pure_size(),
             type_id: self.type_id.clone(),
             custom_props: vec![],
-        })
+        }
+        .perform(ctx)
         .unwrap();
-        ctx.execute(SetLibraryState { open: false }).unwrap();
+        SetLibraryState { open: false }.perform(ctx).unwrap();
         ControlFlow::Break(())
     }
 
@@ -82,7 +100,7 @@ impl ToolBehaviour for DropComponent {
 
 impl ComponentLibraryItem {
     pub fn on_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
-        model::perform_action(SetEditingComponent(self.data.get().type_id.clone()), ctx);
+        model::perform_action(&SetEditingComponent(self.data.get().type_id.clone()), ctx);
     }
     pub fn on_down(&mut self, ctx: &NodeContext, _args: Event<MouseDown>) {
         model::with_action_context(ctx, |ctx| {

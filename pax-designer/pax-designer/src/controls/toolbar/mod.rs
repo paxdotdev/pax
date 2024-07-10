@@ -19,7 +19,6 @@ use crate::model::action::{Action, ActionContext};
 use crate::model::{self, Component, ProjectMode, Tool, ToolBehaviour};
 use crate::ProjectMsg;
 use anyhow::Result;
-use model::action::CanUndo;
 use toolbar_item::ToolbarItemVisual;
 
 #[pax]
@@ -109,6 +108,10 @@ thread_local! {
                         icon: "assets/icons/toolbar/icon-15-checkbox.png",
                         event: ToolbarEvent::SelectTool(Tool::TodoTool)
                     },
+                    ToolbarItem {
+                        icon: "assets/icons/toolbar/icon-13-stacker.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Stacker))
+                    },
                 ]
             },
             ToolbarEntry {
@@ -164,7 +167,7 @@ impl Toolbar {
                             ToolbarEvent::PerformAction(action_factory) => action_factory(),
                         }
                     });
-                    model::perform_action(action, &ctx);
+                    model::perform_action(action.as_ref(), &ctx);
                     vec![]
                 }
                 ToolbarClickEvent::None => vec![],
@@ -239,8 +242,8 @@ pub struct SelectTool {
 }
 
 impl Action for SelectTool {
-    fn perform(self: Box<Self>, ctx: &mut model::action::ActionContext) -> Result<CanUndo> {
+    fn perform(&self, ctx: &mut model::action::ActionContext) -> Result<()> {
         ctx.app_state.selected_tool.set(self.tool);
-        Ok(CanUndo::No)
+        Ok(())
     }
 }

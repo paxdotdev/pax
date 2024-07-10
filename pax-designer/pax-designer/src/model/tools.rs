@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use super::action::orm::{CreateComponent, SetNodePropertiesFromTransform};
 use super::action::pointer::Pointer;
-use super::action::{Action, ActionContext, CanUndo, RaycastMode};
+use super::action::{Action, ActionContext, RaycastMode};
 use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::outline::PathOutline;
@@ -26,7 +26,9 @@ use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::{log, NodeInterface, NodeLocal, Property, Slot};
-use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{
+    PaxType, TemplateNodeId, TreeIndexPosition, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_runtime_api::math::Transform2;
 use pax_runtime_api::{Axis, Window};
 use pax_std::stacker::Stacker;
@@ -35,14 +37,21 @@ pub struct CreateComponentTool {
     type_id: TypeId,
     origin: Point2<Glass>,
     bounds: Property<AxisAlignedBox>,
+    mock_child: bool,
 }
 
 impl CreateComponentTool {
-    pub fn new(_ctx: &mut ActionContext, point: Point2<Glass>, type_id: &TypeId) -> Self {
+    pub fn new(
+        _ctx: &mut ActionContext,
+        point: Point2<Glass>,
+        type_id: &TypeId,
+        mock_child: bool,
+    ) -> Self {
         Self {
             type_id: type_id.clone(),
             origin: point,
             bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
+            mock_child,
         }
     }
 }
@@ -72,16 +81,29 @@ impl ToolBehaviour for CreateComponentTool {
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         self.pointer_move(point, ctx);
-        let box_transform = ctx.world_transform() * self.bounds.get().as_transform();
-        let (o, u, v) = box_transform.decompose();
-        // TODO make CreateComponent take transform?
-        let world_box = AxisAlignedBox::new(o, o + u + v);
-        ctx.execute(CreateComponent {
-            bounds: world_box,
+        let box_transform = self.bounds.get().as_transform();
+        let parent = ctx
+            .engine_context
+            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .into_iter()
+            .next()
+            .unwrap();
+        let parent = GlassNode::new(&parent, &ctx.glass_transform());
+
+        CreateComponent {
+            parent: &(&parent).into(),
+            parent_index: TreeIndexPosition::Top,
+            bounds: TransformAndBounds {
+                transform: box_transform,
+                bounds: (1.0, 1.0),
+            }
+            .as_pure_size(),
             type_id: self.type_id.clone(),
             custom_props: vec![],
-        })
-        .unwrap();
+            mock_child: self.mock_child,
+        }
+        .perform(ctx);
+
         ControlFlow::Break(())
     }
 
@@ -124,7 +146,7 @@ pub struct SelectNodes<'a> {
 }
 
 impl Action for SelectNodes<'_> {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let mut ids = ctx.app_state.selected_template_node_ids.get();
         // TODO this is not it, should instead not trigger selectnodes if
         // clicking on group of nodes that is already selected and was moved
@@ -142,7 +164,7 @@ impl Action for SelectNodes<'_> {
         if ids != ctx.app_state.selected_template_node_ids.get() {
             ctx.app_state.selected_template_node_ids.set(ids);
         }
-        Ok(CanUndo::No)
+        Ok(())
     }
 }
 
@@ -176,10 +198,11 @@ impl PointerTool {
             let node_id = hit.global_id().unwrap();
             let selected = ctx.derived_state.selection_state.get();
             if !selected.items.iter().any(|s| s.id == node_id) {
-                let _ = ctx.execute(SelectNodes {
+                let _ = SelectNodes {
                     ids: &[node_id.get_template_node_id()],
                     overwrite: false,
-                });
+                }
+                .perform(ctx);
             }
             let selection = ctx.derived_state.selection_state.get();
             Self {
@@ -245,12 +268,14 @@ impl ToolBehaviour for PointerTool {
                 };
 
                 for item in &initial_selection.items {
-                    if let Err(e) = ctx.execute(SetNodePropertiesFromTransform {
-                        id: item.id.clone(),
-                        transform_and_bounds: move_translation * item.transform_and_bounds,
-                        parent_transform_and_bounds: item.parent_transform_and_bounds,
-                        decomposition_config: item.layout_properties.into_decomposition_config(),
-                    }) {
+                    if let Err(e) = (SetNodePropertiesFromTransform {
+                        id: &item.id,
+                        transform_and_bounds: &(move_translation * item.transform_and_bounds),
+                        parent_transform_and_bounds: &item.parent_transform_and_bounds,
+                        decomposition_config: &item.layout_properties.into_decomposition_config(),
+                    }
+                    .perform(ctx))
+                    {
                         pax_engine::log::error!("Error moving selected: {:?}", e);
                     }
                 }
@@ -278,11 +303,12 @@ impl ToolBehaviour for PointerTool {
                     ResizeStageDim::Height => (size_before.width, world_point.y as u32),
                     ResizeStageDim::Width => (world_point.x as u32, size_before.height),
                 };
-                ctx.execute(SetStage(StageInfo {
+                SetStage(StageInfo {
                     width: new_width,
                     height: new_height,
                     color: Color::BLUE,
-                }))
+                })
+                .perform(ctx)
                 .unwrap();
             }
         }
@@ -296,10 +322,11 @@ impl ToolBehaviour for PointerTool {
         match &self.action {
             PointerToolAction::Selecting { .. } => {
                 // TODO select multiple objects
-                let _ = ctx.execute(SelectNodes {
+                let _ = SelectNodes {
                     ids: &[],
                     overwrite: false,
-                });
+                }
+                .perform(ctx);
             }
             PointerToolAction::Moving {
                 has_moved, ref hit, ..
@@ -307,28 +334,26 @@ impl ToolBehaviour for PointerTool {
                 // TODO add check here that we're not moving something from within the same stacker
                 if *has_moved {
                     if let Some((container, slot)) = raycast_slot(ctx, point, hit.clone()) {
-                        if let Err(e) = ctx.execute(MoveNode {
+                        if let Err(e) = (MoveNode::<Glass> {
                             node_id: &hit.global_id().unwrap(),
-                            node_transform_and_bounds: &hit.transform_and_bounds().get(),
-                            node_inv_config: DecompositionConfiguration::default(),
-                            new_parent_transform_and_bounds: &container
-                                .transform_and_bounds()
-                                .get(),
                             new_parent_uid: &container.global_id().unwrap(),
                             index: pax_manifest::TreeIndexPosition::At(
                                 slot.with_properties(|f: &mut Slot| f.index.get().to_int())
                                     as usize,
                             ),
                             resize_mode: ResizeMode::Fill,
-                        }) {
+                        }
+                        .perform(ctx))
+                        {
                             log::warn!("failed to swap nodes: {}", e);
                         };
                     };
                 } else {
-                    let _ = ctx.execute(SelectNodes {
+                    let _ = SelectNodes {
                         ids: &[hit.global_id().unwrap().get_template_node_id()],
                         overwrite: false,
-                    });
+                    }
+                    .perform(ctx);
                 }
             }
             PointerToolAction::ResizingStage(_dir) => {}

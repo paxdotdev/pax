@@ -22,7 +22,7 @@ use crate::{
         self,
         action::{
             orm::{MoveNode, ResizeMode, SetNodePropertiesFromTransform},
-            ActionContext, RaycastMode,
+            Action, ActionContext, RaycastMode,
         },
         input::InputEvent,
         GlassNode, GlassNodeSnapshot, ToolBehaviour,
@@ -71,15 +71,18 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 bounds: (1.0, 1.0),
             };
 
-            if let Err(e) = ctx.execute(SetNodePropertiesFromTransform {
-                id: self.initial_object.id.clone(),
-                transform_and_bounds: move_translation * self.initial_object.transform_and_bounds,
-                parent_transform_and_bounds: self.initial_object.parent_transform_and_bounds,
-                decomposition_config: self
+            if let Err(e) = (SetNodePropertiesFromTransform {
+                id: &self.initial_object.id,
+                transform_and_bounds: &(move_translation
+                    * self.initial_object.transform_and_bounds),
+                parent_transform_and_bounds: &self.initial_object.parent_transform_and_bounds,
+                decomposition_config: &self
                     .initial_object
                     .layout_properties
                     .into_decomposition_config(),
-            }) {
+            }
+            .perform(ctx))
+            {
                 pax_engine::log::error!("Error moving stacker object: {:?}", e);
             }
             let raycast_hit =
@@ -104,21 +107,16 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
             if let Some((container, slot)) =
                 raycast_slot(ctx, point, self.initial_object.raw_node_interface.clone())
             {
-                if let Err(e) = ctx.execute(MoveNode {
-                    node_id: &self.initial_object.raw_node_interface.global_id().unwrap(),
-                    node_transform_and_bounds: &self
-                        .initial_object
-                        .raw_node_interface
-                        .transform_and_bounds()
-                        .get(),
-                    node_inv_config: DecompositionConfiguration::default(),
-                    new_parent_transform_and_bounds: &container.transform_and_bounds().get(),
+                if let Err(e) = (MoveNode {
+                    node_id: &self.initial_object.id,
                     new_parent_uid: &container.global_id().unwrap(),
                     index: pax_manifest::TreeIndexPosition::At(
                         slot.with_properties(|f: &mut Slot| f.index.get().to_int()) as usize,
                     ),
-                    resize_mode: ResizeMode::Fill,
-                }) {
+                    resize_mode: ResizeMode::Fill::<Glass>,
+                }
+                .perform(ctx))
+                {
                     log::warn!("failed to swap nodes: {}", e);
                 };
             } else {

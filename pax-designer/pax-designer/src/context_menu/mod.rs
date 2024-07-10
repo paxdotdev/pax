@@ -6,7 +6,7 @@ use crate::math::coordinate_spaces::Glass;
 use crate::model;
 use crate::model::action::orm::group_ungroup::{GroupSelected, UngroupSelected};
 use crate::model::action::orm::SelectedIntoNewComponent;
-use crate::model::action::{Action, ActionContext, CanUndo};
+use crate::model::action::{Action, ActionContext};
 
 #[pax]
 #[file("context_menu/mod.pax")]
@@ -61,17 +61,17 @@ impl DesignerContextMenu {
     }
 
     pub fn create_component(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::perform_action(SelectedIntoNewComponent {}, ctx);
+        model::perform_action(&SelectedIntoNewComponent {}, ctx);
         self.close_menu();
     }
 
     pub fn group(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::perform_action(GroupSelected {}, ctx);
+        model::perform_action(&GroupSelected {}, ctx);
         self.close_menu();
     }
 
     pub fn ungroup(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::perform_action(UngroupSelected {}, ctx);
+        model::perform_action(&UngroupSelected {}, ctx);
         self.close_menu();
     }
 
@@ -96,8 +96,8 @@ pub enum ContextMenuMsg {
 impl Interpolatable for ContextMenuMsg {}
 
 impl Action for ContextMenuMsg {
-    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        CONTEXT_MENU_PROP.with(|context_menu_msg| context_menu_msg.set(*self));
-        Ok(CanUndo::No)
+    fn perform(&self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        CONTEXT_MENU_PROP.with(|context_menu_msg| context_menu_msg.set(self.clone()));
+        Ok(())
     }
 }
