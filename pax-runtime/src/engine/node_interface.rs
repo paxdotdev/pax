@@ -81,4 +81,17 @@ impl NodeInterface {
     pub fn is_descendant_of(&self, node: &NodeInterface) -> bool {
         self.inner.is_descendant_of(&node.inner.id)
     }
+
+    pub fn children(&self) -> Vec<NodeInterface> {
+        let children = borrow!(self.inner.mounted_children);
+        (&*children)
+            .into_iter()
+            .map(Rc::clone)
+            .map(Into::into)
+            .collect()
+    }
+
+    pub fn flattened_slot_children_count(&self) -> Property<usize> {
+        self.inner.flattened_slot_children_count.clone()
+    }
 }
