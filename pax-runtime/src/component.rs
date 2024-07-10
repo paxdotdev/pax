@@ -74,6 +74,7 @@ impl InstanceNode for ComponentInstance {
             expanded_node.generate_children(children_with_envs, context),
             &format!("component (node id: {})", expanded_node.id.0),
         ));
+        // update slot children
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
