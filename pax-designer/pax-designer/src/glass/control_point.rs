@@ -19,7 +19,7 @@ use crate::model::{AppState, ToolBehaviour};
 use crate::math;
 use crate::math::coordinate_spaces::{self, Glass, World};
 use crate::model::action::pointer::Pointer;
-use crate::model::action::{Action, ActionContext, CanUndo};
+use crate::model::action::{Action, ActionContext};
 use crate::model::input::Dir;
 
 #[pax]
@@ -81,9 +81,11 @@ pub struct ActivateControlPoint {
 }
 
 impl Action for ActivateControlPoint {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        ctx.app_state.tool_behaviour.set(Some(self.behaviour));
-        Ok(CanUndo::No)
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
+        ctx.app_state
+            .tool_behaviour
+            .set(Some(Rc::clone(&self.behaviour)));
+        Ok(())
     }
 }
 
@@ -96,7 +98,7 @@ impl ControlPoint {
                 let behaviour = model::with_action_context(ctx, |ac| {
                     funcs[self.ind.get().to_int() as usize](ac, ac.glass_transform().get() * pos)
                 });
-                model::perform_action(ActivateControlPoint { behaviour }, ctx);
+                model::perform_action(&ActivateControlPoint { behaviour }, ctx);
             } else {
                 pax_engine::log::warn!("tried to grigger control point while none exist");
             }

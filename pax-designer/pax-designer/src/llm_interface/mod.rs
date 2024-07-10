@@ -6,7 +6,7 @@ use pax_engine::*;
 use pax_std::primitives::*;
 
 use crate::model::{
-    action::{Action, ActionContext, CanUndo},
+    action::{Action, ActionContext},
     input::InputEvent,
 };
 #[pax]
@@ -22,11 +22,11 @@ pub struct OpenLLMPrompt {
 }
 
 impl Action for OpenLLMPrompt {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         if !self.require_meta || ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
             OPEN_LLM_PROMPT_PROP.with(|p| p.set(true));
         }
-        Ok(CanUndo::No)
+        Ok(())
     }
 }
 

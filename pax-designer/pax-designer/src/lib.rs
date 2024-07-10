@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 use crate::math::coordinate_spaces::{self, World};
 use model::{
-    action::{Action, ActionContext, CanUndo},
+    action::{Action, ActionContext},
     ProjectMode, StageInfo,
 };
 
@@ -106,17 +106,17 @@ impl PaxDesigner {
 pub struct ProjectMsg(ProjectMode);
 
 impl Action for ProjectMsg {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        ctx.app_state.project_mode.set(self.0);
-        Ok(CanUndo::No)
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
+        ctx.app_state.project_mode.set(self.0.clone());
+        Ok(())
     }
 }
 
 pub struct SetStage(pub StageInfo);
 
 impl Action for SetStage {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        ctx.app_state.stage.set(self.0);
-        Ok(CanUndo::No)
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
+        ctx.app_state.stage.set(self.0.clone());
+        Ok(())
     }
 }

@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::CanUndo;
 use super::{Action, ActionContext};
 use crate::context_menu::ContextMenuMsg;
 use crate::math::coordinate_spaces::Glass;
@@ -35,7 +34,7 @@ pub enum Pointer {
 }
 
 impl Action for MouseEntryPointAction<'_> {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> Result<CanUndo> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
         let spacebar = ctx
@@ -49,17 +48,17 @@ impl Action for MouseEntryPointAction<'_> {
             (self.event, self.button.clone()),
             (Pointer::Down, MouseButton::Right)
         ) {
-            ctx.execute(ContextMenuMsg::Open { pos: point_glass })?;
-            return Ok(CanUndo::No);
+            ContextMenuMsg::Open { pos: point_glass }.perform(ctx)?;
+            return Ok(());
         }
 
         if matches!(self.event, Pointer::Down) {
-            ctx.execute(ContextMenuMsg::Close)?;
+            ContextMenuMsg::Close.perform(ctx)?;
         }
 
         // If no tool is active, activate a tool on mouse down
         if matches!(self.event, Pointer::Down) && tool_behaviour.get().is_none() {
-            match (self.button, spacebar) {
+            match (&self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     Tool::Pointer => {
                         (self.prevent_default)();
@@ -69,21 +68,29 @@ impl Action for MouseEntryPointAction<'_> {
                         )))));
                     }
                     Tool::CreateComponent(component) => {
-                        let primitive_name = match component {
-                            Component::Rectangle => "Rectangle",
-                            Component::Ellipse => "Ellipse",
-                            Component::Text => "Text",
+                        let (primitive_name, place_mock_child) = match component {
+                            Component::Rectangle => (
+                                "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                                false,
+                            ),
+                            Component::Ellipse => (
+                                "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
+                                false,
+                            ),
+                            Component::Text => (
+                                "pax_designer::pax_reexports::pax_std::primitives::Text",
+                                false,
+                            ),
+                            Component::Stacker => (
+                                "pax_designer::pax_reexports::pax_std::stacker::Stacker",
+                                true,
+                            ),
                         };
                         tool_behaviour.set(Some(Rc::new(RefCell::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
-                            &TypeId::build_singleton(
-                                &format!(
-                                    "pax_designer::pax_reexports::pax_std::primitives::{}",
-                                    primitive_name
-                                ),
-                                None,
-                            ),
+                            &TypeId::build_singleton(primitive_name, None),
+                            place_mock_child,
                         )))));
                     }
                     Tool::TodoTool => {
@@ -124,6 +131,6 @@ impl Action for MouseEntryPointAction<'_> {
         if reset {
             tool_behaviour.set(None);
         }
-        Ok(CanUndo::No)
+        Ok(())
     }
 }
