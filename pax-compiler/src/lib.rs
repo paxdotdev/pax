@@ -33,10 +33,9 @@ use std::sync::{Arc, Mutex};
 use std::os::unix::process::CommandExt;
 
 use crate::building::{
-    build_chassis_with_cartridge, clone_all_to_pkg_dir, update_type_id_prefixes_in_place,
+    build_chassis_with_cartridge, update_type_id_prefixes_in_place,
 };
 
-use crate::cartridge_generation::generate_and_overwrite_cartridge;
 use crate::errors::source_map::SourceMap;
 use crate::reexports::generate_reexports_partial_rs;
 
@@ -113,7 +112,6 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     } else {
         Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
     };
-    clone_all_to_pkg_dir(&pax_dir, &pax_version, &ctx);
 
     if ctx.is_libdev_mode {
         let full_path = Path::new(&ctx.path);
@@ -145,13 +143,13 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     let mut source_map = SourceMap::new();
 
-    println!("{} 🧮 Compiling expressions", *PAX_BADGE);
-    expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
-
-    println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    generate_reexports_partial_rs(&pax_dir, &manifest);
-    let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
-    source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
+    // println!("{} 🧮 Compiling expressions", *PAX_BADGE);
+    // expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
+    //
+    // println!("{} 🦀 Generating Rust", *PAX_BADGE);
+    // generate_reexports_partial_rs(&pax_dir, &manifest);
+    // let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
+    // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
