@@ -22,7 +22,7 @@ if self.glass_active {
         </Group>
     </Group>
 }
-if self.interaction_mode {
+if self.play_active {
     <Example
         running=true
         id=running_project

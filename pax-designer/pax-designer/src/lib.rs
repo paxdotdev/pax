@@ -47,8 +47,8 @@ pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
 pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
     pub stage: Property<StageInfo>,
+    pub play_active: Property<bool>,
     pub glass_active: Property<bool>,
-    pub interaction_mode: Property<bool>,
 }
 
 impl PaxDesigner {
@@ -98,7 +98,7 @@ impl PaxDesigner {
     fn bind_interaction_mode_property(&mut self) {
         let glass_active = self.glass_active.clone();
         let deps = [glass_active.untyped()];
-        self.interaction_mode
+        self.play_active
             .replace_with(Property::computed(move || !glass_active.get(), &deps));
     }
 }

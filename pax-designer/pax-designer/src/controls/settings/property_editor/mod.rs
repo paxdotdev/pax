@@ -11,10 +11,12 @@ use pax_std::types::text::*;
 use pax_std::types::*;
 use std::fmt::Write;
 
+pub mod direction_property_editor;
 pub mod fill_property_editor;
 pub mod stroke_property_editor;
 pub mod text_property_editor;
 
+use direction_property_editor::DirectionPropertyEditor;
 use fill_property_editor::FillPropertyEditor;
 use stroke_property_editor::StrokePropertyEditor;
 use text_property_editor::TextPropertyEditor;
@@ -68,6 +70,7 @@ impl PropertyEditor {
                 match prop_type_ident.as_str() {
                     "pax_designer::pax_reexports::pax_engine::api::Fill" => 2,
                     "pax_designer::pax_reexports::pax_engine::api::Stroke" => 3,
+                    "pax_designer::pax_reexports::pax_std::types::StackerDirection" => 4,
                     _ => 1,
                 }
             },

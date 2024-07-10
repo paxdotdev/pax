@@ -134,7 +134,7 @@ impl Settings {
                         | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => {
                             None
                         }
-                        custom => Some(PropertyArea {
+                        custom => (!custom.starts_with('_')).then_some(PropertyArea {
                             vertical_space: 10.0,
                             vertical_pos: Default::default(),
                             name_friendly: Self::camel_to_title_case(custom),
