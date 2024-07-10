@@ -14,7 +14,7 @@ use crate::{
         BoxPoint,
     },
     model::{
-        action::{self, ActionContext},
+        action::{self, Action, ActionContext},
         GlassNodeSnapshot, SelectionState, SelectionStateSnapshot, ToolBehaviour,
     },
 };
@@ -94,11 +94,13 @@ impl Editor {
 
         impl ControlPointBehaviour for RotationBehaviour {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                if let Err(e) = ctx.execute(action::orm::RotateSelected {
+                if let Err(e) = (action::orm::RotateSelected {
                     curr_pos: point,
                     start_pos: self.start_pos,
                     initial_selection: &self.initial_selection,
-                }) {
+                }
+                .perform(ctx))
+                {
                     pax_engine::log::warn!("rotation failed: {:?}", e);
                 };
             }
@@ -146,11 +148,13 @@ impl Editor {
 
         impl ControlPointBehaviour for ResizeBehaviour {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                if let Err(e) = ctx.execute(action::orm::Resize {
+                if let Err(e) = (action::orm::Resize {
                     initial_selection: &self.initial_selection,
                     fixed_point: self.attachment_point,
                     new_point: point,
-                }) {
+                }
+                .perform(ctx))
+                {
                     pax_engine::log::warn!("resize failed: {:?}", e);
                 };
             }
@@ -225,10 +229,12 @@ impl Editor {
                 if let Some(initial_object) = &self.initial_object {
                     let t_and_b = initial_object.transform_and_bounds;
                     let point_in_space = t_and_b.transform.inverse() * point;
-                    if let Err(e) = ctx.execute(action::orm::SetAnchor {
+                    if let Err(e) = (action::orm::SetAnchor {
                         object: &initial_object,
                         point: point_in_space,
-                    }) {
+                    }
+                    .perform(ctx))
+                    {
                         pax_engine::log::warn!("resize failed: {:?}", e);
                     };
                 }

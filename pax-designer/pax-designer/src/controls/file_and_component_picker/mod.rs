@@ -5,7 +5,7 @@ use pax_manifest::{PaxType, TypeId};
 use std::rc::Rc;
 
 use crate::model;
-use crate::model::action::{Action, ActionContext, CanUndo};
+use crate::model::action::{Action, ActionContext};
 use crate::USER_PROJ_ROOT_IMPORT_PATH;
 
 pub mod component_library_item;
@@ -30,9 +30,9 @@ pub struct SetLibraryState {
 impl Interpolatable for SetLibraryState {}
 
 impl Action for SetLibraryState {
-    fn perform(self: Box<Self>, _ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        LIBRARY_STATE.with(|state| state.set(*self));
-        Ok(CanUndo::No)
+    fn perform(&self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        LIBRARY_STATE.with(|state| state.set(self.clone()));
+        Ok(())
     }
 }
 
@@ -131,7 +131,7 @@ impl FileAndComponentPicker {
 
     pub fn library_toggle(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(
-            SetLibraryState {
+            &SetLibraryState {
                 open: !self.library_active.get(),
             },
             ctx,

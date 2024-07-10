@@ -177,7 +177,7 @@ impl Tree {
                 match msg {
                     TreeMsg::ObjClicked(sender) => {
                         model::perform_action(
-                            SelectNodes {
+                            &SelectNodes {
                                 ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
                                 overwrite: false,
                             },
@@ -192,7 +192,7 @@ impl Tree {
                         let builder = dt.get_orm_mut().get_node(uuid).unwrap();
                         let type_id_of_tree_target = builder.get_type_id();
 
-                        model::perform_action(SetEditingComponent(type_id_of_tree_target), &ctxp);
+                        model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctxp);
                     }
                     TreeMsg::ArrowClicked(_) => (),
                     TreeMsg::None => (),

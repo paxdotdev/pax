@@ -12,6 +12,6 @@ pub struct Logobar {}
 
 impl Logobar {
     pub fn handle_logo_click(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::perform_action(SerializeRequested {}, ctx);
+        model::perform_action(&SerializeRequested {}, ctx);
     }
 }

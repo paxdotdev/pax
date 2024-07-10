@@ -8,7 +8,7 @@ use pax_std::primitives::Text;
 use crate::{
     math::coordinate_spaces::Glass,
     model::{
-        action::{Action, ActionContext, CanUndo, RaycastMode},
+        action::{Action, ActionContext, RaycastMode},
         ToolBehaviour,
     },
 };
@@ -18,15 +18,13 @@ pub struct TextEdit {
 }
 
 impl Action for TextEdit {
-    fn perform(
-        self: Box<Self>,
-        ctx: &mut ActionContext,
-    ) -> anyhow::Result<crate::model::action::CanUndo> {
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         let tool: Option<Rc<RefCell<dyn ToolBehaviour>>> = Some(Rc::new(RefCell::new(
-            TextEditTool::new(ctx, self.uid).expect("should only edit text with text editing tool"),
+            TextEditTool::new(ctx, self.uid.clone())
+                .expect("should only edit text with text editing tool"),
         )));
         ctx.app_state.tool_behaviour.set(tool);
-        Ok(CanUndo::No)
+        Ok(())
     }
 }
 

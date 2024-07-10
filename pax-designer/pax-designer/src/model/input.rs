@@ -8,7 +8,7 @@ use crate::model::action::orm::{SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::{
-    action::{self, meta::ActionSet, orm::DeleteSelected, world, Action, ActionContext, CanUndo},
+    action::{self, orm::DeleteSelected, world, Action, ActionContext},
     Component, Tool,
 };
 

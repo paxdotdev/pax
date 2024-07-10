@@ -45,6 +45,6 @@ impl ProjectModeToggle {
                 ProjectMode::Playing
             }
         };
-        model::perform_action(ProjectMsg(mode), ctx);
+        model::perform_action(&ProjectMsg(mode), ctx);
     }
 }

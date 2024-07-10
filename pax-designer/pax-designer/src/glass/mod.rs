@@ -13,13 +13,13 @@ use crate::controls::file_and_component_picker::SetLibraryState;
 use crate::model::action::orm::CreateComponent;
 use crate::model::action::world::Translate;
 use crate::model::tools::SelectNodes;
-use crate::model::AppState;
+use crate::model::{AppState, GlassNode};
 use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
 
 use crate::math::coordinate_spaces::{self, World};
 use crate::math::{self, AxisAlignedBox};
 use crate::model::action::pointer::Pointer;
-use crate::model::action::{Action, ActionContext, CanUndo, RaycastMode};
+use crate::model::action::{Action, ActionContext, RaycastMode};
 use crate::model::input::Dir;
 
 pub mod control_point;
@@ -114,31 +114,33 @@ impl Glass {
             let import_path = node_id.import_path();
             match import_path.as_ref().map(|v| v.as_str()) {
                 Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
-                    model::perform_action(TextEdit { uid }, ctx);
+                    model::perform_action(&TextEdit { uid }, ctx);
                 }
                 Some(
                     "pax_designer::pax_reexports::pax_std::primitives::Group"
                     | "pax_designer::pax_reexports::pax_std::stacker::Stacker",
                 ) => {
-                    model::with_action_context(ctx, |ax| {
-                        let hit = ax.raycast_glass(
-                            ax.glass_transform().get()
+                    model::with_action_context(ctx, |ac| {
+                        let hit = ac.raycast_glass(
+                            ac.glass_transform().get()
                                 * Point2::<Window>::new(args.mouse.x, args.mouse.y),
                             RaycastMode::DrillOne,
                             &[],
                         );
                         if let Some(hit) = hit {
-                            if let Err(e) = ax.execute(SelectNodes {
+                            if let Err(e) = (SelectNodes {
                                 ids: &[hit.global_id().unwrap().get_template_node_id()],
                                 overwrite: false,
-                            }) {
+                            }
+                            .perform(ac))
+                            {
                                 log::warn!("failed to drill into group: {}", e);
                             };
                         }
                     });
                 }
                 // Assume it's a component if it didn't have a custom impl for double click behaviour
-                Some(_) => model::perform_action(SetEditingComponent(node_id), ctx),
+                Some(_) => model::perform_action(&SetEditingComponent(node_id), ctx),
                 None => (),
             }
         }
@@ -147,7 +149,7 @@ impl Glass {
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         let prevent_default = || args.prevent_default();
         model::perform_action(
-            crate::model::action::pointer::MouseEntryPointAction {
+            &crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Down,
                 button: args.mouse.button.clone(),
@@ -160,7 +162,7 @@ impl Glass {
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
         let prevent_default = || args.prevent_default();
         model::perform_action(
-            crate::model::action::pointer::MouseEntryPointAction {
+            &crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Move,
                 button: args.mouse.button.clone(),
@@ -173,7 +175,7 @@ impl Glass {
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
         let prevent_default = || args.prevent_default();
         model::perform_action(
-            crate::model::action::pointer::MouseEntryPointAction {
+            &crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Up,
                 button: args.mouse.button.clone(),
@@ -187,10 +189,12 @@ impl Glass {
         args.prevent_default();
         model::with_action_context(ctx, |ac| {
             let original = ac.app_state.glass_to_world_transform.get();
-            if let Err(e) = ac.execute(Translate {
+            if let Err(e) = (Translate {
                 translation: Vector2::new(args.delta_x, args.delta_y),
                 original_transform: original,
-            }) {
+            }
+            .perform(ac))
+            {
                 log::warn!("wheel action failed: {}", e);
             };
         });
@@ -213,19 +217,32 @@ impl Glass {
                 log::info!("sent file to server!!");
             };
         }
+        let parent = ctx
+            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .into_iter()
+            .next()
+            .unwrap();
         model::with_action_context(ctx, |ac| {
-            let cw = ac.world_transform()
-                * ac.glass_transform().get()
-                * Point2::new(event.args.x, event.args.y);
+            let parent = GlassNode::new(&parent, &ac.glass_transform());
+            let cw = ac.glass_transform().get() * Point2::new(event.args.x, event.args.y);
             let v = Vector2::new(150.0, 150.0);
-            if let Err(e) = ac.execute(CreateComponent {
-                bounds: AxisAlignedBox::new(cw + v, cw - v),
+            if let Err(e) = (CreateComponent {
+                parent: &(&parent).into(),
+                parent_index: pax_manifest::TreeIndexPosition::Top,
+                mock_child: false,
+                bounds: TransformAndBounds {
+                    transform: AxisAlignedBox::new(cw + v, cw - v).as_transform(),
+                    bounds: (1.0, 1.0),
+                }
+                .as_pure_size(),
                 type_id: TypeId::build_singleton(
                     "pax_designer::pax_reexports::pax_std::primitives::Image",
                     None,
                 ),
                 custom_props: vec![("path", &format!("\"assets/{}\"", event.args.name))],
-            }) {
+            }
+            .perform(ac))
+            {
                 log::warn!("failed to create image: {}", e);
             }
         });
@@ -235,8 +252,8 @@ impl Glass {
 pub struct SetEditingComponent(pub TypeId);
 
 impl Action for SetEditingComponent {
-    fn perform(self: Box<Self>, ctx: &mut ActionContext) -> anyhow::Result<CanUndo> {
-        let type_id = self.0;
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
+        let type_id = &self.0;
 
         let user_import_prefix = format!("{}::", USER_PROJ_ROOT_IMPORT_PATH);
         let is_userland_component = type_id
@@ -251,7 +268,7 @@ impl Action for SetEditingComponent {
                 type_id.import_path()
             ));
         }
-        ctx.execute(SetLibraryState { open: false })?;
+        SetLibraryState { open: false }.perform(ctx)?;
 
         // TODO set stage defaults for opened component using "SetStage" action
 
@@ -278,9 +295,9 @@ impl Action for SetEditingComponent {
         ctx.app_state
             .selected_template_node_ids
             .update(|v| v.clear());
-        ctx.app_state.selected_component_id.set(type_id);
+        ctx.app_state.selected_component_id.set(type_id.clone());
         ctx.app_state.tool_behaviour.set(None);
-        Ok(CanUndo::No)
+        Ok(())
     }
 }
 
