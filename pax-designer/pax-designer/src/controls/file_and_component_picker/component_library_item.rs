@@ -67,16 +67,20 @@ impl ToolBehaviour for DropComponent {
             .unwrap();
         let parent = GlassNode::new(&parent, &ctx.glass_transform());
         CreateComponent {
-            parent: &(&parent).into(),
+            parent_id: &parent.id,
             parent_index: pax_manifest::TreeIndexPosition::Top,
-            mock_child: false,
-            bounds: TransformAndBounds {
-                transform: bounds.as_transform(),
-                bounds: (1.0, 1.0),
-            }
-            .as_pure_size(),
-            type_id: self.type_id.clone(),
-            custom_props: vec![],
+            node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds: &TransformAndBounds {
+                    transform: bounds.as_transform(),
+                    bounds: (1.0, 1.0),
+                }
+                .as_pure_size(),
+                new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                node_inv_config: Default::default(),
+            },
+            mock_children: 0,
+            type_id: &self.type_id,
+            custom_props: &[],
         }
         .perform(ctx)
         .unwrap();

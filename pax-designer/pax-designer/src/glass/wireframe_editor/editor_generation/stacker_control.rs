@@ -21,19 +21,21 @@ use crate::{
     model::{
         self,
         action::{
-            orm::{MoveNode, ResizeMode, SetNodePropertiesFromTransform},
+            orm::{MoveNode, NodeLayoutSettings, SetNodePropertiesFromTransform},
             Action, ActionContext, RaycastMode,
         },
         input::InputEvent,
         GlassNode, GlassNodeSnapshot, ToolBehaviour,
     },
+    ROOT_PROJECT_ID,
 };
 
 use super::ControlPointSet;
 
 pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<ControlPointSet>> {
     struct StackerBehaviour {
-        initial_object: GlassNodeSnapshot,
+        initial_node: GlassNodeSnapshot,
+        container: GlassNodeSnapshot,
         pickup_point: Point2<Glass>,
         before_move_undo_id: usize,
         vis: Property<ToolVisualizationState>,
@@ -72,12 +74,11 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
             };
 
             if let Err(e) = (SetNodePropertiesFromTransform {
-                id: &self.initial_object.id,
-                transform_and_bounds: &(move_translation
-                    * self.initial_object.transform_and_bounds),
-                parent_transform_and_bounds: &self.initial_object.parent_transform_and_bounds,
+                id: &self.initial_node.id,
+                transform_and_bounds: &(move_translation * self.initial_node.transform_and_bounds),
+                parent_transform_and_bounds: &self.initial_node.parent_transform_and_bounds,
                 decomposition_config: &self
-                    .initial_object
+                    .initial_node
                     .layout_properties
                     .into_decomposition_config(),
             }
@@ -85,8 +86,12 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
             {
                 pax_engine::log::error!("Error moving stacker object: {:?}", e);
             }
-            let raycast_hit =
-                raycast_slot(ctx, point, self.initial_object.raw_node_interface.clone());
+            let raycast_hit = raycast_slot(
+                ctx,
+                point,
+                self.initial_node.raw_node_interface.clone(),
+                false,
+            );
             if let Some((_container, slot)) = raycast_hit {
                 let t_and_b = TransformAndBounds {
                     transform: ctx.glass_transform().get(),
@@ -104,20 +109,52 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
         }
 
         fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-            if let Some((container, slot)) =
-                raycast_slot(ctx, point, self.initial_object.raw_node_interface.clone())
-            {
+            if let Some((container, slot)) = raycast_slot(
+                ctx,
+                point,
+                self.initial_node.raw_node_interface.clone(),
+                false,
+            ) {
                 if let Err(e) = (MoveNode {
-                    node_id: &self.initial_object.id,
+                    node_id: &self.initial_node.id,
                     new_parent_uid: &container.global_id().unwrap(),
                     index: pax_manifest::TreeIndexPosition::At(
                         slot.with_properties(|f: &mut Slot| f.index.get().to_int()) as usize,
                     ),
-                    resize_mode: ResizeMode::Fill::<Glass>,
+                    node_layout: NodeLayoutSettings::Fill::<Glass>,
                 }
                 .perform(ctx))
                 {
                     log::warn!("failed to swap nodes: {}", e);
+                };
+            } else if !self.container.transform_and_bounds.contains_point(point) {
+                let stacker_parent = GlassNode::new(
+                    &&self.container.raw_node_interface.template_parent().unwrap(),
+                    &ctx.glass_transform(),
+                );
+                let curr_node = ctx
+                    .engine_context
+                    .get_nodes_by_global_id(self.initial_node.id.clone())
+                    .into_iter()
+                    .next()
+                    .unwrap();
+                let curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
+                if let Err(e) = (MoveNode {
+                    node_id: &curr_node.id,
+                    new_parent_uid: &stacker_parent.id,
+                    index: pax_manifest::TreeIndexPosition::Top,
+                    node_layout: NodeLayoutSettings::KeepScreenBounds {
+                        node_transform_and_bounds: &curr_node.transform_and_bounds.get(),
+                        new_parent_transform_and_bounds: &stacker_parent.transform_and_bounds.get(),
+                        node_inv_config: self
+                            .initial_node
+                            .layout_properties
+                            .into_decomposition_config(),
+                    },
+                }
+                .perform(ctx))
+                {
+                    log::warn!("failed to move node outside of stacker: {e}");
                 };
             } else {
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -144,12 +181,17 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
         }
     }
 
-    fn stacker_control_point_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
+    fn stacker_control_point_factory(
+        container: GlassNode,
+        slot_child: GlassNode,
+    ) -> ControlPointBehaviourFactory {
         Rc::new(move |ac, p| {
+            let container = container.clone();
             let dt = borrow!(ac.engine_context.designtime);
             let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
             Rc::new(RefCell::new(StackerBehaviour {
-                initial_object: (&slot_child).into(),
+                container: (&container).into(),
+                initial_node: (&slot_child).into(),
                 pickup_point: p,
                 before_move_undo_id,
                 vis: Property::new(ToolVisualizationState::default()),
@@ -181,13 +223,17 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 }
             }
             let to_glass = to_glass_transform.clone();
+            let stacker_node = GlassNode::new(&stacker_node, &to_glass);
             let stacker_control_points = slots
                 .into_iter()
                 .map(|s| {
                     let slot_child = s.children().into_iter().next().unwrap();
                     let slot_child = GlassNode::new(&slot_child, &to_glass);
                     let t_and_b = slot_child.transform_and_bounds.get();
-                    CPoint::new(t_and_b.center(), stacker_control_point_factory(slot_child))
+                    CPoint::new(
+                        t_and_b.center(),
+                        stacker_control_point_factory(stacker_node.clone(), slot_child),
+                    )
                 })
                 .collect();
             ControlPointSet {
@@ -203,6 +249,7 @@ pub fn raycast_slot(
     ctx: &ActionContext,
     point: Point2<Glass>,
     original_hit: NodeInterface,
+    prevent_move_self: bool,
 ) -> Option<(NodeInterface, NodeInterface)> {
     // If we drop on another object, check if it's an object in a slot.
     // If it is, add this object to the same parent
@@ -231,5 +278,8 @@ pub fn raycast_slot(
         }
         curr = curr.render_parent().unwrap();
     }
+    if prevent_move_self && original_hit.is_descendant_of(&cc) {
+        return None;
+    };
     Some((cc, slot.unwrap()))
 }

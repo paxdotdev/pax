@@ -68,29 +68,27 @@ impl Action for MouseEntryPointAction<'_> {
                         )))));
                     }
                     Tool::CreateComponent(component) => {
-                        let (primitive_name, place_mock_child) = match component {
+                        let (primitive_name, mock_children) = match component {
                             Component::Rectangle => (
                                 "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
-                                false,
+                                0,
                             ),
                             Component::Ellipse => (
                                 "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
-                                false,
+                                0,
                             ),
-                            Component::Text => (
-                                "pax_designer::pax_reexports::pax_std::primitives::Text",
-                                false,
-                            ),
-                            Component::Stacker => (
-                                "pax_designer::pax_reexports::pax_std::stacker::Stacker",
-                                true,
-                            ),
+                            Component::Text => {
+                                ("pax_designer::pax_reexports::pax_std::primitives::Text", 0)
+                            }
+                            Component::Stacker => {
+                                ("pax_designer::pax_reexports::pax_std::stacker::Stacker", 5)
+                            }
                         };
                         tool_behaviour.set(Some(Rc::new(RefCell::new(CreateComponentTool::new(
                             ctx,
                             point_glass,
                             &TypeId::build_singleton(primitive_name, None),
-                            place_mock_child,
+                            mock_children,
                         )))));
                     }
                     Tool::TodoTool => {

@@ -32,12 +32,12 @@ use pax_runtime_api::{Axis, Percent};
 pub mod group_ungroup;
 
 pub struct CreateComponent<'a> {
-    pub parent: &'a GlassNodeSnapshot,
+    pub parent_id: &'a UniqueTemplateNodeIdentifier,
     pub parent_index: TreeIndexPosition,
-    pub bounds: TransformAndBounds<NodeLocal, Glass>,
-    pub type_id: TypeId,
-    pub custom_props: Vec<(&'a str, &'a str)>,
-    pub mock_child: bool,
+    pub type_id: &'a TypeId,
+    pub custom_props: &'a [(&'a str, &'a str)],
+    pub mock_children: usize,
+    pub node_layout: NodeLayoutSettings<'a, Glass>,
 }
 
 impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
@@ -48,7 +48,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
             .first()
             .unwrap()
             .global_id()
-            == Some(self.parent.id.clone())
+            == Some(self.parent_id.clone())
         {
             NodeLocation::new(
                 ctx.app_state.selected_component_id.get(),
@@ -58,7 +58,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
         } else {
             NodeLocation::new(
                 ctx.app_state.selected_component_id.get(),
-                TreeLocation::Parent(self.parent.id.get_template_node_id()),
+                TreeLocation::Parent(self.parent_id.get_template_node_id()),
                 self.parent_index.clone(),
             )
         };
@@ -72,7 +72,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
 
             builder.set_location(parent_location);
 
-            for (name, value) in &self.custom_props {
+            for (name, value) in self.custom_props {
                 builder.set_property(name, value)?;
             }
 
@@ -81,13 +81,27 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
                 .map_err(|e| anyhow!("could not save: {}", e))?
         };
 
-        SetNodePropertiesFromTransform::<Glass> {
+        SetNodeLayout {
             id: &save_data.unique_id,
-            transform_and_bounds: &self.bounds,
-            parent_transform_and_bounds: &self.parent.transform_and_bounds,
-            decomposition_config: &Default::default(),
+            node_layout: &self.node_layout,
         }
         .perform(ctx)?;
+
+        for i in 1..=self.mock_children {
+            let c = 210 - 60 * (i % 2);
+            CreateComponent {
+                parent_id: &save_data.unique_id,
+                parent_index: TreeIndexPosition::Top,
+                type_id: &TypeId::build_singleton(
+                    "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                    None,
+                ),
+                custom_props: &[("fill", &format!("rgb({}, {}, {})", c, c, c))],
+                mock_children: 0,
+                node_layout: NodeLayoutSettings::Fill,
+            }
+            .perform(ctx)?;
+        }
 
         SelectNodes {
             ids: &[save_data.unique_id.get_template_node_id()],
@@ -482,10 +496,10 @@ pub struct MoveNode<'a, S> {
     pub node_id: &'a UniqueTemplateNodeIdentifier,
     pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
     pub index: TreeIndexPosition,
-    pub resize_mode: ResizeMode<'a, S>,
+    pub node_layout: NodeLayoutSettings<'a, S>,
 }
 
-pub enum ResizeMode<'a, S> {
+pub enum NodeLayoutSettings<'a, S> {
     Fill,
     KeepScreenBounds {
         node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
@@ -495,31 +509,46 @@ pub enum ResizeMode<'a, S> {
     KeepProperties(LayoutProperties),
 }
 
-impl<S: Space> Action for MoveNode<'_, S> {
+pub struct SetNodeLayout<'a, S> {
+    id: &'a UniqueTemplateNodeIdentifier,
+    node_layout: &'a NodeLayoutSettings<'a, S>,
+}
+
+impl<S: Space> Action for SetNodeLayout<'_, S> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        match &self.resize_mode {
-            ResizeMode::KeepScreenBounds {
+        match &self.node_layout {
+            NodeLayoutSettings::KeepScreenBounds {
                 node_transform_and_bounds,
                 new_parent_transform_and_bounds,
                 node_inv_config,
             } => SetNodePropertiesFromTransform {
-                id: &self.node_id,
+                id: &self.id,
                 transform_and_bounds: node_transform_and_bounds,
                 parent_transform_and_bounds: new_parent_transform_and_bounds,
                 decomposition_config: node_inv_config,
             }
-            .perform(ctx)?,
-            ResizeMode::Fill => SetNodeProperties {
-                id: &self.node_id,
+            .perform(ctx),
+            NodeLayoutSettings::Fill => SetNodeProperties {
+                id: &self.id,
                 properties: &LayoutProperties::fill(),
             }
-            .perform(ctx)?,
-            ResizeMode::KeepProperties(props) => SetNodeProperties {
-                id: &self.node_id,
+            .perform(ctx),
+            NodeLayoutSettings::KeepProperties(props) => SetNodeProperties {
+                id: &self.id,
                 properties: props,
             }
-            .perform(ctx)?,
+            .perform(ctx),
         }
+    }
+}
+
+impl<S: Space> Action for MoveNode<'_, S> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        SetNodeLayout {
+            id: self.node_id,
+            node_layout: &self.node_layout,
+        }
+        .perform(ctx)?;
 
         let parent_location = if ctx
             .engine_context

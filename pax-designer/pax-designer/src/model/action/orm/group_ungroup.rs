@@ -25,7 +25,7 @@ use pax_manifest::{
 use pax_runtime_api::borrow_mut;
 use pax_std::primitives::Group;
 
-use super::{CreateComponent, MoveNode, ResizeMode, SetNodePropertiesFromTransform};
+use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodePropertiesFromTransform};
 
 pub struct GroupSelected {}
 
@@ -55,15 +55,19 @@ impl Action for GroupSelected {
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
 
         let group_uid = CreateComponent {
-            parent: &(&group_parent_data).into(),
+            parent_id: &group_parent_data.id,
+            node_layout: NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds: &group_transform_and_bounds,
+                new_parent_transform_and_bounds: &group_parent_data.transform_and_bounds.get(),
+                node_inv_config: Default::default(),
+            },
             parent_index: TreeIndexPosition::Top,
-            bounds: group_transform_and_bounds,
-            type_id: TypeId::build_singleton(
+            type_id: &TypeId::build_singleton(
                 "pax_designer::pax_reexports::pax_std::primitives::Group",
                 None,
             ),
-            custom_props: vec![],
-            mock_child: true,
+            custom_props: &[],
+            mock_children: 0,
         }
         .perform(ctx)?;
 
@@ -73,7 +77,7 @@ impl Action for GroupSelected {
                 node_id: &node.id,
                 index: TreeIndexPosition::Bottom,
                 new_parent_uid: &group_uid,
-                resize_mode: ResizeMode::KeepScreenBounds {
+                node_layout: NodeLayoutSettings::KeepScreenBounds {
                     node_transform_and_bounds: &node.transform_and_bounds,
                     new_parent_transform_and_bounds: &group_transform_and_bounds,
                     node_inv_config: node.layout_properties.into_decomposition_config(),
@@ -131,7 +135,7 @@ impl Action for UngroupSelected {
                     node_id: &child,
                     new_parent_uid: parent_id.as_ref().unwrap(),
                     index: TreeIndexPosition::Top,
-                    resize_mode: ResizeMode::KeepScreenBounds {
+                    node_layout: NodeLayoutSettings::KeepScreenBounds {
                         new_parent_transform_and_bounds: &group_parent_bounds,
                         node_transform_and_bounds: &child_t_and_b,
                         node_inv_config: child_inv_config,

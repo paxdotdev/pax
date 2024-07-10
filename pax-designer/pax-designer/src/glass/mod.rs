@@ -227,19 +227,23 @@ impl Glass {
             let cw = ac.glass_transform().get() * Point2::new(event.args.x, event.args.y);
             let v = Vector2::new(150.0, 150.0);
             if let Err(e) = (CreateComponent {
-                parent: &(&parent).into(),
+                parent_id: &parent.id,
                 parent_index: pax_manifest::TreeIndexPosition::Top,
-                mock_child: false,
-                bounds: TransformAndBounds {
-                    transform: AxisAlignedBox::new(cw + v, cw - v).as_transform(),
-                    bounds: (1.0, 1.0),
-                }
-                .as_pure_size(),
-                type_id: TypeId::build_singleton(
+                node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
+                    node_transform_and_bounds: &TransformAndBounds {
+                        transform: AxisAlignedBox::new(cw + v, cw - v).as_transform(),
+                        bounds: (1.0, 1.0),
+                    }
+                    .as_pure_size(),
+                    new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                    node_inv_config: Default::default(),
+                },
+                type_id: &TypeId::build_singleton(
                     "pax_designer::pax_reexports::pax_std::primitives::Image",
                     None,
                 ),
-                custom_props: vec![("path", &format!("\"assets/{}\"", event.args.name))],
+                custom_props: &[("path", &format!("\"assets/{}\"", event.args.name))],
+                mock_children: 0,
             }
             .perform(ac))
             {

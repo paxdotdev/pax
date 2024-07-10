@@ -1,0 +1,29 @@
+
+<Group height=25px>
+	<Group x=3% anchor_x=0% width=45% @click=self.set_horizontal>
+		<Text width=100%  height=100% class=label text="Horizontal"/>
+	    <Rectangle fill={horizontal} corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
+	</Group>
+	<Group x=97% anchor_x=100% width=45% @click=self.set_vertical>
+		<Text width=100% height=100% class=label text="Vertical"/>
+	    <Rectangle fill={vertical} corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
+	</Group>
+</Group>
+
+@settings {
+    @mount: on_mount
+    .label {
+        style: {
+            font: {Font::system(
+                "Real Head Pro",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 14px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
