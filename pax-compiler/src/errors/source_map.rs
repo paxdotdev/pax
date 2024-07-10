@@ -60,9 +60,8 @@ impl SourceMap {
         }
     }
 
-    pub fn extract_ranges_from_generated_code(&mut self, file_path: &str) {
-        let file = File::open(file_path).expect("Failed to open file");
-        let reader = BufReader::new(file);
+    pub fn extract_ranges_from_generated_code(&mut self, code: &str) {
+        let reader = BufReader::new(code);
 
         let start_regex = Regex::new(r"/\* source_map_start_(\d+) \*/").unwrap();
         let end_regex = Regex::new(r"/\* source_map_end_(\d+) \*/").unwrap();
