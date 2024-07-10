@@ -201,6 +201,25 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
 }
 
 impl<F: Space, T: Space> TransformAndBounds<F, T> {
+    pub fn center(&self) -> Point2<T> {
+        let (o, u, v) = self.transform.decompose();
+        let u = u * self.bounds.0;
+        let v = v * self.bounds.1;
+        o + v / 2.0 + u / 2.0
+    }
+
+    pub fn corners(&self) -> [Point2<T>; 4] {
+        let (o, u, v) = self.transform.decompose();
+        let u = u * self.bounds.0;
+        let v = v * self.bounds.1;
+        [o, o + v, o + u + v, o + u]
+    }
+
+    pub fn contains_point(&self, point: Point2<T>) -> bool {
+        let unit = self.as_transform().inverse() * point;
+        unit.x > 0.0 && unit.y > 0.0 && unit.x < 1.0 && unit.y < 1.0
+    }
+
     pub fn as_pure_size(self) -> Self {
         let mut parts: Parts = self.transform.into();
         let bounds_x = std::mem::replace(&mut parts.scale.x, 1.0);
@@ -223,6 +242,10 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
             transform: self.transform.cast_spaces(),
             bounds: self.bounds,
         }
+    }
+
+    pub fn as_transform(&self) -> Transform2<F, T> {
+        self.transform * Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1))
     }
 }
 
@@ -330,17 +353,17 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
         }
     }
 
-    pub fn corners(&self) -> [Point2<T>; 4] {
-        let (width, height) = self.bounds;
+    // pub fn corners(&self) -> [Point2<T>; 4] {
+    //     let (width, height) = self.bounds;
 
-        let top_left = self.transform * Point2::new(0.0, 0.0);
-        let top_right = self.transform * Point2::new(width, 0.0);
-        let bottom_left = self.transform * Point2::new(0.0, height);
-        let bottom_right = self.transform * Point2::new(width, height);
+    //     let top_left = self.transform * Point2::new(0.0, 0.0);
+    //     let top_right = self.transform * Point2::new(width, 0.0);
+    //     let bottom_left = self.transform * Point2::new(0.0, height);
+    //     let bottom_right = self.transform * Point2::new(width, height);
 
-        let res = [top_left, top_right, bottom_right, bottom_left];
-        res
-    }
+    //     let res = [top_left, top_right, bottom_right, bottom_left];
+    //     res
+    // }
 
     //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
     pub fn intersects(&self, other: &Self) -> bool {
