@@ -14,7 +14,7 @@ use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
     AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
 };
-use crate::model::action::orm::{MoveNode, ResizeMode};
+use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehaviour};
 use crate::{SetStage, ROOT_PROJECT_ID};
@@ -37,7 +37,7 @@ pub struct CreateComponentTool {
     type_id: TypeId,
     origin: Point2<Glass>,
     bounds: Property<AxisAlignedBox>,
-    mock_child: bool,
+    mock_children: usize,
 }
 
 impl CreateComponentTool {
@@ -45,13 +45,13 @@ impl CreateComponentTool {
         _ctx: &mut ActionContext,
         point: Point2<Glass>,
         type_id: &TypeId,
-        mock_child: bool,
+        mock_children: usize,
     ) -> Self {
         Self {
             type_id: type_id.clone(),
             origin: point,
             bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
-            mock_child,
+            mock_children,
         }
     }
 }
@@ -90,19 +90,26 @@ impl ToolBehaviour for CreateComponentTool {
             .unwrap();
         let parent = GlassNode::new(&parent, &ctx.glass_transform());
 
-        CreateComponent {
-            parent: &(&parent).into(),
+        if let Err(e) = (CreateComponent {
+            parent_id: &parent.id,
             parent_index: TreeIndexPosition::Top,
-            bounds: TransformAndBounds {
-                transform: box_transform,
-                bounds: (1.0, 1.0),
-            }
-            .as_pure_size(),
-            type_id: self.type_id.clone(),
-            custom_props: vec![],
-            mock_child: self.mock_child,
+            node_layout: NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds: &TransformAndBounds {
+                    transform: box_transform,
+                    bounds: (1.0, 1.0),
+                }
+                .as_pure_size(),
+                new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                node_inv_config: Default::default(),
+            },
+            type_id: &self.type_id,
+            custom_props: &[],
+            mock_children: self.mock_children,
         }
-        .perform(ctx);
+        .perform(ctx))
+        {
+            log::warn!("failed to create component: {e}");
+        }
 
         ControlFlow::Break(())
     }
@@ -280,7 +287,7 @@ impl ToolBehaviour for PointerTool {
                     }
                 }
 
-                let raycast_hit = raycast_slot(ctx, point, hit.clone());
+                let raycast_hit = raycast_slot(ctx, point, hit.clone(), true);
                 if let Some((_container, slot)) = raycast_hit {
                     let t_and_b = TransformAndBounds {
                         transform: ctx.glass_transform().get(),
@@ -306,7 +313,7 @@ impl ToolBehaviour for PointerTool {
                 SetStage(StageInfo {
                     width: new_width,
                     height: new_height,
-                    color: Color::BLUE,
+                    color: Color::WHITE,
                 })
                 .perform(ctx)
                 .unwrap();
@@ -333,7 +340,7 @@ impl ToolBehaviour for PointerTool {
             } => {
                 // TODO add check here that we're not moving something from within the same stacker
                 if *has_moved {
-                    if let Some((container, slot)) = raycast_slot(ctx, point, hit.clone()) {
+                    if let Some((container, slot)) = raycast_slot(ctx, point, hit.clone(), true) {
                         if let Err(e) = (MoveNode::<Glass> {
                             node_id: &hit.global_id().unwrap(),
                             new_parent_uid: &container.global_id().unwrap(),
@@ -341,12 +348,17 @@ impl ToolBehaviour for PointerTool {
                                 slot.with_properties(|f: &mut Slot| f.index.get().to_int())
                                     as usize,
                             ),
-                            resize_mode: ResizeMode::Fill,
+                            node_layout: NodeLayoutSettings::Fill,
                         }
                         .perform(ctx))
                         {
                             log::warn!("failed to swap nodes: {}", e);
                         };
+                        let _ = SelectNodes {
+                            ids: &[container.global_id().unwrap().get_template_node_id()],
+                            overwrite: true,
+                        }
+                        .perform(ctx);
                     };
                 } else {
                     let _ = SelectNodes {
