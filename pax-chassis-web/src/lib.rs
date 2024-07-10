@@ -11,7 +11,7 @@ use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::ExpressionTable;
+use pax_runtime::{cartridge, ExpressionTable, PaxCartridge};
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use_RefCell!();
@@ -95,11 +95,15 @@ impl PaxChassisWeb {
     }
 
     #[cfg(not(feature = "designtime"))]
-    pub async fn new() -> Self {
+    //problem: can't use a trait object across the wasm boundary (ABI constraints)
+    //         however — in the new way of things, the new method shouldn't have to be
+    //         called across the ABI; the chassis should be initialized through the main method
+    //         (at least via codegen) of the userland project.  This surfaces the question:
+    //         what does the interface look like with the platform host?  We still need effectively
+    //         "React.mount" from the platform host —
+    pub async fn new(cartridge: Box<dyn PaxCartridge>) -> Self {
         let (width, height, os_info, expression_table) = Self::init_common();
-        let manifest = serde_json::from_str(&pax_cartridge::INITIAL_MANIFEST).unwrap();
-        let mut definition_to_instance_traverser =
-            pax_cartridge::DefinitionToInstanceTraverser::new(manifest);
+        let mut definition_to_instance_traverser = cartridge.get_definition_to_instance_traverser();
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let engine = pax_runtime::PaxEngine::new(
             main_component_instance,

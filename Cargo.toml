@@ -7,9 +7,9 @@ edition = "2021"
 [workspace]
 members = [
     "pax-chassis-web",
-    "pax-chassis-macos",
-    "pax-chassis-ios",
-    "pax-chassis-common",
+#    "pax-chassis-macos",
+#    "pax-chassis-ios",
+#    "pax-chassis-common",
     "pax-engine",
     "pax-runtime",
     "pax-runtime-api",
