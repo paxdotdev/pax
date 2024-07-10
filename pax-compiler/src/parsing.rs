@@ -13,6 +13,8 @@ use pax_manifest::{
 };
 use pax_runtime_api::{Color, Fill, Size, Stroke};
 
+use crate::expressions::clean_and_split_symbols;
+
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
@@ -730,6 +732,38 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                 .unwrap()
                 .as_rule()
             {
+                Rule::double_binding => {
+                    let mut kv = attribute_key_value_pair.into_inner();
+                    let mut double_binding = kv.next().unwrap().into_inner();
+
+                    let setting = double_binding.next().unwrap();
+                    let setting_location = span_to_location(&setting.as_span());
+                    let property = double_binding.next().unwrap();
+                    let property_location = span_to_location(&property.as_span());
+
+                    let setting_token = Token::new(
+                        setting.as_str().to_string(),
+                        TokenType::SettingKey,
+                        setting_location,
+                        pax,
+                    );
+
+                    let property_token = Token::new_with_raw_value(
+                        clean_and_split_symbols(property.as_str())
+                            .get(0)
+                            .expect("No identifier found")
+                            .to_string(),
+                        property.as_str().to_string(),
+                        TokenType::Identifier,
+                        property_location,
+                        pax,
+                    );
+
+                    SettingElement::Setting(
+                        setting_token,
+                        ValueDefinition::DoubleBinding(property_token, None),
+                    )
+                }
                 Rule::attribute_event_binding => {
                     // attribute_event_binding = {event_id ~ "=" ~ literal_function}
                     let mut kv = attribute_key_value_pair.into_inner();
@@ -816,7 +850,11 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             ValueDefinition::Expression(expression_token, None)
                         }
                         Rule::identifier => {
-                            let identifier_token = Token::new(
+                            let identifier_token = Token::new_with_raw_value(
+                                clean_and_split_symbols(value.as_str())
+                                    .get(0)
+                                    .expect("No identifier found")
+                                    .to_string(),
                                 value.as_str().to_string(),
                                 TokenType::Identifier,
                                 location_info,

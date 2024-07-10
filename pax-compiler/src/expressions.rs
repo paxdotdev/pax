@@ -8,6 +8,7 @@ use pax_manifest::{
 use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeFrom;
 use std::slice::IterMut;
+use tera::Value;
 
 use crate::errors::source_map::SourceMap;
 use crate::errors::PaxTemplateError;
@@ -105,7 +106,10 @@ fn recurse_compile_literal_block<'a>(
             match value {
                 // LiteralValue:       no need to compile literal values
                 // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
-                ValueDefinition::LiteralValue(_) | ValueDefinition::EventBindingTarget(_) => {}
+                ValueDefinition::LiteralValue(_)
+                | ValueDefinition::EventBindingTarget(_)
+                | ValueDefinition::Identifier(_, _)
+                | ValueDefinition::DoubleBinding(_, _) => {}
                 ValueDefinition::Block(block) => {
                     let type_def = (current_property_definitions
                         .iter()
@@ -172,65 +176,6 @@ fn recurse_compile_literal_block<'a>(
                         expression_compilation_info,
                         &mut expression_compilation_insert,
                     );
-                }
-                ValueDefinition::Identifier(identifier, expression_compilation_info) => {
-                    // e.g. the self.active_color in `bg_color=self.active_color`
-
-                    if token.token_value == "id" || token.token_value == "class" {
-                        //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
-                        //so we skip the case where `id` is the key
-                    } else {
-                        let id = ctx.vtable_uid_gen.next().unwrap();
-
-                        let type_def = (current_property_definitions
-                            .iter()
-                            .find(|property_def| property_def.name == token.token_value))
-                        .ok_or::<eyre::Report>(PaxTemplateError::new(
-                            Some(format!(
-                                "Property `{}` not found on `{}`",
-                                &token.token_value, type_id
-                            )),
-                            token.clone(),
-                        ))?
-                        .get_type_definition(ctx.type_table);
-                        let output_type = type_def.type_id.clone();
-
-                        //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
-                        //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                        let (output_statement, invocations) =
-                            compile_paxel_to_ril(identifier.clone(), &ctx)?;
-
-                        //Write this expression compilation info back to the manifest, for downstream use by RIL component tree generator
-                        let dependencies = invocations
-                            .iter()
-                            .map(|i| i.root_identifier.clone())
-                            .collect::<Vec<String>>();
-                        let mut expression_compilation_insert = Some(ExpressionCompilationInfo {
-                            vtable_id: id,
-                            dependencies,
-                        });
-                        std::mem::swap(
-                            expression_compilation_info,
-                            &mut expression_compilation_insert,
-                        );
-
-                        let source_map_id = source_map.insert(identifier.clone());
-                        let input_statement = source_map
-                            .generate_mapped_string(identifier.token_value.clone(), source_map_id);
-
-                        let output_type = output_type.to_string();
-                        ctx.expression_specs.insert(
-                            id,
-                            ExpressionSpec {
-                                id,
-                                invocations,
-                                output_type,
-                                output_statement,
-                                input_statement,
-                                is_repeat_source_iterable_expression: false,
-                            },
-                        );
-                    }
                 }
                 _ => {
                     unreachable!()

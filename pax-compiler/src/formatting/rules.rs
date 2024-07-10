@@ -144,6 +144,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
 
         Rule::identifier
         | Rule::pascal_identifier
+        | Rule::double_binding
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
         | Rule::comment

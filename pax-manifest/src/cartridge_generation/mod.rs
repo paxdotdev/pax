@@ -175,10 +175,11 @@ impl PaxManifest {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Expression(_, _)
-                        | ValueDefinition::Identifier(_, _) => {
+                        | ValueDefinition::Identifier(_, _)
+                        | ValueDefinition::DoubleBinding(_, _) => {
                             map.insert(key.token_value.clone(), value.clone());
                         }
-                        _ => {}
+                        ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => {}
                     }
                 }
             }

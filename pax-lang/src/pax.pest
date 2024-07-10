@@ -45,8 +45,10 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 event_id = {"@" ~ identifier}
 
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
-attribute_key_value_pair = {attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value)}
+attribute_key_value_pair = {double_binding | attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value) }
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
+
+double_binding = {"bind:" ~ identifier ~ "=" ~ literal_function}
 
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
