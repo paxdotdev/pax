@@ -55,6 +55,13 @@ impl<T: PropertyValue> Property<T> {
         Self::new_optional_name(val, None)
     }
 
+    pub fn new_from_untyped(untyped: UntypedProperty) -> Self {
+        Self {
+            untyped,
+            _phantom: PhantomData {},
+        }
+    }
+
     pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
         Self::computed_with_config(evaluator, dependents, None)
     }

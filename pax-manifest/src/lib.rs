@@ -1522,6 +1522,8 @@ pub enum ValueDefinition {
     Expression(Token, Option<ExpressionCompilationInfo>),
     /// (Expression contents, vtable id binding)
     Identifier(Token, Option<ExpressionCompilationInfo>),
+    /// (Expression contents, vtable id binding)
+    DoubleBinding(Token, Option<ExpressionCompilationInfo>),
     EventBindingTarget(Token),
 }
 
@@ -1541,6 +1543,9 @@ impl Hash for ValueDefinition {
                 t.hash(state);
             }
             ValueDefinition::Identifier(t, _) => {
+                t.hash(state);
+            }
+            ValueDefinition::DoubleBinding(t, _) => {
                 t.hash(state);
             }
             ValueDefinition::EventBindingTarget(t) => {
@@ -1590,6 +1595,13 @@ impl PartialEq for ValueDefinition {
             }
             ValueDefinition::EventBindingTarget(t) => {
                 if let ValueDefinition::EventBindingTarget(ot) = other {
+                    t == ot
+                } else {
+                    false
+                }
+            }
+            ValueDefinition::DoubleBinding(t, _) => {
+                if let ValueDefinition::DoubleBinding(ot, _) = other {
                     t == ot
                 } else {
                     false

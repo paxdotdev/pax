@@ -27,6 +27,7 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::event_id => "@HANDLER_NAME".to_string(),
         Rule::attribute_key_value_pair => "setting key-value pair".to_string(),
         Rule::attribute_event_binding => "handler binding".to_string(),
+        Rule::double_binding => "two-way binding".to_string(),
         Rule::any_template_value => "literal value, literal object, expression, identifier".to_string(),
         Rule::id => "id".to_string(),
         Rule::id_binding => "id binding (e.g. id=ID_SELECTOR )".to_string(),
