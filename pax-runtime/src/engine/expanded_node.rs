@@ -454,6 +454,7 @@ impl ExpandedNode {
                 slot_child.recurse_mount(context);
             }
         }
+        Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
         for child in self.children.get().iter() {
             Rc::clone(child).recurse_mount(context);
         }

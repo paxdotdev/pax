@@ -367,13 +367,17 @@ impl PaxEngine {
             // OBS: HACK: this is not general, works for non-for loop/if nodes only
             // to do more generally, split expanded_node.update into prop updates and
             // regen of children steps
+            Rc::clone(&parent).recurse_unmount(ctx);
             let env = Rc::clone(&parent.stack);
             let parent_template = borrow!(parent.instance_node);
             let children = borrow!(parent_template.base().get_instance_children());
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
             let children = parent.generate_children(new_templates, ctx);
             parent.children.set(children);
+            Rc::clone(&parent).recurse_mount(ctx);
 
+            // some things are not re-done that need to be not pretty but should be cleaned up
+            // separately anyways:
             // let parent_template = Rc::clone(&*borrow!(parent.instance_node));
             // parent.recreate_with_new_data(parent_template, ctx);
         } else {
