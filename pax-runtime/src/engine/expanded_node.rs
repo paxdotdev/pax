@@ -506,17 +506,8 @@ impl ExpandedNode {
         &self,
         callback: impl FnOnce(&mut T) -> R,
     ) -> R {
-        // Borrow the contents of the RefCell mutably.
-        let properties = borrow_mut!(self.properties);
-        let mut borrowed = borrow_mut!(properties);
-
-        // Downcast the unwrapped value to the specified `target_type` (or panic)
-        let mut unwrapped_value = if let Ok(val) = T::mut_from_pax_any(&mut *borrowed) {
-            val
-        } else {
-            panic!() //Failed to downcast
-        };
-        callback(&mut unwrapped_value)
+        self.try_with_properties_unwrapped(callback)
+            .expect("properties not of expected type")
     }
 
     pub fn try_with_properties_unwrapped<T: ToFromPaxAny, R>(
