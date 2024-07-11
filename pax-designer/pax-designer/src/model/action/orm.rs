@@ -504,14 +504,14 @@ pub enum NodeLayoutSettings<'a, S> {
     KeepScreenBounds {
         node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
         new_parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
-        node_inv_config: DecompositionConfiguration,
+        node_decompositon_config: DecompositionConfiguration,
     },
     KeepProperties(LayoutProperties),
 }
 
 pub struct SetNodeLayout<'a, S> {
-    id: &'a UniqueTemplateNodeIdentifier,
-    node_layout: &'a NodeLayoutSettings<'a, S>,
+    pub id: &'a UniqueTemplateNodeIdentifier,
+    pub node_layout: &'a NodeLayoutSettings<'a, S>,
 }
 
 impl<S: Space> Action for SetNodeLayout<'_, S> {
@@ -520,7 +520,7 @@ impl<S: Space> Action for SetNodeLayout<'_, S> {
             NodeLayoutSettings::KeepScreenBounds {
                 node_transform_and_bounds,
                 new_parent_transform_and_bounds,
-                node_inv_config,
+                node_decompositon_config: node_inv_config,
             } => SetNodePropertiesFromTransform {
                 id: &self.id,
                 transform_and_bounds: node_transform_and_bounds,
