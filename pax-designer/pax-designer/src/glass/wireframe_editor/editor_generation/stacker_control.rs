@@ -98,8 +98,7 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 pax_engine::log::error!("Error moving stacker object: {:?}", e);
             }
 
-            if let Some((container, slot_hit)) = raycast_slot(ctx, point, curr_node.clone(), false)
-            {
+            if let Some((container, slot_hit)) = raycast_slot(ctx, &curr_node, point) {
                 let curr_slot = curr_node.render_parent().unwrap();
 
                 let new_index =
@@ -300,39 +299,31 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
 
 pub fn raycast_slot(
     ctx: &ActionContext,
+    moving: &NodeInterface,
     point: Point2<Glass>,
-    original_hit: NodeInterface,
-    prevent_move_self: bool,
 ) -> Option<(NodeInterface, NodeInterface)> {
-    // If we drop on another object, check if it's an object in a slot.
-    // If it is, add this object to the same parent
-    let drop_hit = ctx.raycast_glass(point, RaycastMode::RawNth(0), &[original_hit.clone()])?;
-    let mut drop_slot_container = drop_hit.clone();
-    let drop_slot_topmost_container = loop {
-        if drop_slot_container
-            .containing_component()
-            .is_some_and(|v| v.is_of_type::<Stacker>())
-        {
-            break Some(drop_slot_container);
-        }
-        if let Some(par) = drop_slot_container.render_parent() {
-            drop_slot_container = par;
-        } else {
-            break None;
-        };
-    };
-    let drop_container = drop_slot_topmost_container?;
-    let mut slot = None;
-    let mut curr = drop_hit.clone();
-    let cc = drop_container.containing_component().unwrap();
-    while curr.is_descendant_of(&cc) {
-        if curr.is_of_type::<Slot>() {
-            slot = Some(curr.clone());
-        }
-        curr = curr.render_parent().unwrap();
-    }
-    if prevent_move_self && original_hit.is_descendant_of(&cc) {
-        return None;
-    };
-    Some((cc, slot.unwrap()))
+    let all_elements_beneath_ray = ctx
+        .engine_context
+        .raycast(ctx.glass_transform().get().inverse() * point, true);
+    let root = ctx
+        .engine_context
+        .get_nodes_by_id(ROOT_PROJECT_ID)
+        .into_iter()
+        .next()
+        .unwrap();
+    let slot_hit = all_elements_beneath_ray
+        .into_iter()
+        .filter(|n| n.is_descendant_of(&root))
+        .filter(|n| !n.is_descendant_of(moving))
+        .filter(|n| n.is_of_type::<Slot>())
+        .rev()
+        .next()?;
+    let container = slot_hit
+        .children()
+        .first()
+        .as_ref()
+        .unwrap()
+        .template_parent()
+        .unwrap();
+    Some((container, slot_hit))
 }
