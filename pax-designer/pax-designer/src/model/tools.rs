@@ -206,7 +206,7 @@ pub enum ResizeStageDim {
 
 impl PointerTool {
     pub fn new(ctx: &mut ActionContext, point: Point2<Glass>) -> Self {
-        if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top, &[]) {
+        if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top, &[], false) {
             let node_id = hit.global_id().unwrap();
             let selected = ctx.derived_state.selection_state.get();
             if !selected.items.iter().any(|s| s.id == node_id) {
@@ -348,9 +348,7 @@ impl ToolBehaviour for PointerTool {
                     bounds: (1.0, 1.0),
                 };
 
-                if let Some((container, slot_hit)) =
-                    raycast_slot(ctx, point, curr_node.clone(), false)
-                {
+                if let Some((container, slot_hit)) = raycast_slot(ctx, &curr_node, point) {
                     let curr_slot = curr_node.render_parent().unwrap();
 
                     let new_index =
@@ -358,6 +356,8 @@ impl ToolBehaviour for PointerTool {
                     let old_index =
                         curr_slot.with_properties(|f: &mut Slot| f.index.get().to_int() as usize);
 
+                    log::debug!("old slot index: {:?}", old_index);
+                    log::debug!("new slot index: {:?}", new_index);
                     if curr_slot == slot_hit && new_index == old_index {
                         return ControlFlow::Continue(());
                     }
