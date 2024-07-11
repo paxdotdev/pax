@@ -575,20 +575,23 @@ impl ExpandedNode {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
+    pub fn ray_cast_test(&self, ray: Point2<Window>, hit_invisible: bool) -> bool {
         let cp = borrow!(self.common_properties);
 
         // skip raycast if false
         if !borrow!(&*cp).raycast.get().unwrap_or(true) {
             return false;
         }
-        // Don't vacuously hit for `invisible_to_raycasting` nodes
-        if borrow!(self.instance_node)
-            .base()
-            .flags()
-            .invisible_to_raycasting
-        {
-            return false;
+
+        if !hit_invisible {
+            // Don't vacuously hit for `invisible_to_raycasting` nodes
+            if borrow!(self.instance_node)
+                .base()
+                .flags()
+                .invisible_to_raycasting
+            {
+                return false;
+            }
         }
         let t_and_b = self.transform_and_bounds.get();
 

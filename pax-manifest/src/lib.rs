@@ -1170,6 +1170,7 @@ impl ComponentTemplate {
                     self.root.push_back(id.clone());
                 }
                 TreeIndexPosition::At(index) => {
+                    let index = index.clamp(0, self.root.len());
                     self.root.insert(index, id.clone());
                 }
             },
@@ -1188,6 +1189,7 @@ impl ComponentTemplate {
                 }
                 TreeIndexPosition::At(index) => {
                     let children = self.children.entry(p.clone()).or_default();
+                    let index = index.clamp(0, children.len());
                     children.insert(index, id.clone());
                 }
             },
