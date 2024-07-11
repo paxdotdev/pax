@@ -53,7 +53,7 @@ const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
 pub struct RunContext {
     pub target: RunTarget,
-    pub path: String,
+    pub project_path: PathBuf,
     pub verbose: bool,
     pub should_also_run: bool,
     pub is_libdev_mode: bool,
@@ -99,29 +99,21 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         }
     }
 
-    //First we clone dependencies into the .pax/pkg directory.  We must do this before running
-    //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
-    //dependency paths are `.pax/pkg/*`.
-    let pax_dir = get_or_create_pax_directory(&ctx.path);
-
-    //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
-    //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
-    //on a cold-start monorepo clone.)
-    let pax_version = if ctx.is_libdev_mode {
-        None
-    } else {
-        Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
-    };
-
-    if ctx.is_libdev_mode {
-        let full_path = Path::new(&ctx.path);
-        set_path_on_pax_dependencies(&full_path);
-    }
+    let pax_dir = get_or_create_pax_directory(&ctx.project_path);
+    //
+    // //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
+    // //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
+    // //on a cold-start monorepo clone.)
+    // let pax_version = if ctx.is_libdev_mode {
+    //     None
+    // } else {
+    //     Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
+    // };
 
     println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
 
     // Run parser bin from host project with `--features parser`
-    let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
+    let output = run_parser_binary(&ctx.project_path, Arc::clone(&ctx.process_child_ids));
 
     // Forward stderr only
     std::io::stderr()
@@ -137,25 +129,25 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest: PaxManifest =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
-    let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
+    let host_cargo_toml_path = Path::new(&ctx.project_path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_type_id_prefixes_in_place(&mut manifest, &host_crate_info);
 
     let mut source_map = SourceMap::new();
 
-    // println!("{} 🧮 Compiling expressions", *PAX_BADGE);
-    // expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
-    //
-    // println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    // generate_reexports_partial_rs(&pax_dir, &manifest);
+    println!("{} 🧮 Compiling expressions", *PAX_BADGE);
+    expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
+
+    println!("{} 🦀 Generating Rust", *PAX_BADGE);
+    generate_reexports_partial_rs(&pax_dir, &manifest);
     // let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
+    println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
     let build_dir =
         build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
-    Ok((manifest, build_dir))
+    Ok((manifest, None))
 }
 
 /// Clean all `.pax` temp files
@@ -255,9 +247,9 @@ pub fn perform_create(ctx: &CreateContext) {
 
 /// Executes a shell command to run the feature-flagged parser at the specified path
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Output {
+pub fn run_parser_binary(project_path: &PathBuf, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Output {
     let mut cmd = Command::new("cargo");
-    cmd.current_dir(path)
+    cmd.current_dir(project_path)
         .arg("run")
         .arg("--release") // --release speeds up Pest parsing substantially
         .arg("--bin")
