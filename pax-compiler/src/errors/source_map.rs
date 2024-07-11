@@ -1,7 +1,7 @@
 use pax_manifest::{MappedString, Token};
 use pax_runtime::api::serde::{Deserialize, Serialize};
 use regex::Regex;
-use std::io::{Cursor, Write};
+use std::io::Write;
 use std::{
     collections::{BTreeMap, HashMap},
     fs::{File, OpenOptions},
@@ -60,8 +60,8 @@ impl SourceMap {
         }
     }
 
-    pub fn extract_ranges_from_generated_code(&mut self, code: &str) -> String {
-        let reader = BufReader::new(Cursor::new(code));
+    pub fn extract_ranges_from_generated_code(&mut self, code: &str) {
+        let reader = BufReader::new(code);
 
         let start_regex = Regex::new(r"/\* source_map_start_(\d+) \*/").unwrap();
         let end_regex = Regex::new(r"/\* source_map_end_(\d+) \*/").unwrap();
@@ -103,7 +103,12 @@ impl SourceMap {
             processed_content.push('\n');
         }
 
-        processed_content
+        let mut file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(file_path)
+            .expect("Failed to open file in write mode");
+        write!(file, "{}", processed_content).expect("Failed to write to file");
     }
 
     pub fn get_range_for_line(&self, line: usize) -> Option<&RangeData> {
