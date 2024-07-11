@@ -49,7 +49,7 @@ use crate::helpers::{
     PAX_CREATE_TEMPLATE,
 };
 
-const IS_DESIGNTIME_BUILD: bool = cfg!(feature = "designtime");
+const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
 pub struct RunContext {
     pub target: RunTarget,
@@ -270,7 +270,7 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    if IS_DESIGNTIME_BUILD {
+    if IS_DESIGN_TIME_BUILD {
         cmd.arg("--features").arg("designtime");
     }
 
@@ -317,6 +317,3 @@ fn pre_exec_hook() -> Result<(), std::io::Error> {
     }
     Ok(())
 }
-
-
-
