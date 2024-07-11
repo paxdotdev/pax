@@ -81,7 +81,12 @@ impl ToolBehaviour for CreateComponentTool {
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         self.pointer_move(point, ctx);
-        let box_transform = self.bounds.get().as_transform();
+        let bounds = self.bounds.get();
+        if bounds.width() < 3.0 || bounds.height() < 3.0 {
+            // don't create if to small of a movement
+            return ControlFlow::Break(());
+        }
+        let box_transform = bounds.as_transform();
         let parent = ctx
             .engine_context
             .get_nodes_by_id(ROOT_PROJECT_ID)
@@ -100,7 +105,7 @@ impl ToolBehaviour for CreateComponentTool {
                 }
                 .as_pure_size(),
                 new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
-                node_inv_config: Default::default(),
+                node_decompositon_config: Default::default(),
             },
             type_id: &self.type_id,
             custom_props: &[],
@@ -345,8 +350,10 @@ impl ToolBehaviour for PointerTool {
                             node_id: &hit.global_id().unwrap(),
                             new_parent_uid: &container.global_id().unwrap(),
                             index: pax_manifest::TreeIndexPosition::At(
-                                slot.with_properties(|f: &mut Slot| f.index.get().to_int())
-                                    as usize,
+                                slot.with_properties(|f: &mut Slot| {
+                                    f.index.get().to_int() as usize
+                                })
+                                .unwrap(),
                             ),
                             node_layout: NodeLayoutSettings::Fill,
                         }
