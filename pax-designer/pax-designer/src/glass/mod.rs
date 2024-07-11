@@ -59,7 +59,7 @@ impl Glass {
                         move || {
                             let (hit, to_glass) = model::with_action_context(&ctx, |ac| {
                                 (
-                                    ac.raycast_glass(mouse_pos.get(), RaycastMode::Top, &[]),
+                                    ac.raycast_glass(mouse_pos.get(), RaycastMode::Top, &[], false),
                                     ac.glass_transform(),
                                 )
                             });
@@ -126,6 +126,7 @@ impl Glass {
                                 * Point2::<Window>::new(args.mouse.x, args.mouse.y),
                             RaycastMode::DrillOne,
                             &[],
+                            false,
                         );
                         if let Some(hit) = hit {
                             if let Err(e) = (SelectNodes {
