@@ -4,21 +4,6 @@
     // also returns the parsed + assembled manifest (note: expressions not compiled / transpiled to RIL; this happens in
     // a subsequent step)
 
-
-    // where do we call parse_main_to_manifest?
-    // - during init at runtime (commit to parsing at init-time)
-    // - note this substantially increases footprint — consider all of pax-compiler
-    // - can we work around this?
-    // goal: write pax-cartridge AS TOKENS at compiletime.
-    //       in order to do this, we must have the manifest in memory.  this suggests that derive_pax (the template as it stands, at least the parsing logic)
-    //       must be expanded before writing these tokens.
-    //       perhaps our API looks something like `let cartridge = get_cartridge_string!();` where internally, that macro
-
-    //pax_compiler::expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
-    //pax_compiler::generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
-
-
-
     pub fn parse_main_to_manifest() -> pax_manifest::PaxManifest {
 
         let mut ctx = pax_compiler::parsing::ParsingContext::default();
