@@ -6,10 +6,8 @@ edition = "2021"
 [dependencies]
 pax-engine = {path = "../pax-engine", version="0.15.1"}
 pax-message = {path = "../pax-message", version="0.15.1"}
-pax-compiler = {path="../pax-compiler", optional = true, version="0.15.1"}
+pax-compiler = {path="../pax-compiler", version="0.15.1"}
 pax-manifest = {path = "../pax-manifest", version="0.15.1"}
 pax-runtime = {path = "../pax-runtime", version="0.15.1"}
 pax-std = { path="../pax-std", version="0.15.1"}
 
-[features]
-parser = ["pax-engine/parser", "dep:pax-compiler"]

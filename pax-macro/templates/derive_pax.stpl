@@ -1,10 +1,10 @@
 <% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
-    // For the main (application-root) component only, a `main` is generated for the `parser` bin target.
-    // This method bootstraps the parsing process, parsing not only the main/application-root component
-    // but every component/primitive found in its extended render tree. This main method
-    // also returns the parsed, serialized PaxManifest via stdio (println)
-    #[cfg(feature = "parser")]
-    pub fn main() {
+    // For root component(s) only: this method bootstraps the parsing process,
+    // parsing every component/primitive found in its extended render tree. This main method
+    // also returns the parsed + assembled manifest (note: expressions not compiled / transpiled to RIL; this happens in
+    // a subsequent step)
+
+    pub fn parse_main_to_manifest() -> pax_manifest::PaxManifest {
 
         let mut ctx = pax_compiler::parsing::ParsingContext::default();
 
@@ -27,25 +27,15 @@
             import_paths: ctx.import_paths,
         };
 
-
-        //Send data back to parent process by printing to stdout
-        println!("{}", &serde_json::to_string_pretty(&manifest).unwrap());
-        std::process::exit(0);
-
+        manifest
     }
 
-    //For main component only, and only when we're NOT parsing, include reexports
-    //Parsing is excluded because the `pub mod pax_reexports` snippet can only be generated
-    //after parsing.
-
-    <%= args_full_component.as_ref().unwrap().reexports_snippet %>
 <% } %>
 
 <% if !is_custom_interpolatable { %>
     impl pax_engine::api::Interpolatable for <%= pascal_identifier %> {}
 <% } %>
 
-#[cfg(feature = "parser")]
 impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
 
     fn get_self_pascal_identifier() -> String {
