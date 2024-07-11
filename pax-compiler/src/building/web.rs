@@ -22,7 +22,7 @@ use std::os::unix::process::CommandExt;
 
 const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
-pub fn build_web_chassis_with_cartridge(
+pub fn build_web_target(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
@@ -30,23 +30,16 @@ pub fn build_web_chassis_with_cartridge(
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
-    let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
-    let chassis_path = pax_dir
-        .join(PKG_DIR_NAME)
-        .join(format!("pax-chassis-{}", target_str_lower));
 
     let is_release: bool = ctx.is_release;
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
 
-    let interface_path = pax_dir
-        .join(PKG_DIR_NAME)
-        .join(format!("pax-chassis-{}", target_str_lower))
-        .join("interface");
+    let interface_path = ctx.project_path.join("interface");
 
     // wasm-pack build
     let mut cmd = Command::new("wasm-pack");
-    cmd.current_dir(&chassis_path)
+    cmd.current_dir(&ctx.project_path)
         .arg("build")
         .arg("--target")
         .arg("web")
@@ -54,7 +47,7 @@ pub fn build_web_chassis_with_cartridge(
         .arg("pax-chassis-web")
         .arg("--out-dir")
         .arg(
-            chassis_path
+            ctx.project_path
                 .join("interface")
                 .join("public")
                 .to_str()
