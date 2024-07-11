@@ -5,20 +5,13 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.15.5" }
-pax-std = { version = "0.15.5" }
-pax-compiler = { version = "0.15.5", optional = true }
-pax-manifest = { version = "0.15.5" }
+pax-engine = { version = "0.15.5" , path = "../../../pax-engine" }
+pax-std = { version = "0.15.5" , path = "../../../pax-std" }
+pax-compiler = { version = "0.15.5", path = "../../../pax-compiler" }
+pax-manifest = { version = "0.15.5" , path = "../../../pax-manifest" }
 serde_json = {version = "1.0.95", optional = true}
-
-[[bin]]
-name = "parser"
-path = "src/lib.rs"
-required-features = ["parser"]
 
 [[bin]]
 name = "run"
 path = "bin/run.rs"
 
-[features]
-parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler"]
