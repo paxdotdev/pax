@@ -7,12 +7,18 @@ default-run = "run"
 [dependencies]
 pax-engine = { version="VERSION_PLACEHOLDER" }
 pax-std = { version="VERSION_PLACEHOLDER" }
-pax-compiler = {version = "VERSION_PLACEHOLDER"}
+pax-compiler = {version = "VERSION_PLACEHOLDER", optional = true}
 pax-manifest = { version="VERSION_PLACEHOLDER" }
 serde_json = {version = "1.0.95", optional = true}
 
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
 
 [[bin]]
 name = "run"
 path = "bin/run.rs"
 
+[features]
+parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler"]

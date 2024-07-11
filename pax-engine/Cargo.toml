@@ -14,7 +14,9 @@ description = "Root import entry-point for using Pax in a Rust program"
 pax-macro = {path="../pax-macro", version="0.15.5"}
 pax-message = {path="../pax-message", version="0.15.5"}
 pax-runtime = {path="../pax-runtime", version="0.15.5"}
-pax-compiler = {path="../pax-compiler", version="0.15.5"}
+pax-compiler = {path="../pax-compiler", optional=true, version="0.15.5"}
 log = "0.4.20"
 
+[features]
+parser = ["dep:pax-compiler"]
 
