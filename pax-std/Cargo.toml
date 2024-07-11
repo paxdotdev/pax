@@ -19,10 +19,12 @@ kurbo = "0.9.0"
 pax-engine = {path = "../pax-engine", version="0.15.5"}
 pax-message = {path = "../pax-message", version="0.15.5"}
 lazy_static = "1.4.0"
-pax-compiler = {path="../pax-compiler", version="0.15.5"}
-serde_json = {version="1.0.95"}
+pax-compiler = {path="../pax-compiler", optional = true, version="0.15.5"}
+serde_json = {version="1.0.95", optional = true}
 pax-manifest = {path = "../pax-manifest", version="0.15.5"}
 pax-runtime = {path = "../pax-runtime", version="0.15.5"}
 serde = { version = "1.0.159", features=["derive"]}
 log = "0.4.20"
 
+[features]
+parser = ["pax-engine/parser", "dep:pax-compiler", "dep:serde_json"]

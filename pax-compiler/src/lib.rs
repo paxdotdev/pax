@@ -72,7 +72,8 @@ pub enum RunTarget {
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
-pub fn perform_build(ctx: &RunContext) {
+/// See: pax-compiler-sequence-diagram.png
+pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
     //Compile ts files if applicable (this needs to happen before copying to .pax)
     if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
         if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
@@ -89,8 +90,8 @@ pub fn perform_build(ctx: &RunContext) {
                 panic!(
                     "failed to build js files running ./build-interface.sh at {:?}",
                     chassis_web_path
-                )
-            }
+                );
+            };
         } else {
             panic!(
                 "FATAL: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files"
@@ -98,65 +99,63 @@ pub fn perform_build(ctx: &RunContext) {
         }
     }
 
+    //First we clone dependencies into the .pax/pkg directory.  We must do this before running
+    //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
+    //dependency paths are `.pax/pkg/*`.
+    let pax_dir = get_or_create_pax_directory(&ctx.path);
+
+    //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
+    //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
+    //on a cold-start monorepo clone.)
+    let pax_version = if ctx.is_libdev_mode {
+        None
+    } else {
+        Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
+    };
+
+    if ctx.is_libdev_mode {
+        let full_path = Path::new(&ctx.path);
+        set_path_on_pax_dependencies(&full_path);
+    }
+
+    println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
+
+    // Run parser bin from host project with `--features parser`
+    let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
+
+    // Forward stderr only
+    std::io::stderr()
+        .write_all(output.stderr.as_slice())
+        .unwrap();
+
+    if !output.status.success() {
+        return Err(eyre!(
+            "Parsing failed — there is likely a syntax error in the provided pax"
+        ));
+    }
+
+    let out = String::from_utf8(output.stdout).unwrap();
+    let mut manifest: PaxManifest =
+        serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+    let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
+    let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
+    update_type_id_prefixes_in_place(&mut manifest, &host_crate_info);
+
+    let mut source_map = SourceMap::new();
+
+    // println!("{} 🧮 Compiling expressions", *PAX_BADGE);
+    // expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
     //
-    //
-    // //First we clone dependencies into the .pax/pkg directory.  We must do this before running
-    // //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
-    // //dependency paths are `.pax/pkg/*`.
-    // let pax_dir = get_or_create_pax_directory(&ctx.path);
-    //
-    // //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
-    // //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
-    // //on a cold-start monorepo clone.)
-    // let pax_version = if ctx.is_libdev_mode {
-    //     None
-    // } else {
-    //     Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
-    // };
-    //
-    // if ctx.is_libdev_mode {
-    //     let full_path = Path::new(&ctx.path);
-    //     set_path_on_pax_dependencies(&full_path);
-    // }
-    //
-    // println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
-    //
-    // // Run parser bin from host project with `--features parser`
-    // let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
-    //
-    // // Forward stderr only
-    // std::io::stderr()
-    //     .write_all(output.stderr.as_slice())
-    //     .unwrap();
-    //
-    // if !output.status.success() {
-    //     return Err(eyre!(
-    //         "Parsing failed — there is likely a syntax error in the provided pax"
-    //     ));
-    // }
-    //
-    // let out = String::from_utf8(output.stdout).unwrap();
-    // let mut manifest: PaxManifest =
-    //     serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
-    // let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
-    // let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
-    // update_type_id_prefixes_in_place(&mut manifest, &host_crate_info);
-    //
-    // let mut source_map = SourceMap::new();
-    //
-    // // println!("{} 🧮 Compiling expressions", *PAX_BADGE);
-    // // expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
-    // //
-    // // println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    // // generate_reexports_partial_rs(&pax_dir, &manifest);
-    // // let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
-    // // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
-    //
-    // //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    // println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
-    // let build_dir =
-    //     build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
-    // Ok((manifest, build_dir))
+    // println!("{} 🦀 Generating Rust", *PAX_BADGE);
+    // generate_reexports_partial_rs(&pax_dir, &manifest);
+    // let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
+    // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
+
+    //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
+    println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
+    let build_dir =
+        build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
+    Ok((manifest, build_dir))
 }
 
 /// Clean all `.pax` temp files
