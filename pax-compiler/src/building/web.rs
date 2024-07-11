@@ -20,7 +20,7 @@ use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
+const IS_DESIGNTIME_BUILD: bool = cfg!(feature = "designtime");
 
 pub fn build_web_chassis_with_cartridge(
     ctx: &RunContext,
@@ -69,7 +69,7 @@ pub fn build_web_chassis_with_cartridge(
     } else {
         cmd.arg("--dev");
     }
-    if IS_DESIGN_TIME_BUILD {
+    if IS_DESIGNTIME_BUILD {
         cmd.arg("--features").arg("designtime");
     }
 
