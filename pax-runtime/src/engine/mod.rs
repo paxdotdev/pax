@@ -375,11 +375,6 @@ impl PaxEngine {
             let children = parent.generate_children(new_templates, ctx);
             parent.children.set(children);
             Rc::clone(&parent).recurse_mount(ctx);
-
-            // some things are not re-done that need to be not pretty but should be cleaned up
-            // separately anyways:
-            // let parent_template = Rc::clone(&*borrow!(parent.instance_node));
-            // parent.recreate_with_new_data(parent_template, ctx);
         } else {
             for child in parent.children.get().iter() {
                 Self::recurse_remount_main_template_expanded_node(child, id, ctx);

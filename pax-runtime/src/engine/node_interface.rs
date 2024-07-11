@@ -51,8 +51,8 @@ impl NodeInterface {
         self.inner.layout_properties().get()
     }
 
-    pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> V {
-        self.inner.with_properties_unwrapped(|tp: &mut T| f(tp))
+    pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> Option<V> {
+        self.inner.try_with_properties_unwrapped(|tp: &mut T| f(tp))
     }
 
     pub fn is_of_type<T: ToFromPaxAny>(&self) -> bool {
