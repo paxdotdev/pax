@@ -146,6 +146,7 @@ impl RuntimeContext {
         ray: Point2<Window>,
         limit_one: bool,
         mut accum: Vec<Rc<ExpandedNode>>,
+        hit_invisible: bool,
     ) -> Vec<Rc<ExpandedNode>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
@@ -154,7 +155,7 @@ impl RuntimeContext {
 
         let root_node = borrow!(self.root_node).upgrade().unwrap();
         root_node.recurse_visit_postorder(&mut |node| {
-            if node.ray_cast_test(ray) {
+            if node.ray_cast_test(ray, hit_invisible) {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
                 //calculation when we find the first matching node
@@ -166,7 +167,7 @@ impl RuntimeContext {
                     if let Some(unwrapped_parent) = parent {
                         if let Some(_) = unwrapped_parent.get_clipping_size() {
                             ancestral_clipping_bounds_are_satisfied =
-                                (*unwrapped_parent).ray_cast_test(ray);
+                                (*unwrapped_parent).ray_cast_test(ray, hit_invisible);
                             break;
                         }
                         parent = borrow!(unwrapped_parent.render_parent).upgrade();
@@ -190,7 +191,7 @@ impl RuntimeContext {
 
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
-        let res = self.get_elements_beneath_ray(ray, true, vec![]);
+        let res = self.get_elements_beneath_ray(ray, true, vec![], false);
         Some(
             res.into_iter()
                 .next()
