@@ -212,8 +212,8 @@ pub fn wait_with_output(
     output
 }
 
-pub fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
-    let working_path = std::path::Path::new(working_dir).join(".pax");
+pub fn get_or_create_pax_directory(project_path: &PathBuf) -> PathBuf {
+    let working_path = std::path::Path::new(project_path).join(".pax");
     std::fs::create_dir_all(&working_path).unwrap();
     fs::canonicalize(working_path).unwrap()
 }

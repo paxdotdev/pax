@@ -5,6 +5,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{process, thread};
+use std::path::PathBuf;
 
 use pax_compiler::{CreateContext, RunContext, RunTarget};
 extern crate pax_language_server;
@@ -166,7 +167,7 @@ fn perform_nominal_action(
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
-                path,
+                project_path: PathBuf::from(path),
                 verbose,
                 should_also_run: true,
                 is_libdev_mode,
@@ -185,7 +186,7 @@ fn perform_nominal_action(
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
-                path,
+                project_path: PathBuf::from(path),
                 should_also_run: false,
                 verbose,
                 is_libdev_mode,
@@ -221,7 +222,7 @@ fn perform_nominal_action(
             match args.subcommand() {
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output = &pax_compiler::run_parser_binary(&path, process_child_ids);
+                    let output = &pax_compiler::run_parser_binary(&PathBuf::from(path), process_child_ids);
 
                     // Forward both stdout and stderr
                     std::io::stderr()
