@@ -236,7 +236,7 @@ impl Glass {
                     }
                     .as_pure_size(),
                     new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
-                    node_inv_config: Default::default(),
+                    node_decompositon_config: Default::default(),
                 },
                 type_id: &TypeId::build_singleton(
                     "pax_designer::pax_reexports::pax_std::primitives::Image",
