@@ -74,7 +74,6 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 .into_iter()
                 .next()
                 .unwrap();
-            let glass_curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
 
             let curr_container = curr_node.template_parent().unwrap();
             let glass_curr_container = GlassNode::new(&curr_container, &ctx.glass_transform());
@@ -84,6 +83,7 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 bounds: (1.0, 1.0),
             };
 
+            let glass_curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
             if let Err(e) = (SetNodePropertiesFromTransform {
                 id: &self.initial_node.id,
                 transform_and_bounds: &(move_translation * self.initial_node.transform_and_bounds),
@@ -152,7 +152,6 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
             {
                 let container_parent = curr_container.template_parent().unwrap();
                 let container_parent = GlassNode::new(&container_parent, &ctx.glass_transform());
-                log::debug!("move out!");
                 if let Err(e) = (MoveNode {
                     node_id: &self.initial_node.id,
                     new_parent_uid: &container_parent.id,
@@ -189,7 +188,6 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 .next()
                 .unwrap();
             if curr_node.render_parent().unwrap().is_of_type::<Slot>() {
-                log::debug!("parent is slot!");
                 if let Err(e) = (SetNodeLayout {
                     id: &self.initial_node.id,
                     node_layout: &NodeLayoutSettings::Fill::<Glass>,
@@ -198,7 +196,6 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 {
                     log::warn!("failed: {e}")
                 }
-            } else {
             }
             ControlFlow::Break(())
         }
