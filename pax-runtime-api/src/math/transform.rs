@@ -134,6 +134,11 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
             Vector2::new(v2x, v2y),
         )
     }
+
+    pub fn contains_point(&self, point: Point2<WTo>) -> bool {
+        let unit = self.inverse() * point;
+        unit.x > 0.0 && unit.y > 0.0 && unit.x < 1.0 && unit.y < 1.0
+    }
 }
 
 #[derive(PartialEq, Clone)]
