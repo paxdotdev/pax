@@ -154,7 +154,12 @@ pub trait ComponentFactory {
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
                                 Property::new_with_name(Some(val), &lv.raw_value)
                             },
-                            ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info) =>
+                            ValueDefinition::DoubleBinding(token,info) => {
+                                let identifier = token.token_value.clone();
+                                let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
+                                Property::new_from_untyped(untyped_property.clone())
+                            },
+                            ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info)  =>
                             {
                                 if let Some(info) = info {
                                     let mut dependents = vec![];

@@ -1,0 +1,12 @@
+<Group @click=self.toggle>
+    if self.on {
+        <Rectangle fill=WHITE stroke=BLACK />
+    }
+    if !self.on {
+        <Rectangle fill=BLACK stroke=WHITE />
+    }
+</Group>
+
+@settings {
+    @mount: mount,
+}

@@ -108,7 +108,6 @@ fn recurse_compile_literal_block<'a>(
                 // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
                 ValueDefinition::LiteralValue(_)
                 | ValueDefinition::EventBindingTarget(_)
-                | ValueDefinition::Identifier(_, _)
                 | ValueDefinition::DoubleBinding(_, _) => {}
                 ValueDefinition::Block(block) => {
                     let type_def = (current_property_definitions
@@ -176,6 +175,65 @@ fn recurse_compile_literal_block<'a>(
                         expression_compilation_info,
                         &mut expression_compilation_insert,
                     );
+                }
+                ValueDefinition::Identifier(identifier, expression_compilation_info) => {
+                    // e.g. the self.active_color in `bg_color=self.active_color`
+
+                    if token.token_value == "id" || token.token_value == "class" {
+                        //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
+                        //so we skip the case where `id` is the key
+                    } else {
+                        let id = ctx.vtable_uid_gen.next().unwrap();
+
+                        let type_def = (current_property_definitions
+                            .iter()
+                            .find(|property_def| property_def.name == token.token_value))
+                        .ok_or::<eyre::Report>(PaxTemplateError::new(
+                            Some(format!(
+                                "Property `{}` not found on `{}`",
+                                &token.token_value, type_id
+                            )),
+                            token.clone(),
+                        ))?
+                        .get_type_definition(ctx.type_table);
+                        let output_type = type_def.type_id.clone();
+
+                        //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
+                        //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
+                        let (output_statement, invocations) =
+                            compile_paxel_to_ril(identifier.clone(), &ctx)?;
+
+                        //Write this expression compilation info back to the manifest, for downstream use by RIL component tree generator
+                        let dependencies = invocations
+                            .iter()
+                            .map(|i| i.root_identifier.clone())
+                            .collect::<Vec<String>>();
+                        let mut expression_compilation_insert = Some(ExpressionCompilationInfo {
+                            vtable_id: id,
+                            dependencies,
+                        });
+                        std::mem::swap(
+                            expression_compilation_info,
+                            &mut expression_compilation_insert,
+                        );
+
+                        let source_map_id = source_map.insert(identifier.clone());
+                        let input_statement = source_map
+                            .generate_mapped_string(identifier.token_value.clone(), source_map_id);
+
+                        let output_type = output_type.to_string();
+                        ctx.expression_specs.insert(
+                            id,
+                            ExpressionSpec {
+                                id,
+                                invocations,
+                                output_type,
+                                output_statement,
+                                input_statement,
+                                is_repeat_source_iterable_expression: false,
+                            },
+                        );
+                    }
                 }
                 _ => {
                     unreachable!()
@@ -246,13 +304,13 @@ fn recurse_compile_expressions<'a>(
             let id = ctx.vtable_uid_gen.next().unwrap();
             let mut deps = vec![];
             if let Some(iterable) = &repeat_source_definition.symbolic_binding {
-                deps.push(iterable.token_value.clone());
+                deps.push(iterable.token_value.trim().to_string());
             } else if repeat_source_definition.range_symbolic_bindings.len() != 0 {
                 deps.extend(
                     repeat_source_definition
                         .range_symbolic_bindings
                         .iter()
-                        .map(|s| s.token_value.clone()),
+                        .map(|s| s.token_value.trim().to_string()),
                 );
             }
             repeat_source_definition.expression_info = Some(ExpressionCompilationInfo {
@@ -565,7 +623,7 @@ fn resolve_symbol_as_invocation(
         let escaped_identifier = escape_identifier(split_symbols.join("."));
 
         let mut split_symbols = split_symbols.into_iter();
-        let root_identifier = split_symbols.next().unwrap().to_string();
+        let root_identifier = split_symbols.next().unwrap().trim().to_string();
         let root_prop_def = prop_def_chain.first().unwrap();
 
         let fully_qualified_properties_struct_type =
@@ -708,7 +766,9 @@ pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
         possibly_nested_symbols.to_string()
     };
 
-    entire_symbol
+    let trimmed_symbol = entire_symbol.trim();
+
+    trimmed_symbol
         .split(".")
         .map(|atomic_symbol| atomic_symbol.to_string())
         .collect::<Vec<_>>()
@@ -752,6 +812,7 @@ impl<'a> ExpressionCompilationContext<'a> {
             }
             ret
         };
+
 
         // handle nested symbols like `foo.bar`.
         if let Some(root_symbol_pd) = root_symbol_pd {
