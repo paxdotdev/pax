@@ -19,20 +19,12 @@ impl ComponentFactory for {{component.pascal_identifier}}Factory {
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
                             properties.{{property.name}}.replace_with(Property::new_with_name(val, &lv.raw_value));
                         },
-                        ValueDefinition::Identifier(token,info) => {
-                            let identifier = token.token_value.clone();
-                            let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
-                            let resolved_property : Property<{{property.property_type.type_id._type_id}}> = Property::new_from_untyped(untyped_property.clone());
-                            properties.{{property.name}}.replace_with(Property::computed_with_name(move || {
-                                resolved_property.get()
-                            }, &vec![untyped_property], &token.raw_value));
-                        },
                         ValueDefinition::DoubleBinding(token,info) => {
                             let identifier = token.token_value.clone();
                             let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
                             properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
                         },
-                        ValueDefinition::Expression(token, info) =>
+                        ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info)  =>
                         {
                             if let Some(info) = info {
                                 let mut dependents = vec![];
@@ -169,20 +161,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         let val = from_pax_try_coerce::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap();
                                         Property::new_with_name(val, &lv.raw_value)
                                     },
-                                    ValueDefinition::Identifier(token,info) => {
-                                        let identifier = token.token_value.clone();
-                                        let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
-                                        let resolved_property : Property<{{prop.type_id._type_id}}> = Property::new_from_untyped(untyped_property.clone());
-                                        Property::computed_with_name(move || {
-                                            resolved_property.get()
-                                        }, &vec![untyped_property], &token.raw_value)
-                                    },
-                                    ValueDefinition::DoubleBinding(token,info) => {
-                                        let identifier = token.token_value.clone();
-                                        let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
-                                        Property::new_from_untyped(untyped_property.clone())
-                                    },
-                                    ValueDefinition::Expression(token, info) =>
+                                    ValueDefinition::Expression(token, info) | ValueDefinition::Identifier(token,info)  =>
                                     {
                                         if let Some(info) = info {
                                             let mut dependents = vec![];

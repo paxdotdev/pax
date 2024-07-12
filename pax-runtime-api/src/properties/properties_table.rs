@@ -31,11 +31,9 @@ pub struct PropertyData {
 
 impl PropertyData {
     fn typed_data<T: 'static>(&mut self) -> &mut TypedPropertyData<T> {
-        let typed_data = self
-            .typed_data
+        self.typed_data
             .downcast_mut::<TypedPropertyData<T>>()
-            .expect("TypedPropertyData<T> should have correct type T during downcast");
-        typed_data
+            .unwrap_or_else(|| panic!("Failed to downcast to TypedPropertyData<{}>. The actual type does not match the expected type.", std::any::type_name::<T>()))
     }
 }
 
