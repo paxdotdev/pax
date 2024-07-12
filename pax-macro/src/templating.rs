@@ -29,7 +29,7 @@ pub struct ArgsFullComponent {
     pub raw_pax: String,
     pub is_main_component: bool,
     pub template_dependencies: Vec<String>,
-    pub reexports_snippet: String,
+    pub cartridge_snippet: String,
     pub associated_pax_file_path: Option<PathBuf>,
     pub error_message: Option<String>,
 }

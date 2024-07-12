@@ -29,7 +29,6 @@ pub struct PaxManifest {
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
-    pub import_paths: std::collections::HashSet<String>,
 }
 
 impl PaxManifest {
