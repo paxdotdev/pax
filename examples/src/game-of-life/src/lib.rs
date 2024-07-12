@@ -8,13 +8,11 @@ use pax_std::primitives::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
-mod cell;
-use cell::Cell;
 
 #[pax]
 #[custom(Default)]
 #[main]
-#[file("lib.pax")]
+#[file("templates/lib.pax")]
 pub struct GameOfLife {
     pub cells: Property<Vec<Vec<bool>>>,
     pub rows: Property<usize>,
@@ -23,9 +21,6 @@ pub struct GameOfLife {
     pub speed: Property<f64>,
     pub color: Property<Color>,
 }
-
-
-
 
 impl Default for GameOfLife {
     fn default() -> Self {
@@ -97,13 +92,41 @@ impl GameOfLife {
 }
 
 #[pax]
-#[file("speed_control.pax")]
+#[file("templates/cell.pax")]
+pub struct Cell {
+    pub on : Property<bool>,
+    pub row: Property<usize>,
+    pub col: Property<usize>,
+    pub cells: Property<Vec<Vec<bool>>>,
+    pub color: Property<Color>,
+}
+
+impl Cell {
+
+    pub fn mount(&mut self, _ctx: &NodeContext) {
+        let cells = self.cells.clone();
+        let row = self.row.clone();
+        let col = self.col.clone();
+        self.on.replace_with(Property::computed(move || {
+            cells.get()[row.get()][col.get()]
+        }, &[self.cells.untyped()]));
+    }
+
+    pub fn toggle(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
+        self.cells.update(|cells: &mut Vec<Vec<bool>>| {
+            cells[self.row.get()][self.col.get()] = !cells[self.row.get()][self.col.get()];
+        });
+    }
+}
+
+#[pax]
+#[file("templates/speed_control.pax")]
 pub struct SpeedControl {
     pub speed: Property<f64>,
 }
 
 #[pax]
-#[file("color_control.pax")]
+#[file("templates/color_control.pax")]
 pub struct ColorControl {
     pub selected_id: Property<u32>,
     pub selected_color: Property<Color>,
@@ -118,7 +141,6 @@ impl ColorControl {
                 Color::BLUE,
             ];
         self.selected_color.replace_with(Property::computed(move || {
-            log::warn!("selected_color: {:?}", colors[selected_id_clone.get() as usize]);
             colors[selected_id_clone.get() as usize].clone()
         }, &[self.selected_id.untyped()]));
     }
