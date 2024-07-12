@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use super::model::ToolBehaviour;
 use pax_engine::api::*;
 use pax_engine::layout::TransformAndBounds;
-use pax_engine::math::{Generic, Point2, Transform2, Vector2};
+use pax_engine::math::{Generic, Parts, Point2, Transform2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
@@ -36,6 +36,7 @@ pub struct WireframeEditor {
     pub control_points: Property<Vec<ControlPointDef>>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
     pub on_selection_changed: Property<bool>,
+    pub object_rotation: Property<Rotation>,
 }
 
 // Temporary solution - can be moved to private field on ObjectEditor
@@ -61,10 +62,12 @@ impl WireframeEditor {
         // the editor (among other things) are re-bound to the engine node
         // corresponding to that id. "bindings inside bindings"
         let ctx = ctx.clone();
+        let object_rotation = self.object_rotation.clone();
         self.on_selection_changed.replace_with(Property::computed(
             move || {
                 let selected = selected_cp.get();
                 if selected.items.len() > 0 {
+                    Self::bind_object_transform(object_rotation.clone(), &selected);
                     let editor = Editor::new(ctx.clone(), selected);
                     Self::bind_editor(control_points.clone(), bounding_segments.clone(), editor);
                 } else {
@@ -122,6 +125,18 @@ impl WireframeEditor {
 
         bounding_segments.replace_with(Property::computed(
             move || editor.get().segments.into_iter().map(Into::into).collect(),
+            &deps,
+        ));
+    }
+
+    pub fn bind_object_transform(object_rotation: Property<Rotation>, selection: &SelectionState) {
+        let t_and_b = selection.total_bounds.clone();
+        let deps = [t_and_b.untyped()];
+        object_rotation.replace_with(Property::computed(
+            move || {
+                let parts: Parts = t_and_b.get().as_transform().into();
+                Rotation::Radians(parts.rotation.into())
+            },
             &deps,
         ));
     }

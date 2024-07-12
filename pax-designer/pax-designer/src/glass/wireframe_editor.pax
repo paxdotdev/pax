@@ -4,6 +4,7 @@ for (data, i) in self.control_points {
     <ControlPoint
 		data=data
 		ind=i
+        object_rotation={self.object_rotation}
 	/>
 }
 
