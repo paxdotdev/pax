@@ -20,7 +20,11 @@ pub struct GameOfLife {
     pub rows: Property<usize>,
     pub cols: Property<usize>,
     pub running: Property<bool>,
+    pub speed: Property<f64>,
 }
+
+
+
 
 impl Default for GameOfLife {
     fn default() -> Self {
@@ -30,13 +34,20 @@ impl Default for GameOfLife {
             rows: Property::new(n),
             cols: Property::new(n),
             running: Property::new(false),
+            speed: Property::new(20.0),
         }
     }
-
 }
 
 impl GameOfLife {
-    pub fn tick(&mut self, _ctx: &NodeContext) {
+    pub fn tick(&mut self, ctx: &NodeContext) {
+        let interval = (100.0 / self.speed.get()) as u64;
+        if ctx.frames_elapsed.get() % interval == 0 && self.running.get() {
+            self.update();
+        }
+    }
+
+    fn update(&mut self) {
         if self.running.get() {
             let mut new_cells = vec![vec![false; self.cols.get()]; self.rows.get()];
             for i in 0..self.rows.get() {
@@ -81,4 +92,10 @@ impl GameOfLife {
         self.running.set(false);
         self.cells.set(vec![vec![false; self.cols.get()]; self.rows.get()]);
     }
+}
+
+#[pax]
+#[file("speed_control.pax")]
+pub struct SpeedControl {
+    pub speed: Property<f64>,
 }

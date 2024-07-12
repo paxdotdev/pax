@@ -459,6 +459,7 @@ pub fn pax(
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
+    let pascal_identifier = input.ident.to_string();
     let config = parse_config(&mut input.attrs);
     validate_config(&input, &config).unwrap();
 
@@ -484,7 +485,7 @@ pub fn pax(
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
         let path = current_dir.join("src").join(&filename);
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
-        let name = Ident::new("PaxFile", Span::call_site());
+        let name = Ident::new(&pascal_identifier, Span::call_site());
         let include_fix = generate_include(&name, &path);
         let associated_pax_file = Some(path.clone());
         let file = File::open(path);
