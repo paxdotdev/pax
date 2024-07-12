@@ -256,6 +256,18 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                     Rule::literal_enum_value => {
                         visitor.visit_enum(PaxEnum::from_string(inner_pair.as_str().to_string()))
                     }
+                    Rule::literal_option => {
+                        // literal_option = literal_option = {"Option::"? ~ literal_some | literal_none}
+                        let option_type = inner_pair.clone().into_inner().next().unwrap();
+                        match option_type.as_rule() {
+                            Rule::literal_some => {
+                                let inner = option_type.into_inner().next().unwrap().as_str();
+                                visitor.visit_some(Deserializer::from_string(inner.to_string()))
+                            }
+                            Rule::literal_none => visitor.visit_none(),
+                            _ => Err(Error::UnsupportedType(option_type.as_str().to_string())),
+                        }
+                    }
                     Rule::literal_boolean => visitor.visit_bool(inner_pair.as_str() == TRUE),
                     _ => Err(Error::UnsupportedType(inner_pair.as_str().to_string())),
                 }
