@@ -14,6 +14,7 @@ use model::{
 
 pub mod context_menu;
 pub mod glass;
+pub mod utils;
 
 pub mod controls;
 pub mod llm_interface;

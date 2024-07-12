@@ -69,10 +69,9 @@ impl ActionContext<'_> {
         point: Point2<Glass>,
         mode: RaycastMode,
         skip: &[NodeInterface],
-        hit_invisible: bool,
     ) -> Option<NodeInterface> {
         let window_point = self.glass_transform().get().inverse() * point;
-        let all_elements_beneath_ray = self.engine_context.raycast(window_point, hit_invisible);
+        let all_elements_beneath_ray = self.engine_context.raycast(window_point, false);
 
         let userland = self.engine_context.get_nodes_by_id(ROOT_PROJECT_ID).pop()?;
         let userland_id = userland.global_id();
