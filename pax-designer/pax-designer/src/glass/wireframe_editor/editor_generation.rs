@@ -20,7 +20,8 @@ use crate::{
 };
 
 impl Interpolatable for Editor {}
-pub mod stacker_control;
+pub mod slot_control;
+pub mod stacker_size_control;
 
 #[derive(Clone, Default)]
 pub struct Editor {
@@ -35,10 +36,7 @@ impl Editor {
         let total_bound_derived = Property::computed(
             move || {
                 let total_bounds = total_bounds.get();
-                let (o, u, v) = total_bounds.transform.decompose();
-                let u = u * total_bounds.bounds.0;
-                let v = v * total_bounds.bounds.1;
-                let [p1, p4, p3, p2] = [o, o + v, o + u + v, o + u];
+                let [p1, p4, p3, p2] = total_bounds.corners();
                 (
                     vec![
                         Self::resize_control_points_set(p1, p2, p3, p4),
@@ -287,7 +285,10 @@ impl Editor {
         let import_path = type_id.import_path();
         match import_path.as_ref().map(|v| v.as_str()) {
             Some("pax_designer::pax_reexports::pax_std::stacker::Stacker") => {
-                stacker_control::stacker_control_set(ctx, item)
+                vec![
+                    slot_control::slot_control_set(ctx.clone(), item.clone()),
+                    stacker_size_control::stacker_size_control_set(ctx.clone(), item.clone()),
+                ]
             }
             _ => return Vec::default(),
         }
