@@ -124,7 +124,9 @@ impl Editor {
             stroke: Color::TRANSPARENT,
             fill: Color::TRANSPARENT,
             stroke_width_pixels: 0.0,
-            size_pixels: 27.0,
+            width: 27.0,
+            height: 27.0,
+            affected_by_transform: false,
         };
 
         ControlPointSet {
@@ -208,7 +210,9 @@ impl Editor {
             stroke: Color::BLUE,
             fill: Color::WHITE,
             stroke_width_pixels: 1.0,
-            size_pixels: 7.0,
+            width: 7.0,
+            height: 7.0,
+            affected_by_transform: false,
         };
 
         ControlPointSet {
@@ -258,7 +262,9 @@ impl Editor {
             stroke: Color::BLUE,
             fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
             stroke_width_pixels: 1.0,
-            size_pixels: 10.0,
+            width: 10.0,
+            height: 10.0,
+            affected_by_transform: false,
         };
 
         ControlPointSet {
