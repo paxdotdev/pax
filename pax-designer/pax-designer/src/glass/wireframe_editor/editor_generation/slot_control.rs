@@ -34,11 +34,11 @@ use crate::{
 
 use super::ControlPointSet;
 
-pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<ControlPointSet>> {
-    struct StackerBehaviour {
+pub fn slot_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
+    struct SlotBehaviour {
         initial_node: GlassNodeSnapshot,
         pickup_point: Point2<Glass>,
-        before_move_undo_id: usize,
+        _before_move_undo_id: usize,
         vis: Property<ToolVisualizationState>,
     }
 
@@ -46,14 +46,14 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
 
     // re-do this whenever slots change
-    let stacker_node = ctx
+    let slot_parent_node = ctx
         .get_nodes_by_global_id(item.id)
         .into_iter()
         .next()
         .unwrap();
-    let slot_count = stacker_node.flattened_slot_children_count();
+    let slot_count = slot_parent_node.flattened_slot_children_count();
 
-    impl ToolBehaviour for StackerBehaviour {
+    impl ToolBehaviour for SlotBehaviour {
         fn pointer_down(
             &mut self,
             _point: Point2<Glass>,
@@ -96,7 +96,7 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
             }
             .perform(ctx))
             {
-                pax_engine::log::error!("Error moving stacker object: {:?}", e);
+                pax_engine::log::error!("Error moving slot object: {:?}", e);
             }
 
             if let Some((container, slot_hit)) = raycast_slot(ctx, &curr_node, point) {
@@ -216,7 +216,7 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
         }
     }
 
-    fn stacker_control_point_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
+    fn slot_control_point_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
         Rc::new(move |ctx, p| {
             let dt = borrow!(ctx.engine_context.designtime);
             let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
@@ -247,10 +247,10 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 &deps,
             );
 
-            Rc::new(RefCell::new(StackerBehaviour {
+            Rc::new(RefCell::new(SlotBehaviour {
                 initial_node: (&slot_child).into(),
                 pickup_point: p,
-                before_move_undo_id,
+                _before_move_undo_id: before_move_undo_id,
                 vis,
             }))
         })
@@ -264,12 +264,12 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
         size_pixels: 15.0,
     };
 
-    let t_and_b = stacker_node.transform_and_bounds();
+    let t_and_b = slot_parent_node.transform_and_bounds();
     let deps = [t_and_b.untyped(), slot_count.untyped()];
-    vec![Property::computed(
+    Property::computed(
         move || {
             let mut slots = vec![];
-            let mut search_set: Vec<NodeInterface> = stacker_node.children();
+            let mut search_set: Vec<NodeInterface> = slot_parent_node.children();
             while let Some(node) = search_set.pop() {
                 for n in node.children() {
                     if n.is_of_type::<Slot>() {
@@ -280,22 +280,22 @@ pub fn stacker_control_set(ctx: NodeContext, item: GlassNode) -> Vec<Property<Co
                 }
             }
             let to_glass = to_glass_transform.clone();
-            let stacker_control_points = slots
+            let slot_component_control_points = slots
                 .into_iter()
                 .map(|s| {
                     let slot_child = s.children().into_iter().next().unwrap();
                     let slot_child = GlassNode::new(&slot_child, &to_glass);
                     let t_and_b = slot_child.transform_and_bounds.get();
-                    CPoint::new(t_and_b.center(), stacker_control_point_factory(slot_child))
+                    CPoint::new(t_and_b.center(), slot_control_point_factory(slot_child))
                 })
                 .collect();
             ControlPointSet {
-                points: stacker_control_points,
+                points: slot_component_control_points,
                 styling: control_point_styling.clone(),
             }
         },
         &deps,
-    )]
+    )
 }
 
 pub fn raycast_slot(

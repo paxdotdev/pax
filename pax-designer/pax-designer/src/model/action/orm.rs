@@ -351,9 +351,7 @@ impl Action for Resize<'_> {
         //     bounds: (1.0, 1.0),
         // };
 
-        // nove to "frame of reference", perform operation, move back
-        // TODO refactor so that things like rotation are also just a "local_resize" transform that is performing a rotation,
-        // most likely from center of selection (at least when multiple)?
+        // move to "frame of reference", perform operation, move back
         let resize = to_local * local_resize * to_local.inverse();
 
         for item in &self.initial_selection.items {
@@ -408,9 +406,7 @@ impl Action for RotateSelected<'_> {
             bounds: (1.0, 1.0),
         };
 
-        // nove to "frame of reference", perform operation, move back
-        // TODO refactor so that things like rotation are also just a "local_resize" transform that is performing a rotation,
-        // most likely from center of selection (at least when multiple)?
+        // move to "frame of reference", perform operation, move back
         let rotate = to_local * local_rotation * to_local.inverse();
 
         for item in &self.initial_selection.items {
@@ -490,9 +486,7 @@ pub fn write_to_orm<T: Serialize + Default + PartialEq>(
     Ok(())
 }
 
-// TODO some props here are not needed for specific values of ResizeMode,
-// move them to the specific ResizeMode enum variants instead
-pub struct MoveNode<'a, S> {
+pub struct MoveNode<'a, S = Generic> {
     pub node_id: &'a UniqueTemplateNodeIdentifier,
     pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
     pub index: TreeIndexPosition,

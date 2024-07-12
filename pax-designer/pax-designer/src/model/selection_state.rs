@@ -66,10 +66,7 @@ impl SelectionState {
                     let axis_box =
                         AxisAlignedBox::bound_of_points(bounds.iter().flat_map(|t_and_b| {
                             let t_and_b = t_and_b.get();
-                            let (o, u, v) = t_and_b.transform.decompose();
-                            let u = u * t_and_b.bounds.0;
-                            let v = v * t_and_b.bounds.1;
-                            [o, o + v, o + u, o + v + u]
+                            t_and_b.corners()
                         }));
                     let transform = Transform2::compose(
                         axis_box.top_left(),
