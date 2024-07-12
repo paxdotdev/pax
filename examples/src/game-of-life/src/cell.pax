@@ -1,6 +1,6 @@
 <Group @click=self.toggle>
     if self.on {
-        <Rectangle fill=WHITE stroke=BLACK />
+        <Rectangle fill=color stroke=BLACK />
     }
     if !self.on {
         <Rectangle fill=BLACK stroke=WHITE />

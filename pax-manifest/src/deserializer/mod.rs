@@ -246,14 +246,13 @@ impl<'de> de::Deserializer<'de> for Deserializer {
                             inner_pair.into_inner().next().unwrap().as_str().to_string();
                         visitor.visit_string(string_within_quotes)
                     }
-                    Rule::literal_tuple => {
+                    Rule::literal_tuple | Rule::literal_list => {
                         let pairs = inner_pair.into_inner();
                         let elements = pairs
                             .map(|pair| PaxSeqArg::String(pair.as_str().to_string()))
                             .collect::<Vec<PaxSeqArg>>();
                         visitor.visit_seq(PaxSeq::new(elements))
                     }
-
                     Rule::literal_enum_value => {
                         visitor.visit_enum(PaxEnum::from_string(inner_pair.as_str().to_string()))
                     }
