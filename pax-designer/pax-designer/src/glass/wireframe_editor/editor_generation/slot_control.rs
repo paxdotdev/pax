@@ -252,7 +252,6 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     },
                     &deps,
                 );
-
                 Rc::new(RefCell::new(SlotBehaviour {
                     initial_node: (&slot_child).into(),
                     pickup_point: p,
