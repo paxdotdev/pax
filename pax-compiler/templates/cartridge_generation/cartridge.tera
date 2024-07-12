@@ -16,7 +16,7 @@ use pax_runtime_api::{borrow, borrow_mut};
 use pax_runtime::api::pax_value::ToFromPaxValue;
 use std::collections::BTreeMap;
 
-pub const INITIAL_MANIFEST: &str = include_str!("../initial-manifest.json");
+pub const INITIAL_MANIFEST: &str = include_str!("../.pax/initial-manifest.json");
 
 use_RefCell!();
 
