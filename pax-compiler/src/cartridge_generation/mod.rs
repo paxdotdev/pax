@@ -18,6 +18,7 @@ use toml_edit::Item;
 pub mod templating;
 
 pub const INITIAL_MANIFEST_FILE_NAME: &str = "initial-manifest.json";
+pub const CARTRIDGE_PARTIAL_PATH: &str = "cartridge.partial.rs";
 
 // Generates (codegens) the PaxCartridge definition, abiding by the PaxCartridge trait.
 // Side-effect: writes the generated string to disk as .pax/cartridge.partial.rs,
@@ -27,7 +28,6 @@ pub fn generate_cartridge_partial_rs(
     manifest: &PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) -> PathBuf {
-    let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-cartridge");
 
     #[allow(unused_mut)]
         let mut generated_lib_rs;
@@ -66,12 +66,12 @@ pub fn generate_cartridge_partial_rs(
     );
 
     // write manifest to cartridge
-    let manifest_path = target_dir.join(INITIAL_MANIFEST_FILE_NAME);
+    let manifest_path = pax_dir.join(INITIAL_MANIFEST_FILE_NAME);
     let manifest_str = serde_json::to_string(manifest).unwrap();
     fs::write(manifest_path, manifest_str).unwrap();
 
     // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
-    let path = target_dir.join("src/lib.rs");
+    let path = pax_dir.join(CARTRIDGE_PARTIAL_PATH);
     fs::write(path.clone(), generated_lib_rs).unwrap();
     path
 }
