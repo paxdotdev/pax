@@ -91,7 +91,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::literal_object | Rule::xo_object => vec![Box::new(ObjectDefaultRule)],
         Rule::settings_key_value_pair => vec![Box::new(SettingsKeyValuePairDefaultRule)],
         Rule::literal_function => vec![Box::new(LiteralFunctionDefaultRule)],
-        Rule::function_list | Rule::xo_list => {
+        Rule::function_list | Rule::xo_list | Rule::literal_list => {
             vec![Box::new(ListMultiLineRule), Box::new(ListDefaultRule)]
         }
         Rule::literal_tuple | Rule::xo_tuple => {

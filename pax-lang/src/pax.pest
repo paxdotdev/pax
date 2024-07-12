@@ -94,7 +94,7 @@ literal_function = { ("self." | "this.")? ~ identifier }
 silent_comma = _{","}
 
 function_list = {"[" ~ literal_function* ~ "]"}
-literal_value = { literal_color | literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
+literal_value = { literal_list | literal_color | literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_boolean = {("true" | "false")}
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
@@ -103,6 +103,7 @@ literal_number_float = {"-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 literal_number_unit = {("%" | "px" | "deg" | "rad")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
+literal_list = {"[" ~ (literal_value  ~ silent_comma?)* ~ "]"}
 
 //Enums like Orientation::Vertical
 //Note that this is parsed separately from expression enums, `xo_enum*`
