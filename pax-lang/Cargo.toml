@@ -1,6 +1,6 @@
 [package]
 name = "pax-lang"
-version = "0.15.4"
+version = "0.15.5"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
