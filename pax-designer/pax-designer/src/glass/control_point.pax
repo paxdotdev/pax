@@ -8,16 +8,18 @@
 </Group>
 
 @settings {
+    @mount: self.on_mount
     #invisible_hit_box {
         anchor_x: 50%,
         anchor_y: 50%,
         x: {(self.data.point.x)px},
         y: {(self.data.point.y)px},
         fill: NONE,
-        width: {(self.data.styling.size_pixels + 3)px}
-        height: {(self.data.styling.size_pixels + 3)px}
+        width: {(self.data.styling.width + 3)px}
+        height: {(self.data.styling.height + 3)px}
     }
     .control_point {
+        rotate: {self.applied_rotation}
         stroke: {
             color: {self.data.styling.stroke}
             width: {(self.data.styling.stroke_width_pixels)px}
@@ -25,8 +27,8 @@
         x: 50%,
         y: 50%,
         fill: { self.data.styling.fill }
-        width: {(self.data.styling.size_pixels)px}
-        height: {(self.data.styling.size_pixels)px}
+        width: {(self.data.styling.width)px}
+        height: {(self.data.styling.height)px}
         anchor_x: 50%
         anchor_y: 50%
     }

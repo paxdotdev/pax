@@ -7,7 +7,7 @@ use super::ToolVisualizationState;
 use crate::glass;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
-use pax_engine::math::Point2;
+use pax_engine::math::{Point2, Transform2};
 use pax_engine::*;
 use pax_std::primitives::{Ellipse, Group, Path, Rectangle};
 use serde::Deserialize;
@@ -27,6 +27,10 @@ use crate::model::input::Dir;
 pub struct ControlPoint {
     pub data: Property<ControlPointDef>,
     pub ind: Property<Numeric>,
+    // the transform of the currently selected object
+    pub object_rotation: Property<Rotation>,
+    // the transform to be applied to this control point
+    pub applied_rotation: Property<Rotation>,
 }
 
 pub type ControlPointBehaviourFactory =
@@ -90,6 +94,22 @@ impl Action for ActivateControlPoint {
 }
 
 impl ControlPoint {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        let data = self.data.clone();
+        let object_transform = self.object_rotation.clone();
+        let deps = [data.untyped(), object_transform.untyped()];
+        self.applied_rotation.replace_with(Property::computed(
+            move || {
+                if data.get().styling.affected_by_transform {
+                    object_transform.get()
+                } else {
+                    Default::default()
+                }
+            },
+            &deps,
+        ));
+    }
+
     pub fn mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         args.prevent_default();
         super::wireframe_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
@@ -114,9 +134,11 @@ pub struct ControlPointDef {
 
 #[pax]
 pub struct ControlPointStyling {
+    pub affected_by_transform: bool,
     pub round: bool,
     pub stroke: Color,
     pub fill: Color,
     pub stroke_width_pixels: f64,
-    pub size_pixels: f64,
+    pub width: f64,
+    pub height: f64,
 }
