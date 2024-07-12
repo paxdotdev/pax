@@ -5,7 +5,7 @@ use pax_engine::{
     layout::TransformAndBounds,
     log,
     math::{Point2, Transform2},
-    NodeInterface, Property, Slot,
+    NodeInterface, NodeLocal, Property, Slot,
 };
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::{borrow, borrow_mut, Color};
@@ -28,6 +28,7 @@ use crate::{
         input::InputEvent,
         GlassNode, GlassNodeSnapshot, ToolBehaviour,
     },
+    utils::filter_with_last::FilterWithLastExt,
     ROOT_PROJECT_ID,
 };
 
@@ -311,13 +312,27 @@ pub fn raycast_slot(
         .into_iter()
         .next()
         .unwrap();
+
+    let open_containers = ctx.derived_state.open_containers.get();
     let slot_hit = all_elements_beneath_ray
         .into_iter()
         .filter(|n| n.is_descendant_of(&root))
         .filter(|n| !n.is_descendant_of(moving))
         .filter(|n| n.is_of_type::<Slot>())
+        .filter(|n| {
+            // is either directly in an open container, or one level deep
+            open_containers.contains(
+                &n.containing_component()
+                    .unwrap()
+                    .template_parent()
+                    .unwrap()
+                    .global_id()
+                    .unwrap(),
+            ) || open_containers.contains(&n.containing_component().unwrap().global_id().unwrap())
+        })
         .rev()
         .next()?;
+
     let container = slot_hit
         .children()
         .first()
