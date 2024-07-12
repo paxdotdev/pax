@@ -813,7 +813,6 @@ impl<'a> ExpressionCompilationContext<'a> {
             ret
         };
 
-
         // handle nested symbols like `foo.bar`.
         if let Some(root_symbol_pd) = root_symbol_pd {
             let mut ret = vec![root_symbol_pd];
