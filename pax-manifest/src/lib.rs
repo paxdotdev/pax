@@ -15,7 +15,6 @@ pub mod utils;
 pub mod cartridge_generation;
 pub mod constants;
 
-#[cfg(feature = "parsing")]
 pub mod deserializer;
 
 /// Definition container for an entire Pax cartridge
@@ -568,47 +567,6 @@ impl TypeId {
             .replace(">", "_")
             .replace("<", "_")
             .replace(".", "_")
-    }
-
-    pub fn fully_qualify_id(host_crate_info: &HostCrateInfo, id: String) -> Option<String> {
-        let mut primitives_set: HashSet<&str> = SUPPORTED_NUMERIC_PRIMITIVES
-            .into_iter()
-            .chain(SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter())
-            .collect();
-        primitives_set.insert(TYPE_ID_IF);
-        primitives_set.insert(TYPE_ID_REPEAT);
-        primitives_set.insert(TYPE_ID_SLOT);
-        primitives_set.insert(TYPE_ID_COMMENT);
-
-        let ret = id.replace("crate::", "").to_string();
-        #[allow(non_snake_case)]
-        let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-        let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.iter().cloned().collect();
-
-        if primitives_set.contains(id.as_str()) || id.contains("pax_reexports") {
-            Some(ret.to_string())
-        } else if !imports_builtins_set.contains(id.as_str()) {
-            if id.contains("{PREFIX}") {
-                Some(ret.replace("{PREFIX}", &IMPORT_PREFIX))
-            } else {
-                Some(IMPORT_PREFIX.clone() + ret.as_str())
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Adds re-export information to this type-id which is sometimes not know at creation time
-    /// Once qualified a type-id can be used to fully import a type in the cartridge
-    pub fn fully_qualify_type_id(&mut self, host_crate_info: &HostCrateInfo) -> &Self {
-        if let Some(path) = self.import_path() {
-            self.import_path = Self::fully_qualify_id(host_crate_info, path);
-        }
-        if let Some(id) = Self::fully_qualify_id(host_crate_info, self._type_id.clone()) {
-            self._type_id = id.clone();
-            self._type_id_escaped = escape_identifier(id);
-        }
-        self
     }
 
     pub fn is_blank_component(&self) -> bool {
@@ -1192,14 +1150,6 @@ impl ComponentTemplate {
                     children.insert(index, id.clone());
                 }
             },
-        }
-    }
-
-    pub fn fully_qualify_template_type_ids(&mut self, host_crate_info: &HostCrateInfo) {
-        self.containing_component
-            .fully_qualify_type_id(host_crate_info);
-        for (_, val) in self.nodes.iter_mut() {
-            val.type_id.fully_qualify_type_id(&host_crate_info);
         }
     }
 
