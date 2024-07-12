@@ -17,7 +17,6 @@ pub mod expressions;
 pub mod formatting;
 pub mod helpers;
 pub mod parsing;
-mod reexports;
 
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
@@ -37,10 +36,10 @@ use crate::building::{
 };
 
 use crate::errors::source_map::SourceMap;
-use crate::reexports::generate_reexports_partial_rs;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use crate::cartridge_generation::generate_cartridge_partial_rs;
 
 use crate::helpers::{
     get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages,
@@ -139,7 +138,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    generate_reexports_partial_rs(&pax_dir, &manifest);
+    // generate_reexports_partial_rs(&pax_dir, &manifest);
+    generate_cartridge_partial_rs(&pax_dir, &manifest, &host_crate_info);
     // let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 

@@ -1062,8 +1062,6 @@ pub struct ParsingContext {
     pub template_node_definitions: ComponentTemplate,
 
     pub type_table: TypeTable,
-
-    pub import_paths: HashSet<String>,
 }
 
 impl Default for ParsingContext {
@@ -1075,7 +1073,6 @@ impl Default for ParsingContext {
             template_map: HashMap::new(),
             type_table: get_primitive_type_table(),
             template_node_definitions: ComponentTemplate::default(),
-            import_paths: HashSet::new(),
         }
     }
 }
