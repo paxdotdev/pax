@@ -18,10 +18,7 @@ static MACROS_TEMPLATE: &str = "macros.tera";
 #[serde_with::serde_as]
 #[derive(Serialize)]
 #[serde(crate = "pax_runtime::api::serde")]
-pub struct TemplateArgsCodegenCartridgeLib {
-    /// List of fully qualified import strings, e.g. pax_example::pax_reexports::...
-    pub imports: Vec<String>,
-
+pub struct TemplateArgsCodegenCartridgeSnippet {
     /// List of compiled expression specs
     pub expression_specs: Vec<ExpressionSpec>,
 
@@ -35,14 +32,14 @@ pub struct TemplateArgsCodegenCartridgeLib {
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
 
-    // Whether or not this is a designtime cartridge
+    // Whether this is a designtime cartridge
     pub is_designtime: bool,
 }
 
 #[allow(unused)]
-static TEMPLATE_CODEGEN_CARTRIDGE_LIB: &str =
+static TEMPLATE_CODEGEN_CARTRIDGE_SNIPPET: &str =
     include_str!("../../templates/cartridge_generation/cartridge.tera");
-pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib) -> String {
+pub fn press_template_codegen_cartridge_snippet(args: TemplateArgsCodegenCartridgeSnippet) -> String {
     let mut tera = Tera::default();
     tera.add_raw_template(
         MACROS_TEMPLATE,

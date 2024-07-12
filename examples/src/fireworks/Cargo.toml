@@ -1,6 +1,6 @@
 [package]
 name = "fireworks"
-version = "0.10.10"
+version = "0.15.4"
 edition = "2021"
 default-run = "run"
 

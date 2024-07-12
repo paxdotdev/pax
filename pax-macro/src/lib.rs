@@ -295,21 +295,10 @@ fn pax_full_component(
 
     // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
-
-    let reexports_snippet = if let Some(pax_dir) = pax_dir {
-        if is_main_component {
-            // only add re-exports if we're in the valid project. This makes multiple mains are superfluous.
-            let current_directory = std::env::current_dir().unwrap();
-            let pax_dir_path = std::path::Path::new(pax_dir);
-            if pax_dir_path.starts_with(current_directory) {
-                let reexports_path = std::path::Path::new(pax_dir).join("reexports.partial.rs");
-                fs::read_to_string(&reexports_path).unwrap()
-            } else {
-                "".to_string()
-            }
-        } else {
-            "".to_string()
-        }
+    let cartridge_snippet = if let Some(pax_dir) = pax_dir {
+        // only add cartridge if we're in the valid project. This makes multiple mains are superfluous.
+        let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");
+        fs::read_to_string(&cartridge_path).unwrap()
     } else {
         "".to_string()
     };
@@ -320,7 +309,7 @@ fn pax_full_component(
             is_main_component,
             raw_pax,
             template_dependencies,
-            reexports_snippet,
+            cartridge_snippet,
             associated_pax_file_path,
             error_message,
         }),
@@ -497,6 +486,9 @@ pub fn pax(
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
         let path = current_dir.join("src").join(&filename);
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
+        let name = Ident::new("PaxFile", Span::call_site());
+
+
         let name = Ident::new(&pascal_identifier, Span::call_site());
         let include_fix = generate_include(&name, &path);
         let associated_pax_file = Some(path.clone());
