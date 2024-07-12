@@ -9,6 +9,9 @@
                     <Button label="Reset" class=btn @button_click=reset />
                 </Stacker>
             </Frame>
+            <Frame width=300px height=50px x=50%>
+                <SpeedControl bind:speed=speed />
+            </Frame>
         </Stacker>
         <Stacker>
             for i in 0..10 {
