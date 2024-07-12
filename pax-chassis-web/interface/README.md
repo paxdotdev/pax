@@ -8,4 +8,4 @@ as exposing APIs for initializing the chassis+engine, for attaching requestAnima
 and exposing an index.html that works as a host for the static site built with Pax, as well as an index.js and 
 other wrappers (e.g. React, Angular, Vue, WebComponents) for other consumption patterns.  
 
-This project is copied into `.pax/pkg` and the output artifacts are built into `.pax/build` for a given project.
+Output artifacts are built into `.pax/build` for a given project.
