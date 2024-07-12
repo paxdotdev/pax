@@ -98,7 +98,7 @@ impl<'de> VariantAccess<'de> for crate::deserializer::helpers::PaxColor {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PaxEnum {
     //a None-identifier allows us to manage tuple-structs as enums, e.g. `Percent(10)`
     identifier: Option<String>,
@@ -285,7 +285,7 @@ pub struct PaxSeq {
     index: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum PaxSeqArg {
     String(String),
     Enum(PaxEnum),
