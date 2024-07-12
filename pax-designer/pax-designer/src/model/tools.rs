@@ -8,7 +8,7 @@ use super::action::{Action, ActionContext, RaycastMode};
 use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::outline::PathOutline;
-use crate::glass::wireframe_editor::editor_generation::stacker_control::raycast_slot;
+use crate::glass::wireframe_editor::editor_generation::slot_control::raycast_slot;
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
@@ -160,8 +160,6 @@ pub struct SelectNodes<'a> {
 impl Action for SelectNodes<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let mut ids = ctx.app_state.selected_template_node_ids.get();
-        // TODO this is not it, should instead not trigger selectnodes if
-        // clicking on group of nodes that is already selected and was moved
         if self.overwrite
             || !ctx
                 .app_state
