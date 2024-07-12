@@ -216,8 +216,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
     }
 
     pub fn contains_point(&self, point: Point2<T>) -> bool {
-        let unit = self.as_transform().inverse() * point;
-        unit.x > 0.0 && unit.y > 0.0 && unit.x < 1.0 && unit.y < 1.0
+        self.as_transform().contains_point(point)
     }
 
     pub fn as_pure_size(self) -> Self {
@@ -352,18 +351,6 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
             bounds: b_inv,
         }
     }
-
-    // pub fn corners(&self) -> [Point2<T>; 4] {
-    //     let (width, height) = self.bounds;
-
-    //     let top_left = self.transform * Point2::new(0.0, 0.0);
-    //     let top_right = self.transform * Point2::new(width, 0.0);
-    //     let bottom_left = self.transform * Point2::new(0.0, height);
-    //     let bottom_right = self.transform * Point2::new(width, height);
-
-    //     let res = [top_left, top_right, bottom_right, bottom_left];
-    //     res
-    // }
 
     //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
     pub fn intersects(&self, other: &Self) -> bool {
