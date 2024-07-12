@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
@@ -96,7 +98,7 @@ impl<'de> VariantAccess<'de> for crate::deserializer::helpers::PaxColor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PaxEnum {
     //a None-identifier allows us to manage tuple-structs as enums, e.g. `Percent(10)`
     identifier: Option<String>,
@@ -283,7 +285,7 @@ pub struct PaxSeq {
     index: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PaxSeqArg {
     String(String),
     Enum(PaxEnum),

@@ -15,7 +15,8 @@ pub struct Cell {
     pub on : Property<bool>,
     pub row: Property<usize>,
     pub col: Property<usize>,
-    pub cells: Property<Vec<Vec<bool>>>
+    pub cells: Property<Vec<Vec<bool>>>,
+    pub color: Property<Color>,
 }
 
 impl Cell {
