@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
