@@ -1,6 +1,7 @@
 {% import "macros.tera" as macros %}
 
 #![allow(unused, unused_imports, non_snake_case, unused_parens)]
+/*
 use pax_manifest::*;
 use pax_runtime::api::*;
 use pax_runtime::*;
@@ -11,13 +12,13 @@ use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId;
 use pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId;
 use pax_runtime_api::pax_value::PaxValue;
 use pax_runtime_api::pax_value::PaxAny;
-use pax_runtime_api::pax_value::ToFromPaxAny;
+
 use pax_runtime_api::{borrow, borrow_mut};
 use pax_runtime::api::pax_value::ToFromPaxValue;
 use std::collections::BTreeMap;
+*/
 
-pub const INITIAL_MANIFEST: &str = include_str!("../.pax/initial-manifest.json");
-
+use pax_engine::api::pax_value::ToFromPaxAny;
 use_RefCell!();
 
 pub fn instantiate_expression_table() -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>> {
