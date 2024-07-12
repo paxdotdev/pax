@@ -21,6 +21,7 @@ pub struct GameOfLife {
     pub cols: Property<usize>,
     pub running: Property<bool>,
     pub speed: Property<f64>,
+    pub color: Property<Color>,
 }
 
 
@@ -35,6 +36,7 @@ impl Default for GameOfLife {
             cols: Property::new(n),
             running: Property::new(false),
             speed: Property::new(20.0),
+            color: Property::new(Color::WHITE),
         }
     }
 }
@@ -98,4 +100,28 @@ impl GameOfLife {
 #[file("speed_control.pax")]
 pub struct SpeedControl {
     pub speed: Property<f64>,
+}
+
+#[pax]
+#[file("color_control.pax")]
+pub struct ColorControl {
+    pub selected_id: Property<u32>,
+    pub selected_color: Property<Color>,
+}
+
+impl ColorControl {
+    pub fn mount(&mut self, _ctx: &NodeContext) {
+        log::warn!("mounting color control");
+        log::warn!("selected_id: {:?}", self.selected_id.untyped());
+        let selected_id_clone = self.selected_id.clone();
+        let colors = vec![
+                Color::RED,
+                Color::WHITE,
+                Color::BLUE,
+            ];
+        self.selected_color.replace_with(Property::computed(move || {
+            log::warn!("selected_color: {:?}", colors[selected_id_clone.get() as usize]);
+            colors[selected_id_clone.get() as usize].clone()
+        }, &[self.selected_id.untyped()]));
+    }
 }

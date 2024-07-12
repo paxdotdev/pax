@@ -171,6 +171,8 @@ impl InstanceNode for DropdownInstance {
     ) {
         if let NativeInterrupt::FormDropdownChange(args) = interrupt {
             expanded_node.with_properties_unwrapped(|props: &mut Dropdown| {
+                log::warn!("Dropdown change: {:?}", args.selected_id);
+                log::warn!("selected_id untyped: {:?}", props.selected_id.untyped());
                 props.selected_id.set(args.selected_id)
             });
         }
