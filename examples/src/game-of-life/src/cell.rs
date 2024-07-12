@@ -25,7 +25,6 @@ impl Cell {
         let row = self.row.clone();
         let col = self.col.clone();
         self.on.replace_with(Property::computed(move || {
-            log::warn!("CELL COMPUTED: {:?}", cells.get()[row.get()][col.get()]);
             cells.get()[row.get()][col.get()]
         }, &[self.cells.untyped()]));
     }
