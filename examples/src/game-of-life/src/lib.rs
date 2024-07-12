@@ -111,8 +111,6 @@ pub struct ColorControl {
 
 impl ColorControl {
     pub fn mount(&mut self, _ctx: &NodeContext) {
-        log::warn!("mounting color control");
-        log::warn!("selected_id: {:?}", self.selected_id.untyped());
         let selected_id_clone = self.selected_id.clone();
         let colors = vec![
                 Color::RED,
