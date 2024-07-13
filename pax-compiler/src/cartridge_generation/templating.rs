@@ -19,6 +19,10 @@ static MACROS_TEMPLATE: &str = "macros.tera";
 #[derive(Serialize)]
 #[serde(crate = "pax_runtime::api::serde")]
 pub struct TemplateArgsCodegenCartridgeSnippet {
+    /// Identifier (name) for the cartridge struct to generate, i.e. the
+    /// struct that will implement PaxCartridge
+    pub cartridge_struct_id: String,
+
     /// List of compiled expression specs
     pub expression_specs: Vec<ExpressionSpec>,
 
