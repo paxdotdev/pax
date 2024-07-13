@@ -140,8 +140,8 @@ impl PaxChassisWeb {
     //         (at least via codegen) of the userland project.  This surfaces the question:
     //         what does the interface look like with the platform host?  We still need effectively
     //         "React.mount" from the platform host —
-    pub async fn new(cartridge: Box<dyn PaxCartridge>) -> Self {
-        let (width, height, os_info, expression_table) = Self::init_common();
+    pub async fn new(cartridge: &dyn PaxCartridge) -> Self {
+        let (width, height, os_info, expression_table) = Self::init_common(cartridge);
         let mut definition_to_instance_traverser = cartridge.get_definition_to_instance_traverser();
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let engine = pax_runtime::PaxEngine::new(
@@ -160,7 +160,7 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common() -> (f64, f64, OS, ExpressionTable) {
+    fn init_common(cartridge: &dyn PaxCartridge) -> (f64, f64, OS, ExpressionTable) {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
@@ -181,7 +181,7 @@ impl PaxChassisWeb {
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
         let expression_table = ExpressionTable {
-            table: pax_cartridge::instantiate_expression_table(),
+            table: cartridge.instantiate_expression_table(),
         };
         (width, height, os_info, expression_table)
     }
