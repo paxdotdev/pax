@@ -56,6 +56,7 @@ pub fn generate_cartridge_partial_rs(
     //press template into String
     generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
         templating::TemplateArgsCodegenCartridgeSnippet {
+            cartridge_struct_id: format!("{}{}", &manifest.main_component_type_id.get_pascal_identifier().unwrap(), "Cartridge"),
             expression_specs,
             components: manifest.generate_codegen_component_info(),
             common_properties: CommonProperty::get_as_common_property(),
