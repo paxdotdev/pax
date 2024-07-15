@@ -84,22 +84,22 @@ impl Stacker {
                 };
 
                 let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.to_float();
-
                 let per_cell_space = usable_interior_space / cells;
 
                 let mut cell_space = vec![per_cell_space; cells as usize];
-                let sizes = sizes.get();
+                let mut sizes = sizes.get();
+                while sizes.len() < cell_space.len() {
+                    if sizes.contains(&None) {
+                        sizes.push(None)
+                    } else {
+                        sizes.push(Some(Size::Percent((100.0 / cells).into())))
+                    }
+                }
 
                 if sizes.len() > 0 {
-                    if sizes.len() != (cells as usize) {
-                        unreachable!(
-                            "Sizes is not a valid length. Please specify {} sizes",
-                            (cells as usize)
-                        );
-                    }
                     let mut used_space = 0.0;
                     let mut remaining_cells = 0.0;
-                    for (i, size) in sizes.iter().enumerate() {
+                    for (i, size) in sizes.iter().take(cells as usize).enumerate() {
                         if let Some(s) = size {
                             let space = match s {
                                 Size::Pixels(pix) => *pix,
@@ -118,12 +118,6 @@ impl Stacker {
                             cell_space[i] = -1.0;
                             remaining_cells += 1.0;
                         }
-                    }
-                    if used_space > usable_interior_space {
-                        unreachable!(
-                            "Invalid sizes. Usable interior space is {}px",
-                            usable_interior_space
-                        );
                     }
 
                     let remaining_per_cell_space =
