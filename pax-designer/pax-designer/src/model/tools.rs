@@ -288,6 +288,11 @@ impl ToolBehaviour for PointerTool {
                 pickup_point,
                 ref initial_selection,
                 ref mut has_moved,
+<<<<<<< HEAD
+=======
+                // ref hit,
+                // ref mut vis,
+>>>>>>> c3497b9 (pre stacker pre-post movement)
                 ..
             } => {
                 if (pickup_point - point).length_squared() < 3.0 {
@@ -359,6 +364,32 @@ impl ToolBehaviour for PointerTool {
                     }
 
                     let glass_slot_hit = GlassNode::new(&slot_hit, &ctx.glass_transform());
+                    // TODO this adds to new stacker, also need to sub from old stacker
+                    // {
+                    //     let mut curr_sizes = container
+                    //         .with_properties(|stacker: &mut Stacker| stacker.sizes.get())
+                    //         .unwrap();
+                    //     if !curr_sizes.is_empty() {
+                    //         if curr_sizes.contains(&None) {
+                    //             curr_sizes.push(None);
+                    //         } else {
+                    //             curr_sizes.clear();
+                    //         }
+                    //         let sizes_str = sizes_to_string(&curr_sizes);
+                    //         let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                    //         let mut builder = dt
+                    //             .get_orm_mut()
+                    //             .get_node(container.global_id().unwrap())
+                    //             .unwrap();
+
+                    //         builder.set_property("sizes", &sizes_str).unwrap();
+
+                    //         builder
+                    //             .save()
+                    //             .map_err(|e| anyhow!("could not save: {}", e))
+                    //             .unwrap();
+                    //     }
+                    // }
                     if let Err(e) = (MoveNode {
                         node_id: &item.id,
                         new_parent_uid: &container.global_id().unwrap(),
