@@ -1,6 +1,7 @@
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext};
+use crate::glass::wireframe_editor::editor_generation::stacker_size_control::sizes_to_string;
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{
     self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration,
@@ -24,11 +25,12 @@ use pax_engine::{
     math::{Point2, Space, Vector2},
     serde,
 };
-use pax_engine::{log, NodeInterface, NodeLocal};
+use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
 use pax_runtime_api::{Axis, Percent};
+use pax_std::stacker::Stacker;
 pub mod group_ungroup;
 
 pub struct CreateComponent<'a> {
@@ -565,14 +567,82 @@ impl<S: Space> Action for MoveNode<'_, S> {
             )
         };
 
+        // pre_movement(ctx, &self.node_id)?;
         {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let _undo_id = dt
                 .get_orm_mut()
-                .move_node(self.node_id.clone(), parent_location)
+                .move_node(self.node_id.clone(), parent_location.clone())
                 .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
         }
+        // post_movement(ctx, parent_location)?;
 
         Ok(())
     }
+}
+
+// Atm just handles stacker pre-movement operation to remove an element from Sizes,
+// if other containers need to react to a child being moved, this is the place to do it
+fn pre_movement(ctx: &mut ActionContext, node: &UniqueTemplateNodeIdentifier) -> Result<()> {
+    let node = ctx
+        .engine_context
+        .get_nodes_by_global_id(node.clone())
+        .into_iter()
+        .next()
+        .unwrap();
+    let parent = node.template_parent().unwrap();
+    if parent.is_of_type::<Stacker>() {
+        let slot = node.render_parent().unwrap();
+        let slot_index = slot
+            .with_properties(|s: &mut Slot| s.index.get().to_int() as usize)
+            .unwrap();
+        let mut curr_sizes = parent
+            .with_properties(|stacker: &mut Stacker| stacker.sizes.get())
+            .unwrap();
+        curr_sizes.remove(slot_index);
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node(parent.global_id().unwrap())
+            .unwrap();
+        let pre_movement_sizes = sizes_to_string(&curr_sizes);
+        builder.set_property("sizes", &pre_movement_sizes)?;
+    }
+    Ok(())
+}
+
+// Handles post movement opps, ie. what needs to be modified in the new container
+// to "fit" this new child
+fn post_movement(ctx: &mut ActionContext, new_parent_loc: NodeLocation) -> Result<()> {
+    if let TreeLocation::Parent(parent_id) = new_parent_loc.tree_location {
+        let new_parent = ctx
+            .engine_context
+            .get_nodes_by_global_id(UniqueTemplateNodeIdentifier::build(
+                new_parent_loc.type_id,
+                parent_id,
+            ))
+            .into_iter()
+            .next()
+            .unwrap();
+        if new_parent.is_of_type::<Stacker>() {
+            let slot_index = match new_parent_loc.index {
+                TreeIndexPosition::Top => 0,
+                TreeIndexPosition::Bottom => new_parent.children().len(),
+                TreeIndexPosition::At(v) => v,
+            };
+            let mut curr_sizes = new_parent
+                .with_properties(|stacker: &mut Stacker| stacker.sizes.get())
+                .unwrap();
+            // TODO compute new value here
+            curr_sizes.insert(slot_index, Some(Size::Percent(20.into())));
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut builder = dt
+                .get_orm_mut()
+                .get_node(new_parent.global_id().unwrap())
+                .unwrap();
+            let pre_movement_sizes = sizes_to_string(&curr_sizes);
+            builder.set_property("sizes", &pre_movement_sizes)?;
+        }
+    }
+    Ok(())
 }

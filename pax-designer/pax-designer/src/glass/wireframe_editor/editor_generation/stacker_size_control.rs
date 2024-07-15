@@ -1,14 +1,15 @@
 use std::{cell::RefCell, rc::Rc};
 
-use pax_engine::{api::NodeContext, math::Point2, Property};
-use pax_runtime_api::{borrow, Color, Size};
+use anyhow::anyhow;
+use pax_engine::{api::NodeContext, log, math::Point2, Property};
+use pax_runtime_api::{borrow, borrow_mut, Color, Size};
 use pax_std::{stacker::Stacker, types::StackerDirection};
 
 use crate::{
     glass::control_point::{
         ControlPointBehaviour, ControlPointBehaviourFactory, ControlPointStyling,
     },
-    math::coordinate_spaces::Glass,
+    math::{coordinate_spaces::Glass, GetUnit},
     model::{
         self,
         action::{self, Action, ActionContext},
@@ -20,33 +21,86 @@ use super::{CPoint, ControlPointSet};
 
 pub fn stacker_size_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
     struct StackerCellSizeBehaviour {
-        initial_object: Option<GlassNodeSnapshot>,
+        stacker_node: GlassNodeSnapshot,
+        resize_ind: usize,
+        start_sizes: Vec<Option<Size>>,
+        boundaries: Vec<(f64, f64)>,
+        dir: StackerDirection,
     }
 
     impl ControlPointBehaviour for StackerCellSizeBehaviour {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-            if let Some(initial_object) = &self.initial_object {
-                let t_and_b = initial_object.transform_and_bounds;
-                let point_in_space = t_and_b.transform.inverse() * point;
-                if let Err(e) = (action::orm::SetAnchor {
-                    object: &initial_object,
-                    point: point_in_space,
-                }
-                .perform(ctx))
-                {
-                    pax_engine::log::warn!("resize failed: {:?}", e);
-                };
+            let t = self.stacker_node.transform_and_bounds.as_transform();
+            let (_, u, v) = t.decompose();
+            let (x_l, y_l) = (u.length(), v.length());
+            let box_point = t.inverse() * point;
+            let (ratio, total) = match self.dir {
+                StackerDirection::Vertical => (box_point.y, y_l),
+                StackerDirection::Horizontal => (box_point.x, x_l),
+            };
+
+            let mut new_sizes = self.start_sizes.clone();
+            while new_sizes.len() < self.boundaries.len() {
+                new_sizes.push(None);
             }
+            let mut positions: Vec<f64> = self.boundaries.iter().map(|v| v.0).collect();
+            if let Some((p, w)) = self.boundaries.last() {
+                positions.push(p + w);
+            }
+            let above = positions[self.resize_ind] / total;
+            let above_unit = new_sizes[self.resize_ind].unit();
+
+            new_sizes[self.resize_ind] = Some(match above_unit {
+                crate::math::SizeUnit::Pixels => {
+                    Size::Pixels(round_2_dec((ratio - above) * total).into())
+                }
+                crate::math::SizeUnit::Percent => {
+                    Size::Percent(round_2_dec((ratio - above) * 100.0).into())
+                }
+            });
+
+            // let below = positions[self.resize_ind + 2] / total;
+            // let below_unit = new_sizes[self.resize_ind + 1].unit();
+            // new_sizes[self.resize_ind + 1] = Some(match below_unit {
+            //     crate::math::SizeUnit::Pixels => {
+            //         Size::Pixels(round_2_dec((below - ratio) * total).into())
+            //     }
+            //     crate::math::SizeUnit::Percent => {
+            //         Size::Percent(round_2_dec((below - ratio) * 100.0).into())
+            //     }
+            // });
+
+            let sizes_str = sizes_to_string(&new_sizes);
+
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut builder = dt
+                .get_orm_mut()
+                .get_node(self.stacker_node.id.clone())
+                .unwrap();
+
+            builder.set_property("sizes", &sizes_str).unwrap();
+
+            builder
+                .save()
+                .map_err(|e| anyhow!("could not save: {}", e))
+                .unwrap();
         }
     }
 
-    fn stacker_cell_size_factory() -> ControlPointBehaviourFactory {
-        Rc::new(move |ac, _p| {
+    fn stacker_cell_size_factory(
+        resize_ind: usize,
+        boundaries: Vec<(f64, f64)>,
+        start_sizes: Vec<Option<Size>>,
+        item: GlassNode,
+        dir: StackerDirection,
+    ) -> ControlPointBehaviourFactory {
+        Rc::new(move |_ac, _p| {
             Rc::new(RefCell::new(StackerCellSizeBehaviour {
-                initial_object: (&ac.derived_state.selection_state.get())
-                    .items
-                    .first()
-                    .map(Into::into),
+                stacker_node: (&item).into(),
+                resize_ind,
+                boundaries: boundaries.clone(),
+                start_sizes: start_sizes.clone(),
+                dir: dir.clone(),
             }))
         })
     }
@@ -79,24 +133,43 @@ pub fn stacker_size_control_set(ctx: NodeContext, item: GlassNode) -> Property<C
                 .next()
                 .unwrap();
             let item = GlassNode::new(&item, &to_glass_transform);
-            let (cells, dir) = item
+            let (cells, dir, start_sizes) = item
                 .raw_node_interface
                 .with_properties(|stacker: &mut Stacker| {
-                    (stacker._cell_specs.get(), stacker.direction.get())
+                    (
+                        stacker._cell_specs.get(),
+                        stacker.direction.get(),
+                        stacker.sizes.get(),
+                    )
                 })
                 .unwrap();
-            // TODO choose u or v depending on stacker direciton
             let (o, u, v) = item.transform_and_bounds.get().as_transform().decompose();
-            let stacker_size_control_points = cells
+            let (w, h) = item.transform_and_bounds.get().bounds;
+            let boundaries: Vec<_> = cells
                 .into_iter()
+                .map(|c| match dir {
+                    StackerDirection::Vertical => (c.y_px, c.height_px),
+                    StackerDirection::Horizontal => (c.x_px, c.width_px),
+                })
+                .collect();
+
+            let stacker_size_control_points = boundaries
+                .iter()
                 .skip(1)
-                .map(|c| {
+                .enumerate()
+                .map(|(i, &c)| {
                     CPoint::new(
                         o + match dir {
-                            StackerDirection::Vertical => c.y_px * v.normalize() + u / 2.0,
-                            StackerDirection::Horizontal => c.x_px * u.normalize() + v / 2.0,
+                            StackerDirection::Vertical => c.0 / h * v + u / 2.0,
+                            StackerDirection::Horizontal => c.0 / w * u + v / 2.0,
                         },
-                        stacker_cell_size_factory(),
+                        stacker_cell_size_factory(
+                            i,
+                            boundaries.clone(),
+                            start_sizes.clone(),
+                            item.clone(),
+                            dir.clone(),
+                        ),
                     )
                 })
                 .collect();
@@ -122,4 +195,35 @@ pub fn stacker_size_control_set(ctx: NodeContext, item: GlassNode) -> Property<C
         },
         &deps,
     )
+}
+
+fn round_2_dec(v: f64) -> f64 {
+    (v * 100.0).floor() / 100.0
+}
+
+pub fn sizes_to_string(sizes: &[Option<Size>]) -> String {
+    let mut sizes_str = String::new();
+    sizes_str.push('[');
+    for e in sizes {
+        match e {
+            Some(v) => {
+                sizes_str.push_str("Some(");
+                match v {
+                    Size::Pixels(px) => sizes_str.push_str(&format!("{}px", px)),
+                    Size::Percent(perc) => sizes_str.push_str(&format!("{}%", perc)),
+                    Size::Combined(px, perc) => {
+                        sizes_str.push_str(&format!("{}px + {}%", px, perc))
+                    }
+                }
+                sizes_str.push_str(")");
+            }
+            None => sizes_str.push_str("None"),
+        }
+        sizes_str.push(',')
+    }
+    if sizes_str.ends_with(',') {
+        sizes_str.pop();
+    }
+    sizes_str.push(']');
+    sizes_str
 }
