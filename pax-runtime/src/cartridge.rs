@@ -1,12 +1,14 @@
-use std::cell::RefCell;
+use_RefCell!();
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use pax_manifest::{PaxManifest, TemplateNodeDefinition, TemplateNodeId, TypeId, ValueDefinition};
-use pax_runtime_api::CommonProperties;
+use pax_runtime_api::{CommonProperties, Property, use_RefCell};
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
 use crate::{ComponentInstance, ExpressionContext, ExpressionTable, HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame};
 use crate::api::NodeContext;
+
+
 
 pub trait PaxCartridge {
     // fn instantiate_expression_table(&self) -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>>;
@@ -28,6 +30,7 @@ pub trait DefinitionToInstanceTraverser {
     fn recurse_get_template_node_by_id<'a>(&'a self, id: &str, containing_component_type_id: &'a TypeId, node_id: &'a TemplateNodeId) -> Option<(TypeId, TemplateNodeId)>;
 }
 
+
 pub trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>{
@@ -38,7 +41,460 @@ pub trait ComponentFactory {
     fn build_default_properties(&self) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>;
 
     /// Returns the CommonProperties factory based on the defined properties
-    fn build_inline_common_properties(&self, defined_properties: BTreeMap<String,ValueDefinition>) ->Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<CommonProperties>>>;
+    fn build_inline_common_properties(&self, defined_properties: std::collections::BTreeMap<String,pax_manifest::ValueDefinition>) ->Box<dyn Fn(std::rc::Rc<RuntimePropertiesStackFrame>, std::rc::Rc<ExpressionTable>) -> std::rc::Rc<RefCell<CommonProperties>>> {
+        Box::new(move |stack_frame, table| std::rc::Rc::new(RefCell::new({
+            let mut cp = CommonProperties::default();
+            for (key, value) in &defined_properties {
+                match key.as_str() {
+                    "id" => {
+                        let resolved_property: Property<Option<String>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<String>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<String>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for id")
+                        };
+                        cp.id = resolved_property;
+                    },
+
+                    "x" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for x")
+                        };
+                        cp.x = resolved_property;
+                    },
+
+                    "y" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for y")
+                        };
+                        cp.y = resolved_property;
+                    },
+
+                    "scale_x" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for scale_x")
+                        };
+                        cp.scale_x = resolved_property;
+                    },
+
+                    "scale_y" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for scale_y")
+                        };
+                        cp.scale_y = resolved_property;
+                    },
+
+                    "skew_x" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Rotation>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Rotation>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Rotation>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for skew_x")
+                        };
+                        cp.skew_x = resolved_property;
+                    },
+
+                    "skew_y" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Rotation>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Rotation>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Rotation>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for skew_y")
+                        };
+                        cp.skew_y = resolved_property;
+                    },
+
+                    "anchor_x" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for anchor_x")
+                        };
+                        cp.anchor_x = resolved_property;
+                    },
+
+                    "anchor_y" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for anchor_y")
+                        };
+                        cp.anchor_y = resolved_property;
+                    },
+
+                    "rotate" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Rotation>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Rotation>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Rotation>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for rotate")
+                        };
+                        cp.rotate = resolved_property;
+                    },
+
+                    "transform" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Transform2D>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Transform2D>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Transform2D>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for transform")
+                        };
+                        cp.transform = resolved_property;
+                    },
+
+                    "width" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for width")
+                        };
+                        cp.width = resolved_property;
+                    },
+
+                    "height" => {
+                        let resolved_property: Property<Option<pax_runtime_api::Size>> = match value.clone() {
+                            pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let val = pax_manifest::deserializer::from_pax_try_coerce::<pax_runtime_api::Size>(&lv.raw_value)
+                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                Property::new_with_name(Some(val), &lv.raw_value)
+                            },
+                            pax_manifest::ValueDefinition::Expression(token, info) | pax_manifest::ValueDefinition::Identifier(token, info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let cloned_table = table.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                                            let coerced = new_value_wrapped.try_coerce::<pax_runtime_api::Size>().unwrap();
+                                            Some(coerced)
+                                        }, &dependents, &token.raw_value)
+                                    } else {
+                                        unreachable!("No info for expression")
+                                    }
+                                },
+                            _ => unreachable!("Invalid value definition for height")
+                        };
+                        cp.height = resolved_property;
+                    },
+
+                    _ => {}
+                }
+            }
+
+            cp.clone()
+        })))
+    }
 
     /// Returns the properties factory based on the defined properties
     fn build_inline_properties(&self, defined_properties: BTreeMap<String,ValueDefinition>) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>;
@@ -61,3 +517,7 @@ pub trait ComponentFactory {
         Box::new(|_| HashMap::new())
     }
 }
+
+
+
+
