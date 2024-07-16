@@ -32,6 +32,7 @@ exclude = [
     "examples",
     "tests",
     "www.pax.dev/src/website",
+    "pax-generation",
 ]
 
 [profile.release]

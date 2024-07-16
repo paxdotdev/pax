@@ -1,0 +1,17 @@
+for (data, i) in self.particles {
+    <Group
+        anchor_x=50%
+        anchor_y=50%
+        x={data.x}
+        y={data.y}
+        width={data.width}
+        height={data.height}
+        rotate={data.rotate}
+    >
+        slot(i)
+    </Group>
+}
+
+@settings {
+    @mount: on_mount
+}
