@@ -4,11 +4,12 @@ use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
-use pax_std::primitives::Path;
-use pax_std::types::path_types::PathContext;
-use pax_std::types::{PathElement, Point};
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+use crate::primitives::Path;
+use crate::types::path_types::PathContext;
+use crate::types::{PathElement, Point};
 
+use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use std::collections::HashMap;
 use std::iter;

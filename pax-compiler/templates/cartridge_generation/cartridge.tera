@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 */
 
 use pax_engine::api::pax_value::ToFromPaxAny;
+use pax_engine::api as pax_runtime_api;
 use_RefCell!();
 
 pub struct {{ cartridge_struct_id }} {

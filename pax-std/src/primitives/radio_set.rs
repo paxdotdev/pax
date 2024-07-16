@@ -1,18 +1,19 @@
-use pax_message::{AnyCreatePatch, DropdownPatch, NativeInterrupt};
+use pax_message::{AnyCreatePatch, NativeInterrupt, RadioSetPatch};
 use pax_runtime::api::{use_RefCell, Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
+use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use pax_runtime_api::{borrow, borrow_mut};
-use pax_std::primitives::Dropdown;
+use crate::primitives::RadioSet;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::patch_if_needed;
+use crate::primitives::patch_if_needed;
 
-pub struct DropdownInstance {
+pub struct RadioSetInstance {
     base: BaseInstance,
     // Properties that listen to Text property changes, and computes
     // a patch in the case that they have changed + sends it as a native
@@ -21,7 +22,7 @@ pub struct DropdownInstance {
     native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
-impl InstanceNode for DropdownInstance {
+impl InstanceNode for RadioSetInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -55,7 +56,7 @@ impl InstanceNode for DropdownInstance {
     ) {
         // Send creation message
         let id = expanded_node.id.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::DropdownCreate(
+        context.enqueue_native_message(pax_message::NativeMessage::RadioSetCreate(
             AnyCreatePatch {
                 id: id.to_u32(),
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
@@ -66,7 +67,7 @@ impl InstanceNode for DropdownInstance {
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
-        let last_patch = Rc::new(RefCell::new(DropdownPatch {
+        let last_patch = Rc::new(RefCell::new(RadioSetPatch {
             id: id.to_u32(),
             ..Default::default()
         }));
@@ -86,11 +87,11 @@ impl InstanceNode for DropdownInstance {
                     let id = expanded_node.id.clone();
                     let mut old_state = borrow_mut!(last_patch);
 
-                    let mut patch = DropdownPatch {
+                    let mut patch = RadioSetPatch {
                         id: id.to_u32(),
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(|properties: &mut Dropdown| {
+                    expanded_node.with_properties_unwrapped(|properties: &mut RadioSet| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let updates = [
@@ -105,16 +106,6 @@ impl InstanceNode for DropdownInstance {
                                 &mut old_state.style,
                                 &mut patch.style,
                                 (&properties.style.get()).into(),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.stroke_color,
-                                &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get()).into(),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.stroke_width,
-                                &mut patch.stroke_width,
-                                properties.stroke.get().width.get().get_pixels(width),
                             ),
                             patch_if_needed(
                                 &mut old_state.background,
@@ -134,7 +125,7 @@ impl InstanceNode for DropdownInstance {
                         ];
                         if updates.into_iter().any(|v| v == true) {
                             context.enqueue_native_message(
-                                pax_message::NativeMessage::DropdownUpdate(patch),
+                                pax_message::NativeMessage::RadioSetUpdate(patch),
                             );
                         }
                     });
@@ -147,7 +138,7 @@ impl InstanceNode for DropdownInstance {
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::DropdownDelete(id.to_u32()));
+        context.enqueue_native_message(pax_message::NativeMessage::RadioSetDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
         borrow_mut!(self.native_message_props).remove(&id);
     }
@@ -161,7 +152,7 @@ impl InstanceNode for DropdownInstance {
         f: &mut std::fmt::Formatter,
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
-        f.debug_struct("Dropdown").finish_non_exhaustive()
+        f.debug_struct("RadioSet").finish_non_exhaustive()
     }
 
     fn handle_native_interrupt(
@@ -169,8 +160,8 @@ impl InstanceNode for DropdownInstance {
         expanded_node: &Rc<ExpandedNode>,
         interrupt: &NativeInterrupt,
     ) {
-        if let NativeInterrupt::FormDropdownChange(args) = interrupt {
-            expanded_node.with_properties_unwrapped(|props: &mut Dropdown| {
+        if let NativeInterrupt::FormRadioSetChange(args) = interrupt {
+            expanded_node.with_properties_unwrapped(|props: &mut RadioSet| {
                 props.selected_id.set(args.selected_id)
             });
         }

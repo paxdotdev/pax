@@ -4,9 +4,10 @@ use pax_runtime_api::{borrow, use_RefCell};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
-use pax_std::primitives::Rectangle;
+use crate::primitives::Rectangle;
 
 use pax_runtime::api::{Layer, RenderContext};
+use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use std::rc::Rc;
 

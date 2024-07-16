@@ -1,18 +1,19 @@
-use pax_message::{AnyCreatePatch, ButtonPatch};
+use pax_message::{AnyCreatePatch, CheckboxPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
-use pax_std::primitives::Button;
+use pax_runtime::api as pax_runtime_api;
+use_RefCell!();
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+use crate::primitives::Checkbox;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use_RefCell!();
-use crate::patch_if_needed;
+use crate::primitives::patch_if_needed;
 
-pub struct ButtonInstance {
+pub struct CheckboxInstance {
     base: BaseInstance,
     // Properties that listen to Text property changes, and computes
     // a patch in the case that they have changed + sends it as a native
@@ -21,7 +22,7 @@ pub struct ButtonInstance {
     native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
-impl InstanceNode for ButtonInstance {
+impl InstanceNode for CheckboxInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -53,19 +54,18 @@ impl InstanceNode for ButtonInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        // Send creation message
-        let id = expanded_node.id.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
-            id: id.to_u32(),
-            parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            occlusion_layer_id: 0,
-        }));
-
-        // send update message when relevant properties change
+        let id = expanded_node.id.to_u32();
+        context.enqueue_native_message(pax_message::NativeMessage::CheckboxCreate(
+            AnyCreatePatch {
+                id,
+                parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                occlusion_layer_id: 0,
+            },
+        ));
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
-        let last_patch = Rc::new(RefCell::new(ButtonPatch {
-            id: id.to_u32(),
+        let last_patch = Rc::new(RefCell::new(CheckboxPatch {
+            id,
             ..Default::default()
         }));
 
@@ -75,7 +75,7 @@ impl InstanceNode for ButtonInstance {
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
-            id,
+            expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
@@ -83,28 +83,18 @@ impl InstanceNode for ButtonInstance {
                     };
                     let mut old_state = borrow_mut!(last_patch);
 
-                    let mut patch = ButtonPatch {
-                        id: expanded_node.id.to_u32(),
+                    let mut patch = CheckboxPatch {
+                        id,
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(|properties: &mut Button| {
+                    expanded_node.with_properties_unwrapped(|properties: &mut Checkbox| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let updates = [
                             patch_if_needed(
-                                &mut old_state.content,
-                                &mut patch.content,
-                                properties.label.get(),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.color,
-                                &mut patch.color,
-                                (&properties.color.get()).into(),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.style,
-                                &mut patch.style,
-                                (&properties.style.get()).into(),
+                                &mut old_state.checked,
+                                &mut patch.checked,
+                                properties.checked.get(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -116,7 +106,7 @@ impl InstanceNode for ButtonInstance {
                         ];
                         if updates.into_iter().any(|v| v == true) {
                             context.enqueue_native_message(
-                                pax_message::NativeMessage::ButtonUpdate(patch),
+                                pax_message::NativeMessage::CheckboxUpdate(patch),
                             );
                         }
                     });
@@ -129,7 +119,7 @@ impl InstanceNode for ButtonInstance {
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::ButtonDelete(id.to_u32()));
+        context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
         borrow_mut!(self.native_message_props).remove(&id);
     }
@@ -143,6 +133,6 @@ impl InstanceNode for ButtonInstance {
         f: &mut std::fmt::Formatter,
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
-        f.debug_struct("Button").finish_non_exhaustive()
+        f.debug_struct("Checkbox").finish_non_exhaustive()
     }
 }
