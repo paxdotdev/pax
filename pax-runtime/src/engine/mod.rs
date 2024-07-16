@@ -8,7 +8,7 @@ use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::{
-    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, Window, OS,
+    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, Event, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
@@ -470,7 +470,7 @@ impl PaxEngine {
         self.root_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_down(
-                    args.clone(),
+                    Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
@@ -481,7 +481,7 @@ impl PaxEngine {
         self.root_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_up(
-                    args.clone(),
+                    Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
@@ -492,7 +492,7 @@ impl PaxEngine {
         self.root_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_press(
-                    args.clone(),
+                    Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
