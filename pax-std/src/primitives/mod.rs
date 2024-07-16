@@ -7,15 +7,15 @@ use crate::types::text::TextStyle;
 use crate::types::{ImageFit, PathElement};
 
 #[pax]
-#[primitive("pax_std::frame::FrameInstance")]
+#[primitive("pax_std::primitives::frame::FrameInstance")]
 pub struct Frame {}
 
 #[pax]
-#[primitive("pax_std::group::GroupInstance")]
+#[primitive("pax_std::primitives::group::GroupInstance")]
 pub struct Group {}
 
 #[pax]
-#[primitive("pax_std::scrollbar::ScrollbarInstance")]
+#[primitive("pax_std::primitives::scrollbar::ScrollbarInstance")]
 pub struct Scrollbar {
     pub size_inner_pane_x: Property<Size>,
     pub size_inner_pane_y: Property<Size>,
@@ -24,7 +24,7 @@ pub struct Scrollbar {
 }
 
 #[pax]
-#[primitive("pax_std::rectangle::RectangleInstance")]
+#[primitive("pax_std::primitives::rectangle::RectangleInstance")]
 pub struct Rectangle {
     pub stroke: Property<Stroke>,
     pub fill: Property<Fill>,
@@ -32,14 +32,14 @@ pub struct Rectangle {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::ellipse::EllipseInstance")]
+#[primitive("pax_std::primitives::primitives::ellipse::EllipseInstance")]
 pub struct Ellipse {
     pub stroke: Property<Stroke>,
     pub fill: Property<Fill>,
 }
 
 #[pax]
-#[primitive("pax_std::primitives::path::PathInstance")]
+#[primitive("pax_std::primitives::primitives::path::PathInstance")]
 pub struct Path {
     pub elements: Property<Vec<PathElement>>,
     pub stroke: Property<Stroke>,
@@ -47,7 +47,7 @@ pub struct Path {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::text::TextInstance")]
+#[primitive("pax_std::primitives::primitives::text::TextInstance")]
 pub struct Text {
     pub editable: Property<bool>,
     pub text: Property<String>,
@@ -56,13 +56,13 @@ pub struct Text {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::checkbox::CheckboxInstance")]
+#[primitive("pax_std::primitives::primitives::checkbox::CheckboxInstance")]
 pub struct Checkbox {
     pub checked: Property<bool>,
 }
 
 #[pax]
-#[primitive("pax_std::primitives::textbox::TextboxInstance")]
+#[primitive("pax_std::primitives::primitives::textbox::TextboxInstance")]
 pub struct Textbox {
     pub text: Property<String>,
     pub background: Property<Color>,
@@ -73,7 +73,7 @@ pub struct Textbox {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::dropdown::DropdownInstance")]
+#[primitive("pax_std::primitives::primitives::dropdown::DropdownInstance")]
 pub struct Dropdown {
     pub options: Property<Vec<String>>,
     pub selected_id: Property<u32>,
@@ -83,7 +83,7 @@ pub struct Dropdown {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::radio_set::RadioSetInstance")]
+#[primitive("pax_std::primitives::primitives::radio_set::RadioSetInstance")]
 pub struct RadioSet {
     pub options: Property<Vec<String>>,
     pub selected_id: Property<u32>,
@@ -92,7 +92,7 @@ pub struct RadioSet {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::slider::SliderInstance")]
+#[primitive("pax_std::primitives::primitives::slider::SliderInstance")]
 pub struct Slider {
     pub value: Property<f64>,
     pub step: Property<f64>,
@@ -102,7 +102,7 @@ pub struct Slider {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::button::ButtonInstance")]
+#[primitive("pax_std::primitives::primitives::button::ButtonInstance")]
 pub struct Button {
     pub label: Property<String>,
     pub color: Property<Color>,
@@ -110,7 +110,7 @@ pub struct Button {
 }
 
 #[pax]
-#[primitive("pax_std::primitives::image::ImageInstance")]
+#[primitive("pax_std::primitives::primitives::image::ImageInstance")]
 pub struct Image {
     pub path: Property<String>,
     pub fit: Property<ImageFit>,

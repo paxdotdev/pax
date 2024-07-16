@@ -16,10 +16,6 @@ use crate::primitives::patch_if_needed;
 /// by `size`, transformed by `transform`
 pub struct ImageInstance {
     base: BaseInstance,
-    // Properties that listen to Image property changes, and computes
-    // a patch in the case that they have changed + sends it as a native
-    // message to the chassi. Since InstanceNode -> ExpandedNode has a one
-    // to many relationship, needs to be a hashmap
     native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 

@@ -12,6 +12,7 @@ description = "Root import entry-point for using Pax in a Rust program"
 
 [dependencies]
 pax-macro = {path="../pax-macro", version="0.15.4"}
+pax-manifest = {path="../pax-manifest", version="0.15.4"}
 pax-message = {path="../pax-message", version="0.15.4"}
 pax-runtime = {path="../pax-runtime", version="0.15.4"}
 pax-compiler = {path="../pax-compiler", optional=true, version="0.15.4"}
