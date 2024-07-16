@@ -34,7 +34,7 @@ impl InstanceNode for GroupInstance {
     ) -> std::fmt::Result {
         match expanded_node {
             Some(expanded_node) => {
-                expanded_node.with_properties_unwrapped(|_g: &mut pax_std::primitives::Group| {
+                expanded_node.with_properties_unwrapped(|_g: &mut crate::primitives::Group| {
                     f.debug_struct("Group").finish()
                 })
             }
