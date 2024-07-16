@@ -13,6 +13,8 @@ pub use pax_runtime::Slot;
 pub use pax_runtime::api::serde;
 pub use pax_runtime::api::Property;
 
+pub use pax_manifest;
+
 mod declarative_macros {
     #[macro_export]
     macro_rules! pax_struct {
