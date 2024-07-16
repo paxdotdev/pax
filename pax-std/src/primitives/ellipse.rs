@@ -1,11 +1,12 @@
 use kurbo::{Rect, Shape};
 use pax_runtime::api::{Fill, Layer, RenderContext};
 use pax_runtime::BaseInstance;
-use pax_runtime_api::{borrow, use_RefCell};
-use pax_std::primitives::Ellipse;
+use pax_runtime::api::{borrow, use_RefCell};
+use crate::primitives::Ellipse;
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
+use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use std::rc::Rc;
 

@@ -18,7 +18,6 @@ members = [
     "pax-compiler",
     "pax-cli",
     "pax-std",
-    "pax-std/pax-std-primitives",
     "pax-manifest",
     "pax-lang",
     "pax-language-server",

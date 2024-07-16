@@ -1,8 +1,9 @@
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
-use pax_std::{primitives::Image, types::ImageFit};
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+use crate::{primitives::Image, types::ImageFit};
 use std::collections::HashMap;
 
+use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use pax_message::ImagePatch;
 use pax_runtime::{
@@ -10,7 +11,7 @@ use pax_runtime::{
 };
 use std::rc::Rc;
 
-use crate::patch_if_needed;
+use crate::primitives::patch_if_needed;
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`
 pub struct ImageInstance {
