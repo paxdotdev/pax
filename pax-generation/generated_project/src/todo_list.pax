@@ -1,0 +1,48 @@
+<Frame width=100% height=100% fill=WHITE>
+    <Stacker direction=StackerDirection::Vertical x=50% y=50% width=80% height=80%>
+        <Text text="Todo List" id=title />
+        <Stacker direction=StackerDirection::Horizontal>
+            <Textbox text={self.new_task} @textbox_change=update_new_task width=80% />
+            <Button label="Add Task" @button_click=add_task width=20% />
+        </Stacker>
+        <Stacker direction=StackerDirection::Vertical>
+            for i in 0..self.task_count {
+                <Stacker direction=StackerDirection::Horizontal>
+                    <Checkbox checked={self.tasks[i].completed} @checkbox_change=toggle_task width=10% />
+                    <Text text={self.tasks[i].description} class={self.tasks[i].completed ? "completed" : "not-completed"} width=80% />
+                    <Button label="Remove" @button_click=remove_task width=10% />
+                </Stacker>
+            }
+        </Stacker>
+    </Stacker>
+</Frame>
+
+@settings {
+    #title {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 24px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
+    }
+    .completed {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 16px,
+            fill: GRAY,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+        }
+    }
+    .not-completed {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 16px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+        }
+    }
+}
