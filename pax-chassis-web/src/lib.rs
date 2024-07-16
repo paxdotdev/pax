@@ -17,6 +17,7 @@ use pax_runtime::api::TextboxInput;
 use pax_runtime::api::OS;
 use pax_runtime::ExpressionTable;
 use pax_runtime_api::borrow_mut;
+use pax_runtime_api::Event;
 use web_sys::Response;
 use_RefCell!();
 
@@ -242,7 +243,11 @@ impl PaxChassisWeb {
                         mime_type: args.mime_type.clone(),
                         data,
                     };
-                    topmost_node.dispatch_drop(args_drop, &globals, &engine.runtime_context)
+                    topmost_node.dispatch_drop(
+                        Event::new(args_drop),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     false
                 }
@@ -295,16 +300,20 @@ impl PaxChassisWeb {
                 let node = engine
                     .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("button node exists in engine");
-                node.dispatch_button_click(ButtonClick {}, &globals, &engine.runtime_context)
+                node.dispatch_button_click(
+                    Event::new(ButtonClick {}),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::FormTextboxInput(args) => {
                 let node = engine
                     .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_input(
-                    TextboxInput {
+                    Event::new(TextboxInput {
                         text: args.text.clone(),
-                    },
+                    }),
                     &globals,
                     &engine.runtime_context,
                 )
@@ -315,9 +324,9 @@ impl PaxChassisWeb {
                     .expect("text node exists in engine");
                 borrow!(node.instance_node).handle_text_change(&node, args.text.clone());
                 node.dispatch_text_input(
-                    TextInput {
+                    Event::new(TextInput {
                         text: args.text.clone(),
-                    },
+                    }),
                     &globals,
                     &engine.runtime_context,
                 )
@@ -327,9 +336,9 @@ impl PaxChassisWeb {
                     .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("textbox node exists in engine");
                 node.dispatch_textbox_change(
-                    TextboxChange {
+                    Event::new(TextboxChange {
                         text: args.text.clone(),
-                    },
+                    }),
                     &globals,
                     &engine.runtime_context,
                 )
@@ -339,9 +348,9 @@ impl PaxChassisWeb {
                     .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                     .expect("checkbox node exists in engine");
                 node.dispatch_checkbox_change(
-                    CheckboxChange {
+                    Event::new(CheckboxChange {
                         checked: args.state,
-                    },
+                    }),
                     &globals,
                     &engine.runtime_context,
                 )
@@ -365,7 +374,11 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_click(args_click, &globals, &engine.runtime_context)
+                    topmost_node.dispatch_click(
+                        Event::new(args_click),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     false
                 }
@@ -380,7 +393,11 @@ impl PaxChassisWeb {
                         x: args.x,
                         y: args.y,
                     };
-                    topmost_node.dispatch_clap(args_clap, &globals, &engine.runtime_context)
+                    topmost_node.dispatch_clap(
+                        Event::new(args_clap),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     false
                 }
@@ -394,7 +411,7 @@ impl PaxChassisWeb {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_start = TouchStart { touches };
                     topmost_node.dispatch_touch_start(
-                        args_touch_start,
+                        Event::new(args_touch_start),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -411,7 +428,7 @@ impl PaxChassisWeb {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_move = TouchMove { touches };
                     topmost_node.dispatch_touch_move(
-                        args_touch_move,
+                        Event::new(args_touch_move),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -428,7 +445,7 @@ impl PaxChassisWeb {
                     let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                     let args_touch_end = TouchEnd { touches };
                     topmost_node.dispatch_touch_end(
-                        args_touch_end,
+                        Event::new(args_touch_end),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -502,7 +519,7 @@ impl PaxChassisWeb {
                         },
                     };
                     topmost_node.dispatch_double_click(
-                        args_double_click,
+                        Event::new(args_double_click),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -528,7 +545,7 @@ impl PaxChassisWeb {
                         },
                     };
                     topmost_node.dispatch_mouse_move(
-                        args_mouse_move,
+                        Event::new(args_mouse_move),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -553,7 +570,11 @@ impl PaxChassisWeb {
                         delta_y: args.delta_y,
                         modifiers,
                     };
-                    topmost_node.dispatch_wheel(args_wheel, &globals, &engine.runtime_context)
+                    topmost_node.dispatch_wheel(
+                        Event::new(args_wheel),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     false
                 }
@@ -576,7 +597,7 @@ impl PaxChassisWeb {
                         },
                     };
                     topmost_node.dispatch_mouse_down(
-                        args_mouse_down,
+                        Event::new(args_mouse_down),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -601,7 +622,11 @@ impl PaxChassisWeb {
                                 .collect(),
                         },
                     };
-                    topmost_node.dispatch_mouse_up(args_mouse_up, &globals, &engine.runtime_context)
+                    topmost_node.dispatch_mouse_up(
+                        Event::new(args_mouse_up),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     false
                 }
@@ -624,7 +649,7 @@ impl PaxChassisWeb {
                         },
                     };
                     topmost_node.dispatch_mouse_over(
-                        args_mouse_over,
+                        Event::new(args_mouse_over),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -650,7 +675,7 @@ impl PaxChassisWeb {
                         },
                     };
                     topmost_node.dispatch_mouse_out(
-                        args_mouse_out,
+                        Event::new(args_mouse_out),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -676,7 +701,7 @@ impl PaxChassisWeb {
                         },
                     };
                     topmost_node.dispatch_context_menu(
-                        args_context_menu,
+                        Event::new(args_context_menu),
                         &globals,
                         &engine.runtime_context,
                     )

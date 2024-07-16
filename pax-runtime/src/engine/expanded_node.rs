@@ -127,11 +127,10 @@ macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {
         pub fn $fn_name(
             &self,
-            args: $arg_type,
+            event: Event<$arg_type>,
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
         ) -> bool {
-            let event = Event::new(args.clone());
             if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
                 let borrowed_registry = &borrow!(*registry);
                 if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
@@ -162,8 +161,7 @@ macro_rules! dispatch_event_handler {
 
             if $recurse {
                 if let Some(parent) = self.template_parent.upgrade() {
-                    let parent_prevent_default = parent.$fn_name(args, globals, ctx);
-                    return event.cancelled() || parent_prevent_default;
+                    return parent.$fn_name(event, globals, ctx);
                 }
             }
             event.cancelled()
