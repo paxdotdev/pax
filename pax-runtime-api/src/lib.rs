@@ -762,6 +762,7 @@ impl<I: Interpolatable> Interpolatable for std::ops::Range<I> {
 impl Interpolatable for () {}
 
 impl<T: ?Sized + Clone> Interpolatable for HashSet<T> {}
+impl<T: ?Sized + Clone> Interpolatable for VecDeque<T> {}
 impl<T: ?Sized> Interpolatable for Rc<T> {}
 impl<T: Interpolatable> Interpolatable for Weak<T> {}
 impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}

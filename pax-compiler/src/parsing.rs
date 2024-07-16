@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 
 use pax_lang::{parse_pax_str, Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
@@ -1693,6 +1693,41 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     }
     fn get_self_pascal_identifier() -> String {
         "Vec".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        //Need to encode generics contents as part of unique id for iterables
+        TypeId::build_vector(&format!(
+            "{}{}",
+            "{PREFIX}",
+            &Self::get_iterable_type_id().unwrap()
+        ))
+    }
+    fn get_iterable_type_id() -> Option<TypeId> {
+        Some(T::get_type_id())
+    }
+}
+
+impl<T: Reflectable> Reflectable for VecDeque<T> {
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.clone(),
+            inner_iterable_type_id: Self::get_iterable_type_id(),
+            property_definitions: vec![],
+        };
+
+        if !ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        // Also parse iterable type
+        T::parse_to_manifest(ctx)
+    }
+    fn get_import_path() -> String {
+        "std::collections::VecDeque".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "VecDeque".to_string()
     }
     fn get_type_id() -> TypeId {
         //Need to encode generics contents as part of unique id for iterables
