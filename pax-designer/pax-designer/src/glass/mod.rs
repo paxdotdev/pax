@@ -95,7 +95,11 @@ impl Glass {
         args.prevent_default();
     }
 
-    pub fn handle_double_click(&mut self, ctx: &NodeContext, args: Event<DoubleClick>) {
+    pub fn handle_double_click(&mut self, ctx: &NodeContext, event: Event<DoubleClick>) {
+        // if a ControlPoint was double clicked, don't handle glass double click
+        if event.cancelled() {
+            return;
+        }
         let info = model::read_app_state(|app_state| {
             let selected_nodes = app_state.selected_template_node_ids.get();
 
@@ -123,7 +127,7 @@ impl Glass {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(
                             ac.glass_transform().get()
-                                * Point2::<Window>::new(args.mouse.x, args.mouse.y),
+                                * Point2::<Window>::new(event.mouse.x, event.mouse.y),
                             RaycastMode::DrillOne,
                             &[],
                         );

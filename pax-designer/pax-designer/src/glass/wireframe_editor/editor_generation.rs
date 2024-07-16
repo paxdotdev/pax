@@ -105,14 +105,18 @@ impl Editor {
         }
 
         fn rotate_factory() -> ControlPointBehaviourFactory {
-            Rc::new(|ctx, point| {
-                let initial_selection = (&ctx.derived_state.selection_state.get()).into();
-                Rc::new(RefCell::new(RotationBehaviour {
-                    start_pos: point,
-                    initial_selection,
-                }))
-            })
+            ControlPointBehaviourFactory {
+                tool_behaviour: Rc::new(|ctx, point| {
+                    let initial_selection = (&ctx.derived_state.selection_state.get()).into();
+                    Rc::new(RefCell::new(RotationBehaviour {
+                        start_pos: point,
+                        initial_selection,
+                    }))
+                }),
+                double_click_behaviour: Rc::new(|_| ()),
+            }
         }
+
         let rotate_control_points = vec![
             CPoint::new(p1, rotate_factory()),
             CPoint::new(p2, rotate_factory()),
@@ -161,12 +165,15 @@ impl Editor {
         }
 
         fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviourFactory {
-            Rc::new(move |ac, _p| {
-                Rc::new(RefCell::new(ResizeBehaviour {
-                    attachment_point: anchor,
-                    initial_selection: (&ac.derived_state.selection_state.get()).into(),
-                }))
-            })
+            ControlPointBehaviourFactory {
+                tool_behaviour: Rc::new(move |ac, _p| {
+                    Rc::new(RefCell::new(ResizeBehaviour {
+                        attachment_point: anchor,
+                        initial_selection: (&ac.derived_state.selection_state.get()).into(),
+                    }))
+                }),
+                double_click_behaviour: Rc::new(|_| ()),
+            }
         }
 
         // resize points
@@ -244,14 +251,17 @@ impl Editor {
         }
 
         fn anchor_factory() -> ControlPointBehaviourFactory {
-            Rc::new(move |ac, _p| {
-                Rc::new(RefCell::new(AnchorBehaviour {
-                    initial_object: (&ac.derived_state.selection_state.get())
-                        .items
-                        .first()
-                        .map(Into::into),
-                }))
-            })
+            ControlPointBehaviourFactory {
+                tool_behaviour: Rc::new(move |ac, _p| {
+                    Rc::new(RefCell::new(AnchorBehaviour {
+                        initial_object: (&ac.derived_state.selection_state.get())
+                            .items
+                            .first()
+                            .map(Into::into),
+                    }))
+                }),
+                double_click_behaviour: Rc::new(|_| ()),
+            }
         }
 
         // resize points
@@ -292,8 +302,8 @@ impl Editor {
         match import_path.as_ref().map(|v| v.as_str()) {
             Some("pax_designer::pax_reexports::pax_std::stacker::Stacker") => {
                 vec![
-                    slot_control::slot_control_set(ctx.clone(), item.clone()),
-                    stacker_size_control::stacker_size_control_set(ctx.clone(), item.clone()),
+                    slot_control::slot_dot_control_set(ctx.clone(), item.clone()),
+                    stacker_size_control::stacker_divider_control_set(ctx.clone(), item.clone()),
                 ]
             }
             _ => return Vec::default(),
@@ -307,7 +317,7 @@ impl Interpolatable for CPoint {}
 pub struct CPoint {
     // make this point a prop?
     pub point: Point2<Glass>,
-    pub behaviour: Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>,
+    pub behaviour: ControlPointBehaviourFactory,
 }
 
 impl CPoint {
