@@ -34,7 +34,11 @@ use crate::{
 
 use super::ControlPointSet;
 
-pub fn slot_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
+// NOTE: a lot of this logic is very similar to that of movement performed with PointerTool.
+// TODO: decide if this should stay as separate logic (if we want different behaviour at times)
+// or if slot_dot dragging should always behave as normal movement. If so, make this use the
+// PointerTool with  a pre-defined target.
+pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
     struct SlotBehaviour {
         initial_node: GlassNodeSnapshot,
         pickup_point: Point2<Glass>,
@@ -216,44 +220,48 @@ pub fn slot_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPo
         }
     }
 
-    fn slot_control_point_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
-        Rc::new(move |ctx, p| {
-            let dt = borrow!(ctx.engine_context.designtime);
-            let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
+    fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
+        ControlPointBehaviourFactory {
+            tool_behaviour: Rc::new(move |ctx, p| {
+                let dt = borrow!(ctx.engine_context.designtime);
+                let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
 
-            // set visualization outline to always be the bounds of the parent of the moving node
-            let manifest_ver = dt.get_orm().get_manifest_version();
-            let glass_transform = ctx.glass_transform();
-            let slot_child_index = slot_child.id.clone();
-            let deps = [glass_transform.untyped(), manifest_ver.untyped()];
-            let ctx = ctx.engine_context.clone();
-            let vis = Property::computed(
-                move || {
-                    let slot_child_parent = ctx
-                        .get_nodes_by_global_id(slot_child_index.clone())
-                        .into_iter()
-                        .next()
-                        .unwrap()
-                        .render_parent()
-                        .unwrap();
-                    let slot_child_parent = GlassNode::new(&slot_child_parent, &glass_transform);
-                    let outline =
-                        PathOutline::from_bounds(slot_child_parent.transform_and_bounds.get());
-                    ToolVisualizationState {
-                        rect_tool: Default::default(),
-                        outline,
-                    }
-                },
-                &deps,
-            );
+                // set visualization outline to always be the bounds of the parent of the moving node
+                let manifest_ver = dt.get_orm().get_manifest_version();
+                let glass_transform = ctx.glass_transform();
+                let slot_child_index = slot_child.id.clone();
+                let deps = [glass_transform.untyped(), manifest_ver.untyped()];
+                let ctx = ctx.engine_context.clone();
+                let vis = Property::computed(
+                    move || {
+                        let slot_child_parent = ctx
+                            .get_nodes_by_global_id(slot_child_index.clone())
+                            .into_iter()
+                            .next()
+                            .unwrap()
+                            .render_parent()
+                            .unwrap();
+                        let slot_child_parent =
+                            GlassNode::new(&slot_child_parent, &glass_transform);
+                        let outline =
+                            PathOutline::from_bounds(slot_child_parent.transform_and_bounds.get());
+                        ToolVisualizationState {
+                            rect_tool: Default::default(),
+                            outline,
+                        }
+                    },
+                    &deps,
+                );
 
-            Rc::new(RefCell::new(SlotBehaviour {
-                initial_node: (&slot_child).into(),
-                pickup_point: p,
-                _before_move_undo_id: before_move_undo_id,
-                vis,
-            }))
-        })
+                Rc::new(RefCell::new(SlotBehaviour {
+                    initial_node: (&slot_child).into(),
+                    pickup_point: p,
+                    _before_move_undo_id: before_move_undo_id,
+                    vis,
+                }))
+            }),
+            double_click_behaviour: Rc::new(|_| ()),
+        }
     }
 
     let control_point_styling = ControlPointStyling {
@@ -282,17 +290,17 @@ pub fn slot_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPo
                 }
             }
             let to_glass = to_glass_transform.clone();
-            let slot_component_control_points = slots
+            let slot_dot_control_points = slots
                 .into_iter()
                 .map(|s| {
                     let slot_child = s.children().into_iter().next().unwrap();
                     let slot_child = GlassNode::new(&slot_child, &to_glass);
                     let t_and_b = slot_child.transform_and_bounds.get();
-                    CPoint::new(t_and_b.center(), slot_control_point_factory(slot_child))
+                    CPoint::new(t_and_b.center(), slot_dot_control_factory(slot_child))
                 })
                 .collect();
             ControlPointSet {
-                points: slot_component_control_points,
+                points: slot_dot_control_points,
                 styling: control_point_styling.clone(),
             }
         },
