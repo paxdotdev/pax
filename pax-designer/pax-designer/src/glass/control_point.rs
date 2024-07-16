@@ -33,8 +33,12 @@ pub struct ControlPoint {
     pub applied_rotation: Property<Rotation>,
 }
 
-pub type ControlPointBehaviourFactory =
-    Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>;
+#[derive(Clone)]
+pub struct ControlPointBehaviourFactory {
+    pub tool_behaviour:
+        Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>,
+    pub double_click_behaviour: Rc<dyn Fn(&mut ActionContext)>,
+}
 
 pub trait ControlPointBehaviour {
     fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>);
@@ -116,11 +120,31 @@ impl ControlPoint {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
                 let behaviour = model::with_action_context(ctx, |ac| {
-                    funcs[self.ind.get().to_int() as usize](ac, ac.glass_transform().get() * pos)
+                    (funcs[self.ind.get().to_int() as usize].tool_behaviour)(
+                        ac,
+                        ac.glass_transform().get() * pos,
+                    )
                 });
                 model::perform_action(&ActivateControlPoint { behaviour }, ctx);
             } else {
-                pax_engine::log::warn!("tried to grigger control point while none exist");
+                pax_engine::log::warn!(
+                    "tried to grigger control point tool behaviour while none exist"
+                );
+            }
+        })
+    }
+
+    pub fn double_click(&mut self, ctx: &NodeContext, args: Event<DoubleClick>) {
+        args.prevent_default();
+        super::wireframe_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
+            if let Some(funcs) = funcs {
+                model::with_action_context(ctx, |ac| {
+                    (funcs[self.ind.get().to_int() as usize].double_click_behaviour)(ac)
+                });
+            } else {
+                pax_engine::log::warn!(
+                    "tried to grigger control point double click behaviour while none exist"
+                );
             }
         })
     }

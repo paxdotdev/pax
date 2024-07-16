@@ -1,4 +1,7 @@
-<Group id=invisible_hit_box @mouse_down=self.mouse_down>
+<Group id=invisible_hit_box
+    @mouse_down=self.mouse_down 
+    @double_click=self.double_click
+>
     if !self.data.styling.round {
         <Rectangle class=control_point/>
     }
