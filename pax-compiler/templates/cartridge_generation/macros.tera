@@ -1,7 +1,7 @@
 {%- macro render_component_factory(component) %}
 struct {{component.pascal_identifier}}Factory{}
 
-impl ComponentFactory for {{component.pascal_identifier}}Factory {
+impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier}}Factory {
 
     fn build_default_properties(&self) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
         Box::new(|_,_| std::rc::Rc::new(RefCell::new({{component.pascal_identifier}}::default().to_pax_any())))
