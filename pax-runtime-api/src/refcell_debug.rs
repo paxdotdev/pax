@@ -73,7 +73,7 @@
 
     #[macro_export]
     macro_rules! use_RefCell {() => (
-        use pax_runtime_api::RefCell;
+        pub use pax_runtime_api::RefCell;
     )}
 } else {
     #[macro_export]
