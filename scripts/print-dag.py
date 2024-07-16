@@ -17,7 +17,6 @@ PACKAGES = [
     "pax-macro",
     "pax-message",
     "pax-std",
-    "pax-std/pax-std-primitives"
     "pax-manifest",
 ]
 
