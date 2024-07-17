@@ -131,67 +131,54 @@ trait TypeFactory {
         {% endif %}
 {%- endfor %}
 
-pub struct DefinitionToInstanceTraverser {
+pub struct {{ cartridge_struct_id }}DefinitionToInstanceTraverser {
     #[cfg(not(feature = "designtime"))]
     manifest: pax_engine::pax_manifest::PaxManifest,
     #[cfg(feature = "designtime")]
     designtime_manager: std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>,
 }
 
-impl DefinitionToInstanceTraverser {
+impl pax_engine::pax_runtime::cartridge::DefinitionToInstanceTraverser for {{ cartridge_struct_id }}DefinitionToInstanceTraverser {
+
+
 
     #[cfg(not(feature = "designtime"))]
-    pub fn new(manifest: pax_engine::pax_manifest::PaxManifest) -> Self {
+    fn new(manifest: pax_manifest::PaxManifest) -> Self {
         Self {
             manifest,
         }
     }
-
-    #[cfg(not(feature = "designtime"))]
-    pub fn get_manifest(&self) ->  &pax_engine::pax_manifest::PaxManifest {
-        &self.manifest
-    }
-
     #[cfg(feature = "designtime")]
-    pub fn new(manifest: pax_engine::pax_manifest::PaxManifest) -> Self {
+    fn new(manifest: pax_manifest::PaxManifest) -> Self {
         let designtime_manager = std::rc::Rc::new(RefCell::new(pax_designtime::DesigntimeManager::new(manifest)));
         Self {
             designtime_manager,
         }
     }
 
-    #[cfg(feature = "designtime")]
-    pub fn get_designtime_manager(&self, project_query: String) -> std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>> {
-        borrow_mut!(self.designtime_manager).set_project(project_query);
-        self.designtime_manager.clone()
+    #[cfg(not(feature = "designtime"))]
+    fn get_manifest(&self) ->  &pax_manifest::PaxManifest {
+        &self.manifest
     }
 
     #[cfg(feature = "designtime")]
-    pub fn get_manifest(&self) ->  Ref<pax_engine::pax_manifest::PaxManifest> {
+    fn get_manifest(&self) ->  Ref<pax_manifest::PaxManifest> {
         Ref::map(borrow!(self.designtime_manager), |manager| {
             manager.get_manifest()
         })
     }
 
-    pub fn get_main_component(&mut self) -> std::rc::Rc<pax_engine::pax_runtime::ComponentInstance> {
-        let main_component_type_id = {
-            let manifest = self.get_manifest();
-            manifest.main_component_type_id.clone()
-        };
-        let args = self.build_component_args(&main_component_type_id);
-        let main_component = pax_engine::pax_runtime::ComponentInstance::instantiate(args);
-        main_component
+
+    #[cfg(feature = "designtime")]
+    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>> {
+        borrow_mut!(self.designtime_manager).set_project(project_query);
+        self.designtime_manager.clone()
     }
 
-    pub fn get_component(&mut self, type_id: &pax_engine::pax_manifest::TypeId) -> std::rc::Rc<dyn pax_engine::rendering::InstanceNode> {
-        let factory = Self::get_component_factory(type_id).expect("Failed to get component factory");
-        let args = self.build_component_args(type_id);
-        factory.build_component(args)
-    }
 
-    pub fn get_component_factory(type_id: &pax_engine::pax_manifest::TypeId) -> Option<Box<dyn pax_engine::pax_runtime::ComponentFactory>> {
+    fn get_component_factory(type_id: &pax_engine::pax_manifest::TypeId) -> Option<Box<dyn pax_engine::pax_runtime::cartridge::ComponentFactory>> {
         if type_id.is_blank_component() {
-            return Some(Box::new(BlankComponentFactory{}) as Box<dyn pax_engine::pax_runtime::ComponentFactory>);
+            return Some(Box::new(BlankComponentFactory{}) as Box<dyn crate::ComponentFactory>);
         }
 
         match type_id.get_unique_identifier().as_str() {
@@ -231,7 +218,7 @@ impl DefinitionToInstanceTraverser {
                         instances.push(self.build_control_flow(type_id, &node_id));
                     },
                     pax_engine::pax_manifest::PaxType::Comment => continue,
-                    _ => {  
+                    _ => {
                         instances.push(self.build_template_node(type_id, &node_id));
                     }
                 }
@@ -311,7 +298,7 @@ impl DefinitionToInstanceTraverser {
                     .slot_index_expression_info
                     .as_ref()
                     .unwrap();
-                
+
                 let vtable_id = expression_info.vtable_id;
                 let dep_symbols = expression_info.dependencies.clone();
 
@@ -375,7 +362,7 @@ impl DefinitionToInstanceTraverser {
                             }
                         }
 
-                        properties.source_expression_vec = 
+                        properties.source_expression_vec =
                             if let Some(t) = &rsd.symbolic_binding {
                                 let cloned_table = table.clone();
                                 let cloned_stack = stack_frame.clone();
@@ -385,11 +372,11 @@ impl DefinitionToInstanceTraverser {
                                         let coerced = new_value_wrapped.try_coerce::<Vec<std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>>>().unwrap();
                                         coerced
                                     }, &dependencies, "repeat source vec")
-                                    ) 
+                                    )
                             } else {
                                 None
                             };
-                            
+
                         properties.source_expression_range =
                             if let Some(t) = &rsd.range_expression_paxel {
                                 let cloned_table = table.clone();
@@ -427,10 +414,10 @@ impl DefinitionToInstanceTraverser {
                     properties_scope_factory: None
                 })
             },
-            _ => {  
+            _ => {
                 unreachable!("Unexpected control flow type {}", tnd.type_id)
             }
-        
+
         }
 
     }
@@ -449,7 +436,7 @@ impl DefinitionToInstanceTraverser {
                     children_instances.push(self.build_control_flow(containing_component_type_id, &child_id));
                 },
                 pax_engine::pax_manifest::PaxType::Comment => continue,
-                _ => {  
+                _ => {
                     children_instances.push(self.build_template_node(containing_component_type_id, child_id));
                 }
             }
@@ -471,14 +458,14 @@ impl DefinitionToInstanceTraverser {
         // update handlers from tnd
         let handlers_from_tnd = manifest.get_inline_event_handlers(node);
         let updated_registry = if let Some(registry) = args.handler_registry {
-            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)    
+            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)
         } else {
             containing_component_factory.add_inline_handlers(handlers_from_tnd, std::rc::Rc::new(RefCell::new(pax_engine::pax_runtime::HandlerRegistry::default())))
         };
 
         args.handler_registry = Some(updated_registry);
 
-        // update properties from tnd 
+        // update properties from tnd
         let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
         let updated_properties = node_component_factory.build_inline_properties(inline_properties.clone());
         args.prototypical_properties_factory = updated_properties;
@@ -487,7 +474,7 @@ impl DefinitionToInstanceTraverser {
         let updated_common_properties = node_component_factory.build_inline_common_properties(inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
 
-       
+
         args.children = Some(RefCell::new(self.build_children(containing_component_type_id, node_id)));
         args.template_node_identifier = Some(pax_engine::pax_manifest::UniqueTemplateNodeIdentifier::build(containing_component_type_id.clone(), node_id.clone()));
 
@@ -518,7 +505,7 @@ impl DefinitionToInstanceTraverser {
                                 return true;
                             }
                         }
-                    
+
                     }
                 }
             }
@@ -547,4 +534,5 @@ impl DefinitionToInstanceTraverser {
         }
         None
     }
+
 }
