@@ -144,6 +144,11 @@ export class NativeElementPool {
     textboxCreate(patch: AnyCreatePatch) {
         const textbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         textbox.type = "text";
+        textbox.style.margin = "0";
+        textbox.style.padding = "0";
+        textbox.style.paddingInline = "0";
+        textbox.style.paddingBlock = "0";
+        textbox.style.borderWidth = "0";
         textbox.addEventListener("input", (_event) => {
             let message = {
                 "FormTextboxInput": {
@@ -507,6 +512,10 @@ export class NativeElementPool {
         // Apply the content
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
+        }
+        // if not applied, rendering moves button down
+        if (textChild.innerHTML.length == 0) {
+            textChild.innerHTML = " ";
         }
 
         if (patch.color) {

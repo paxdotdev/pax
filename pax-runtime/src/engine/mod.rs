@@ -1,8 +1,8 @@
 use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
 use_RefCell!();
-use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
+use std::{borrow::Borrow, collections::HashMap};
 
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;

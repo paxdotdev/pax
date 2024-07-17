@@ -266,6 +266,7 @@ impl ExpandedNode {
         *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
         *borrow_mut!(self.common_properties) =
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
+        *borrow_mut!(self.occlusion_id) = 0;
 
         Rc::clone(self).recurse_mount(context);
         Rc::clone(self).recurse_update(context);
