@@ -404,6 +404,14 @@ pub enum Component {
     Ellipse,
     Text,
     Stacker,
+
+    // form controls
+    Checkbox,
+    Textbox,
+    Button,
+    Slider,
+    Dropdown,
+    RadioSet,
 }
 
 pub trait ToolBehaviour {

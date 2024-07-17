@@ -29,6 +29,7 @@ use llm_interface::LLMInterface;
 use project_mode_toggle::ProjectModeToggle;
 
 use designer_project::Example;
+use pax_std::primitives::{Button, Checkbox, Dropdown, RadioSet, Slider, Textbox};
 
 // TODO:
 // clean up glass::on_double_click
