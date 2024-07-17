@@ -1,0 +1,27 @@
+<Group>
+    for rect in self.rectangles {
+        <Rectangle
+            x={rect.x}
+            y={rect.y}
+            width={(50 * self.scale)px}
+            height={(50 * self.scale)px}
+            fill={rect.color}
+        />
+    }
+    <Text text="Scroll to resize rectangles" x=50% y=20px id=instructions />
+</Group>
+
+@settings {
+    @mount: handle_mount,
+    @tick: handle_tick,
+    @wheel: handle_wheel,
+    #instructions {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 24px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
+    }
+}
