@@ -20,4 +20,5 @@ log = "0.4.20"
 
 [features]
 parser = ["dep:pax-compiler"]
+designtime = ["pax-runtime/designtime"]
 

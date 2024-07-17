@@ -14,6 +14,7 @@ crate-type = ["cdylib"]
 
 [features]
 default = ["console_error_panic_hook"]
+designtime = ["pax-runtime/designtime"]
 
 [dependencies]
 piet = "0.6.0"
@@ -22,6 +23,7 @@ pax-runtime = { path = "../pax-runtime", version="0.15.5" }
 pax-message = {path = "../pax-message", version="0.15.5"}
 pax-runtime-api = { path = "../pax-runtime-api", version="0.15.5" }
 pax-manifest = {path="../pax-manifest", version="0.15.5"}
+pax-designtime = {path="../pax-designtime", version="0.15.5", optional=true}
 serde-wasm-bindgen = "0.6"
 wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 wasm-bindgen-futures = "0.4"
