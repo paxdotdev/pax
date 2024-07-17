@@ -73,7 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(error) => {
                 println!("Compilation or runtime error: {}", error);
                 let error_message = format!(
-                    "The previous code resulted in the following error: {}. Please fix it and provide the corrected code.",
+                    "The previous code resulted in the following error: {}.\n 
+                     Please fix it and provide the corrected code. Please write out the full file and make sure the filename is included in the markdown.",
                     error
                 );
                 messages.push(Message {
@@ -160,38 +161,40 @@ async fn send_prompt_to_claude(
 
 fn parse_response(
     response: &str,
-) -> Result<((String, String), Vec<(String, String)>), Box<dyn std::error::Error>> {
+) -> Result<(Option<(String, String)>, Vec<(String, String)>), Box<dyn std::error::Error>> {
     let rust_regex = Regex::new(r"(?s)```rust filename=(.*?\.rs)\n(.*?)```")?;
     let pax_regex = Regex::new(r"(?s)```pax filename=(.*?\.pax)\n(.*?)```")?;
 
-    let rust_file = rust_regex
-        .captures(response)
-        .ok_or("No Rust file found in response")?;
-    let rust_filename = Path::new(&rust_file[1])
-        .file_name()
-        .ok_or("Invalid Rust filename")?
-        .to_str()
-        .ok_or("Non-UTF8 Rust filename")?
-        .to_string();
-    let rust_content = rust_file[2].trim().to_string();
+    let rust_file = rust_regex.captures(response).map(|cap| {
+        let filename = Path::new(&cap[1])
+            .file_name()
+            .and_then(|f| f.to_str())
+            .map(String::from)
+            .unwrap_or_else(|| cap[1].to_string());
+        let content = cap[2].trim().to_string();
+        (filename, content)
+    });
 
     let mut pax_files = Vec::new();
     for cap in pax_regex.captures_iter(response) {
         let filename = Path::new(&cap[1])
             .file_name()
-            .ok_or("Invalid PAX filename")?
-            .to_str()
-            .ok_or("Non-UTF8 PAX filename")?
-            .to_string();
+            .and_then(|f| f.to_str())
+            .map(String::from)
+            .unwrap_or_else(|| cap[1].to_string());
         let content = cap[2].trim().to_string();
         pax_files.push((filename, content));
     }
 
-    Ok(((rust_filename, rust_content), pax_files))
+    if rust_file.is_none() && pax_files.is_empty() {
+        return Err("No Rust or PAX files found in response".into());
+    }
+
+    Ok((rust_file, pax_files))
 }
 
 fn write_files_to_directory(
-    rust_file: &(String, String),
+    rust_file: &Option<(String, String)>,
     pax_files: &[(String, String)],
 ) -> io::Result<()> {
     let src_dir = Path::new(OUTPUT_DIR).join("src");
@@ -204,8 +207,10 @@ fn write_files_to_directory(
     // Recreate the src directory
     fs::create_dir_all(&src_dir)?;
 
-    // Write Rust file
-    fs::write(src_dir.join(&rust_file.0), &rust_file.1)?;
+    // Write Rust file if present
+    if let Some((filename, content)) = rust_file {
+        fs::write(src_dir.join(filename), content)?;
+    }
 
     // Write PAX files
     for (filename, content) in pax_files {
