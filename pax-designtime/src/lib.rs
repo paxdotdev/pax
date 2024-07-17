@@ -10,12 +10,10 @@ pub mod privileged_agent;
 pub mod messages;
 pub mod serde_pax;
 
-mod setup;
 use messages::LLMHelpRequest;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::PrivilegedAgentConnection;
-pub use setup::add_additional_dependencies_to_cargo_toml;
 
 use core::fmt::Debug;
 pub use pax_manifest;
