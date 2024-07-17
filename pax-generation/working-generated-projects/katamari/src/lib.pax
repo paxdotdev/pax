@@ -1,0 +1,56 @@
+<Group>
+    <Text x=10px y=10px text={"Score: " + self.score} id=score/>
+    <Text x=10px y=40px text={"Time: " + self.time_left} id=timer/>
+
+    <Group x={self.ball_x} y={self.ball_y}>
+        <Ellipse width={self.ball_size} height={self.ball_size} fill=BLUE id=ball/>
+    </Group>
+
+    for object in self.objects {
+        <Rectangle 
+            x={object.x} 
+            y={object.y} 
+            width={object.size} 
+            height={object.size} 
+            fill={object.color}
+        />
+    }
+
+    if self.game_over {
+        <Rectangle width=100% height=100% fill=rgba(0, 0, 0, 128)/>
+        <Text x=50% y=50% text={"Game Over! Final Score: " + self.score} id=game_over/>
+    }
+</Group>
+
+@settings {
+    @mount: handle_mount,
+    @tick: handle_tick,
+    @key_down: handle_key_down,
+    @key_up: handle_key_up,
+
+    #score {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 24px,
+            fill: BLACK,
+        }
+    }
+
+    #timer {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 24px,
+            fill: BLACK,
+        }
+    }
+
+    #game_over {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 48px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
+    }
+}

@@ -1,0 +1,63 @@
+<Group>
+    // Center line
+    <Rectangle x=50% width=2px height=100% fill=WHITE />
+
+    // Player paddle
+    <Rectangle 
+        x=20px 
+        y={self.player_y} 
+        width=10px 
+        height=80px 
+        fill=WHITE 
+    />
+
+    // Computer paddle
+    <Rectangle 
+        x={100% - 30px} 
+        y={self.computer_y} 
+        width=10px 
+        height=80px 
+        fill=WHITE 
+    />
+
+    // Ball
+    <Rectangle 
+        x={self.ball_x} 
+        y={self.ball_y} 
+        width=10px 
+        height=10px 
+        fill=WHITE 
+    />
+
+    // Scores
+    <Text 
+        x=25% 
+        y=30px 
+        text={self.player_score} 
+        id=score
+    />
+    <Text 
+        x=75% 
+        y=30px 
+        text={self.computer_score} 
+        id=score
+    />
+
+    // Background
+    <Rectangle width=100% height=100% fill=BLACK />
+</Group>
+
+@settings {
+    @tick: update_game
+    @mouse_move: handle_mouse_move
+
+    #score {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 36px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
+    }
+}
