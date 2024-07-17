@@ -116,6 +116,20 @@ impl InstanceNode for CheckboxInstance {
         );
     }
 
+    fn handle_native_interrupt(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        interrupt: &pax_message::NativeInterrupt,
+    ) {
+        if let pax_message::NativeInterrupt::FormCheckboxToggle(args) = interrupt {
+            expanded_node.with_properties_unwrapped(|checkbox: &mut Checkbox| {
+                checkbox.checked.set(args.state);
+            });
+        } else {
+            log::warn!("checkbox element was handed interrupt it doesn't use");
+        }
+    }
+
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id.to_u32()));
