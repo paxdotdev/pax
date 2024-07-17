@@ -162,6 +162,9 @@ impl Action for SelectedIntoNewComponent {
 pub struct SetNodeProperties<'a> {
     id: &'a UniqueTemplateNodeIdentifier,
     properties: &'a LayoutProperties,
+    // anchor doesn't have a default value (becomes "reactive" in the None case), and so needs
+    // to be manually specified to be reset
+    reset_anchor: bool,
 }
 
 impl Action for SetNodeProperties<'_> {
@@ -213,6 +216,11 @@ impl Action for SetNodeProperties<'_> {
         write_to_orm(&mut builder, "rotate", rotate.as_ref(), is_rotation_default)?;
         write_to_orm(&mut builder, "skew_x", skew_x.as_ref(), is_rotation_default)?;
         write_to_orm(&mut builder, "skew_y", skew_y.as_ref(), is_rotation_default)?;
+
+        if self.reset_anchor {
+            builder.set_property("anchor_x", "")?;
+            builder.set_property("anchor_y", "")?;
+        }
         write_to_orm(&mut builder, "anchor_x", anchor_x.as_ref(), |_| false)?;
         write_to_orm(&mut builder, "anchor_y", anchor_y.as_ref(), |_| false)?;
 
@@ -242,6 +250,7 @@ impl<T: Space> Action for SetNodePropertiesFromTransform<'_, T> {
         SetNodeProperties {
             id: self.id,
             properties: &new_props,
+            reset_anchor: false,
         }
         .perform(ctx);
         Ok(())
@@ -527,11 +536,13 @@ impl<S: Space> Action for SetNodeLayout<'_, S> {
             NodeLayoutSettings::Fill => SetNodeProperties {
                 id: &self.id,
                 properties: &LayoutProperties::fill(),
+                reset_anchor: true,
             }
             .perform(ctx),
             NodeLayoutSettings::KeepProperties(props) => SetNodeProperties {
                 id: &self.id,
                 properties: props,
+                reset_anchor: false,
             }
             .perform(ctx),
         }

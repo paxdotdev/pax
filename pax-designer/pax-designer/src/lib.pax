@@ -12,7 +12,6 @@ if self.glass_active {
                 // The example project replaces all of the children of the project_container
                 <Group id=project_container>
                     <Example
-                        running=false
                         id=userland_project
                     />
                 </Group>
@@ -24,11 +23,20 @@ if self.glass_active {
 }
 if self.play_active {
     <Example
-        running=true
         id=running_project
     />
 }
 <Rectangle id=global_background />
+
+// To include primitives in manifest
+if 0 == 1 {
+    <Checkbox/>
+    <Textbox/>
+    <Slider/>
+    <Button/>
+    <Dropdown/>
+    <RadioSet/>
+}
 
 @settings {
     @mount: on_mount,

@@ -68,28 +68,99 @@ impl Action for MouseEntryPointAction<'_> {
                         )))));
                     }
                     Tool::CreateComponent(component) => {
-                        let (primitive_name, mock_children) = match component {
-                            Component::Rectangle => (
-                                "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                        tool_behaviour.set(Some(Rc::new(RefCell::new(match component {
+                            Component::Rectangle => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                                    None,
+                                ),
                                 0,
                             ),
-                            Component::Ellipse => (
-                                "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
+                            Component::Ellipse => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
+                                    None,
+                                ),
                                 0,
                             ),
-                            Component::Text => {
-                                ("pax_designer::pax_reexports::pax_std::primitives::Text", 0)
-                            }
-                            Component::Stacker => {
-                                ("pax_designer::pax_reexports::pax_std::stacker::Stacker", 5)
-                            }
-                        };
-                        tool_behaviour.set(Some(Rc::new(RefCell::new(CreateComponentTool::new(
-                            ctx,
-                            point_glass,
-                            &TypeId::build_singleton(primitive_name, None),
-                            mock_children,
-                        )))));
+                            Component::Text => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Text",
+                                    None,
+                                ),
+                                0,
+                            ),
+                            Component::Stacker => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::stacker::Stacker",
+                                    None,
+                                ),
+                                5,
+                            ),
+
+                            Component::Checkbox => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Checkbox",
+                                    None,
+                                ),
+                                0,
+                            ),
+                            Component::Textbox => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Textbox",
+                                    None,
+                                ),
+                                0,
+                            ),
+                            Component::Button => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Button",
+                                    None,
+                                ),
+                                0,
+                            ),
+                            Component::Slider => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Slider",
+                                    None,
+                                ),
+                                0,
+                            ),
+                            Component::Dropdown => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::Dropdown",
+                                    None,
+                                ),
+                                0,
+                            ),
+                            Component::RadioSet => CreateComponentTool::new(
+                                ctx,
+                                point_glass,
+                                &TypeId::build_singleton(
+                                    "pax_designer::pax_reexports::pax_std::primitives::RadioSet",
+                                    None,
+                                ),
+                                0,
+                            ),
+                        }))));
                     }
                     Tool::TodoTool => {
                         log::warn!("tool has no implemented behaviour");
