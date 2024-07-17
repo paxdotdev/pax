@@ -1,0 +1,13 @@
+node_modules
+target/
+
+**/*.rs.bk
+Cargo.lock
+.DS_Store
+.cargo
+
+## VScode project configuration files
+.vscode/
+
+pax-chassis-macos/interface/interface.xcodeproj/project.xcworkspace/xcuserdata/**/*
+pax-chassis-macos/interface/interface.xcodeproj/xcuserdata/**/*
