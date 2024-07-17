@@ -202,7 +202,17 @@ impl InstanceNode for TextInstance {
         &self.base
     }
 
-    fn handle_text_change(&self, expanded_node: &Rc<ExpandedNode>, text: String) {
-        expanded_node.with_properties_unwrapped(|properties: &mut Text| properties.text.set(text));
+    fn handle_native_interrupt(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        interrupt: &pax_message::NativeInterrupt,
+    ) {
+        if let pax_message::NativeInterrupt::TextInput(args) = interrupt {
+            expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+                properties.text.set(args.text.clone())
+            });
+        } else {
+            log::warn!("text element was handed interrupt it doesn't use");
+        }
     }
 }
