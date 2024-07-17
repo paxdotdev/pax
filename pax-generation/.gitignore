@@ -1,2 +1,3 @@
 .env
 .pax
+generated_project/src/*
