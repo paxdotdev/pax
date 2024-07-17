@@ -297,63 +297,91 @@ impl PaxChassisWeb {
                 }
             },
             NativeInterrupt::FormButtonClick(args) => {
-                let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                    .expect("button node exists in engine");
-                node.dispatch_button_click(
-                    Event::new(ButtonClick {}),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    node.dispatch_button_click(
+                        Event::new(ButtonClick {}),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!(
+                        "tried to dispatch event for button click after node already removed"
+                    );
+                    false
+                }
             }
             NativeInterrupt::FormTextboxInput(args) => {
-                let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                    .expect("textbox node exists in engine");
-                node.dispatch_textbox_input(
-                    Event::new(TextboxInput {
-                        text: args.text.clone(),
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    node.dispatch_textbox_input(
+                        Event::new(TextboxInput {
+                            text: args.text.clone(),
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!(
+                        "tried to dispatch event for textbox input after node already removed"
+                    );
+                    false
+                }
             }
             NativeInterrupt::TextInput(args) => {
-                let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                    .expect("text node exists in engine");
-                borrow!(node.instance_node).handle_text_change(&node, args.text.clone());
-                node.dispatch_text_input(
-                    Event::new(TextInput {
-                        text: args.text.clone(),
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    borrow!(node.instance_node).handle_text_change(&node, args.text.clone());
+                    node.dispatch_text_input(
+                        Event::new(TextInput {
+                            text: args.text.clone(),
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!("tried to dispatch event for text input after node already removed");
+                    false
+                }
             }
             NativeInterrupt::FormTextboxChange(args) => {
-                let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                    .expect("textbox node exists in engine");
-                node.dispatch_textbox_change(
-                    Event::new(TextboxChange {
-                        text: args.text.clone(),
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    node.dispatch_textbox_change(
+                        Event::new(TextboxChange {
+                            text: args.text.clone(),
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!(
+                        "tried to dispatch event for textbox change after node already removed"
+                    );
+                    false
+                }
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
-                let node = engine
-                    .get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                    .expect("checkbox node exists in engine");
-                node.dispatch_checkbox_change(
-                    Event::new(CheckboxChange {
-                        checked: args.state,
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    node.dispatch_checkbox_change(
+                        Event::new(CheckboxChange {
+                            checked: args.state,
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!(
+                        "tried to dispatch event for checkbox toggle after node already removed"
+                    );
+                    false
+                }
             }
 
             NativeInterrupt::AddedLayer(_args) => false,
