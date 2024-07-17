@@ -19,6 +19,7 @@ Use #[file("filename.pax")] to link .pax files in the lib.rs file.
 Pax Syntax:
 IMPORTANT: RENDER ORDER IS REVERSE TEMPLATE ORDER! The last thing .pax template is rendered first.
 IMPORTANT: PAX IS NOT RUST OR JSX IT IS A CUSTOM DSL FOR BUILDING UI COMPONENTS. DO NOT WRITE RUST CODE IN .PAX FILES.
+IMPORTANT: ONLY GROUP, FRAME, STACKER, SCROLLER accept children. Other components do not.
 Use only properties that are in common properties or defined on the struct.
 Ensure types in the Rust code match the Pax code.
 Strictly follow the Pax language grammar and component structure as described in the background information.
@@ -1281,6 +1282,196 @@ Declares a Pax component definition inline in a rust file
 Optional. Only needed if you want to implement Default for the struct yourself.
 
 # Pax Standard library Code/Definitions
+
+```rust 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+#[derive(Debug, Copy)]
+pub enum Numeric {
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F64(f64),
+    F32(f32),
+    ISize(isize),
+    USize(usize),
+}
+
+impl Display for Numeric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt_num<V: Display>(
+            f: &mut std::fmt::Formatter<'_>,
+            v: V,
+        ) -> Result<(), std::fmt::Error> {
+            write!(f, "{:.2}", v)
+        }
+        match self {
+            Numeric::I8(v) => fmt_num(f, v),
+            Numeric::I16(v) => fmt_num(f, v),
+            Numeric::I32(v) => fmt_num(f, v),
+            Numeric::I64(v) => fmt_num(f, v),
+            Numeric::U8(v) => fmt_num(f, v),
+            Numeric::U16(v) => fmt_num(f, v),
+            Numeric::U32(v) => fmt_num(f, v),
+            Numeric::U64(v) => fmt_num(f, v),
+            Numeric::F64(v) => fmt_num(f, v),
+            Numeric::F32(v) => fmt_num(f, v),
+            Numeric::ISize(v) => fmt_num(f, v),
+            Numeric::USize(v) => fmt_num(f, v),
+        }
+    }
+}
+
+impl PartialEq for Numeric {
+    fn eq(&self, rhs: &Self) -> bool {
+        match (self.is_float(), rhs.is_float()) {
+            (false, false) => self.to_int() == rhs.to_int(),
+            _ => (self.to_float() - rhs.to_float()) < 1e-6,
+        }
+    }
+}
+
+impl Default for Numeric {
+    fn default() -> Self {
+        Self::F64(0.0)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Percent(pub Numeric);
+
+impl Interpolatable for Percent {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self(self.0.interpolate(&other.0, t))
+    }
+}
+
+impl From<f64> for ColorChannel {
+    fn from(value: f64) -> Self {
+        Numeric::F64(value).into()
+    }
+}
+
+impl From<i32> for ColorChannel {
+    fn from(value: i32) -> Self {
+        Numeric::from(value).into()
+    }
+}
+
+impl Into<ColorChannel> for Percent {
+    fn into(self) -> ColorChannel {
+        ColorChannel::Percent(self.0)
+    }
+}
+
+impl Into<Size> for Percent {
+    fn into(self) -> Size {
+        Size::Percent(self.0)
+    }
+}
+
+impl Into<Rotation> for Percent {
+    fn into(self) -> Rotation {
+        Rotation::Percent(self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ColorChannel {
+    /// [0,255]
+    Integer(Numeric),
+    /// [0.0, 100.0]
+    Percent(Numeric),
+}
+
+impl Default for ColorChannel {
+    fn default() -> Self {
+        Self::Percent(Numeric::F64(50.0))
+    }
+}
+
+impl From<Numeric> for Rotation {
+    fn from(value: Numeric) -> Self {
+        Rotation::Degrees(value)
+    }
+}
+
+impl From<Numeric> for ColorChannel {
+    fn from(value: Numeric) -> Self {
+        Self::Integer(value)
+    }
+}
+
+impl ColorChannel {
+    ///Normalizes this ColorChannel as a float [0.0, 1.0]
+    pub fn to_float_0_1(&self) -> f64 {
+        match self {
+            Self::Percent(per) => {
+                assert!(
+                    per.to_float() >= -0.000001 && per.to_float() <= 100.000001,
+                    ""
+                );
+                (per.to_float() / 100.0).clamp(0_f64, 1_f64)
+            }
+            Self::Integer(zero_to_255) => {
+                assert!(
+                    zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255,
+                    "Integer color channel values must be between 0 and 255"
+                );
+                let f_zero: f64 = (*zero_to_255).to_float();
+                (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
+            }
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub enum Color {
+    /// Models a color in the RGB space, with an alpha channel of 100%
+    rgb(ColorChannel, ColorChannel, ColorChannel),
+    /// Models a color in the RGBA space
+    rgba(ColorChannel, ColorChannel, ColorChannel, ColorChannel),
+
+    /// Models a color in the HSL space.
+    hsl(Rotation, ColorChannel, ColorChannel),
+    /// Models a color in the HSLA space.
+    hsla(Rotation, ColorChannel, ColorChannel, ColorChannel),
+
+    #[default]
+    SLATE,
+    GRAY,
+    ZINC,
+    NEUTRAL,
+    STONE,
+    RED,
+    ORANGE,
+    AMBER,
+    YELLOW,
+    LIME,
+    GREEN,
+    EMERALD,
+    TEAL,
+    CYAN,
+    SKY,
+    BLUE,
+    INDIGO,
+    VIOLET,
+    PURPLE,
+    FUCHSIA,
+    PINK,
+    ROSE,
+    BLACK,
+    WHITE,
+    TRANSPARENT,
+    NONE,
+}
+```
 
 ```rust filename=pax-std/src/lib.rs
 pub mod types;
