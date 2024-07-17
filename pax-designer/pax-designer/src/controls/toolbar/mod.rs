@@ -105,12 +105,36 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-15-checkbox.png",
-                        event: ToolbarEvent::SelectTool(Tool::TodoTool)
-                    },
-                    ToolbarItem {
                         icon: "assets/icons/toolbar/icon-13-stacker.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Stacker))
+                    },
+                ]
+            },
+            ToolbarEntry {
+                items: vec![
+                    ToolbarItem {
+                        icon: "assets/icons/toolbar/icon-15-checkbox.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Checkbox))
+                    },
+                    ToolbarItem {
+                        icon: "assets/icons/tree/tree-icon-09-textbox.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Textbox))
+                    },
+                    ToolbarItem {
+                        icon: "assets/icons/tree/tree-icon-12-button.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Button))
+                    },
+                    ToolbarItem {
+                        icon: "assets/icons/tree/tree-icon-14-slider.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Slider))
+                    },
+                    ToolbarItem {
+                        icon: "assets/icons/tree/tree-icon-15-dropdown.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Dropdown))
+                    },
+                    ToolbarItem {
+                        icon: "assets/icons/tree/tree-icon-08-component.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::RadioSet))
                     },
                 ]
             },
