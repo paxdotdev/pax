@@ -159,6 +159,20 @@ impl InstanceNode for TextboxInstance {
         &self.base
     }
 
+    fn handle_native_interrupt(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        interrupt: &pax_message::NativeInterrupt,
+    ) {
+        if let pax_message::NativeInterrupt::FormTextboxInput(args) = interrupt {
+            expanded_node.with_properties_unwrapped(|textbox: &mut Textbox| {
+                textbox.text.set(args.text.clone());
+            })
+        } else {
+            log::warn!("textbox element was handed interrupt it doesn't use");
+        }
+    }
+
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,

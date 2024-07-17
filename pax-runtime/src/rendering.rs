@@ -161,12 +161,6 @@ pub trait InstanceNode {
         None
     }
 
-    fn handle_text_change(&self, _expanded_node: &Rc<ExpandedNode>, _text: String) {
-        // no-op for most, except for TextInstance
-        // TODO find a more general framework for exposing callbacks into primitives
-        // that doesn't need a method like this for each form type (textbox, checkbox, etc)
-    }
-
     fn handle_native_interrupt(
         &self,
         _expanded_node: &Rc<ExpandedNode>,

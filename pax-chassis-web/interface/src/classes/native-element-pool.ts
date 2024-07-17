@@ -104,7 +104,7 @@ export class NativeElementPool {
             let message = {
                 "FormCheckboxToggle": {
                     "id": patch.id,
-                    "state": checkbox.checked,
+                    "state": is_checked,
                 }
             }
             this.chassis!.interrupt(JSON.stringify(message), undefined);

@@ -316,36 +316,23 @@ impl PaxChassisWeb {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
-                    node.dispatch_textbox_input(
-                        Event::new(TextboxInput {
-                            text: args.text.clone(),
-                        }),
-                        &globals,
-                        &engine.runtime_context,
-                    )
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!(
                         "tried to dispatch event for textbox input after node already removed"
                     );
-                    false
                 }
+                false
             }
             NativeInterrupt::TextInput(args) => {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
-                    borrow!(node.instance_node).handle_text_change(&node, args.text.clone());
-                    node.dispatch_text_input(
-                        Event::new(TextInput {
-                            text: args.text.clone(),
-                        }),
-                        &globals,
-                        &engine.runtime_context,
-                    )
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!("tried to dispatch event for text input after node already removed");
-                    false
                 }
+                false
             }
             NativeInterrupt::FormTextboxChange(args) => {
                 if let Some(node) =
@@ -369,19 +356,13 @@ impl PaxChassisWeb {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
-                    node.dispatch_checkbox_change(
-                        Event::new(CheckboxChange {
-                            checked: args.state,
-                        }),
-                        &globals,
-                        &engine.runtime_context,
-                    )
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!(
                         "tried to dispatch event for checkbox toggle after node already removed"
                     );
-                    false
                 }
+                false
             }
 
             NativeInterrupt::AddedLayer(_args) => false,
