@@ -256,7 +256,7 @@ impl ExpandedNode {
         Rc::clone(self).recurse_unmount(context);
         let new_expanded_node = Self::new(
             template.clone(),
-            Rc::clone(&self.template_parent.upgrade().unwrap().stack),
+            Rc::clone(&self.stack),
             context,
             Weak::clone(&self.containing_component),
             Weak::clone(&self.template_parent),
