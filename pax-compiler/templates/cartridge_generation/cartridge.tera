@@ -6,111 +6,104 @@ use pax_engine::pax_runtime::InstanceNode;
 use pax_engine::pax_runtime::DefinitionToInstanceTraverser;
 use_RefCell!();
 
-pub struct {{ cartridge_struct_id }} {
-
-}
+pub struct {{ cartridge_struct_id }} { }
 
 impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id }} {
     fn instantiate_expression_table(&self) -> std::collections::HashMap<usize, Box<dyn Fn(pax_engine::pax_runtime::ExpressionContext) -> pax_engine::api::pax_value::PaxAny>> {
         let mut vtable: std::collections::HashMap<usize, Box<dyn Fn(pax_engine::pax_runtime::ExpressionContext) -> pax_engine::api::pax_value::PaxAny>> = std::collections::HashMap::new();
 
         {% for expression_spec in expression_specs %}
-        // {{ expression_spec.input_statement.content}}
-        {% if expression_spec.input_statement.source_map_start_marker %}
-            {{ expression_spec.input_statement.source_map_start_marker }}
-        {% endif %}
-        vtable.insert({{ expression_spec.id }}, Box::new(|ec: pax_engine::pax_runtime::ExpressionContext| -> pax_engine::api::pax_value::PaxAny {
-            {% for invocation in expression_spec.invocations %}
-                let {{ invocation.escaped_identifier }} =
-                {
-                    let properties = if let Some(sf) = ec.stack_frame.resolve_symbol("{{ invocation.root_identifier }}") {
-                        std::rc::Rc::clone(&sf)
-                    } else {
-                        panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
-                    };
-                    let mut borrowed = &mut *borrow_mut!(*properties);
-                    {% if invocation.property_flags.is_binding_repeat_elem %}
-                        // binding repeat elem
-                        if let Ok(unwrapped_repeat_item) = pax_engine::pax_runtime::RepeatItem::ref_from_pax_any(&*borrowed) {
+            // {{ expression_spec.input_statement.content}}
+            {% if expression_spec.input_statement.source_map_start_marker %}
+                {{ expression_spec.input_statement.source_map_start_marker }}
+            {% endif %}
+            vtable.insert({{ expression_spec.id }}, Box::new(|ec: pax_engine::pax_runtime::ExpressionContext| -> pax_engine::api::pax_value::PaxAny {
+                {% for invocation in expression_spec.invocations %}
+                    let {{ invocation.escaped_identifier }} =
+                    {
+                        let properties = if let Some(sf) = ec.stack_frame.resolve_symbol("{{ invocation.root_identifier }}") {
+                            std::rc::Rc::clone(&sf)
+                        } else {
+                            panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
+                        };
+                        let mut borrowed = &mut *borrow_mut!(*properties);
+                        {% if invocation.property_flags.is_binding_repeat_elem %}
+                            // binding repeat elem
+                            if let Ok(unwrapped_repeat_item) = pax_engine::pax_runtime::RepeatItem::ref_from_pax_any(&*borrowed) {
+                                let i = unwrapped_repeat_item.i.get();
+                                let elem = std::rc::Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
+                                {% if invocation.is_numeric %}
+                                    //iterable numeric as `elem`
+                                    let elem_borrowed = borrow!(elem);
+                                    if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
+                                        *unwrapped
+                                    } else {
+                                        panic!();//Failed to unpack string from pax_engine::api::pax_value::PaxAny
+                                    }
+                                {% elif invocation.is_string %}
+                                    //string as `elem`
+                                    let elem_borrowed = borrow!(elem);
+                                    if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
+                                        unwrapped.clone()
+                                    } else {
+                                        panic!();//Failed to unpack string from pax_engine::api::pax_value::PaxAny
+                                    }
+                                {% elif invocation.is_bool %}
+                                    //bool as `elem`
+                                    elem.clone()
+                                {% else %}
+                                    //iterable complex type
+                                    let mut elem_borrowed = &mut *borrow_mut!(elem);
+                                    if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(elem_borrowed) {
+                                        dc.clone()
+                                    } else {unreachable!()}
+                                {% endif %}
+                            } else {
+                                panic!() // Failed to downcast
+                            }
+
+                        {% elif invocation.property_flags.is_binding_repeat_i %}
+                            //binding repeat i
+                            let mut unwrapped_repeat_item = if let Ok(val) = pax_engine::pax_runtime::RepeatItem::mut_from_pax_any(&mut *borrowed) {val} else {panic!()}; // Failed to downcast
                             let i = unwrapped_repeat_item.i.get();
-                            let elem = std::rc::Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
-
-                            {% if invocation.is_numeric %}
-                                //iterable numeric as `elem`
-                                let elem_borrowed = borrow!(elem);
-                                if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
-                                    *unwrapped
-                                } else {
-                                    panic!();//Failed to unpack string from pax_engine::api::pax_value::PaxAny
-                                }
-                            {% elif invocation.is_string %}
-                                //string as `elem`
-
-                                let elem_borrowed = borrow!(elem);
-                                if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
-                                    unwrapped.clone()
-                                } else {
-                                    panic!();//Failed to unpack string from pax_engine::api::pax_value::PaxAny
-                                }
-
-                            {% elif invocation.is_bool %}
-                                //bool as `elem`
-                                elem.clone()
-                            {% else %}
-                                //iterable complex type
-                                let mut elem_borrowed = &mut *borrow_mut!(elem);
-                                if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(elem_borrowed) {
-                                    dc.clone()
-                                } else {unreachable!()}
-                            {% endif %}
-                        } else {panic!()} // Failed to downcast
-
-
-                    {% elif invocation.property_flags.is_binding_repeat_i %}
-                        //binding repeat i
-                        let mut unwrapped_repeat_item = if let Ok(val) = pax_engine::pax_runtime::RepeatItem::mut_from_pax_any(&mut *borrowed) {val} else {panic!()}; // Failed to downcast
-                        let i = unwrapped_repeat_item.i.get();
-                        Numeric::from(i)
-                    {% else %}
-
-                        if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_any(&*borrowed) {
-
-                            {% if invocation.is_numeric %}
-                                //binding simple numeric property
-                                Numeric::from(p.{{invocation.root_identifier}}.get())
-                            {% elif invocation.is_string %}
-                                //binding simple string property
-                                p.{{invocation.root_identifier}}.get()
-                            {% else %}
-                                //binding cloneable property
-                                p.{{invocation.root_identifier}}.get().clone()
-                            {% endif %}
-                        } else {unreachable!()}
+                            Numeric::from(i)
+                        {% else %}
+                            if let Ok(p) = <{{invocation.fully_qualified_properties_struct_type}}>::ref_from_pax_any(&*borrowed) {
+                                {% if invocation.is_numeric %}
+                                    //binding simple numeric property
+                                    Numeric::from(p.{{invocation.root_identifier}}.get())
+                                {% elif invocation.is_string %}
+                                    //binding simple string property
+                                    p.{{invocation.root_identifier}}.get()
+                                {% else %}
+                                    //binding cloneable property
+                                    p.{{invocation.root_identifier}}.get().clone()
+                                {% endif %}
+                            } else {unreachable!()}
+                        {% endif %}
+                    }{{ invocation.nested_symbol_tail_literal }};
+                    {% if invocation.is_nested_numeric %}
+                        let {{ invocation.escaped_identifier }} = Numeric::from( {{ invocation.escaped_identifier }} );
                     {% endif %}
-                }{{ invocation.nested_symbol_tail_literal }};
-                {% if invocation.is_nested_numeric %}
-                    let {{ invocation.escaped_identifier }} = Numeric::from( {{ invocation.escaped_identifier }} );
+                {% endfor %}
+
+                {% if expression_spec.is_repeat_source_iterable_expression %}
+                    {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> for Repeat #}
+                    {% for invocation in expression_spec.invocations %}
+                        let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
+                            let converted_cell: std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>> = std::rc::Rc::new(RefCell::new(t.clone().to_pax_any()));
+                            converted_cell
+                        }).collect::<Vec<std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>>>();
+                    {% endfor %}
                 {% endif %}
 
-            {% endfor %}
+                let ___ret = {{ expression_spec.output_statement }};
 
-            {% if expression_spec.is_repeat_source_iterable_expression %}
-                {# We have a Vec<T>, like a Vec<StackerCell>, and we need to rewrap it into a Vec<std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> for Repeat #}
-                {% for invocation in expression_spec.invocations %}
-                    let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
-                        let converted_cell: std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>> = std::rc::Rc::new(RefCell::new(t.clone().to_pax_any()));
-                        converted_cell
-                    }).collect::<Vec<std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>>>();
-                {% endfor %}
+                ___ret.to_pax_any()
+            }));
+            {% if expression_spec.input_statement.source_map_end_marker %}
+                {{ expression_spec.input_statement.source_map_end_marker }}
             {% endif %}
-
-            let ___ret = {{ expression_spec.output_statement }};
-
-            ___ret.to_pax_any()
-        }));
-        {% if expression_spec.input_statement.source_map_end_marker %}
-            {{ expression_spec.input_statement.source_map_end_marker }}
-        {% endif %}
         {% endfor %}
 
         vtable
@@ -122,7 +115,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
 }
 
 {% for c in components -%}
-        {{ macros::render_component_factory(component=c) }}
+    {{ macros::render_component_factory(component=c) }}
 {%- endfor %}
 
 trait TypeFactory {
@@ -131,9 +124,9 @@ trait TypeFactory {
     fn build_type(&self, args: &pax_engine::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, table: std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> Self::Output;
 }
 {% for key, value in type_table -%}
-        {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
-        {% if value.type_id.pax_type.Singleton %}
-        {% endif %}
+    {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
+    {% if value.type_id.pax_type.Singleton %}
+    {% endif %}
 {%- endfor %}
 
 pub struct {{ cartridge_struct_id }}DefinitionToInstanceTraverser {
@@ -178,7 +171,6 @@ impl pax_engine::pax_runtime::DefinitionToInstanceTraverser for {{ cartridge_str
     fn get_manifest(&self) ->  &pax_manifest::PaxManifest {
         &self.manifest
     }
-
     #[cfg(feature = "designtime")]
     fn get_manifest(&self) ->  Ref<pax_manifest::PaxManifest> {
         Ref::map(borrow!(self.designtime_manager), |manager| {
@@ -191,6 +183,4 @@ impl pax_engine::pax_runtime::DefinitionToInstanceTraverser for {{ cartridge_str
         borrow_mut!(self.designtime_manager).set_project(project_query);
         self.designtime_manager.clone()
     }
-
-
 }

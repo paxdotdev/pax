@@ -24,11 +24,10 @@
 
     }
 
-    //For main component only, and only when we're NOT parsing, include reexports
-    //Parsing is excluded because the `pub mod pax_reexports` snippet can only be generated
-    //after parsing.
-
+    //For main component only, and only when NOT parsing, include cartridge snippet
     <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
+
+    
 <% } %>
 
 <% if !is_custom_interpolatable { %>
