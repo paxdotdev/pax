@@ -1,4 +1,5 @@
-import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS, CHECKBOX_CLASS} from "../utils/constants";
+import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
+    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 import snarkdown from 'snarkdown';
@@ -152,7 +153,6 @@ export class NativeElementPool {
         if (patch.backgroundChecked) {
             checkbox.style.setProperty("--checked-color", toCssColor(patch.backgroundChecked));
         }
-        
     }
 
     checkboxDelete(id: number) {
@@ -169,7 +169,7 @@ export class NativeElementPool {
         textbox.type = "text";
         textbox.style.margin = "0";
         textbox.style.padding = "0";
-        textbox.style.paddingInline = "0";
+        textbox.style.paddingInline = "5px 5px";
         textbox.style.paddingBlock = "0";
         textbox.style.borderWidth = "0";
         textbox.addEventListener("input", (_event) => {
@@ -210,6 +210,10 @@ export class NativeElementPool {
     textboxUpdate(patch: TextboxUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         updateCommonProps(leaf!, patch);
+        // set to 10px less to give space for left-padding
+        if (patch.size_x != null) {
+            leaf.firstChild!.style.width = (patch.size_x - 10) + "px";
+        }
         let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
         applyTextTyle(textbox, textbox, patch.style);
@@ -277,6 +281,8 @@ export class NativeElementPool {
     radioSetCreate(patch: AnyCreatePatch) {
         let fields = document.createElement('fieldset') as HTMLFieldSetElement;
         fields.style.border = "0";
+        fields.style.margin = "0";
+        fields.style.padding = "0";
         fields.addEventListener('change', (event) => {
             let target = event.target as HTMLElement | undefined;
             if (target && target.matches("input[type='radio']")) {
@@ -311,15 +317,23 @@ export class NativeElementPool {
     radioSetUpdate(patch: RadioSetUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         updateCommonProps(leaf!, patch);
+        if (patch.style) {
+            applyTextTyle(leaf!, leaf!, patch.style);
+        }
+
         let fields = leaf!.firstChild as HTMLFieldSetElement;
         if (patch.options) {
             fields!.innerHTML = "";
             patch.options.forEach((optionText, _index) => {
                 let div = document.createElement('div') as HTMLDivElement;
+                div.style.alignItems = "center";
+                div.style.display = "flex";
+                div.style.marginBottom = "3px";
                 const option = document.createElement('input') as HTMLInputElement;
                 option.type = "radio";
                 option.name = `radio-${patch.id}`;
                 option.value = optionText.toString();
+                option.setAttribute("class", RADIO_SET_CLASS);
                 div.appendChild(option);
                 const label = document.createElement('label') as HTMLLabelElement;
                 label.innerHTML = optionText.toString();
@@ -330,19 +344,26 @@ export class NativeElementPool {
 
         if (patch.selected_id) {
             let radio = fields.children[patch.selected_id].firstChild as HTMLInputElement;
-            if ( radio.checked == false) {
+            if (radio.checked == false) {
                 radio.checked = true;
             }
         }
 
-        if (patch.style) {
-            // might need to for loop over options?
-            applyTextTyle(leaf!, leaf!, patch.style);
+        if (patch.background) {
+           fields.style.setProperty("--background-color", toCssColor(patch.background));
         }
 
-        // if (patch.background) {
-        //     leaf.style.accent = toCssColor(patch.background);
-        // }
+        if (patch.backgroundChecked) {
+           fields.style.setProperty("--selected-color", toCssColor(patch.backgroundChecked));
+        }
+
+        if (patch.outlineWidth !== undefined) {
+            fields.style.setProperty("--border-width", patch.outlineWidth + "px");
+        }
+
+        if (patch.outlineColor) {
+            fields.style.setProperty("--border-color",  toCssColor(patch.outlineColor));
+        }
     }
 
     radioSetDelete(id: number) {

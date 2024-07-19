@@ -101,6 +101,28 @@ html, body, #mount, canvas, .native-overlay{
     border-color: transparent !important;
 }
 
+.radio-set-style {
+    background: var(--background-color);
+    border-width: var(--border-width);
+    border-color: var(--border-color);
+    type: radio;
+    margin: 0px 10px 0px 3px;
+    padding: 0;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    appearance: none;
+    border-style: solid;
+}
+
+.radio-set-style:checked {
+    background-color: var(--selected-color) !important;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 16 16' fill='%23fff' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='8' cy='8' r='3'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    border-color: transparent !important;
+}
+
 input {
     padding: 1px 4px 1px 4px;
 }
