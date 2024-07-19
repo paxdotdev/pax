@@ -124,6 +124,16 @@ impl InstanceNode for SliderInstance {
                                 &mut patch.max,
                                 properties.max.get(),
                             ),
+                            patch_if_needed(
+                                &mut old_state.border_radius,
+                                &mut patch.border_radius,
+                                properties.border_radius.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.background,
+                                &mut patch.background,
+                                (&properties.background.get()).into(),
+                            ),
                         ];
                         if updates.into_iter().any(|v| v == true) {
                             context.enqueue_native_message(

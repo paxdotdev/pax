@@ -11,6 +11,8 @@ export class SliderUpdatePatch {
     public step?: number;
     public min?: number;
     public max?: number;
+    public background?: ColorGroup;
+    public borderRadius?: number;
     objectManager: ObjectManager;
 
     constructor(objectManager: ObjectManager) {
@@ -27,6 +29,8 @@ export class SliderUpdatePatch {
         this.step = jsonMessage["step"];
         this.min= jsonMessage["min"];
         this.max = jsonMessage["max"];
+        this.borderRadius = jsonMessage["border_radius"];
+        this.background = jsonMessage["background"];
     }
 
     cleanUp(){
@@ -37,6 +41,9 @@ export class SliderUpdatePatch {
         this.step = 0;
         this.min = 0;
         this.max = 0;
+        this.borderRadius = 0;
+        this.background = undefined;
+        this.accent = undefined;
         this.transform = [];
     }
 }
