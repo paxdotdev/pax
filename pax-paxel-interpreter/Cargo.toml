@@ -1,0 +1,13 @@
+[package]
+name = "pax-paxel-interpreter"
+version = "0.15.5"
+authors = ["Warfa Jibril <warfa@pax.dev>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/paxproject/pax"
+description = "Interpreter for Pax Expression Language (Paxel)"
+
+[dependencies]
+pax-lang = {version = "0.15.5", path="../pax-lang"}
+pax-runtime-api = {version="0.15.5", path = "../pax-runtime-api"}

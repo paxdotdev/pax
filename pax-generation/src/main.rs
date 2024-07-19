@@ -75,7 +75,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let error_message = format!(
                     "The previous code resulted in the following error: {}.\n 
                      Please fix it and provide the corrected code. 
-                     Please write out the full file and make sure the filename is included in the markdown.",
+                     Please write out the full file and make sure the filename is included in the markdown.
+                     PLEASE ONLY DO THINGS IN PAX THAT ARE SHOWN TO WORK IN THE SYSTEM PROMPT. DO NOT PUT ARBITRARY CODE IN PAX FILES OR ASSUME APIS IN RUST",
                     error
                 );
                 messages.push(Message {
