@@ -62,6 +62,7 @@ pub fn generate_cartridge_partial_rs(
             common_properties: CommonProperty::get_as_common_property(),
             type_table: manifest.type_table.clone(),
             is_designtime: cfg!(feature = "designtime"),
+            manifest_json: serde_json::to_string(manifest).unwrap(),
         },
     );
 

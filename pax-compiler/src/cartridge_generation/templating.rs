@@ -38,6 +38,9 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
 
     // Whether this is a designtime cartridge
     pub is_designtime: bool,
+
+    // JSON string representation of the manifest, used at least for designtime builds
+    pub manifest_json: String,
 }
 
 #[allow(unused)]
