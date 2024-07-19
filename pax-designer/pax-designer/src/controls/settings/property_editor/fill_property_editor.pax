@@ -1,10 +1,10 @@
 <Text class=text_button class=span_1 y=-40px text="+" />
 
 <Rectangle x=3.33% class=rounded fill={self.color} width=26px height=26px y=4px />
-<Textbox class=input class=col_2 class=span_1 text={self.red} @textbox_change=self.text_change @textbox_input=self.red_input/>
-<Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.text_change @textbox_input=self.green_input/>
-<Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.text_change @textbox_input=self.blue_input/>
-<Textbox class=input class=col_5 class=span_1 text={self.alpha} @textbox_change=self.text_change @textbox_input=self.alpha_input/>
+<Textbox class=input class=col_2 class=span_1 text={self.red} @textbox_change=self.text_change @textbox_change=self.red_change/>
+<Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.text_change @textbox_change=self.green_change/>
+<Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.text_change @textbox_change=self.blue_change/>
+<Textbox class=input class=col_5 class=span_1 text={self.alpha} @textbox_change=self.text_change @textbox_change=self.alpha_change/>
 <Text class=text_button class=span_1 y=-5px text="–" />
 
 <Group class=col_2 y=45px height=20px id=palette>

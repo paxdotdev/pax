@@ -84,20 +84,24 @@ impl FillPropertyEditor {
         ));
     }
 
-    pub fn red_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn red_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(0, &event.text);
+        self.commit_color(ctx);
     }
 
-    pub fn blue_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn blue_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(1, &event.text);
+        self.commit_color(ctx);
     }
 
-    pub fn green_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn green_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(2, &event.text);
+        self.commit_color(ctx);
     }
 
-    pub fn alpha_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn alpha_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(3, &event.text);
+        self.commit_color(ctx);
     }
 
     pub fn set_channel(&mut self, i: usize, val: &str) {
