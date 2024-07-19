@@ -105,12 +105,29 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::slider::SliderInstance")]
+    #[custom(Default)]
     pub struct Slider {
+        pub background: Property<Color>,
+        pub accent: Property<Color>,
+        pub border_radius: Property<f64>,
         pub value: Property<f64>,
         pub step: Property<f64>,
         pub min: Property<f64>,
         pub max: Property<f64>,
-        pub accent: Property<Color>,
+    }
+
+    impl Default for Slider {
+        fn default() -> Self {
+            Self {
+                value: Property::new(0.0),
+                step: Property::new(1.0),
+                min: Property::new(0.0),
+                max: Property::new(100.0),
+                accent: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
+                border_radius: Property::new(5.0),
+                background: Property::new(Color::rgb(229.into(), 231.into(), 235.into())),
+            }
+        }
     }
 
     #[pax]
