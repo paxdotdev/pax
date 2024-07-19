@@ -92,6 +92,32 @@ impl InstanceNode for ButtonInstance {
                         let (width, height) = computed_tab.bounds;
                         let updates = [
                             patch_if_needed(
+                                &mut old_state.outline_stroke_color,
+                                &mut patch.outline_stroke_color,
+                                (&properties.outline.get().color.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_stroke_width,
+                                &mut patch.outline_stroke_width,
+                                properties
+                                    .outline
+                                    .get()
+                                    .width
+                                    .get()
+                                    .expect_pixels()
+                                    .to_float(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.hover_color,
+                                &mut patch.hover_color,
+                                (&properties.hover_color.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.border_radius,
+                                &mut patch.border_radius,
+                                properties.border_radius.get(),
+                            ),
+                            patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
                                 properties.label.get(),

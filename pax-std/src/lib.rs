@@ -69,8 +69,29 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::checkbox::CheckboxInstance")]
+    #[custom(Default)]
     pub struct Checkbox {
+        pub background: Property<Color>,
+        pub background_checked: Property<Color>,
+        pub outline: Property<Stroke>,
+        pub border_radius: Property<f64>,
+
         pub checked: Property<bool>,
+    }
+
+    impl Default for Checkbox {
+        fn default() -> Self {
+            Self {
+                background: Property::new(Color::rgb(243.into(), 244.into(), 246.into())),
+                background_checked: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
+                outline: Property::new(Stroke {
+                    color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                    width: Property::new(Size::Pixels(4.into())),
+                }),
+                border_radius: Property::new(5.0),
+                checked: Property::new(false),
+            }
+        }
     }
 
     #[pax]
@@ -87,11 +108,11 @@ pub mod primitives {
     #[pax]
     #[primitive("pax_std_primitives::dropdown::DropdownInstance")]
     pub struct Dropdown {
+        pub stroke: Property<Stroke>,
         pub options: Property<Vec<String>>,
         pub selected_id: Property<u32>,
         pub style: Property<TextStyle>,
         pub background: Property<Color>,
-        pub stroke: Property<Stroke>,
     }
 
     #[pax]
@@ -132,10 +153,27 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::button::ButtonInstance")]
+    #[custom(Default)]
     pub struct Button {
-        pub label: Property<String>,
+        pub hover_color: Property<Color>,
+        pub outline: Property<Stroke>,
+        pub border_radius: Property<f64>,
         pub color: Property<Color>,
+        pub label: Property<String>,
         pub style: Property<TextStyle>,
+    }
+
+    impl Default for Button {
+        fn default() -> Self {
+            Self {
+                color: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
+                hover_color: Property::new(Color::rgb(26.into(), 86.into(), 219.into())),
+                border_radius: Property::new(5.0),
+                label: Property::new(String::from("button")),
+                style: Property::new(TextStyle::default()),
+                outline: Property::new(Stroke::default()),
+            }
+        }
     }
 
     #[pax]
