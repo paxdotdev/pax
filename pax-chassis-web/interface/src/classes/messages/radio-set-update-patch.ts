@@ -12,6 +12,9 @@ export class RadioSetUpdatePatch {
     public options?: string[];
     objectManager: ObjectManager;
     public style?: TextStyle;
+    public backgroundChecked?: ColorGroup;
+    public outlineWidth?: number;
+    public outlineColor?: ColorGroup;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -25,6 +28,9 @@ export class RadioSetUpdatePatch {
         this.options = jsonMessage["options"];
         this.background = jsonMessage["background"];
         this.selected_id = jsonMessage["selected_id"];
+        this.backgroundChecked = jsonMessage["background_checked"];
+        this.outlineColor = jsonMessage["outline_color"];
+        this.outlineWidth = jsonMessage["outline_width"];
         const styleMessage = jsonMessage["style"];
 
         if (styleMessage) {

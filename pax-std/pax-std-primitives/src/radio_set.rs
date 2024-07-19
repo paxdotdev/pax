@@ -112,6 +112,27 @@ impl InstanceNode for RadioSetInstance {
                                 (&properties.background.get()).into(),
                             ),
                             patch_if_needed(
+                                &mut old_state.background_checked,
+                                &mut patch.background_checked,
+                                (&properties.background_checked.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_color,
+                                &mut patch.outline_color,
+                                (&properties.outline.get().color.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_width,
+                                &mut patch.outline_width,
+                                properties
+                                    .outline
+                                    .get()
+                                    .width
+                                    .get()
+                                    .expect_pixels()
+                                    .to_float(),
+                            ),
+                            patch_if_needed(
                                 &mut old_state.selected_id,
                                 &mut patch.selected_id,
                                 properties.selected_id.get(),
