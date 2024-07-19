@@ -3,31 +3,26 @@
     <Rectangle x=50% width=2px height=100% fill=WHITE />
 
     // Player paddle
-    <Rectangle 
-        x=20px 
-        y={self.player_y} 
-        width=10px 
-        height=80px 
-        fill=WHITE 
-    />
+    <Group  x=20px  y={self.player_y}  width=10px height=80px >
+        <Rectangle 
+            fill=WHITE 
+        />
+    </Group>
+
 
     // Computer paddle
-    <Rectangle 
-        x={100% - 30px} 
-        y={self.computer_y} 
-        width=10px 
-        height=80px 
-        fill=WHITE 
-    />
+    <Group x={100% - 30px}  y={self.computer_y} width=10px height=80px   >
+        <Rectangle
+            fill=WHITE 
+        />
+    </Group>
 
     // Ball
-    <Rectangle 
-        x={self.ball_x} 
-        y={self.ball_y} 
-        width=10px 
-        height=10px 
-        fill=WHITE 
-    />
+    <Group x={self.ball_x} y={self.ball_y} width=10px height=10px  >
+        <Rectangle 
+            fill=WHITE 
+        />
+    </Group>
 
     // Scores
     <Text 

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 
-use pax_lang::{parse_pax_str, Assoc, Op, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
+use pax_lang::{parse_pax_str, get_pax_pratt_parser, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
 use pax_manifest::{
     escape_identifier, get_primitive_type_table, ComponentDefinition, ComponentTemplate,
     ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
@@ -18,24 +18,8 @@ use crate::expressions::clean_and_split_symbols;
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
-    // Operator precedence is declared via the ordering here:
-    let pratt = PrattParser::new()
-        .op(Op::infix(Rule::xo_tern_then, Assoc::Left)
-            | Op::infix(Rule::xo_tern_else, Assoc::Right))
-        .op(Op::infix(Rule::xo_bool_and, Assoc::Left) | Op::infix(Rule::xo_bool_or, Assoc::Left))
-        .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
-        .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))
-        .op(Op::infix(Rule::xo_mod, Assoc::Left))
-        .op(Op::infix(Rule::xo_exp, Assoc::Right))
-        .op(Op::prefix(Rule::xo_neg))
-        .op(Op::infix(Rule::xo_rel_eq, Assoc::Left)
-            | Op::infix(Rule::xo_rel_neq, Assoc::Left)
-            | Op::infix(Rule::xo_rel_lt, Assoc::Left)
-            | Op::infix(Rule::xo_rel_lte, Assoc::Left)
-            | Op::infix(Rule::xo_rel_gt, Assoc::Left)
-            | Op::infix(Rule::xo_rel_gte, Assoc::Left))
-        .op(Op::prefix(Rule::xo_bool_not));
 
+    let pratt = get_pax_pratt_parser();
     let pairs = PaxParser::parse(Rule::expression_body, input_paxel)
         .expect(&format!("unsuccessful pratt parse {}", &input_paxel));
 
@@ -332,7 +316,7 @@ fn recurse_pratt_parse_to_string<'a>(
             Rule::xo_rel_lte => {format!("PaxAny::Builtin(PaxValue::Bool({}<={}))", lhs, rhs)},
             Rule::xo_rel_neq => {format!("PaxAny::Builtin(PaxValue::Bool({}!={}))", lhs, rhs)},
             Rule::xo_sub => {format!("({}-{})", lhs, rhs)},
-            Rule::xo_tern_then => {format!("if {} {{ {} }}", lhs, rhs)},
+            Rule::xo_tern_then => {format!("if {}.into() {{ {} }}", lhs, rhs)},
             Rule::xo_tern_else => {format!("{} else {{ {} }}", lhs, rhs)},
             _ => unreachable!(),
         })
@@ -1381,6 +1365,17 @@ impl Reflectable for bool {
         TypeId::build_primitive(&Self::get_self_pascal_identifier())
     }
 }
+
+impl Reflectable for char {
+    fn get_self_pascal_identifier() -> String {
+        "char".to_string()
+    }
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
+    }
+}
+
+
 impl Reflectable for std::string::String {
     fn get_import_path() -> String {
         "std::string::String".to_string()
@@ -1395,6 +1390,9 @@ impl Reflectable for std::string::String {
         )
     }
 }
+
+
+
 impl<T> Reflectable for std::rc::Rc<T> {
     fn get_import_path() -> String {
         "std::rc::Rc".to_string()

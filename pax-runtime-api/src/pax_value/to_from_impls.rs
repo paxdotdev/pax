@@ -55,6 +55,17 @@ impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(Fill, PaxValue::Fill);
 impl_to_from_pax_value!(Stroke, PaxValue::Stroke);
 
+
+impl From<PaxAny> for bool {
+    fn from(pax_any: PaxAny) -> Self {
+        match pax_any {
+            PaxAny::Builtin(b) => bool::from_pax_value(b).unwrap(),
+            PaxAny::Any(_) => panic!("can't convert Any to bool"),
+        }
+    }
+
+}
+
 // Pax Vec type
 impl<T: ToFromPaxAny + 'static> ToFromPaxValue for Vec<T> {
     fn to_pax_value(self) -> PaxValue {
