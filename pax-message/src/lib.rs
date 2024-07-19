@@ -379,6 +379,11 @@ pub struct FramePatch {
 #[repr(C)]
 pub struct CheckboxPatch {
     pub id: u32,
+    pub background: Option<ColorMessage>,
+    pub background_checked: Option<ColorMessage>,
+    pub outline_color: Option<ColorMessage>,
+    pub outline_width: Option<f64>,
+    pub border_radius: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -454,6 +459,10 @@ pub struct TextboxPatch {
 #[repr(C)]
 pub struct ButtonPatch {
     pub id: u32,
+    pub hover_color: Option<ColorMessage>,
+    pub outline_stroke_color: Option<ColorMessage>,
+    pub outline_stroke_width: Option<f64>,
+    pub border_radius: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
