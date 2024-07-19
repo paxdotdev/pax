@@ -24,10 +24,16 @@
 
     }
 
-    //For main component only, and only when NOT parsing, include cartridge snippet
+    //For main component only, include cartridge snippet and manifest JSON
     <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
 
-    
+    //Note: we might be able to generate the manifest def within the cartridge_snippet instead,
+    //      and save a bit of complexity.  Just depends on where else we need that manifest snippet.
+    <%= args_full_component.as_ref().unwrap().manifest_snippet %>
+
+
+// mount()
+
 <% } %>
 
 <% if !is_custom_interpolatable { %>
