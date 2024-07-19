@@ -91,6 +91,37 @@ impl InstanceNode for CheckboxInstance {
                         let (width, height) = computed_tab.bounds;
                         let updates = [
                             patch_if_needed(
+                                &mut old_state.background,
+                                &mut patch.background,
+                                (&properties.background.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.background_checked,
+                                &mut patch.background_checked,
+                                (&properties.background_checked.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_color,
+                                &mut patch.outline_color,
+                                (&properties.outline.get().color.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_width,
+                                &mut patch.outline_width,
+                                properties
+                                    .outline
+                                    .get()
+                                    .width
+                                    .get()
+                                    .expect_pixels()
+                                    .to_float(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.border_radius,
+                                &mut patch.border_radius,
+                                properties.border_radius.get(),
+                            ),
+                            patch_if_needed(
                                 &mut old_state.checked,
                                 &mut patch.checked,
                                 properties.checked.get(),

@@ -10,6 +10,10 @@ export class ButtonUpdatePatch {
     public content?: string;
     public color?: ColorGroup; 
     public style?: TextStyle;
+    public hoverColor?: ColorGroup;
+    public outlineStrokeColor?: ColorGroup;
+    public outlineStrokeWidth?: number;
+    public borderRadius?: number;
 
     objectManager: ObjectManager;
 
@@ -24,6 +28,10 @@ export class ButtonUpdatePatch {
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
         this.color = jsonMessage["color"];
+        this.hoverColor = jsonMessage["hover_color"];
+        this.outlineStrokeColor = jsonMessage["outline_stroke_color"];
+        this.outlineStrokeWidth = jsonMessage["outline_stroke_width"];
+        this.borderRadius = jsonMessage["border_radius"];
         const styleMessage = jsonMessage["style"];
 
         if (styleMessage) {
