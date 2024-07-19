@@ -21,7 +21,7 @@ use crate::{
 
 impl Interpolatable for Editor {}
 pub mod slot_control;
-pub mod stacker_size_control;
+pub mod stacker_control;
 
 #[derive(Clone, Default)]
 pub struct Editor {
@@ -303,7 +303,7 @@ impl Editor {
             Some("pax_designer::pax_reexports::pax_std::stacker::Stacker") => {
                 vec![
                     slot_control::slot_dot_control_set(ctx.clone(), item.clone()),
-                    stacker_size_control::stacker_divider_control_set(ctx.clone(), item.clone()),
+                    stacker_control::stacker_divider_control_set(ctx.clone(), item.clone()),
                 ]
             }
             _ => return Vec::default(),

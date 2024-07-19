@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext};
-use crate::glass::wireframe_editor::editor_generation::stacker_size_control::sizes_to_string;
+use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
 use crate::math::{
     self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration,

@@ -49,13 +49,14 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
             }
             let above = positions[self.resize_ind] / total;
             let above_unit = new_sizes[self.resize_ind].unit();
+            let new_val_ratio = (ratio - above).max(0.0);
 
             new_sizes[self.resize_ind] = Some(match above_unit {
                 crate::math::SizeUnit::Pixels => {
-                    Size::Pixels(round_2_dec((ratio - above) * total).into())
+                    Size::Pixels(round_2_dec(new_val_ratio * total).into())
                 }
                 crate::math::SizeUnit::Percent => {
-                    Size::Percent(round_2_dec((ratio - above) * 100.0).into())
+                    Size::Percent(round_2_dec(new_val_ratio * 100.0).into())
                 }
             });
 
