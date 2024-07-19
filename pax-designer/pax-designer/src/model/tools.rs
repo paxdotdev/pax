@@ -9,7 +9,7 @@ use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::outline::PathOutline;
 use crate::glass::wireframe_editor::editor_generation::slot_control::raycast_slot;
-use crate::glass::wireframe_editor::editor_generation::stacker_size_control::sizes_to_string;
+use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::{
