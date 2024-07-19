@@ -3875,4 +3875,133 @@ impl Pong {
     }
 }
 ```
+
+```pax filename=lib.pax
+<Group x=50% y=50% width=300px height=400px>
+    <Stacker direction=StackerDirection::Vertical>
+        <Group width=100% height=80px>
+            <Text text={self.display} id=display x=95% y=50% />
+            <Rectangle fill=BLACK />
+        </Group>
+        <Stacker direction=StackerDirection::Horizontal>
+            <Button label="7" @button_click=handle7 class=btn />
+            <Button label="8" @button_click=handle8 class=btn />
+            <Button label="9" @button_click=handle9 class=btn />
+            <Button label="/" @button_click=handleDivide class=btn />
+        </Stacker>
+        <Stacker direction=StackerDirection::Horizontal>
+            <Button label="4" @button_click=handle4 class=btn />
+            <Button label="5" @button_click=handle5 class=btn />
+            <Button label="6" @button_click=handle6 class=btn />
+            <Button label="X" @button_click=handleMultiply class=btn />
+        </Stacker>
+        <Stacker direction=StackerDirection::Horizontal>
+            <Button label="1" @button_click=handle1 class=btn />
+            <Button label="2" @button_click=handle2 class=btn />
+            <Button label="3" @button_click=handle3 class=btn />
+            <Button label="-" @button_click=handleSubtract class=btn />
+        </Stacker>
+        <Stacker direction=StackerDirection::Horizontal>
+            <Button label="0" @button_click=handle0 class=btn />
+            <Button label="C" @button_click=handle_clear class=btn />
+            <Button label="=" @button_click=handle_equals class=btn />
+            <Button label="+" @button_click=handleAdd class=btn />
+        </Stacker>
+    </Stacker>
+</Group>
+
+@settings {
+    #display {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 32px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+    .btn {
+        style: {
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 24px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
+    }
+}
+```
+```rust filename=lib.rs
+#![allow(unused_imports)]
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+
+#[pax]
+#[file("lib.pax")]
+pub struct Example {
+    pub display: Property<String>,
+    pub first_number: Property<f64>,
+    pub operation: Property<String>,
+    pub second_number: Property<f64>,
+}
+
+impl Example {
+    pub fn handle_number(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>, number: u8) {
+        let mut current_display = self.display.get();
+        if current_display == "0" {
+            current_display = number.to_string();
+        } else {
+            current_display.push_str(&number.to_string());
+        }
+        self.display.set(current_display);
+    }
+
+    pub fn handle_operation(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>, op: &str) {
+        self.first_number.set(self.display.get().parse().unwrap_or(0.0));
+        self.operation.set(op.to_string());
+        self.display.set("0".to_string());
+    }
+
+    pub fn handle_equals(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>) {
+        self.second_number.set(self.display.get().parse().unwrap_or(0.0));
+        let result = match self.operation.get().as_str() {
+            "+" => self.first_number.get() + self.second_number.get(),
+            "-" => self.first_number.get() - self.second_number.get(),
+            "*" => self.first_number.get() * self.second_number.get(),
+            "/" => self.first_number.get() / self.second_number.get(),
+            _ => self.second_number.get(),
+        };
+        self.display.set(result.to_string());
+    }
+
+    pub fn handle_clear(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>) {
+        self.display.set("0".to_string());
+        self.first_number.set(0.0);
+        self.operation.set("".to_string());
+        self.second_number.set(0.0);
+    }
+
+    pub fn handle0(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 0); }
+    pub fn handle1(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 1); }
+    pub fn handle2(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 2); }
+    pub fn handle3(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 3); }
+    pub fn handle4(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 4); }
+    pub fn handle5(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 5); }
+    pub fn handle6(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 6); }
+    pub fn handle7(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 7); }
+    pub fn handle8(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 8); }
+    pub fn handle9(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 9); }
+
+    pub fn handleAdd(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "+"); }
+    pub fn handleSubtract(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "-"); }
+    pub fn handleMultiply(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "*"); }
+    pub fn handleDivide(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "/"); }
+}
+```
 </examples>

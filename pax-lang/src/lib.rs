@@ -5,8 +5,8 @@ pub use pest::pratt_parser::{Assoc, Op, PrattParser};
 pub use pest::{Parser, Span};
 pub use pest_derive::Parser;
 
-mod pratt_parser;
-pub use pratt_parser::get_pax_pratt_parser;
+mod parsing;
+pub use parsing::get_pax_pratt_parser;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
