@@ -14,8 +14,9 @@ pub mod primitives {
     use pax_engine::pax;
     use pax_runtime::api::{Color, Property, Size, Stroke};
     use pax_runtime::api::{Fill, Numeric};
+    use piet::util::LayoutDefaults;
 
-    use crate::types::text::TextStyle;
+    use crate::types::text::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
 
     use crate::types::{ImageFit, PathElement};
     #[pax]
@@ -86,7 +87,7 @@ pub mod primitives {
                 background_checked: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
                 outline: Property::new(Stroke {
                     color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
-                    width: Property::new(Size::Pixels(4.into())),
+                    width: Property::new(Size::Pixels(1.into())),
                 }),
                 border_radius: Property::new(5.0),
                 checked: Property::new(false),
@@ -96,6 +97,7 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::textbox::TextboxInstance")]
+    #[custom(Default)]
     pub struct Textbox {
         pub text: Property<String>,
         pub background: Property<Color>,
@@ -103,6 +105,30 @@ pub mod primitives {
         pub border_radius: Property<Numeric>,
         pub style: Property<TextStyle>,
         pub focus_on_mount: Property<bool>,
+    }
+
+    impl Default for Textbox {
+        fn default() -> Self {
+            Self {
+                text: Default::default(),
+                background: Property::new(Color::rgb(249.into(), 250.into(), 251.into())),
+                stroke: Property::new(Stroke {
+                    color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                    width: Property::new(Size::Pixels(1.into())),
+                }),
+                border_radius: Property::new(8.0.into()),
+                style: Property::new(TextStyle {
+                    font: Property::new(Font::default()),
+                    font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
+                    fill: Property::new(Color::BLACK),
+                    underline: Property::new(false),
+                    align_horizontal: Property::new(TextAlignHorizontal::Left),
+                    align_multiline: Property::new(TextAlignHorizontal::Left),
+                    align_vertical: Property::new(TextAlignVertical::Center),
+                }),
+                focus_on_mount: Property::new(false),
+            }
+        }
     }
 
     #[pax]
@@ -117,11 +143,38 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::radio_set::RadioSetInstance")]
+    #[custom(Default)]
     pub struct RadioSet {
+        pub background: Property<Color>,
+        pub background_checked: Property<Color>,
+        pub outline: Property<Stroke>,
         pub options: Property<Vec<String>>,
         pub selected_id: Property<u32>,
         pub style: Property<TextStyle>,
-        pub background: Property<Color>,
+    }
+
+    impl Default for RadioSet {
+        fn default() -> Self {
+            Self {
+                background: Property::new(Color::rgb(243.into(), 244.into(), 246.into())),
+                background_checked: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
+                outline: Property::new(Stroke {
+                    color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                    width: Property::new(Size::Pixels(1.into())),
+                }),
+                options: Property::new(vec!["option 1".to_string(), "option 2".to_string()]),
+                selected_id: Property::new(0),
+                style: Property::new(TextStyle {
+                    font: Property::new(Font::default()),
+                    font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
+                    fill: Property::new(Color::BLACK),
+                    underline: Property::new(false),
+                    align_horizontal: Property::new(TextAlignHorizontal::Left),
+                    align_multiline: Property::new(TextAlignHorizontal::Left),
+                    align_vertical: Property::new(TextAlignVertical::Center),
+                }),
+            }
+        }
     }
 
     #[pax]
@@ -168,9 +221,18 @@ pub mod primitives {
             Self {
                 color: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
                 hover_color: Property::new(Color::rgb(26.into(), 86.into(), 219.into())),
-                border_radius: Property::new(5.0),
+                border_radius: Property::new(8.0),
                 label: Property::new(String::from("button")),
-                style: Property::new(TextStyle::default()),
+                style: Property::new(TextStyle {
+                    font: Property::new(Font::default()),
+                    font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
+                    fill: Property::new(Color::WHITE),
+                    underline: Property::new(false),
+                    align_multiline: Property::new(TextAlignHorizontal::Center),
+                    align_vertical: Property::new(TextAlignVertical::Center),
+                    align_horizontal: Property::new(TextAlignHorizontal::Center),
+                }),
+
                 outline: Property::new(Stroke::default()),
             }
         }

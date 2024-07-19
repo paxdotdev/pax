@@ -6,5 +6,6 @@ export const NATIVE_LEAF_CLASS = "native-leaf";
 export const NATIVE_CLIPPING_CLASS = "native-clipping";
 export const BUTTON_CLASS = "button-styles";
 export const CHECKBOX_CLASS = "checkbox-styles";
+export const RADIO_SET_CLASS = "radio-set-style";
 export const CLIPPING_CONTAINER = "clipping-container";
 export const BUTTON_TEXT_CONTAINER_CLASS = "button-text-container";
