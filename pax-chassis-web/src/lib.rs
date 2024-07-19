@@ -2,23 +2,18 @@
 
 use js_sys::Uint8Array;
 use log::Level;
-use pax_manifest::PaxManifest;
 use pax_message::ImageLoadInterruptArgs;
 use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::use_RefCell;
 use pax_runtime::api::ButtonClick;
-use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
-use pax_runtime::api::TextInput;
 use pax_runtime::api::TextboxChange;
-use pax_runtime::api::TextboxInput;
 use pax_runtime::api::OS;
 use pax_runtime::ExpressionTable;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
-use web_sys::Response;
 use_RefCell!();
 
 use std::rc::Rc;
@@ -39,10 +34,7 @@ use pax_runtime::api::{
 use serde_json;
 
 #[cfg(feature = "designtime")]
-use pax_designtime::DesigntimeManager;
-
-#[cfg(feature = "designtime")]
-use pax_designtime::orm::ReloadType;
+use {pax_designtime::orm::ReloadType, pax_designtime::DesigntimeManager};
 
 #[cfg(feature = "designtime")]
 const USERLAND_PROJECT_ID: &str = "userland_project";
@@ -100,40 +92,6 @@ impl PaxChassisWeb {
             designtime_manager,
             last_manifest_version_rendered: 0,
         }
-    }
-
-    #[cfg(feature = "designtime")]
-    async fn fetch(url: &str) -> Result<PaxManifest, String> {
-        // manifest can be fetched using this from Self::new:
-        // let query_string = window()
-        //     .unwrap()
-        //     .location()
-        //     .search()
-        //     .expect("no search exists");
-        // let manifest = Self::fetch(&format!("http://localhost:9000/create/load{query_string}"))
-        //     .await
-        //     .expect("failed to fetch manifest from remote");
-
-        let response =
-            Into::<wasm_bindgen_futures::JsFuture>::into(window().unwrap().fetch_with_str(url))
-                .await
-                .map_err(|err| format!("Failed to fetch: {:?}", err))?;
-
-        // Convert the response to JSON
-        let text: String = Into::<wasm_bindgen_futures::JsFuture>::into(
-            Response::from(response)
-                .text()
-                .map_err(|err| format!("Failed to parse JSON: {:?}", err))?,
-        )
-        .await
-        .map_err(|err| format!("Failed to get text: {:?}", err))?
-        .as_string()
-        .unwrap();
-
-        let manifest = serde_json::from_str(&text)
-            .map_err(|err| format!("Failed to deserialize: {:?}", err))?;
-
-        Ok(manifest)
     }
 
     #[cfg(not(feature = "designtime"))]

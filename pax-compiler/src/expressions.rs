@@ -8,7 +8,6 @@ use pax_manifest::{
 use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeFrom;
 use std::slice::IterMut;
-use tera::Value;
 
 use crate::errors::source_map::SourceMap;
 use crate::errors::PaxTemplateError;
