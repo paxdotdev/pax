@@ -72,9 +72,33 @@ html, body, #mount, canvas, .native-overlay{
     height: 100%;
 }
 
-.button {
+.button-styles {
     margin: 0;
     padding: 0;    
+    --hover-color: blue;
+    border-style: solid;
+}
+
+.button-styles:hover {
+    background-color: var(--hover-color) !important;
+}
+
+.checkbox-styles {
+    --checked-color: magenta;
+    type: checkbox;
+    margin: 0;
+    padding: 0; 
+    appearance: none;
+    border-style: solid;
+}
+
+.checkbox-styles:checked {
+    background-color: var(--checked-color) !important;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg aria-hidden='true' xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='-2 0 20 12'%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M1 5.917 5.724 10.5 15 1.5'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-size: 80% !important;
+    background-position: center !important;
+    border-color: transparent !important;
 }
 
 input {

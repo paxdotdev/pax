@@ -1,4 +1,4 @@
-import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS} from "../utils/constants";
+import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS, NATIVE_LEAF_CLASS, CHECKBOX_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 import snarkdown from 'snarkdown';
@@ -97,6 +97,7 @@ export class NativeElementPool {
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         checkbox.type = "checkbox";
         checkbox.style.margin = "0";
+        checkbox.setAttribute("class", CHECKBOX_CLASS);
         checkbox.addEventListener("change", (event) => {
             //Reset the checkbox state (state changes only allowed through engine)
             const is_checked = (event.target as HTMLInputElement).checked;
@@ -129,8 +130,29 @@ export class NativeElementPool {
         updateCommonProps(leaf!, patch);
 
         if (patch.checked !== null) {
-            checkbox!.checked = patch.checked!;
+            checkbox.checked = patch.checked!;
         }
+
+        if (patch.background) {
+            checkbox.style.background = toCssColor(patch.background);
+        }
+
+        if (patch.borderRadius) {
+            checkbox.style.borderRadius = patch.borderRadius + "px";
+        }
+
+        if (patch.outlineWidth !== undefined) {
+            checkbox.style.borderWidth = patch.outlineWidth + "px";
+        }
+
+        if (patch.outlineColor) {
+            checkbox.style.borderColor = toCssColor(patch.outlineColor);
+        }
+
+        if (patch.backgroundChecked) {
+            checkbox.style.setProperty("--checked-color", toCssColor(patch.backgroundChecked));
+        }
+        
     }
 
     checkboxDelete(id: number) {
@@ -452,7 +474,7 @@ export class NativeElementPool {
         if (patch.stroke_color) {
             dropdown.style.borderColor = toCssColor(patch.stroke_color);
         }
-        if (patch.stroke_width) {
+        if (patch.stroke_width != undefined) {
             dropdown.style.borderWidth = patch.stroke_width + "px";
         }
 
@@ -537,6 +559,22 @@ export class NativeElementPool {
             button.style.background = toCssColor(patch.color);
         }
 
+        if (patch.hoverColor) {
+            let color = toCssColor(patch.hoverColor);
+            button.style.setProperty("--hover-color", color);
+        }
+
+        if (patch.borderRadius) {
+            button.style.borderRadius = patch.borderRadius + "px";
+        }
+
+        if (patch.outlineStrokeColor) {
+            button.style.borderColor = toCssColor(patch.outlineStrokeColor);
+        }
+
+        if (patch.outlineStrokeWidth !== undefined) {
+            button.style.borderWidth = patch.outlineStrokeWidth + "px";
+        }
         
         applyTextTyle(textContainer, textChild, patch.style);
     }
