@@ -428,6 +428,8 @@ pub struct SliderPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub accent: Option<ColorMessage>,
+    pub background: Option<ColorMessage>,
+    pub border_radius: Option<f64>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

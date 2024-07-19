@@ -17,6 +17,7 @@ import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 import { RadioSetUpdatePatch } from "./messages/radio-set-update-patch";
 import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
+import { SliderUpdatePatch } from "./messages/slider-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -125,7 +126,7 @@ export class NativeElementPool {
         let leaf = this.nodesLookup.get(patch.id!);
         let checkbox = leaf!.firstChild as HTMLInputElement;
 
-        updateCommonProps(leaf, patch);
+        updateCommonProps(leaf!, patch);
 
         if (patch.checked !== null) {
             checkbox!.checked = patch.checked!;
@@ -186,7 +187,7 @@ export class NativeElementPool {
     
     textboxUpdate(patch: TextboxUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
-        updateCommonProps(leaf, patch);
+        updateCommonProps(leaf!, patch);
         let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
         applyTextTyle(textbox, textbox, patch.style);
@@ -255,10 +256,11 @@ export class NativeElementPool {
         let fields = document.createElement('fieldset') as HTMLFieldSetElement;
         fields.style.border = "0";
         fields.addEventListener('change', (event) => {
-            if (event.target && event.target.matches("input[type='radio']")) {
+            let target = event.target as HTMLElement | undefined;
+            if (target && target.matches("input[type='radio']")) {
                 // get the index of the triggered radio button in the fieldset
-                let container = event.target.parentNode;
-                let index = Array.from(container.parentNode.children).indexOf(container);
+                let container = target.parentNode as Element;
+                let index = Array.from(container!.parentNode!.children).indexOf(container);
                 let message = {
                     "FormRadioSetChange": {
                         "id": patch.id!,
@@ -284,15 +286,15 @@ export class NativeElementPool {
     }
 
     
-    radioSetUpdate(patch: radioSetUpdatePatch) {
+    radioSetUpdate(patch: RadioSetUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
-        updateCommonProps(leaf, patch);
+        updateCommonProps(leaf!, patch);
         let fields = leaf!.firstChild as HTMLFieldSetElement;
         if (patch.options) {
             fields!.innerHTML = "";
-            patch.options.forEach((optionText, index) => {
+            patch.options.forEach((optionText, _index) => {
                 let div = document.createElement('div') as HTMLDivElement;
-                const option = document.createElement('input') as HTMLOptionElement;
+                const option = document.createElement('input') as HTMLInputElement;
                 option.type = "radio";
                 option.name = `radio-${patch.id}`;
                 option.value = optionText.toString();
@@ -313,7 +315,7 @@ export class NativeElementPool {
 
         if (patch.style) {
             // might need to for loop over options?
-            applyTextTyle(leaf, leaf, patch.style);
+            applyTextTyle(leaf!, leaf!, patch.style);
         }
 
         // if (patch.background) {
@@ -335,7 +337,10 @@ export class NativeElementPool {
         const slider = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         slider.type = "range";
         slider.style.padding = "0px";
-        slider.addEventListener("input", (event) => {
+        slider.style.margin = "0px";
+        slider.style.appearance = "none";
+        slider.style.display = "block";
+        slider.addEventListener("input", (_event) => {
             let message = {
                 "FormSliderChange": {
                     "id": patch.id!,
@@ -348,6 +353,7 @@ export class NativeElementPool {
         let sliderDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         sliderDiv.appendChild(slider);
         sliderDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        sliderDiv.style.overflow = "visible";
         sliderDiv.setAttribute("pax_id", String(patch.id));
 
         if(patch.id != undefined && patch.occlusionLayerId != undefined){
@@ -362,25 +368,34 @@ export class NativeElementPool {
     
     sliderUpdate(patch: SliderUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
-        updateCommonProps(leaf, patch);
-        let slider = leaf!.firstChild as HTMLTextAreaElement;
+        updateCommonProps(leaf!, patch);
+        let slider = leaf!.firstChild as HTMLInputElement;
 
-        if (patch.value && patch.value != slider.value) {
-            slider.value = patch.value;
+        if (patch.value && patch.value.toString() != slider.value) {
+            slider.value = patch.value.toString();
         }
-        if (patch.step && patch.step != slider.step) {
-            slider.step = patch.step;
+        if (patch.step && patch.step.toString() != slider.step) {
+            slider.step = patch.step.toString();
         }
-        if (patch.min && patch.min != slider.min) {
-            slider.min = patch.min;
+        if (patch.min && patch.min.toString() != slider.min) {
+            slider.min = patch.min.toString();
         }
-        if (patch.max && patch.max != slider.max) {
-            slider.max = patch.max;
+        if (patch.max && patch.max.toString() != slider.max) {
+            slider.max = patch.max.toString();
         }
 
         if (patch.accent) {
             let color =  toCssColor(patch.accent);   
             slider.style.accentColor = color;
+        }
+
+        if (patch.background) {
+            let color =  toCssColor(patch.background);   
+            slider.style.backgroundColor = color;
+        }
+
+        if (patch.borderRadius) {
+            slider.style.borderRadius = patch.borderRadius + "px";
         }
     }
 
@@ -423,7 +438,7 @@ export class NativeElementPool {
     
     dropdownUpdate(patch: DropdownUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
-        updateCommonProps(leaf, patch);
+        updateCommonProps(leaf!, patch);
         let dropdown = leaf!.firstChild as HTMLSelectElement;
         applyTextTyle(dropdown, dropdown, patch.style);
         dropdown.style.borderStyle = "solid";
@@ -502,7 +517,7 @@ export class NativeElementPool {
     
     buttonUpdate(patch: ButtonUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
-        updateCommonProps(leaf, patch);
+        updateCommonProps(leaf!, patch);
         console.assert(leaf !== undefined);
         let button = leaf!.firstChild as HTMLElement;
         let textContainer = button!.firstChild as HTMLElement;
@@ -856,7 +871,7 @@ function sanitizeContentEditableString(string: string): string {
         .replace(/(<([^>]+)>)/ig, "")?? '');
 }
 
-function updateCommonProps(leaf: HTMLDivElement, patch: any) {
+function updateCommonProps(leaf: HTMLElement, patch: any) {
     let elem = leaf!.firstChild as any;
     // Handle size_x and size_y
     if (patch.size_x != null) {

@@ -22,7 +22,7 @@ use pax_runtime::{ExpressionTable, PaxEngine, Renderer};
 //in order to be visible to Swift
 pub use pax_message::*;
 use pax_runtime::api::{
-    Click, ModifierKey, MouseButton, MouseEventArgs, Platform, RenderContext, OS,
+    Click, Event, ModifierKey, MouseButton, MouseEventArgs, Platform, RenderContext, OS,
 };
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
@@ -118,7 +118,7 @@ pub extern "C" fn pax_interrupt(
                         },
                     };
                     topmost_node.dispatch_click(
-                        args_click,
+                        Event::new(args_click),
                         &engine.runtime_context.globals(),
                         &engine.runtime_context,
                     );
