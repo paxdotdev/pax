@@ -89,11 +89,7 @@ impl Stacker {
                 let mut cell_space = vec![per_cell_space; cells as usize];
                 let mut sizes = sizes.get();
                 while sizes.len() < cell_space.len() {
-                    if sizes.contains(&None) {
-                        sizes.push(None)
-                    } else {
-                        sizes.push(Some(Size::Percent((100.0 / cells).into())))
-                    }
+                    sizes.push(None)
                 }
 
                 if sizes.len() > 0 {
@@ -122,6 +118,8 @@ impl Stacker {
 
                     let remaining_per_cell_space =
                         (usable_interior_space - used_space) / remaining_cells;
+                    // always show none cells at least 5px tall, even if it overflows the stacker
+                    let remaining_per_cell_space = remaining_per_cell_space.max(5.0);
                     for i in &mut cell_space {
                         if *i == -1.0 {
                             *i = remaining_per_cell_space;
