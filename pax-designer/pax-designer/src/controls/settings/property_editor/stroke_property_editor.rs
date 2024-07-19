@@ -108,28 +108,33 @@ impl StrokePropertyEditor {
         ));
     }
 
-    pub fn red_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn red_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(0, &event.text);
+        self.commit_stroke(ctx);
     }
 
-    pub fn blue_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn blue_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(1, &event.text);
+        self.commit_stroke(ctx);
     }
 
-    pub fn green_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn green_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(2, &event.text);
+        self.commit_stroke(ctx);
     }
 
-    pub fn alpha_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn alpha_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         self.set_channel(3, &event.text);
+        self.commit_stroke(ctx);
     }
 
-    pub fn width_input(&mut self, _ctx: &NodeContext, event: Event<TextboxInput>) {
+    pub fn width_change(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         if let Ok(v) = event.text.parse::<u32>() {
             self.stroke.update(|stroke| {
                 stroke.width.set(Size::Pixels(Numeric::U32(v)));
             });
         }
+        self.commit_stroke(ctx);
     }
 
     pub fn set_channel(&mut self, i: usize, val: &str) {
@@ -141,10 +146,6 @@ impl StrokePropertyEditor {
                 stroke.color.set(Color::from_rgba_0_1(c));
             });
         }
-    }
-
-    pub fn text_change(&mut self, ctx: &NodeContext, _event: Event<TextboxChange>) {
-        self.commit_stroke(ctx);
     }
 
     pub fn commit_stroke(&mut self, ctx: &NodeContext) {
