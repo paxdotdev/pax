@@ -29,12 +29,45 @@
     //For main component only, include cartridge snippet and manifest JSON
     <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
 
-    //Note: we might be able to generate the manifest def within the cartridge_snippet instead,
-    //      and save a bit of complexity.  Just depends on where else we need that manifest snippet.
-    <%= args_full_component.as_ref().unwrap().manifest_snippet %>
+    //Platform-specific mount logic for #[main] component
+    #[cfg(feature = "web")]
+    #[wasm_bindgen]
+    pub fn mount() {
+
+    }
+
+    //cdylib exports
+    #[cfg(feature = "web")]
+    pub use pax_chassis_web::*;
 
 
-// mount()
+    #[cfg(feature = "macos")]
+    pub fn mount() {
+        panic!("must reconnect macos mount logic")
+    }
+
+    //cdylib exports
+    #[cfg(feature = "macos")]
+    pub use pax_chassis_macos::*;
+
+
+    #[cfg(feature = "ios")]
+    pub fn mount() {
+        panic!("must reconnect ios mount logic")
+    }
+
+    //cdylib exports
+    #[cfg(feature = "ios")]
+    pub use pax_chassis_ios::*;
+
+    #[cfg(not(any(feature = "web", feature = "macos", feature = "ios", feature = "parser")))]
+    pub fn main() {
+        panic!("No platform specified.  Must enable one of the following features: `web`, `macos`, `ios`");
+    }
+    #[cfg(not(any(feature = "web", feature = "macos", feature = "ios")))]
+    pub fn mount() {
+        main();
+    }
 
 <% } %>
 
