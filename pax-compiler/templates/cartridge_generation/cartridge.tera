@@ -24,7 +24,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
                         let properties = if let Some(sf) = ec.stack_frame.resolve_symbol("{{ invocation.root_identifier }}") {
                             std::rc::Rc::clone(&sf)
                         } else {
-                            panic!("{{ invocation.escaped_identifier }} didn't have an {{ invocation.stack_offset }}th stackframe");
+                            panic!(); // failed to resolve symbol on specified stack frame
                         };
                         let mut borrowed = &mut *borrow_mut!(*properties);
                         {% if invocation.property_flags.is_binding_repeat_elem %}

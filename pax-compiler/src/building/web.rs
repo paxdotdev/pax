@@ -35,6 +35,12 @@ pub fn build_web_target(
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
 
+    //TODO: how to manage interface path?
+    //      previously was copied into .pax/pkg
+    //      now we can spit out from compiler — perhaps
+    //      worth doing this as this implies?
+    //      decide whether to support an ejection MVP here; maybe a way
+    //      to design elegantly and get 2 for 1
     let interface_path = ctx.project_path.join("interface");
 
     // wasm-pack build
@@ -119,7 +125,7 @@ pub fn build_web_target(
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {
         println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-        let _ = start_static_http_server(interface_path.join(PUBLIC_DIR_NAME));
+        let _ = start_static_http_server(build_dest);
     } else {
         println!(
             "{} 🗂️ Done: {} build available at {}",
