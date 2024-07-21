@@ -1,0 +1,26 @@
+[package]
+name = "bouncing-balls"
+version = "0.10.10"
+edition = "2021"
+default-run = "run"
+
+[dependencies]
+pax-engine = { version = "0.15.4" , path = ".pax/pkg/pax-engine" }
+pax-std = { version = "0.15.4" , path = ".pax/pkg/pax-std" }
+pax-compiler = { version = "0.15.4", optional = true , path = ".pax/pkg/pax-compiler" }
+pax-manifest = { version = "0.15.4" , path = ".pax/pkg/pax-manifest" }
+serde_json = {version = "1.0.95", optional = true}
+rand = { version = "0.8.5", features = ["getrandom"] }
+getrandom = { version = "0.2.15", features = ["js"] }
+
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
+
+[features]
+parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler"]
