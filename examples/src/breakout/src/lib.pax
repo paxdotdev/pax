@@ -1,0 +1,108 @@
+<Group>
+    if self.game_state == 0 {
+        if self.debug_markers {
+            <Rectangle
+                fill=RED
+                width=2px
+                height=2px
+                x={self.paddle.x}
+                y={self.paddle.y}
+            />
+        }
+        <Rectangle
+            id=paddle
+            fill={self.paddle.fill}
+            width={self.paddle.width}
+            height={self.paddle.height}
+            x={self.paddle.x}
+            y={self.paddle.y}
+            anchor_x=0%
+            anchor_y=0%
+        />
+
+        for ball in self.balls {
+            if self.debug_markers {
+                <Rectangle fill=RED width=2px height=2px x={ball.x} y={ball.y} />
+            }
+            <Ellipse
+                id=ball
+                fill={ball.fill}
+                width={2.0 * ball.radius}
+                height={2.0 * ball.radius}
+                x={ball.x}
+                y={ball.y}
+                anchor_x=50%
+                anchor_y=50%
+            />
+        }
+
+        for brick in self.bricks {
+            if self.debug_markers {
+                <Rectangle fill=RED width=2px height=2px x={brick.x} y={brick.y} />
+            }
+            <Rectangle
+                fill={brick.fill}
+                width={brick_width}
+                height={brick_height}
+                x={brick.x}
+                y={brick.y}
+            />
+        }
+    }
+
+    <Text
+        text={"Score: " + self.score}
+        x=2%
+        y=2%
+        style={
+            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 20px,
+            fill=WHITE
+        }
+    />
+
+    if self.game_state == 1 {
+        <Rectangle fill=rgba(0, 0, 0, 70) width=100% height=100% />
+        <Text
+            text="Game Over! Click to restart."
+            x=50%
+            y=50%
+            anchor_x=50%
+            anchor_y=50%
+            style={
+                font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 30px,
+                fill: WHITE,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_vertical: TextAlignVertical::Center
+            }
+        />
+    }
+
+    if self.game_state == 2 {
+        <Rectangle fill=rgba(0, 0, 0, 70) width=100% height=100% />
+        <Text
+            text={"You Won! Final Score: " + self.score + ". Click to play again."}
+            x=50%
+            y=50%
+            anchor_x=50%
+            anchor_y=50%
+            style={
+                font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 30px,
+                fill: WHITE,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_vertical: TextAlignVertical::Center
+            }
+        />
+    }
+</Group>
+
+<Rectangle id=background fill={self.background_fill} width=100% height=100% />
+
+@settings {
+    @mount: handle_mount,
+    @tick: handle_tick,
+    @mouse_move: handle_mouse_move,
+    @click: handle_click
+}
