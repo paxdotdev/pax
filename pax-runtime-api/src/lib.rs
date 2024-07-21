@@ -1072,6 +1072,23 @@ impl Color {
         )
     }
 
+    pub fn from_hex(hex: &str) -> Self {
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap() as f64 / 255.0;
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap() as f64 / 255.0;
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap() as f64 / 255.0;
+        let a = if hex.len() == 8 {
+            u8::from_str_radix(&hex[6..8], 16).unwrap() as f64 / 255.0
+        } else {
+            1.0
+        };
+        Self::rgba(
+            ColorChannel::Percent(Numeric::F64(r * 100.0)),
+            ColorChannel::Percent(Numeric::F64(g * 100.0)),
+            ColorChannel::Percent(Numeric::F64(b * 100.0)),
+            ColorChannel::Percent(Numeric::F64(a * 100.0)),
+        )
+    }
+
     // Returns a slice of four channels, normalized to [0,1]
     pub fn to_rgba_0_1(&self) -> [f64; 4] {
         match self {
