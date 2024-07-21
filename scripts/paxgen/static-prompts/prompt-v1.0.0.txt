@@ -1,0 +1,2242 @@
+# Goal
+
+You are a Large Language Model and you are prompted to help the user generate code in two languages: Rust, which should be in your training data, and PAXEL, for which relevant language information and documentation is available below.
+
+At the end of this prompt, instructions will be given to you under the header `# Instructions`. Until then, please pay close attention to the rest of this prompt as it contains critical information.
+
+# Pax & PAXEL documentation
+
+## What is Pax
+
+Pax is a framework to build user interfaces.
+
+Write application logic in Rust and declare your user interface in Pax's user interface description language, called PAXEL.
+
+Pax compiles into native desktop/mobile apps, WebAssembly-driven sites, and embeddable universal UI components.
+
+## What is PAXEL
+
+PAXEL is Pax's expression language. PAXEL is compiled by transpiling through Rust.  In practice, this is fairly straight-forward — in many cases, PAXEL and Rust are syntactically identical.
+
+PAXEL's scoping mechanism requires special consideration by Pax's compiler — for example, inside a [template `for` loop](./start-key-concepts-templates.md#for), PAXEL can refer to the scoped _predicate declaration_ (e.g. the `i` in `for i in 0..10`). 
+
+```
+//template:
+<Group>
+    for i in 0..10 {
+        //notice that PAXEL can refer to the `i` from the for loop.  This works when nesting `for` loops, too.
+        <Rectangle transform={Translate2D::translate(i * 100.0, i * 100.0)} /> 
+    }
+</Group>
+```
+
+PAXEL can also refer to symbols available on the attached Rust struct, through `self.some_symbol`, and can refer to certain cartridge "prelude imports", a [compiler-hard-encoded list]() of symbols that are imported and available to all Expressions, such as `Transform2D::*` and `Color::*` (which is where `translate()`, `scale()`, `rgba()`, etc. are defined.) .
+
+PAXEL shadows scopes, allowing stacking of scope contexts and overriding previously scoped symbols with newer/more specific references — for example, when nesting `for` loops.
+
+Finally, PAXEL can refer to the symbol representing the type of the Property associated with an expression — for example an expression bound to `some_complex_property: Property<SomeComplexType>` can use `SomeComplexType`:
+```
+#some_id {
+    some_complex_property: {
+        // The following returns a new instance of SomeComplexType.
+        // The symbol `SomeComplexType` may be used here because the Pax compiler + runtime knows
+        // that `some_complex_property`'s type is `Property<SomeComplexType>`.
+        SomeComplexType {
+            a: self.num_clicks + 5,
+            b: self.active_width,
+            c: "Hello"
+        }
+    }
+}
+```
+
+## PAXEL grammar
+
+Here is the grammar of the PAXEL language inlined in the PEST file format:
+
+```
+WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
+// Comment rule is explicit so parser doesn't accept them anywhere vs. built-ins are accepted anywhere
+comment = @{  ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
+
+
+////// ////// //////
+/// BEGIN TEMPLATE
+//////
+
+//A template is expressed as an XML-like document with support for
+//property binding, control-flow (if, for) and {}-wrapped embedded expressions
+
+//A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
+//The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration )+ ~ EOI }
+root_tag_pair = { any_tag_pair }
+any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment }
+
+//This duo describes an XML-style open-tag, like <SomeElement id="..."> 
+//and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
+//and `POP`, to match closing & opening tags
+open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair * ~ ">"}
+closing_tag = {"<" ~ "/" ~ POP ~ ">"}
+
+//Describes a (leaf-node) self-closing element, like <SomeElement />
+self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/" ~ ">"}
+
+//Describes an XML subtree surrounded by a pair of matching tags, like
+//<SomeElement>...</SomeElement>
+matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
+inner_nodes = { node_inner_content | any_tag_pair* }
+
+//Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+//Describes a symbolic identifier with an Uppercase first letter, a la PascalCase
+//Does not enforce the presence of any other uppercase letters.
+//Intended as convention for symbolic ids in expressions, e.g. `Engine`, specification
+//of explicit types in polymorphic/enum contexts (e.g. `fill: Color {...}`), and
+//for namespaced access of symbolic ids, like `Orientation::Vertical`
+pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
+
+//Describes the ID of an event to which a handler may be bound, e.g. `@pre_render`
+event_id = {"@" ~ identifier}
+
+//Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
+attribute_key_value_pair = {attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value)}
+attribute_event_binding = {event_id ~ "=" ~ literal_function}
+
+//`...=5.0`, `...={...}`
+any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
+
+// id=identifier (non-expression)
+id = {"id"}
+id_binding = {id ~ "=" ~ identifier}
+
+//For example: <Text>"This is my inner content"</Text>
+//Presumably this content can be bare literal values other than strings like Color::hlca(...)
+//It could also be an `{...}` expression
+node_inner_content = { literal_value | expression_wrapped }
+
+//string/inner/char from https://pest.rs/book/examples/json.html
+string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ inner ~ "`") }
+inner = @{ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+////// ////// //////
+/// BEGIN SETTINGS
+//////
+
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (settings_event_binding | selector_block | comment )* ~ "}"}
+selector_block = {selector ~ literal_object ~  silent_comma? }
+literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair  | comment)* ~ "}" }
+//Describes a CSS-style selector, used for joining settings to elements
+//Note: only basic `id` and `class` syntax supported for now; could be extended
+//Example: `#some-element`
+selector = {("." | "#") ~ identifier}
+
+//Describes a key-value pair in a settings block, which supports a number of formats,
+//included recursive nesting via `property_block`
+settings_key_value_pair = { (settings_key ~ settings_value) ~ silent_comma? }
+settings_event_binding = {event_id ~ ":" ~ literal_function ~ silent_comma? }
+settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
+settings_value = { literal_value | literal_object | expression_wrapped }
+
+literal_function = { ("self." | "this.")? ~ identifier }
+silent_comma = _{","}
+
+function_list = {"[" ~ literal_function* ~ "]"}
+literal_value = { literal_color | literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
+literal_boolean = {("true" | "false")}
+literal_number_with_unit = { literal_number ~ literal_number_unit }
+literal_number = {literal_number_float | literal_number_integer}
+literal_number_integer = {"-"? ~ (!(".") ~ ASCII_DIGIT)+ }
+literal_number_float = {"-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
+literal_number_unit = {("%" | "px" | "deg" | "rad")}
+literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
+literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
+
+//Enums like Orientation::Vertical
+//Note that this is parsed separately from expression enums, `xo_enum*`
+literal_enum_value = {identifier ~ ("::" ~ identifier)+ ~ ("("~literal_enum_args_list~")")?}
+literal_enum_args_list = {literal_value ~ ("," ~ literal_value)* ~ silent_comma?}
+
+////// ////// //////
+/// BEGIN COLORS
+//////
+
+//Notes on gradients:
+//  - when we support object literal syntax for gradients, can we just rely on the vanilla Rust structs instead of re-inventing
+//    an object literal syntax in the grammar?  in particular, it would be nice to support the sugared syntax of number+percentage as keys,
+//    but perhaps we could do that e.g. by desugaring `{0%: "bar", 100%: "foo" }` into `[(0%, "bar"),(100%, "foo")]`, akin to how
+//    you can construct a HashMap from a vec of k/v tuples in Rust.  Thus, you could express a LinearGradient as
+//    LinearGradient {start: (0,0), stops: {0%: RED, 100%: BLUE}, end: (100%,100%)}
+
+//Literal colors
+literal_color = {literal_color_space_func | literal_color_const}
+literal_color_space_func = {
+    (("rgb(" | "hsl(") ~ literal_color_channel ~ "," ~ literal_color_channel ~ "," ~ literal_color_channel ~ ","? ~ ")") |
+	(("rgba(" | "hsla(") ~ literal_color_channel ~ "," ~ literal_color_channel ~ "," ~ literal_color_channel ~ "," ~ literal_color_channel ~ ","? ~ ")")
+}
+// Valid units include integers 0-255, 0-100%, and arbitrary numeric deg/rad (for hue, which is expressed as an angle)
+literal_color_channel = {literal_number_with_unit | literal_number_integer}
+
+//Expression-friendly colors.  note that literal variants are covered under the xo_literal tree
+xo_color_space_func = {
+	(("rgb(" | "hsl(") ~  expression_body ~ "," ~ expression_body ~ "," ~ expression_body ~ ","? ~ ")") |
+	(("rgba(" | "hsla(") ~ expression_body ~ "," ~ expression_body ~ "," ~ expression_body ~ "," ~ expression_body ~ ","? ~ ")")
+}
+
+// Color constants inspired by Tailwind
+literal_color_const = {
+    "SLATE" |
+    "GRAY" |
+    "ZINC" |
+    "NEUTRAL" |
+    "STONE" |
+    "RED" |
+    "ORANGE" |
+    "AMBER" |
+    "YELLOW" |
+    "LIME" |
+    "GREEN" |
+    "EMERALD" |
+    "TEAL" |
+    "CYAN" |
+    "SKY" |
+    "BLUE" |
+    "INDIGO" |
+    "VIOLET" |
+    "PURPLE" |
+    "FUCHSIA" |
+    "PINK" |
+    "ROSE" |
+    "BLACK" |
+    "WHITE" |
+    "TRANSPARENT" |
+    "NONE"
+}
+
+////// ////// //////
+/// BEGIN EXPRESSIONS
+/// This sub-grammar describes PAXEL, the Pax Expression Language
+//////
+
+// Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
+// or a literal returned value like `Color { ... }` or `5`
+//
+// If we wish to include postfix operators, or e.g. refactor `px` and `%` to be treated as postfix operators,
+// the following is the order of xo that the Pratt parser expects
+// expr_with_postfix  =   { xo_prefix* ~ xo_primary ~ xo_postfix* ~ (xo_infix ~ xo_prefix* ~ xo_primary ~ xo_postfix* )* }
+expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
+
+expression_wrapped = _{
+    "{" ~ comment? ~ expression_body ~ "}"
+}
+
+expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
+
+/*
+Some examples of valid expressions:
+
+[Object construction]
+Color {h: 360, s: 1, l: 1, a: 1}
+
+[Object construction with implicit type (type enforced by downstream compiler)
+{h: 360, s: 1, l: 1, a: 1}
+
+[Boolean statements]
+num_clicks % 2 == 0
+
+[Complex statements including ternaries, grouping, logical operators, and object construction]
+(num_clicks % 2 == 0 && is_selected) ?
+    {r: 255 * color_intensity, g: 0, b: 0, a: 1} :
+    {r: 0, g: 255 * color_intensity, b: 0, a: 1}
+
+[String literals + operations]
+"Is " + (is_selected ? "" : "not ") + "selected."
+*/
+
+//`xo` is short for both "expression operator" and "expression operand", collectively all symbols
+//that can be expressed inside expressions
+
+xo_primary = _{ expression_grouped | xo_color_space_func | xo_enum_or_function_call | xo_object | xo_range | xo_tuple | xo_list | xo_literal | xo_symbol }
+
+xo_prefix = _{xo_neg | xo_bool_not}
+    xo_neg = {"-"}
+    xo_bool_not = {"!"}
+
+xo_infix = _{
+    xo_add |
+    xo_bool_and |
+    xo_bool_or |
+    xo_div |
+    xo_exp |
+    xo_mod |
+    xo_mul |
+    xo_rel_eq |
+    xo_rel_gt |
+    xo_rel_gte |
+    xo_rel_lt |
+    xo_rel_lte |
+    xo_rel_neq |
+    xo_sub |
+    xo_tern_then |
+    xo_tern_else
+}
+    xo_add = {"+"}
+    xo_bool_and = {"&&"}
+    xo_bool_or = {"||"}
+    xo_div = {"/"}
+    xo_exp = {"^"}
+    xo_mod = {"%%"}
+    xo_mul = {"*"}
+    xo_rel_eq = {"=="}
+    xo_rel_gt = {">"}
+    xo_rel_gte = {">="}
+    xo_rel_lt = {"<"}
+    xo_rel_lte = {"<="}
+    xo_rel_neq = {"!="}
+    xo_sub = {"-"}
+    xo_tern_then = {"?"}
+    xo_tern_else = {":"}
+
+xo_range = { (xo_literal | xo_symbol) ~ (xo_range_exclusive) ~ (xo_literal | xo_symbol)}
+    xo_range_exclusive = @{".."}
+//     xo_range_inclusive = @{"..="}
+
+xo_literal = {literal_color | literal_enum_value | literal_tuple_access | literal_number_with_unit | literal_number  | string | literal_tuple }
+
+//objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
+// `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`
+xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
+
+xo_object_settings_key_value_pair = { settings_key ~ expression_body  ~ silent_comma? }
+
+xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
+xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
+xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ silent_comma? ~ "]" }
+
+xo_enum_or_function_call = {identifier ~ (("::") ~ identifier)+ ~ ("("~xo_enum_or_function_args_list~")")?}
+xo_enum_or_function_args_list = {(expression_body ~ ("," ~ expression_body)* ~ silent_comma? )?}
+
+////// ////// //////
+/// BEGIN CONTROL FLOW
+//////
+
+//Control flow statements are NOT embeddable all places that expressions are.  That is, control-flow statements
+//can only sit alongside elements in a template and cannot be bound to properties.  As a result,
+//and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
+//These statements work as syntactic sugar for built-in primitives: Conditional, Repeat, and Slot.
+statement_control_flow = {(statement_if | statement_for | statement_slot)}
+
+statement_if = {"if" ~ expression_body ~ "{" ~ inner_nodes ~ "}"} //FUTURE: support else, else if
+statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_source ~ "{" ~ inner_nodes ~ "}"}
+statement_slot = {"slot" ~ ("(" ~ expression_body ~ ")")}
+
+//Examples:
+//for i | for (elem, i)
+statement_for_predicate_declaration = {
+    identifier |
+    ("(" ~ identifier ~ ","~ identifier ~")")
+}
+
+//Examples:
+// in some_symbol
+// in self.some_symbol
+// in this.Pascal_snake-kebab
+// in 0..5
+// in this.some_symbol..25
+// in 25..some_symbol
+statement_for_source = { xo_range | xo_symbol }
+```
+
+## Components
+
+The atomic unit of Pax is a `component definition`. A component definition for `MyNewComponent` may look like:
+
+```rust
+// src/lib.rs
+use pax_lang::*;
+use pax_lang::api::*;
+use pax_std::primitives::*;
+use pax_std::types::*;
+use pax_std::types::text::*;
+use pax_std::components::Stacker;
+
+#[derive(Pax)]
+#[main]
+#[file("increment-me.pax")]
+pub struct IncrementMe {
+    pub num_clicks: Property<u32>,
+    pub message: Property<String>,
+}
+
+impl IncrementMe {
+    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+        self.num_clicks.set(0);
+        self.message.set("0 clicks".to_string());
+    }
+    pub fn increment(&mut self, ctx: RuntimeContext, args: ArgsClick){
+        let old_num_clicks = self.num_clicks.get();
+        self.num_clicks.set(old_num_clicks + 1);
+        self.message.set(format!("{} clicks", self.num_clicks.get()));
+    }
+} 
+```
+```rust
+//increment-me.pax
+<Text text={self.message} class=centered class=small id=text />
+<Rectangle class=centered class=small @click=self.increment
+    fill={Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))} 
+    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+/>
+
+@handlers{
+     did_mount:handle_did_mount
+}
+
+@settings {
+     .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    } 
+    .small {
+        width: 120px
+        height: 120px
+    }
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 32px,
+                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
+```
+
+
+You can think of the component definition as a package for a number of different interconnected pieces.
+
+
+Inside a component definition, there may be:
+
+ - A [Template](./start-key-concepts-templates.md)
+ - [Settings](./start-key-concepts-properties-settings.md) and [Expressions](./start-key-concepts-expressions.md)
+ - [Property Definitions](./start-key-concepts-properties-settings.md)
+ - [Event Handlers](./start-key-concepts-event-handlers.md)
+
+A component definition centers around a _Rust struct_, to which a piece of Pax is attached to through the macro `derive(Pax)`. Pax can either be attached inline using the `inlined()` attribute or link to a `.pax` file using the `file()` attribute using a relative path. For example, the following defines an empty component called `EmptyComponent`:
+
+```rust
+use pax_lang::api::*;
+use pax_std::primitives::Group;
+
+#[derive(Pax)]
+#[inlined(<Group />)] //a one-element template, simply an empty Group
+pub struct EmptyComponent {
+    //no properties
+}
+```
+
+Any component created in Pax can be used inside other components — for example, `EmptyComponent` can be imported and used in another component's template like:
+
+```rust
+use pax_lang::api::*;
+use crate::EmptyComponent;
+
+#[derive(Pax)]
+#[inlined(<EmptyComponent />)] //another one-element template, ultimately still not rendering anything
+pub struct StillEmptyComponent {
+    //no properties
+}
+```
+
+This "components all the way down" pattern may be familiar if you have used a GUI framework like React or Vue. 
+
+This is essentially how you define a Pax Component. The only exception is the root component which is signified with the `main` attribute and lives in the root `lib.rs`.
+
+Notice that Pax builds off of Rust's import and namespace resolution mechanisms, so importing `crate::EmptyComponent` to a `.rs` file means that you can use `<EmptyComponent />` inside a template in that file.
+
+## Templates
+
+A component's _template_ describes that component's _content_ and _hierarchy_.  
+
+Example template:
+```
+<Group>
+    <Rectangle />
+</Group>
+```
+
+Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  A component's template is made up of other components.
+
+
+### Control flow
+
+Templates are not just static -- they allow three kinds of control-flow, affecting the tree structure of the template based on certain data conditions.
+
+##### `if`
+
+`if` allows turning on or off a subtree of a template dynamically, based on a boolean condition.  For example:
+
+
+```rust
+use pax_lang::api::*;
+use crate::{DetailsView, SummaryView};
+
+##[derive(Pax)]
+##[inlined(
+    <Group>
+        if self.should_show_details {
+            <DetailsView />
+        } else {
+            <SummaryView />
+        }
+    </Group>
+)]
+pub struct IfExample {
+    pub should_show_details: Property<bool>
+}
+```
+
+Internally, Pax handles evaluation of the `if` condition as an Expression, via the primitive `Conditional`.  
+
+##### `for`
+
+`for` allows repeating of template elements dynamically based on data.  
+
+For example:
+
+
+
+```rust
+use pax_lang::api::*;
+use pax_std::layout::{Stacker, StackerDirection};
+use crate::DeviceRecord;
+
+
+##[derive(Pax)]
+##[inlined(
+    <Stacker>
+        for device_record in self.connected_devices {
+            <Stacker direction=StackerDirection::Vertical cells=3>
+                <Text text={device_record.id}></Text>
+                <Text text={device_record.name}></Text>
+                <Text text={device_record.load_capacity}></Text>
+            </Stacker>
+        }
+    </Stacker>
+)]
+pub struct ForExample {
+    pub connected_devices: Property<Vec<DeviceRecord>>
+}
+```
+
+Internally, Pax handles the `for` range declaration as an Expression, via the primitive `Repeat`.  
+
+
+##### `slot`
+`slot` allows a component to _defer its content_ at a certain place in its template.  Specifically, it _defers its content_ to the component's instantiator.
+
+For a practical example, consider `<Stacker />`.  When you use a Stacker, you pass children into it, like:
+```rust
+//src/slot-example.rs
+##[derive(Pax)]
+##[inlined(
+    <Stacker>
+        <Rectangle id=a />
+        <Rectangle id=b />
+        <Rectangle id=c />
+    </Stacker>
+)]
+pub struct SlotExample {}
+```
+
+When `Stacker` renders, like any component, it will render the elements declared in its template, from `/pax-std/.../stacker.rs`.  However, the above rectangles are NOT in Stacker's template; they are declared in `SlotExample`'s template in `./slot-example.rs`.  
+
+How do we "teleport" these `Rectangle`s from `SlotExample`'s template into `Stacker`?  The answer is `slot`.
+
+If you pop open the source code for `Stacker`, you will find that it uses the `slot` keyword in its template, along with an index specifying "which indexed child should go in this slot."
+
+If we were to write a new simplified `Stacker` that only accepts three children, its template might look like:
+
+```rust
+<Frame id=cell_0>
+    slot(0) //the 1st child to an instance of this component will get mounted here
+</Frame>
+<Frame id=cell_1>
+    slot(1) //the 2nd child to an instance of this component will get mounted here
+</Frame>
+<Frame id=cell_2>
+    slot(2) //the 3rd child to an instance of this component will get mounted here
+</Frame>
+```
+
+Because `slot`, like `if` and `repeat`, is evaluated as an expression, you can also pass symbol values (expressions) into `slot`s arguments.  This is how the real Stacker accepts `i` dynamic children via `slot`, with a template like: 
+
+```rust
+for (elem, i) in self.computed_layout_spec {
+    <Frame x={elem.x_px} y={elem.y_px} width={elem.width_px} height={elem.height_px}>
+        slot(i)
+    </Frame>
+}
+```
+
+## Properties and settings
+
+`Properties` and `Settings` are two sides of the same idea, so they share a chapter in this book. Recall that the atomic unit of Pax is the component. Components pass data to each other through `properties` and `settings`.
+
+### Properties
+
+`Properties` could be summarized as _inputs_ to a component — they are the _properties_ of a component that are exposed to consumers.  For example, `Stacker`, the layout component, exposes a property `direction`, which dictates whether `Stacker` lays out its cells horizontally or vertically.
+
+Properties are also used internally within a component as state containers, similar in purpose to [`state` in React](https://reactjs.org/docs/state-and-lifecycle.html).  A component's properties may be referred to by any of that component's expressions like: `{self.some_property && self.some_other_property}`
+
+Properties are defined on Rust structs, such as `counter` below:
+
+```rust
+use pax_lang::api::*;
+
+##[derive(Pax)]
+##[inlined(
+    <Text text={counter}></Text>
+)]
+pub struct MyComponent {
+    counter: Property<i64>,
+}
+```
+
+Notice that `counter` is a member of a Pax-attached Rust struct, with a `pax_lang::api::Property<T>` wrapper around its type.
+
+<!-- appendix?:  In the above example, the component `MyComponent` will expose the property `counter`.  Note that the `Property<T>` wrapper type is not necessary for compilation, but `Property<T>` _is_ necessary for Pax to be able to access that property through Expressions, Settings, and Defaults.  In other words, you can make a struct property "private" from Pax by omitting the `Property<T>` wrapper. -->
+
+<!--
+##### Property Defaults
+
+TODO: !!Not yet implemented!! Defaults can be set for a component by declaring a `@default{}` block, including a list of Pax settings.  A default value is the initial value for a property, in the case where no settings are applied.
+
+
+```rust
+use pax_lang::api::*;
+
+##[pax(
+    //... some content
+
+    @defaults { // !!@defaults support is not yet implemented!!
+        counter: 42 // if a consumer of `<MyComponent />` doesn't set `counter`,
+                    // the value will default to 42
+    }
+)]
+pub struct MyComponent {
+    counter: Property<i64>,
+}
+```
+-->
+
+### Settings
+
+`Settings` are declarations of values.  If `Properties` are _inputs_ to a component, then `Settings` are _outputs_.  When composing the definition of a component or program, you _set_ the properties of any element in order to specify behavior or appearance.  
+
+Building off of the `Stacker` example above, any component that instantiates a `Stacker` in its template has the opportunity to apply a _setting_ to `Stacker`, to _set_ its `direction` property.
+
+Let's use the above component inside a new component, `AnotherComponent`.
+
+```rust
+use pax_lang::api::*;
+use crate::MyComponent;
+
+##[pax(
+    <MyComponent counter={self.num_clicks * 2} />
+)]
+pub struct AnotherComponent {
+    num_clicks: Property<i64>,
+}
+```
+
+In this example, `MyComponent`'s `counter` property gets _set_ — the declaration of a value, in this case an expression `{self.num_clicks * 2}`, is a _setting_.  
+
+Settings declarations may either be literal values or expressions.  `counter=5` would be another valid setting for the example above.
+
+#### Declarative Settings Syntax
+
+Settings can be declared with two different syntaxes: `inline settings` or `settings block` syntax.  Each syntax has access to the exact same properties, and `expressions` can be bound in either place.
+
+##### Inline Settings
+
+Inline settings are authored _inline_ into a template definition.  You might recognize this syntax as nearly identical to _XML attributes_.  Example:
+
+```pax
+//inside a template definition
+<SomeComponent some_property="SomeSetting" />
+```
+
+Unlike XML, Pax's inline settings syntax supports values beyond string literals, such as enums, symbolic identifiers, and numeric literals.  Pax inline settings may also be bound to expressions, wrapped in `{}`, such as:
+```pax
+//`self.current_width` refers to a property from the attached Rust struct, not shown here.
+<Rectangle width={self.current_width} height={self.current_width * 1.5} />
+```
+
+##### Settings blocks
+
+As an alternative to inline syntax, settings may be authored in a CSS-like syntax, binding a block of settings to an element by id.  For example:
+
+```rust
+##[pax(
+    <Rectangle id=my_rect>
+
+    @settings {
+        ##my_rect {
+            fill: rgb(100%, 100%, 0)
+        }
+    }
+)]
+```
+
+Every property that is available inline is also available in the settings block syntax, and settings can be mixed and matches across syntaxes.
+
+<!-- TODO: document `@linux { ... }` and @{some_exp}{ ... } etc., media-query-like settings sections -->
+
+##### Settings precedence 
+
+When both an inline setting and a setting block apply settings for the same property, the inline setting takes precedence.  This "cascading" behavior is inspired by HTML and CSS.  When a `property` is `set` at runtime, the latest set value takes precedence.  
+
+
+#### Setting Properties at Runtime
+
+For a `Property<T>`, the following API is exposed to Rust logic at runtime:
+
+##### `.set`
+
+Set a property value
+
+##### `.ease_to`
+
+Ease a property value over time with an easing curve (generally, for animation)
+
+##### `.ease_to_later`
+
+Same as `ease_to`, but enqueues the specified transition to occur after all currently enqueued transitions are completed.
+
+## Expressions
+
+```jsx
+<Rectangle transform={
+    rotate(engine.frames_elapsed / 200.0) *
+    translate(in.mouse_x, in.mouse_y)
+}/>
+```
+
+Consider the above snippet of Pax.  If you're familiar with a templating language like JSX, you might expect that the Expression code within the braces above `{ ... }` is inline Rust code.  In fact, this code has many syntactic similarities with Rust, but it is not Rust.
+
+It is [PAXEL](./reference-paxel.md) — part of Pax, a special-purpose language for declaring computed properties in the spirit of spreadsheet formulas.
+
+Anytime you write in between `{}`s in Pax, you are writing PAXEL.  You can create a PAXEL Expression anywhere you can declare a settings value, in `template` definitions or in `@settings` blocks.
+
+For example the expression `self.activeColor.adjustBrightness(50%)` might live in a template:
+
+```
+<Rectangle fill={ self.activeColor.adjustBrightness(50%) } />
+```
+or in a settings block:
+```
+@settings {
+  #my_rectangle {
+    fill: { self.activeColor.adjustBrightness(50%) }
+  }
+}
+```
+
+Pax expressions are ultimately compiled to machine code (WASM or LLVM), and the Pax runtime manages each expression as its own compiled function in a vtable.
+
+Because Pax Expressions are pure, side-effect-free functions, the Pax runtime can (one day) make aggressive optimizations: caching values
+and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable, a prospective future performance optimization.
+
+You can read more about PAXEL, the Pax Expression Language, [in this chapter](./reference-paxel.md).
+
+## Coordinate System & Transforms
+
+Pax's coordinate system is "top-left origin; right is positive x; down is positive y"
+
+<!-- TODO: image illustrating coordinate system -->
+
+### Affine transforms (Transform2D)
+
+The way elements get positioned, sized, and moved around in Pax is through the powerful `transform` property.  This property is nearly ubiquitous across the landscape of GUI and graphical development tools (such as `matrix3d()` in CSS), but it tends to be more front-and-center in game engines than it is in UI layout systems.
+
+Perhaps the easiest way to think about Pax's transform model is "design tool coordinates."  That is, when you select an element in a vector design tool like Figma, Sketch, or Illustrator, you can: _drag_ it (`translate`), _resize_ it (`scale`), _rotate_ it, and _skew_ it (with a combination of rotation and scale.)  Each of these operations can be expressed in Pax, as well.
+
+```xml
+<Group id=a transform=rotate(150deg)>
+    <Rectangle id=b transform=translate(50px, 50px) />
+    <Rectangle id=c transform=scale(150%, 150%) />
+</Group>
+```
+
+In the above example, rectangle `b` will be moved 50px to the right and 50px down.  The rectangle `c` will be 150% the width & height of its default values.  And the group `a` will be rotated 150 degrees — which, in fact, ends up rotating both of the rectangles as well.  Read more about this below in [combining transformations.](#combining-transformations)
+
+
+### Common Properties
+
+In most cases when you don't need to sequence a bunch of transforms in a specific way, you can set the property directly on the template node. 
+
+There are a set of 13 properties on every template node. 
+
+1. **`id`**: A unique identifier for an element, used to reference it within scripts or CSS-like stylesheets.
+
+2. **`x`**: The x-coordinate of the element's anchor point in pixels or percentage relative to its container. Determines the horizontal position.
+
+3. **`y`**: Similar to `x`, this sets the y-coordinate of the element's anchor point, determining the vertical position.
+
+4. **`scale_x`**: Controls the width scaling factor of the element. A value of 1 means no scaling, less than 1 means a reduction, and greater than 1 means an enlargement.
+
+5. **`scale_y`**: Controls the height scaling factor of the element. Works similarly to `scale_x`, affecting vertical dimensions.
+
+6. **`skew_x`**: Applies a horizontal skew transformation to the element, distorting it along the x-axis. The skew angle is specified in degrees.
+
+7. **`skew_y`**: Applies a vertical skew transformation to the element, distorting it along the y-axis. Like `skew_x`, the angle is specified in degrees.
+
+8. **`anchor_x`**: Sets the horizontal part of the element's anchor point, which affects transformations like rotation and scaling. It can be defined in pixels or as a percentage of the element’s width.
+
+9. **`anchor_y`**: Sets the vertical part of the element's anchor point. Similar to `anchor_x`, but for the vertical dimension.
+
+10. **`rotate`**: Specifies the rotation of the element around its anchor point, in degrees. Positive values rotate clockwise, while negative values rotate counterclockwise.
+
+11. **`transform`**: A powerful property that allows for a combination of transformations—translate, scale, rotate, and skew—applied in a specific order to the element.
+
+12. **`width`**: Sets the width of the element, either in pixels or as a percentage of the container's width, allowing for responsive design.
+
+
+### Anchor & Align
+Pax's coordinate system has a notion of `anchor` — letting you set the anchored origin point for transformations.  For example, using `anchor` you can cause a rectangle to be rotated around its top-left corner, vs. rotated around its center-point.  
+
+<!-- TODO: insert image of an Anchor UI, e.g. from Flash/AI/Figma -- or animated example -->
+
+Pax's layout system also allows positions (`x` and `y`) to be expressed as pixel values, as percentage values of their container for responsive alignment, or as a combination of multiple pixel / percent values (via PAXEL expressions.)
+
+For example, `<SomeElement x=50% y=50% />` will position an element's anchor at the center of its container.  `<SomeElement x=5px y={50% + 5px}>` shows both a literal pixel value for x and a combination of multiple units using PAXEL (50% of container's width, plus an additional 5px).
+
+<!-- TODO: insert image illustrating alignment relative to parent container -->
+
+The combination of `anchor` and `align` offers powerful, fine-grained positioning, well suited to responsive design for varying screen sizes.
+
+
+
+### Combining transformations
+
+What happens when you want to both resize AND rotate an element?  You must _combine transformations_.  Depending on your needs, there are two broad ways to combine transformations:
+
+#### 1. Hierarchical composition
+
+When you transform an element that can contain other elements -- such as a `<Group>...</Group>`, all of its children elements will _inherit_ that transformation as a starting point.  For example:
+
+```
+<Group id=groo >
+    <Rectangle id=ree />
+</Group>
+```
+
+If a `transform` is applied to the group `groo`, such as a translation by 50px to the right, all descendants (in this case, the rectangle `ree`) will also be automatically translated by 50px to the right.  This translation occurs _after_ all of `ree`'s transform logic is calculated, and is handled by Pax's core layout engine.
+
+This notion of hierarchical transformation may by familiar if you have used the `group` functionality of a vector design tool — specifically the behavior of individual grouped elements when you drag, rotate, or resize the whole group.  As an exercise, try making a nest multiple layers deep of groups in a vector design tool, and observe what happens to individual elements and groups when you transform the entire container.
+
+#### 2. Matrix multiplication
+
+Often times, you will want to combine transformations on a single element, without using any sort of nesting.  In these cases, you will want to _multiply transforms._  This entails two steps:
+
+  1. use an expression (`{...}`) for the transform value, and
+  2. multiply different affine operations within that expression
+
+The reason multiplication is the combinational operator for transformations stems from linear algebra, where _matrix multiplication_ describes the sequential combination of _affine transformation matrices._
+
+An example of combining multiple transformations with matrix multiplication:
+
+```jsx
+<Rectangle width=100px height=200px transform={
+    rotate(100deg) *
+    translate(100px, 100px) *
+    scale(200%, 200%)
+} />
+```
+
+In the above, the 100px square will be rotated, then translated (moved), then scaled (resized).
+
+A few important notes about matrix multiplication:
+
+ 1. Order matters — for example `translate() * rotate()` will generally yield different behavior vs. `rotate() * translate()`.
+ 2. You can combine the same operation multiple times — for example `scale() * scale()` or `rotate() * scale() * rotate()`
+ 3. Since these multiplications happen in an `expression` context, you may also use symbolic `properties` in these expressions — for example `rotate(self.base_rotation * self.rotation_multiplier)` or `scale(self.scale_mult) * rotate(self.active_rotation)`
+
+
+Organizationally, you may find that it is useful to combine hierarchical grouping with matrix multiplication in different ways.  You may also make use of helper methods which can return dynamic or pre-computed transformations.  Finally, the use of layout components (such as `pax-std`'s `Stacker`, or components that you may author yourself) allow abstraction of complex positioning and resizing logic.
+
+## Event handlers
+
+```rust
+##[pax(
+    <Rectangle @click=self.handle_click>
+)]
+pub struct HelloEvents {}
+impl HelloEvents {
+    pub fn handle_click(&mut self, _ctx: &NodeContext, args: Event<Click>) {
+
+    }
+}
+```
+
+In the above example, `on_click=self.handle_click` binds a the `handle_click` method defined in the host codebase to the built-in `click` event which Pax fires when a user clicks the mouse on this element.
+
+Events fire as "interrupts" and are allowed to execute arbitrary, side-effectful, imperative logic — anything you can write or use in Rust.
+
+It is inside event handlers that you will normally [change property values](./start-key-concepts-properties-settings.md##settings-at-runtime), using `.set` or `.ease_to`.
+
+Pax includes a number of built-in user interaction events like `@click` and `@tap`.  These can all be bound and handled in the same manner.
+
+There are two types of events in Pax:
+
+### Lifecycle Events
+
+Lifecycle events run at the various points of the lifecycle a component. 
+
+Lifecycle events are registered in a settings block on a Pax Template:
+
+```rust
+##[pax(
+    <Rectangle>
+    
+    @settings {
+        @tick: handle_tick
+    }
+)]
+pub struct HelloEvents {}
+impl HelloEvents {
+    pub fn handle_tick(&mut self, _ctx: &NodeContext) {
+
+    }
+}
+
+```
+
+Pax exposes three lifecycle events:
+
+#### Tick
+
+Tick is a fundamental unit of pax-engine, similar to a clock cycle. If you want a computation to happen every frame, you likely want to put it in the tick method. 
+
+#### Mount
+
+Mount runs whenever a component is placed in the scene. It should run once per component. 
+
+#### Pre-render
+
+Pre-render runs every frame like tick but right before the component is rendered. 
+
+
+### Input Events
+
+Input events run when user's interact with the Pax UI.
+
+Here's an example of adding click handler to the HelloEvents component: 
+
+```rust
+##[pax(
+    <Rectangle @click=self.handle_click>
+)]
+pub struct HelloEvents {}
+impl HelloEvents {
+    pub fn handle_click(&mut self, _ctx: &NodeContext, args: Event<Click>) {
+
+    }
+}
+```
+
+You can attach an input event handler to any node in a template with an inline binding (`@name_of_event=name_of_function`) on the tag. The associated function is implemented in the Component's impl block as seen above. The arguments for all events can be found [here](https://github.com/paxengine/pax/blob/51ed9d6be8e497f6e6eb54e93c9f0c983b283924/pax-runtime-api/src/lib.rs##L86). 
+
+Pax supports the following input events:
+- Scroll (@scroll)
+- Clap (@clap)
+- TouchStart (@touch_start)
+- TouchMove (@touch_move)
+- TouchEnd (@touch_end)
+- KeyDown (@key_down)
+- KeyUp (@key_up)
+- KeyPress (@key_press)
+- CheckboxChange (@checkbox_change)
+- ButtonClick (@button_click)
+- TextboxChange (@textbox_change)
+- TextInput (@text_input)
+- TextboxInput (@textbox_input)
+- Click (@click)
+- MouseDown (@mouse_down)
+- MouseUp (@mouse_up)
+- MouseMove (@mouse_move)
+- MouseOver (@mouse_over)
+- MouseOut (@mouse_out)
+- DoubleClick (@double_click)
+- ContextMenu (@context_menu)
+- Wheel (@wheel)
+
+## Primitives
+
+Primitives are a special case of `component` — with direct access to the engine, runtime, and rendering context.  Primitives are authored in pure Rust, without any Pax language sugar: templates, expressions, or settings.
+
+Most of Pax's included primitives are housed in the standard library, including: `<Group />`, `<Rectangle />`, `<Frame />`, and `<Image />`.  
+
+The built-in constructs for control flow, like `if` (`Conditional`) and `for` (`Repeat`) are implemented as primitives, too, with special handling by the engine.
+
+
+### Using & Authoring Primitives
+
+**Using** primitives is easy.  Any place you can use a component in a template, you can use a `primitive` instance in exactly the same way.  For example, `<Stacker />` is a component, but `<Rectangle />` is a primitive.  They are consumed the same way.
+
+**Authoring** primitives is more advanced.  More thorough documentation could be written, but for now refer to `pax-std/pax-std-primitives/src/*` and `pax-std/src/lib.rs`.  Primitives are authored in an engine-adjacent context, where certain imports are disallowed to avoid circular dependencies.  
+
+This complexity is due to Pax's [compilation model](/reference-compilation-model), where the userland logic is ultimately a _dependency of_ the engine, instead of the other way around.  This is normally papered over when writing normal components and applications — the compiler handles this dependency inversion.
+
+One more way to think of the above, through the [NES cartridge model](): Primitives are authored in the context of the _console_ rather than the context of _cartridges_.
+
+Primitives are exposed cartridge-side (e.g. for importing and using `<Group />`) through the `pax_primitive` macro — you can find examples of this in `pax-std/src/lib.rs`.
+
+# Examples
+
+In order to greatly improve your ability to generate valid and high-quality Pax code, valid examples of user interfaces built in Pax are included below. Feel free to quote any relevant sections if it helps you write better code or reason more precisely.
+
+## Example: `mouse-animation`
+
+### File: `lib.rs`
+
+```rust
+#![allow(unused_imports)]
+
+pub mod path_animation;
+use path_animation::PathAnimation;
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+
+use pax_engine::math::Generic;
+use pax_engine::math::Point2;
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct Example {
+    pub scroll: Property<f64>,
+}
+
+impl Example {
+    pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
+        let (_, h) = ctx.bounds_self.get();
+        let part = event.mouse.y / h;
+        self.scroll.set(part);
+    }
+}
+
+```
+
+### File: `path_animation.pax`
+
+```paxel
+<Path
+	fill={self.fill}
+	elements={self.path_elements}
+/>
+
+```
+
+### File: `path_animation.rs`
+
+```rust
+#![allow(unused_imports)]
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+
+use core::f64::consts::PI;
+use pax_engine::math::Generic;
+use pax_engine::math::Point2;
+
+#[pax]
+#[custom(Default)]
+#[file("path_animation.pax")]
+pub struct PathAnimation {
+    pub t: Property<Numeric>,
+    pub resolution: Property<Numeric>,
+    pub path_config: Property<PathConfig>,
+    pub fill: Property<Color>,
+
+    //private path elements
+    pub path_elements: Property<Vec<PathElement>>,
+}
+
+impl Default for PathAnimation {
+    fn default() -> Self {
+        let fill = Property::new(Color::RED);
+        let t: Property<Numeric> = Property::new(0.0.into());
+        let resolution: Property<Numeric> = Property::new(60.into());
+        let path_config = Property::new(PathConfig {
+            amplitude: Property::new(0.3.into()),
+            amplitude_ramp: Property::new(0.3.into()),
+            frequency: Property::new(1.0.into()),
+            frequency_ramp: Property::new(1.0.into()),
+            thickness: Property::new(0.01.into()),
+            thickness_ramp: Property::new(0.3.into()),
+            span: Property::new(0.3.into()),
+        });
+
+        let path_elements = {
+            let t = t.clone();
+            let resolution = resolution.clone();
+            let path_config = path_config.clone();
+            let deps = [t.untyped(), resolution.untyped(), path_config.untyped()];
+            Property::computed(
+                move || {
+                    let profile = |t: f64| t * (t - 1.0);
+                    let conf = path_config.get();
+                    let path = |t: f64| PathPoint {
+                        point: Point2::<Generic>::new(
+                            t,
+                            0.5 + (conf.amplitude.get().to_float()
+                                + conf.amplitude_ramp.get().to_float() * t)
+                                * ((conf.frequency.get().to_float()
+                                    + conf.frequency_ramp.get().to_float() * t)
+                                    * t
+                                    * PI
+                                    * 2.0)
+                                    .sin(),
+                        ),
+                        thickness: conf.thickness.get().to_float()
+                            + conf.thickness_ramp.get().to_float() * t,
+                    };
+                    parametric_path(
+                        resolution.get().to_int() as usize,
+                        path,
+                        profile,
+                        conf.span.get().to_float(),
+                        t.get().to_float(),
+                    )
+                },
+                &deps,
+            )
+        };
+
+        Self {
+            fill,
+            path_config,
+            t,
+            resolution,
+            path_elements,
+        }
+    }
+}
+
+#[pax]
+pub struct PathConfig {
+    pub amplitude: Property<Numeric>,
+    pub amplitude_ramp: Property<Numeric>,
+    pub frequency: Property<Numeric>,
+    pub frequency_ramp: Property<Numeric>,
+    pub thickness: Property<Numeric>,
+    pub thickness_ramp: Property<Numeric>,
+    pub span: Property<Numeric>,
+}
+
+struct PathPoint {
+    point: Point2,
+    thickness: f64,
+}
+/// Takes a parametric function that describes a path:
+/// path_points: parametric value (0.0 to 1.0) -> point on path + thikness modifier
+/// path_profile: parametric value (0.0 to 1.0) -> thickness at point
+/// span: how large part of the path is drawn at any one time?
+/// returns: a function that given a time (0.0 to 1.0), gives back a path
+fn parametric_path(
+    resolution: usize,
+    path_points: impl Fn(f64) -> PathPoint,
+    path_profile: impl Fn(f64) -> f64,
+    span: f64,
+    t: f64,
+) -> Vec<PathElement> {
+    let r90 = Rotation::Degrees(90.into());
+    let ran = 0..=resolution;
+    let l: Vec<_> = ran
+        .map(|v| {
+            let s = v as f64 / resolution as f64; //0.0 to 1.0
+            let mut p = path_points(s * span + (1.0 - span) * t);
+            p.thickness *= path_profile(s);
+            p
+        })
+        .collect();
+    let mut normals = Vec::with_capacity(l.len());
+    for i in 0..l.len() {
+        normals.push(
+            match (l.get(i.overflowing_sub(1).0), l.get(i), l.get(i + 1)) {
+                (Some(a), Some(b), Some(c)) => {
+                    (a.point.lerp_towards(b.point, 0.95) - c.point.lerp_towards(b.point, 0.95))
+                        .rotate(r90.clone())
+                        .normalize()
+                        * b.thickness
+                }
+                (Some(a), Some(b), None) => {
+                    (a.point - b.point).rotate(r90.clone()).normalize() * b.thickness
+                }
+                (None, Some(a), Some(b)) => {
+                    (a.point - b.point).rotate(r90.clone()).normalize() * a.thickness
+                }
+                _ => panic!("unexpected"),
+            },
+        );
+    }
+
+    // adding/subtracting normals from path points give two lines offset by the same amount from the center
+    let top = l.iter().zip(normals.iter()).map(|(a, &b)| a.point + b);
+    let bottom = l.iter().zip(normals.iter()).map(|(a, &b)| a.point - b);
+
+    // Now join top and bottom to create pathelements
+    let mut elements: Vec<_> = top
+        .chain(bottom.rev())
+        .flat_map(|p| {
+            [
+                PathElement::point(
+                    Size::Percent((100.0 * p.x).into()),
+                    Size::Percent((100.0 * p.y).into()),
+                ),
+                PathElement::line(),
+            ]
+        })
+        .collect();
+    // remove last line
+    elements.pop();
+    // instead close the loop
+    elements.push(PathElement::close());
+    elements
+}
+
+```
+
+### File: `lib.pax`
+
+```paxel
+<Text x=50% y=50% text="Move mouse up & down" id=text/>
+<Group anchor_x=50% anchor_y=50% x=50% y=50% width=200% rotate=20deg>
+	for i in 0..12 {
+		<PathAnimation rotate={(i*40)deg}
+			x=50%
+			y=50%
+			path_config={
+			    amplitude: {0.03 + 0.1 * i*(i-12.0)/10.0},
+				amplitude_ramp: {0.2 + i*0.01},
+				frequency: 2.0,
+			    frequency_ramp: {0.1*i},
+			    thickness: {0.07 - 0.01*i/5.0},
+			    thickness_ramp: {0.02 - i/5.0*0.01},
+			    span: {0.1 + 0.1*i/10.0},
+			}	
+		    t={2.0*self.scroll - i/20.0}
+			fill={hsla(40.0*i, 150, 160 + 5*i, 100)}
+		/>
+	}
+</Group>
+
+@settings {
+	@mouse_move: on_mouse_move
+    #text {
+        style: TextStyle {
+            font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 40px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
+    }
+}
+
+```
+
+## Example: `fireworks`
+
+### File: `fireworks.pax`
+
+```paxel
+<Group @wheel=self.handle_wheel >
+    for i in 1..60 {
+        <Rectangle class=rect width=300px height=300px />
+    }
+</Group>
+
+@settings {
+    @tick: handle_tick
+}
+
+@settings {
+    .rect {
+        fill: {hsl((i * 5.0 + ticks)deg, 85%, 55%)},
+        rotate: {((i * rotation * 40) + (ticks / 1.5))deg},
+        scale_x: {
+            (
+                50 *
+                (0.75 + (i * i * 0.08 * rotation)) *
+                (1 - ((rotation / 3) + i / 100.0))
+            )%
+        },
+        scale_y: {
+            (
+                50 *
+                (0.75 + (i * i * 0.08 * rotation)) *
+                (1 - ((rotation / 3) + i / 100.0))
+            )%
+        },
+        x: 50%,
+        y: 50%,
+    }
+}
+
+```
+
+### File: `lib.rs`
+
+```rust
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::primitives::*;
+
+#[pax]
+#[main]
+#[file("fireworks.pax")]
+pub struct Fireworks {
+    pub rotation: Property<f64>,
+    pub ticks: Property<usize>,
+}
+
+const ROTATION_COEFFICIENT: f64 = 0.00010;
+
+impl Fireworks {
+    pub fn handle_wheel(&mut self, _ctx: &NodeContext, args: Event<Wheel>) {
+        let old_t = self.rotation.get();
+        let new_t = old_t - args.delta_y * ROTATION_COEFFICIENT;
+        self.rotation.set(f64::max(0.0, new_t));
+    }
+
+    pub fn handle_tick(&mut self, _ctx: &NodeContext) {
+        let old_ticks = self.ticks.get();
+        self.ticks.set(old_ticks + 1);
+    }
+}
+
+```
+
+## Example: `particles`
+
+### File: `ball.pax`
+
+```paxel
+<Ellipse class=ball />
+
+@settings {
+    @mount: handle_mount,
+    @tick: handle_tick,
+
+    .ball {
+        anchor_x:50%
+        anchor_y:50%
+        fill: { hsla(hue, 85%, 50%, 55%) }
+        stroke: WHITE,
+        width: { (diameter)px }
+        height: { (diameter)px }
+    }
+}
+
+```
+
+### File: `lib.rs`
+
+```rust
+#![allow(unused_imports)]
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+use rand::random;
+
+mod ball;
+use crate::ball::Ball;
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct Example {
+    pub particles: Property<Vec<Particle>>,
+}
+
+pub const PARTICLE_COUNT: usize = 200;
+pub const LOOP_FRAMES: f64 = 200.0;
+impl Example {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        let bounds_parent = ctx.bounds_parent.get();
+        self.particles.set(
+            (0..PARTICLE_COUNT)
+                .map(|i| Particle {
+                    x: random::<f64>() * bounds_parent.0,
+                    y: random::<f64>() * bounds_parent.1,
+                    magnitude: random::<f64>(),
+                })
+                .collect(),
+        );
+    }
+    pub fn handle_tick(&mut self, ctx: &NodeContext) {}
+}
+
+#[pax]
+#[custom(Defaults)]
+pub struct Particle {
+    pub x: f64,
+    pub y: f64,
+    pub magnitude: f64,
+}
+
+```
+
+### File: `lib.pax`
+
+```paxel
+
+for (p,i) in self.particles {
+    <Ball index={i} magnitude={p.magnitude} x={p.x} y={p.y}  />
+}
+<Rectangle fill=SLATE />
+
+@settings {
+    @mount: handle_mount
+    @tick: handle_tick
+}
+
+```
+
+### File: `ball.rs`
+
+```rust
+use pax_engine::api::*;
+use pax_engine::*;
+
+use pax_std::primitives::*;
+use rand::random;
+
+#[pax]
+#[file("ball.pax")]
+pub struct Ball {
+    /// Expected [0,1]
+    pub magnitude: Property<Numeric>,
+    pub diameter: Property<Numeric>,
+    pub hue: Property<Numeric>,
+    pub index: Property<Numeric>,
+}
+
+impl Ball {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self.update(ctx);
+    }
+
+    pub fn update(&mut self, ctx: &NodeContext) {
+        if ctx.frames_elapsed.get() % (crate::LOOP_FRAMES as u64) == 0 {
+            let magnitude = self.magnitude.get().to_float();
+            self.magnitude.set(random::<f64>().into());
+
+            let d_base = 155.0 + (magnitude * 75.5);
+            let d_steady = Numeric::from(d_base);
+            let d_lower = Numeric::from(0.85 * d_base);
+            let d_upper = Numeric::from(1.15 * d_base);
+
+            let h_base = magnitude * 55.0 + 270.0;
+            let h_steady = Numeric::from(h_base);
+            let h_lower = Numeric::from(0.85 * h_base);
+            let h_upper = Numeric::from(1.25 * h_base);
+
+            let seq_progress_0_1 = self.index.get().to_float() / (crate::PARTICLE_COUNT as f64);
+
+            let delay_frames: u64 =
+                ((1.0 - seq_progress_0_1) * (random::<f64>() * crate::LOOP_FRAMES)) as u64;
+
+            self.diameter
+                .ease_to(0.into(), delay_frames, EasingCurve::Linear);
+            self.diameter
+                .ease_to_later(d_lower, 20, EasingCurve::OutQuad);
+            self.diameter
+                .ease_to_later(d_upper, 40, EasingCurve::OutQuad);
+            self.diameter
+                .ease_to_later(d_steady, 40, EasingCurve::InQuad);
+
+            self.hue
+                .ease_to(h_lower, delay_frames, EasingCurve::OutQuad);
+            self.hue.ease_to_later(h_upper, 40, EasingCurve::OutQuad);
+            self.hue.ease_to_later(h_steady, 40, EasingCurve::InQuad);
+        }
+    }
+
+    pub fn handle_tick(&mut self, ctx: &NodeContext) {
+        self.update(ctx);
+    }
+}
+
+```
+
+## Example: `slot-particles`
+
+### File: `lib.rs`
+
+```rust
+#![allow(unused_imports)]
+pub mod slot_particles;
+use crate::slot_particles::SlotParticles;
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct Example {}
+
+impl Example {}
+
+```
+
+### File: `lib.pax`
+
+```paxel
+<SlotParticles config={
+	max_size: 100.0,
+	min_size: 20.0,
+	max_speed: 4.0,
+	max_rotation: 3.0,
+}>
+	for i in 0..10 {
+		<Group>
+			<Rectangle class=centered fill=RED/>
+			<Rectangle class=centered rotate=45deg fill=RED/>
+		</Group>
+		<Rectangle fill=PURPLE/>
+		<Ellipse fill=LIME/>
+	}
+</SlotParticles>
+@settings {
+    .centered {
+        x: 50%
+        y: 50%
+    }
+}
+
+```
+
+## Example: `increment`
+
+### File: `lib.rs`
+
+```rust
+#![allow(unused_imports)]
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct Example {
+    pub ticks: Property<usize>,
+    pub num_clicks: Property<usize>,
+}
+
+impl Example {
+    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
+        let old_ticks = self.ticks.get();
+        self.ticks.set((old_ticks + 1) % 255);
+    }
+
+    pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
+        let old_num_clicks = self.num_clicks.get();
+        self.num_clicks.set(old_num_clicks + 1);
+    }
+}
+```
+
+### File: `lib.pax`
+
+```paxel
+<Group x=50% y=50% width=120px height=120px @click=self.increment >
+    <Text text={self.num_clicks + " clicks"} id=text />
+    <Rectangle
+        fill={rgb(ticks, 75, 150)}
+        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+    />
+</Group>
+
+@settings {
+     @pre_render: handle_pre_render,
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 22px,
+                fill: WHITE,
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
+
+```
+
+## Example: `bouncing-balls`
+
+### File: `lib.rs`
+
+```rust
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::primitives::*;
+use pax_std::types::*;
+use std::f64::consts::PI;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::Rng;
+
+const SQUARE_SIZE: f64 = 100.0;
+const BALL_SIZE: f64 = SQUARE_SIZE / 4.0;
+const BALL_SPEED: f64 = 6.0;
+const NUM_BALLS: usize = 10;
+const COLLISION_ANIMATION_DURATION: u64 = 20; // Duration of collision animation in frames
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct RotatingSquareWithBalls {
+    pub rotation: Property<f64>,
+    pub balls: Property<Vec<Ball>>,
+    pub square_size: Property<f64>,
+    pub ball_size: Property<f64>,
+}
+
+#[pax]
+pub struct Ball {
+    pub x: f64,
+    pub y: f64,
+    pub vx: f64,
+    pub vy: f64,
+    pub hue: f64,
+    pub size: f64,
+    pub collision_animation: u64, // Countdown for collision animation
+}
+
+impl Ball {
+    fn new(x: f64, y: f64, vx: f64, vy: f64, hue: f64) -> Self {
+        Self {
+            x, y, vx, vy, hue,
+            size: BALL_SIZE,
+            collision_animation: 0,
+        }
+    }
+}
+
+impl RotatingSquareWithBalls {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self.square_size.set(SQUARE_SIZE);
+        self.ball_size.set(BALL_SIZE);
+        self.randomize_balls(ctx);
+    }
+
+    pub fn handle_tick(&mut self, ctx: &NodeContext) {
+        let (width, height) = ctx.bounds_parent.get();
+        
+        // Update rotation
+        let current_rotation = self.rotation.get();
+        self.rotation.set((current_rotation + 0.5) % 360.0);
+
+        // Update ball positions and handle collisions
+        let mut balls = self.balls.get();
+        
+        // First, update positions and handle wall/square collisions
+        for ball in balls.iter_mut() {
+            // Update position
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+
+            // Bounce off viewport boundaries
+            if ball.x - BALL_SIZE/2.0 < 0.0 || ball.x + BALL_SIZE/2.0 > width {
+                ball.vx = -ball.vx;
+                ball.collision_animation = COLLISION_ANIMATION_DURATION;
+            }
+            if ball.y - BALL_SIZE/2.0 < 0.0 || ball.y + BALL_SIZE/2.0 > height {
+                ball.vy = -ball.vy;
+                ball.collision_animation = COLLISION_ANIMATION_DURATION;
+            }
+
+            // Check collision with rotating square
+            let square_x = width / 2.0;
+            let square_y = height / 2.0;
+            let dx = ball.x - square_x;
+            let dy = ball.y - square_y;
+            let distance = (dx*dx + dy*dy).sqrt();
+
+            if distance < SQUARE_SIZE/2.0 + BALL_SIZE/2.0 {
+                // Collision detected, calculate bounce
+                let angle = dy.atan2(dx);
+                let normal_angle = angle - current_rotation.to_radians();
+                
+                let speed = (ball.vx*ball.vx + ball.vy*ball.vy).sqrt();
+                ball.vx = speed * normal_angle.cos();
+                ball.vy = speed * normal_angle.sin();
+
+                // Move ball outside the square
+                ball.x = square_x + (SQUARE_SIZE/2.0 + BALL_SIZE/2.0) * angle.cos();
+                ball.y = square_y + (SQUARE_SIZE/2.0 + BALL_SIZE/2.0) * angle.sin();
+
+                ball.collision_animation = COLLISION_ANIMATION_DURATION;
+            }
+
+            // Update ball color and size
+            ball.hue = (ball.hue + 0.5) % 360.0;
+            if ball.collision_animation > 0 {
+                ball.collision_animation -= 1;
+                let progress = ball.collision_animation as f64 / COLLISION_ANIMATION_DURATION as f64;
+                ball.size = BALL_SIZE * (1.0 + 0.2 * (1.0 - progress).powi(2));
+            } else {
+                ball.size = BALL_SIZE;
+            }
+        }
+
+        // Then, handle ball-to-ball collisions
+        for i in 0..balls.len() {
+            for j in (i+1)..balls.len() {
+                let dx = balls[j].x - balls[i].x;
+                let dy = balls[j].y - balls[i].y;
+                let distance = (dx*dx + dy*dy).sqrt();
+
+                if distance < BALL_SIZE {
+                    // Collision detected, calculate new velocities
+                    let angle = dy.atan2(dx);
+                    let sin = angle.sin();
+                    let cos = angle.cos();
+
+                    // Rotate velocities
+                    let vx1 = balls[i].vx * cos + balls[i].vy * sin;
+                    let vy1 = balls[i].vy * cos - balls[i].vx * sin;
+                    let vx2 = balls[j].vx * cos + balls[j].vy * sin;
+                    let vy2 = balls[j].vy * cos - balls[j].vx * sin;
+
+                    // Swap velocities
+                    let (new_vx1, new_vx2) = (vx2, vx1);
+
+                    // Rotate velocities back
+                    balls[i].vx = new_vx1 * cos - vy1 * sin;
+                    balls[i].vy = vy1 * cos + new_vx1 * sin;
+                    balls[j].vx = new_vx2 * cos - vy2 * sin;
+                    balls[j].vy = vy2 * cos + new_vx2 * sin;
+
+                    // Move balls apart to prevent sticking
+                    let overlap = BALL_SIZE - distance;
+                    let move_x = overlap * cos / 2.0;
+                    let move_y = overlap * sin / 2.0;
+                    balls[i].x -= move_x;
+                    balls[i].y -= move_y;
+                    balls[j].x += move_x;
+                    balls[j].y += move_y;
+
+                    // Start collision animation
+                    balls[i].collision_animation = COLLISION_ANIMATION_DURATION;
+                    balls[j].collision_animation = COLLISION_ANIMATION_DURATION;
+
+                    // Change hue on collision
+                    balls[i].hue = (balls[i].hue + 60.0) % 360.0;
+                    balls[j].hue = (balls[j].hue + 60.0) % 360.0;
+                }
+            }
+        }
+
+        self.balls.set(balls);
+    }
+
+    pub fn handle_click(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        self.randomize_balls(ctx);
+    }
+
+    fn randomize_balls(&mut self, ctx: &NodeContext) {
+        let (width, height) = ctx.bounds_parent.get();
+        let seed = ctx.frames_elapsed.get() as u64;
+        let mut rng = StdRng::seed_from_u64(seed);
+
+        let mut new_balls = Vec::new();
+
+        for _ in 0..NUM_BALLS {
+            loop {
+                let x = rng.gen_range(BALL_SIZE/2.0..width-BALL_SIZE/2.0);
+                let y = rng.gen_range(BALL_SIZE/2.0..height-BALL_SIZE/2.0);
+
+                // Ensure the ball doesn't overlap with the square
+                if (x - width/2.0).abs() > SQUARE_SIZE/2.0 + BALL_SIZE/2.0 ||
+                   (y - height/2.0).abs() > SQUARE_SIZE/2.0 + BALL_SIZE/2.0 {
+                    let angle = rng.gen_range(0.0..2.0*PI);
+                    new_balls.push(Ball::new(
+                        x,
+                        y,
+                        BALL_SPEED * angle.cos(),
+                        BALL_SPEED * angle.sin(),
+                        rng.gen_range(0.0..360.0),
+                    ));
+                    break;
+                }
+            }
+        }
+
+        self.balls.set(new_balls);
+    }
+}
+```
+
+### File: `lib.pax`
+
+```paxel
+<Rectangle 
+    id=blue_square
+    fill=BLUE 
+    width={square_size}
+    height={square_size}
+    x=50% 
+    y=50% 
+    anchor_x=50% 
+    anchor_y=50% 
+    rotate={(rotation)deg}
+/>
+for ball in self.balls {
+    <Ellipse
+        fill={hsla(ball.hue, 50%, 50%, 100%)}
+        width={ball.size}
+        height={ball.size}
+        x={ball.x}
+        y={ball.y}
+        anchor_x=50%
+        anchor_y=50%
+    />
+}
+<Rectangle id=background fill=RED />
+
+@settings {
+    @mount: handle_mount,
+    @tick: handle_tick,
+    @click: handle_click
+}
+```
+
+## Example: `space-game`
+
+### File: `lib.rs`
+
+```rust
+#![allow(unused_imports)]
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+use rand::rngs::ThreadRng;
+use rand::Rng;
+use std::collections::HashSet;
+
+pub mod animation;
+use animation::Animation;
+
+const SCALE: f64 = 2.0;
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct SpaceGame {
+    pub ship_x: Property<f64>,
+    pub ship_y: Property<f64>,
+    pub asteroids: Property<Vec<Asteroid>>,
+    pub bullets: Property<Vec<Bullet>>,
+
+    pub last_asteroid: Property<u64>,
+    pub last_bullet: Property<u64>,
+    pub background_tiles: Property<Vec<Point>>,
+
+    pub keys_pressed: Property<Vec<u8>>,
+    pub game_state: Property<String>,
+
+    pub difficulty: Property<f64>,
+    pub score: Property<u64>,
+}
+
+#[pax]
+pub struct Asteroid {
+    pub x: f64,
+    pub y: f64,
+    pub r: f64,
+    pub dx: f64,
+    pub dy: f64,
+    pub dr: f64,
+    pub w: f64,
+    pub health: u64,
+    pub animation: Animation,
+}
+
+#[pax]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[pax]
+pub struct Bullet {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Asteroid {
+    fn spawn(rng: &mut ThreadRng, w: f64, h: f64, difficulty: f64) -> Self {
+        let radius = rng.gen_range(32.0..(48.0 + 32.0 * difficulty));
+        let yspread = 0.2 + difficulty * 0.3;
+        Self {
+            x: w + 32.0,
+            y: rng.gen_range(-32.0..(h + 32.0)),
+            r: rng.gen_range(0.0..360.0),
+            dx: 1.0 + rng.gen_range((1.5 * difficulty)..(1.0 + 3.2 * difficulty)),
+            dy: rng.gen_range(-yspread..yspread),
+            dr: rng.gen_range(0.0..1.0),
+            w: radius,
+            health: (radius as u64) / 3,
+            animation: Animation::new(vec![
+                String::from("assets/asteroid0.png"),
+                String::from("assets/asteroid1.png"),
+                String::from("assets/asteroid2.png"),
+            ]),
+        }
+    }
+}
+
+impl SpaceGame {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        let mut rng = rand::thread_rng();
+        let (w_o, h_o) = ctx.bounds_parent.get();
+        let (w, h) = (w_o / SCALE, h_o / SCALE);
+        self.ship_x.set(32.0);
+        self.ship_y.set(h / 2.0);
+        self.game_state.set(String::from("PLAYING"));
+    }
+
+    pub fn tick(&mut self, ctx: &NodeContext) {
+        let mut rng = rand::thread_rng();
+
+        // Read properties
+        let (w_o, h_o) = ctx.bounds_parent.get();
+        let (w, h) = (w_o / SCALE, h_o / SCALE);
+        let ticks = ctx.frames_elapsed.get();
+        let mut bullets = self.bullets.get();
+        let mut asteroids = self.asteroids.get();
+        let mut ship_x = self.ship_x.get();
+        let mut ship_y = self.ship_y.get();
+        let mut score = self.score.get();
+        let difficulty = self.difficulty.get();
+
+        if &self.game_state.get() == "PLAYING" {
+            // Check collisions between player and asteroids, and end game if hit
+            for a in &mut asteroids {
+                if (a.x - ship_x).powi(2) + (a.y - ship_y).powi(2) < (10.0f64 + a.w / 2.0).powi(2) {
+                    self.game_state.set(String::from("GAME_OVER"));
+                    a.animation.start();
+                }
+            }
+
+            // Player actions (movement, bullets, etc.)
+            for key in self.keys_pressed.get() {
+                match key as char {
+                    'w' => ship_y -= 1.5,
+                    's' => ship_y += 1.5,
+                    'a' => ship_x -= 1.0,
+                    'd' => ship_x += 0.8,
+                    ' ' => {
+                        if (ticks - self.last_bullet.get()) > 15 {
+                            bullets.push(Bullet {
+                                x: ship_x,
+                                y: ship_y + 6.0,
+                            });
+                            bullets.push(Bullet {
+                                x: ship_x,
+                                y: ship_y - 6.0,
+                            });
+                            self.last_bullet.set(ticks);
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            ship_x = ship_x.clamp(16.0, w - 16.0);
+            ship_y = ship_y.clamp(16.0, h - 16.0);
+        }
+
+        // Update bullets (movement, destroy, create, etc)
+        bullets.retain_mut(|b| {
+            b.x += 7.0;
+            // Collide with asteroids
+            for a in &mut asteroids {
+                if (a.x - b.x).powi(2) + (a.y - b.y).powi(2) < (a.w / 2.0).powi(2) {
+                    a.health = a.health.saturating_sub(1);
+                    if a.health == 0 && !a.animation.running {
+                        a.animation.start();
+                        score += 1;
+                    }
+                    return false;
+                }
+            }
+            b.x <= w + 16.0
+        });
+
+        // Update asteroids (movement, destroy, create, etc)
+        asteroids.retain_mut(|a| {
+            a.x -= a.dx;
+            a.y -= a.dy;
+            a.r += a.dr;
+            a.animation.tick();
+            a.x > -32.0 && a.animation.finished == false
+        });
+        let l_a = self.last_asteroid.get();
+        if rng.gen_range(0..(ticks - l_a + 1)) > ((1.2 - difficulty) * 100.0) as u64 {
+            self.last_asteroid.set(ticks);
+            asteroids.push(Asteroid::spawn(&mut rng, w, h, difficulty));
+        }
+
+        // Update all properties to new values
+        self.asteroids.set(asteroids);
+        self.ship_x.set(ship_x);
+        self.ship_y.set(ship_y);
+        self.bullets.set(bullets);
+        self.score.set(score);
+
+        // Update tile background positions
+        const BACKGROUND_SPEED: f64 = 5.0;
+        const IMG_SIZE: f64 = 512.0;
+        let w_n = (w_o / IMG_SIZE).ceil() as usize + 1;
+        let h_n = (h_o / IMG_SIZE).ceil() as usize;
+        let mut backgrounds = vec![];
+        for j in 0..h_n {
+            for i in 0..w_n {
+                backgrounds.push(Point {
+                    x: (w_n as f64 - 1.0) * IMG_SIZE
+                        - (ticks as f64 * BACKGROUND_SPEED + i as f64 * IMG_SIZE)
+                            .rem_euclid(w_n as f64 * IMG_SIZE),
+                    y: IMG_SIZE * j as f64,
+                });
+            }
+        }
+        self.background_tiles.set(backgrounds);
+        self.difficulty.set((difficulty + 0.0001).min(1.0));
+    }
+
+    pub fn key_down(&mut self, ctx: &NodeContext, args: Event<KeyDown>) {
+        if let Some(char) = args.keyboard.key.chars().next() {
+            let mut keys_pressed = self.keys_pressed.get();
+            if !keys_pressed.contains(&(char as u8)) {
+                keys_pressed.push(char as u8);
+            }
+            self.keys_pressed.set(keys_pressed);
+        }
+    }
+    pub fn key_up(&mut self, ctx: &NodeContext, args: Event<KeyUp>) {
+        if let Some(char) = args.keyboard.key.chars().next() {
+            let mut keys_pressed = self.keys_pressed.get();
+            keys_pressed.retain(|v| v != &(char as u8));
+            self.keys_pressed.set(keys_pressed);
+        }
+    }
+}
+
+```
+
+### File: `lib.pax`
+
+```paxel
+
+if self.game_state == "PLAYING" {
+	<Text x=10px y=10px text={"Score: " + self.score} style={fill:WHITE}/>
+}
+if self.game_state == "GAME_OVER" {
+	<Text y=25% height=25% width=100% text="GAME OVER" id=game_over/>
+	<Text y=50% height=25% width=100% text={"Score: " + self.score} id=game_over_score/>
+	<Rectangle fill=rgba(255, 0, 50, 50)/>
+}
+
+<Group scale_x=200% scale_y=200% width=50% height=50%>
+	if self.game_state == "PLAYING" {
+		// Spaceship
+		<Image
+			width=32px
+			height=32px
+			path="assets/spaceship.png"
+			anchor_x=50%
+			anchor_y=50%
+			x={self.ship_x}
+			y={self.ship_y}
+		/>
+	}
+
+	for asteroid in self.asteroids {
+		<Image
+			path={asteroid.animation.frame}
+			anchor_x=50%
+			anchor_y=50%
+			x={asteroid.x}
+			y={asteroid.y}
+			width={asteroid.w}
+			height={asteroid.w}
+			rotate={(asteroid.r)deg}
+		/>
+	}
+	for bullet in self.bullets {
+		<Image
+			width=16px
+			height=16px
+			path="assets/bullet.png"
+			anchor_x=50%
+			anchor_y=50%
+			x={bullet.x}
+			y={bullet.y}
+		/>
+	}
+	// background
+</Group>
+
+<Group width=512px height=512px>
+	for background in self.background_tiles {
+		<Image
+			x={background.x}
+			y={background.y}
+			path="assets/starfield0.png"
+		/>
+	}
+</Group>
+
+@settings {
+	@mount: handle_mount,
+	@tick: tick,
+	@key_down: key_down,
+	@key_up: key_up,
+
+    #game_over {
+        style: {
+            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 100px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    #game_over_score {
+        style: {
+            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 64px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
+
+```
+
+### File: `animation.rs`
+
+```rust
+
+use pax_engine::api::*;
+use pax_engine::*;
+#[pax]
+pub struct Animation {
+    pub frame: String,
+    pub frames: Vec<String>,
+    pub running: bool,
+    pub finished: bool,
+    pub time: u64,
+
+    //settable properties
+    pub speed: u64,
+    pub loops: bool,
+}
+
+impl Animation {
+    pub fn new(frames: Vec<String>) -> Self {
+        Self {
+            frame: frames[0].clone(),
+            frames,
+            running: false,
+            loops: false,
+            finished: false,
+            speed: 10,
+            time: 0,
+        }
+    }
+
+    pub fn start(&mut self) {
+        self.running = true;
+    }
+
+    pub fn tick(&mut self) {
+        if self.running {
+            self.time += 1;
+            let frame_index = (self.time / self.speed) as usize;
+            if frame_index < self.frames.len() {
+                self.frame = self.frames[frame_index].clone();
+                return;
+            }
+            if self.loops {
+                self.start();
+            } else {
+                self.running = false;
+                self.finished = true;
+            }
+        }
+    }
+}
+
+```
+
+# Instructions
+
+Please generate content for two files: one named `lib.rs` (containing Rust code) and one named `lib.pax` (containing PAXEL code) to help the user create a user interface matching the following description:
+
+A blue square rotating against a red background.
+
+Please pay special attention to the user instructions above, and please rely heavily on the documentation and examples provided in this prompt to help you write valid Pax (Rust and PAXEL) code. Please provide the contents for each file using the XML format illustrated in the `# Examples` section.
