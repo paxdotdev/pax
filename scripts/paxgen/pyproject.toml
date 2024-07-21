@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "paxgen"
+version = "0.1.0"
+description = "LLM prompt generator from the Pax documentation."
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+rich = "^13.7.1"
+tiktoken = "^0.7.0"
+
+[tool.poetry.scripts]
+generate = "paxgen.generate:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
