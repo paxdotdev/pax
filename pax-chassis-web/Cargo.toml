@@ -10,7 +10,7 @@ description = "Platform-specific chassis allowing Pax cartridges to be executed 
 include = ["/src", "/interface/public"]
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook"]
