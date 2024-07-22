@@ -10,7 +10,7 @@ description = "Platform-specific chassis allowing Pax cartridges to be executed 
 
 [lib]
 name = "paxchassismacos"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 piet = "0.6.0"

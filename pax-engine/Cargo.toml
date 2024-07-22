@@ -16,9 +16,15 @@ pax-manifest = {path="../pax-manifest", version="0.15.5"}
 pax-message = {path="../pax-message", version="0.15.5"}
 pax-runtime = {path="../pax-runtime", version="0.15.5"}
 pax-compiler = {path="../pax-compiler", optional=true, version="0.15.5"}
+pax-chassis-web = {version = "0.15.5", path="../pax-chassis-web", optional=true }
+#pax-chassis-macos = {version = "0.15.4", path="../pax-chassis-macos", optional=true }
+#pax-chassis-ios = {version = "0.15.4", path="../pax-chassis-ios", optional=true }
+wasm-bindgen = {version = "0.2.92", optional=true}
 log = "0.4.20"
 
 [features]
 parser = ["dep:pax-compiler"]
 designtime = ["pax-runtime/designtime"]
-
+web = ["pax-chassis-web", "wasm-bindgen"]
+#macos = ["pax-chassis-macos"]
+#ios = ["pax-chassis-ios"]
