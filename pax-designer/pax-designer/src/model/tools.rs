@@ -2,7 +2,7 @@ use std::any::Any;
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
-use super::action::orm::{CreateComponent, SetNodeLayout, SetNodePropertiesFromTransform};
+use super::action::orm::{CreateComponent, SetNodeLayout};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, RaycastMode};
 use super::input::InputEvent;
@@ -105,8 +105,8 @@ impl ToolBehaviour for CreateComponentTool {
                     bounds: (1.0, 1.0),
                 }
                 .as_pure_size(),
-                new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
-                node_decompositon_config: Default::default(),
+                parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                node_decomposition_config: &Default::default(),
             },
             type_id: &self.type_id,
             custom_props: &[],
@@ -313,13 +313,18 @@ impl ToolBehaviour for PointerTool {
                         .next()
                         .unwrap();
                     let glass_curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
-                    if let Err(e) = (SetNodePropertiesFromTransform {
+                    if let Err(e) = (SetNodeLayout {
                         id: &item.id,
-                        transform_and_bounds: &(move_translation * item.transform_and_bounds),
-                        parent_transform_and_bounds: &glass_curr_node
-                            .parent_transform_and_bounds
-                            .get(),
-                        decomposition_config: &item.layout_properties.into_decomposition_config(),
+                        node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                            node_transform_and_bounds: &(move_translation
+                                * item.transform_and_bounds),
+                            parent_transform_and_bounds: &glass_curr_node
+                                .parent_transform_and_bounds
+                                .get(),
+                            node_decomposition_config: &item
+                                .layout_properties
+                                .into_decomposition_config(),
+                        },
                     }
                     .perform(ctx))
                     {
@@ -374,10 +379,8 @@ impl ToolBehaviour for PointerTool {
                         node_layout: NodeLayoutSettings::KeepScreenBounds {
                             node_transform_and_bounds: &(move_translation
                                 * item.transform_and_bounds),
-                            new_parent_transform_and_bounds: &glass_slot_hit
-                                .transform_and_bounds
-                                .get(),
-                            node_decompositon_config: item
+                            parent_transform_and_bounds: &glass_slot_hit.transform_and_bounds.get(),
+                            node_decomposition_config: &item
                                 .layout_properties
                                 .into_decomposition_config(),
                         },
@@ -408,10 +411,10 @@ impl ToolBehaviour for PointerTool {
                         node_layout: NodeLayoutSettings::KeepScreenBounds {
                             node_transform_and_bounds: &(move_translation
                                 * item.transform_and_bounds),
-                            new_parent_transform_and_bounds: &container_parent
+                            parent_transform_and_bounds: &container_parent
                                 .transform_and_bounds
                                 .get(),
-                            node_decompositon_config: item
+                            node_decomposition_config: &item
                                 .layout_properties
                                 .into_decomposition_config(),
                         },

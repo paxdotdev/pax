@@ -11,11 +11,15 @@ use pax_std::types::text::*;
 use pax_std::types::*;
 use std::fmt::Write;
 
+pub mod border_radius_property_editor;
+pub mod color_property_editor;
 pub mod direction_property_editor;
 pub mod fill_property_editor;
 pub mod stroke_property_editor;
 pub mod text_property_editor;
 
+use border_radius_property_editor::BorderRadiusPropertyEditor;
+use color_property_editor::ColorPropertyEditor;
 use direction_property_editor::DirectionPropertyEditor;
 use fill_property_editor::FillPropertyEditor;
 use stroke_property_editor::StrokePropertyEditor;
@@ -67,10 +71,17 @@ impl PropertyEditor {
                     .unwrap_or_default()
                     .get_unique_identifier();
 
-                match prop_type_ident.as_str() {
-                    "pax_designer::pax_reexports::pax_engine::api::Fill" => 2,
-                    "pax_designer::pax_reexports::pax_engine::api::Stroke" => 3,
-                    "pax_designer::pax_reexports::pax_std::types::StackerDirection" => 4,
+                // log::info!("settings data: ({}, {})", data.name, prop_type_ident);
+                match (data.name.as_str(), prop_type_ident.as_str()) {
+                    // TODO make this unique type (4 corner values) instead of matching on name
+                    ("border_radius", "f64") => {
+                        log::debug!("matched border radius");
+                        6
+                    }
+                    (_, "pax_designer::pax_reexports::pax_engine::api::Color") => 5,
+                    (_, "pax_designer::pax_reexports::pax_engine::api::Fill") => 2,
+                    (_, "pax_designer::pax_reexports::pax_engine::api::Stroke") => 3,
+                    (_, "pax_designer::pax_reexports::pax_std::types::StackerDirection") => 4,
                     _ => 1,
                 }
             },

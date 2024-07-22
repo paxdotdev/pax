@@ -12,7 +12,7 @@ use crate::math::coordinate_spaces::Glass;
 
 use self::coordinate_spaces::World;
 
-#[derive(PartialEq, Default)]
+#[derive(PartialEq, Default, Clone, Copy)]
 pub enum SizeUnit {
     Pixels,
     #[default]

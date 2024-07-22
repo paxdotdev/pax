@@ -75,8 +75,8 @@ impl ToolBehaviour for DropComponent {
                     bounds: (1.0, 1.0),
                 }
                 .as_pure_size(),
-                new_parent_transform_and_bounds: &parent.transform_and_bounds.get(),
-                node_decompositon_config: Default::default(),
+                parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                node_decomposition_config: &Default::default(),
             },
             mock_children: 0,
             type_id: &self.type_id,
