@@ -234,11 +234,11 @@ pub mod primitives {
     #[primitive("pax_std_primitives::button::ButtonInstance")]
     #[custom(Default)]
     pub struct Button {
-        pub hover_color: Property<Color>,
-        pub outline: Property<Stroke>,
-        pub border_radius: Property<f64>,
-        pub color: Property<Color>,
         pub label: Property<String>,
+        pub color: Property<Color>,
+        pub hover_color: Property<Color>,
+        pub border_radius: Property<f64>,
+        pub outline: Property<Stroke>,
         pub style: Property<TextStyle>,
     }
 
