@@ -29,6 +29,8 @@
 
     //Platform-specific mount logic for #[main] component
     #[cfg(feature = "web")]
+    use wasm_bindgen::prelude::wasm_bindgen;
+    #[cfg(feature = "web")]
     #[wasm_bindgen]
     pub fn mount() {
 

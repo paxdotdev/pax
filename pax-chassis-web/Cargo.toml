@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 
 [features]
 default = ["console_error_panic_hook"]
-designtime = ["pax-runtime/designtime"]
+designtime = ["pax-designtime", "pax-runtime/designtime"]
 
 [dependencies]
 piet = "0.6.0"
