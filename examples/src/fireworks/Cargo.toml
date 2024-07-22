@@ -5,11 +5,15 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.15.4" }
-pax-std = { version = "0.15.4" }
-pax-compiler = { version = "0.15.4", optional = true }
-pax-manifest = { version = "0.15.4" }
+pax-engine = { version = "0.15.4", path="../../../pax-engine" }
+pax-std = { version = "0.15.4", path="../../../pax-std" }
+pax-compiler = { version = "0.15.4", path="../../../pax-compiler", optional=true }
+pax-manifest = { version = "0.15.4", path="../../../pax-manifest" }
 serde_json = {version = "1.0.95", optional = true}
+pax-chassis-web = {version = "0.15.4", path="../../../pax-chassis-web", optional=true }
+pax-chassis-macos = {version = "0.15.4", path="../../../pax-chassis-macos", optional=true }
+pax-chassis-ios = {version = "0.15.4", path="../../../pax-chassis-ios", optional=true }
+
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -25,3 +29,6 @@ path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler"]
+web = ["pax-chassis-web"]
+macos = ["pax-chassis-macos"]
+ios = ["pax-chassis-ios"]
