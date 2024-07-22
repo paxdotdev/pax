@@ -127,6 +127,11 @@ impl InstanceNode for DropdownInstance {
                                 properties.selected_id.get(),
                             ),
                             patch_if_needed(
+                                &mut old_state.border_radius,
+                                &mut patch.border_radius,
+                                properties.border_radius.get(),
+                            ),
+                            patch_if_needed(
                                 &mut old_state.options,
                                 &mut patch.options,
                                 properties.options.get(),
