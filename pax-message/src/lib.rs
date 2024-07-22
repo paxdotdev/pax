@@ -403,6 +403,7 @@ pub struct DropdownPatch {
     pub background: Option<ColorMessage>,
     pub stroke_color: Option<ColorMessage>,
     pub stroke_width: Option<f64>,
+    pub border_radius: Option<f64>,
     pub style: Option<TextStyleMessage>,
 }
 
