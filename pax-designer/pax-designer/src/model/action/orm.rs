@@ -232,7 +232,7 @@ impl Action for SetNodeProperties<'_> {
     }
 }
 
-pub struct SetNodePropertiesFromTransform<'a, T> {
+struct SetNodePropertiesFromTransform<'a, T> {
     pub id: &'a UniqueTemplateNodeIdentifier,
     pub transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
     pub parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
@@ -365,12 +365,22 @@ impl Action for Resize<'_> {
         // move to "frame of reference", perform operation, move back
         let resize = to_local * local_resize * to_local.inverse();
 
+        // when resizing, override to % if not meta key is pressed, then use px
+        let size_unit = match ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
+            true => SizeUnit::Pixels,
+            false => SizeUnit::Percent,
+        };
+
         for item in &self.initial_selection.items {
             SetNodePropertiesFromTransform {
                 id: &item.id,
                 transform_and_bounds: &(resize * item.transform_and_bounds),
                 parent_transform_and_bounds: &item.parent_transform_and_bounds,
-                decomposition_config: &item.layout_properties.into_decomposition_config(),
+                decomposition_config: &&DecompositionConfiguration {
+                    unit_width: size_unit,
+                    unit_height: size_unit,
+                    ..item.layout_properties.into_decomposition_config()
+                },
             }
             .perform(ctx)?;
         }
@@ -508,8 +518,8 @@ pub enum NodeLayoutSettings<'a, S> {
     Fill,
     KeepScreenBounds {
         node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
-        new_parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
-        node_decompositon_config: DecompositionConfiguration,
+        node_decomposition_config: &'a DecompositionConfiguration,
+        parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
     },
     KeepProperties(LayoutProperties),
 }
@@ -524,8 +534,8 @@ impl<S: Space> Action for SetNodeLayout<'_, S> {
         match &self.node_layout {
             NodeLayoutSettings::KeepScreenBounds {
                 node_transform_and_bounds,
-                new_parent_transform_and_bounds,
-                node_decompositon_config: node_inv_config,
+                parent_transform_and_bounds: new_parent_transform_and_bounds,
+                node_decomposition_config: node_inv_config,
             } => SetNodePropertiesFromTransform {
                 id: &self.id,
                 transform_and_bounds: node_transform_and_bounds,

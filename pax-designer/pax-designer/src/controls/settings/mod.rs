@@ -5,8 +5,10 @@ use std::collections::HashMap;
 
 use crate::model;
 use pax_std::primitives::{Group, Path, Text};
+use pax_std::scroller::Scroller;
 
 pub mod property_editor;
+use pax_std::primitives::Rectangle;
 use property_editor::PropertyEditor;
 
 #[pax]
@@ -15,6 +17,7 @@ pub struct Settings {
     pub is_component_selected: Property<bool>,
     pub selected_component_name: Property<String>,
     pub custom_properties: Property<Vec<PropertyArea>>,
+    pub custom_properties_total_height: Property<f64>,
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
 }
@@ -40,6 +43,7 @@ impl Settings {
             self.bind_snid(&app_state);
             self.bind_stid(&app_state);
             self.bind_custom_properties(ctx);
+            self.bind_custom_properties_total_height();
         });
     }
 
@@ -91,6 +95,15 @@ impl Settings {
         self.custom_properties.replace_with(adjusted_custom_props);
     }
 
+    fn bind_custom_properties_total_height(&mut self) {
+        // TODO fix: this if properly hooked up for some reason triggers
+        // children get, resulting in getting an index that's already removed
+        // let areas = AREAS_PROP.with(|p| p.clone());
+        let deps = []; // let deps = [areas.untyped()];
+        self.custom_properties_total_height
+            .replace_with(Property::computed(move || 1000.0, &deps));
+    }
+
     fn compute_custom_props_default_position(
         &self,
         ctx: NodeContext,
@@ -131,9 +144,8 @@ impl Settings {
                     .into_iter()
                     .filter_map(|(propdef, _)| match propdef.name.as_str() {
                         "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
-                        | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => {
-                            None
-                        }
+                        | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform"
+                        | "raycast" => None,
                         custom => (!custom.starts_with('_')).then_some(PropertyArea {
                             vertical_space: 10.0,
                             vertical_pos: Default::default(),

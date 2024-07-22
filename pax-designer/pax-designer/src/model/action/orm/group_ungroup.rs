@@ -58,8 +58,8 @@ impl Action for GroupSelected {
             parent_id: &group_parent_data.id,
             node_layout: NodeLayoutSettings::KeepScreenBounds {
                 node_transform_and_bounds: &group_transform_and_bounds,
-                new_parent_transform_and_bounds: &group_parent_data.transform_and_bounds.get(),
-                node_decompositon_config: Default::default(),
+                parent_transform_and_bounds: &group_parent_data.transform_and_bounds.get(),
+                node_decomposition_config: &Default::default(),
             },
             parent_index: TreeIndexPosition::Top,
             type_id: &TypeId::build_singleton(
@@ -79,8 +79,8 @@ impl Action for GroupSelected {
                 new_parent_uid: &group_uid,
                 node_layout: NodeLayoutSettings::KeepScreenBounds {
                     node_transform_and_bounds: &node.transform_and_bounds,
-                    new_parent_transform_and_bounds: &group_transform_and_bounds,
-                    node_decompositon_config: node.layout_properties.into_decomposition_config(),
+                    parent_transform_and_bounds: &group_transform_and_bounds,
+                    node_decomposition_config: &node.layout_properties.into_decomposition_config(),
                 },
             }
             .perform(ctx)?;
@@ -136,9 +136,9 @@ impl Action for UngroupSelected {
                     new_parent_uid: parent_id.as_ref().unwrap(),
                     index: TreeIndexPosition::Top,
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
-                        new_parent_transform_and_bounds: &group_parent_bounds,
+                        parent_transform_and_bounds: &group_parent_bounds,
                         node_transform_and_bounds: &child_t_and_b,
-                        node_decompositon_config: child_inv_config,
+                        node_decomposition_config: &child_inv_config,
                     },
                 }
                 .perform(ctx)?;
