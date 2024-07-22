@@ -31,6 +31,7 @@ IMPORTANT: RENDER ORDER IS REVERSE TEMPLATE ORDER! The last thing .pax template 
 IMPORTANT: PAX IS NOT RUST OR JSX IT IS A CUSTOM DSL FOR BUILDING UI COMPONENTS. DO NOT WRITE RUST CODE IN .PAX FILES.
 IMPORTANT: ONLY GROUP, FRAME, STACKER, SCROLLER accept children. Other components do not.
 IMPORTANT: PROPERTIES NEED TO BE SERIALIZABLE. DO NOT USE COMPLEX TYPES LIKE CLOSURES OR FUNCTIONS.
+IMPORTANT: WHENEVER YOU GET THIS ERROR "error[E0277]: the trait bound `____: Interpolatable` is not satisfied" you just need to add #[pax] to the struct _____.
 Use only properties that are in common properties or defined on the struct.
 Ensure types in the Rust code match the Pax code.
 Strictly follow the Pax language grammar and component structure as described in the background information.
