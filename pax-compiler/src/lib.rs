@@ -39,7 +39,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use crate::cartridge_generation::generate_cartridge_partial_rs;
 
-use crate::helpers::{get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages, remove_path_from_pax_dependencies, set_path_on_pax_dependencies, update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE};
+use crate::helpers::{get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages, set_path_on_pax_dependencies, update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE};
 
 const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
@@ -127,7 +127,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     generate_cartridge_partial_rs(&pax_dir, &manifest, &host_crate_info);
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
-    //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
+    //7. Build full project from source
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
     let build_dir =
         build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
@@ -153,18 +153,7 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir : &PathBuf) {
             RunTarget::iOS => pax_chassis_cargo_root.join("..").join("pax-chassis-ios").join("interface").join("pax-app-ios"),
         };
 
-        let mut options = CopyOptions::new();
-        options.overwrite = true;
-
-        for entry in std::fs::read_dir(&interface_src).expect("Failed to read interface directory") {
-            let entry_path = entry.expect("Failed to read entry").path();
-            if entry_path.is_dir() {
-                dir::copy(&entry_path, &interface_path, &options).expect("Failed to copy directory");
-            } else {
-                fs::copy(&entry_path, interface_path.join(entry_path.file_name().unwrap()))
-                    .expect("Failed to copy file");
-            }
-        }
+        copy_dir_recursively(&interface_src, &interface_path, &[]).expect("Failed to copy interface files");
     } else {
         // File src is include_dir — recursively extract files from include_dir into full_path
         match ctx.target {
@@ -187,9 +176,6 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir : &PathBuf) {
 pub fn perform_clean(path: &str) {
     let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
-
-    remove_path_from_pax_dependencies(&path);
-
     fs::remove_dir_all(&pax_dir).ok();
 }
 
