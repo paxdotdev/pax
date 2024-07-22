@@ -42,7 +42,7 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
     //Inject CSS
     let link = document.createElement('link')
     link.rel = 'stylesheet'
-    link.href = 'pax-chassis-web-interface.css'
+    link.href = 'pax-cartridge.css'
     document.head.appendChild(link)
 
     let mount: Element;
@@ -62,13 +62,13 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
 
 async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb, get_latest_memory: ()=>any }> {
     try {
-        const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-chassis-web");
+        const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-cartridge");
 
         const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
         await glueCodeModule.default(wasmArrayBuffer);
 
-        let chassis = await glueCodeModule.PaxChassisWeb.new();
+        let chassis = glueCodeModule.PaxChassisWeb.new();
         let get_latest_memory = glueCodeModule.wasm_memory;
 
         return { chassis, get_latest_memory };

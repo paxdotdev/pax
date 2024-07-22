@@ -39,12 +39,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use crate::cartridge_generation::generate_cartridge_partial_rs;
 
-use crate::helpers::{
-    get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages,
-    remove_path_from_pax_dependencies, set_path_on_pax_dependencies,
-    update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME,
-    PAX_CREATE_TEMPLATE,
-};
+use crate::helpers::{get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages, remove_path_from_pax_dependencies, set_path_on_pax_dependencies, update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE};
 
 const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
@@ -97,15 +92,9 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     }
 
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
-    //
-    // //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
-    // //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
-    // //on a cold-start monorepo clone.)
-    // let pax_version = if ctx.is_libdev_mode {
-    //     None
-    // } else {
-    //     Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
-    // };
+
+    // Copy interface files for relevant path
+    copy_interface_files_for_target(ctx, &pax_dir);
 
     println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
 
@@ -143,6 +132,55 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     let build_dir =
         build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
     Ok((manifest, None))
+}
+
+
+fn copy_interface_files_for_target(ctx: &RunContext, pax_dir : &PathBuf) {
+    let target_str : &str = (&ctx.target).into();
+    let target_str_lower = &target_str.to_lowercase();
+    let interface_path = pax_dir.join("interface").join(target_str_lower);
+
+    let _ = fs::remove_dir_all(&interface_path);
+    let _ = fs::create_dir_all(&interface_path);
+
+    // If ctx.is_libdev_mode, we copy our monorepo @/pax-chassis-`ctx.target.into()`/interface directory
+    // Otherwise, we use the include_dir! macro to copy the interface files
+    if ctx.is_libdev_mode {
+        let pax_chassis_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let interface_src = match ctx.target {
+            RunTarget::Web => pax_chassis_cargo_root.join("..").join("pax-chassis-web").join("interface").join("public"),
+            RunTarget::macOS => pax_chassis_cargo_root.join("..").join("pax-chassis-macos").join("interface").join("pax-app-macos"),
+            RunTarget::iOS => pax_chassis_cargo_root.join("..").join("pax-chassis-ios").join("interface").join("pax-app-ios"),
+        };
+
+        let mut options = CopyOptions::new();
+        options.overwrite = true;
+
+        for entry in std::fs::read_dir(&interface_src).expect("Failed to read interface directory") {
+            let entry_path = entry.expect("Failed to read entry").path();
+            if entry_path.is_dir() {
+                dir::copy(&entry_path, &interface_path, &options).expect("Failed to copy directory");
+            } else {
+                fs::copy(&entry_path, interface_path.join(entry_path.file_name().unwrap()))
+                    .expect("Failed to copy file");
+            }
+        }
+    } else {
+        // File src is include_dir — recursively extract files from include_dir into full_path
+        match ctx.target {
+            RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE
+                .extract(&interface_path)
+                .expect("Failed to extract web interface files"),
+            RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE
+                .extract(&interface_path)
+                .expect("Failed to extract macos interface files"),
+            RunTarget::iOS => PAX_IOS_INTERFACE_TEMPLATE
+                .extract(&interface_path)
+                .expect("Failed to extract ios interface files"),
+        }
+    }
+
+
 }
 
 /// Clean all `.pax` temp files

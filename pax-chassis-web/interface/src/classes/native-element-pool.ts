@@ -921,7 +921,7 @@ export class NativeElementPool {
             return '/';
         }
 
-        const BASE_PATH = getScriptBasePath('pax-chassis-web-interface.js');
+        const BASE_PATH = getScriptBasePath('pax-cartridge.js');
 
         let path = (BASE_PATH + patch.path!).replace("//", "/");
         let image_data = await readImageToByteBuffer(path!)
