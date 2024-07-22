@@ -1,5 +1,5 @@
 
-// OBS don't use index zero, for some reason doesn't trigger on_mount
+// NOTE: don't use index zero, for some reason doesn't trigger on_mount
 
 if self.prop_type_ident_id == 1 {
 	<TextPropertyEditor data={data}/>
@@ -15,6 +15,14 @@ if self.prop_type_ident_id == 3 {
 
 if self.prop_type_ident_id == 4 {
 	<DirectionPropertyEditor data={data}/>
+}
+
+if self.prop_type_ident_id == 5 {
+	<ColorPropertyEditor data={data}/>
+}
+
+if self.prop_type_ident_id == 6 {
+	<BorderRadiusPropertyEditor data={data}/>
 }
 
 @settings {

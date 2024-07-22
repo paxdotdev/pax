@@ -22,7 +22,7 @@ use crate::{
     model::{
         self,
         action::{
-            orm::{MoveNode, NodeLayoutSettings, SetNodeLayout, SetNodePropertiesFromTransform},
+            orm::{MoveNode, NodeLayoutSettings, SetNodeLayout},
             Action, ActionContext, RaycastMode,
         },
         input::InputEvent,
@@ -89,14 +89,17 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
             };
 
             let glass_curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
-            if let Err(e) = (SetNodePropertiesFromTransform {
+            if let Err(e) = (SetNodeLayout {
                 id: &self.initial_node.id,
-                transform_and_bounds: &(move_translation * self.initial_node.transform_and_bounds),
-                parent_transform_and_bounds: &glass_curr_node.parent_transform_and_bounds.get(),
-                decomposition_config: &self
-                    .initial_node
-                    .layout_properties
-                    .into_decomposition_config(),
+                node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                    node_transform_and_bounds: &(move_translation
+                        * self.initial_node.transform_and_bounds),
+                    parent_transform_and_bounds: &glass_curr_node.parent_transform_and_bounds.get(),
+                    node_decomposition_config: &self
+                        .initial_node
+                        .layout_properties
+                        .into_decomposition_config(),
+                },
             }
             .perform(ctx))
             {
@@ -131,8 +134,8 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
                         node_transform_and_bounds: &(move_translation
                             * self.initial_node.transform_and_bounds),
-                        new_parent_transform_and_bounds: &glass_slot_hit.transform_and_bounds.get(),
-                        node_decompositon_config: self
+                        parent_transform_and_bounds: &glass_slot_hit.transform_and_bounds.get(),
+                        node_decomposition_config: &self
                             .initial_node
                             .layout_properties
                             .into_decomposition_config(),
@@ -163,10 +166,8 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
                         node_transform_and_bounds: &(move_translation
                             * self.initial_node.transform_and_bounds),
-                        new_parent_transform_and_bounds: &container_parent
-                            .transform_and_bounds
-                            .get(),
-                        node_decompositon_config: self
+                        parent_transform_and_bounds: &container_parent.transform_and_bounds.get(),
+                        node_decomposition_config: &self
                             .initial_node
                             .layout_properties
                             .into_decomposition_config(),

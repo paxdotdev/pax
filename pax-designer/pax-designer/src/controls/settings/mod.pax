@@ -44,6 +44,8 @@ if self.is_component_selected {
             </Group>
         </Group>
 
+        // TODO this scroller results in crashes, why?
+        // <Scroller y=343px height={100% - 343px} scroll_height={1000px}>
         <Group y=343px>
             for (property, i) in self.custom_properties {
                 <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
@@ -53,6 +55,7 @@ if self.is_component_selected {
                 </Group>
             }
         </Group>
+        // </Scroller>
     </Group>
 }
 
