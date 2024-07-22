@@ -35,13 +35,7 @@ pub fn build_web_target(
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
 
-    //TODO: how to manage interface path?
-    //      previously was copied into .pax/pkg
-    //      now we can spit out from compiler — perhaps
-    //      worth doing this as this implies?
-    //      decide whether to support an ejection MVP here; maybe a way
-    //      to design elegantly and get 2 for 1
-    let interface_path = ctx.project_path.join("interface");
+    let interface_path = pax_dir.join("interface").join("web");
 
     // wasm-pack build
     let mut cmd = Command::new("wasm-pack");
@@ -50,15 +44,16 @@ pub fn build_web_target(
         .arg("--target")
         .arg("web")
         .arg("--out-name")
-        .arg("pax-chassis-web")
+        .arg("pax-cartridge")
         .arg("--out-dir")
         .arg(
-            ctx.project_path
+            pax_dir
                 .join("interface")
-                .join("public")
+                .join("web")
                 .to_str()
                 .unwrap(),
         )
+        .arg("--features=web")
         .env("PAX_DIR", &pax_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
@@ -91,7 +86,7 @@ pub fn build_web_target(
 
     // Copy assets
     let asset_src = pax_dir.join("..").join(ASSETS_DIR_NAME);
-    let asset_dest = interface_path.join(PUBLIC_DIR_NAME).join(ASSETS_DIR_NAME);
+    let asset_dest = interface_path.join(ASSETS_DIR_NAME);
 
     // Create target assets directory
     if let Err(e) = fs::create_dir_all(&asset_dest) {
@@ -107,7 +102,7 @@ pub fn build_web_target(
     }
 
     //Copy fully built project into .pax/build/web, ready for e.g. publishing
-    let build_src = interface_path.join(PUBLIC_DIR_NAME);
+    let build_src = interface_path.clone();
     let build_dest = pax_dir
         .join(BUILD_DIR_NAME)
         .join(build_mode_name)

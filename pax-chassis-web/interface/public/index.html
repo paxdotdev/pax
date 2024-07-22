@@ -8,11 +8,11 @@
     <body>
         <div id="mount">
         </div>
-        <script src="pax-chassis-web-interface.js"></script>
+        <script src="pax-cartridge.js"></script>
         <script>
             if (typeof window.Pax.mount === 'function') {
                 const basePath = window.location.origin + window.location.pathname;
-                window.Pax.mount("#mount", basePath + "pax-chassis-web");
+                window.Pax.mount("#mount", basePath + "pax-cartridge");
             } else {
                 console.error("Pax cartridge failed to load or was malformed.");
             }
