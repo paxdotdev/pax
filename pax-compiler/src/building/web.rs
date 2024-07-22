@@ -107,6 +107,11 @@ pub fn build_web_target(
         .join(BUILD_DIR_NAME)
         .join(build_mode_name)
         .join(target_str_lower);
+
+    // Clean build dir
+    let _ = fs::remove_dir_all(&build_dest);
+
+    // Copy files to build dir
     let res = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
     if let Err(e) = res {
         eprintln!(

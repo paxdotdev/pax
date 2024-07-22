@@ -6,11 +6,10 @@
     #[cfg(feature = "parser")]
     pub fn main() {
 
-        let mut ctx = pax_compiler::parsing::ParsingContext::default();
+        let mut ctx = pax_engine::pax_compiler::parsing::ParsingContext::default();
 
-        ctx.main_component_type_id = <<%= pascal_identifier %> as pax_compiler::parsing::Reflectable>::get_type_id();
-
-        let (mut ctx, _) = <<%= pascal_identifier %> as pax_compiler::parsing::Reflectable>::parse_to_manifest(ctx);
+        ctx.main_component_type_id = <<%= pascal_identifier %> as pax_engine::pax_compiler::parsing::Reflectable>::get_type_id();
+        let (mut ctx, _) = <<%= pascal_identifier %> as pax_engine::pax_compiler::parsing::Reflectable>::parse_to_manifest(ctx);
 
         let manifest = pax_manifest::PaxManifest {
             components: ctx.component_definitions,
@@ -31,16 +30,16 @@
 
     //Platform-specific mount logic for #[main] component
     #[cfg(feature = "web")]
-    use wasm_bindgen::prelude::wasm_bindgen;
+    use pax_engine::wasm_bindgen::prelude::*;
     #[cfg(feature = "web")]
     #[wasm_bindgen]
-    pub fn mount() {
+    pub fn mount(hello: &str) {
 
     }
 
     //cdylib exports
     #[cfg(feature = "web")]
-    pub use pax_chassis_web::*;
+    pub use pax_engine::pax_chassis_web::*;
 
 
     #[cfg(feature = "macos")]
@@ -78,7 +77,7 @@
 <% } %>
 
 #[cfg(feature = "parser")]
-impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
+impl pax_engine::pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
 
     fn get_self_pascal_identifier() -> String {
         "<%= pascal_identifier %>".to_string()
@@ -93,14 +92,14 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                 PASCAL_IDENTIFIER
             }
         };
-        pax_compiler::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
+        pax_engine::pax_compiler::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
     }
 
     fn get_type_id() -> pax_manifest::TypeId {
        pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
     }
 
-    fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
+    fn parse_to_manifest(mut ctx: pax_engine::pax_compiler::parsing::ParsingContext) -> (pax_engine::pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
          <% if args_full_component.as_ref().is_some() { %>
             <% if args_full_component.as_ref().unwrap().error_message.is_some() { %>
                 //Error message for main component
@@ -159,7 +158,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
                 let import_path = <%= pascal_identifier %>::get_import_path();
 
-                let (mut ctx, self_type_definition) =  pax_compiler::parsing::assemble_type_definition(
+                let (mut ctx, self_type_definition) =  pax_engine::pax_compiler::parsing::assemble_type_definition(
                     ctx,
                     property_definitions.clone(),
                     None,
@@ -175,27 +174,27 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
 
                     let template_map = ctx.template_map.clone();
                     let (mut ctx, comp_def) =
-                        pax_compiler::parsing::assemble_component_definition(
+                        pax_engine::pax_compiler::parsing::assemble_component_definition(
                             ctx,
                             &raw_pax,
                             <%= args_full_component.as_ref().unwrap().is_main_component %>,
                             template_map,
-                            &pax_compiler::parsing::clean_module_path(module_path!()),
+                            &pax_engine::pax_compiler::parsing::clean_module_path(module_path!()),
                             self_type_id.clone(),
                             &component_source_file_path,
                         );
                 <% } %>
                 <% if args_struct_only_component.as_ref().is_some() { %>
                     let (mut ctx, comp_def) =
-                        pax_compiler::parsing::assemble_struct_only_component_definition(
+                        pax_engine::pax_compiler::parsing::assemble_struct_only_component_definition(
                             ctx,
-                            &pax_compiler::parsing::clean_module_path(module_path!()),
+                            &pax_engine::pax_compiler::parsing::clean_module_path(module_path!()),
                             self_type_id.clone(),
                         );
                 <% } %>
                 <% if args_primitive.as_ref().is_some() { %>
-                    let comp_def = pax_compiler::parsing::assemble_primitive_definition(
-                        &pax_compiler::parsing::clean_module_path(module_path!()),
+                    let comp_def = pax_engine::pax_compiler::parsing::assemble_primitive_definition(
+                        &pax_engine::pax_compiler::parsing::clean_module_path(module_path!()),
                         "<%=  args_primitive.as_ref().unwrap().primitive_instance_import_path  %>".to_string(),
                         self_type_id.clone(),
                     );
