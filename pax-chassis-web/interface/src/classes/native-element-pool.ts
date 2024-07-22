@@ -357,7 +357,7 @@ export class NativeElementPool {
            fields.style.setProperty("--selected-color", toCssColor(patch.backgroundChecked));
         }
 
-        if (patch.outlineWidth !== undefined) {
+        if (patch.outlineWidth != null) {
             fields.style.setProperty("--border-width", patch.outlineWidth + "px");
         }
 
@@ -490,13 +490,17 @@ export class NativeElementPool {
             dropdown.options.selectedIndex = patch.selected_id;
         }
         if (patch.background) {
-            dropdown.style.background = toCssColor(patch.background);
+            dropdown.style.backgroundColor = toCssColor(patch.background);
         }
         if (patch.stroke_color) {
             dropdown.style.borderColor = toCssColor(patch.stroke_color);
         }
-        if (patch.stroke_width != undefined) {
+        if (patch.stroke_width != null) {
             dropdown.style.borderWidth = patch.stroke_width + "px";
+        }
+
+        if (patch.borderRadius != null) {
+            dropdown.style.borderRadius = patch.borderRadius + "px";
         }
 
         // Apply the content
@@ -593,7 +597,7 @@ export class NativeElementPool {
             button.style.borderColor = toCssColor(patch.outlineStrokeColor);
         }
 
-        if (patch.outlineStrokeWidth !== undefined) {
+        if (patch.outlineStrokeWidth != null) {
             button.style.borderWidth = patch.outlineStrokeWidth + "px";
         }
         

@@ -133,12 +133,38 @@ pub mod primitives {
 
     #[pax]
     #[primitive("pax_std_primitives::dropdown::DropdownInstance")]
+    #[custom(Default)]
     pub struct Dropdown {
         pub stroke: Property<Stroke>,
         pub options: Property<Vec<String>>,
         pub selected_id: Property<u32>,
         pub style: Property<TextStyle>,
         pub background: Property<Color>,
+        pub border_radius: Property<f64>,
+    }
+
+    impl Default for Dropdown {
+        fn default() -> Self {
+            Self {
+                options: Property::new(vec!["option 1".to_owned(), "option 2".to_owned()]),
+                selected_id: Property::new(0),
+                background: Property::new(Color::rgb(249.into(), 250.into(), 251.into())),
+                stroke: Property::new(Stroke {
+                    color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                    width: Property::new(Size::Pixels(1.into())),
+                }),
+                border_radius: Property::new(8.0.into()),
+                style: Property::new(TextStyle {
+                    font: Property::new(Font::default()),
+                    font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
+                    fill: Property::new(Color::BLACK),
+                    underline: Property::new(false),
+                    align_horizontal: Property::new(TextAlignHorizontal::Left),
+                    align_multiline: Property::new(TextAlignHorizontal::Left),
+                    align_vertical: Property::new(TextAlignVertical::Center),
+                }),
+            }
+        }
     }
 
     #[pax]
