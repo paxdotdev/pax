@@ -19,9 +19,9 @@ pub trait DefinitionToInstanceTraverser {
     fn get_manifest(&self) ->  &pax_manifest::PaxManifest;
 
     #[cfg(feature = "designtime")]
-    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<DesigntimeManager>>>;
+    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>>;
 
-    fn get_main_component(&mut self) -> std::rc::Rc<crate::ComponentInstance> {
+    fn get_main_component(&self) -> std::rc::Rc<crate::ComponentInstance> {
         let main_component_type_id = {
             let manifest = self.get_manifest();
             manifest.main_component_type_id.clone()
