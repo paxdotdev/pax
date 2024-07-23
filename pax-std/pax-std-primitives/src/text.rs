@@ -181,7 +181,6 @@ impl InstanceNode for TextInstance {
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.to_u32();
         context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
-        let mut curr_occlusion_ind = borrow_mut!(expanded_node.occlusion_id);
         // Reset so that native_message sending updates while unmounted
         borrow_mut!(self.native_message_props).remove(&expanded_node.id);
     }
