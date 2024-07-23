@@ -3,7 +3,6 @@ if self.visible {
 	<Textbox
 	    id=text
 	    text={self.request}
-	    @textbox_input=self.textbox_input
 	    @textbox_change=self.textbox_change
 	    background=rgba(0, 0, 0, 200)
 		border_radius=10.0
