@@ -19,7 +19,7 @@
 
 
         //Send data back to parent process by printing to stdout
-        println!("{}", &serde_json::to_string_pretty(&manifest).unwrap());
+        println!("{}", &pax_engine::serde_json::to_string_pretty(&manifest).unwrap());
         std::process::exit(0);
 
     }
@@ -31,18 +31,22 @@
     #[cfg(feature = "web")]
     use pax_engine::wasm_bindgen::prelude::*;
     #[cfg(feature = "web")]
+    use pax_engine::wasm_bindgen_futures;
+    #[cfg(feature = "web")]
     #[wasm_bindgen]
-    pub fn mount(hello: &str) {
-
+    pub async fn init() -> pax_engine::pax_chassis_web::PaxChassisWeb {
+        let cartridge = init_cartridge();
+        let manifest = init_manifest();
+        let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
+        pax_engine::pax_chassis_web::PaxChassisWeb::new(cartridge, definition_to_instance_traverser).await
     }
 
     //cdylib exports
     #[cfg(feature = "web")]
     pub use pax_engine::pax_chassis_web::*;
 
-
     #[cfg(feature = "macos")]
-    pub fn mount() {
+    pub fn init() {
         panic!("must reconnect macos mount logic")
     }
 
@@ -50,9 +54,8 @@
     #[cfg(feature = "macos")]
     pub use pax_chassis_macos::*;
 
-
     #[cfg(feature = "ios")]
-    pub fn mount() {
+    pub fn init() {
         panic!("must reconnect ios mount logic")
     }
 
@@ -60,14 +63,6 @@
     #[cfg(feature = "ios")]
     pub use pax_chassis_ios::*;
 
-    #[cfg(not(any(feature = "web", feature = "macos", feature = "ios", feature = "parser")))]
-    pub fn main() {
-        panic!("No platform specified.  Must enable one of the following features: `web`, `macos`, `ios`");
-    }
-    #[cfg(not(any(feature = "web", feature = "macos", feature = "ios")))]
-    pub fn mount() {
-        main();
-    }
 
 <% } %>
 

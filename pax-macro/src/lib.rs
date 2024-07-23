@@ -293,7 +293,6 @@ fn pax_full_component(
         template_dependencies.push("BlankComponent".to_string());
     }
 
-    // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
         let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");

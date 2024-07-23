@@ -74,17 +74,13 @@ impl PaxChassisWeb {
     //called from JS, this is essentially `main`
 
     #[cfg(feature = "designtime")]
-    pub async fn new(cartridge: &dyn PaxCartridge, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
+    pub async fn new(cartridge: Box<dyn PaxCartridge>, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
         let (width, height, os_info, expression_table) = Self::init_common(cartridge);
         let query_string = window()
             .unwrap()
             .location()
             .search()
             .expect("no search exists");
-        let manifest = Self::fetch(&format!("http://localhost:9000/create/load{query_string}"))
-            .await
-            .expect("failed to fetch manifest from remote");
-
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let designtime_manager =
@@ -107,35 +103,10 @@ impl PaxChassisWeb {
         }
     }
 
-    #[cfg(feature = "designtime")]
-    async fn fetch(url: &str) -> Result<PaxManifest, String> {
-        // Fetch the URL
-        let response =
-            Into::<wasm_bindgen_futures::JsFuture>::into(window().unwrap().fetch_with_str(url))
-                .await
-                .map_err(|err| format!("Failed to fetch: {:?}", err))?;
-
-        // Convert the response to JSON
-        let text: String = Into::<wasm_bindgen_futures::JsFuture>::into(
-            Response::from(response)
-                .text()
-                .map_err(|err| format!("Failed to parse JSON: {:?}", err))?,
-        )
-        .await
-        .map_err(|err| format!("Failed to get text: {:?}", err))?
-        .as_string()
-        .unwrap();
-
-        let manifest = serde_json::from_str(&text)
-            .map_err(|err| format!("Failed to deserialize: {:?}", err))?;
-
-        Ok(manifest)
-    }
-
     #[cfg(not(feature = "designtime"))]
-    pub async fn new(cartridge: &dyn PaxCartridge, manifest: PaxManifest) -> Self {
+    pub async fn new(cartridge: Box<dyn PaxCartridge>, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
         let (width, height, os_info, expression_table) = Self::init_common(cartridge);
-        let mut definition_to_instance_traverser = cartridge.get_definition_to_instance_traverser(manifest);
+
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let engine = pax_runtime::PaxEngine::new(
             main_component_instance,
@@ -153,7 +124,7 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common(cartridge: &dyn PaxCartridge) -> (f64, f64, OS, ExpressionTable) {
+    fn init_common(cartridge: Box<dyn PaxCartridge>) -> (f64, f64, OS, ExpressionTable) {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 

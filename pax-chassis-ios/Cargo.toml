@@ -14,3 +14,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pax-chassis-common = {version = "0.15.4", path="../pax-chassis-common"}
+
+[features]
+designtime = []

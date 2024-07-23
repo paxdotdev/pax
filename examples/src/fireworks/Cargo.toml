@@ -7,7 +7,7 @@ default-run = "run"
 [dependencies]
 pax-engine = { version = "0.15.4", path="../../../pax-engine" }
 pax-std = { version = "0.15.4", path="../../../pax-std"}
-serde_json = {version = "1.0.95", optional = true}
+
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -22,6 +22,7 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json"]
+parser = ["pax-std/parser", "pax-engine/parser"]
+designtime = ["pax-engine/designtime"]
 web = ["pax-engine/web"]
 

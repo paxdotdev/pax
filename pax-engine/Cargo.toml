@@ -17,14 +17,16 @@ pax-message = {path="../pax-message", version="0.15.4"}
 pax-runtime = {path="../pax-runtime", version="0.15.4"}
 pax-compiler = {path="../pax-compiler", optional=true, version="0.15.4"}
 pax-chassis-web = {version = "0.15.4", path="../pax-chassis-web", optional=true }
-#pax-chassis-macos = {version = "0.15.4", path="../pax-chassis-macos", optional=true }
-#pax-chassis-ios = {version = "0.15.4", path="../pax-chassis-ios", optional=true }
+pax-chassis-macos = {version = "0.15.4", path="../pax-chassis-macos", optional=true }
+pax-chassis-ios = {version = "0.15.4", path="../pax-chassis-ios", optional=true }
+serde_json = {version = "1.0.95"}
 wasm-bindgen = {version = "0.2.92", optional=true}
+wasm-bindgen-futures = {version = "0.4.42", optional=true}
 log = "0.4.20"
 
 [features]
 parser = ["dep:pax-compiler"]
-designtime = ["pax-runtime/designtime"]
-web = ["pax-chassis-web", "wasm-bindgen"]
-#macos = ["pax-chassis-macos"]
-#ios = ["pax-chassis-ios"]
+designtime = ["pax-runtime/designtime", "pax-chassis-web/designtime", "pax-chassis-macos/designtime", "pax-chassis-ios/designtime"]
+web = ["dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
+macos = ["dep:pax-chassis-macos"]
+ios = ["dep:pax-chassis-ios"]
