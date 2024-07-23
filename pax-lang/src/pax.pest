@@ -32,14 +32,14 @@ matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
 inner_nodes = { node_inner_content | any_tag_pair* }
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
-identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ (ASCII_ALPHA | "_" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
 
 //Describes a symbolic identifier with an Uppercase first letter, a la PascalCase
 //Does not enforce the presence of any other uppercase letters.
 //Intended as convention for symbolic ids in expressions, e.g. `Engine`, specification
 //of explicit types in polymorphic/enum contexts (e.g. `fill: Color {...}`), and
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
-pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
+pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_"| "-")*}
 
 //Describes the ID of an event to which a handler may be bound, e.g. `@pre_render`
 event_id = {"@" ~ identifier}

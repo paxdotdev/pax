@@ -74,7 +74,7 @@ impl PaxAppGenerator {
         
         if let Some(dir) = input_dir {
             let files_content = self.read_directory_files(dir)?;
-            user_content.push_str(&format!("\n\nHere are the current files in the project:\n\n{}", files_content));
+            user_content.push_str(&format!("\n\nHere are the current files in the project:\n PLEASE MAINTAIN AS MUCH OF THE STYLING AS POSSIBLE IF RELEVANT\n{}", files_content));
             println!("\nExisting files found in directory:");
             println!("{}", files_content);
         }
