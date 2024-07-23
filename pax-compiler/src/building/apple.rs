@@ -1,7 +1,7 @@
 use colored::Colorize;
 use serde_json::Value;
 
-use crate::helpers::{BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, PAX_BADGE, PKG_DIR_NAME};
+use crate::helpers::{BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, PAX_BADGE, INTERFACE_DIR_NAME};
 use crate::{copy_dir_recursively, wait_with_output, RunContext, RunTarget};
 
 use color_eyre::eyre;
@@ -16,8 +16,8 @@ use std::thread;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-const RUST_IOS_DYLIB_FILE_NAME: &str = "libpaxchassisios.dylib";
-const RUST_MACOS_DYLIB_FILE_NAME: &str = "libpaxchassismacos.dylib";
+const RUST_IOS_DYLIB_FILE_NAME: &str = "libpaxcartridge.dylib";
+const RUST_MACOS_DYLIB_FILE_NAME: &str = "libpaxcartridge.dylib";
 const PORTABLE_DYLIB_INSTALL_NAME: &str = "@rpath/PaxCartridge.framework/PaxCartridge";
 
 const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
@@ -236,8 +236,8 @@ pub fn build_apple_chassis_with_cartridge(
     };
 
     let macos_dylib_dest = pax_dir
-        .join(PKG_DIR_NAME)
-        .join("pax-chassis-common")
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
         .join("pax-swift-cartridge")
         .join("PaxCartridge.xcframework")
         .join(MACOS_MULTIARCH_PACKAGE_ID)
@@ -245,8 +245,8 @@ pub fn build_apple_chassis_with_cartridge(
         .join("PaxCartridge");
 
     let simulator_dylib_dest = pax_dir
-        .join(PKG_DIR_NAME)
-        .join("pax-chassis-common")
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
         .join("pax-swift-cartridge")
         .join("PaxCartridge.xcframework")
         .join(IOS_SIMULATOR_MULTIARCH_PACKAGE_ID)
@@ -254,8 +254,8 @@ pub fn build_apple_chassis_with_cartridge(
         .join("PaxCartridge");
 
     let iphone_native_dylib_dest = pax_dir
-        .join(PKG_DIR_NAME)
-        .join("pax-chassis-common")
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
         .join("pax-swift-cartridge")
         .join("PaxCartridge.xcframework")
         .join(IOS_PACKAGE_ID)
@@ -377,10 +377,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     let (xcodeproj_path, scheme) = if let RunTarget::macOS = target {
         (
             pax_dir
-                .join(PKG_DIR_NAME)
-                .join("pax-chassis-macos")
-                .join("interface")
-                .join("pax-app-macos")
+                .join(INTERFACE_DIR_NAME)
+                .join("macos")
                 .join("pax-app-macos.xcodeproj"),
             if is_release {
                 XCODE_MACOS_TARGET_RELEASE
@@ -391,10 +389,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     } else {
         (
             pax_dir
-                .join(PKG_DIR_NAME)
-                .join("pax-chassis-ios")
-                .join("interface")
-                .join("pax-app-ios")
+                .join(INTERFACE_DIR_NAME)
+                .join("ios")
                 .join("pax-app-ios.xcodeproj"),
             if is_release {
                 XCODE_IOS_TARGET_RELEASE
@@ -492,43 +488,37 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
     //Copy build artifacts & packages into `build`
     let swift_cart_src = pax_dir
-        .join(PKG_DIR_NAME)
-        .join("pax-chassis-common")
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
         .join("pax-swift-cartridge");
     let swift_common_src = pax_dir
-        .join(PKG_DIR_NAME)
-        .join("pax-chassis-common")
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
         .join("pax-swift-common");
 
     let swift_cart_build_dest = build_dest_base
-        .join("pax-chassis-common")
+        .join("common")
         .join("pax-swift-cartridge");
     let swift_common_build_dest = build_dest_base
-        .join("pax-chassis-common")
+        .join("common")
         .join("pax-swift-common");
 
     let (app_xcodeproj_src, app_xcodeproj_build_dest) = if let RunTarget::macOS = target {
         (
             pax_dir
-                .join(PKG_DIR_NAME)
-                .join("pax-chassis-macos")
-                .join("interface")
+                .join(INTERFACE_DIR_NAME)
+                .join("macos")
                 .join("pax-app-macos"),
             build_dest_base
-                .join("pax-chassis-macos")
-                .join("interface")
                 .join("pax-app-macos"),
         )
     } else {
         (
             pax_dir
-                .join(PKG_DIR_NAME)
-                .join("pax-chassis-ios")
-                .join("interface")
+                .join(INTERFACE_DIR_NAME)
+                .join("ios")
                 .join("pax-app-ios"),
             build_dest_base
-                .join("pax-chassis-ios")
-                .join("interface")
                 .join("pax-app-ios"),
         )
     };
