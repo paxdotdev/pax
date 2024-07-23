@@ -63,9 +63,12 @@ pub struct InterruptResult {
     pub prevent_default: bool,
 }
 
-#[wasm_bindgen]
+
+
+// Two impl blocks: one for "private" functions,
+//                  the second for FFI-exposed functions
+
 impl PaxChassisWeb {
-    //called from JS, this is essentially `main`
 
     #[cfg(feature = "designtime")]
     pub async fn new(cartridge: Box<dyn PaxCartridge>, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
@@ -97,6 +100,8 @@ impl PaxChassisWeb {
         }
     }
 
+
+
     #[cfg(not(feature = "designtime"))]
     pub async fn new(cartridge: Box<dyn PaxCartridge>, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
         let (width, height, os_info, expression_table) = Self::init_common(cartridge);
@@ -117,6 +122,7 @@ impl PaxChassisWeb {
             drawing_contexts: Renderer::new(),
         }
     }
+
 
     fn init_common(cartridge: Box<dyn PaxCartridge>) -> (f64, f64, OS, ExpressionTable) {
         #[cfg(feature = "console_error_panic_hook")]
@@ -143,6 +149,11 @@ impl PaxChassisWeb {
         };
         (width, height, os_info, expression_table)
     }
+}
+
+
+#[wasm_bindgen]
+impl PaxChassisWeb {
 
     pub fn add_context(&mut self, id: String) {
         let window = window().unwrap();
