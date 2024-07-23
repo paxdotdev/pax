@@ -3,21 +3,25 @@ use actix_web::middleware::Logger;
 
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
+use actix_web::{post, HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
+use pax_generation::{AIModel, PaxAppGenerator};
+use serde::Deserialize;
+use serde_json::json;
+use std::{env, fs, thread};
 
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_compiler::helpers::PAX_BADGE;
-use pax_compiler::RunContext;
+use pax_compiler::{RunContext, RunTarget};
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::{PaxManifest, TypeId};
 
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use websocket::PrivilegedAgentWebSocket;
 
@@ -27,33 +31,33 @@ pub mod websocket;
 const PORT: u16 = 8252;
 
 pub struct AppState {
-    serve_dir: PathBuf,
-    userland_project_root: PathBuf,
+    serve_dir: Mutex<PathBuf>,
+    userland_project_root: Mutex<PathBuf>,
     active_websocket_client: Mutex<Option<Addr<PrivilegedAgentWebSocket>>>,
     request_id_counter: Mutex<usize>,
-    manifest: Option<PaxManifest>,
+    manifest: Mutex<Option<PaxManifest>>,
     last_written_timestamp: Mutex<SystemTime>,
 }
 
 impl AppState {
     pub fn new_empty() -> Self {
         Self {
-            serve_dir: PathBuf::new(),
-            userland_project_root: PathBuf::new(),
+            serve_dir: Mutex::new(PathBuf::new()),
+            userland_project_root: Mutex::new(PathBuf::new()),
             active_websocket_client: Mutex::new(None),
             request_id_counter: Mutex::new(0),
-            manifest: None,
+            manifest: Mutex::new(None),
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
         }
     }
     pub fn new(serve_dir: PathBuf, project_root: PathBuf, manifest: PaxManifest) -> Self {
         AppState {
-            serve_dir,
-            userland_project_root: project_root,
+            serve_dir: Mutex::new(serve_dir),
+            userland_project_root: Mutex::new(project_root),
             active_websocket_client: Mutex::new(None),
             request_id_counter: Mutex::new(0),
-            manifest: Some(manifest),
-            last_written_timestamp: Mutex::new(UNIX_EPOCH),
+            manifest: Mutex::new(Some(manifest)),
+            last_written_timestamp: Mutex::new(SystemTime::now()),
         }
     }
 
@@ -93,13 +97,9 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
         is_release: false,
     };
 
-    let (manifest, fs_path) = pax_compiler::perform_build(&ctx).unwrap();
-
-    let state = Data::new(AppState::new(
-        fs_path.clone().expect("serve directory should exist"),
-        PathBuf::from_str(folder_to_watch).unwrap(),
-        manifest,
-    ));
+    let initial_state = perform_build_and_create_state(folder_to_watch)?;
+    let fs_path = initial_state.serve_dir.lock().unwrap().clone();
+    let state = Data::new(initial_state);
     let _watcher =
         setup_file_watcher(state.clone(), folder_to_watch).expect("Failed to setup file watcher");
 
@@ -110,10 +110,10 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .app_data(state.clone())
+            .service(ai_page)
+            .service(ai_submit)
             .service(web_socket)
-            .service(
-                actix_files::Files::new("/*", fs_path.clone().unwrap()).index_file("index.html"),
-            )
+            .service(actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"))
     })
     .bind(("127.0.0.1", PORT))?;
 
@@ -207,4 +207,101 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
     )?;
     watcher.watch(Path::new(path), RecursiveMode::Recursive)?;
     Ok(watcher)
+}
+
+#[get("/ai")]
+async fn ai_page() -> Result<HttpResponse> {
+    let html_content = fs::read_to_string("static/ai_chat.html")?;
+    Ok(HttpResponse::Ok()
+        .content_type("text/html")
+        .body(html_content))
+}
+
+#[post("/ai")]
+async fn ai_submit(message: web::Json<AiMessage>, state: web::Data<AppState>) -> HttpResponse {
+    let userland_project_root = state.userland_project_root.lock().unwrap().clone();
+    let claude_api_key = match env::var("ANTHROPIC_API_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            return HttpResponse::InternalServerError().json(json!({
+                "status": "error",
+                "message": "ANTHROPIC_API_KEY not set in environment"
+            }))
+        }
+    };
+
+    let pax_app_generator = PaxAppGenerator::new(claude_api_key, AIModel::Claude3);
+    let output = userland_project_root.clone().join("src");
+
+    match pax_app_generator
+        .generate_app(&message.message, Some(&output), true)
+        .await
+    {
+        Ok(_) => {
+            match perform_build_and_update_state(&state, userland_project_root.to_str().unwrap()) {
+                Ok(_) => HttpResponse::Ok().json(json!({
+                    "status": "success",
+                    "response": "App generated and built successfully.",
+                })),
+                Err(e) => {
+                    println!("Error performing build and updating state: {:?}", e);
+                    HttpResponse::InternalServerError().json(json!({
+                        "status": "error",
+                        "message": "Failed to build the generated app"
+                    }))
+                }
+            }
+        }
+        Err(e) => {
+            println!("Error generating app: {:?}", e);
+            HttpResponse::InternalServerError().json(json!({
+                "status": "error",
+                "message": "Failed to generate app"
+            }))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct AiMessage {
+    message: String,
+}
+
+fn create_run_context() -> RunContext {
+    RunContext {
+        target: RunTarget::Web,
+        path: "../pax-designer".to_string(),
+        verbose: false,
+        should_also_run: false,
+        is_libdev_mode: true,
+        process_child_ids: Arc::new(Mutex::new(vec![])),
+        is_release: false,
+    }
+}
+
+fn perform_build() -> std::io::Result<(PaxManifest, Option<PathBuf>)> {
+    std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
+    let ctx = create_run_context();
+    pax_compiler::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+}
+
+fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> std::io::Result<()> {
+    let (manifest, fs_path) = perform_build()?;
+
+    // Update the state
+    *state.serve_dir.lock().unwrap() = fs_path.expect("serve directory should exist");
+    *state.userland_project_root.lock().unwrap() = PathBuf::from_str(folder_to_watch).unwrap();
+    *state.manifest.lock().unwrap() = Some(manifest);
+
+    Ok(())
+}
+
+fn perform_build_and_create_state(folder_to_watch: &str) -> std::io::Result<AppState> {
+    let (manifest, fs_path) = perform_build()?;
+
+    Ok(AppState::new(
+        fs_path.expect("serve directory should exist"),
+        PathBuf::from_str(folder_to_watch).unwrap(),
+        manifest,
+    ))
 }
