@@ -33,7 +33,7 @@ def pax_root() -> Path:
 
 @cache
 def pax_docs() -> Path:
-    """Returns the root of the pax-engine/pax repository."""
+    """Returns the root of the pax-docs repository."""
     default = "~/code/docs"
     answer = input(f"Path to your pax docs repository? [{default}] ") or default
     path = Path(answer).expanduser().absolute()
