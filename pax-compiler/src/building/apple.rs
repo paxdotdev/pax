@@ -39,9 +39,7 @@ pub fn build_apple_chassis_with_cartridge(
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
-    let chassis_path = pax_dir
-        .join(PKG_DIR_NAME)
-        .join(format!("pax-chassis-{}", target_str_lower));
+    let project_path = ctx.project_path.clone();
 
     let is_release: bool = ctx.is_release;
     let is_ios = if let RunTarget::iOS = target {
@@ -70,7 +68,7 @@ pub fn build_apple_chassis_with_cartridge(
         }
     } else {
         // Build all archs for iOS builds.  We could limit these like we do for macOS
-        // dev builds, but at time of intial authoring, it was slowing zb down.
+        // dev builds, but at time of initial authoring, it was slowing zb down.
         &[
             ("aarch64-apple-ios", "ios-arm64"),
             ("x86_64-apple-ios", "iossimulator-x86_64"),
@@ -106,20 +104,28 @@ pub fn build_apple_chassis_with_cartridge(
 
     let mut index = 0;
     for target_mapping in target_mappings {
-        let chassis_path = chassis_path.clone();
+        let project_path = project_path.clone();
         let pax_dir = pax_dir.clone();
 
         let process_child_ids_threadsafe = process_child_ids.clone();
         let build_results_threadsafe = build_results.clone();
 
+        let arg_features = if let RunTarget::macOS = &target {
+            "--features=macos"
+        } else {
+            "--features=ios"
+        };
+
         let handle = thread::spawn(move || {
             let mut cmd = Command::new("cargo");
-            cmd.current_dir(&chassis_path)
+
+            cmd.current_dir(&project_path)
                 .arg("build")
                 .arg("--color")
                 .arg("always")
                 .arg("--target")
                 .arg(target_mapping.0)
+                .arg(arg_features)
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
@@ -138,7 +144,7 @@ pub fn build_apple_chassis_with_cartridge(
             //Execute `cargo build`, which generates our dylibs
             let output = wait_with_output(&process_child_ids_threadsafe, child);
 
-            let dylib_src = chassis_path
+            let dylib_src = project_path
                 .join("target")
                 .join(target_mapping.0)
                 .join(build_mode_name)
