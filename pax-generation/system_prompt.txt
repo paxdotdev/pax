@@ -10,6 +10,7 @@ For the Pax file:
 // Pax file content goes here
 ```
 
+
 For the Rust file:
 
 ```rust filename=lib.rs
@@ -27,7 +28,6 @@ Ensure the lib.rs file contains the main struct with the #[pax] and #[main] attr
 Use #[file("filename.pax")] to link .pax files in the lib.rs file.
 
 Pax Syntax:
-IMPORTANT: RENDER ORDER IS REVERSE TEMPLATE ORDER! The last thing .pax template is rendered first. The background should be the last thing in the template!!
 IMPORTANT: PAX IS NOT RUST OR JSX IT IS A CUSTOM DSL FOR BUILDING UI COMPONENTS. DO NOT WRITE RUST CODE IN .PAX FILES.
 IMPORTANT: ONLY GROUP, FRAME, STACKER, SCROLLER accept children. Other components do not.
 IMPORTANT: PROPERTIES NEED TO BE SERIALIZABLE. DO NOT USE COMPLEX TYPES LIKE CLOSURES OR FUNCTIONS.
@@ -1022,13 +1022,13 @@ Each component declares a template in an XML-like syntax, which describes how it
 
 ````pax copy
 <Group>
-    <Rectangle />
     <Ellipse />
+    <Rectangle />
 </Group>
 
 ```
 
-In this example the Rectangle will be above the Ellipse when rendered.
+In this example the Ellipse will be covering the Rectangle when rendered.
 
 
 ## Control flow

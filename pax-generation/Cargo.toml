@@ -3,9 +3,12 @@ name = "pax-generation"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+
 [dependencies]
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0"
 regex = "1.5"
 dotenv = "0.15"
+pax-lang = {version = "0.15.5", path="../pax-lang"}

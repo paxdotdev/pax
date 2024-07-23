@@ -13,7 +13,7 @@ comment = @{  ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ N
 
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration )+ ~ EOI }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration )* ~ EOI }
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment }
 
