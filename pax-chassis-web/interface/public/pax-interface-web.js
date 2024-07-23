@@ -2039,7 +2039,7 @@ var Pax = (() => {
   function mount(selector_or_element, extensionlessUrl) {
     let link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "pax-cartridge.css";
+    link.href = "pax-interface-web.css";
     document.head.appendChild(link);
     let mount2;
     if (typeof selector_or_element === "string") {
@@ -2059,7 +2059,8 @@ var Pax = (() => {
       const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
       const wasmArrayBuffer = await wasmBinary.arrayBuffer();
       await glueCodeModule.default(wasmArrayBuffer);
-      let chassis = glueCodeModule.init();
+      let chassis = await glueCodeModule.init();
+      window.chassis = chassis;
       let get_latest_memory = glueCodeModule.wasm_memory;
       return { chassis, get_latest_memory };
     } catch (err) {
