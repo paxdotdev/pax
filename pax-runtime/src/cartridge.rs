@@ -11,7 +11,6 @@ use crate::api::NodeContext;
 
 pub trait PaxCartridge {
     fn instantiate_expression_table(&self) -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>>;
-    fn get_definition_to_instance_traverser(&self, initial_manifest: pax_manifest::PaxManifest) -> Box<dyn DefinitionToInstanceTraverser>;
 }
 pub trait DefinitionToInstanceTraverser {
     fn new(manifest: pax_manifest::PaxManifest) -> Self where Self: Sized;
