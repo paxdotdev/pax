@@ -1,5 +1,8 @@
 <instructions>
-You are a Pax application generator. When given a short prompt describing a 2D application to build, your task is to generate one or multiple .pax files and ONE accompanying Rust file (lib.rs) that will contain the entrypoint to create a runnable Pax application.
+You are a Pax application generator. 
+You will be given a short prompt and a current state of a Pax application. 
+Your goal is to adhere to the prompt while maintaining what is not pertinent to the prompt especially layout!!. 
+You will generate one or multiple .pax files and ONE accompanying Rust file (lib.rs) that will contain the entrypoint to create a runnable Pax application.
 Please adhere strictly to these guidelines:
 
 Output Format: Use this exact format for each file:
@@ -1303,54 +1306,8 @@ pub enum Numeric {
     USize(usize),
 }
 
-impl Display for Numeric {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn fmt_num<V: Display>(
-            f: &mut std::fmt::Formatter<'_>,
-            v: V,
-        ) -> Result<(), std::fmt::Error> {
-            write!(f, "{:.2}", v)
-        }
-        match self {
-            Numeric::I8(v) => fmt_num(f, v),
-            Numeric::I16(v) => fmt_num(f, v),
-            Numeric::I32(v) => fmt_num(f, v),
-            Numeric::I64(v) => fmt_num(f, v),
-            Numeric::U8(v) => fmt_num(f, v),
-            Numeric::U16(v) => fmt_num(f, v),
-            Numeric::U32(v) => fmt_num(f, v),
-            Numeric::U64(v) => fmt_num(f, v),
-            Numeric::F64(v) => fmt_num(f, v),
-            Numeric::F32(v) => fmt_num(f, v),
-            Numeric::ISize(v) => fmt_num(f, v),
-            Numeric::USize(v) => fmt_num(f, v),
-        }
-    }
-}
-
-impl PartialEq for Numeric {
-    fn eq(&self, rhs: &Self) -> bool {
-        match (self.is_float(), rhs.is_float()) {
-            (false, false) => self.to_int() == rhs.to_int(),
-            _ => (self.to_float() - rhs.to_float()) < 1e-6,
-        }
-    }
-}
-
-impl Default for Numeric {
-    fn default() -> Self {
-        Self::F64(0.0)
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Percent(pub Numeric);
-
-impl Interpolatable for Percent {
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
-        Self(self.0.interpolate(&other.0, t))
-    }
-}
 
 impl From<f64> for ColorChannel {
     fn from(value: f64) -> Self {
@@ -1408,28 +1365,6 @@ impl From<Numeric> for ColorChannel {
     }
 }
 
-impl ColorChannel {
-    ///Normalizes this ColorChannel as a float [0.0, 1.0]
-    pub fn to_float_0_1(&self) -> f64 {
-        match self {
-            Self::Percent(per) => {
-                assert!(
-                    per.to_float() >= -0.000001 && per.to_float() <= 100.000001,
-                    ""
-                );
-                (per.to_float() / 100.0).clamp(0_f64, 1_f64)
-            }
-            Self::Integer(zero_to_255) => {
-                assert!(
-                    zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255,
-                    "Integer color channel values must be between 0 and 255"
-                );
-                let f_zero: f64 = (*zero_to_255).to_float();
-                (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
-            }
-        }
-    }
-}
 
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -1611,327 +1546,8 @@ pub mod primitives {
 }
 ```
 
-```rust filename=stacker.rs
-use crate::primitives::*;
-use crate::types::{StackerCell, StackerDirection};
-use pax_engine::api::Numeric;
-use pax_engine::api::{Property, Size, Transform2D};
-use pax_engine::*;
-use pax_runtime::api::NodeContext;
-
-/// Stacker lays out a series of nodes either
-/// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
-/// each node.  `Stacker`s can be stacked inside of each other, horizontally
-/// and vertically, along with percentage-based positioning and `Transform2D.anchor` to compose any rectilinear 2D layout.
-#[pax]
-#[custom(Default)]
-#[inlined(
-    for (cell_spec, i) in self._cell_specs {
-        <Group
-            transform={Transform2D::translate((cell_spec.x_px)px, (cell_spec.y_px)px)}
-            width={(cell_spec.width_px)px}
-            height={(cell_spec.height_px)px}
-        >
-            slot(i)
-        </Group>
-    }
-
-    @settings {
-        @mount: on_mount
-    }
-
-)]
-pub struct Stacker {
-    pub direction: Property<crate::types::StackerDirection>,
-    pub _cell_specs: Property<Vec<StackerCell>>,
-    pub gutter: Property<Size>,
-
-    /// For for specifying sizes of each cell.  None-values (or array-index out-of-bounds values)
-    /// will fall back to computed, equal-sizing
-    pub sizes: Property<Vec<Option<Size>>>,
-}
-
-impl Default for Stacker {
-    fn default() -> Self {
-        Self {
-            direction: Property::new(StackerDirection::Vertical),
-            _cell_specs: Property::new(vec![]),
-            gutter: Property::new(Size::Pixels(Numeric::I32(0))),
-            sizes: Property::new(vec![]),
-        }
-    }
-}
-
-impl Stacker {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-    // implementation
-    }
-}
-```
-
-```rust filename=scroller.rs
-use std::cell::RefCell;
-use std::collections::HashMap;
-
-use crate::primitives::Scrollbar;
-use crate::primitives::*;
-use crate::types::{StackerCell, StackerDirection};
-use pax_engine::api::Numeric;
-use pax_engine::api::{Event, Wheel};
-use pax_engine::api::{Property, Size, Transform2D};
-use pax_engine::*;
-use pax_runtime::api::{NodeContext, Platform, TouchEnd, TouchMove, TouchStart, OS};
-#[pax]
-#[inlined(
-    <Frame>
-        <Scrollbar
-            scroll_y={self.scroll_pos_y}
-            width=20px
-            anchor_x=100%
-            x=100%
-            size_inner_pane_y={self.scroll_height}
-        />
-        <Scrollbar
-            scroll_x={self.scroll_pos_x}
-            height=20px
-            anchor_y=100%
-            y=100%
-            size_inner_pane_x={self.scroll_width}
-        />
-        <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width} height={self.scroll_height}>
-            for i in 0..self.slot_children_count {
-                slot(i)
-            }
-        </Group>
-        <Rectangle fill=TRANSPARENT/>
-    </Frame>
-
-    @settings {
-        @mount: on_mount
-        @wheel: handle_wheel
-        @pre_render: update,
-        @touch_move: touch_move,
-        @touch_start: touch_start,
-        @touch_end: touch_end,
-    }
-
-)]
-pub struct Scroller {
-    pub scroll_pos_x: Property<Numeric>,
-    pub scroll_pos_y: Property<Numeric>,
-    pub scroll_width: Property<Size>,
-    pub scroll_height: Property<Size>,
-
-    // private fields
-    pub platform_params: Property<PlatformSpecificScrollParams>,
-    pub momentum_x: Property<f64>,
-    pub momentum_y: Property<f64>,
-    pub damping: Property<f64>,
-    pub slot_children_count: Property<usize>,
-}
-
-#[pax]
-pub struct PlatformSpecificScrollParams {
-    // constant decrease in momentum over time
-    pub deacceleration: f64,
-    // friction (decreases momentum proportionally to current value)
-    pub damping: f64,
-    // if user "flings", set to high momentum to quickly scroll
-    pub fling: bool,
-}
-
-pub struct TouchInfo {
-    x: f64,
-    y: f64,
-}
-
-thread_local! {
-    static TOUCH_TRACKER: RefCell<HashMap<i64, TouchInfo>> = RefCell::new(HashMap::new());
-}
-pub fn no_touches() -> bool {
-    TOUCH_TRACKER.with_borrow(|touches| touches.len() == 0)
-}
-
-impl Scroller {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let slot_children_count = ctx.slot_children_count.clone();
-        let deps = [slot_children_count.untyped()];
-        self.slot_children_count
-            .replace_with(Property::computed(move || slot_children_count.get(), &deps));
-        let scroll_params = match ctx.os {
-            OS::Android => PlatformSpecificScrollParams {
-                deacceleration: 0.02,
-                damping: 0.03,
-                fling: true,
-            },
-            OS::IPhone => PlatformSpecificScrollParams {
-                deacceleration: 0.00,
-                damping: 0.04,
-                fling: false,
-            },
-            // just choose some hopefully sane default
-            OS::Windows | OS::Mac | OS::Linux | OS::Unknown => PlatformSpecificScrollParams {
-                deacceleration: 0.01,
-                damping: 0.04,
-                fling: false,
-            },
-        };
-        self.platform_params.set(scroll_params);
-    }
-
-    pub fn update(&mut self, ctx: &NodeContext) {
-        let mom_x = self.momentum_x.get();
-        let mom_y = self.momentum_y.get();
-        if no_touches() {
-            self.add_position(ctx, mom_x, mom_y);
-        }
-        let platform_data = self.platform_params.get();
-        let damping = self.damping.get();
-
-        let mut new_mom_x;
-        let mut new_mom_y;
-
-        // damping
-        let falloff_factor = 1.0 - damping;
-        new_mom_x = mom_x * falloff_factor;
-        new_mom_y = mom_y * falloff_factor;
-
-        // decelleration
-        if new_mom_x > 0.0 {
-            new_mom_x = (new_mom_x - platform_data.deacceleration).max(0.0);
-        }
-        if new_mom_x < 0.0 {
-            new_mom_x = (new_mom_x + platform_data.deacceleration).min(0.0);
-        }
-        if new_mom_y > 0.0 {
-            new_mom_y = (new_mom_y - platform_data.deacceleration).max(0.0);
-        }
-        if new_mom_y < 0.0 {
-            new_mom_y = (new_mom_y + platform_data.deacceleration).min(0.0);
-        }
-
-        // stop if close to 0
-        if new_mom_x.abs() < 0.1 {
-            new_mom_x = 0.0;
-        }
-        if new_mom_y.abs() < 0.1 {
-            new_mom_y = 0.0;
-        }
-
-        self.momentum_x.set(new_mom_x);
-        self.momentum_y.set(new_mom_y);
-    }
-
-    pub fn add_position(&self, ctx: &NodeContext, dx: f64, dy: f64) {
-        let (bounds_x, bounds_y) = ctx.bounds_self.get();
-        let (max_bounds_x, max_bounds_y) = (
-            self.scroll_width.get().get_pixels(bounds_x),
-            self.scroll_height.get().get_pixels(bounds_y),
-        );
-        let old_x = self.scroll_pos_x.get().to_float();
-        let old_y = self.scroll_pos_y.get().to_float();
-        let target_x = old_x + dx;
-        let target_y = old_y + dy;
-        let clamped_target_x = target_x.clamp(0.0, (max_bounds_x - bounds_x).max(0.0));
-        let clamped_target_y = target_y.clamp(0.0, (max_bounds_y - bounds_y).max(0.0));
-        self.scroll_pos_x.set(Numeric::F64(clamped_target_x));
-        self.scroll_pos_y.set(Numeric::F64(clamped_target_y));
-    }
-
-    pub fn add_momentum(&self, ddx: f64, ddy: f64) {
-        let mom_x = self.momentum_x.get();
-        let mom_y = self.momentum_y.get();
-        self.momentum_x.set(mom_x + ddx);
-        self.momentum_y.set(mom_y + ddy);
-    }
-
-    pub fn process_new_touch_pos(&self, ctx: &NodeContext, x: f64, y: f64, ident: i64) {
-        TOUCH_TRACKER.with_borrow_mut(|touches| {
-            let last = touches
-                .get_mut(&ident)
-                .expect("should have recieved touch down before touch move");
-            let delta_x = last.x - x;
-            let delta_y = last.y - y;
-            last.x = x;
-            last.y = y;
-            self.add_position(ctx, delta_x, delta_y);
-            self.add_momentum(delta_x, delta_y);
-        });
-    }
-
-    pub fn handle_wheel(&mut self, ctx: &NodeContext, args: Event<Wheel>) {
-        self.add_position(ctx, args.delta_x, args.delta_y);
-    }
-
-    pub fn touch_move(&mut self, ctx: &NodeContext, args: Event<TouchMove>) {
-        for touch in &args.touches {
-            self.process_new_touch_pos(ctx, touch.x, touch.y, touch.identifier);
-        }
-    }
-
-    pub fn touch_start(&mut self, _ctx: &NodeContext, args: Event<TouchStart>) {
-        if no_touches() {
-            // this is first touch
-            let cached_damping = self.platform_params.get().damping;
-            let temp_damping = cached_damping.max(0.5);
-            self.damping.set(temp_damping);
-        }
-        self.momentum_x.set(0.0);
-        self.momentum_y.set(0.0);
-        TOUCH_TRACKER.with_borrow_mut(|touches| {
-            touches.extend(
-                args.touches
-                    .iter()
-                    .map(|e| (e.identifier, TouchInfo { x: e.x, y: e.y })),
-            );
-        });
-    }
-
-    pub fn touch_end(&mut self, ctx: &NodeContext, args: Event<TouchEnd>) {
-        for touch in &args.touches {
-            self.process_new_touch_pos(ctx, touch.x, touch.y, touch.identifier);
-        }
-        TOUCH_TRACKER.with_borrow_mut(|touches| {
-            let idents: Vec<_> = args.touches.iter().map(|e| e.identifier).collect();
-            touches.retain(|k, _| !idents.contains(k));
-        });
-        if no_touches() {
-            let params = self.platform_params.get();
-            self.damping.set(params.damping);
-
-            let mut mom_x = self.momentum_x.get();
-            let mut mom_y = self.momentum_y.get();
-            if params.fling && mom_x.abs() > 50.0 {
-                mom_x *= 1.7;
-            }
-            if params.fling && mom_y.abs() > 50.0 {
-                mom_y *= 1.7;
-            }
-            self.momentum_x.set(mom_x);
-            self.momentum_y.set(mom_y);
-        }
-    }
-}
-```
-
 ```rust pax-std/src/types/mod.rs
 
-pub mod path_types;
-pub mod text;
-
-use crate::primitives::Path;
-pub use kurbo::RoundedRectRadii;
-use pax_engine::api::Numeric;
-pub use pax_engine::api::Size;
-use pax_engine::*;
-
-#[pax]
-pub struct StackerCell {
-    pub x_px: f64,
-    pub y_px: f64,
-    pub width_px: f64,
-    pub height_px: f64,
-}
 
 #[pax]
 pub enum StackerDirection {
@@ -2001,12 +1617,6 @@ pub struct Point {
 impl Point {
     pub fn new(x: Size, y: Size) -> Self {
         Self { x, y }
-    }
-
-    pub fn to_kurbo_point(self, bounds: (f64, f64)) -> kurbo::Point {
-        let x = self.x.evaluate(bounds, api::Axis::X);
-        let y = self.y.evaluate(bounds, api::Axis::Y);
-        kurbo::Point { x, y }
     }
 }
 
@@ -2111,140 +1721,16 @@ pub struct PathPoint {
     pub on_change: Property<bool>,
 }
 
-impl PathPoint {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path point can only exist in <Path> tag");
-
-        let x = self.x.clone();
-        let y = self.y.clone();
-        let id = ctx.slot_index.clone();
-        let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
-            move || {
-                path_elems.update(|elems| {
-                    let id = id.get().unwrap();
-                    while elems.len() < id + 1 {
-                        elems.push(PathElement::Close)
-                    }
-                    elems[id] = PathElement::point(x.get(), y.get());
-                });
-                false
-            },
-            &deps,
-        ));
-    }
-
-    pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path point can only exist in <Path> tag");
-        let id = ctx.slot_index.get().unwrap();
-        path_elems.update(|elems| {
-            if id < elems.len() {
-                elems.remove(id);
-            }
-        });
-    }
-
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
-    }
-}
-
 #[pax]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathLine {
     pub on_change: Property<bool>,
 }
 
-impl PathLine {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path line can only exist in <Path> tag");
-
-        let id = ctx.slot_index.clone();
-        let deps = [id.untyped()];
-        self.on_change.replace_with(Property::computed(
-            move || {
-                path_elems.update(|elems| {
-                    let id = id.get().unwrap();
-                    while elems.len() < id + 1 {
-                        elems.push(PathElement::Close)
-                    }
-                    elems[id] = PathElement::line();
-                });
-                false
-            },
-            &deps,
-        ));
-    }
-
-    pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path point can only exist in <Path> tag");
-        let id = ctx.slot_index.get().unwrap();
-        path_elems.update(|elems| {
-            if id < elems.len() {
-                elems.remove(id);
-            }
-        });
-    }
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
-    }
-}
-
 #[pax]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathClose {
     pub on_change: Property<bool>,
-}
-
-impl PathClose {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path line can only exist in <Path> tag");
-
-        let id = ctx.slot_index.clone();
-        let deps = [id.untyped()];
-        self.on_change.replace_with(Property::computed(
-            move || {
-                path_elems.update(|elems| {
-                    let id = id.get().unwrap();
-                    while elems.len() < id + 1 {
-                        elems.push(PathElement::Close)
-                    }
-                    elems[id] = PathElement::close();
-                });
-                false
-            },
-            &deps,
-        ));
-    }
-    pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path point can only exist in <Path> tag");
-        let id = ctx.slot_index.clone();
-        path_elems.update(|elems| {
-            let id = id.get().unwrap();
-            if id < elems.len() {
-                elems.remove(id);
-            }
-        });
-    }
-
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
-    }
 }
 
 #[pax]
@@ -2254,60 +1740,9 @@ pub struct PathCurve {
     pub y: Property<Size>,
     pub on_change: Property<bool>,
 }
-
-impl PathCurve {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path point can only exist in <Path> tag");
-
-        let x = self.x.clone();
-        let y = self.y.clone();
-        let id = ctx.slot_index.clone();
-        let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
-            move || {
-                path_elems.update(|elems| {
-                    let id = id.get().unwrap();
-                    while elems.len() < id + 1 {
-                        elems.push(PathElement::Close)
-                    }
-                    elems[id] = PathElement::curve(x.get(), y.get());
-                });
-                false
-            },
-            &deps,
-        ));
-    }
-
-    pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
-            .expect("path point can only exist in <Path> tag");
-        let id = ctx.slot_index.get().unwrap();
-        path_elems.update(|elems| {
-            if id < elems.len() {
-                elems.remove(id);
-            }
-        });
-    }
-
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
-    }
-}
 ```
 
 ```rust filename=pax-std/src/types/text.rs
-use pax_engine::api::{Color, Numeric, Property, Size};
-use pax_engine::*;
-use pax_message::{
-    ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
-    SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, TextStyleMessage,
-    WebFontMessage,
-};
-
 #[pax]
 #[custom(Default)]
 pub struct TextStyle {
@@ -2318,94 +1753,6 @@ pub struct TextStyle {
     pub align_multiline: Property<TextAlignHorizontal>,
     pub align_vertical: Property<TextAlignVertical>,
     pub align_horizontal: Property<TextAlignHorizontal>,
-}
-
-impl Default for TextStyle {
-    fn default() -> Self {
-        Self {
-            font: Property::new(Font::default()),
-            font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
-            fill: Property::new(Default::default()),
-            underline: Property::new(false),
-            align_multiline: Property::new(TextAlignHorizontal::Left),
-            align_vertical: Property::new(TextAlignVertical::Top),
-            align_horizontal: Property::new(TextAlignHorizontal::Left),
-        }
-    }
-}
-
-impl<'a> Into<TextStyleMessage> for &'a TextStyle {
-    fn into(self) -> TextStyleMessage {
-        TextStyleMessage {
-            font: Some(self.font.get().clone().into()),
-            font_size: Some(self.font_size.get().expect_pixels().to_float()),
-            fill: Some(Into::<ColorMessage>::into(&self.fill.get())),
-            underline: Some(self.underline.get().clone()),
-            align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
-                &self.align_multiline.get(),
-            )),
-            align_vertical: Some(Into::<TextAlignVerticalMessage>::into(
-                &self.align_vertical.get(),
-            )),
-            align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(
-                &self.align_horizontal.get(),
-            )),
-        }
-    }
-}
-
-impl PartialEq<TextStyleMessage> for TextStyle {
-    fn eq(&self, other: &TextStyleMessage) -> bool {
-        let font_equal = other
-            .font
-            .as_ref()
-            .map_or(false, |font| self.font.get().eq(font));
-
-        let font_size_approx_equal = other.font_size.map_or(false, |size| {
-            (Numeric::F64(size).to_float()
-                - self.font_size.get().expect_pixels().clone().to_float())
-            .abs()
-                < 1e-3
-        });
-
-        let fill_equal = other
-            .fill
-            .as_ref()
-            .map_or(false, |fill| self.fill.get().eq(fill));
-
-        let underline_equal = other
-            .underline
-            .map_or(false, |underline| underline == self.underline.get().clone());
-
-        let align_multiline_equal = other
-            .align_multiline
-            .as_ref()
-            .map_or(false, |align_multiline| {
-                self.align_multiline.get().eq(align_multiline)
-            });
-
-        let align_vertical_equal = other
-            .align_vertical
-            .as_ref()
-            .map_or(false, |align_vertical| {
-                self.align_vertical.get().eq(align_vertical)
-            });
-
-        let align_horizontal_equal = other
-            .align_horizontal
-            .as_ref()
-            .map_or(false, |align_horizontal| {
-                self.align_horizontal.get().eq(align_horizontal)
-            });
-
-        font_equal
-            && font_size_approx_equal
-            && fill_equal
-            && underline_equal
-            && align_multiline_equal
-            && align_vertical_equal
-            && align_horizontal_equal
-    }
 }
 
 #[pax]
@@ -2428,16 +1775,6 @@ pub struct SystemFont {
     pub family: String,
     pub style: FontStyle,
     pub weight: FontWeight,
-}
-
-impl Default for SystemFont {
-    fn default() -> Self {
-        Self {
-            family: "Arial".to_string(),
-            style: FontStyle::Normal,
-            weight: FontWeight::Normal,
-        }
-    }
 }
 
 #[pax]
@@ -2494,179 +1831,6 @@ pub enum TextAlignVertical {
     Bottom,
 }
 
-impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
-    fn into(self) -> TextAlignHorizontalMessage {
-        match self {
-            TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
-            TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
-            TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
-        }
-    }
-}
-
-impl PartialEq<TextAlignHorizontalMessage> for TextAlignHorizontal {
-    fn eq(&self, other: &TextAlignHorizontalMessage) -> bool {
-        match (self, other) {
-            (TextAlignHorizontal::Center, TextAlignHorizontalMessage::Center) => true,
-            (TextAlignHorizontal::Left, TextAlignHorizontalMessage::Left) => true,
-            (TextAlignHorizontal::Right, TextAlignHorizontalMessage::Right) => true,
-            _ => false,
-        }
-    }
-}
-
-pub fn opt_align_to_message(
-    opt_alignment: &Option<TextAlignHorizontal>,
-) -> Option<TextAlignHorizontalMessage> {
-    opt_alignment.as_ref().map(|alignment| match alignment {
-        TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
-        TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
-        TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
-    })
-}
-
-pub fn opt_value_eq_opt_msg<T, U>(opt_value: &Option<T>, opt_value_msg: &Option<U>) -> bool
-where
-    T: PartialEq<U>,
-{
-    match (opt_value, opt_value_msg) {
-        (Some(value), Some(value_msg)) => value.eq(value_msg),
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-impl Into<TextAlignVerticalMessage> for &TextAlignVertical {
-    fn into(self) -> TextAlignVerticalMessage {
-        match self {
-            TextAlignVertical::Top => TextAlignVerticalMessage::Top,
-            TextAlignVertical::Center => TextAlignVerticalMessage::Center,
-            TextAlignVertical::Bottom => TextAlignVerticalMessage::Bottom,
-        }
-    }
-}
-
-impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
-    fn eq(&self, other: &TextAlignVerticalMessage) -> bool {
-        match (self, other) {
-            (TextAlignVertical::Top, TextAlignVerticalMessage::Top) => true,
-            (TextAlignVertical::Center, TextAlignVerticalMessage::Center) => true,
-            (TextAlignVertical::Bottom, TextAlignVerticalMessage::Bottom) => true,
-            _ => false,
-        }
-    }
-}
-
-impl From<Font> for FontPatch {
-    fn from(font: Font) -> Self {
-        match font {
-            Font::System(system_font) => FontPatch::System(SystemFontMessage {
-                family: Some(system_font.family),
-                style: Some(system_font.style.into()),
-                weight: Some(system_font.weight.into()),
-            }),
-            Font::Web(web_font) => FontPatch::Web(WebFontMessage {
-                family: Some(web_font.family),
-                url: Some(web_font.url),
-                style: Some(web_font.style.into()),
-                weight: Some(web_font.weight.into()),
-            }),
-            Font::Local(local_font) => FontPatch::Local(LocalFontMessage {
-                family: Some(local_font.family),
-                path: Some(local_font.path),
-                style: Some(local_font.style.into()),
-                weight: Some(local_font.weight.into()),
-            }),
-        }
-    }
-}
-
-impl PartialEq<FontStyleMessage> for FontStyle {
-    fn eq(&self, other: &FontStyleMessage) -> bool {
-        match (self, other) {
-            (FontStyle::Normal, FontStyleMessage::Normal) => true,
-            (FontStyle::Italic, FontStyleMessage::Italic) => true,
-            (FontStyle::Oblique, FontStyleMessage::Oblique) => true,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<FontWeightMessage> for FontWeight {
-    fn eq(&self, other: &FontWeightMessage) -> bool {
-        match (self, other) {
-            (FontWeight::Thin, FontWeightMessage::Thin) => true,
-            (FontWeight::ExtraLight, FontWeightMessage::ExtraLight) => true,
-            (FontWeight::Light, FontWeightMessage::Light) => true,
-            (FontWeight::Normal, FontWeightMessage::Normal) => true,
-            (FontWeight::Medium, FontWeightMessage::Medium) => true,
-            (FontWeight::SemiBold, FontWeightMessage::SemiBold) => true,
-            (FontWeight::Bold, FontWeightMessage::Bold) => true,
-            (FontWeight::ExtraBold, FontWeightMessage::ExtraBold) => true,
-            (FontWeight::Black, FontWeightMessage::Black) => true,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<FontPatch> for Font {
-    fn eq(&self, other: &FontPatch) -> bool {
-        match (self, other) {
-            (Font::System(system_font), FontPatch::System(system_font_patch)) => {
-                system_font_patch
-                    .family
-                    .as_ref()
-                    .map_or(false, |family| *family == system_font.family)
-                    && system_font_patch
-                        .style
-                        .as_ref()
-                        .map_or(false, |style| system_font.style.eq(style))
-                    && system_font_patch
-                        .weight
-                        .as_ref()
-                        .map_or(false, |weight| system_font.weight.eq(weight))
-            }
-            (Font::Web(web_font), FontPatch::Web(web_font_patch)) => {
-                web_font_patch
-                    .family
-                    .as_ref()
-                    .map_or(false, |family| *family == web_font.family)
-                    && web_font_patch
-                        .url
-                        .as_ref()
-                        .map_or(false, |url| *url == web_font.url)
-                    && web_font_patch
-                        .style
-                        .as_ref()
-                        .map_or(false, |style| web_font.style.eq(style))
-                    && web_font_patch
-                        .weight
-                        .as_ref()
-                        .map_or(false, |weight| web_font.weight.eq(weight))
-            }
-            (Font::Local(local_font), FontPatch::Local(local_font_patch)) => {
-                local_font_patch
-                    .family
-                    .as_ref()
-                    .map_or(false, |family| *family == local_font.family)
-                    && local_font_patch
-                        .path
-                        .as_ref()
-                        .map_or(false, |path| *path == local_font.path)
-                    && local_font_patch
-                        .style
-                        .as_ref()
-                        .map_or(false, |style| local_font.style.eq(style))
-                    && local_font_patch
-                        .weight
-                        .as_ref()
-                        .map_or(false, |weight| local_font.weight.eq(weight))
-            }
-            _ => false,
-        }
-    }
-}
-
 impl Font {
     pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {
         Self::System(SystemFont {
@@ -2692,58 +1856,6 @@ impl Font {
             style,
             weight,
         })
-    }
-}
-
-impl From<FontStyleMessage> for FontStyle {
-    fn from(style_msg: FontStyleMessage) -> Self {
-        match style_msg {
-            FontStyleMessage::Normal => FontStyle::Normal,
-            FontStyleMessage::Italic => FontStyle::Italic,
-            FontStyleMessage::Oblique => FontStyle::Oblique,
-        }
-    }
-}
-
-impl From<FontStyle> for FontStyleMessage {
-    fn from(style: FontStyle) -> Self {
-        match style {
-            FontStyle::Normal => FontStyleMessage::Normal,
-            FontStyle::Italic => FontStyleMessage::Italic,
-            FontStyle::Oblique => FontStyleMessage::Oblique,
-        }
-    }
-}
-
-impl From<FontWeightMessage> for FontWeight {
-    fn from(weight_msg: FontWeightMessage) -> Self {
-        match weight_msg {
-            FontWeightMessage::Thin => FontWeight::Thin,
-            FontWeightMessage::ExtraLight => FontWeight::ExtraLight,
-            FontWeightMessage::Light => FontWeight::Light,
-            FontWeightMessage::Normal => FontWeight::Normal,
-            FontWeightMessage::Medium => FontWeight::Medium,
-            FontWeightMessage::SemiBold => FontWeight::SemiBold,
-            FontWeightMessage::Bold => FontWeight::Bold,
-            FontWeightMessage::ExtraBold => FontWeight::ExtraBold,
-            FontWeightMessage::Black => FontWeight::Black,
-        }
-    }
-}
-
-impl From<FontWeight> for FontWeightMessage {
-    fn from(weight: FontWeight) -> Self {
-        match weight {
-            FontWeight::Thin => FontWeightMessage::Thin,
-            FontWeight::ExtraLight => FontWeightMessage::ExtraLight,
-            FontWeight::Light => FontWeightMessage::Light,
-            FontWeight::Normal => FontWeightMessage::Normal,
-            FontWeight::Medium => FontWeightMessage::Medium,
-            FontWeight::SemiBold => FontWeightMessage::SemiBold,
-            FontWeight::Bold => FontWeightMessage::Bold,
-            FontWeight::ExtraBold => FontWeightMessage::ExtraBold,
-            FontWeight::Black => FontWeightMessage::Black,
-        }
     }
 }
 ```
@@ -3876,6 +2988,85 @@ impl Pong {
     }
 }
 ```
+## Calculator
+
+A barebones calculator
+
+### Code
+```rust filename=lib.rs
+#![allow(unused_imports)]
+
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
+
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct Calculator {
+    pub display: Property<String>,
+    pub first_number: Property<f64>,
+    pub operation: Property<String>,
+    pub second_number: Property<f64>,
+}
+
+impl Calculator {
+    pub fn handle_number(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>, number: u8) {
+        let mut current_display = self.display.get();
+        if current_display == "0" {
+            current_display = number.to_string();
+        } else {
+            current_display.push_str(&number.to_string());
+        }
+        self.display.set(current_display);
+    }
+
+    pub fn handle_operation(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>, op: &str) {
+        self.first_number.set(self.display.get().parse().unwrap_or(0.0));
+        self.operation.set(op.to_string());
+        self.display.set("0".to_string());
+    }
+
+    pub fn handle_equals(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>) {
+        self.second_number.set(self.display.get().parse().unwrap_or(0.0));
+        let result = match self.operation.get().as_str() {
+            "+" => self.first_number.get() + self.second_number.get(),
+            "-" => self.first_number.get() - self.second_number.get(),
+            "*" => self.first_number.get() * self.second_number.get(),
+            "/" => self.first_number.get() / self.second_number.get(),
+            _ => self.second_number.get(),
+        };
+        self.display.set(result.to_string());
+    }
+
+    pub fn handle_clear(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>) {
+        self.display.set("0".to_string());
+        self.first_number.set(0.0);
+        self.operation.set("".to_string());
+        self.second_number.set(0.0);
+    }
+
+    pub fn handle0(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 0); }
+    pub fn handle1(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 1); }
+    pub fn handle2(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 2); }
+    pub fn handle3(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 3); }
+    pub fn handle4(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 4); }
+    pub fn handle5(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 5); }
+    pub fn handle6(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 6); }
+    pub fn handle7(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 7); }
+    pub fn handle8(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 8); }
+    pub fn handle9(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 9); }
+
+    pub fn handleAdd(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "+"); }
+    pub fn handleSubtract(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "-"); }
+    pub fn handleMultiply(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "*"); }
+    pub fn handleDivide(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "/"); }
+}
+```
 
 ```pax filename=lib.pax
 <Group x=50% y=50% width=300px height=400px>
@@ -3932,77 +3123,5 @@ impl Pong {
     }
 }
 ```
-```rust filename=lib.rs
-#![allow(unused_imports)]
 
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
-
-#[pax]
-#[file("lib.pax")]
-pub struct Example {
-    pub display: Property<String>,
-    pub first_number: Property<f64>,
-    pub operation: Property<String>,
-    pub second_number: Property<f64>,
-}
-
-impl Example {
-    pub fn handle_number(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>, number: u8) {
-        let mut current_display = self.display.get();
-        if current_display == "0" {
-            current_display = number.to_string();
-        } else {
-            current_display.push_str(&number.to_string());
-        }
-        self.display.set(current_display);
-    }
-
-    pub fn handle_operation(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>, op: &str) {
-        self.first_number.set(self.display.get().parse().unwrap_or(0.0));
-        self.operation.set(op.to_string());
-        self.display.set("0".to_string());
-    }
-
-    pub fn handle_equals(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>) {
-        self.second_number.set(self.display.get().parse().unwrap_or(0.0));
-        let result = match self.operation.get().as_str() {
-            "+" => self.first_number.get() + self.second_number.get(),
-            "-" => self.first_number.get() - self.second_number.get(),
-            "*" => self.first_number.get() * self.second_number.get(),
-            "/" => self.first_number.get() / self.second_number.get(),
-            _ => self.second_number.get(),
-        };
-        self.display.set(result.to_string());
-    }
-
-    pub fn handle_clear(&mut self, _ctx: &NodeContext, args: Event<ButtonClick>) {
-        self.display.set("0".to_string());
-        self.first_number.set(0.0);
-        self.operation.set("".to_string());
-        self.second_number.set(0.0);
-    }
-
-    pub fn handle0(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 0); }
-    pub fn handle1(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 1); }
-    pub fn handle2(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 2); }
-    pub fn handle3(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 3); }
-    pub fn handle4(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 4); }
-    pub fn handle5(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 5); }
-    pub fn handle6(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 6); }
-    pub fn handle7(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 7); }
-    pub fn handle8(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 8); }
-    pub fn handle9(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_number(ctx, args, 9); }
-
-    pub fn handleAdd(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "+"); }
-    pub fn handleSubtract(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "-"); }
-    pub fn handleMultiply(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "*"); }
-    pub fn handleDivide(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) { self.handle_operation(ctx, args, "/"); }
-}
-```
 </examples>
