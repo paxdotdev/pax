@@ -181,7 +181,9 @@ var Pax = (() => {
   var NATIVE_OVERLAY_CLASS = "native-overlay";
   var CANVAS_CLASS = "canvas";
   var NATIVE_LEAF_CLASS = "native-leaf";
-  var BUTTON_CLASS = "button";
+  var BUTTON_CLASS = "button-styles";
+  var CHECKBOX_CLASS = "checkbox-styles";
+  var RADIO_SET_CLASS = "radio-set-style";
   var CLIPPING_CONTAINER = "clipping-container";
   var BUTTON_TEXT_CONTAINER_CLASS = "button-text-container";
 
@@ -626,6 +628,11 @@ var Pax = (() => {
       this.size_y = jsonMessage["size_y"];
       this.transform = jsonMessage["transform"];
       this.checked = jsonMessage["checked"];
+      this.borderRadius = jsonMessage["border_radius"];
+      this.outlineColor = jsonMessage["outline_color"];
+      this.outlineWidth = jsonMessage["outline_width"];
+      this.background = jsonMessage["background"];
+      this.backgroundChecked = jsonMessage["background_checked"];
     }
     cleanUp() {
       this.id = void 0;
@@ -660,6 +667,10 @@ var Pax = (() => {
       this.size_y = jsonMessage["size_y"];
       this.transform = jsonMessage["transform"];
       this.color = jsonMessage["color"];
+      this.hoverColor = jsonMessage["hover_color"];
+      this.outlineStrokeColor = jsonMessage["outline_stroke_color"];
+      this.outlineStrokeWidth = jsonMessage["outline_stroke_width"];
+      this.borderRadius = jsonMessage["border_radius"];
       const styleMessage = jsonMessage["style"];
       if (styleMessage) {
         this.style = this.objectManager.getFromPool(TEXT_STYLE, this.objectManager);
@@ -753,6 +764,8 @@ var Pax = (() => {
       this.step = jsonMessage["step"];
       this.min = jsonMessage["min"];
       this.max = jsonMessage["max"];
+      this.borderRadius = jsonMessage["border_radius"];
+      this.background = jsonMessage["background"];
     }
     cleanUp() {
       this.id = void 0;
@@ -762,6 +775,9 @@ var Pax = (() => {
       this.step = 0;
       this.min = 0;
       this.max = 0;
+      this.borderRadius = 0;
+      this.background = void 0;
+      this.accent = void 0;
       this.transform = [];
     }
   };
@@ -779,6 +795,9 @@ var Pax = (() => {
       this.options = jsonMessage["options"];
       this.background = jsonMessage["background"];
       this.selected_id = jsonMessage["selected_id"];
+      this.backgroundChecked = jsonMessage["background_checked"];
+      this.outlineColor = jsonMessage["outline_color"];
+      this.outlineWidth = jsonMessage["outline_width"];
       const styleMessage = jsonMessage["style"];
       if (styleMessage) {
         this.style = this.objectManager.getFromPool(TEXT_STYLE, this.objectManager);
@@ -1101,13 +1120,14 @@ var Pax = (() => {
       const checkbox = this.objectManager.getFromPool(INPUT);
       checkbox.type = "checkbox";
       checkbox.style.margin = "0";
+      checkbox.setAttribute("class", CHECKBOX_CLASS);
       checkbox.addEventListener("change", (event2) => {
         const is_checked = event2.target.checked;
         checkbox.checked = !is_checked;
         let message = {
           "FormCheckboxToggle": {
             "id": patch.id,
-            "state": checkbox.checked
+            "state": is_checked
           }
         };
         this.chassis.interrupt(JSON.stringify(message), void 0);
@@ -1128,6 +1148,21 @@ var Pax = (() => {
       if (patch.checked !== null) {
         checkbox.checked = patch.checked;
       }
+      if (patch.background) {
+        checkbox.style.background = toCssColor(patch.background);
+      }
+      if (patch.borderRadius) {
+        checkbox.style.borderRadius = patch.borderRadius + "px";
+      }
+      if (patch.outlineWidth !== void 0) {
+        checkbox.style.borderWidth = patch.outlineWidth + "px";
+      }
+      if (patch.outlineColor) {
+        checkbox.style.borderColor = toCssColor(patch.outlineColor);
+      }
+      if (patch.backgroundChecked) {
+        checkbox.style.setProperty("--checked-color", toCssColor(patch.backgroundChecked));
+      }
     }
     checkboxDelete(id) {
       let oldNode = this.nodesLookup.get(id);
@@ -1140,6 +1175,11 @@ var Pax = (() => {
     textboxCreate(patch) {
       const textbox = this.objectManager.getFromPool(INPUT);
       textbox.type = "text";
+      textbox.style.margin = "0";
+      textbox.style.padding = "0";
+      textbox.style.paddingInline = "5px 5px";
+      textbox.style.paddingBlock = "0";
+      textbox.style.borderWidth = "0";
       textbox.addEventListener("input", (_event) => {
         let message = {
           "FormTextboxInput": {
@@ -1172,6 +1212,9 @@ var Pax = (() => {
     textboxUpdate(patch) {
       let leaf = this.nodesLookup.get(patch.id);
       updateCommonProps(leaf, patch);
+      if (patch.size_x != null) {
+        leaf.firstChild.style.width = patch.size_x - 10 + "px";
+      }
       let textbox = leaf.firstChild;
       applyTextTyle(textbox, textbox, patch.style);
       textbox.style.borderStyle = "solid";
@@ -1214,9 +1257,12 @@ var Pax = (() => {
     radioSetCreate(patch) {
       let fields = document.createElement("fieldset");
       fields.style.border = "0";
+      fields.style.margin = "0";
+      fields.style.padding = "0";
       fields.addEventListener("change", (event2) => {
-        if (event2.target && event2.target.matches("input[type='radio']")) {
-          let container = event2.target.parentNode;
+        let target = event2.target;
+        if (target && target.matches("input[type='radio']")) {
+          let container = target.parentNode;
           let index = Array.from(container.parentNode.children).indexOf(container);
           let message = {
             "FormRadioSetChange": {
@@ -1241,15 +1287,22 @@ var Pax = (() => {
     radioSetUpdate(patch) {
       let leaf = this.nodesLookup.get(patch.id);
       updateCommonProps(leaf, patch);
+      if (patch.style) {
+        applyTextTyle(leaf, leaf, patch.style);
+      }
       let fields = leaf.firstChild;
       if (patch.options) {
         fields.innerHTML = "";
-        patch.options.forEach((optionText, index) => {
+        patch.options.forEach((optionText, _index) => {
           let div = document.createElement("div");
+          div.style.alignItems = "center";
+          div.style.display = "flex";
+          div.style.marginBottom = "3px";
           const option = document.createElement("input");
           option.type = "radio";
           option.name = `radio-${patch.id}`;
           option.value = optionText.toString();
+          option.setAttribute("class", RADIO_SET_CLASS);
           div.appendChild(option);
           const label = document.createElement("label");
           label.innerHTML = optionText.toString();
@@ -1263,8 +1316,17 @@ var Pax = (() => {
           radio.checked = true;
         }
       }
-      if (patch.style) {
-        applyTextTyle(leaf, leaf, patch.style);
+      if (patch.background) {
+        fields.style.setProperty("--background-color", toCssColor(patch.background));
+      }
+      if (patch.backgroundChecked) {
+        fields.style.setProperty("--selected-color", toCssColor(patch.backgroundChecked));
+      }
+      if (patch.outlineWidth !== void 0) {
+        fields.style.setProperty("--border-width", patch.outlineWidth + "px");
+      }
+      if (patch.outlineColor) {
+        fields.style.setProperty("--border-color", toCssColor(patch.outlineColor));
       }
     }
     radioSetDelete(id) {
@@ -1279,7 +1341,10 @@ var Pax = (() => {
       const slider = this.objectManager.getFromPool(INPUT);
       slider.type = "range";
       slider.style.padding = "0px";
-      slider.addEventListener("input", (event2) => {
+      slider.style.margin = "0px";
+      slider.style.appearance = "none";
+      slider.style.display = "block";
+      slider.addEventListener("input", (_event) => {
         let message = {
           "FormSliderChange": {
             "id": patch.id,
@@ -1291,6 +1356,7 @@ var Pax = (() => {
       let sliderDiv = this.objectManager.getFromPool(DIV);
       sliderDiv.appendChild(slider);
       sliderDiv.setAttribute("class", NATIVE_LEAF_CLASS);
+      sliderDiv.style.overflow = "visible";
       sliderDiv.setAttribute("pax_id", String(patch.id));
       if (patch.id != void 0 && patch.occlusionLayerId != void 0) {
         this.layers.addElement(sliderDiv, patch.parentFrame, patch.occlusionLayerId);
@@ -1303,21 +1369,28 @@ var Pax = (() => {
       let leaf = this.nodesLookup.get(patch.id);
       updateCommonProps(leaf, patch);
       let slider = leaf.firstChild;
-      if (patch.value && patch.value != slider.value) {
-        slider.value = patch.value;
+      if (patch.value && patch.value.toString() != slider.value) {
+        slider.value = patch.value.toString();
       }
-      if (patch.step && patch.step != slider.step) {
-        slider.step = patch.step;
+      if (patch.step && patch.step.toString() != slider.step) {
+        slider.step = patch.step.toString();
       }
-      if (patch.min && patch.min != slider.min) {
-        slider.min = patch.min;
+      if (patch.min && patch.min.toString() != slider.min) {
+        slider.min = patch.min.toString();
       }
-      if (patch.max && patch.max != slider.max) {
-        slider.max = patch.max;
+      if (patch.max && patch.max.toString() != slider.max) {
+        slider.max = patch.max.toString();
       }
       if (patch.accent) {
         let color = toCssColor(patch.accent);
         slider.style.accentColor = color;
+      }
+      if (patch.background) {
+        let color = toCssColor(patch.background);
+        slider.style.backgroundColor = color;
+      }
+      if (patch.borderRadius) {
+        slider.style.borderRadius = patch.borderRadius + "px";
       }
     }
     sliderDelete(id) {
@@ -1365,7 +1438,7 @@ var Pax = (() => {
       if (patch.stroke_color) {
         dropdown.style.borderColor = toCssColor(patch.stroke_color);
       }
-      if (patch.stroke_width) {
+      if (patch.stroke_width != void 0) {
         dropdown.style.borderWidth = patch.stroke_width + "px";
       }
       if (patch.options != null) {
@@ -1426,8 +1499,24 @@ var Pax = (() => {
       if (patch.content != null) {
         textChild.innerHTML = t(patch.content);
       }
+      if (textChild.innerHTML.length == 0) {
+        textChild.innerHTML = " ";
+      }
       if (patch.color) {
         button.style.background = toCssColor(patch.color);
+      }
+      if (patch.hoverColor) {
+        let color = toCssColor(patch.hoverColor);
+        button.style.setProperty("--hover-color", color);
+      }
+      if (patch.borderRadius) {
+        button.style.borderRadius = patch.borderRadius + "px";
+      }
+      if (patch.outlineStrokeColor) {
+        button.style.borderColor = toCssColor(patch.outlineStrokeColor);
+      }
+      if (patch.outlineStrokeWidth !== void 0) {
+        button.style.borderWidth = patch.outlineStrokeWidth + "px";
       }
       applyTextTyle(textContainer, textChild, patch.style);
     }
@@ -2059,7 +2148,7 @@ var Pax = (() => {
       const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
       const wasmArrayBuffer = await wasmBinary.arrayBuffer();
       await glueCodeModule.default(wasmArrayBuffer);
-      let chassis = await glueCodeModule.init();
+      let chassis = await glueCodeModule.pax_init();
       window.chassis = chassis;
       let get_latest_memory = glueCodeModule.wasm_memory;
       return { chassis, get_latest_memory };
