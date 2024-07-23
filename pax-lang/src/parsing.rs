@@ -2,7 +2,6 @@ use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 use crate::{PaxParser, Rule};
 
-
 pub fn get_pax_pratt_parser() -> PrattParser<Rule> {
     // Operator precedence is declared via the ordering here:
     PrattParser::new()
