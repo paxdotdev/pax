@@ -2,7 +2,9 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 
-use pax_lang::{parse_pax_str, get_pax_pratt_parser, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span};
+use pax_lang::{
+    get_pax_pratt_parser, parse_pax_str, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span,
+};
 use pax_manifest::{
     escape_identifier, get_primitive_type_table, ComponentDefinition, ComponentTemplate,
     ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
@@ -18,7 +20,6 @@ use crate::expressions::clean_and_split_symbols;
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
-
     let pratt = get_pax_pratt_parser();
     let pairs = PaxParser::parse(Rule::expression_body, input_paxel)
         .expect(&format!("unsuccessful pratt parse {}", &input_paxel));
@@ -1098,10 +1099,6 @@ pub fn assemble_component_definition(
     self_type_id: TypeId,
     component_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
-    if is_main_component {
-        ctx.main_component_type_id = self_type_id.clone();
-    }
-
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_type_id_map: template_map,
         template: ComponentTemplate::new(
@@ -1375,7 +1372,6 @@ impl Reflectable for char {
     }
 }
 
-
 impl Reflectable for std::string::String {
     fn get_import_path() -> String {
         "std::string::String".to_string()
@@ -1390,8 +1386,6 @@ impl Reflectable for std::string::String {
         )
     }
 }
-
-
 
 impl<T> Reflectable for std::rc::Rc<T> {
     fn get_import_path() -> String {

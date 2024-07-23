@@ -295,9 +295,21 @@ fn pax_full_component(
 
     // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
+
     let reexports_snippet = if let Some(pax_dir) = pax_dir {
-        let reexports_path = std::path::Path::new(pax_dir).join("reexports.partial.rs");
-        fs::read_to_string(&reexports_path).unwrap()
+        if is_main_component {
+            // only add re-exports if we're in the valid project. This makes multiple mains are superfluous.
+            let current_directory = std::env::current_dir().unwrap();
+            let pax_dir_path = std::path::Path::new(pax_dir);
+            if pax_dir_path.starts_with(current_directory) {
+                let reexports_path = std::path::Path::new(pax_dir).join("reexports.partial.rs");
+                fs::read_to_string(&reexports_path).unwrap()
+            } else {
+                "".to_string()
+            }
+        } else {
+            "".to_string()
+        }
     } else {
         "".to_string()
     };

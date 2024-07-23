@@ -8,6 +8,8 @@
 
         let mut ctx = pax_compiler::parsing::ParsingContext::default();
 
+        ctx.main_component_type_id = <<%= pascal_identifier %> as pax_compiler::parsing::Reflectable>::get_type_id();
+
         let (mut ctx, _) = <<%= pascal_identifier %> as pax_compiler::parsing::Reflectable>::parse_to_manifest(ctx);
 
         //Special-case pax_runtime::api built-ins, ensure they're imported at least once because it's a built-in but must be surfaced through
