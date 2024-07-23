@@ -74,7 +74,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
         println!("File changed: {:?}", msg.path);
         if self.state.active_websocket_client.lock().unwrap().is_some() {
             if let FileContent::Pax(content) = msg.contents {
-                if let Some(manifest) = &self.state.manifest {
+                if let Some(manifest) = &self.state.manifest.lock().unwrap().as_ref() {
                     let mut template_map: HashMap<String, TypeId> = HashMap::new();
                     let mut matched_component: Option<TypeId> = None;
                     let mut original_template: Option<ComponentTemplate> = None;
@@ -168,7 +168,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     let claude_api_key = env::var("ANTHROPIC_API_KEY")
                         .expect("ANTHROPIC_API_KEY must be set in .env file");
                     let pax_app_generator = PaxAppGenerator::new(claude_api_key, AIModel::Claude3);
-                    let output_dir = state.userland_project_root.join("src");
+                    let output_dir = state
+                        .userland_project_root
+                        .lock()
+                        .unwrap()
+                        .clone()
+                        .join("src");
 
                     // Convert output_dir to a PathBuf (owned type) instead of &Path
                     let output = output_dir.to_path_buf();
@@ -217,7 +222,14 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     if std::fs::write(&path, data.clone()).is_err() {
                         eprintln!("server couldn't write to assets folder: {}", path);
                     };
-                    let path = self.state.serve_dir.join("assets").join(name);
+                    let path = self
+                        .state
+                        .serve_dir
+                        .lock()
+                        .unwrap()
+                        .clone()
+                        .join("assets")
+                        .join(name);
                     if std::fs::write(&path, data).is_err() {
                         eprintln!("server couldn't write to served folder: {:?}", path);
                     };
