@@ -293,7 +293,6 @@ fn pax_full_component(
         template_dependencies.push("BlankComponent".to_string());
     }
 
-    // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
         // only add cartridge if we're in the valid project. This makes multiple mains are superfluous.
