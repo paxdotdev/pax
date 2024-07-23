@@ -24,6 +24,9 @@ pub use wasm_bindgen;
 #[cfg(feature = "web")]
 pub use wasm_bindgen_futures;
 
+#[cfg(any(feature = "macos", feature="ios"))]
+pub use pax_chassis_common;
+
 pub use serde_json;
 
 // #[cfg(feature = "macos")]

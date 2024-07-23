@@ -18,7 +18,7 @@ use color_eyre::eyre;
 use tar::Archive;
 
 use crate::{
-    helpers::{copy_dir_recursively, ALL_PKGS, DIR_IGNORE_LIST_MACOS, PKG_DIR_NAME},
+    helpers::{copy_dir_recursively, ALL_PKGS, DIR_IGNORE_LIST_MACOS, INTERFACE_DIR_NAME},
     RunContext, RunTarget,
 };
 

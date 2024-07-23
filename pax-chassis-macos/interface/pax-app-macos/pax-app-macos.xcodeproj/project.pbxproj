@@ -186,8 +186,8 @@
 			);
 			mainGroup = 14FDCD3C2ACC9D690060F532;
 			packageReferences = (
-				14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-common" */,
-				14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */,
+				14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-common" */,
+				14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */,
 			);
 			productRefGroup = 14FDCD462ACC9D690060F532 /* Products */;
 			projectDirPath = "";
@@ -499,29 +499,29 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */ = {
+		14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../../pax-chassis-common/pax-swift-cartridge";
+			relativePath = "../../interface/common/pax-swift-cartridge";
 		};
-		14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-common" */ = {
+		14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-common" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../../pax-chassis-common/pax-swift-common";
+			relativePath = "../../interface/common/pax-swift-common";
 		};
-		14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */ = {
+		14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../../pax-chassis-common/pax-swift-cartridge";
+			relativePath = "../../interface/common/pax-swift-cartridge";
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		1486C80E2ACE4E48003AB8B8 /* PaxCartridge */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */;
 			productName = PaxCartridge;
 		};
 		1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */;
 			productName = PaxCartridgeAssets;
 		};
 		14A8ED5C2ADE1A7C00292406 /* FlexBuffers */ = {
@@ -538,12 +538,12 @@
 		};
 		14A8ED5F2ADE1A7C00292406 /* PaxCartridge */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */;
 			productName = PaxCartridge;
 		};
 		14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../interface/common/pax-swift-cartridge" */;
 			productName = PaxCartridgeAssets;
 		};
 		14FDCD582ACC9E7B0060F532 /* FlexBuffers */ = {

@@ -26,8 +26,11 @@ pub static PAX_WEB_INTERFACE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_D
 pub static PAX_MACOS_INTERFACE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos/interface/pax-app-macos/");
 pub static PAX_IOS_INTERFACE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios/interface/pax-app-ios/");
 
+pub static PAX_SWIFT_CARTRIDGE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-common/pax-swift-cartridge/");
+pub static PAX_SWIFT_COMMON_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-common/pax-swift-common/");
+
 pub const PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME: &str = "new-libdev-project-template";
-pub const PKG_DIR_NAME: &str = "pkg";
+pub const INTERFACE_DIR_NAME: &str = "interface";
 pub const BUILD_DIR_NAME: &str = "build";
 pub const PUBLIC_DIR_NAME: &str = "public";
 pub const ASSETS_DIR_NAME: &str = "assets";
