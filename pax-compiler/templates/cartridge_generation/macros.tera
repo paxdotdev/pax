@@ -19,7 +19,7 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
                                     .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
                             properties.{{property.name}}.replace_with(Property::new_with_name(val, &lv.raw_value));
                         },
-                        ValueDefinition::DoubleBinding(token,info) => {
+                        pax_engine::pax_manifest::ValueDefinition::DoubleBinding(token,info) => {
                             let identifier = token.token_value.clone();
                             let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
                             properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
