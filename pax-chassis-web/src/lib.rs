@@ -70,6 +70,7 @@ pub struct InterruptResult {
     pub prevent_default: bool,
 }
 
+#[wasm_bindgen]
 impl PaxChassisWeb {
     //called from JS, this is essentially `main`
 
