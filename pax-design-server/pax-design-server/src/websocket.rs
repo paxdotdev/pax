@@ -1,3 +1,13 @@
+use crate::llm::constants::TRAINING_DATA_PATH;
+use crate::{
+    code_serialization::serialize_component_to_file,
+    llm::{
+        constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
+        query_open_ai,
+        simple::{SimpleNodeAction, SimpleWorldInformation},
+    },
+    AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
+};
 use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
@@ -9,19 +19,11 @@ use pax_designtime::{
     },
     orm::template::NodeAction,
 };
+use pax_generation::{AIModel, PaxAppGenerator};
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
-use std::{collections::HashMap, fs, time::SystemTime};
-
-use crate::llm::constants::TRAINING_DATA_PATH;
-use crate::{
-    code_serialization::serialize_component_to_file,
-    llm::{
-        constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
-        query_open_ai,
-        simple::{SimpleNodeAction, SimpleWorldInformation},
-    },
-    AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
-};
+use std::os::unix::process::CommandExt;
+use std::process::Command;
+use std::{collections::HashMap, env, fs, path::Path, time::SystemTime};
 
 use self::socket_message_accumulator::SocketMessageAccumulator;
 
@@ -162,55 +164,36 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     self.state.update_last_written_timestamp();
                 }
                 Ok(AgentMessage::LLMHelpRequest(help_request)) => {
-                    let request_id = format!(
-                        "{}",
-                        SystemTime::now()
-                            .duration_since(SystemTime::UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis()
-                    );
-                    //record_request_training_data(&help_request, &request_id);
-
-                    let component_type_id = help_request.component.type_id.clone();
-                    // let serialized_component =
-                    //     press_code_serialization_template(help_request.component.clone());
-
-                    let template = help_request.component.template.as_ref().unwrap();
-                    let simple_template = template.clone().into();
-                    let simple_world_info = SimpleWorldInformation {
-                        template: simple_template,
-                    };
-                    let request = LLMRequestMessage {
-                        request: help_request.request,
-                        simple_world_info: serde_json::to_string(&simple_world_info).unwrap(),
-                        file_content: String::new(),
-                    };
-                    let request = build_llm_request(request);
                     let state = self.state.clone();
+                    let claude_api_key = env::var("ANTHROPIC_API_KEY")
+                        .expect("ANTHROPIC_API_KEY must be set in .env file");
+                    let pax_app_generator = PaxAppGenerator::new(claude_api_key, AIModel::Claude3);
+                    let output_dir = state.userland_project_root.join("src");
+
+                    // Convert output_dir to a PathBuf (owned type) instead of &Path
+                    let output = output_dir.to_path_buf();
+                    println!("prompt: {}", help_request.request);
                     spawn(async move {
-                        match query_open_ai(&request).await {
-                            Ok(response) => {
-                                let mut node_actions: Vec<NodeAction> = vec![];
-                                for simple_action in response {
-                                    println!("LLM Action: {:?}", simple_action);
-                                    node_actions.extend(SimpleNodeAction::build(
-                                        component_type_id.clone(),
-                                        simple_action,
-                                    ));
-                                }
-                                state
-                                    .active_websocket_client
-                                    .lock()
-                                    .unwrap()
-                                    .as_ref()
-                                    .unwrap()
-                                    .do_send(LLMHelpResponseMessage {
-                                        request_id,
-                                        component: component_type_id,
-                                        actions: node_actions,
-                                    });
+                        match pax_app_generator
+                            .generate_app(&help_request.request, Some(&output), true)
+                            .await
+                        {
+                            Ok(_) => {
+                                println!("App generated successfully");
+
+                                // Restart the server
+                                println!("Restarting server...");
+                                let err = Command::new("cargo")
+                                    .arg("run")
+                                    .arg("../designer-project/")
+                                    .exec();
+
+                                // If exec() returns, it means there was an error
+                                eprintln!("Failed to restart server: {:?}", err);
                             }
-                            Err(e) => eprintln!("Error querying OpenAI API: {:?}", e),
+                            Err(e) => {
+                                eprintln!("Error generating app: {:?}", e);
+                            }
                         }
                     });
                 }
