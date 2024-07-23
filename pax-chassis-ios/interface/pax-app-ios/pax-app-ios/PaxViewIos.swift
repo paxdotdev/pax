@@ -184,7 +184,7 @@ struct PaxViewIos: View {
                     print(outputString)
                 }
 
-                PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
+                PaxEngineContainer.paxEngineContainer = pax_init()
             } else {
                 guard var mutableCGContext = UIGraphicsGetCurrentContext() else { return }
                 let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &mutableCGContext, Float(rect.width), Float(rect.height))

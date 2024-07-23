@@ -1,6 +1,6 @@
 use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, PAX_BADGE,
-    PKG_DIR_NAME, PUBLIC_DIR_NAME,
+    INTERFACE_DIR_NAME, PUBLIC_DIR_NAME,
 };
 use crate::{copy_dir_recursively, RunContext, RunTarget};
 
@@ -35,7 +35,7 @@ pub fn build_web_target(
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
 
-    let interface_path = pax_dir.join("interface").join("web");
+    let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join("web");
 
     // wasm-pack build
     let mut cmd = Command::new("wasm-pack");
@@ -48,7 +48,7 @@ pub fn build_web_target(
         .arg("--out-dir")
         .arg(
             pax_dir
-                .join("interface")
+                .join(INTERFACE_DIR_NAME)
                 .join("web")
                 .to_str()
                 .unwrap(),

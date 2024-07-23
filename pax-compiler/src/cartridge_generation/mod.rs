@@ -3,7 +3,7 @@
 //! The `code_generation` module provides structures and functions for generating Pax Cartridges
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
-use crate::helpers::PKG_DIR_NAME;
+use crate::helpers::INTERFACE_DIR_NAME;
 use itertools::Itertools;
 use std::fs;
 use std::str::FromStr;
