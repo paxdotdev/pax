@@ -27,39 +27,8 @@ use pax_runtime::api::{
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
 pub struct PaxEngineContainer {
-    _engine: *mut PaxEngine,
+    pub _engine: *mut PaxEngine,
     //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
-}
-
-/// Allocate an instance of the Pax engine, with a specified root/main component from the loaded `pax_cartridge`.
-#[no_mangle] //Exposed to Swift via PaxCartridge.h
-pub extern "C" fn pax_init() -> *mut PaxEngineContainer {
-    env_logger::init();
-
-    let manifest = serde_json::from_str(&pax_cartridge::INITIAL_MANIFEST).unwrap();
-    let mut definition_to_instance_traverser =
-        pax_cartridge::DefinitionToInstanceTraverser::new(manifest);
-    let main_component_instance = definition_to_instance_traverser.get_main_component();
-    let expression_table = ExpressionTable {
-        table: pax_cartridge::instantiate_expression_table(),
-    };
-
-    //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
-    //engine can be passed back to Swift via the C (FFI) bridge
-    //This could presumably be cleaned up -- see `pax_dealloc_engine`
-    let engine: ManuallyDrop<Box<PaxEngine>> = ManuallyDrop::new(Box::new(PaxEngine::new(
-        main_component_instance,
-        expression_table,
-        (1.0, 1.0),
-        Platform::Native,
-        OS::Mac,
-    )));
-
-    let container = ManuallyDrop::new(Box::new(PaxEngineContainer {
-        _engine: Box::into_raw(ManuallyDrop::into_inner(engine)),
-    }));
-
-    Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
 /// Destroy `engine` and clean up the `ManuallyDrop` container surround it.

@@ -10,6 +10,7 @@ pax-std = { version = "0.15.4", path="../../../pax-std"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
 
 [[bin]]
 name = "parser"

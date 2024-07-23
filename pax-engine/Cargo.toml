@@ -19,6 +19,7 @@ pax-compiler = {path="../pax-compiler", optional=true, version="0.15.4"}
 pax-chassis-web = {version = "0.15.4", path="../pax-chassis-web", optional=true }
 pax-chassis-macos = {version = "0.15.4", path="../pax-chassis-macos", optional=true }
 pax-chassis-ios = {version = "0.15.4", path="../pax-chassis-ios", optional=true }
+pax-chassis-common = {version = "0.15.4", path="../pax-chassis-common", optional=true }
 serde_json = {version = "1.0.95"}
 wasm-bindgen = {version = "0.2.92", optional=true}
 wasm-bindgen-futures = {version = "0.4.42", optional=true}
@@ -28,5 +29,5 @@ log = "0.4.20"
 parser = ["dep:pax-compiler"]
 designtime = ["pax-runtime/designtime", "pax-chassis-web/designtime", "pax-chassis-macos/designtime", "pax-chassis-ios/designtime"]
 web = ["dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
-macos = ["dep:pax-chassis-macos"]
-ios = ["dep:pax-chassis-ios"]
+macos = ["dep:pax-chassis-macos", "dep:pax-chassis-common"]
+ios = ["dep:pax-chassis-ios", "dep:pax-chassis-common"]
