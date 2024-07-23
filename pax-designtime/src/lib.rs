@@ -77,31 +77,6 @@ impl DesigntimeManager {
         Ok(())
     }
 
-    // pub fn send_manifest_update(&mut self) -> anyhow::Result<()> {
-    //     // Serialize the manifest to JSON
-    //     let json = serde_json::to_string(self.orm.get_manifest()).unwrap();
-    //     let proj_str = self.project_query.clone();
-    //     let url = format!("http://localhost:9000/create/save{}", proj_str.unwrap());
-    //     wasm_bindgen_futures::spawn_local(async move {
-    //         // Create a RequestInit object with the method and body
-    //         let mut opts = web_sys::RequestInit::new();
-    //         opts.method("POST");
-    //         opts.body(Some(&JsValue::from_str(&json)));
-
-    //         // Create the request
-    //         let request = web_sys::Request::new_with_str_and_init(&url, &opts).unwrap();
-
-    //         // Send the request
-    //         Into::<wasm_bindgen_futures::JsFuture>::into(
-    //             window().unwrap().fetch_with_request(&request),
-    //         )
-    //         .await
-    //         .unwrap();
-    //         log::info!("sucessfully saved")
-    //     });
-    //     Ok(())
-    // }
-
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         let component = self.orm.get_component(type_id)?;
         self.priv_agent_connection
