@@ -42,14 +42,10 @@ impl LLMInterface {
             .replace_with(Property::computed(move || state.get(), &deps));
     }
 
-    pub fn textbox_input(&mut self, _ctx: &NodeContext, args: Event<TextboxInput>) {
-        self.request.set(args.text.clone());
-    }
-
-    pub fn textbox_change(&mut self, ctx: &NodeContext, _args: Event<TextboxChange>) {
-        let request = self.request.get();
+    pub fn textbox_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
+        let request = &args.text;
         let mut dt = borrow_mut!(ctx.designtime);
-        if let Err(e) = dt.llm_request(&request) {
+        if let Err(e) = dt.llm_request(request) {
             pax_engine::log::warn!("llm request failed: {:?}", e);
         };
         self.visible.set(false);
