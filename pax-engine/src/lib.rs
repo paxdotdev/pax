@@ -21,6 +21,10 @@ pub use pax_chassis_web;
 
 #[cfg(feature = "web")]
 pub use wasm_bindgen;
+#[cfg(feature = "web")]
+pub use wasm_bindgen_futures;
+
+pub use serde_json;
 
 // #[cfg(feature = "macos")]
 // pub use pax_chassis_macos;

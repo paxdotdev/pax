@@ -23,6 +23,8 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
     /// struct that will implement PaxCartridge
     pub cartridge_struct_id: String,
 
+    pub definition_to_instance_traverser_struct_id: String,
+
     /// List of compiled expression specs
     pub expression_specs: Vec<ExpressionSpec>,
 
