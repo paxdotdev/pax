@@ -5,7 +5,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from functools import wraps
+from functools import wraps, cache
 from typing import Callable, TextIO
 
 from rich import print
@@ -16,11 +16,30 @@ import tiktoken
 
 console = Console()
 
-PAX_ROOT = Path("/Users/david/code/pax")
-PAX_DOCS = Path("/Users/david/code/docs")
-PAX_EXAMPLES = PAX_ROOT / "examples/src"
 ENCODING = tiktoken.get_encoding("o200k_base")
 DEFAULT_DESCRIPTION = "A blue square rotating against a red background."
+
+
+@cache
+def pax_root() -> Path:
+    """Returns the root of the pax-engine/pax repository."""
+    default = "~/code/pax"
+    answer = input(f"Path to your pax engine repository? [{default}] ") or default
+    path = Path(answer).expanduser().absolute()
+    print(f"[yellow]Using path for pax engine:[/yellow] {str(path)}")
+    assert path.exists()
+    return path
+
+
+@cache
+def pax_docs() -> Path:
+    """Returns the root of the pax-engine/pax repository."""
+    default = "~/code/docs"
+    answer = input(f"Path to your pax docs repository? [{default}] ") or default
+    path = Path(answer).expanduser().absolute()
+    print(f"[yellow]Using path for pax docs:[/yellow] {str(path)}")
+    assert path.exists()
+    return path
 
 
 # =====================================================================
@@ -185,14 +204,14 @@ USE_ANCHORS = True
 @print_token_count
 @strip_output
 def get_paxel_grammar_definition() -> str:
-    with open(PAX_ROOT / "pax-lang/src/pax.pest", mode="r") as f:
+    with open(pax_root() / "pax-lang/src/pax.pest", mode="r") as f:
         return f.read()
 
 
 @print_token_count
 @strip_output
 def get_paxel_explainer() -> str:
-    with open(PAX_DOCS / "src/reference-paxel.md", mode="r") as f:
+    with open(pax_docs() / "pages/reference/paxel.md", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "62e3c3e1ceb61335e83d631afbbb5080")
         else:
@@ -207,7 +226,7 @@ def get_paxel_explainer() -> str:
 @print_token_count
 @strip_output
 def get_docs_components() -> str:
-    with open(PAX_DOCS / "src/start-key-concepts-components.md", mode="r") as f:
+    with open(pax_docs() / "pages/key-concepts/components.mdx", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "359630593ac547b4459c5e7bcd7a65c3")
         else:
@@ -223,7 +242,7 @@ def get_docs_components() -> str:
 @strip_output
 @increment_markdown(1)
 def get_docs_templates() -> str:
-    with open(PAX_DOCS / "src/start-key-concepts-templates.md", mode="r") as f:
+    with open(pax_docs() / "pages/key-concepts/templates.mdx", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "8a4bfc8b47c07012ebbf0328529e8417")
         else:
@@ -237,7 +256,7 @@ def get_docs_templates() -> str:
 @strip_output
 @increment_markdown(1)
 def get_docs_properties() -> str:
-    with open(PAX_DOCS / "src/start-key-concepts-properties-settings.md", mode="r") as f:
+    with open(pax_docs() / "pages/key-concepts/settings.mdx", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "1bdb47551ded2905735ab34924507ff0")
         else:
@@ -252,7 +271,7 @@ def get_docs_properties() -> str:
 @print_token_count
 @strip_output
 def get_docs_expressions() -> str:
-    with open(PAX_DOCS / "src/start-key-concepts-expressions.md", mode="r") as f:
+    with open(pax_docs() / "pages/key-concepts/expressions.mdx", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "cbe9f37cef36c8fa421f6ca500ac24bf")
         else:
@@ -265,7 +284,7 @@ def get_docs_expressions() -> str:
 @print_token_count
 @strip_output
 def get_docs_coordinates() -> str:
-    with open(PAX_DOCS / "src/reference-coordinates-and-transforms.md", mode="r") as f:
+    with open(pax_docs() / "pages/reference/layout.md", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "9732c66d1335615593249a6e623479a8")
         else:
@@ -281,7 +300,7 @@ def get_docs_coordinates() -> str:
 @strip_output
 @increment_markdown(1)
 def get_docs_event_handlers() -> str:
-    with open(PAX_DOCS / "src/start-key-concepts-event-handlers.md", mode="r") as f:
+    with open(pax_docs() / "pages/key-concepts/handlers.mdx", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "8131d6966a7f9a63c435deaf5b79b664")
         else:
@@ -297,7 +316,7 @@ def get_docs_event_handlers() -> str:
 @strip_output
 @increment_markdown(1)
 def get_docs_primitives() -> str:
-    with open(PAX_DOCS / "src/start-key-concepts-primitives.md", mode="r") as f:
+    with open(pax_docs() / "pages/key-concepts/primitives.mdx", mode="r") as f:
         if USE_ANCHORS:
             return text_between_anchors(f, "fb144467945d10ab68f81eda3af4bde3")
         else:
@@ -313,7 +332,7 @@ def get_examples_as_xml() -> str:
     """Find all examples and embed each relevant file as XML."""
     xml_tags: list[str] = []
 
-    for example in PAX_EXAMPLES.iterdir():
+    for example in (pax_root() / "examples/src").iterdir():
         if not example.is_dir():
             # Skip non-directories
             continue
@@ -346,7 +365,7 @@ def get_examples_as_md() -> str:
     """Find all examples and embed each relevant file as Markdown."""
     fragments: list[str] = []
 
-    for example in PAX_EXAMPLES.iterdir():
+    for example in (pax_root() / "examples/src").iterdir():
         if not example.is_dir():
             # Skip non-directories
             continue
@@ -473,6 +492,8 @@ def main():
         description = description or DEFAULT_DESCRIPTION
         print(f"[yellow]Using default prompt:[/yellow] {description}")
 
+    pax_root()  # asks for path and caches answer
+    pax_docs()  # asks for path and caches answer
     p = make_prompt_v2(description)
     n = count_tokens(p)
 
