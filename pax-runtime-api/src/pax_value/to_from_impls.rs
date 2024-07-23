@@ -55,7 +55,6 @@ impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(Fill, PaxValue::Fill);
 impl_to_from_pax_value!(Stroke, PaxValue::Stroke);
 
-
 impl From<PaxAny> for bool {
     fn from(pax_any: PaxAny) -> Self {
         match pax_any {
@@ -63,7 +62,6 @@ impl From<PaxAny> for bool {
             PaxAny::Any(_) => panic!("can't convert Any to bool"),
         }
     }
-
 }
 
 // Pax Vec type

@@ -483,6 +483,9 @@ impl ExpandedNode {
                     )
                 }
             }
+            // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
+            *borrow_mut!(self.occlusion_id) = 0;
+
             borrow!(self.instance_node).handle_unmount(&self, context);
         }
     }
