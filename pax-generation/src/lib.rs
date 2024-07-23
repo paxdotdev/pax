@@ -71,7 +71,7 @@ impl PaxAppGenerator {
     
         let mut user_content = prompt.to_string();
         user_content.push_str("\n REMEMBER BACKGROUNDS SHOULD BE THE AFTER THE THINGS THEY ARE BEHIND IN THE PAX TEMPLATE!");
-    
+        
         if let Some(dir) = input_dir {
             let files_content = self.read_directory_files(dir)?;
             user_content.push_str(&format!("\n\nHere are the current files in the project:\n\n{}", files_content));
@@ -89,7 +89,7 @@ impl PaxAppGenerator {
                 content: user_content,
             },
         ];
-    
+            
         loop {
             println!("\n--- Sending Prompt to AI ---");
             let response = self.send_prompt(&messages).await?;
@@ -100,6 +100,8 @@ impl PaxAppGenerator {
                 role: "assistant".to_string(),
                 content: response.clone(),
             });
+
+
     
             println!("\n--- Parsing Response ---");
             match self.parse_response(&response) {
