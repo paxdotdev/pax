@@ -58,6 +58,7 @@ pub struct Text {
 
 #[pax]
 #[primitive("pax_std::primitives::primitives::checkbox::CheckboxInstance")]
+#[custom(Default)]
 pub struct Checkbox {
     pub background: Property<Color>,
     pub background_checked: Property<Color>,
