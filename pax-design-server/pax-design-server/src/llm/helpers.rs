@@ -61,7 +61,7 @@ pub fn simple_node_type_to_type_id(node_type: SimpleNodeType) -> Option<TypeId> 
         SimpleNodeType::Ellipse => TypeId::build_singleton(&format!("{}::Ellipse", PREFIX), None),
         SimpleNodeType::Text => TypeId::build_singleton(&format!("{}::Text", PREFIX), None),
         SimpleNodeType::Navbar => TypeId::build_singleton(
-            "pax_designer::pax_reexports::designer_project::menu_bar::MenuBar",
+            "designer_project::menu_bar::MenuBar",
             None,
         ),
     };
