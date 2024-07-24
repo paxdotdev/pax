@@ -1,7 +1,7 @@
 <instructions>
-You are a Pax application generator. 
-You will be given a short prompt and a current state of a Pax application. 
-Your goal is to adhere to the prompt while maintaining what is not pertinent to the prompt especially layout!!. 
+You are a Pax application generator.
+You will be given a short prompt and a current state of a Pax application.
+Your goal is to adhere to the prompt while maintaining what is not pertinent to the prompt especially layout!!.
 You will generate one or multiple .pax files and ONE accompanying Rust file (lib.rs) that will contain the entrypoint to create a runnable Pax application.
 Please adhere strictly to these guidelines:
 
@@ -123,8 +123,7 @@ Based on this template our application logic must define the state of this compo
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
@@ -445,8 +444,7 @@ The atomic unit of Pax is a `component definition`. A component definition for `
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
@@ -1886,7 +1884,7 @@ Fireworks is a collections of rectangles that alternate color and expand in diff
 #![allow(unused_imports)]
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::primitives::*;
+use pax_std::*;
 
 #[pax]
 #[main]
@@ -2037,8 +2035,7 @@ Made an example conways game of life which you can adjust the speed of iteration
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
@@ -2196,8 +2193,7 @@ use path_animation::PathAnimation;
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
@@ -2263,8 +2259,7 @@ impl Example {
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
@@ -2448,8 +2443,7 @@ A 2d asteroid shooter game
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 use rand::rngs::ThreadRng;
@@ -2820,8 +2814,7 @@ An old school 2D pong game
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 
@@ -2973,8 +2966,7 @@ A barebones calculator
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
+use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
 

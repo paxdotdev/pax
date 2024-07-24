@@ -5,6 +5,7 @@ use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size, Transform2D};
 use pax_engine::*;
 use pax_runtime::api::{NodeContext, Platform, TouchEnd, TouchMove, TouchStart, OS};
+use crate::*;
 
 /// A scrolling container for arbitrary content.
 #[pax]

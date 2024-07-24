@@ -32,7 +32,7 @@ use crate::common::patch_if_needed;
 
 /// Renders text in a platform-native way
 #[pax]
-#[primitive("pax_std::primitives::primitives::text::TextInstance")]
+#[primitive("pax_std::core::text::TextInstance")]
 pub struct Text {
     pub editable: Property<bool>,
     pub text: Property<String>,

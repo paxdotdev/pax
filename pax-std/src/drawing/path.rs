@@ -17,7 +17,7 @@ use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
 #[pax]
-#[primitive("pax_std::primitives::primitives::path::PathInstance")]
+#[primitive("pax_std::drawing::path::PathInstance")]
 pub struct Path {
     pub elements: Property<Vec<PathElement>>,
     pub stroke: Property<Stroke>,
