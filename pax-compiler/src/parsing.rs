@@ -1422,7 +1422,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
         "Option".to_string()
     }
     fn get_type_id() -> TypeId {
-        TypeId::build_option(&format!("{}{}", "{PREFIX}", &T::get_type_id()))
+        TypeId::build_option(&format!("{}", &T::get_type_id()))
     }
 }
 
@@ -1686,8 +1686,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn get_type_id() -> TypeId {
         //Need to encode generics contents as part of unique id for iterables
         TypeId::build_vector(&format!(
-            "{}{}",
-            "{PREFIX}",
+            "{}",
             &Self::get_iterable_type_id().unwrap()
         ))
     }
@@ -1721,8 +1720,7 @@ impl<T: Reflectable> Reflectable for VecDeque<T> {
     fn get_type_id() -> TypeId {
         //Need to encode generics contents as part of unique id for iterables
         TypeId::build_vector(&format!(
-            "{}{}",
-            "{PREFIX}",
+            "{}",
             &Self::get_iterable_type_id().unwrap()
         ))
     }
