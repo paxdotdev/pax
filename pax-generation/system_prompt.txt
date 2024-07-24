@@ -1557,13 +1557,6 @@ pub enum StackerDirection {
 }
 
 #[pax]
-pub enum SidebarDirection {
-    Left,
-    #[default]
-    Right,
-}
-
-#[pax]
 pub enum PathElement {
     #[default]
     Empty,
@@ -1586,25 +1579,6 @@ impl PathElement {
     pub fn curve(x: Size, y: Size) -> Self {
         Self::Curve(x, y)
     }
-}
-
-#[pax]
-pub struct LineSegmentData {
-    pub start: Point,
-    pub end: Point,
-}
-
-impl LineSegmentData {
-    pub fn new(p1: Point, p2: Point) -> Self {
-        Self { start: p1, end: p2 }
-    }
-}
-
-#[pax]
-pub struct CurveSegmentData {
-    pub start: Point,
-    pub handle: Point,
-    pub end: Point,
 }
 
 #[pax]
