@@ -318,6 +318,12 @@ impl ToolBehaviour for PointerTool {
 
                 for item in &initial_selection.items {
                     let curr_node = ctx.get_glass_node_by_global_id(&item.id);
+
+                    let unit = match ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
+                        true => SizeUnit::Pixels,
+                        false => SizeUnit::Percent,
+                    };
+
                     if let Err(e) = (SetNodeLayout {
                         id: &item.id,
                         node_layout: &NodeLayoutSettings::KeepScreenBounds {
@@ -326,9 +332,11 @@ impl ToolBehaviour for PointerTool {
                             parent_transform_and_bounds: &curr_node
                                 .parent_transform_and_bounds
                                 .get(),
-                            node_decomposition_config: &item
-                                .layout_properties
-                                .into_decomposition_config(),
+                            node_decomposition_config: &DecompositionConfiguration {
+                                unit_x_pos: unit,
+                                unit_y_pos: unit,
+                                ..item.layout_properties.into_decomposition_config()
+                            },
                         },
                     }
                     .perform(ctx))

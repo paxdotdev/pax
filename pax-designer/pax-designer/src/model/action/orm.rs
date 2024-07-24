@@ -363,7 +363,7 @@ impl Action for Resize<'_> {
         let resize = to_local * local_resize * to_local.inverse();
 
         // when resizing, override to % if not meta key is pressed, then use px
-        let size_unit = match ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
+        let unit = match ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
             true => SizeUnit::Pixels,
             false => SizeUnit::Percent,
         };
@@ -374,8 +374,10 @@ impl Action for Resize<'_> {
                 transform_and_bounds: &(resize * item.transform_and_bounds),
                 parent_transform_and_bounds: &item.parent_transform_and_bounds,
                 decomposition_config: &&DecompositionConfiguration {
-                    unit_width: size_unit,
-                    unit_height: size_unit,
+                    unit_width: unit,
+                    unit_height: unit,
+                    unit_x_pos: unit,
+                    unit_y_pos: unit,
                     ..item.layout_properties.into_decomposition_config()
                 },
             }
