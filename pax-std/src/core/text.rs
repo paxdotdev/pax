@@ -13,11 +13,8 @@ use pax_message::{
     WebFontMessage,
 };
 
-
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
-
 use pax_runtime::api as pax_runtime_api;
-use_RefCell!();
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 #[cfg(feature = "designtime")]
@@ -66,7 +63,8 @@ impl InstanceNode for TextInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        borrow!(self.native_message_props)
+        self.native_message_props
+            .borrow()
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -82,9 +80,9 @@ impl InstanceNode for TextInstance {
 
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {
-            let computed_props = borrow!(expanded_node.layout_properties);
+            let computed_props = expanded_node.layout_properties.borrow();
             let tab = &computed_props.as_ref().unwrap().computed_tab;
-            let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
+            let layer_id = format!("{}", expanded_node.occlusion.borrow().0);
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
             let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);
@@ -119,20 +117,21 @@ impl InstanceNode for TextInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
+        let deps: Vec<_> = expanded_node.properties_scope
+            .borrow()
             .values()
             .cloned()
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
 
-        borrow_mut!(self.native_message_props).insert(
+        self.native_message_props.borrow_mut().insert(
             expanded_node.id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let mut old_state = borrow_mut!(last_patch);
+                    let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = TextPatch {
                         id,
@@ -142,7 +141,7 @@ impl InstanceNode for TextInstance {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let cp = expanded_node.get_common_properties();
-                        let cp = borrow!(cp);
+                        let cp = cp.borrow();
                         // send width/height only if common props exist, otherwise we are in "listening mode"
                         // trying to infer width and height from the engine. To signal this we
                         // send width/height = -1.0, telling chassis that "you tell me!".
@@ -200,7 +199,7 @@ impl InstanceNode for TextInstance {
         let id = expanded_node.id.to_u32();
         context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
         // Reset so that native_message sending updates while unmounted
-        borrow_mut!(self.native_message_props).remove(&expanded_node.id);
+        self.native_message_props.borrow_mut().remove(&expanded_node.id);
     }
 
     fn resolve_debug(

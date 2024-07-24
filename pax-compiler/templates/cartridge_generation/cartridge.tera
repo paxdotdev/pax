@@ -5,7 +5,7 @@ use pax_engine::api as pax_runtime_api;
 use pax_engine::pax_runtime::InstanceNode;
 use pax_engine::pax_runtime::DefinitionToInstanceTraverser;
 
-use_RefCell!();
+use std::cell::RefCell;
 
 fn init_cartridge() -> Box<dyn pax_engine::pax_runtime::cartridge::PaxCartridge> {
     Box::new({{ cartridge_struct_id }} {})
@@ -41,7 +41,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
                         } else {
                             panic!(); // failed to resolve symbol on specified stack frame
                         };
-                        let mut borrowed = &mut *borrow_mut!(*properties);
+                        let mut borrowed = &mut **properties.borrow_mut();
                         {% if invocation.property_flags.is_binding_repeat_elem %}
                             // binding repeat elem
                             if let Ok(unwrapped_repeat_item) = pax_engine::pax_runtime::RepeatItem::ref_from_pax_any(&*borrowed) {
@@ -49,7 +49,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
                                 let elem = std::rc::Rc::clone(&unwrapped_repeat_item.elem.get().unwrap());
                                 {% if invocation.is_numeric %}
                                     //iterable numeric as `elem`
-                                    let elem_borrowed = borrow!(elem);
+                                    let elem_borrowed = elem.borrow();
                                     if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
                                         *unwrapped
                                     } else {
@@ -57,7 +57,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
                                     }
                                 {% elif invocation.is_string %}
                                     //string as `elem`
-                                    let elem_borrowed = borrow!(elem);
+                                    let elem_borrowed = elem.borrow();
                                     if let Ok(unwrapped) = <{{invocation.fully_qualified_iterable_type}}>::ref_from_pax_any(&*elem_borrowed) {
                                         unwrapped.clone()
                                     } else {
@@ -68,7 +68,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
                                     elem.clone()
                                 {% else %}
                                     //iterable complex type
-                                    let mut elem_borrowed = &mut *borrow_mut!(elem);
+                                    let mut elem_borrowed = &mut *elem.borrow_mut();
                                     if let Ok(dc) = <{{invocation.fully_qualified_iterable_type}}>::mut_from_pax_any(elem_borrowed) {
                                         dc.clone()
                                     } else {unreachable!()}
@@ -185,14 +185,14 @@ impl pax_engine::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to
     }
     #[cfg(feature = "designtime")]
     fn get_manifest(&self) ->  Ref<pax_manifest::PaxManifest> {
-        Ref::map(borrow!(self.designtime_manager), |manager| {
+        Ref::map(self.designtime_manager.borrow(), |manager| {
             manager.get_manifest()
         })
     }
 
     #[cfg(feature = "designtime")]
     fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>> {
-        borrow_mut!(self.designtime_manager).set_project(project_query);
+        self.designtime_manager.borrow_mut().set_project(project_query);
         self.designtime_manager.clone()
     }
 }

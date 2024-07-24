@@ -3,15 +3,19 @@ use std::iter;
 use std::rc::Rc;
 
 use crate::patch_if_needed;
+use pax_engine::pax;
 use pax_message::{AnyCreatePatch, EventBlockerPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
-use_RefCell!();
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
-use pax_std::primitives::EventBlocker;
+
+use std::cell::RefCell;
+
+#[pax]
+#[primitive("pax_std::core::event_blocker::EventBlockerInstance")]
+pub struct EventBlocker {}
 
 pub struct EventBlockerInstance {
     base: BaseInstance,
@@ -43,7 +47,8 @@ impl InstanceNode for EventBlockerInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        borrow!(self.native_message_props)
+        self.native_message_props
+            .borrow()
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -65,7 +70,7 @@ impl InstanceNode for EventBlockerInstance {
 
         // bellow is the same as default impl for adding children in instance_node
         let env = Rc::clone(&expanded_node.stack);
-        let children = borrow!(self.base().get_instance_children());
+        let children = self.base().get_instance_children().borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
         let new_children = expanded_node.generate_children(children_with_envs, context);
@@ -79,12 +84,13 @@ impl InstanceNode for EventBlockerInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
+        let deps: Vec<_> = expanded_node.properties_scope
+            .borrow()
             .values()
             .cloned()
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
-        borrow_mut!(self.native_message_props).insert(
+        self.native_message_props.borrow_mut().insert(
             id,
             Property::computed(
                 move || {
@@ -92,7 +98,7 @@ impl InstanceNode for EventBlockerInstance {
                         unreachable!()
                     };
                     let id = expanded_node.id.to_u32();
-                    let mut old_state = borrow_mut!(last_patch);
+                    let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = EventBlockerPatch {
                         id,
@@ -129,7 +135,7 @@ impl InstanceNode for EventBlockerInstance {
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::EventBlockerDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
-        borrow_mut!(self.native_message_props).remove(&id);
+        self.native_message_props.borrow_mut().remove(&id);
     }
 
     fn resolve_debug(

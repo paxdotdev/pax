@@ -4,12 +4,11 @@ use pax_runtime::api::{Layer, RenderContext, Stroke, Color};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
 use crate::common::Point;
 
 use pax_runtime::api as pax_runtime_api;
-use_RefCell!();
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
@@ -80,17 +79,17 @@ impl InstanceNode for PathInstance {
         // ones bellow. If not done, things above this node could potentially access it
         let env = expanded_node
             .stack
-            .push(HashMap::new(), &*borrow!(expanded_node.properties));
+            .push(HashMap::new(), &*expanded_node.properties.borrow());
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             env.insert_stack_local_store(PathContext {
                 elements: properties.elements.clone(),
             });
-            let children = borrow!(self.base().get_instance_children());
+            let children = self.base().get_instance_children().borrow();
             let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
             let new_children = expanded_node.generate_children(children_with_envs, context);
             // set slot children to all to make children compute and update their slot index
             // (see expanded_node compute_expanded and flattened children)
-            *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_children.clone());
+            *expanded_node.expanded_slot_children.borrow_mut() = Some(new_children.clone());
             expanded_node.children.set(new_children);
         });
     }
@@ -108,7 +107,7 @@ impl InstanceNode for PathInstance {
         _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
+        let layer_id = format!("{}", expanded_node.occlusion.borrow().0);
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let mut bez_path = BezPath::new();

@@ -51,6 +51,16 @@ canvas,
   will-change: transform;
   backface-visibility: hidden;
 }
+.native-leaf {
+  white-space: pre-wrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  transform-origin: top left;
+  pointer-events:;
+  position: absolute;
+  will-change: transform;
+  backface-visibility: hidden;
+}
 .clipping-container {
   position: absolute;
   top: 0;
