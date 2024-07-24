@@ -5,7 +5,7 @@ use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::{Point2, Vector2};
 use pax_engine::*;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
-use pax_std::primitives::{Group, Path, Rectangle};
+use pax_std::primitives::{EventBlocker, Group, Path, Rectangle};
 use pax_std::types::PathElement;
 use serde::Deserialize;
 
