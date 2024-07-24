@@ -2,8 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::anyhow;
 use pax_engine::{api::NodeContext, log, math::Point2, Property};
-use pax_runtime_api::{borrow, borrow_mut, Color, Size};
-use pax_std::{stacker::Stacker, types::StackerDirection};
+use pax_engine::api::{Color, Size};
+use pax_std::layout::stacker::{Stacker, StackerDirection};
 
 use crate::{
     glass::control_point::{
@@ -62,7 +62,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
 
             let sizes_str = sizes_to_string(&new_sizes);
 
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
             let mut builder = dt
                 .get_orm_mut()
                 .get_node(self.stacker_node.id.clone())
@@ -111,7 +111,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
 
                 let sizes_str = sizes_to_string(&sizes);
 
-                let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                let mut dt = ctx.engine_context.designtime.borrow_mut();
                 let mut builder = dt.get_orm_mut().get_node(stacker_id.clone()).unwrap();
 
                 builder.set_property("sizes", &sizes_str).unwrap();
@@ -137,7 +137,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
     };
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
-    let dt = borrow!(ctx.designtime);
+    let dt = ctx.designtime.borrow();
     let manifest_ver = dt.get_manifest_version();
     let object_transform = item.transform_and_bounds.clone();
     let deps = [object_transform.untyped(), manifest_ver.untyped()];

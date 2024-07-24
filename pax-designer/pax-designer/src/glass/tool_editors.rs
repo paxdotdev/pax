@@ -3,7 +3,7 @@ use std::{cell::RefCell, ops::ControlFlow, rc::Rc};
 use pax_engine::{log, math::Point2, Property};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::borrow_mut;
-use pax_std::primitives::Text;
+use pax_std::core::text::Text;
 
 use crate::{
     math::coordinate_spaces::Glass,
@@ -35,7 +35,7 @@ pub struct TextEditTool {
 
 impl TextEditTool {
     pub fn new(ctx: &mut ActionContext, uid: UniqueTemplateNodeIdentifier) -> Result<Self, String> {
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
         let import_path = dt
             .get_orm_mut()
             .get_node(uid.clone())
@@ -86,7 +86,7 @@ impl ToolBehaviour for TextEditTool {
         });
 
         // commit text changes
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        let mut dt = ctx.engine_context.designtime.borrow_mut();
         if let Some(mut builder) = dt.get_orm_mut().get_node(self.uid.clone()) {
             builder
                 .set_typed_property("text", self.text_binding.get())

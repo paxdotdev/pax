@@ -4,11 +4,9 @@ use pax_manifest::*;
 use std::collections::HashMap;
 
 use crate::model;
-use pax_std::primitives::{Group, Path, Text};
-use pax_std::scroller::Scroller;
+use pax_std::*;
 
 pub mod property_editor;
-use pax_std::primitives::Rectangle;
 use property_editor::PropertyEditor;
 
 #[pax]

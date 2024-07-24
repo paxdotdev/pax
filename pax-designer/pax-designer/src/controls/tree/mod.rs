@@ -4,13 +4,7 @@ use pax_manifest::{
     ComponentTemplate, PaxType, TemplateNodeId, TreeIndexPosition, TypeId,
     UniqueTemplateNodeIdentifier,
 };
-use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::Text;
-use pax_std::primitives::*;
-use pax_std::types::text::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+use pax_std::*;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
@@ -392,21 +386,21 @@ fn resolve_tree_type(type_id: TypeId) -> Desc {
     let Some(import_path) = type_id.import_path() else {
         return Desc::Component(format!("{}", type_id.get_pax_type()));
     };
-    match import_path.as_str() {
-        "pax_designer::pax_reexports::pax_std::primitives::Group" => Desc::Group,
-        "pax_designer::pax_reexports::pax_std::primitives::Frame" => Desc::Frame,
-        "pax_designer::pax_reexports::pax_std::primitives::Ellipse" => Desc::Ellipse,
-        "pax_designer::pax_reexports::pax_std::primitives::Text" => Desc::Text,
-        "pax_designer::pax_reexports::pax_std::primitives::Rectangle" => Desc::Rectangle,
-        "pax_designer::pax_reexports::pax_std::primitives::Path" => Desc::Path,
-        "pax_designer::pax_reexports::pax_std::primitives::Textbox" => Desc::Textbox,
-        "pax_designer::pax_reexports::pax_std::primitives::Checkbox" => Desc::Checkbox,
-        "pax_designer::pax_reexports::pax_std::primitives::Scroller" => Desc::Scroller,
-        "pax_designer::pax_reexports::pax_std::primitives::Button" => Desc::Button,
-        "pax_designer::pax_reexports::pax_std::primitives::Image" => Desc::Image,
-        "pax_designer::pax_reexports::pax_std::primitives::Slider" => Desc::Slider,
-        "pax_designer::pax_reexports::pax_std::primitives::Dropdown" => Desc::Dropdown,
-        "pax_designer::pax_reexports::pax_std::stacker::Stacker" => Desc::Stacker,
+    match import_path.trim_start_matches("pax_std::primitives::") {
+        "Group" => Desc::Group,
+        "Frame" => Desc::Frame,
+        "Ellipse" => Desc::Ellipse,
+        "Text" => Desc::Text,
+        "Stacker" => Desc::Stacker,
+        "Rectangle" => Desc::Rectangle,
+        "Path" => Desc::Path,
+        "Textbox" => Desc::Textbox,
+        "Checkbox" => Desc::Checkbox,
+        "Scroller" => Desc::Scroller,
+        "Button" => Desc::Button,
+        "Image" => Desc::Image,
+        "Slider" => Desc::Slider,
+        "Dropdown" => Desc::Dropdown,
         _ => Desc::Component(format!("{}", type_id.get_pax_type())),
     }
 }
