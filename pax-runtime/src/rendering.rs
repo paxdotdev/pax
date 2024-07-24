@@ -2,13 +2,12 @@ use std::collections::HashMap;
 
 use std::iter;
 use std::rc::Rc;
-use_RefCell!();
+use std::cell::RefCell;
 use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, use_RefCell};
 use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll};
@@ -138,7 +137,7 @@ pub trait InstanceNode {
         context: &Rc<RuntimeContext>,
     ) {
         let env = Rc::clone(&expanded_node.stack);
-        let children = borrow!(self.base().get_instance_children());
+        let children = self.base().get_instance_children().borrow();
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
         let new_children = expanded_node.generate_children(children_with_envs, context);
