@@ -71,13 +71,11 @@ impl PropertyEditor {
                     .unwrap_or_default()
                     .get_unique_identifier();
 
-                // log::info!("settings data: ({}, {})", data.name, prop_type_ident);
+                // log useful for quickly checking what to match when adding new editor:
+                // log::info!("type ident gen for: ({}, {})", data.name, prop_type_ident);
                 match (data.name.as_str(), prop_type_ident.as_str()) {
                     // TODO make this unique type (4 corner values) instead of matching on name
-                    ("border_radius", "f64") => {
-                        log::debug!("matched border radius");
-                        6
-                    }
+                    ("border_radius", "f64") => 6,
                     (_, "pax_designer::pax_reexports::pax_engine::api::Color") => 5,
                     (_, "pax_designer::pax_reexports::pax_engine::api::Fill") => 2,
                     (_, "pax_designer::pax_reexports::pax_engine::api::Stroke") => 3,

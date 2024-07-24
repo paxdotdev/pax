@@ -51,7 +51,7 @@ if self.is_component_selected {
                 <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
                     <Path class=hr/>
                     <Text text={property.name_friendly} class=h2 class=col_1 class=span_6 y=10px/>
-                    <PropertyEditor y=40px ind={i + 1} name={property.name} stid={self.stid} snid={self.snid} />
+                    <PropertyEditor ind={i + 1} name={property.name} stid={self.stid} snid={self.snid}/>
                 </Group>
             }
         </Group>

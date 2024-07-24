@@ -462,10 +462,12 @@ impl Action for SerializeRequested {
 
 impl Action for UndoRequested {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        dt.get_orm_mut()
-            .undo()
-            .map_err(|e| anyhow!("undo failed: {:?}", e))?;
+        if let Some(id) = ctx.undo_stack.next_undo_id() {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            dt.get_orm_mut()
+                .undo_until(id)
+                .map_err(|e| anyhow!("undo failed: {:?}", e))?;
+        };
         Ok(())
     }
 }

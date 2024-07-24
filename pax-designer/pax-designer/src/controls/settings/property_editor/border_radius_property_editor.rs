@@ -31,7 +31,7 @@ impl BorderRadiusPropertyEditor {
                     while areas.len() <= index {
                         areas.push(0.0)
                     }
-                    areas[index - 1] = 75.0;
+                    areas[index - 1] = 40.0;
                 });
             });
         }
