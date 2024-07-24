@@ -46,8 +46,8 @@ const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 5] = [
     "pax_engine::api::Size",
     "pax_engine::api::Rotation",
     "pax_engine::api::ColorChannel",
-    "pax_std::types::Stroke",
-    "pax_std::types::Fill",
+    "pax_engine::api::Stroke",
+    "pax_engine::api::Fill",
 ];
 
 pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
