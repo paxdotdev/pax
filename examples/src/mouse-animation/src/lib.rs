@@ -5,10 +5,7 @@ use path_animation::PathAnimation;
 
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
 
 use pax_engine::math::Generic;
 use pax_engine::math::Point2;

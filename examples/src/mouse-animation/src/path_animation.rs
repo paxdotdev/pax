@@ -2,12 +2,9 @@
 
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
 
-use core::f64::consts::PI;
+use ::core::f64::consts::PI;
 use pax_engine::math::Generic;
 use pax_engine::math::Point2;
 
