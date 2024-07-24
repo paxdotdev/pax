@@ -34,9 +34,11 @@
         />
     </Group>
 
-    // ------------------------------------------------
-  
-    <Rectangle id=backing_plate  @mouse_down=handle_mouse_down/>
+    // this is the event-intercepting, invisible baselayer of glass
+    // — it must exist in order to intercept events from the rendering layer
+    // underneath (Note an alternative could be a flag passed to Group which
+    // toggles its `is_invisible_to_raycasting`)
+    <EventBlocker id=backing_plate @mouse_down=handle_mouse_down/>
 </Group>
 
 @settings {
@@ -46,13 +48,6 @@
     @key_up: handle_key_up,
     @double_click: handle_double_click
     @context_menu: self.context_menu
-
-    #backing_plate {
-        //this Rectangle is the event-intercepting, invisible baselayer of glass — it must
-        //exist in order to intercept events from the rendering layer underneath
-        //(Note an alternative could be a flag passed to Group which toggles its `is_invisible_to_raycasting`)
-        fill: TRANSPARENT
-    }
 
     #project {
         x: 265px,
