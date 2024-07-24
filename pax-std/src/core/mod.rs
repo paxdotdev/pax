@@ -5,6 +5,7 @@ pub mod image;
 pub mod scrollbar;
 pub mod scroller;
 pub mod text;
+pub mod event_blocker;
 
 pub use blank::*;
 pub use frame::*;
