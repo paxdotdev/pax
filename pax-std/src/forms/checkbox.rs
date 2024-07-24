@@ -19,7 +19,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native checkbox element
 #[pax]
-#[primitive("pax_std::primitives::primitives::checkbox::CheckboxInstance")]
+#[primitive("pax_std::forms::checkbox::CheckboxInstance")]
 #[custom(Default)]
 pub struct Checkbox {
     pub background: Property<Color>,
