@@ -41,7 +41,7 @@ impl pax_engine::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id
                         } else {
                             panic!(); // failed to resolve symbol on specified stack frame
                         };
-                        let mut borrowed = &mut **properties.borrow_mut();
+                        let mut borrowed = &mut *properties.borrow_mut();
                         {% if invocation.property_flags.is_binding_repeat_elem %}
                             // binding repeat elem
                             if let Ok(unwrapped_repeat_item) = pax_engine::pax_runtime::RepeatItem::ref_from_pax_any(&*borrowed) {
