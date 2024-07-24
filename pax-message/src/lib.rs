@@ -16,6 +16,9 @@ pub enum NativeMessage {
     FrameCreate(AnyCreatePatch),
     FrameUpdate(FramePatch),
     FrameDelete(u32),
+    EventBlockerCreate(AnyCreatePatch),
+    EventBlockerUpdate(EventBlockerPatch),
+    EventBlockerDelete(u32),
     CheckboxCreate(AnyCreatePatch),
     CheckboxUpdate(CheckboxPatch),
     CheckboxDelete(u32),
@@ -375,6 +378,16 @@ pub struct FramePatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct EventBlockerPatch {
+    pub id: u32,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub transform: Option<Vec<f64>>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct CheckboxPatch {
@@ -487,6 +500,7 @@ pub struct CheckboxStyleMessage {
 pub struct OcclusionPatch {
     pub id: u32,
     pub occlusion_layer_id: u32,
+    pub z_index: i32,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

@@ -1,10 +1,5 @@
-<Group x=50% y=50% width=10% height=10% @click=self.increment >
-    <Text text={self.num_clicks + " clicks"} id=text />
-    <Rectangle
-        fill={rgb(ticks, 75, 150)}
-        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-    />
-</Group>
+<EventBlocker/>
+<Button x=50% y=50% width=10% height=10%/>
 
 @settings {
      @pre_render: handle_pre_render,
