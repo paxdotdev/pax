@@ -15,8 +15,8 @@ use pax_engine::{
 };
 use pax_engine::{log, Property};
 use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
-use pax_runtime_api::{borrow, Axis, Size};
-use pax_std::primitives::Rectangle;
+use pax_runtime_api::{Axis, Size};
+use pax_std::drawing::rectangle::Rectangle;
 
 use crate::math::coordinate_spaces::Glass;
 

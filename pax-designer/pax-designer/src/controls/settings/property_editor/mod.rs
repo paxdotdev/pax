@@ -4,11 +4,7 @@ use pax_designtime::orm::template::NodeAction;
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_manifest::*;
-use pax_std::components::Stacker;
-use pax_std::components::*;
-use pax_std::primitives::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+use pax_std::*;
 use std::fmt::Write;
 
 pub mod border_radius_property_editor;
@@ -78,10 +74,10 @@ impl PropertyEditor {
                 match (data.name.as_str(), prop_type_ident.as_str()) {
                     // TODO make this unique type (4 corner values) instead of matching on name
                     ("border_radius", "f64") => 6,
-                    (_, "pax_designer::pax_reexports::pax_engine::api::Color") => 5,
-                    (_, "pax_designer::pax_reexports::pax_engine::api::Fill") => 2,
-                    (_, "pax_designer::pax_reexports::pax_engine::api::Stroke") => 3,
-                    (_, "pax_designer::pax_reexports::pax_std::types::StackerDirection") => 4,
+                    (_, "pax_engine::api::Color") => 5,
+                    (_, "pax_engine::api::Fill") => 2,
+                    (_, "pax_engine::api::Stroke") => 3,
+                    (_, "pax_std::layout::stacker::StackerDirection") => 4,
                     _ => 1,
                 }
             },

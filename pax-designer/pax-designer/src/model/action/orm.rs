@@ -30,7 +30,7 @@ use pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
 use pax_runtime_api::{Axis, Percent};
-use pax_std::stacker::Stacker;
+use pax_std::layout::stacker::Stacker;
 pub mod group_ungroup;
 
 pub struct CreateComponent<'a> {
@@ -66,7 +66,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
         };
 
         let save_data = {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut dt = ctx.engine_context.designtime.borrow_mut();
             let mut builder = dt.get_orm_mut().build_new_node(
                 ctx.app_state.selected_component_id.get().clone(),
                 self.type_id.clone(),
@@ -95,7 +95,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
                 parent_id: &save_data.unique_id,
                 parent_index: TreeIndexPosition::Top,
                 type_id: &TypeId::build_singleton(
-                    "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                    "pax_std::drawing::rectangle::Rectangle",
                     None,
                 ),
                 custom_props: &[("fill", &format!("rgb({}, {}, {})", c, c, c))],

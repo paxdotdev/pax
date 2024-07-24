@@ -11,8 +11,7 @@ use crate::USER_PROJ_ROOT_IMPORT_PATH;
 pub mod component_library_item;
 use component_library_item::{ComponentLibraryItem, ComponentLibraryItemData};
 
-use pax_std::components::Stacker;
-use pax_std::primitives::{Image, Rectangle, Text};
+use pax_std::*;
 
 #[pax]
 #[file("controls/file_and_component_picker/mod.pax")]
@@ -75,7 +74,7 @@ impl FileAndComponentPicker {
         let library_active = self.library_active.clone();
         let selected_component =
             model::read_app_state(|app_state| app_state.selected_component_id.clone());
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let manifest_ver = ctx.designtime.borrow().get_manifest_version();
 
         let deps = [
             library_active.untyped(),
@@ -88,7 +87,7 @@ impl FileAndComponentPicker {
                     return vec![];
                 }
 
-                let dt = borrow_mut!(dt);
+                let dt = dt.borrow_mut();
                 dt.get_orm()
                     .get_components()
                     .iter()
