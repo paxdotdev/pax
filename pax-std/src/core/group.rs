@@ -11,7 +11,6 @@ use pax_runtime::api::Layer;
 #[primitive("pax_std::core::group::GroupInstance")]
 pub struct Group {}
 
-
 pub struct GroupInstance {
     base: BaseInstance,
 }
