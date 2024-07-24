@@ -4,8 +4,8 @@ use pax_engine::{
     math::{Point2, Transform2, Vector2},
     NodeInterface, NodeLocal, Property,
 };
-use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{Axis, Interpolatable, Size, Window};
+use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_engine::api::{Axis, Interpolatable, Size, Window};
 
 use crate::math::{
     coordinate_spaces::{Glass, SelectionSpace},

@@ -6,7 +6,7 @@ use pax_engine::{
     math::{Generic, Parts, Point2, Space, Transform2, Vector2},
     NodeLocal,
 };
-use pax_runtime_api::{Axis, Interpolatable, Percent, Rotation, Size};
+use pax_engine::api::{Axis, Interpolatable, Percent, Rotation, Size};
 
 use crate::math::coordinate_spaces::Glass;
 

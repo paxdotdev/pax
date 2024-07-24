@@ -22,7 +22,6 @@ use pax_engine::{
 use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
-use pax_engine::api::borrow_mut;
 use pax_std::core::group::Group;
 
 use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodePropertiesFromTransform};
