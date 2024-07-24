@@ -108,6 +108,22 @@ impl PaxAppGenerator {
                 Ok((rust_files, pax_files)) => {
                     let mut all_files: Vec<(String, String)> = rust_files.into_iter().chain(pax_files.clone()).collect();
     
+                    if is_designer_project {
+                        // Find and modify the lib.rs file
+                        if let Some(index) = all_files.iter().position(|(name, _)| name == "lib.rs") {
+                            let (_, content) = &all_files[index];
+                            let modified_content = self.replace_main_struct_name_in_file(content);
+                            all_files[index] = ("lib.rs".to_string(), modified_content);
+                        }
+                    }
+
+                    println!("\n--- Writing Files to Directory ---");
+                    self.write_files_to_directory(&output_dir().join("src"), &all_files)?;
+                    println!("Files written to temporary directory:");
+                    for (filename, _) in &all_files {
+                        println!("- {}", filename);
+                    }
+
                     println!("\n--- Pre-parsing PAX files ---");
                     let parse_errors = self.pre_parse_pax_files(&pax_files);
                     if !parse_errors.is_empty() {
@@ -128,33 +144,16 @@ impl PaxAppGenerator {
                         continue;
                     }
     
-                    if is_designer_project {
-                        // Find and modify the lib.rs file
-                        if let Some(index) = all_files.iter().position(|(name, _)| name == "lib.rs") {
-                            let (_, content) = &all_files[index];
-                            let modified_content = self.replace_main_struct_name_in_file(content);
-                            all_files[index] = ("lib.rs".to_string(), modified_content);
-                        }
-                    }
-    
-                    println!("\n--- Writing Files to Directory ---");
-                    self.write_files_to_directory(&output_dir().join("src"), &all_files)?;
-                    println!("Files written to temporary directory:");
-                    for (filename, _) in &all_files {
-                        println!("- {}", filename);
-                    }
-    
                     println!("\n--- Compiling and Running Project ---");
                     if self.compile_and_run_project()? {
                         println!("Project compiled and ran successfully.");
                         if let Some(dir) = input_dir {
-                            println!("Writing files to input directory:");
-                            self.write_files_to_directory(dir, &all_files)?;
-                            for (filename, _) in &all_files {
-                                println!("- {}", filename);
+                            if dir != output_dir() {
+                                println!("Writing all files from output directory to input directory:");
+                                self.copy_directory_contents(&output_dir().join("src"), dir)?;
                             }
                         }
-                        return Ok(all_files);
+                        return Ok(self.read_directory_files_as_vec(&output_dir().join("src"))?);
                     }
     
                     println!("\n--- Compilation or Runtime Error Detected ---");
@@ -176,6 +175,45 @@ impl PaxAppGenerator {
                 }
             }
         }
+    }
+
+    // New method to copy all contents from one directory to another
+    fn copy_directory_contents(&self, from: &Path, to: &Path) -> io::Result<()> {
+        // Convert both paths to absolute paths
+        let abs_from = fs::canonicalize(from)?;
+        let abs_to = fs::canonicalize(to)?;
+
+        if abs_from == abs_to {
+            println!("Source and destination are the same. Nothing to copy.");
+            return Ok(());
+        }
+
+        fs::create_dir_all(&abs_to)?;
+        for entry in fs::read_dir(&abs_from)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                let dest_path = abs_to.join(path.file_name().unwrap());
+                fs::copy(&path, &dest_path)?;
+                println!("Copied: {}", dest_path.display());
+            }
+        }
+        Ok(())
+    }
+
+    // New method to read all files in a directory as a Vec<(String, String)>
+    fn read_directory_files_as_vec(&self, dir: &Path) -> io::Result<Vec<(String, String)>> {
+        let mut files = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                let filename = path.file_name().unwrap().to_str().unwrap().to_string();
+                let content = fs::read_to_string(&path)?;
+                files.push((filename, content));
+            }
+        }
+        Ok(files)
     }
 
     fn replace_main_struct_name_in_file(&self, content: &str) -> String {
