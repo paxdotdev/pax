@@ -18,7 +18,7 @@ piet = "0.6.0"
 piet-coregraphics = "0.6.0"
 pax-runtime = { path = "../pax-runtime", version="0.15.5" }
 pax-message = {path = "../pax-message", version="0.15.5"}
-serde_json = "1.0.120"
+serde_json = "1.0.95"
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --
