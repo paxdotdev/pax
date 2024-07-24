@@ -3,18 +3,15 @@
 use js_sys::Uint8Array;
 use log::Level;
 use pax_message::ImageLoadInterruptArgs;
-use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
-use pax_runtime::api::use_RefCell;
 use pax_runtime::api::ButtonClick;
 use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
 use pax_runtime::{cartridge, DefinitionToInstanceTraverser, ExpressionTable, PaxCartridge};
-use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
-use_RefCell!();
+use std::cell::RefCell;
 
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -183,7 +180,7 @@ impl PaxChassisWeb {
     }
 
     pub fn send_viewport_update(&mut self, width: f64, height: f64) {
-        borrow_mut!(self.engine).set_viewport_size((width, height));
+        self.engine.borrow_mut().set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: String) {
         self.drawing_contexts.remove_context(&id);
@@ -196,7 +193,7 @@ impl PaxChassisWeb {
     ) -> InterruptResult {
         let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
 
-        let engine = borrow_mut!(self.engine);
+        let engine = self.engine.borrow_mut();
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match &x {
@@ -225,21 +222,21 @@ impl PaxChassisWeb {
             NativeInterrupt::FormRadioSetChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
-                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.instance_node.borrow().handle_native_interrupt(&node, &x);
                 }
                 false
             }
             NativeInterrupt::FormSliderChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
-                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.instance_node.borrow().handle_native_interrupt(&node, &x);
                 }
                 false
             }
             NativeInterrupt::FormDropdownChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
-                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.instance_node.borrow().handle_native_interrupt(&node, &x);
                 }
                 false
             }
@@ -286,7 +283,7 @@ impl PaxChassisWeb {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
-                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.instance_node.borrow().handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!(
                         "tried to dispatch event for textbox input after node already removed"
@@ -298,7 +295,7 @@ impl PaxChassisWeb {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
-                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.instance_node.borrow().handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!("tried to dispatch event for text input after node already removed");
                 }
@@ -326,7 +323,7 @@ impl PaxChassisWeb {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
-                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.instance_node.borrow().handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!(
                         "tried to dispatch event for checkbox toggle after node already removed"
@@ -702,8 +699,8 @@ impl PaxChassisWeb {
 
     #[cfg(feature = "designtime")]
     pub fn update_userland_component(&mut self) {
-        let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
-        let reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
+        let current_manifest_version = self.designtime_manager.borrow().get_manifest_version();
+        let reload_queue = self.designtime_manager.borrow_mut().take_reload_queue();
         if current_manifest_version.get() != self.last_manifest_version_rendered {
             for reload_type in reload_queue {
                 match reload_type {
@@ -712,7 +709,7 @@ impl PaxChassisWeb {
                             .definition_to_instance_traverser
                             .get_template_node_by_id(USERLAND_PROJECT_ID)
                         {
-                            let mut engine = borrow_mut!(self.engine);
+                            let mut engine = self.engine.borrow_mut();
                             engine.replace_main_template_instance_node(Rc::clone(&instance_node));
                             engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
                         }
@@ -722,7 +719,7 @@ impl PaxChassisWeb {
                             .definition_to_instance_traverser
                             .get_template_node_by_id(RUNNING_PROJECT_ID)
                         {
-                            let mut engine = borrow_mut!(self.engine);
+                            let mut engine = self.engine.borrow_mut();
                             engine.replace_main_template_instance_node(Rc::clone(&instance_node));
                             engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
                         }
@@ -733,7 +730,7 @@ impl PaxChassisWeb {
                                 &uni.get_containing_component_type_id(),
                                 &uni.get_template_node_id(),
                             );
-                        let mut engine = borrow_mut!(self.engine);
+                        let mut engine = self.engine.borrow_mut();
                         engine.partial_update_expanded_node(Rc::clone(&instance_node));
                     }
                 }
@@ -744,7 +741,8 @@ impl PaxChassisWeb {
 
     #[cfg(feature = "designtime")]
     pub fn handle_recv_designtime(&mut self) {
-        borrow_mut!(self.designtime_manager)
+        self.designtime_manager
+            .borrow_mut()
             .handle_recv()
             .expect("couldn't handle recv");
     }
@@ -759,7 +757,7 @@ impl PaxChassisWeb {
         #[cfg(feature = "designtime")]
         self.designtime_tick();
 
-        let message_queue = borrow_mut!(self.engine).tick();
+        let message_queue = self.engine.borrow_mut().tick();
 
         // Serialize data to a JSON string
         let json_string = serde_json::to_string(&message_queue).unwrap();
@@ -783,7 +781,7 @@ impl PaxChassisWeb {
     }
 
     pub fn render(&mut self) {
-        borrow_mut!(self.engine).render((&mut self.drawing_contexts) as &mut dyn RenderContext);
+        self.engine.borrow_mut().render((&mut self.drawing_contexts) as &mut dyn RenderContext);
     }
 
     pub fn image_loaded(&mut self, path: &str) -> bool {

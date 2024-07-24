@@ -1,8 +1,8 @@
 use std::{iter, rc::Rc};
-use_RefCell!();
+use std::cell::RefCell;
 
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Property};
+use pax_runtime_api::{Property};
 
 use crate::api::Layer;
 use crate::{
@@ -69,13 +69,13 @@ impl InstanceNode for ConditionalInstance {
                         panic!("ran evaluator after expanded node dropped (conditional elem)")
                     };
                     let val = cond_expr.get();
-                    if val == *borrow!(old_val) {
+                    if val == *old_val.borrow() {
                         return cloned_expanded_node.children.get();
                     }
-                    *borrow_mut!(old_val) = val;
+                    *(old_val.borrow_mut()) = val;
                     if val {
                         let env = Rc::clone(&cloned_expanded_node.stack);
-                        let children = borrow!(cloned_self.base().get_instance_children());
+                        let children = cloned_self.base().get_instance_children().borrow();
                         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
                         let res = cloned_expanded_node
                             .generate_children(children_with_envs, &cloned_context);

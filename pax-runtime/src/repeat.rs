@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
-use_RefCell!();
+use std::cell::RefCell;
 
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property};
+use pax_runtime_api::{ImplToFromPaxAny, Property};
 
 use crate::api::Layer;
 use crate::{
@@ -125,10 +125,10 @@ impl InstanceNode for RepeatInstance {
                     };
                     let source = source_expression.get();
                     let source_len = source.len();
-                    if source_len == *borrow!(last_length) {
+                    if source_len == *last_length.borrow() {
                         return cloned_expanded_node.children.get();
                     }
-                    *borrow_mut!(last_length) = source_len;
+                    *last_length.borrow_mut() = source_len;
                     let template_children = cloned_self.base().get_instance_children();
                     let children_with_envs = iter::repeat(template_children)
                         .take(source_len)
@@ -163,7 +163,7 @@ impl InstanceNode for RepeatInstance {
                             }
 
                             let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
-                            borrow!(children)
+                            children.borrow()
                                 .clone()
                                 .into_iter()
                                 .zip(iter::repeat(new_env))
