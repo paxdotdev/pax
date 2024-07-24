@@ -215,6 +215,7 @@ impl PaxAppGenerator {
                     "model": self.model.as_str(),
                     "max_tokens": 4096,
                     "messages": api_messages,
+                    "temperature": 0.5,
                 });
     
                 if let Some(sys_msg) = system_message {
