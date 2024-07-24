@@ -15,7 +15,7 @@ use pax_engine::{
 };
 use pax_engine::{log, Property};
 use pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
-use pax_runtime_api::{Axis, Size};
+use pax_runtime_api::{borrow, Axis, Size};
 use pax_std::primitives::Rectangle;
 
 use crate::math::coordinate_spaces::Glass;
@@ -143,6 +143,14 @@ impl ActionContext<'_> {
             target = target.template_parent().unwrap();
         }
         Some(target)
+    }
+
+    pub fn undo_save(&mut self) {
+        let before_undo_id = borrow!(self.engine_context.designtime)
+            .get_orm()
+            .get_last_undo_id()
+            .unwrap_or(0);
+        self.undo_stack.push(before_undo_id);
     }
 }
 

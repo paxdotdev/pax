@@ -1,7 +1,8 @@
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_manifest::{
-    ComponentTemplate, PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier,
+    ComponentTemplate, PaxType, TemplateNodeId, TreeIndexPosition, TypeId,
+    UniqueTemplateNodeIdentifier,
 };
 use pax_std::components::Stacker;
 use pax_std::components::*;
@@ -22,14 +23,20 @@ use std::collections::{HashMap, HashSet};
 use treeobj::TreeObj;
 
 use crate::glass::SetEditingComponent;
-use crate::model;
+use crate::math::IntoDecompositionConfiguration;
+use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
+use crate::model::action::Action;
 use crate::model::tools::SelectNodes;
+use crate::model::{self, GlassNode};
 
 #[pax]
 #[file("controls/tree/mod.pax")]
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
     pub on_click_handler: Property<bool>,
+    pub dragging: Property<bool>,
+    pub drag_id: Property<usize>,
+    pub drag_id_start: Property<usize>,
 }
 
 impl Interpolatable for TreeMsg {}
@@ -37,8 +44,10 @@ impl Interpolatable for TreeMsg {}
 #[derive(Clone, Default)]
 pub enum TreeMsg {
     ArrowClicked(usize),
-    ObjClicked(usize),
     ObjDoubleClicked(usize),
+    ObjMouseDown(usize),
+    ObjMouseMove(usize),
+    ObjMouseUp(usize),
     #[default]
     None,
 }
@@ -72,27 +81,28 @@ enum Desc {
 }
 
 impl Desc {
-    fn info(&self) -> (String, String) {
-        let (name, img_path_suffix) = match self {
-            Desc::Frame => ("Frame", "01-frame"),
-            Desc::Group => ("Group", "02-group"),
-            Desc::Ellipse => ("Ellipse", "03-ellipse"),
-            Desc::Text => ("Text", "04-text"),
-            Desc::Stacker => ("Stacker", "05-stacker"),
-            Desc::Rectangle => ("Rectangle", "06-rectangle"),
-            Desc::Path => ("Path", "07-path"),
-            Desc::Component(name) => (name.as_str(), "08-component"),
-            Desc::Textbox => ("Textbox", "09-textbox"),
-            Desc::Checkbox => ("Checkbox", "10-checkbox"),
-            Desc::Scroller => ("Scroller", "11-scroller"),
-            Desc::Button => ("Button", "12-button"),
-            Desc::Image => ("Image", "13-image"),
-            Desc::Slider => ("Slider", "14-slider"),
-            Desc::Dropdown => ("Dropdown", "15-dropdown"),
+    fn info(&self) -> (String, String, bool) {
+        let (name, img_path_suffix, is_container) = match self {
+            Desc::Frame => ("Frame", "01-frame", true),
+            Desc::Group => ("Group", "02-group", true),
+            Desc::Ellipse => ("Ellipse", "03-ellipse", false),
+            Desc::Text => ("Text", "04-text", false),
+            Desc::Stacker => ("Stacker", "05-stacker", true),
+            Desc::Rectangle => ("Rectangle", "06-rectangle", false),
+            Desc::Path => ("Path", "07-path", false),
+            Desc::Component(name) => (name.as_str(), "08-component", false),
+            Desc::Textbox => ("Textbox", "09-textbox", false),
+            Desc::Checkbox => ("Checkbox", "10-checkbox", false),
+            Desc::Scroller => ("Scroller", "11-scroller", true),
+            Desc::Button => ("Button", "12-button", false),
+            Desc::Image => ("Image", "13-image", false),
+            Desc::Slider => ("Slider", "14-slider", false),
+            Desc::Dropdown => ("Dropdown", "15-dropdown", false),
         };
         (
             name.to_owned(),
             format!("assets/icons/tree/tree-icon-{}.png", img_path_suffix),
+            is_container,
         )
     }
 }
@@ -100,7 +110,7 @@ impl Desc {
 impl TreeEntry {
     fn flatten(self, ind: &mut usize, indent_level: isize) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
-        let (name, img_path) = self.desc.info();
+        let (name, img_path, container) = self.desc.info();
         all.push(FlattenedTreeEntry {
             node_id: self.node_id,
             name,
@@ -111,7 +121,7 @@ impl TreeEntry {
             is_collapsed: false,
             is_not_leaf: !self.children.is_empty(),
             is_selected: false,
-            is_not_dummy: true,
+            is_container: container,
         });
         *ind += 1;
         all.extend(
@@ -135,7 +145,7 @@ pub struct FlattenedTreeEntry {
     pub is_selected: bool,
     pub is_collapsed: bool,
     pub is_not_leaf: bool,
-    pub is_not_dummy: bool,
+    pub is_container: bool,
 }
 
 impl Tree {
@@ -171,19 +181,14 @@ impl Tree {
         let selected_comp =
             model::read_app_state(|app_state| app_state.selected_component_id.clone());
 
+        let dragging = self.dragging.clone();
+        let drag_id = self.drag_id.clone();
+        let drag_id_start = self.drag_id_start.clone();
+
         self.on_click_handler.replace_with(Property::computed(
             move || {
                 let msg = click_msg.get();
                 match msg {
-                    TreeMsg::ObjClicked(sender) => {
-                        model::perform_action(
-                            &SelectNodes {
-                                ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
-                                overwrite: false,
-                            },
-                            &ctxp,
-                        );
-                    }
                     TreeMsg::ObjDoubleClicked(sender) => {
                         let node_id = tree_obj.read(|t| t[sender].node_id.clone());
                         let uuid =
@@ -193,6 +198,35 @@ impl Tree {
                         let type_id_of_tree_target = builder.get_type_id();
 
                         model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctxp);
+                    }
+                    TreeMsg::ObjMouseDown(sender) => {
+                        model::perform_action(
+                            &SelectNodes {
+                                ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
+                                overwrite: false,
+                            },
+                            &ctxp,
+                        );
+                        dragging.set(true);
+                        drag_id_start.set(sender);
+                    }
+                    TreeMsg::ObjMouseMove(sender) => {
+                        drag_id.set(sender);
+                    }
+                    TreeMsg::ObjMouseUp(to) => {
+                        let from = drag_id_start.get();
+                        if dragging.get() && from != to {
+                            let (from, to) = tree_obj.read(|tree| {
+                                let from = &tree[from];
+                                let to = &tree[to];
+                                (
+                                    (from.node_id.clone(), from.is_container),
+                                    (to.node_id.clone(), to.is_container),
+                                )
+                            });
+                            Self::tree_move(from, to, &ctxp);
+                        }
+                        dragging.set(false);
                     }
                     TreeMsg::ArrowClicked(_) => (),
                     TreeMsg::None => (),
@@ -232,6 +266,84 @@ impl Tree {
         // because of lazy eval. Need to make sure closure fires
         // if it's dependents have changed
         self.on_click_handler.get();
+    }
+
+    fn tree_move(
+        (from_id, _): (TemplateNodeId, bool),
+        (to_id, to_is_container): (TemplateNodeId, bool),
+        ctx: &NodeContext,
+    ) {
+        model::with_action_context(ctx, |ctx| {
+            let comp_id = ctx.app_state.selected_component_id.get();
+            let from_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), from_id);
+            let to_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), to_id);
+            let from_node = ctx
+                .engine_context
+                .get_nodes_by_global_id(from_uid)
+                .into_iter()
+                .next()
+                .unwrap();
+            let to_node = ctx
+                .engine_context
+                .get_nodes_by_global_id(to_uid)
+                .into_iter()
+                .next()
+                .unwrap();
+            let from_node = GlassNode::new(&from_node, &ctx.glass_transform());
+            let to_node_container = match to_is_container {
+                true => GlassNode::new(&to_node, &ctx.glass_transform()),
+                false => {
+                    let parent = to_node.template_parent().unwrap();
+                    // let index = parent
+                    GlassNode::new(&parent, &ctx.glass_transform())
+                }
+            };
+
+            let is_stacker = to_node_container.raw_node_interface.is_of_type::<Stacker>();
+            let index = match is_stacker {
+                true => {
+                    if to_node_container.raw_node_interface == to_node {
+                        TreeIndexPosition::Top
+                    } else {
+                        let slot = to_node
+                            .render_parent()
+                            .unwrap()
+                            .with_properties(|slot: &mut Slot| slot.index.get().to_int() as usize);
+                        slot.map(|s| TreeIndexPosition::At(s)).unwrap_or_default()
+                    }
+                }
+                false => to_node_container
+                    .raw_node_interface
+                    .children()
+                    .into_iter()
+                    .enumerate()
+                    .find_map(|(i, c)| (c == to_node).then_some(TreeIndexPosition::At(i)))
+                    .unwrap_or_default(),
+            };
+            ctx.undo_save();
+
+            let keep_screen_bounds = NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds: &from_node.transform_and_bounds.get(),
+                node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
+                parent_transform_and_bounds: &to_node_container.transform_and_bounds.get(),
+            };
+            let node_layout = if is_stacker {
+                NodeLayoutSettings::Fill
+            } else {
+                keep_screen_bounds
+            };
+
+            if let Err(e) = (MoveNode {
+                node_id: &from_node.id,
+                new_parent_uid: &to_node_container.id,
+                index,
+                node_layout,
+            }
+            .perform(ctx))
+            {
+                log::warn!("failed to move tree node: {e}");
+            };
+        });
     }
 }
 
@@ -280,21 +392,21 @@ fn resolve_tree_type(type_id: TypeId) -> Desc {
     let Some(import_path) = type_id.import_path() else {
         return Desc::Component(format!("{}", type_id.get_pax_type()));
     };
-    match import_path.trim_start_matches("pax_designer::pax_reexports::pax_std::primitives::") {
-        "Group" => Desc::Group,
-        "Frame" => Desc::Frame,
-        "Ellipse" => Desc::Ellipse,
-        "Text" => Desc::Text,
-        "Stacker" => Desc::Stacker,
-        "Rectangle" => Desc::Rectangle,
-        "Path" => Desc::Path,
-        "Textbox" => Desc::Textbox,
-        "Checkbox" => Desc::Checkbox,
-        "Scroller" => Desc::Scroller,
-        "Button" => Desc::Button,
-        "Image" => Desc::Image,
-        "Slider" => Desc::Slider,
-        "Dropdown" => Desc::Dropdown,
+    match import_path.as_str() {
+        "pax_designer::pax_reexports::pax_std::primitives::Group" => Desc::Group,
+        "pax_designer::pax_reexports::pax_std::primitives::Frame" => Desc::Frame,
+        "pax_designer::pax_reexports::pax_std::primitives::Ellipse" => Desc::Ellipse,
+        "pax_designer::pax_reexports::pax_std::primitives::Text" => Desc::Text,
+        "pax_designer::pax_reexports::pax_std::primitives::Rectangle" => Desc::Rectangle,
+        "pax_designer::pax_reexports::pax_std::primitives::Path" => Desc::Path,
+        "pax_designer::pax_reexports::pax_std::primitives::Textbox" => Desc::Textbox,
+        "pax_designer::pax_reexports::pax_std::primitives::Checkbox" => Desc::Checkbox,
+        "pax_designer::pax_reexports::pax_std::primitives::Scroller" => Desc::Scroller,
+        "pax_designer::pax_reexports::pax_std::primitives::Button" => Desc::Button,
+        "pax_designer::pax_reexports::pax_std::primitives::Image" => Desc::Image,
+        "pax_designer::pax_reexports::pax_std::primitives::Slider" => Desc::Slider,
+        "pax_designer::pax_reexports::pax_std::primitives::Dropdown" => Desc::Dropdown,
+        "pax_designer::pax_reexports::pax_std::stacker::Stacker" => Desc::Stacker,
         _ => Desc::Component(format!("{}", type_id.get_pax_type())),
     }
 }
