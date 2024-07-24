@@ -420,20 +420,23 @@ impl PaxEngine {
         let ctx = &self.runtime_context;
         // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
+        let mut z_index = 0;
         self.root_node.recurse_visit_postorder(&mut |node| {
             let layer = borrow!(node.instance_node).base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();
-            let mut curr_occlusion_ind = borrow_mut!(node.occlusion_id);
-            if layer == Layer::Native && *curr_occlusion_ind != new_occlusion_ind {
+            let mut curr_occlusion = borrow_mut!(node.occlusion);
+            if layer == Layer::Native && *curr_occlusion != (new_occlusion_ind, z_index) {
                 ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
                     OcclusionPatch {
                         id: node.id.to_u32(),
+                        z_index,
                         occlusion_layer_id: new_occlusion_ind,
                     },
                 ));
             }
-            *curr_occlusion_ind = new_occlusion_ind;
+            *curr_occlusion = (new_occlusion_ind, z_index);
+            z_index += 1;
         });
 
         let time = &ctx.globals().frames_elapsed;

@@ -138,7 +138,7 @@ impl InstanceNode for ImageInstance {
             let x = (container_width - width) / 2.0;
             let y = (container_height - height) / 2.0;
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
-            let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
+            let layer_id = format!("{}", borrow!(expanded_node.occlusion).0);
             rc.save(&layer_id);
             rc.transform(&layer_id, t_and_b.transform.into());
             rc.draw_image(&layer_id, &path, transformed_bounds);

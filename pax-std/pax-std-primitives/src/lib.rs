@@ -2,6 +2,7 @@ pub mod button;
 pub mod checkbox;
 pub mod dropdown;
 pub mod ellipse;
+pub mod event_blocker;
 pub mod frame;
 pub mod group;
 pub mod image;

@@ -12,12 +12,15 @@ import {
     TEXTBOX_UPDATE_PATCH,
     TEXT_UPDATE_PATCH,
     RADIOSET_UPDATE_PATCH,
+    EVENT_BLOCKER_UPDATE_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
 import {TextUpdatePatch} from "./classes/messages/text-update-patch";
 import {CheckboxUpdatePatch} from "./classes/messages/checkbox-update-patch";
 import {FrameUpdatePatch} from "./classes/messages/frame-update-patch";
+import {RadioSetUpdatePatch} from "./classes/messages/radio-set-update-patch";
+import {EventBlockerUpdatePatch} from "./classes/messages/event-blocker-update-patch";
 import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
@@ -229,7 +232,20 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["FrameDelete"]) {
             let msg = unwrapped_msg["FrameDelete"];
             nativePool.frameDelete(msg)
-        }else if (unwrapped_msg["ImageLoad"]){
+        } else if(unwrapped_msg["EventBlockerCreate"]) {
+            let msg = unwrapped_msg["EventBlockerCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.eventBlockerCreate(patch);
+        } else if (unwrapped_msg["EventBlockerUpdate"]){
+            let msg = unwrapped_msg["EventBlockerUpdate"]
+            let patch: EventBlockerUpdatePatch = objectManager.getFromPool(EVENT_BLOCKER_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.eventBlockerUpdate(patch);
+        } else if (unwrapped_msg["EventBlockerDelete"]) {
+            let msg = unwrapped_msg["EventBlockerDelete"];
+            nativePool.eventBlockerDelete(msg)
+        } else if (unwrapped_msg["ImageLoad"]){
             let msg = unwrapped_msg["ImageLoad"];
             let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
             patch.fromPatch(msg);
