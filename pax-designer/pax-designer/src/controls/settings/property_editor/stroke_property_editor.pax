@@ -1,49 +1,46 @@
+<Text class=text_button class=span_1 y=-40px text="+" />
 
-<Group y=40px>
-    <Text class=text_button class=span_1 y=-40px text="+" />
+<Rectangle x=3.33% class=rounded fill={self.color} width=26px height=26px y=4px />
+<Group>
+	<Textbox class=input class=col_2 class=span_1 text={self.red} @textbox_change=self.red_change/>
+	<Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.green_change/>
+	<Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.blue_change/>
+</Group>
+<Group>
+	<Textbox class=input class=col_5 class=span_1 text={self.alpha} @textbox_change=self.alpha_change/>
+	<Textbox y=80px class=input class=col_3 class=span_1 text={self.stroke_width} @textbox_change=self.width_change/>
+	<Text class=text_width class=col_1 class=span_2 y=80px text="width"/>
+	<Text class=text_button class=span_1 y=-5px text="–"/>
+</Group>
 
-    <Rectangle x=3.33% class=rounded fill={self.color} width=26px height=26px y=4px />
+<Group class=col_2 y=45px height=20px id=palette>
+    // Intersection rectangles (can be removed when we have "with" clause)
+    // grouped to avoid bug with long compile times for list of primitives
     <Group>
-    	<Textbox class=input class=col_2 class=span_1 text={self.red} @textbox_change=self.red_change/>
-    	<Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.green_change/>
-    	<Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.blue_change/>
-    </Group>
-    <Group>
-    	<Textbox class=input class=col_5 class=span_1 text={self.alpha} @textbox_change=self.alpha_change/>
-    	<Textbox y=80px class=input class=col_3 class=span_1 text={self.stroke_width} @textbox_change=self.width_change/>
-    	<Text class=text_width class=col_1 class=span_2 y=80px text="width"/>
-    	<Text class=text_button class=span_1 y=-5px text="–"/>
-    </Group>
-
-    <Group class=col_2 y=45px height=20px id=palette>
-        // Intersection rectangles (can be removed when we have "with" clause)
-        // grouped to avoid bug with long compile times for list of primitives
         <Group>
-            <Group>
-                <Rectangle x=0px width=20px fill=TRANSPARENT @click=self.palette_slot0_clicked/>
-                <Rectangle x=25px width=20px fill=TRANSPARENT @click=self.palette_slot1_clicked/>
-            </Group>
-            <Group>
-                <Rectangle x=50px width=20px fill=TRANSPARENT @click=self.palette_slot2_clicked/>
-                <Rectangle x=75px width=20px fill=TRANSPARENT @click=self.palette_slot3_clicked/>
-            </Group>
+            <Rectangle x=0px width=20px fill=TRANSPARENT @click=self.palette_slot0_clicked/>
+            <Rectangle x=25px width=20px fill=TRANSPARENT @click=self.palette_slot1_clicked/>
         </Group>
         <Group>
-            <Group>
-                <Rectangle x=100px width=20px fill=TRANSPARENT @click=self.palette_slot4_clicked/>
-                <Rectangle x=125px width=20px fill=TRANSPARENT @click=self.palette_slot5_clicked/>
-            </Group>
-            <Group>
-                <Rectangle x=150px width=20px fill=TRANSPARENT @click=self.palette_slot6_clicked/>
-                <Rectangle x=175px width=20px fill=TRANSPARENT @click=self.palette_slot7_clicked/>
-            </Group>
+            <Rectangle x=50px width=20px fill=TRANSPARENT @click=self.palette_slot2_clicked/>
+            <Rectangle x=75px width=20px fill=TRANSPARENT @click=self.palette_slot3_clicked/>
         </Group>
-        <Rectangle x=200px width=20px fill=TRANSPARENT @click=self.palette_slot8_clicked/>
-
-        for (color, i) in self.palette {
-            <Rectangle class=rounded x={(i*25)px} fill={color} width=20px/>
-        }
     </Group>
+    <Group>
+        <Group>
+            <Rectangle x=100px width=20px fill=TRANSPARENT @click=self.palette_slot4_clicked/>
+            <Rectangle x=125px width=20px fill=TRANSPARENT @click=self.palette_slot5_clicked/>
+        </Group>
+        <Group>
+            <Rectangle x=150px width=20px fill=TRANSPARENT @click=self.palette_slot6_clicked/>
+            <Rectangle x=175px width=20px fill=TRANSPARENT @click=self.palette_slot7_clicked/>
+        </Group>
+    </Group>
+    <Rectangle x=200px width=20px fill=TRANSPARENT @click=self.palette_slot8_clicked/>
+
+    for (color, i) in self.palette {
+        <Rectangle class=rounded x={(i*25)px} fill={color} width=20px/>
+    }
 </Group>
 
 
