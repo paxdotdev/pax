@@ -27,11 +27,11 @@ use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
 use pax_engine::{log, NodeInterface, NodeLocal, Property, Slot};
-use pax_manifest::{
+use pax_engine::pax_manifest::{
     PaxType, TemplateNodeId, TreeIndexPosition, TypeId, UniqueTemplateNodeIdentifier,
 };
-use pax_runtime_api::math::Transform2;
-use pax_runtime_api::{Axis, Window};
+use pax_engine::api::math::Transform2;
+use pax_engine::api::{Axis, Window};
 use pax_std::layout::stacker::Stacker;
 
 pub struct CreateComponentTool {
@@ -367,7 +367,7 @@ impl ToolBehaviour for PointerTool {
                     if let Err(e) = (MoveNode {
                         node_id: &item.id,
                         new_parent_uid: &container.global_id().unwrap(),
-                        index: pax_manifest::TreeIndexPosition::At(new_index.unwrap()),
+                        index: pax_engine::pax_manifest::TreeIndexPosition::At(new_index.unwrap()),
                         // TODO try to make this the "future calculated position
                         // after ORM updates" instead. might be possible to
                         // subscribe to manifest changes, and update the bounds
@@ -407,7 +407,7 @@ impl ToolBehaviour for PointerTool {
                     if let Err(e) = (MoveNode {
                         node_id: &item.id,
                         new_parent_uid: &container_parent.id,
-                        index: pax_manifest::TreeIndexPosition::Top,
+                        index: pax_engine::pax_manifest::TreeIndexPosition::Top,
                         node_layout: NodeLayoutSettings::KeepScreenBounds {
                             node_transform_and_bounds: &(move_translation
                                 * item.transform_and_bounds),

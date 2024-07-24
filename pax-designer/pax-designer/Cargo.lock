@@ -840,12 +840,9 @@ version = "0.15.5"
 dependencies = [
  "chrono",
  "getrandom",
- "pax-compiler",
  "pax-engine",
- "pax-manifest",
  "pax-std",
  "rand",
- "serde_json",
 ]
 
 [[package]]

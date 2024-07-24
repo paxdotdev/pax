@@ -13,11 +13,10 @@ use crate::model::{AppState, StageInfo};
 use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::{MouseButton, Window};
+use pax_engine::api::{MouseButton, Window, Color};
 use pax_engine::log;
 use pax_engine::math::Point2;
-use pax_manifest::TypeId;
-use pax_runtime_api::{borrow, Color};
+use pax_engine::pax_manifest::TypeId;
 
 pub struct MouseEntryPointAction<'a> {
     pub prevent_default: &'a dyn Fn(),

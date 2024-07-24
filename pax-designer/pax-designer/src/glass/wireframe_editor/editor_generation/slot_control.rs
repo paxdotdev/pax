@@ -7,8 +7,8 @@ use pax_engine::{
     math::{Point2, Transform2},
     NodeInterface, NodeLocal, Property, Slot,
 };
-use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::{Color};
+use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_engine::api::{Color};
 use pax_std::stacker::Stacker;
 
 use crate::{
@@ -122,7 +122,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 if let Err(e) = (MoveNode {
                     node_id: &self.initial_node.id,
                     new_parent_uid: &container.global_id().unwrap(),
-                    index: pax_manifest::TreeIndexPosition::At(new_index.unwrap()),
+                    index: pax_engine::pax_manifest::TreeIndexPosition::At(new_index.unwrap()),
                     // TODO try to make this the "future calculated position
                     // after ORM updates" instead. might be possible to
                     // subscribe to manifest changes, and update the bounds
@@ -162,7 +162,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 if let Err(e) = (MoveNode {
                     node_id: &self.initial_node.id,
                     new_parent_uid: &container_parent.id,
-                    index: pax_manifest::TreeIndexPosition::Top,
+                    index: pax_engine::pax_manifest::TreeIndexPosition::Top,
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
                         node_transform_and_bounds: &(move_translation
                             * self.initial_node.transform_and_bounds),
