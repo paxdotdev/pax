@@ -17,7 +17,7 @@ use pax_engine::api::{MouseButton, Window};
 use pax_engine::log;
 use pax_engine::math::Point2;
 use pax_manifest::TypeId;
-use pax_runtime_api::Color;
+use pax_runtime_api::{borrow, Color};
 
 pub struct MouseEntryPointAction<'a> {
     pub prevent_default: &'a dyn Fn(),
@@ -58,6 +58,7 @@ impl Action for MouseEntryPointAction<'_> {
 
         // If no tool is active, activate a tool on mouse down
         if matches!(self.event, Pointer::Down) && tool_behaviour.get().is_none() {
+            let mut undoable = false;
             match (&self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     Tool::Pointer => {
@@ -66,6 +67,7 @@ impl Action for MouseEntryPointAction<'_> {
                             ctx,
                             point_glass,
                         )))));
+                        undoable = true;
                     }
                     Tool::CreateComponent(component) => {
                         tool_behaviour.set(Some(Rc::new(RefCell::new(match component {
@@ -161,6 +163,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 0,
                             ),
                         }))));
+                        undoable = true;
                     }
                     Tool::TodoTool => {
                         log::warn!("tool has no implemented behaviour");
@@ -174,6 +177,14 @@ impl Action for MouseEntryPointAction<'_> {
                 }
                 _ => (),
             };
+
+            if undoable {
+                let before_undo_id = borrow!(ctx.engine_context.designtime)
+                    .get_orm()
+                    .get_last_undo_id()
+                    .unwrap_or(0);
+                ctx.undo_stack.push(before_undo_id);
+            }
         }
 
         // Whatever tool behaviour exists, let it do it's thing

@@ -28,7 +28,37 @@ type UndoFunc = dyn FnOnce(&mut ActionContext) -> Result<()>;
 
 #[derive(Default)]
 pub struct UndoStack {
-    stack: Vec<Box<UndoFunc>>,
+    stack: Vec<usize>,
+    // current position in undo stack, usually curr = stack.len() - 1, except for when
+    // something was just undone, and no new actions have been taken
+    cursor: usize,
+}
+
+impl UndoStack {
+    pub fn push(&mut self, undo_id: usize) {
+        self.stack.truncate(self.cursor);
+        self.stack.push(undo_id);
+        self.cursor = self.stack.len();
+    }
+
+    fn next_undo_id(&mut self) -> Option<usize> {
+        if self.cursor > 0 {
+            self.cursor -= 1;
+            Some(self.stack[self.cursor])
+        } else {
+            None
+        }
+    }
+
+    fn next_redo_id(&mut self) -> Option<usize> {
+        if self.cursor < self.stack.len() {
+            let id = self.stack[self.cursor];
+            self.cursor += 1;
+            Some(id)
+        } else {
+            None
+        }
+    }
 }
 
 pub trait Action<R = ()> {
@@ -43,15 +73,6 @@ pub struct ActionContext<'a> {
 }
 
 impl ActionContext<'_> {
-    pub fn undo_last(&mut self) -> Result<()> {
-        let undo_fn = self
-            .undo_stack
-            .stack
-            .pop()
-            .ok_or(anyhow!("undo stack empty"))?;
-        undo_fn(self)
-    }
-
     pub fn world_transform(&self) -> Transform2<Glass, World> {
         self.app_state.glass_to_world_transform.get()
     }
