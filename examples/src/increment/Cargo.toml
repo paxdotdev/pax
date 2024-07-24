@@ -1,15 +1,16 @@
 [package]
 name = "increment"
-version = "0.14.9"
+version = "0.15.5"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.15.5", path = ".pax/pkg/pax-engine" }
-pax-std = { version = "0.15.5", path = ".pax/pkg/pax-std" }
-pax-compiler = { version = "0.15.5", optional = true, path = ".pax/pkg/pax-compiler" }
-pax-manifest = { version = "0.15.5", optional = true, path = ".pax/pkg/pax-manifest" }
-serde_json = {version = "1.0.95", optional = true}
+pax-engine = { version = "0.15.5", path="../../../pax-engine" }
+pax-std = { version = "0.15.5", path="../../../pax-std"}
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
 
 [[bin]]
 name = "parser"
@@ -21,4 +22,8 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+parser = ["pax-std/parser", "pax-engine/parser"]
+designtime = ["pax-engine/designtime"]
+web = ["pax-engine/web"]
+macos = ["pax-engine/macos"]
+ios = ["pax-engine/ios"]
