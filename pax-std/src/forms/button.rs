@@ -4,13 +4,13 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Color, Stroke, Size, Numeric};
+use pax_runtime::api::{Color, Stroke, Size, Numeric};
 use crate::*;
 use pax_engine::*;
 use std::collections::HashMap;
 use std::rc::Rc;
 use pax_runtime::api as pax_runtime_api;
-use_RefCell!();
+use std::cell::RefCell;
 use crate::common::patch_if_needed;
 use crate::TextStyle;
 
@@ -77,7 +77,8 @@ impl InstanceNode for ButtonInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        borrow!(self.native_message_props)
+        self.native_message_props
+            .borrow()
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -104,19 +105,20 @@ impl InstanceNode for ButtonInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
+        let deps: Vec<_> = expanded_node.properties_scope
+            .borrow()
             .values()
             .cloned()
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
-        borrow_mut!(self.native_message_props).insert(
+        self.native_message_props.borrow_mut().insert(
             id,
             Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
                     };
-                    let mut old_state = borrow_mut!(last_patch);
+                    let mut old_state = last_patch.borrow_mut();
 
                     let mut patch = ButtonPatch {
                         id: expanded_node.id.to_u32(),
@@ -192,7 +194,7 @@ impl InstanceNode for ButtonInstance {
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::ButtonDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
-        borrow_mut!(self.native_message_props).remove(&id);
+        self.native_message_props.borrow_mut().remove(&id);
     }
 
     fn base(&self) -> &BaseInstance {
