@@ -295,7 +295,6 @@ fn pax_full_component(
 
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
-        // only add cartridge if we're in the valid project. This makes multiple mains are superfluous.
         let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");
         fs::read_to_string(&cartridge_path).unwrap()
     } else {
@@ -503,6 +502,7 @@ pub fn pax(
             associated_pax_file,
         )
     } else if is_pax_inlined {
+
         let contents = config.inlined_contents.unwrap();
 
         pax_full_component(
