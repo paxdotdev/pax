@@ -109,7 +109,8 @@ pub struct ExpandedNode {
 
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
-    pub occlusion_id: RefCell<u32>,
+    // occlusionID (clanvas/native layer) + z-index
+    pub occlusion: RefCell<(u32, i32)>,
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
@@ -241,7 +242,7 @@ impl ExpandedNode {
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
-            occlusion_id: RefCell::new(0),
+            occlusion: RefCell::new((0, 0)),
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
         });
@@ -266,7 +267,7 @@ impl ExpandedNode {
         *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
         *borrow_mut!(self.common_properties) =
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
-        *borrow_mut!(self.occlusion_id) = 0;
+        *borrow_mut!(self.occlusion) = (0, 0);
 
         Rc::clone(self).recurse_mount(context);
         Rc::clone(self).recurse_update(context);
@@ -484,7 +485,7 @@ impl ExpandedNode {
                 }
             }
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
-            *borrow_mut!(self.occlusion_id) = 0;
+            *borrow_mut!(self.occlusion) = (0, 0);
 
             borrow!(self.instance_node).handle_unmount(&self, context);
         }
@@ -867,7 +868,7 @@ impl std::fmt::Debug for ExpandedNode {
                     .map(|v| v.id)
                     .collect::<Vec<_>>(),
             )
-            .field("occlusion_id", &borrow!(self.occlusion_id))
+            .field("occlusion_id", &borrow!(self.occlusion))
             .field(
                 "containing_component",
                 &self.containing_component.upgrade().map(|v| v.id.clone()),
