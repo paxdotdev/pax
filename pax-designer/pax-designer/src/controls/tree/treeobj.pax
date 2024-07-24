@@ -1,29 +1,32 @@
-// Hierarchy arrow
-if self.is_not_dummy {
-	if self.is_not_leaf {
-		<Image
-			x=15px anchor_y=50% y=50% height=30px width=30px scale_x=60% scale_y=60%
-			path={self.arrow_path}
-			@click=self.arrow_clicked
-		/>
-	}
-	<Rectangle fill=TRANSPARENT @click=obj_clicked @double_click=obj_double_clicked/>
-	// Icon
+if self.is_not_leaf {
 	<Image
-		x=40px anchor_y=50% y=50% height=30px width=30px
-		path={self.image_path}
+		x=15px anchor_y=50% y=50% height=30px width=30px scale_x=60% scale_y=60%
+		path={self.arrow_path}
+		@click=self.arrow_clicked
 	/>
-	// Label
-	<Text x=80px height=100% width={120px} text={self.name} id=text/>
+}
+<Rectangle fill=TRANSPARENT
+	@double_click=obj_double_clicked
+	@mouse_down=mouse_down
+/>
 
-	// Background fill for selection
-	if self.is_selected {
-	    <Rectangle fill={rgb(0.035*255, 0.145*255, 0.318*255)} />
-	}
+// Icon
+<Image
+	x=40px anchor_y=50% y=50% height=30px width=30px
+	path={self.image_path}
+/>
+// Label
+<Text x=80px height=100% width={120px} text={self.name} id=text/>
+
+// Background fill for selection
+if self.is_selected {
+    <Rectangle fill={rgb(0.035*255, 0.145*255, 0.318*255)} />
 }
 
 @settings {
     @mount: on_mount,
+	@mouse_move: mouse_move
+	@mouse_up: mouse_up
 
     #text {
         style: {
