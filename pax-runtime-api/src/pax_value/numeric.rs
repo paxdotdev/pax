@@ -2,7 +2,7 @@ use std::{cmp::Ordering, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::Interpolatable;
+use crate::{Interpolatable, Size};
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 #[derive(Debug, Copy)]
@@ -199,5 +199,14 @@ impl Numeric {
 impl Interpolatable for Numeric {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         Numeric::F64(Into::<f64>::into(self).interpolate(&other.into(), t))
+    }
+}
+
+impl From<Size> for Numeric {
+    fn from(value: Size) -> Self {
+        match value {
+            Size::Pixels(x) | Size::Percent(x) => x,
+            Size::Combined(_, _) => unreachable!("Cannot coerce a combined size to a numeric"),
+        }
     }
 }

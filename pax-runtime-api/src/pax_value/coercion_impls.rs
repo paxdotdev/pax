@@ -30,7 +30,6 @@ impl_default_coercion_rule!(isize, PaxValue::Numeric);
 impl_default_coercion_rule!(usize, PaxValue::Numeric);
 
 // Pax internal types
-impl_default_coercion_rule!(Numeric, PaxValue::Numeric);
 impl_default_coercion_rule!(Color, PaxValue::Color);
 impl_default_coercion_rule!(Transform2D, PaxValue::Transform2D);
 
@@ -122,6 +121,16 @@ impl CoercionRules for Rotation {
             PaxValue::Numeric(n) => Rotation::Degrees(n),
             PaxValue::Percent(p) => Rotation::Percent(p.0),
             _ => return Err(format!("{:?} can't be coerced into a Rotation", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for Numeric {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Numeric(n) => n.into(),
+            PaxValue::Size(n) => n.into(),
+            _ => return Err(format!("{:?} can't be coerced into a Numeric", pax_value)),
         })
     }
 }
