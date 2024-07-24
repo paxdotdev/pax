@@ -5,13 +5,14 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.15.5"}
-pax-std = { version = "0.15.5"}
-pax-compiler = { version = "0.15.5", optional = true }
-pax-manifest = { version = "0.15.5", optional = true }
-serde_json = {version = "1.0.95", optional = true}
-rand = {version = "0.8.5"}
-getrandom = { version = "0.2.14", features = ["js"] }
+pax-engine = { version = "0.15.5", path="../../../pax-engine" }
+pax-std = { version = "0.15.5", path="../../../pax-std"}
+rand = { version = "0.8.5" }
+getrandom = { version = "0.2.15", features = ["js"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
 
 [[bin]]
 name = "parser"
@@ -23,4 +24,8 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+parser = ["pax-std/parser", "pax-engine/parser"]
+designtime = ["pax-engine/designtime"]
+web = ["pax-engine/web"]
+macos = ["pax-engine/macos"]
+ios = ["pax-engine/ios"]

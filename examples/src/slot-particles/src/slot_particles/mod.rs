@@ -2,15 +2,12 @@
 
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
 use rand::Rng;
-use std::cell::RefCell;
+
+
 use std::rc::Rc;
 #[pax]
-#[main]
 #[file("slot_particles/mod.pax")]
 pub struct SlotParticles {
     pub config: Property<Config>,
@@ -24,9 +21,9 @@ impl SlotParticles {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let tick = ctx.frames_elapsed.clone();
         let num = ctx.slot_children_count.clone();
-        let rng = Rc::new(RefCell::new(rand::thread_rng()));
+        let rng = Rc::new(std::cell::RefCell::new(rand::thread_rng()));
         let bounds = ctx.bounds_self.clone();
-        let store = Rc::new(RefCell::new(Vec::new()));
+        let store = Rc::new(std::cell::RefCell::new(Vec::new()));
         let config = self.config.clone();
         let deps = [num.untyped(), self.config.untyped()];
         self.persistent_rng_data.replace_with(Property::computed(
