@@ -19,6 +19,7 @@ import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 import { RadioSetUpdatePatch } from "./messages/radio-set-update-patch";
 import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./messages/slider-update-patch";
+import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -88,6 +89,11 @@ export class NativeElementPool {
                 id = undefined;
             }
             this.layers.addElement(node, id, patch.occlusionLayerId!);
+            node.style.zIndex = patch.zIndex;
+            const focusableElements = node.querySelectorAll('input, button, select, textarea, a[href]');
+            focusableElements.forEach((element, _index) => {
+                element.setAttribute('tabindex', 1000000 - patch.zIndex);
+            });
         }
     }
 
@@ -212,7 +218,7 @@ export class NativeElementPool {
         updateCommonProps(leaf!, patch);
         // set to 10px less to give space for left-padding
         if (patch.size_x != null) {
-            leaf.firstChild!.style.width = (patch.size_x - 10) + "px";
+            (leaf!.firstChild! as HTMLElement).style.width = (patch.size_x - 10) + "px";
         }
         let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
@@ -841,6 +847,54 @@ export class NativeElementPool {
         let oldNode = this.nodesLookup.get(id);
         if (oldNode == undefined) {
             throw new Error("tried to delete non-existent scroller");
+        }
+        let parent = oldNode.parentElement!;
+        parent.removeChild(oldNode);
+        this.nodesLookup.delete(id);
+    }
+
+    eventBlockerCreate(patch: AnyCreatePatch){
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
+
+        let eventBlockerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        // let eventBlocker: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        eventBlockerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        eventBlockerDiv.setAttribute("pax_id", String(patch.id));
+
+
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(eventBlockerDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, eventBlockerDiv);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
+        }
+
+
+    }
+
+    eventBlockerUpdate(patch: EventBlockerUpdatePatch){
+        let leaf = this.nodesLookup.get(patch.id!);
+        if (leaf == undefined) {
+            throw new Error("tried to update non-existent event blocker");
+        }
+        // Handle size_x and size_y
+        if (patch.sizeX != null) {
+            leaf.style.width = patch.sizeX + "px";
+        }
+        if (patch.sizeY != null) {
+            leaf.style.height = patch.sizeY + "px";
+        }
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+    }
+
+    eventBlockerDelete(id: number){
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode == undefined) {
+            throw new Error("tried to delete non-existent event blocker");
         }
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);

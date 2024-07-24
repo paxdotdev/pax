@@ -15,6 +15,7 @@ import { TextboxUpdatePatch } from "../classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "../classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "../classes/messages/slider-update-patch";
 import { RadioSetUpdatePatch } from "../classes/messages/radio-set-update-patch";
+import { EventBlockerUpdatePatch } from "../classes/messages/event-blocker-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -26,6 +27,7 @@ export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
 export const OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
 export const FRAME_UPDATE_PATCH = "Frame Update Patch";
+export const EVENT_BLOCKER_UPDATE_PATCH = "Event Blocker Update Patch";
 export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
@@ -129,6 +131,11 @@ export let SUPPORTED_OBJECTS = [{
         name: FRAME_UPDATE_PATCH,
         factory: () => new FrameUpdatePatch(),
         cleanUp: (patch: FrameUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: EVENT_BLOCKER_UPDATE_PATCH,
+        factory: () => new EventBlockerUpdatePatch(),
+        cleanUp: (patch: EventBlockerUpdatePatch) => {patch.cleanUp()},
     },
     {
         name: TEXT_UPDATE_PATCH,

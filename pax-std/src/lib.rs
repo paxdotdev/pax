@@ -24,6 +24,10 @@ pub mod primitives {
     pub struct Frame {}
 
     #[pax]
+    #[primitive("pax_std_primitives::event_blocker::EventBlockerInstance")]
+    pub struct EventBlocker {}
+
+    #[pax]
     #[primitive("pax_std_primitives::group::GroupInstance")]
     pub struct Group {}
 
