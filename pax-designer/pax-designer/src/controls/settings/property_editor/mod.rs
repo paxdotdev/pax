@@ -25,6 +25,8 @@ use fill_property_editor::FillPropertyEditor;
 use stroke_property_editor::StrokePropertyEditor;
 use text_property_editor::TextPropertyEditor;
 
+use crate::model;
+
 #[pax]
 #[file("controls/settings/property_editor/mod.pax")]
 pub struct PropertyEditor {
@@ -145,6 +147,14 @@ impl PropertyEditorData {
     }
 
     pub fn set_value(&self, ctx: &NodeContext, val: &str) -> anyhow::Result<()> {
+        // save-point before property edit
+        model::with_action_context(ctx, |ac| {
+            let before_undo_id = borrow!(ac.engine_context.designtime)
+                .get_orm()
+                .get_last_undo_id()
+                .unwrap_or(0);
+            ac.undo_stack.push(before_undo_id);
+        });
         match self.with_node_def(ctx, |mut node| {
             node.set_property(&self.name, val)?;
             node.save().map_err(|e| anyhow!("{:?}", e)).map(|_| ())
