@@ -7,7 +7,7 @@ pub mod tree;
 use pax_engine::api::*;
 use pax_engine::*;
 
-use pax_std::primitives::{Frame, Group, Rectangle, Text};
+use pax_std::*;
 
 use file_and_component_picker::FileAndComponentPicker;
 use logobar::Logobar;

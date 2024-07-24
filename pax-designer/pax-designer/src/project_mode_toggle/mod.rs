@@ -1,14 +1,9 @@
 use crate::model::ProjectMode;
 use pax_engine::api::*;
 use pax_engine::*;
-
-use pax_std::primitives::Rectangle;
+use pax_std::*;
 
 use crate::{model, ProjectMsg};
-use pax_std::primitives::Group;
-use pax_std::primitives::Text;
-
-use pax_std::primitives::Path;
 
 #[pax]
 #[file("project_mode_toggle/mod.pax")]
@@ -35,12 +30,12 @@ impl ProjectModeToggle {
         self.running_mode.set(curr);
         let mode = match self.edit_mode.get() {
             true => {
-                let mut dt = borrow_mut!(ctx.designtime);
+                let mut dt = ctx.designtime.borrow_mut();
                 dt.reload_edit();
                 ProjectMode::Edit
             }
             false => {
-                let mut dt = borrow_mut!(ctx.designtime);
+                let mut dt = ctx.designtime.borrow_mut();
                 dt.reload_play();
                 ProjectMode::Playing
             }

@@ -1,18 +1,14 @@
 [package]
 name = "pax-designer"
-version = "0.15.1"
+version = "0.15.5"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-compiler = { version = "0.15.1", optional = true , path = ".pax/pkg/pax-compiler" }
-pax-engine = { version = "0.15.1" , path = ".pax/pkg/pax-engine" }
-pax-manifest = { version = "0.15.1"  , path = ".pax/pkg/pax-manifest" }
-pax-runtime-api = { version = "0.15.1"  , path = ".pax/pkg/pax-runtime-api" }
-pax-std = { version = "0.15.1" , path = ".pax/pkg/pax-std" }
-serde_json = {version = "1.0.95", optional = true}
-designer_project = { version = "0.15.1", path = "../designer-project" }
-pax-designtime = {version = "0.15.1", path = ".pax/pkg/pax-designtime" }
+pax-engine = { version = "0.15.5" , path = "../pax/pax-engine" }
+pax-std = { version = "0.15.5" , path = "../pax/pax-std" }
+designer_project = { version = "0.15.5", path = "../designer-project" }
+pax-designtime = {version = "0.15.5", path = "../pax/pax-designtime" }
 anyhow = "1.0.79"
 
 [[bin]]
@@ -26,5 +22,6 @@ path = "bin/run.rs"
 
 [features]
 default = ["designtime"]
-parser = ["pax-std/parser", "pax-engine/parser", "designer_project/parser", "dep:serde_json", "dep:pax-compiler"]
-designtime = ["pax-engine/designtime", "pax-manifest/parsing"]
+parser = ["pax-std/parser", "pax-engine/parser", "designer_project/parser"]
+designtime = ["pax-engine/designtime"]
+web = ["pax-engine/web"]
