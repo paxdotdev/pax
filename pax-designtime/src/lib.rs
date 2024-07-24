@@ -95,7 +95,7 @@ impl DesigntimeManager {
     pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
         let manifest = self.orm.get_manifest();
         let userland_type_id = TypeId::build_singleton(
-            "pax_designer::pax_reexports::designer_project::Example",
+            "designer_project::Example",
             None,
         );
         let userland_component = manifest.components.get(&userland_type_id).unwrap();

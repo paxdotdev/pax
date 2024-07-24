@@ -24,8 +24,6 @@ serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
 tera = "1"
 toml_edit = "0.21.0"
-wasm-bindgen = {version = "0.2.80"}
-wasm-bindgen-futures = "0.4"
 
 [dependencies.web-sys]
 version = "0.3.4"
