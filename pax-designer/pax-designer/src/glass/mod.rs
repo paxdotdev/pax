@@ -5,7 +5,8 @@ use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::{Point2, Vector2};
 use pax_engine::*;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
-use pax_std::*;
+use pax_std::primitives::{Group, Path, Rectangle};
+use pax_std::types::PathElement;
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
@@ -120,8 +121,8 @@ impl Glass {
                     model::perform_action(&TextEdit { uid }, ctx);
                 }
                 Some(
-                    "pax_std::core::group::Group"
-                    | "pax_std::layout::stacker::Stacker",
+                    "pax_designer::pax_reexports::pax_std::primitives::Group"
+                    | "pax_designer::pax_reexports::pax_std::stacker::Stacker",
                 ) => {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(

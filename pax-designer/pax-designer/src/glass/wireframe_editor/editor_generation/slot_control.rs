@@ -8,7 +8,7 @@ use pax_engine::{
     NodeInterface, NodeLocal, Property, Slot,
 };
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_engine::api::{Color};
+use pax_engine::api::{borrow, borrow_mut, Color};
 use pax_std::stacker::Stacker;
 
 use crate::{
@@ -224,7 +224,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
     fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
         ControlPointBehaviourFactory {
             tool_behaviour: Rc::new(move |ctx, p| {
-                let dt = ctx.engine_context.designtime.borrow();
+                let dt = borrow!(ctx.engine_context.designtime);
                 let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
 
                 // set visualization outline to always be the bounds of the parent of the moving node

@@ -9,7 +9,7 @@ use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::math::{Point2, Transform2};
 use pax_engine::*;
-use pax_std::*;
+use pax_std::primitives::{Ellipse, Group, Path, Rectangle};
 use serde::Deserialize;
 
 use crate::math::AxisAlignedBox;

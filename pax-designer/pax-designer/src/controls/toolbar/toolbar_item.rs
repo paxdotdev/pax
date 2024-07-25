@@ -1,7 +1,8 @@
 use pax_engine::api::{ButtonClick, Click, Event, NodeContext, Numeric};
 use pax_engine::math::Point2;
 use pax_engine::*;
-use pax_std::*;
+use pax_std::components::Stacker;
+use pax_std::primitives::{Group, Image, Rectangle};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::mpsc::channel;

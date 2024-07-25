@@ -197,7 +197,7 @@ impl Model {
     ) -> Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>> {
         let comp_id = app_state.selected_component_id.clone();
         let node_ids = app_state.selected_template_node_ids.clone();
-        let manifest_ver = ctx.designtime.borrow().get_manifest_version();
+        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
         let ctx_cp = ctx.clone();
 
         let deps = [

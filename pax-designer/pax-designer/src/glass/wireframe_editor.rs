@@ -11,7 +11,9 @@ use pax_engine::math::{Generic, Parts, Point2, Transform2, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
-use pax_std::*;
+use pax_std::primitives::Ellipse;
+use pax_std::primitives::{Group, Path, Rectangle, Text, Textbox};
+use pax_std::types::text::TextStyle;
 use serde::Deserialize;
 
 use super::control_point::{ControlPoint, ControlPointBehaviour};

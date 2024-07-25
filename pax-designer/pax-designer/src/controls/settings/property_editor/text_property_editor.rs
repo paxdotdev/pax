@@ -1,7 +1,11 @@
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_manifest::*;
-use pax_std::*;
+use pax_std::components::Stacker;
+use pax_std::components::*;
+use pax_std::primitives::*;
+use pax_std::types::text::*;
+use pax_std::types::*;
 
 use crate::controls::settings::AREAS_PROP;
 
@@ -32,7 +36,7 @@ impl TextPropertyEditor {
             });
         }
         let data = self.data.clone();
-        let manifest_ver = ctx.designtime.borrow().get_manifest_version();
+        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
         let deps = [data.untyped(), manifest_ver.untyped()];
         let ctx = ctx.clone();
         let err = self.error.clone();

@@ -288,9 +288,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.7"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "038dfcf04a5feb68e9c60b21c9625a54c2c0616e79b72b0fd87075a056ae1d1b"
+checksum = "7079075b41f533b8c61d2a4d073c4676e1f8b249ff94a393b0595db304e0dd87"
 
 [[package]]
 name = "anstyle-parse"
@@ -540,9 +540,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.38"
+version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
+checksum = "5bc015644b92d5890fab7489e49d21f879d5c990186827d42ec511919404f38b"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -636,16 +636,6 @@ checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
 dependencies = [
  "cfg-if",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "console_log"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be8aed40e4edbf4d3b4431ab260b63fdc40f5780a4766824329ea0f1eefe3c0f"
-dependencies = [
- "log",
- "web-sys",
 ]
 
 [[package]]
@@ -836,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.15.5"
+version = "0.15.1"
 dependencies = [
  "chrono",
  "getrandom",
@@ -922,9 +912,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.2"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c012a26a7f605efc424dd53697843a72be7dc86ad2d01f7814337794a12231d"
+checksum = "9eeb342678d785662fd2514be38c459bb925f02b68dd2a3e0f21d7ef82d979dd"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1006,19 +996,6 @@ checksum = "46303f565772937ffe1d394a4fac6f411c6013172fadde9dcdb1e147a086940e"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
-]
-
-[[package]]
-name = "flexbuffers"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15d14128f06405808ce75bfebe11e9b0f9da18719ede6d7bdb1702d6bfe0f7e8"
-dependencies = [
- "bitflags 1.2.1",
- "byteorder",
- "num_enum",
- "serde",
- "serde_derive",
 ]
 
 [[package]]
@@ -1596,9 +1573,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.69"
+version = "0.3.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29c15563dc2726973df627357ce0c9ddddbea194836909d655df6a75d2cf296d"
+checksum = "9a1d36f1235bc969acba30b7f5990b864423a6068a10f7c90ae8f0112e3a59d1"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -1802,27 +1779,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num_enum"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f646caf906c20226733ed5b1374287eb97e3c2a5c227ce668c1f2ce20ae57c9"
-dependencies = [
- "num_enum_derive",
-]
-
-[[package]]
-name = "num_enum_derive"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcbff9bc912032c62bf65ef1d5aea88983b420f4f839db1e9b0c281a25c9c799"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "object"
 version = "0.32.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1979,66 +1935,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
-name = "pax-chassis-common"
-version = "0.15.5"
-dependencies = [
- "core-graphics",
- "env_logger 0.11.2",
- "flexbuffers",
- "lazy_static",
- "mut_static",
- "pax-message",
- "pax-runtime",
- "piet",
- "piet-coregraphics",
- "serde_json",
-]
-
-[[package]]
-name = "pax-chassis-ios"
-version = "0.15.5"
-dependencies = [
- "pax-chassis-common",
-]
-
-[[package]]
-name = "pax-chassis-macos"
-version = "0.15.5"
-dependencies = [
- "core-graphics",
- "flexbuffers",
- "lazy_static",
- "mut_static",
- "pax-chassis-common",
- "pax-message",
- "pax-runtime",
- "piet",
- "piet-coregraphics",
-]
-
-[[package]]
-name = "pax-chassis-web"
-version = "0.15.5"
-dependencies = [
- "console_error_panic_hook",
- "console_log",
- "js-sys",
- "log",
- "pax-designtime",
- "pax-manifest",
- "pax-message",
- "pax-runtime",
- "pax-runtime-api",
- "piet",
- "piet-web",
- "serde-wasm-bindgen",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "pax-compiler"
 version = "0.15.5"
 dependencies = [
@@ -2086,21 +1982,25 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.15.5"
+version = "0.15.1"
 dependencies = [
  "anyhow",
  "designer_project",
+ "pax-compiler",
  "pax-designtime",
  "pax-engine",
+ "pax-manifest",
+ "pax-runtime-api",
  "pax-std",
+ "serde_json",
 ]
 
 [[package]]
 name = "pax-designtime"
-version = "0.15.5"
+version = "0.15.1"
 dependencies = [
  "anyhow",
- "env_logger 0.11.2",
+ "env_logger 0.11.0",
  "ewebsock",
  "getrandom",
  "include_dir",
@@ -2113,6 +2013,8 @@ dependencies = [
  "serde_json",
  "tera",
  "toml_edit 0.21.0",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -2121,17 +2023,10 @@ name = "pax-engine"
 version = "0.15.5"
 dependencies = [
  "log",
- "pax-chassis-ios",
- "pax-chassis-macos",
- "pax-chassis-web",
  "pax-compiler",
  "pax-macro",
- "pax-manifest",
  "pax-message",
  "pax-runtime",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -2763,17 +2658,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "870026e60fa08c69f064aa766c10f10b1d62db9ccd4d0abb206472bee0ce3b32"
 dependencies = [
  "serde_derive",
-]
-
-[[package]]
-name = "serde-wasm-bindgen"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
-dependencies = [
- "js-sys",
- "serde",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -3547,9 +3431,9 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.92"
+version = "0.2.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4be2531df63900aeb2bca0daaaddec08491ee64ceecbee5076636a3b026795a8"
+checksum = "b1223296a201415c7fad14792dbefaace9bd52b62d33453ade1c5b5f07555406"
 dependencies = [
  "cfg-if",
  "serde",
@@ -3559,9 +3443,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.92"
+version = "0.2.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "614d787b966d3989fa7bb98a654e369c762374fd3213d212cfc0251257e747da"
+checksum = "fcdc935b63408d58a32f8cc9738a0bffd8f05cc7c002086c6ef20b7312ad9dcd"
 dependencies = [
  "bumpalo",
  "log",
@@ -3574,9 +3458,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.42"
+version = "0.4.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76bc14366121efc8dbb487ab05bcc9d346b3b5ec0eaa76e46594cabbe51762c0"
+checksum = "bde2032aeb86bdfaecc8b261eef3cba735cc426c1f3a3416d1e0791be95fc461"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3586,9 +3470,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.92"
+version = "0.2.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1f8823de937b71b9460c0c34e25f3da88250760bec0ebac694b49997550d726"
+checksum = "3e4c238561b2d428924c49815533a8b9121c664599558a5d9ec51f8a1740a999"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -3596,9 +3480,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.92"
+version = "0.2.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
+checksum = "bae1abb6806dc1ad9e560ed242107c0f6c84335f1749dd4e8ddb012ebd5e25a7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3609,9 +3493,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.92"
+version = "0.2.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
+checksum = "4d91413b1c31d7539ba5ef2451af3f0b833a005eb27a631cec32bc0635a8602b"
 
 [[package]]
 name = "web-sys"
