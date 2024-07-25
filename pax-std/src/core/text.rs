@@ -1,18 +1,16 @@
-
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
 
+use pax_engine::api::{Color, Layer, Numeric, Property, RenderContext, Size};
 use pax_engine::*;
-use pax_engine::api::{Color, Numeric, Property, Size, Layer, RenderContext};
 
 use pax_message::{
-    AnyCreatePatch, TextPatch, ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
-    SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, TextStyleMessage,
-    WebFontMessage,
+    AnyCreatePatch, ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
+    SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, TextPatch,
+    TextStyleMessage, WebFontMessage,
 };
-
 
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
@@ -28,7 +26,6 @@ use {
 };
 
 use crate::common::patch_if_needed;
-
 
 /// Renders text in a platform-native way
 #[pax]
@@ -291,7 +288,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
         let font_size_approx_equal = other.font_size.map_or(false, |size| {
             (Numeric::F64(size).to_float()
                 - self.font_size.get().expect_pixels().clone().to_float())
-                .abs()
+            .abs()
                 < 1e-3
         });
 
@@ -453,8 +450,8 @@ pub fn opt_align_to_message(
 }
 
 pub fn opt_value_eq_opt_msg<T, U>(opt_value: &Option<T>, opt_value_msg: &Option<U>) -> bool
-    where
-        T: PartialEq<U>,
+where
+    T: PartialEq<U>,
 {
     match (opt_value, opt_value_msg) {
         (Some(value), Some(value_msg)) => value.eq(value_msg),
@@ -545,13 +542,13 @@ impl PartialEq<FontPatch> for Font {
                     .as_ref()
                     .map_or(false, |family| *family == system_font.family)
                     && system_font_patch
-                    .style
-                    .as_ref()
-                    .map_or(false, |style| system_font.style.eq(style))
+                        .style
+                        .as_ref()
+                        .map_or(false, |style| system_font.style.eq(style))
                     && system_font_patch
-                    .weight
-                    .as_ref()
-                    .map_or(false, |weight| system_font.weight.eq(weight))
+                        .weight
+                        .as_ref()
+                        .map_or(false, |weight| system_font.weight.eq(weight))
             }
             (Font::Web(web_font), FontPatch::Web(web_font_patch)) => {
                 web_font_patch
@@ -559,17 +556,17 @@ impl PartialEq<FontPatch> for Font {
                     .as_ref()
                     .map_or(false, |family| *family == web_font.family)
                     && web_font_patch
-                    .url
-                    .as_ref()
-                    .map_or(false, |url| *url == web_font.url)
+                        .url
+                        .as_ref()
+                        .map_or(false, |url| *url == web_font.url)
                     && web_font_patch
-                    .style
-                    .as_ref()
-                    .map_or(false, |style| web_font.style.eq(style))
+                        .style
+                        .as_ref()
+                        .map_or(false, |style| web_font.style.eq(style))
                     && web_font_patch
-                    .weight
-                    .as_ref()
-                    .map_or(false, |weight| web_font.weight.eq(weight))
+                        .weight
+                        .as_ref()
+                        .map_or(false, |weight| web_font.weight.eq(weight))
             }
             (Font::Local(local_font), FontPatch::Local(local_font_patch)) => {
                 local_font_patch
@@ -577,17 +574,17 @@ impl PartialEq<FontPatch> for Font {
                     .as_ref()
                     .map_or(false, |family| *family == local_font.family)
                     && local_font_patch
-                    .path
-                    .as_ref()
-                    .map_or(false, |path| *path == local_font.path)
+                        .path
+                        .as_ref()
+                        .map_or(false, |path| *path == local_font.path)
                     && local_font_patch
-                    .style
-                    .as_ref()
-                    .map_or(false, |style| local_font.style.eq(style))
+                        .style
+                        .as_ref()
+                        .map_or(false, |style| local_font.style.eq(style))
                     && local_font_patch
-                    .weight
-                    .as_ref()
-                    .map_or(false, |weight| local_font.weight.eq(weight))
+                        .weight
+                        .as_ref()
+                        .map_or(false, |weight| local_font.weight.eq(weight))
             }
             _ => false,
         }

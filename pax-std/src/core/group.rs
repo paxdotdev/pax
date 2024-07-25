@@ -1,9 +1,8 @@
+use pax_engine::pax;
 use pax_runtime::{BaseInstance, InstanceFlags, InstanceNode, InstantiationArgs};
 use std::rc::Rc;
-use pax_engine::pax;
 
 use pax_runtime::api::Layer;
-
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
@@ -39,11 +38,8 @@ impl InstanceNode for GroupInstance {
         expanded_node: Option<&pax_runtime::ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
-            Some(expanded_node) => {
-                expanded_node.with_properties_unwrapped(|_g: &mut Group| {
-                    f.debug_struct("Group").finish()
-                })
-            }
+            Some(expanded_node) => expanded_node
+                .with_properties_unwrapped(|_g: &mut Group| f.debug_struct("Group").finish()),
             None => f.debug_struct("Group").finish_non_exhaustive(),
         }
     }

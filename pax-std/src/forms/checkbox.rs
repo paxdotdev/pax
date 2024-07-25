@@ -1,21 +1,18 @@
 use pax_message::{AnyCreatePatch, CheckboxPatch};
+use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
-use pax_runtime::api::*;
 use pax_engine::pax;
+use pax_runtime::api::*;
 
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::common::patch_if_needed;
-
-
-
 
 /// A platform-native checkbox element
 #[pax]

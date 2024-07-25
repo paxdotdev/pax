@@ -35,11 +35,17 @@ use crate::building::build_project_with_cartridge;
 
 use crate::errors::source_map::SourceMap;
 
+use crate::cartridge_generation::generate_cartridge_partial_rs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use crate::cartridge_generation::generate_cartridge_partial_rs;
 
-use crate::helpers::{get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages, set_path_on_pax_dependencies, update_pax_dependency_versions, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE, INTERFACE_DIR_NAME, PAX_SWIFT_COMMON_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE};
+use crate::helpers::{
+    get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages,
+    set_path_on_pax_dependencies, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
+    PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE,
+    PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE, PAX_SWIFT_COMMON_TEMPLATE,
+    PAX_WEB_INTERFACE_TEMPLATE,
+};
 
 const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
@@ -135,9 +141,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     Ok((manifest, build_dir))
 }
 
-
-fn copy_interface_files_for_target(ctx: &RunContext, pax_dir : &PathBuf) {
-    let target_str : &str = (&ctx.target).into();
+fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
+    let target_str: &str = (&ctx.target).into();
     let target_str_lower = &target_str.to_lowercase();
     let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join(target_str_lower);
 
@@ -149,27 +154,56 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir : &PathBuf) {
     if ctx.is_libdev_mode {
         let pax_chassis_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let interface_src = match ctx.target {
-            RunTarget::Web => pax_chassis_cargo_root.join("..").join("pax-chassis-web").join(INTERFACE_DIR_NAME).join("public"),
-            RunTarget::macOS => pax_chassis_cargo_root.join("..").join("pax-chassis-macos").join(INTERFACE_DIR_NAME).join("pax-app-macos"),
-            RunTarget::iOS => pax_chassis_cargo_root.join("..").join("pax-chassis-ios").join(INTERFACE_DIR_NAME).join("pax-app-ios"),
+            RunTarget::Web => pax_chassis_cargo_root
+                .join("..")
+                .join("pax-chassis-web")
+                .join(INTERFACE_DIR_NAME)
+                .join("public"),
+            RunTarget::macOS => pax_chassis_cargo_root
+                .join("..")
+                .join("pax-chassis-macos")
+                .join(INTERFACE_DIR_NAME)
+                .join("pax-app-macos"),
+            RunTarget::iOS => pax_chassis_cargo_root
+                .join("..")
+                .join("pax-chassis-ios")
+                .join(INTERFACE_DIR_NAME)
+                .join("pax-app-ios"),
         };
 
-        copy_dir_recursively(&interface_src, &interface_path, &[]).expect("Failed to copy interface files");
+        copy_dir_recursively(&interface_src, &interface_path, &[])
+            .expect("Failed to copy interface files");
 
         // also copy pax-chassis-common into interface/common for macos and ios builds
         match ctx.target {
             RunTarget::macOS | RunTarget::iOS => {
-                let common_swift_cartridge_src = pax_chassis_cargo_root.join("..").join("pax-chassis-common").join("pax-swift-cartridge");;
-                let common_swift_common_src = pax_chassis_cargo_root.join("..").join("pax-chassis-common").join("pax-swift-common");;
-                let common_swift_cartridge_dest = pax_dir.join(INTERFACE_DIR_NAME).join("common").join("pax-swift-cartridge");
-                let common_swift_common_dest = pax_dir.join(INTERFACE_DIR_NAME).join("common").join("pax-swift-common");
-                copy_dir_recursively(&common_swift_cartridge_src, &common_swift_cartridge_dest, &[]).expect("Failed to copy swift cartridge files");
-                copy_dir_recursively(&common_swift_common_src, &common_swift_common_dest, &[]).expect("Failed to copy swift common files");
-            },
+                let common_swift_cartridge_src = pax_chassis_cargo_root
+                    .join("..")
+                    .join("pax-chassis-common")
+                    .join("pax-swift-cartridge");
+                let common_swift_common_src = pax_chassis_cargo_root
+                    .join("..")
+                    .join("pax-chassis-common")
+                    .join("pax-swift-common");
+                let common_swift_cartridge_dest = pax_dir
+                    .join(INTERFACE_DIR_NAME)
+                    .join("common")
+                    .join("pax-swift-cartridge");
+                let common_swift_common_dest = pax_dir
+                    .join(INTERFACE_DIR_NAME)
+                    .join("common")
+                    .join("pax-swift-common");
+                copy_dir_recursively(
+                    &common_swift_cartridge_src,
+                    &common_swift_cartridge_dest,
+                    &[],
+                )
+                .expect("Failed to copy swift cartridge files");
+                copy_dir_recursively(&common_swift_common_src, &common_swift_common_dest, &[])
+                    .expect("Failed to copy swift common files");
+            }
             _ => {}
-
         }
-
     } else {
         // File src is include_dir — recursively extract files from include_dir into full_path
         match ctx.target {
@@ -194,12 +228,10 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir : &PathBuf) {
                 PAX_SWIFT_CARTRIDGE_TEMPLATE
                     .extract(&common_dest)
                     .expect("Failed to extract swift cartridge template files");
-            },
+            }
             _ => {}
         }
     }
-
-
 }
 
 /// Clean all `.pax` temp files
@@ -296,7 +328,10 @@ pub fn perform_create(ctx: &CreateContext) {
 
 /// Executes a shell command to run the feature-flagged parser at the specified path
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn run_parser_binary(project_path: &PathBuf, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Output {
+pub fn run_parser_binary(
+    project_path: &PathBuf,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) -> Output {
     let mut cmd = Command::new("cargo");
     cmd.current_dir(project_path)
         .arg("run")

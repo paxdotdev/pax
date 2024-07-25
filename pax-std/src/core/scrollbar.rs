@@ -1,20 +1,18 @@
 use core::option::Option::Some;
-use pax_runtime::{BaseInstance, ExpandedNodeIdentifier, InstanceFlags, RuntimeContext};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Size};
+use pax_runtime::{BaseInstance, ExpandedNodeIdentifier, InstanceFlags, RuntimeContext};
 
 use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
+use pax_engine::pax;
 use std::collections::HashMap;
 use std::rc::Rc;
-use pax_engine::pax;
 
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{ExpandedNode, InstanceNode, InstantiationArgs};
 
 use crate::common::patch_if_needed;
-
-
 
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an
 /// inner panel that can be scrolled on zero or more axes.  `Scroller` coordinates with each chassis to
@@ -30,8 +28,6 @@ pub struct Scrollbar {
     pub scroll_x: Property<f64>,
     pub scroll_y: Property<f64>,
 }
-
-
 
 pub struct ScrollbarInstance {
     base: BaseInstance,

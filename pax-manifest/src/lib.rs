@@ -77,17 +77,24 @@ impl PaxManifest {
         ret
     }
 
-
     // String representing the symbolic ID for the &dyn PaxCartridge struct
     // generated for this manifest's cartridge in #[main]
     pub fn get_main_cartridge_struct_id(&self) -> String {
-        format!("{}{}", &self.main_component_type_id.get_pascal_identifier().unwrap(), crate::constants::CARTRIDGE_PARTIAL_STRUCT_ID)
+        format!(
+            "{}{}",
+            &self.main_component_type_id.get_pascal_identifier().unwrap(),
+            crate::constants::CARTRIDGE_PARTIAL_STRUCT_ID
+        )
     }
 
     // String representing the symbolic ID for the &dyn DefinitionToInstanceTraverser struct
     // generated for this manifest's cartridge in #[main]
     pub fn get_main_definition_to_instance_traverser_struct_id(&self) -> String {
-        format!("{}{}", &self.main_component_type_id.get_pascal_identifier().unwrap(), crate::constants::DEFINITION_TO_INSTANCE_TRAVERSER_PARTIAL_STRUCT_ID)
+        format!(
+            "{}{}",
+            &self.main_component_type_id.get_pascal_identifier().unwrap(),
+            crate::constants::DEFINITION_TO_INSTANCE_TRAVERSER_PARTIAL_STRUCT_ID
+        )
     }
 }
 
