@@ -5,13 +5,12 @@ use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use pax_runtime::api::{Layer, RenderContext, Stroke};
 use pax_runtime::api as pax_runtime_api;
+use pax_runtime::api::{Layer, RenderContext, Stroke};
 use_RefCell!();
-use std::rc::Rc;
 use pax_engine::{pax, Property};
 use pax_manifest::pax_runtime_api::Numeric;
-
+use std::rc::Rc;
 
 /// A basic 2D vector rectangle
 #[pax]
@@ -124,7 +123,6 @@ impl InstanceNode for RectangleInstance {
         &self.base
     }
 }
-
 
 #[pax]
 pub struct RectangleCornerRadii {

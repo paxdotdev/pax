@@ -1,10 +1,10 @@
 use kurbo::BezPath;
 
-use pax_runtime::api::{Layer, RenderContext, Stroke, Color};
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+use pax_runtime::api::{Color, Layer, RenderContext, Stroke};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
 use crate::common::Point;
 
@@ -13,7 +13,6 @@ use_RefCell!();
 use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
-
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
 #[pax]
@@ -405,7 +404,6 @@ impl PathCurve {
         self.on_change.get();
     }
 }
-
 
 #[pax]
 pub enum PathElement {

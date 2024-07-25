@@ -1,9 +1,7 @@
-use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 use pax_engine::*;
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
 use std::collections::HashMap;
-
-
 
 use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
@@ -14,10 +12,6 @@ use pax_runtime::{
 use std::rc::Rc;
 
 use crate::common::patch_if_needed;
-
-
-
-
 
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`

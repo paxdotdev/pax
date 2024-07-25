@@ -9,13 +9,11 @@ use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use pax_runtime::api::*;
 
+use pax_engine::pax;
 use std::collections::HashMap;
 use std::rc::Rc;
-use pax_engine::pax;
 
 use crate::common::patch_if_needed;
-
-
 
 /// A platform-native Slider control
 #[pax]

@@ -1,20 +1,19 @@
+use crate::*;
 use pax_message::{AnyCreatePatch, DropdownPatch, NativeInterrupt};
+use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api as pax_runtime_api;
-use crate::*;
 use_RefCell!();
 use pax_runtime_api::*;
 
+use pax_engine::pax;
 use std::collections::HashMap;
 use std::rc::Rc;
-use pax_engine::pax;
 
 use crate::common::patch_if_needed;
-
 
 /// A platform-native dropdown list
 #[pax]
@@ -28,7 +27,6 @@ pub struct Dropdown {
     pub background: Property<Color>,
     pub border_radius: Property<f64>,
 }
-
 
 impl Default for Dropdown {
     fn default() -> Self {

@@ -43,7 +43,8 @@ pub fn generate_cartridge_partial_rs(
     generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
         templating::TemplateArgsCodegenCartridgeSnippet {
             cartridge_struct_id: manifest.get_main_cartridge_struct_id(),
-            definition_to_instance_traverser_struct_id: manifest.get_main_definition_to_instance_traverser_struct_id(),
+            definition_to_instance_traverser_struct_id: manifest
+                .get_main_definition_to_instance_traverser_struct_id(),
             expression_specs,
             components: manifest.generate_codegen_component_info(),
             common_properties: CommonProperty::get_as_common_property(),

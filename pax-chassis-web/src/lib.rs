@@ -63,15 +63,15 @@ pub struct InterruptResult {
     pub prevent_default: bool,
 }
 
-
-
 // Two impl blocks: one for "private" functions,
 //                  the second for FFI-exposed functions
 
 impl PaxChassisWeb {
-
     #[cfg(feature = "designtime")]
-    pub async fn new(cartridge: Box<dyn PaxCartridge>, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
+    pub async fn new(
+        cartridge: Box<dyn PaxCartridge>,
+        definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+    ) -> Self {
         let (width, height, os_info, expression_table) = Self::init_common(cartridge);
         let query_string = window()
             .unwrap()
@@ -80,8 +80,9 @@ impl PaxChassisWeb {
             .expect("no search exists");
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();
-        let designtime_manager =
-            definition_to_instance_traverser.get_designtime_manager(query_string).unwrap();
+        let designtime_manager = definition_to_instance_traverser
+            .get_designtime_manager(query_string)
+            .unwrap();
         let engine = pax_runtime::PaxEngine::new_with_designtime(
             main_component_instance,
             expression_table,
@@ -100,10 +101,11 @@ impl PaxChassisWeb {
         }
     }
 
-
-
     #[cfg(not(feature = "designtime"))]
-    pub async fn new(cartridge: Box<dyn PaxCartridge>, definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
+    pub async fn new(
+        cartridge: Box<dyn PaxCartridge>,
+        definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+    ) -> Self {
         let (width, height, os_info, expression_table) = Self::init_common(cartridge);
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();
@@ -122,7 +124,6 @@ impl PaxChassisWeb {
             drawing_contexts: Renderer::new(),
         }
     }
-
 
     fn init_common(cartridge: Box<dyn PaxCartridge>) -> (f64, f64, OS, ExpressionTable) {
         #[cfg(feature = "console_error_panic_hook")]
@@ -151,10 +152,8 @@ impl PaxChassisWeb {
     }
 }
 
-
 #[wasm_bindgen]
 impl PaxChassisWeb {
-
     pub fn add_context(&mut self, id: String) {
         let window = window().unwrap();
         let dpr = window.device_pixel_ratio();
