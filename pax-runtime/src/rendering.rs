@@ -222,7 +222,7 @@ impl BaseInstance {
     /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
     /// Each node that can handle events is responsible for implementing this; Component instances generate
     /// the necessary code to wire up userland events like `<SomeNode @click=self.handler>`. Primitives must handle
-    /// this explicitly, see e.g. `[pax_std::primitives::RectangleInstance#get_handler_registry]`.
+    /// this explicitly, see e.g. `[pax_std::drawing::rectangle::RectangleInstance#get_handler_registry]`.
     pub fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(registry)),
