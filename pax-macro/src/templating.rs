@@ -17,7 +17,7 @@ pub struct StaticPropertyDefinition {
 
 #[derive(Serialize)]
 pub struct ArgsPrimitive {
-    /// For example: "pax_std_primitives::RectangleInstance" for Rectangle (pax_std::primitives::Rectangle)
+    /// For example: "pax_std::drawing::rectangle::RectangleInstance" for Rectangle (pax_std::drawing::rectangle::Rectangle)
     pub primitive_instance_import_path: String,
 }
 

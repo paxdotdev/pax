@@ -4,13 +4,13 @@ struct {{component.pascal_identifier}}Factory{}
 impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier}}Factory {
 
     fn build_default_properties(&self) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
-        Box::new(|_,_| std::rc::Rc::new(RefCell::new({{component.pascal_identifier}}::default().to_pax_any())))
+        Box::new(|_,_| std::rc::Rc::new(RefCell::new({{component.type_id.import_path}}::default().to_pax_any())))
     }
 
     fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,pax_engine::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
         Box::new(move |stack_frame , table | std::rc::Rc::new(RefCell::new(
             {
-        let mut properties = {{component.pascal_identifier}}::default();
+        let mut properties = {{component.type_id.import_path}}::default();
         {% for property in component.properties %}
             if let Some(vd) = defined_properties.get("{{property.name}}") {
                     match vd.clone() {
@@ -65,25 +65,25 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
             "{{handler.name}}" => {
                 |properties, ctx, args|{
                     let properties = &mut *properties.as_ref().borrow_mut();
-                    if let Ok(mut properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
+                    if let Ok(mut properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
                         // downcast args to handler.type
                         {% if handler.args_type %}
                             if let Some(args) = args {
                                 if let Ok(args) = <{{handler.args_type}}>::ref_from_pax_any(&args) {
-                                    {{component.pascal_identifier}}::{{handler.name}}(properties,ctx, args.clone());
+                                    {{component.type_id.import_path}}::{{handler.name}}(properties,ctx, args.clone());
                                 } else {panic!("Failed to downcast args to {{handler.args_type}}")};
                             } else {
                                 panic!("No {{handler.args_type}} present");
                             }
                         {% else %}
                             if let None = args {
-                                {{component.pascal_identifier}}::{{handler.name}}(properties,ctx);
+                                {{component.type_id.import_path}}::{{handler.name}}(properties,ctx);
                             } else {
                                 panic!("Unexpected args present");
                             }
                         {% endif %}
                         
-                    } else {panic!("Failed to downcast properties to {{component.pascal_identifier}}")};
+                    } else {panic!("Failed to downcast properties to {{component.type_id.import_path}}")};
                 }
             },
             {% endfor %}
@@ -123,14 +123,14 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
     fn get_properties_scope_factory(&self) -> Box<dyn Fn(std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>) -> std::collections::HashMap<String, pax_engine::api::properties::UntypedProperty>>  {
         Box::new(|props| {
             let properties = &mut *props.as_ref().borrow_mut();
-            if let Ok(properties) = <{{component.pascal_identifier}}>::mut_from_pax_any(properties) {
+            if let Ok(properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
                 let mut scope = std::collections::HashMap::new();
                 {% for prop in component.properties %}
                     scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.untyped());
                 {% endfor %}
                 scope
             } else {
-                panic!("Failed to downcast properties to {{component.pascal_identifier}}");
+                panic!("Failed to downcast properties to {{component.type_id.import_path}}");
             }
         })
     }

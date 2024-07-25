@@ -131,7 +131,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
     let build_dir =
         build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
-    Ok((manifest, None))
+
+    Ok((manifest, build_dir))
 }
 
 

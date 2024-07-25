@@ -18,7 +18,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native dropdown list
 #[pax]
-#[primitive("pax_std_primitives::dropdown::DropdownInstance")]
+#[primitive("pax_std::forms::dropdown::DropdownInstance")]
 #[custom(Default)]
 pub struct Dropdown {
     pub stroke: Property<Stroke>,
