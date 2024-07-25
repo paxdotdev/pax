@@ -16,7 +16,7 @@ use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::{DesigntimeManager, Serializer};
-use pax_engine::api::{Rotation};
+use pax_engine::api::{borrow_mut, Rotation};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::{Generic, Parts, Transform2};
 use pax_engine::serde::Serialize;
@@ -66,7 +66,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
         };
 
         let save_data = {
-            let mut dt = ctx.engine_context.designtime.borrow_mut();
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt.get_orm_mut().build_new_node(
                 ctx.app_state.selected_component_id.get().clone(),
                 self.type_id.clone(),

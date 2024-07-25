@@ -31,7 +31,7 @@ use pax_engine::pax_manifest::{
     PaxType, TemplateNodeId, TreeIndexPosition, TypeId, UniqueTemplateNodeIdentifier,
 };
 use pax_engine::api::math::Transform2;
-use pax_engine::api::{Axis, Window};
+use pax_engine::api::{Axis, Window, borrow, borrow_mut};
 use pax_std::layout::stacker::Stacker;
 
 pub struct CreateComponentTool {
@@ -217,7 +217,7 @@ impl PointerTool {
             }
 
             // set visualization outline to always be the bounds of the parent of the moving node
-            let dt = ctx.engine_context.designtime.borrow();
+            let dt = borrow!(ctx.engine_context.designtime);
             let manifest_ver = dt.get_orm().get_manifest_version();
             let glass_transform = ctx.glass_transform();
             let slot_child_index = hit.global_id().unwrap().clone();

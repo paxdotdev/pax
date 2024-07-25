@@ -1,5 +1,5 @@
 use pax_engine::{api::*, math::Point2, *};
-use pax_std::*;
+use pax_std::primitives::*;
 use std::sync::Mutex;
 
 use crate::math::coordinate_spaces::Glass;
