@@ -8,7 +8,7 @@ use crate::controls::settings::AREAS_PROP;
 use super::PropertyEditorData;
 
 use pax_engine::api::Stroke;
-use pax_std::*;
+use pax_std::primitives::*;
 
 #[pax]
 #[file("controls/settings/property_editor/stroke_property_editor.pax")]

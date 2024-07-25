@@ -22,6 +22,7 @@ use pax_engine::{
 use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
+use pax_engine::api::borrow_mut;
 use pax_std::core::group::Group;
 
 use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodePropertiesFromTransform};
@@ -113,7 +114,7 @@ impl Action for UngroupSelected {
             let parent_id = parent.global_id();
             let group_parent_bounds = parent.transform_and_bounds().get();
 
-            let group_children = ctx.engine_context.designtime.borrow_mut()
+            let group_children = borrow_mut!(ctx.engine_context.designtime)
                 .get_orm_mut()
                 .get_node_children(group.id.clone())
                 .map_err(|e| anyhow!("group not found {:?}", e))?;
@@ -144,8 +145,7 @@ impl Action for UngroupSelected {
             }
 
             // ---------- Delete group --------------
-            ctx.engine_context.designtime
-                .borrow_mut()
+            borrow_mut!(ctx.engine_context.designtime)
                 .get_orm_mut()
                 .remove_node(group.id)
                 .map_err(|e| anyhow!("failed to remove group {:?}", e))?;

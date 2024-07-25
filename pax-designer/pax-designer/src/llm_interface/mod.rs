@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use pax_engine::api::*;
 use pax_engine::*;
 
-use pax_std::*;
+use pax_std::primitives::*;
 
 use crate::model::{
     action::{Action, ActionContext, orm::SerializeRequested },
@@ -44,7 +44,7 @@ impl LLMInterface {
 
     pub fn textbox_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
         let request = &args.text;
-        let mut dt = ctx.designtime.borrow_mut();
+        let mut dt = borrow_mut!(ctx.designtime);
         if let Err(e) = dt.llm_request(request) {
             pax_engine::log::warn!("llm request failed: {:?}", e);
         };
