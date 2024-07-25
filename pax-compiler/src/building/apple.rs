@@ -30,7 +30,7 @@ const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
 const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID: &str = "ios-arm64_x86_64-simulator";
 const IOS_PACKAGE_ID: &str = "ios-arm64";
 
-pub fn build_apple_chassis_with_cartridge(
+pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
