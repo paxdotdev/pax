@@ -74,7 +74,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Rectangle",
+                                    "pax_std::drawing::rectangle::Rectangle",
                                     None,
                                 ),
                                 0,
@@ -83,7 +83,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Ellipse",
+                                    "pax_std::drawing::ellipse::Ellipse",
                                     None,
                                 ),
                                 0,
@@ -92,7 +92,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Text",
+                                    "pax_std::core::text::Text",
                                     None,
                                 ),
                                 0,
@@ -101,7 +101,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::stacker::Stacker",
+                                    "pax_std::layout::stacker::Stacker",
                                     None,
                                 ),
                                 5,
@@ -111,7 +111,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Checkbox",
+                                    "pax_std::forms::checkbox::Checkbox",
                                     None,
                                 ),
                                 0,
@@ -120,7 +120,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Textbox",
+                                    "pax_std::forms::textbox::Textbox",
                                     None,
                                 ),
                                 0,
@@ -129,7 +129,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Button",
+                                    "pax_std::forms::button::Button",
                                     None,
                                 ),
                                 0,
@@ -138,7 +138,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Slider",
+                                    "pax_std::forms::slider::Slider",
                                     None,
                                 ),
                                 0,
@@ -147,7 +147,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::Dropdown",
+                                    "pax_std::forms::dropdown::Dropdown",
                                     None,
                                 ),
                                 0,
@@ -156,7 +156,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
-                                    "pax_designer::pax_reexports::pax_std::primitives::RadioSet",
+                                    "pax_std::forms::radio_set::RadioSet",
                                     None,
                                 ),
                                 0,
