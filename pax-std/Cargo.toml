@@ -1,7 +1,7 @@
 
 [package]
 name = "pax-std"
-version = "0.16.0"
+version = "0.16.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -12,13 +12,13 @@ description = "Standard library for Pax, including layouts, drawing primitives, 
 [dependencies]
 piet = "0.6.0"
 kurbo = "0.9.0"
-pax-engine = {path = "../pax-engine", version="0.16.0"}
-pax-message = {path = "../pax-message", version="0.16.0"}
+pax-engine = {path = "../pax-engine", version="0.16.1"}
+pax-message = {path = "../pax-message", version="0.16.1"}
 lazy_static = "1.4.0"
-pax-compiler = {path="../pax-compiler", optional = true, version="0.16.0"}
+pax-compiler = {path="../pax-compiler", optional = true, version="0.16.1"}
 serde_json = {version="1.0.95", optional = true}
-pax-manifest = {path = "../pax-manifest", version="0.16.0"}
-pax-runtime = {path = "../pax-runtime", version="0.16.0"}
+pax-manifest = {path = "../pax-manifest", version="0.16.1"}
+pax-runtime = {path = "../pax-runtime", version="0.16.1"}
 serde = { version = "1.0.159", features=["derive"]}
 log = "0.4.20"
 
