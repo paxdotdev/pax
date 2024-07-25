@@ -5,17 +5,18 @@ use super::{DerivedAppState, GlassNode, SelectionState};
 use crate::math::coordinate_spaces::World;
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
+use pax_designtime::orm::PaxManifestORM;
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::{borrow, Axis, Size};
 use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
+use pax_engine::pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
 use pax_engine::{
     api::{NodeContext, Window},
     math::{Point2, Space, Transform2},
     NodeInterface,
 };
 use pax_engine::{log, Property};
-use pax_engine::pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
-use pax_engine::api::{Axis, Size, borrow};
 use pax_std::drawing::rectangle::Rectangle;
 
 use crate::math::coordinate_spaces::Glass;
@@ -24,40 +25,32 @@ pub mod orm;
 pub mod pointer;
 pub mod world;
 
-type UndoFunc = dyn FnOnce(&mut ActionContext) -> Result<()>;
-
 #[derive(Default)]
-pub struct UndoStack {
-    stack: Vec<usize>,
-    // current position in undo stack, usually curr = stack.len() - 1, except for when
-    // something was just undone, and no new actions have been taken
-    cursor: usize,
+pub struct UndoRedoStack {
+    undo_stack: Vec<usize>,
+    redo_stack: Vec<usize>,
 }
 
-impl UndoStack {
+impl UndoRedoStack {
     pub fn push(&mut self, undo_id: usize) {
-        self.stack.truncate(self.cursor);
-        self.stack.push(undo_id);
-        self.cursor = self.stack.len();
+        self.undo_stack.push(undo_id);
+        self.redo_stack.clear();
     }
 
-    fn next_undo_id(&mut self) -> Option<usize> {
-        if self.cursor > 0 {
-            self.cursor -= 1;
-            Some(self.stack[self.cursor])
-        } else {
-            None
-        }
+    fn undo(&mut self, orm: &mut PaxManifestORM) -> Option<()> {
+        let curr_id = orm.get_last_undo_id()?;
+        let undo_id = self.undo_stack.pop()?;
+        orm.undo_until(undo_id).ok()?;
+        self.redo_stack.push(curr_id);
+        Some(())
     }
 
-    fn next_redo_id(&mut self) -> Option<usize> {
-        if self.cursor < self.stack.len() {
-            let id = self.stack[self.cursor];
-            self.cursor += 1;
-            Some(id)
-        } else {
-            None
-        }
+    fn redo(&mut self, orm: &mut PaxManifestORM) -> Option<()> {
+        let curr_id = orm.get_last_undo_id()?;
+        let redo_id = self.redo_stack.pop()?;
+        orm.redo_including(redo_id).ok()?;
+        self.undo_stack.push(curr_id);
+        Some(())
     }
 }
 
@@ -69,7 +62,7 @@ pub struct ActionContext<'a> {
     pub engine_context: &'a NodeContext,
     pub app_state: &'a mut AppState,
     pub derived_state: &'a DerivedAppState,
-    pub undo_stack: &'a mut UndoStack,
+    pub undo_stack: &'a mut UndoRedoStack,
 }
 
 impl ActionContext<'_> {
