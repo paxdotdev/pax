@@ -17,8 +17,12 @@ use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::{DesigntimeManager, Serializer};
 use pax_engine::api::{borrow_mut, Rotation};
+use pax_engine::api::{Axis, Percent};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::{Generic, Parts, Transform2};
+use pax_engine::pax_manifest::{
+    NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_engine::serde::Serialize;
 use pax_engine::{
     api::Size,
@@ -26,10 +30,6 @@ use pax_engine::{
     serde,
 };
 use pax_engine::{log, NodeInterface, NodeLocal, Slot};
-use pax_engine::pax_manifest::{
-    NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
-};
-use pax_engine::api::{Axis, Percent};
 use pax_std::layout::stacker::Stacker;
 pub mod group_ungroup;
 
@@ -94,10 +94,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
             CreateComponent {
                 parent_id: &save_data.unique_id,
                 parent_index: TreeIndexPosition::Top,
-                type_id: &TypeId::build_singleton(
-                    "pax_std::drawing::rectangle::Rectangle",
-                    None,
-                ),
+                type_id: &TypeId::build_singleton("pax_std::drawing::rectangle::Rectangle", None),
                 custom_props: &[("fill", &format!("rgb({}, {}, {})", c, c, c))],
                 mock_children: 0,
                 node_layout: NodeLayoutSettings::Fill,
@@ -444,11 +441,7 @@ impl Action for RotateSelected<'_> {
     }
 }
 
-pub struct DeleteSelected {}
-
-pub struct UndoRequested {}
-
-pub struct SerializeRequested {}
+pub struct SerializeRequested;
 
 impl Action for SerializeRequested {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
@@ -460,17 +453,27 @@ impl Action for SerializeRequested {
     }
 }
 
+pub struct UndoRequested;
+
 impl Action for UndoRequested {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        if let Some(id) = ctx.undo_stack.next_undo_id() {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            dt.get_orm_mut()
-                .undo_until(id)
-                .map_err(|e| anyhow!("undo failed: {:?}", e))?;
-        };
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        ctx.undo_stack.undo(dt.get_orm_mut());
         Ok(())
     }
 }
+
+pub struct RedoRequested;
+
+impl Action for RedoRequested {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        ctx.undo_stack.redo(dt.get_orm_mut());
+        Ok(())
+    }
+}
+
+pub struct DeleteSelected;
 
 impl Action for DeleteSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {

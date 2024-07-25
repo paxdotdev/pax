@@ -13,7 +13,7 @@ use crate::model::{AppState, StageInfo};
 use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::{MouseButton, Window, Color, borrow};
+use pax_engine::api::{borrow, Color, MouseButton, Window};
 use pax_engine::log;
 use pax_engine::math::Point2;
 use pax_engine::pax_manifest::TypeId;
@@ -57,7 +57,6 @@ impl Action for MouseEntryPointAction<'_> {
 
         // If no tool is active, activate a tool on mouse down
         if matches!(self.event, Pointer::Down) && tool_behaviour.get().is_none() {
-            let mut undoable = false;
             match (&self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     Tool::Pointer => {
@@ -66,7 +65,6 @@ impl Action for MouseEntryPointAction<'_> {
                             ctx,
                             point_glass,
                         )))));
-                        undoable = true;
                     }
                     Tool::CreateComponent(component) => {
                         tool_behaviour.set(Some(Rc::new(RefCell::new(match component {
@@ -91,19 +89,13 @@ impl Action for MouseEntryPointAction<'_> {
                             Component::Text => CreateComponentTool::new(
                                 ctx,
                                 point_glass,
-                                &TypeId::build_singleton(
-                                    "pax_std::core::text::Text",
-                                    None,
-                                ),
+                                &TypeId::build_singleton("pax_std::core::text::Text", None),
                                 0,
                             ),
                             Component::Stacker => CreateComponentTool::new(
                                 ctx,
                                 point_glass,
-                                &TypeId::build_singleton(
-                                    "pax_std::layout::stacker::Stacker",
-                                    None,
-                                ),
+                                &TypeId::build_singleton("pax_std::layout::stacker::Stacker", None),
                                 5,
                             ),
 
@@ -119,28 +111,19 @@ impl Action for MouseEntryPointAction<'_> {
                             Component::Textbox => CreateComponentTool::new(
                                 ctx,
                                 point_glass,
-                                &TypeId::build_singleton(
-                                    "pax_std::forms::textbox::Textbox",
-                                    None,
-                                ),
+                                &TypeId::build_singleton("pax_std::forms::textbox::Textbox", None),
                                 0,
                             ),
                             Component::Button => CreateComponentTool::new(
                                 ctx,
                                 point_glass,
-                                &TypeId::build_singleton(
-                                    "pax_std::forms::button::Button",
-                                    None,
-                                ),
+                                &TypeId::build_singleton("pax_std::forms::button::Button", None),
                                 0,
                             ),
                             Component::Slider => CreateComponentTool::new(
                                 ctx,
                                 point_glass,
-                                &TypeId::build_singleton(
-                                    "pax_std::forms::slider::Slider",
-                                    None,
-                                ),
+                                &TypeId::build_singleton("pax_std::forms::slider::Slider", None),
                                 0,
                             ),
                             Component::Dropdown => CreateComponentTool::new(
@@ -162,7 +145,6 @@ impl Action for MouseEntryPointAction<'_> {
                                 0,
                             ),
                         }))));
-                        undoable = true;
                     }
                     Tool::TodoTool => {
                         log::warn!("tool has no implemented behaviour");
@@ -176,14 +158,6 @@ impl Action for MouseEntryPointAction<'_> {
                 }
                 _ => (),
             };
-
-            if undoable {
-                let before_undo_id = borrow!(ctx.engine_context.designtime)
-                    .get_orm()
-                    .get_last_undo_id()
-                    .unwrap_or(0);
-                ctx.undo_stack.push(before_undo_id);
-            }
         }
 
         // Whatever tool behaviour exists, let it do it's thing

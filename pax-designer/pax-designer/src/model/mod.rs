@@ -20,22 +20,22 @@ use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
 use pax_engine::api::MouseButton;
+use pax_engine::api::Window;
 use pax_engine::layout::LayoutProperties;
 use pax_engine::layout::TransformAndBounds;
 use pax_engine::log;
 use pax_engine::math::Generic;
 use pax_engine::math::{Transform2, Vector2};
 use pax_engine::pax;
-use pax_engine::NodeInterface;
-use pax_engine::NodeLocal;
-use pax_engine::Property;
-use pax_engine::{api::NodeContext, api::borrow, math::Point2};
 use pax_engine::pax_manifest::PropertyDefinition;
 use pax_engine::pax_manifest::TemplateNodeId;
 use pax_engine::pax_manifest::TypeId;
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::pax_manifest::ValueDefinition;
-use pax_engine::api::Window;
+use pax_engine::NodeInterface;
+use pax_engine::NodeLocal;
+use pax_engine::Property;
+use pax_engine::{api::borrow, api::NodeContext, math::Point2};
 use std::any::Any;
 use std::cell::OnceCell;
 use std::cell::RefCell;
@@ -49,7 +49,7 @@ pub use selection_state::*;
 
 use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
-use self::action::UndoStack;
+use self::action::UndoRedoStack;
 use self::input::{Dir, InputEvent, InputMapper};
 
 /// Represents the global source-of-truth for the desinger.
@@ -138,7 +138,7 @@ thread_local! {
 }
 
 pub struct Model {
-    pub undo_stack: UndoStack,
+    pub undo_stack: UndoRedoStack,
     pub app_state: AppState,
     pub derived_state: DerivedAppState,
 }
@@ -150,7 +150,7 @@ impl Model {
 
         MODEL.with_borrow_mut(|state| {
             *state = Some(Model {
-                undo_stack: UndoStack::default(),
+                undo_stack: UndoRedoStack::default(),
                 app_state,
                 derived_state,
             })

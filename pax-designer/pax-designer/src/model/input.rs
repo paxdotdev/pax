@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Interpolatable;
 
-use crate::model::action::orm::{SerializeRequested, UndoRequested};
+use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::{
@@ -62,7 +62,23 @@ impl InputMapper {
                 Some(Box::new(OpenLLMPrompt { require_meta: true }))
             }
             (&InputEvent::DeleteSelected, Dir::Down) => Some(Box::new(DeleteSelected {})),
-            (&InputEvent::Undo, Dir::Down) => Some(Box::new(UndoRequested {})),
+            (&InputEvent::Undo, Dir::Down) => Some(Box::new({
+                struct UndoRedoAction;
+                impl Action for UndoRedoAction {
+                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+                        let keys = ctx.app_state.keys_pressed.get();
+                        if keys.contains(&InputEvent::Meta) {
+                            if keys.contains(&InputEvent::Shift) {
+                                RedoRequested.perform(ctx)?;
+                            } else {
+                                UndoRequested.perform(ctx)?;
+                            }
+                        }
+                        Ok(())
+                    }
+                }
+                UndoRedoAction
+            })),
             (&InputEvent::Serialize, Dir::Down) => Some(Box::new(SerializeRequested {})),
             _ => None,
         }
