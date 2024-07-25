@@ -108,7 +108,7 @@ impl InstanceNode for PathInstance {
         _rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = format!("{}", borrow!(expanded_node.occlusion_id));
+        let layer_id = format!("{}", borrow!(expanded_node.occlusion).0);
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let mut bez_path = BezPath::new();
