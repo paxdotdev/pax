@@ -21,17 +21,17 @@ use crate::model::{AppState, ToolBehaviour};
 use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::math::Transform2;
 use pax_engine::api::Size;
+use pax_engine::api::{borrow, borrow_mut, Axis, Window};
 use pax_engine::api::{Color, NodeContext};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
-use pax_engine::{log, NodeInterface, NodeLocal, Property, Slot};
 use pax_engine::pax_manifest::{
     PaxType, TemplateNodeId, TreeIndexPosition, TypeId, UniqueTemplateNodeIdentifier,
 };
-use pax_engine::api::math::Transform2;
-use pax_engine::api::{Axis, Window, borrow, borrow_mut};
+use pax_engine::{log, NodeInterface, NodeLocal, Property, Slot};
 use pax_std::layout::stacker::Stacker;
 
 pub struct CreateComponentTool {
@@ -96,6 +96,7 @@ impl ToolBehaviour for CreateComponentTool {
             .unwrap();
         let parent = GlassNode::new(&parent, &ctx.glass_transform());
 
+        ctx.undo_save();
         if let Err(e) = (CreateComponent {
             parent_id: &parent.id,
             parent_index: TreeIndexPosition::Top,
@@ -296,6 +297,9 @@ impl ToolBehaviour for PointerTool {
                     // make double click behavior for for example
                     // text editing not work
                     return ControlFlow::Continue(());
+                }
+                if !*has_moved {
+                    ctx.undo_save();
                 }
                 *has_moved = true;
                 let translation = point - pickup_point;
