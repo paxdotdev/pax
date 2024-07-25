@@ -26,10 +26,10 @@ env_logger = "0.11.1"
 futures = "0.3.30"
 include_dir = {version = "0.7.3", features = ["glob"]}
 notify = "6.1.1"
-pax-compiler = { path = "../pax/pax-compiler", version = "0.15.5" }
-pax-designtime = { path = "../pax/pax-designtime", version = "0.15.5" }
-pax-manifest = { path="../pax/pax-manifest", version = "0.15.5"}
-pax-lang = { path="../pax/pax-lang", version = "0.15.5"}
+pax-compiler = { path = "../pax/pax-compiler", version = "0.15.1" }
+pax-designtime = { path = "../pax-designtime", version = "0.15.1" }
+pax-manifest = { path="../pax/pax-manifest", version = "0.15.1"}
+pax-lang = { path="../pax/pax-lang", version = "0.15.1"}
 pax-generation = { path="../pax/pax-generation", version = "0.1.0"} 
 rmp-serde = "1.1.2"
 schemars = "0.8.16"
