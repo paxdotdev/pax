@@ -1,9 +1,9 @@
-use std::cell::RefCell;
+use_RefCell!();
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use pax_manifest::{PaxManifest, TemplateNodeDefinition, TemplateNodeId, TypeId, ValueDefinition};
 use pax_manifest::PaxType::Slot;
-use pax_runtime_api::{CommonProperties, Numeric, Property};
+use pax_runtime_api::{borrow_mut, CommonProperties, Numeric, Property, use_RefCell};
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
 use crate::{ComponentInstance, ExpressionContext, ExpressionTable, HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame};

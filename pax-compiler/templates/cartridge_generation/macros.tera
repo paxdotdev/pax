@@ -64,7 +64,7 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
             {% for handler in component.handlers %}
             "{{handler.name}}" => {
                 |properties, ctx, args|{
-                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = &mut *borrow_mut!(properties.as_ref());
                     if let Ok(mut properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
                         // downcast args to handler.type
                         {% if handler.args_type %}
@@ -103,7 +103,7 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
 
     fn add_inline_handlers(&self, handlers: Vec<(String, String)>, handler_registry: std::rc::Rc<RefCell<pax_engine::pax_runtime::HandlerRegistry>>) -> std::rc::Rc<RefCell<pax_engine::pax_runtime::HandlerRegistry>> {
         {
-            let mut handler_registry_mut = handler_registry.borrow_mut();
+            let mut handler_registry_mut = borrow_mut!(handler_registry);
             for (event, fn_name) in &handlers {
                 let handler_vec = handler_registry_mut.handlers.entry(event.clone()).or_insert(Vec::new());
                 handler_vec.push(pax_engine::pax_runtime::Handler::new_inline_handler(self.build_handler(&fn_name)));
@@ -122,7 +122,7 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
 
     fn get_properties_scope_factory(&self) -> Box<dyn Fn(std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>) -> std::collections::HashMap<String, pax_engine::api::properties::UntypedProperty>>  {
         Box::new(|props| {
-            let properties = &mut *props.as_ref().borrow_mut();
+            let properties = &mut *borrow_mut!(props.as_ref());
             if let Ok(properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
                 let mut scope = std::collections::HashMap::new();
                 {% for prop in component.properties %}
