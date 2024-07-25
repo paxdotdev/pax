@@ -119,13 +119,9 @@ Based on this template our application logic must define the state of this compo
 ```rust filename="lib.rs"  copy
 //File: lib.rs
 #![allow(unused_imports)]
-
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
 
 #[pax]
 #[main]
@@ -441,12 +437,11 @@ The atomic unit of Pax is a `component definition`. A component definition for `
 //File: lib.rs
 #![allow(unused_imports)]
 
+#![allow(unused_imports)]
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 
 #[pax]
 #[main]
@@ -507,8 +502,11 @@ Inside a component definition, there may be:
 A component definition centers around a _Rust struct_, to which a piece of Pax is attached to through the macro `#[pax]`. Pax can either be attached inline using the `inlined()` attribute or link to a `.pax` file using the `file()` attribute using a relative path. For example, the following defines an empty component called `EmptyComponent`:
 
 ```rust
-use pax_lang::api::*;
-use pax_std::primitives::Group;
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::*;
+
 
 #[pax]
 #[inlined(<Group />)] //a one-element template, simply an empty Group
@@ -520,7 +518,11 @@ pub struct EmptyComponent {
 Any component created in Pax can be used inside other components — for example, `EmptyComponent` can be imported and used in another component's template like:
 
 ```rust
-use pax_lang::api::*;
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::*;
+
 use crate::EmptyComponent;
 
 #[pax]
@@ -914,7 +916,11 @@ Properties are also used internally within a component as state containers, simi
 Properties are defined on Rust structs, such as `counter` below:
 
 ```rust
-use pax_lang::api::*;
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::*;
+
 
 #[pax]
 #[inlined(
@@ -937,7 +943,11 @@ Building off of the `Stacker` example above, any component that instantiates a `
 Let's use the above component inside a new component, `AnotherComponent`.
 
 ```rust
-use pax_lang::api::*;
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::*;
+
 use crate::MyComponent;
 
 #[pax(
@@ -1042,7 +1052,11 @@ Templates are not just static -- they allow three kinds of control-flow, affecti
 
 
 ```rust
-use pax_lang::api::*;
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::*;
+
 use crate::{DetailsView, SummaryView};
 
 #[pax]
@@ -1071,7 +1085,11 @@ For example:
 
 
 ```rust
-use pax_lang::api::*;
+#![allow(unused_imports)]
+use pax_engine::api::*;
+use pax_engine::*;
+use pax_std::*;
+
 use pax_std::layout::{Stacker, StackerDirection};
 use crate::DeviceRecord;
 
@@ -2031,13 +2049,10 @@ Made an example conways game of life which you can adjust the speed of iteration
 
 ```rust filename=game-of-life/src/lib.rs
 #![allow(unused_imports)]
-
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 
 
 #[pax]
@@ -2192,10 +2207,8 @@ use path_animation::PathAnimation;
 
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 
 use pax_engine::math::Generic;
 use pax_engine::math::Point2;
@@ -2255,13 +2268,10 @@ impl Example {
 
 ```rust filename=mouse-animation/src/path_animation.rs
 #![allow(unused_imports)]
-
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 
 use core::f64::consts::PI;
 use pax_engine::math::Generic;
@@ -2439,13 +2449,10 @@ A 2d asteroid shooter game
 
 ```rust filename=space-game/src/lib.rs
 #![allow(unused_imports)]
-
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::collections::HashSet;
@@ -2660,9 +2667,10 @@ impl SpaceGame {
 ```
 
 ```rust filename=space-game/src/animation.rs
-
+#![allow(unused_imports)]
 use pax_engine::api::*;
 use pax_engine::*;
+
 #[pax]
 pub struct Animation {
     pub frame: String,
@@ -2810,13 +2818,10 @@ An old school 2D pong game
 
 ```rust filename=lib.rs
 #![allow(unused_imports)]
-
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 
 const PADDLE_SPEED: f64 = 5.0;
 const BALL_SPEED: f64 = 5.0;
@@ -2962,13 +2967,10 @@ A barebones calculator
 ### Code
 ```rust filename=lib.rs
 #![allow(unused_imports)]
-
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::components::Stacker;
 use pax_std::*;
-use pax_std::types::text::*;
-use pax_std::types::*;
+
 
 #[pax]
 #[main]
