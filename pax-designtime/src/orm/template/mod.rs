@@ -768,7 +768,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
 
         let (module_path, ul_path) = {
             let userland_project_type_id = TypeId::build_singleton(
-                "pax_designer::pax_reexports::designer_project::Example",
+                "designer_project::Example",
                 None,
             );
             let ul_bind = manifest.components.get(&userland_project_type_id);
