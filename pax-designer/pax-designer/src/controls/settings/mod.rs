@@ -4,7 +4,7 @@ use pax_manifest::*;
 use std::collections::HashMap;
 
 use crate::model;
-use pax_std::primitives::{Group, Path, Text};
+use pax_std::*;
 
 pub mod property_editor;
 use property_editor::PropertyEditor;
