@@ -28,3 +28,6 @@ default = ["designtime"]
 parser = ["pax-std/parser", "pax-engine/parser", "designer_project/parser"]
 designtime = ["pax-engine/designtime"]
 web = ["pax-engine/web", "designer_project/web"]
+
+[profile.dev]
+opt-level = 2
