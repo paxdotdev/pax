@@ -184,8 +184,8 @@ impl pax_engine::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to
         &self.manifest
     }
     #[cfg(feature = "designtime")]
-    fn get_manifest(&self) ->  Ref<pax_manifest::PaxManifest> {
-        Ref::map(borrow!(self.designtime_manager), |manager| {
+    fn get_manifest(&self) ->  std::cell::Ref<pax_manifest::PaxManifest> {
+        std::cell::Ref::map(borrow!(self.designtime_manager), |manager| {
             manager.get_manifest()
         })
     }
@@ -193,6 +193,6 @@ impl pax_engine::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to
     #[cfg(feature = "designtime")]
     fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>> {
         borrow_mut!(self.designtime_manager).set_project(project_query);
-        self.designtime_manager.clone()
+        Some(self.designtime_manager.clone())
     }
 }
