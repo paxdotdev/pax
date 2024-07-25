@@ -8,6 +8,8 @@ pub use pax_value::numeric::Numeric;
 pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
+pub mod refcell_debug;
+pub use refcell_debug::*;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store

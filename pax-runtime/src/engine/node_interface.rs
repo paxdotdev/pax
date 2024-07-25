@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::Property;
-use pax_runtime_api::{pax_value::ToFromPaxAny, Interpolatable};
+use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable};
 
 use crate::{
     api::{math::Space, Window},
@@ -42,7 +42,7 @@ impl Space for NodeLocal {}
 
 impl NodeInterface {
     pub fn global_id(&self) -> Option<UniqueTemplateNodeIdentifier> {
-        let instance_node = self.inner.instance_node.borrow();
+        let instance_node = borrow!(self.inner.instance_node);
         let base = instance_node.base();
         base.template_node_identifier.clone()
     }
@@ -66,7 +66,7 @@ impl NodeInterface {
     }
 
     pub fn render_parent(&self) -> Option<NodeInterface> {
-        let parent = self.inner.render_parent.borrow();
+        let parent = borrow!(self.inner.render_parent);
         Some(parent.upgrade()?.into())
     }
 
@@ -83,7 +83,7 @@ impl NodeInterface {
     }
 
     pub fn children(&self) -> Vec<NodeInterface> {
-        let children = self.inner.mounted_children.borrow();
+        let children = borrow!(self.inner.mounted_children);
         (&*children)
             .into_iter()
             .map(Rc::clone)

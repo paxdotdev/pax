@@ -1,11 +1,11 @@
 use pax_message::{AnyCreatePatch, TextboxPatch};
-use pax_runtime::api::{Layer, Property};
+use pax_runtime::api::{use_RefCell, Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
 use pax_runtime::api as pax_runtime_api;
-use std::cell::RefCell;
+use_RefCell!();
 use pax_runtime_api::*;
 use crate::*;
 use std::collections::HashMap;
@@ -77,8 +77,7 @@ impl InstanceNode for TextboxInstance {
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         //trigger computation of property that computes + sends native message update
-        self.native_message_props
-            .borrow()
+        borrow!(self.native_message_props)
             .get(&expanded_node.id)
             .unwrap()
             .get();
@@ -105,13 +104,12 @@ impl InstanceNode for TextboxInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = expanded_node.properties_scope
-            .borrow_mut()
+        let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
             .cloned()
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
-        self.native_message_props.borrow_mut().insert(
+        borrow_mut!(self.native_message_props).insert(
             id,
             Property::computed(
                 move || {
@@ -119,7 +117,7 @@ impl InstanceNode for TextboxInstance {
                         unreachable!()
                     };
                     let id = expanded_node.id.clone();
-                    let mut old_state = last_patch.borrow_mut();
+                    let mut old_state = borrow_mut!(last_patch);
 
                     let mut patch = TextboxPatch {
                         id: id.to_u32(),
@@ -189,7 +187,7 @@ impl InstanceNode for TextboxInstance {
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::TextboxDelete(id.to_u32()));
         // Reset so that native_message sending updates while unmounted
-        self.native_message_props.borrow_mut().remove(&id);
+        borrow_mut!(self.native_message_props).remove(&id);
     }
 
     fn base(&self) -> &BaseInstance {

@@ -648,12 +648,10 @@ var Pax = (() => {
     fromPatch(jsonMessage) {
       this.id = jsonMessage["id"];
       this.occlusionLayerId = jsonMessage["occlusion_layer_id"];
-      this.zIndex = jsonMessage["z_index"];
     }
     cleanUp() {
       this.id = void 0;
       this.occlusionLayerId = -1;
-      this.zIndex = -1;
     }
   };
 
@@ -735,7 +733,6 @@ var Pax = (() => {
       this.stroke_width = jsonMessage["stroke_width"];
       this.background = jsonMessage["background"];
       this.selected_id = jsonMessage["selected_id"];
-      this.borderRadius = jsonMessage["border_radius"];
       const styleMessage = jsonMessage["style"];
       if (styleMessage) {
         this.style = this.objectManager.getFromPool(TEXT_STYLE, this.objectManager);
@@ -817,24 +814,6 @@ var Pax = (() => {
     }
   };
 
-  // src/classes/messages/event-blocker-update-patch.ts
-  var EventBlockerUpdatePatch = class {
-    fromPatch(jsonMessage) {
-      if (jsonMessage != null) {
-        this.id = jsonMessage["id"];
-        this.sizeX = jsonMessage["size_x"];
-        this.sizeY = jsonMessage["size_y"];
-        this.transform = jsonMessage["transform"];
-      }
-    }
-    cleanUp() {
-      this.id = void 0;
-      this.sizeX = 0;
-      this.sizeX = 0;
-      this.transform = [];
-    }
-  };
-
   // src/pools/supported-objects.ts
   var OBJECT = "Object";
   var ARRAY = "Array";
@@ -846,7 +825,6 @@ var Pax = (() => {
   var ANY_CREATE_PATCH = "Any Create Patch";
   var OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
   var FRAME_UPDATE_PATCH = "Frame Update Patch";
-  var EVENT_BLOCKER_UPDATE_PATCH = "Event Blocker Update Patch";
   var IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
   var SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
   var TEXT_UPDATE_PATCH = "Text Update Patch";
@@ -945,13 +923,6 @@ var Pax = (() => {
     {
       name: FRAME_UPDATE_PATCH,
       factory: () => new FrameUpdatePatch(),
-      cleanUp: (patch) => {
-        patch.cleanUp();
-      }
-    },
-    {
-      name: EVENT_BLOCKER_UPDATE_PATCH,
-      factory: () => new EventBlockerUpdatePatch(),
       cleanUp: (patch) => {
         patch.cleanUp();
       }
@@ -1141,11 +1112,6 @@ var Pax = (() => {
           id = void 0;
         }
         this.layers.addElement(node, id, patch.occlusionLayerId);
-        node.style.zIndex = patch.zIndex;
-        const focusableElements = node.querySelectorAll("input, button, select, textarea, a[href]");
-        focusableElements.forEach((element, _index) => {
-          element.setAttribute("tabindex", 1e6 - patch.zIndex);
-        });
       }
     }
     checkboxCreate(patch) {
@@ -1356,7 +1322,7 @@ var Pax = (() => {
       if (patch.backgroundChecked) {
         fields.style.setProperty("--selected-color", toCssColor(patch.backgroundChecked));
       }
-      if (patch.outlineWidth != null) {
+      if (patch.outlineWidth !== void 0) {
         fields.style.setProperty("--border-width", patch.outlineWidth + "px");
       }
       if (patch.outlineColor) {
@@ -1467,16 +1433,13 @@ var Pax = (() => {
         dropdown.options.selectedIndex = patch.selected_id;
       }
       if (patch.background) {
-        dropdown.style.backgroundColor = toCssColor(patch.background);
+        dropdown.style.background = toCssColor(patch.background);
       }
       if (patch.stroke_color) {
         dropdown.style.borderColor = toCssColor(patch.stroke_color);
       }
-      if (patch.stroke_width != null) {
+      if (patch.stroke_width != void 0) {
         dropdown.style.borderWidth = patch.stroke_width + "px";
-      }
-      if (patch.borderRadius != null) {
-        dropdown.style.borderRadius = patch.borderRadius + "px";
       }
       if (patch.options != null) {
         dropdown.innerHTML = "";
@@ -1552,7 +1515,7 @@ var Pax = (() => {
       if (patch.outlineStrokeColor) {
         button.style.borderColor = toCssColor(patch.outlineStrokeColor);
       }
-      if (patch.outlineStrokeWidth != null) {
+      if (patch.outlineStrokeWidth !== void 0) {
         button.style.borderWidth = patch.outlineStrokeWidth + "px";
       }
       applyTextTyle(textContainer, textChild, patch.style);
@@ -1752,43 +1715,6 @@ var Pax = (() => {
       let oldNode = this.nodesLookup.get(id);
       if (oldNode == void 0) {
         throw new Error("tried to delete non-existent scroller");
-      }
-      let parent = oldNode.parentElement;
-      parent.removeChild(oldNode);
-      this.nodesLookup.delete(id);
-    }
-    eventBlockerCreate(patch) {
-      console.assert(patch.id != null);
-      console.assert(patch.occlusionLayerId != null);
-      let eventBlockerDiv = this.objectManager.getFromPool(DIV);
-      eventBlockerDiv.setAttribute("class", NATIVE_LEAF_CLASS);
-      eventBlockerDiv.setAttribute("pax_id", String(patch.id));
-      if (patch.id != void 0 && patch.occlusionLayerId != void 0) {
-        this.layers.addElement(eventBlockerDiv, patch.parentFrame, patch.occlusionLayerId);
-        this.nodesLookup.set(patch.id, eventBlockerDiv);
-      } else {
-        throw new Error("undefined id or occlusionLayer");
-      }
-    }
-    eventBlockerUpdate(patch) {
-      let leaf = this.nodesLookup.get(patch.id);
-      if (leaf == void 0) {
-        throw new Error("tried to update non-existent event blocker");
-      }
-      if (patch.sizeX != null) {
-        leaf.style.width = patch.sizeX + "px";
-      }
-      if (patch.sizeY != null) {
-        leaf.style.height = patch.sizeY + "px";
-      }
-      if (patch.transform != null) {
-        leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-      }
-    }
-    eventBlockerDelete(id) {
-      let oldNode = this.nodesLookup.get(id);
-      if (oldNode == void 0) {
-        throw new Error("tried to delete non-existent event blocker");
       }
       let parent = oldNode.parentElement;
       parent.removeChild(oldNode);
@@ -2373,19 +2299,6 @@ var Pax = (() => {
       } else if (unwrapped_msg["FrameDelete"]) {
         let msg = unwrapped_msg["FrameDelete"];
         nativePool.frameDelete(msg);
-      } else if (unwrapped_msg["EventBlockerCreate"]) {
-        let msg = unwrapped_msg["EventBlockerCreate"];
-        let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
-        patch.fromPatch(msg);
-        nativePool.eventBlockerCreate(patch);
-      } else if (unwrapped_msg["EventBlockerUpdate"]) {
-        let msg = unwrapped_msg["EventBlockerUpdate"];
-        let patch = objectManager2.getFromPool(EVENT_BLOCKER_UPDATE_PATCH);
-        patch.fromPatch(msg);
-        nativePool.eventBlockerUpdate(patch);
-      } else if (unwrapped_msg["EventBlockerDelete"]) {
-        let msg = unwrapped_msg["EventBlockerDelete"];
-        nativePool.eventBlockerDelete(msg);
       } else if (unwrapped_msg["ImageLoad"]) {
         let msg = unwrapped_msg["ImageLoad"];
         let patch = objectManager2.getFromPool(IMAGE_LOAD_PATCH);
