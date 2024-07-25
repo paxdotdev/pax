@@ -63,4 +63,4 @@ tokio = { version = "1", features = ["full"] }
 toml_edit = "0.14.4"
 uuid = {version = "0.8", features = ["v4"] }
 walkdir = "2.3.2"
-wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
+wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
