@@ -32,7 +32,6 @@ mod tests {
             main_component_type_id: type_id,
             expression_specs: None,
             type_table: HashMap::new(),
-            import_paths: HashSet::new(),
         }
     }
 
