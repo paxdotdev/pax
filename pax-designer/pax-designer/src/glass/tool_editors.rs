@@ -45,7 +45,7 @@ impl TextEditTool {
 
         let text_binding = Property::default();
         match import_path.as_ref().map(|v| v.as_str()) {
-            Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
+            Some("pax_std::core::text::Text") => {
                 let node = ctx
                     .engine_context
                     .get_nodes_by_global_id(uid.clone())

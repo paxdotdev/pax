@@ -300,7 +300,7 @@ impl Editor {
         };
         let import_path = type_id.import_path();
         match import_path.as_ref().map(|v| v.as_str()) {
-            Some("pax_designer::pax_reexports::pax_std::stacker::Stacker") => {
+            Some("pax_std::layout::stacker::Stacker") => {
                 vec![
                     slot_control::slot_dot_control_set(ctx.clone(), item.clone()),
                     stacker_control::stacker_divider_control_set(ctx.clone(), item.clone()),
