@@ -14,3 +14,4 @@ pub use image::*;
 pub use scrollbar::*;
 pub use scroller::*;
 pub use text::*;
+pub use event_blocker::*;
