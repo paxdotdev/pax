@@ -29,7 +29,7 @@ use pax_engine::pax;
 use pax_engine::NodeInterface;
 use pax_engine::NodeLocal;
 use pax_engine::Property;
-use pax_engine::{api::NodeContext, math::Point2};
+use pax_engine::{api::NodeContext, api::borrow, math::Point2};
 use pax_engine::pax_manifest::PropertyDefinition;
 use pax_engine::pax_manifest::TemplateNodeId;
 use pax_engine::pax_manifest::TypeId;

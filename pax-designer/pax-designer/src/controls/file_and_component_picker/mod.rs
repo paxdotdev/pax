@@ -11,8 +11,7 @@ use crate::USER_PROJ_ROOT_IMPORT_PATH;
 pub mod component_library_item;
 use component_library_item::{ComponentLibraryItem, ComponentLibraryItemData};
 
-use pax_std::components::Stacker;
-use pax_std::primitives::{Image, Rectangle, Text};
+use pax_std::*;
 
 #[pax]
 #[file("controls/file_and_component_picker/mod.pax")]
