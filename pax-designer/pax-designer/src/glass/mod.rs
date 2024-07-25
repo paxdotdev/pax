@@ -116,12 +116,12 @@ impl Glass {
         if let Some((node_id, uid)) = info {
             let import_path = node_id.import_path();
             match import_path.as_ref().map(|v| v.as_str()) {
-                Some("pax_designer::pax_reexports::pax_std::primitives::Text") => {
+                Some("pax_std::core::text::Text") => {
                     model::perform_action(&TextEdit { uid }, ctx);
                 }
                 Some(
-                    "pax_designer::pax_reexports::pax_std::primitives::Group"
-                    | "pax_designer::pax_reexports::pax_std::stacker::Stacker",
+                    "pax_std::core::group::Group"
+                    | "pax_std::layout::stacker::Stacker",
                 ) => {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(
@@ -242,7 +242,7 @@ impl Glass {
                     node_decomposition_config: &Default::default(),
                 },
                 type_id: &TypeId::build_singleton(
-                    "pax_designer::pax_reexports::pax_std::primitives::Image",
+                    "pax_std::core::image::Image",
                     None,
                 ),
                 custom_props: &[("path", &format!("\"assets/{}\"", event.args.name))],
