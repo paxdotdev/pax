@@ -386,21 +386,21 @@ fn resolve_tree_type(type_id: TypeId) -> Desc {
     let Some(import_path) = type_id.import_path() else {
         return Desc::Component(format!("{}", type_id.get_pax_type()));
     };
-    match import_path.trim_start_matches("pax_std::primitives::") {
-        "Group" => Desc::Group,
-        "Frame" => Desc::Frame,
-        "Ellipse" => Desc::Ellipse,
-        "Text" => Desc::Text,
-        "Stacker" => Desc::Stacker,
-        "Rectangle" => Desc::Rectangle,
-        "Path" => Desc::Path,
-        "Textbox" => Desc::Textbox,
-        "Checkbox" => Desc::Checkbox,
-        "Scroller" => Desc::Scroller,
-        "Button" => Desc::Button,
-        "Image" => Desc::Image,
-        "Slider" => Desc::Slider,
-        "Dropdown" => Desc::Dropdown,
+    match import_path.trim_start_matches("pax_std::") {
+        "core::group::Group" => Desc::Group,
+        "core::frame::Frame" => Desc::Frame,
+        "drawing::ellipse::Ellipse" => Desc::Ellipse,
+        "core::text::Text" => Desc::Text,
+        "layout::stacker::Stacker" => Desc::Stacker,
+        "drawing::rectangle::Rectangle" => Desc::Rectangle,
+        "drawing::path::Path" => Desc::Path,
+        "forms::textbox::Textbox" => Desc::Textbox,
+        "forms::checkbox::Checkbox" => Desc::Checkbox,
+        "core::scroller::Scroller" => Desc::Scroller,
+        "forms::button::Button" => Desc::Button,
+        "core::image::Image" => Desc::Image,
+        "forms::slider::Slider" => Desc::Slider,
+        "forms::dropdown::Dropdown" => Desc::Dropdown,
         _ => Desc::Component(format!("{}", type_id.get_pax_type())),
     }
 }
