@@ -56,7 +56,7 @@ fn test_code_serializaton() {
 
     // Serialize component to output file
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
-    let output = run_parser_binary(path_str, Arc::clone(&process_child_ids));
+    let output = run_parser_binary(&std::path::PathBuf::from(path_str), Arc::clone(&process_child_ids));
 
     let out = String::from_utf8(output.stdout).unwrap();
     let manifest: PaxManifest = serde_json::from_str(&out)
