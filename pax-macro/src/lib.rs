@@ -486,7 +486,6 @@ pub fn pax(
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
 
-
         let name = Ident::new(&pascal_identifier, Span::call_site());
         let include_fix = generate_include(&name, &path);
         let associated_pax_file = Some(path.clone());
@@ -502,7 +501,6 @@ pub fn pax(
             associated_pax_file,
         )
     } else if is_pax_inlined {
-
         let contents = config.inlined_contents.unwrap();
 
         pax_full_component(

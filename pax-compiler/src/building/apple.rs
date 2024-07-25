@@ -1,7 +1,9 @@
 use colored::Colorize;
 use serde_json::Value;
 
-use crate::helpers::{BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, PAX_BADGE, INTERFACE_DIR_NAME};
+use crate::helpers::{
+    BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
+};
 use crate::{copy_dir_recursively, wait_with_output, RunContext, RunTarget};
 
 use color_eyre::eyre;
@@ -496,12 +498,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         .join("common")
         .join("pax-swift-common");
 
-    let swift_cart_build_dest = build_dest_base
-        .join("common")
-        .join("pax-swift-cartridge");
-    let swift_common_build_dest = build_dest_base
-        .join("common")
-        .join("pax-swift-common");
+    let swift_cart_build_dest = build_dest_base.join("common").join("pax-swift-cartridge");
+    let swift_common_build_dest = build_dest_base.join("common").join("pax-swift-common");
 
     let (app_xcodeproj_src, app_xcodeproj_build_dest) = if let RunTarget::macOS = target {
         (
@@ -509,8 +507,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 .join(INTERFACE_DIR_NAME)
                 .join("macos")
                 .join("pax-app-macos"),
-            build_dest_base
-                .join("pax-app-macos"),
+            build_dest_base.join("pax-app-macos"),
         )
     } else {
         (
@@ -518,8 +515,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 .join(INTERFACE_DIR_NAME)
                 .join("ios")
                 .join("pax-app-ios"),
-            build_dest_base
-                .join("pax-app-ios"),
+            build_dest_base.join("pax-app-ios"),
         )
     };
 

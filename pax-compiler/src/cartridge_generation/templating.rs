@@ -48,7 +48,9 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_SNIPPET: &str =
     include_str!("../../templates/cartridge_generation/cartridge.tera");
-pub fn press_template_codegen_cartridge_snippet(args: TemplateArgsCodegenCartridgeSnippet) -> String {
+pub fn press_template_codegen_cartridge_snippet(
+    args: TemplateArgsCodegenCartridgeSnippet,
+) -> String {
     let mut tera = Tera::default();
     tera.add_raw_template(
         MACROS_TEMPLATE,

@@ -2,10 +2,10 @@ use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use color_eyre::config::HookBuilder;
 use colored::{ColoredString, Colorize};
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{process, thread};
-use std::path::PathBuf;
 
 use pax_compiler::{CreateContext, RunContext, RunTarget};
 extern crate pax_language_server;
@@ -222,7 +222,8 @@ fn perform_nominal_action(
             match args.subcommand() {
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output = &pax_compiler::run_parser_binary(&PathBuf::from(path), process_child_ids);
+                    let output =
+                        &pax_compiler::run_parser_binary(&PathBuf::from(path), process_child_ids);
 
                     // Forward both stdout and stderr
                     std::io::stderr()

@@ -1,19 +1,18 @@
+use crate::*;
+use pax_engine::*;
 use pax_message::{AnyCreatePatch, ButtonPatch};
+use pax_runtime::api as pax_runtime_api;
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Color, Numeric, Size, Stroke};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Color, Stroke, Size, Numeric};
-use crate::*;
-use pax_engine::*;
 use std::collections::HashMap;
 use std::rc::Rc;
-use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use crate::common::patch_if_needed;
 use crate::TextStyle;
-
 
 #[pax]
 #[primitive("pax_std::forms::button::ButtonInstance")]
@@ -48,8 +47,6 @@ impl Default for Button {
         }
     }
 }
-
-
 
 pub struct ButtonInstance {
     base: BaseInstance,
