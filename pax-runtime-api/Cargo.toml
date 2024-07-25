@@ -13,7 +13,7 @@ description = "Userland constructs used at the runtime API boundary of Pax Engin
 
 [dependencies]
 serde = {version = "1.0.159", features=["derive"] }
-wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
+wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
 kurbo = "0.9.0"
 piet = "0.6.0"
 slotmap = "1.0.7"
