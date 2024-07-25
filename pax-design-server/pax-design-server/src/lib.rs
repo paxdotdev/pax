@@ -270,7 +270,7 @@ struct AiMessage {
 fn create_run_context() -> RunContext {
     RunContext {
         target: RunTarget::Web,
-        path: "../pax-designer".to_string(),
+        project_path: PathBuf::from("../pax-designer".to_string()),
         verbose: false,
         should_also_run: false,
         is_libdev_mode: true,
