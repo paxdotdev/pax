@@ -31,6 +31,7 @@ PACKAGES = [
     "pax-cli",
     "pax-compiler",
     "pax-designtime",
+    "pax-generation",
     "pax-runtime",
     "pax-runtime-api",
     "pax-engine",
