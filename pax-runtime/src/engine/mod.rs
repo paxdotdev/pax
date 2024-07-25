@@ -1,5 +1,5 @@
 use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
-use std::cell::RefCell;
+use_RefCell!();
 use std::iter;
 use std::rc::Rc;
 use std::{borrow::Borrow, collections::HashMap};
@@ -8,7 +8,7 @@ use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, OcclusionPatch};
 use pax_runtime_api::{
-    math::Transform2, pax_value::PaxAny, Event, Window, OS,
+    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, Event, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, OcclusionLayerGen, RenderContext};
@@ -317,7 +317,7 @@ impl PaxEngine {
 
     /// Replace an instance node in the main component's template
     pub fn replace_main_template_instance_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
-        for temp in self.main_component_instance.template.borrow().iter() {
+        for temp in borrow!(self.main_component_instance.template).iter() {
             replace_instance_node_at(&temp, &new_instance);
         }
 
@@ -325,7 +325,7 @@ impl PaxEngine {
             parent: &Rc<dyn InstanceNode>,
             new_instance: &Rc<dyn InstanceNode>,
         ) {
-            let mut instance_nodes = parent.base().get_instance_children().borrow_mut();
+            let mut instance_nodes = borrow_mut!(parent.base().get_instance_children());
             for node in instance_nodes.iter_mut() {
                 if node.base().template_node_identifier
                     == new_instance.base().template_node_identifier
@@ -358,8 +358,7 @@ impl PaxEngine {
         ctx: &Rc<RuntimeContext>,
     ) {
         if parent.children.get().iter().any(|node| {
-            node.instance_node
-                .borrow()
+            borrow!(node.instance_node)
                 .base()
                 .template_node_identifier
                 .as_ref()
@@ -370,8 +369,8 @@ impl PaxEngine {
             // regen of children steps
             Rc::clone(&parent).recurse_unmount(ctx);
             let env = Rc::clone(&parent.stack);
-            let parent_template = parent.instance_node.borrow();
-            let children = parent_template.base().get_instance_children().borrow();
+            let parent_template = borrow!(parent.instance_node);
+            let children = borrow!(parent_template.base().get_instance_children());
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
             let children = parent.generate_children(new_templates, ctx);
             parent.children.set(children);
@@ -423,10 +422,10 @@ impl PaxEngine {
         let mut occlusion_ind = OcclusionLayerGen::new(None);
         let mut z_index = 0;
         self.root_node.recurse_visit_postorder(&mut |node| {
-            let layer = node.instance_node.borrow().base().flags().layer;
+            let layer = borrow!(node.instance_node).base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let new_occlusion_ind = occlusion_ind.get_level();
-            let mut curr_occlusion = node.occlusion.borrow_mut();
+            let mut curr_occlusion = borrow_mut!(node.occlusion);
             if layer == Layer::Native && *curr_occlusion != (new_occlusion_ind, z_index) {
                 ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
                     OcclusionPatch {

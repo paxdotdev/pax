@@ -1,12 +1,13 @@
 use kurbo::{RoundedRect, RoundedRectRadii, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
+use pax_runtime_api::{borrow, use_RefCell};
 use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use pax_runtime::api::{Layer, RenderContext, Stroke};
 use pax_runtime::api as pax_runtime_api;
-use std::cell::RefCell;
+use_RefCell!();
 use std::rc::Rc;
 use pax_engine::{pax, Property};
 use pax_manifest::pax_runtime_api::Numeric;
@@ -49,7 +50,7 @@ impl InstanceNode for RectangleInstance {
         let tab = expanded_node.transform_and_bounds.get();
         let (width, height) = tab.bounds;
 
-        let layer_id = format!("{}", expanded_node.occlusion.borrow().0);
+        let layer_id = format!("{}", borrow!(expanded_node.occlusion).0);
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
