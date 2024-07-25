@@ -3,7 +3,7 @@
 use anyhow::anyhow;
 use pax_engine::{api::*, math::Point2, *};
 use pax_manifest::TypeId;
-use pax_std::primitives::*;
+use pax_std::*;
 use std::sync::Mutex;
 
 use crate::math::coordinate_spaces::{self, World};
@@ -29,7 +29,7 @@ use llm_interface::LLMInterface;
 use project_mode_toggle::ProjectModeToggle;
 
 use designer_project::Example;
-use pax_std::primitives::{Button, Checkbox, Dropdown, RadioSet, Slider, Textbox};
+use pax_std::*;
 
 // TODO:
 // clean up glass::on_double_click

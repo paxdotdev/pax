@@ -1,7 +1,7 @@
 use pax_engine::api::*;
 use pax_engine::*;
 
-use pax_std::primitives::{Image, Text};
+use pax_std::*;
 
 use crate::model;
 use crate::model::action::orm::SerializeRequested;

@@ -2,13 +2,9 @@ use crate::model::ProjectMode;
 use pax_engine::api::*;
 use pax_engine::*;
 
-use pax_std::primitives::Rectangle;
+use pax_std::*;
 
 use crate::{model, ProjectMsg};
-use pax_std::primitives::Group;
-use pax_std::primitives::Text;
-
-use pax_std::primitives::Path;
 
 #[pax]
 #[file("project_mode_toggle/mod.pax")]

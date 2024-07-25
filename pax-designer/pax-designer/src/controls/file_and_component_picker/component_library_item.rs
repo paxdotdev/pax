@@ -8,8 +8,7 @@ use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
 use pax_engine::*;
 use pax_manifest::TypeId;
-use pax_std::primitives::Rectangle;
-use pax_std::primitives::Text;
+use pax_std::*;
 
 use crate::glass::SetEditingComponent;
 use crate::glass::ToolVisualizationState;
