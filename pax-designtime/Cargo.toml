@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Warfa Jibril <warfa@pax.dev>", "Zack Brown <zack@pax.dev>"]
 homepage = "https://pax.dev/"
 description = "Debug-mode-style extension to the Pax Engine runtime, enabling runtime introspection and manipulation of definitions as needed for designability"
+license = "MIT OR Apache-2.0"
 
 [features]
 default = ["serde", "serde_json", "pax-manifest/parsing"]
