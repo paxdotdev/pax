@@ -89,7 +89,7 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
     std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
     let ctx = RunContext {
         target: pax_compiler::RunTarget::Web,
-        path: "../pax-designer".to_string(),
+        project_path: PathBuf::from("../pax-designer".to_string()),
         verbose: false,
         should_also_run: false,
         is_libdev_mode: true,
