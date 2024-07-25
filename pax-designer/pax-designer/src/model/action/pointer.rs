@@ -13,7 +13,7 @@ use crate::model::{AppState, StageInfo};
 use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::{MouseButton, Window, Color};
+use pax_engine::api::{MouseButton, Window, Color, borrow};
 use pax_engine::log;
 use pax_engine::math::Point2;
 use pax_engine::pax_manifest::TypeId;

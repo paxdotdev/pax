@@ -5,7 +5,7 @@ use crate::controls::settings::AREAS_PROP;
 
 use super::PropertyEditorData;
 
-use pax_std::primitives::*;
+use pax_std::*;
 
 #[pax]
 #[file("controls/settings/property_editor/color_property_editor.pax")]
