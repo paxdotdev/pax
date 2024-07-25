@@ -2,6 +2,8 @@
 name = "pax-generation"
 version = "0.1.0"
 edition = "2021"
+description = "Tools for generating Pax with LLMs"
+license = "MIT OR Apache-2.0"
 
 [lib]
 
