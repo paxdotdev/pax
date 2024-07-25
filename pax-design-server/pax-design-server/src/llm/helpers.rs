@@ -56,12 +56,13 @@ pub fn simple_node_type_to_type_id(node_type: SimpleNodeType) -> Option<TypeId> 
         SimpleNodeType::Rectangle => {
             TypeId::build_singleton("pax_std::drawing::rectangle::Rectangle", None)
         }
-        SimpleNodeType::Ellipse => TypeId::build_singleton("pax_std::drawing::ellipse::Ellipse", None),
+        SimpleNodeType::Ellipse => {
+            TypeId::build_singleton("pax_std::drawing::ellipse::Ellipse", None)
+        }
         SimpleNodeType::Text => TypeId::build_singleton("pax_std::core::text::Text", None),
-        SimpleNodeType::Navbar => TypeId::build_singleton(
-            "designer_project::menu_bar::MenuBar",
-            None,
-        ),
+        SimpleNodeType::Navbar => {
+            TypeId::build_singleton("designer_project::menu_bar::MenuBar", None)
+        }
     };
     Some(t)
 }
