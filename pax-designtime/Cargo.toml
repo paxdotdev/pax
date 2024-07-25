@@ -17,7 +17,7 @@ getrandom = {version ="0.2.12", features=["js"]}
 include_dir = {version = "0.7.3", features = ["glob"]}
 itoa = "1.0.10"
 log = "0.4.20"
-pax-manifest = {version = "0.15.2", path="../pax/pax-manifest"}
+pax-manifest = {version = "0.15.5", path="../pax-manifest"}
 rmp-serde = "1.1.2"
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_derive = "1.0.159"
