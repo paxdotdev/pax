@@ -9,9 +9,14 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
+use pax_engine::api::{borrow, borrow_mut, use_RefCell};
+use pax_engine::pax;
+use pax_engine::api as pax_runtime_api;
 use_RefCell!();
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell};
-use pax_std::primitives::EventBlocker;
+
+#[pax]
+#[primitive("pax_std::core::event_blocker::EventBlockerInstance")]
+pub struct EventBlocker {}
 
 pub struct EventBlockerInstance {
     base: BaseInstance,
