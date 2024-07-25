@@ -18,7 +18,7 @@ serde = {version="1.0.196", features=["derive"]}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 pax-message = {path = "../pax-message", version="0.15.5"}
-wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
+wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
 pax-manifest = {version="0.15.5", path = "../pax-manifest"}
 pax-designtime = {version="0.15.5", path = "../pax-designtime", optional = true}
 pax-runtime-api = {version="0.15.5", path = "../pax-runtime-api"}
