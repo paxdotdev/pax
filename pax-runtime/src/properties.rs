@@ -4,8 +4,8 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{Store};
-use std::cell::RefCell;
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Store};
+use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -50,8 +50,7 @@ impl NodeCache {
     // Add this node to all relevant constant lookup cache structures
     fn add_to_cache(&mut self, node: &Rc<ExpandedNode>) {
         self.eid_to_node.insert(node.id, Rc::clone(&node));
-        let uni = node.instance_node
-            .borrow()
+        let uni = borrow!(node.instance_node)
             .base()
             .template_node_identifier
             .clone();
@@ -63,7 +62,7 @@ impl NodeCache {
     // Remove this node from all relevant constant lookup cache structures
     fn remove_from_cache(&mut self, node: &Rc<ExpandedNode>) {
         self.eid_to_node.remove(&node.id);
-        if let Some(uni) = &node.instance_node.borrow().base().template_node_identifier {
+        if let Some(uni) = &borrow!(node.instance_node).base().template_node_identifier {
             self.uni_to_eid.remove(uni);
         }
     }
@@ -83,31 +82,30 @@ impl RuntimeContext {
     }
 
     pub fn register_root_node(&self, root: &Rc<ExpandedNode>) {
-        *self.root_node.borrow_mut() = Rc::downgrade(root);
+        *borrow_mut!(self.root_node) = Rc::downgrade(root);
     }
 
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
-        self.node_cache.borrow_mut().add_to_cache(node);
+        borrow_mut!(self.node_cache).add_to_cache(node);
     }
 
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
-        self.node_cache.borrow_mut().remove_from_cache(node);
+        borrow_mut!(self.node_cache).remove_from_cache(node);
     }
 
     pub fn get_expanded_node_by_eid(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
-        self.node_cache.borrow().eid_to_node.get(&id).cloned()
+        borrow!(self.node_cache).eid_to_node.get(&id).cloned()
     }
 
     /// Finds all ExpandedNodes with the CommonProperty#id matching the provided string
     pub fn get_expanded_nodes_by_id(&self, id: &str) -> Vec<Rc<ExpandedNode>> {
         //v0 limitation: currently an O(n) lookup cost (could be made O(1) with an id->expandednode cache)
-        self.node_cache
-            .borrow()
+        borrow!(self.node_cache)
             .eid_to_node
             .values()
             .filter(|val| {
                 let common_props = val.get_common_properties();
-                let common_props = common_props.borrow();
+                let common_props = borrow!(common_props);
                 common_props.id.get().is_some_and(|i| i == id)
             })
             .cloned()
@@ -119,7 +117,7 @@ impl RuntimeContext {
         &self,
         uni: &UniqueTemplateNodeIdentifier,
     ) -> Vec<Rc<ExpandedNode>> {
-        let node_cache = self.node_cache.borrow();
+        let node_cache = borrow!(self.node_cache);
         node_cache
             .uni_to_eid
             .get(uni)
@@ -155,7 +153,7 @@ impl RuntimeContext {
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
-        let root_node = self.root_node.borrow().upgrade().unwrap();
+        let root_node = borrow!(self.root_node).upgrade().unwrap();
         root_node.recurse_visit_postorder(&mut |node| {
             if node.ray_cast_test(ray, hit_invisible) {
                 //We only care about the topmost node getting hit, and the element
@@ -163,7 +161,7 @@ impl RuntimeContext {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode>> = node.render_parent.borrow().upgrade();
+                let mut parent: Option<Rc<ExpandedNode>> = borrow!(node.render_parent).upgrade();
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
@@ -172,7 +170,7 @@ impl RuntimeContext {
                                 (*unwrapped_parent).ray_cast_test(ray, hit_invisible);
                             break;
                         }
-                        parent = unwrapped_parent.render_parent.borrow().upgrade();
+                        parent = borrow!(unwrapped_parent.render_parent).upgrade();
                     } else {
                         break;
                     }
@@ -197,7 +195,7 @@ impl RuntimeContext {
         Some(
             res.into_iter()
                 .next()
-                .unwrap_or(self.root_node.borrow().upgrade().unwrap()),
+                .unwrap_or(borrow!(self.root_node).upgrade().unwrap()),
         )
     }
 
@@ -209,20 +207,20 @@ impl RuntimeContext {
     }
 
     pub fn enqueue_native_message(&self, message: NativeMessage) {
-        self.messages.borrow_mut().push(message)
+        borrow_mut!(self.messages).push(message)
     }
 
     pub fn take_native_messages(&self) -> Vec<NativeMessage> {
-        let mut messages = self.messages.borrow_mut();
+        let mut messages = borrow_mut!(self.messages);
         std::mem::take(&mut *messages)
     }
 
     pub fn globals(&self) -> Globals {
-        self.globals.borrow().clone()
+        borrow!(self.globals).clone()
     }
 
     pub fn edit_globals(&self, f: impl Fn(&mut Globals)) {
-        let mut globals = self.globals.borrow_mut();
+        let mut globals = borrow_mut!(self.globals);
         f(&mut globals);
     }
 
@@ -231,12 +229,12 @@ impl RuntimeContext {
     }
 
     pub fn queue_custom_event(&self, source_expanded_node: Rc<ExpandedNode>, name: &'static str) {
-        let mut queued_custom_events = self.queued_custom_events.borrow_mut();
+        let mut queued_custom_events = borrow_mut!(self.queued_custom_events);
         queued_custom_events.push((source_expanded_node, name));
     }
 
     pub fn flush_custom_events(self: &Rc<Self>) -> Result<(), String> {
-        let mut queued_custom_event = self.queued_custom_events.borrow_mut();
+        let mut queued_custom_event = borrow_mut!(self.queued_custom_events);
         let to_flush: Vec<_> = std::mem::take(queued_custom_event.as_mut());
         for (target, ident) in to_flush {
             target.dispatch_custom_event(ident, self)?;
@@ -311,7 +309,7 @@ impl RuntimePropertiesStackFrame {
 
     pub fn insert_stack_local_store<T: Store>(&self, store: T) {
         let type_id = TypeId::of::<T>();
-        self.local_stores.borrow_mut().insert(type_id, Box::new(store));
+        borrow_mut!(self.local_stores).insert(type_id, Box::new(store));
     }
 
     pub fn peek_stack_local_store<T: Store, V>(
@@ -321,14 +319,14 @@ impl RuntimePropertiesStackFrame {
         let mut current = Rc::clone(self);
         let type_id = TypeId::of::<T>();
 
-        while !current.local_stores.borrow().contains_key(&type_id) {
+        while !borrow!(current.local_stores).contains_key(&type_id) {
             current = current
                 .parent
                 .upgrade()
                 .ok_or_else(|| format!("couldn't find store in local stack"))?;
         }
         let v = {
-            let mut stores = current.local_stores.borrow_mut();
+            let mut stores = borrow_mut!(current.local_stores);
             let store = stores.get_mut(&type_id).unwrap().downcast_mut().unwrap();
             f(store)
         };

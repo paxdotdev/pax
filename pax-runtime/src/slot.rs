@@ -1,7 +1,7 @@
 use std::rc::{Rc, Weak};
-use std::cell::RefCell;
+use_RefCell!();
 
-use pax_runtime_api::{ImplToFromPaxAny, Numeric, Property};
+use pax_runtime_api::{use_RefCell, ImplToFromPaxAny, Numeric, Property};
 
 use crate::api::Layer;
 use crate::{

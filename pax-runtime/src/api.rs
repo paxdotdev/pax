@@ -1,6 +1,6 @@
 use std::rc::{Rc, Weak};
 
-use std::cell::RefCell;
+use_RefCell!();
 use crate::{
     node_interface::NodeInterface, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
@@ -56,13 +56,13 @@ impl NodeContext {
 
         // Check that this is a valid custom event to trigger
         {
-            let component_origin_instance = component_origin.instance_node.borrow();
+            let component_origin_instance = borrow!(component_origin.instance_node);
             let registry = component_origin_instance
                 .base()
                 .handler_registry
                 .as_ref()
                 .ok_or_else(|| "no registry present".to_owned())?;
-            registry.borrow().handlers.get(identifier).ok_or_else(|| {
+            borrow!(registry).handlers.get(identifier).ok_or_else(|| {
                 format!("no registered handler with name \"{}\" exists", identifier)
             })?;
         }
