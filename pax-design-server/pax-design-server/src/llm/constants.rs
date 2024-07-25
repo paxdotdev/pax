@@ -17,6 +17,7 @@ pub const ADD_FUNCTION: &str = "add_a_node";
 pub const ADD_DESCRIPTION: &str = "Add nodes to the template";
 
 /// Other constants
+pub const PREFIX: &str = "pax_designer::pax_reexports::pax_std::primitives";
 pub const TRAINING_DATA_PATH: &str = "src/llm/future_training_data/";
 pub const TRAINING_DATA_BEFORE_REQUEST: &str = "before.pax";
 pub const TRAINING_DATA_AFTER_REQUEST: &str = "after.pax";
