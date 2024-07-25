@@ -22,7 +22,7 @@ use std::os::unix::process::CommandExt;
 
 const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
 
-pub fn build_web_target(
+pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
