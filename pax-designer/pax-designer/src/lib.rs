@@ -40,7 +40,7 @@ use pax_std::*;
 
 pub const ROOT_PROJECT_ID: &str = "userland_project";
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
-pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "pax_designer::pax_reexports::designer_project";
+pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "designer_project";
 pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
 
 #[pax]
