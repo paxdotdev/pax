@@ -15,7 +15,12 @@ pub trait PaxCartridge {
 pub trait DefinitionToInstanceTraverser {
     fn new(manifest: pax_manifest::PaxManifest) -> Self where Self: Sized;
 
+
+    #[cfg(not(feature = "designtime"))]
     fn get_manifest(&self) ->  &pax_manifest::PaxManifest;
+
+    #[cfg(feature = "designtime")]
+    fn get_manifest(&self) ->  std::cell::Ref<pax_manifest::PaxManifest>;
 
     #[cfg(feature = "designtime")]
     fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>>;

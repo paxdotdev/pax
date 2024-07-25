@@ -27,7 +27,7 @@ log = "0.4.20"
 
 [features]
 parser = ["dep:pax-compiler"]
-designtime = ["pax-runtime/designtime", "pax-chassis-web/designtime", "pax-chassis-macos/designtime", "pax-chassis-ios/designtime"]
+designtime = ["pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime"]
 web = ["dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 macos = ["dep:pax-chassis-macos", "dep:pax-chassis-common"]
 ios = ["dep:pax-chassis-ios", "dep:pax-chassis-common"]

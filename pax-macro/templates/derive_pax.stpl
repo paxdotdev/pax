@@ -11,7 +11,7 @@
         ctx.main_component_type_id = <<%= pascal_identifier %> as pax_engine::pax_compiler::parsing::Reflectable>::get_type_id();
         let (mut ctx, _) = <<%= pascal_identifier %> as pax_engine::pax_compiler::parsing::Reflectable>::parse_to_manifest(ctx);
 
-        let manifest = pax_manifest::PaxManifest {
+        let manifest = pax_engine::pax_manifest::PaxManifest {
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,
             expression_specs: None,
@@ -112,11 +112,11 @@ impl pax_engine::pax_compiler::parsing::Reflectable for <%= pascal_identifier %>
         pax_engine::pax_compiler::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
     }
 
-    fn get_type_id() -> pax_manifest::TypeId {
-       pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
+    fn get_type_id() -> pax_engine::pax_manifest::TypeId {
+       pax_engine::pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
     }
 
-    fn parse_to_manifest(mut ctx: pax_engine::pax_compiler::parsing::ParsingContext) -> (pax_engine::pax_compiler::parsing::ParsingContext, Vec<pax_manifest::PropertyDefinition>) {
+    fn parse_to_manifest(mut ctx: pax_engine::pax_compiler::parsing::ParsingContext) -> (pax_engine::pax_compiler::parsing::ParsingContext, Vec<pax_engine::pax_manifest::PropertyDefinition>) {
          <% if args_full_component.as_ref().is_some() { %>
             <% if args_full_component.as_ref().unwrap().error_message.is_some() { %>
                 //Error message for main component
@@ -127,7 +127,7 @@ impl pax_engine::pax_compiler::parsing::Reflectable for <%= pascal_identifier %>
         <% } %>
         
         let self_type_id = <%= pascal_identifier %>::get_type_id();
-        let mut property_definitions : Vec<pax_manifest::PropertyDefinition> = vec![];
+        let mut property_definitions : Vec<pax_engine::pax_manifest::PropertyDefinition> = vec![];
 
         // Populate `PropertyDefinition`s
         <% for spd in &static_property_definitions { %>
@@ -144,10 +144,10 @@ impl pax_engine::pax_compiler::parsing::Reflectable for <%= pascal_identifier %>
 
             let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
 
-            let mut flags = pax_manifest::PropertyDefinitionFlags::default();
+            let mut flags = pax_engine::pax_manifest::PropertyDefinitionFlags::default();
             flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
             flags.is_enum = <%= spd.is_enum %>;
-            property_definitions.push(pax_manifest::PropertyDefinition {
+            property_definitions.push(pax_engine::pax_manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
                 type_id: property_type_id,
                 flags,
