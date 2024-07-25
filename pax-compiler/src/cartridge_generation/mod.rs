@@ -28,20 +28,7 @@ pub fn generate_cartridge_partial_rs(
     host_crate_info: &HostCrateInfo,
 ) -> PathBuf {
     #[allow(unused_mut)]
-        let mut generated_lib_rs;
-
-    // let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
-    // let mut target_cargo_toml_contents =
-    //     toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
-    //         .unwrap();
-    //
-    // //write patched Cargo.toml
-    // fs::write(
-    //     &target_cargo_full_path,
-    //     &target_cargo_toml_contents.to_string(),
-    // )
-    //     .unwrap();
-
+    let mut generated_lib_rs;
 
     let mut expression_specs: Vec<ExpressionSpec> = manifest
         .expression_specs
@@ -66,12 +53,6 @@ pub fn generate_cartridge_partial_rs(
         },
     );
 
-    // write manifest to fs
-    // let manifest_path = pax_dir.join(INITIAL_MANIFEST_FILE_NAME);
-    // let manifest_str = serde_json::to_string(manifest).unwrap();
-    // fs::write(manifest_path, manifest_str).unwrap();
-
-    // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
     let path = pax_dir.join(CARTRIDGE_PARTIAL_PATH);
     fs::write(path.clone(), generated_lib_rs).unwrap();
     path

@@ -31,7 +31,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-use crate::building::build_chassis_with_cartridge;
+use crate::building::build_project_with_cartridge;
 
 use crate::errors::source_map::SourceMap;
 
@@ -130,7 +130,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     //7. Build full project from source
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
     let build_dir =
-        build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
+        build_project_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
 
     Ok((manifest, build_dir))
 }
