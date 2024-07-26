@@ -9,6 +9,7 @@ use {
     crate::api::math::Point2, crate::HandlerLocation, pax_designtime::DesigntimeManager,
     pax_manifest::UniqueTemplateNodeIdentifier,
 };
+use crate::node_interface::NodeInterface;
 
 #[derive(Clone)]
 pub struct NodeContext {
