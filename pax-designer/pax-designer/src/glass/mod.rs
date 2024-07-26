@@ -43,7 +43,12 @@ impl Glass {
         let tool_behaviour = model::read_app_state(|app_state| app_state.tool_behaviour.clone());
         let deps = [tool_behaviour.untyped()];
         let tool_visual = self.tool_visual.clone();
-        let mouse_pos = model::read_app_state(|app_state| app_state.mouse_position.clone());
+        let (mouse_pos, world_transform) = model::read_app_state(|app_state| {
+            (
+                app_state.mouse_position.clone(),
+                app_state.glass_to_world_transform.clone(),
+            )
+        });
         let ctx = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
@@ -51,7 +56,7 @@ impl Glass {
                     tool_behaviour.borrow_mut().get_visual()
                 } else {
                     // Default ToolVisualziation behaviour
-                    let deps = [mouse_pos.untyped()];
+                    let deps = [mouse_pos.untyped(), world_transform.untyped()];
                     let mouse_pos = mouse_pos.clone();
                     let ctx = ctx.clone();
                     Property::computed(
@@ -121,7 +126,8 @@ impl Glass {
                 }
                 Some(
                     "pax_std::core::group::Group"
-                    | "pax_std::layout::stacker::Stacker",
+                    | "pax_std::layout::stacker::Stacker"
+                    | "pax_std::core::scroller::Scroller",
                 ) => {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(
@@ -137,7 +143,7 @@ impl Glass {
                             }
                             .perform(ac))
                             {
-                                log::warn!("failed to drill into group: {}", e);
+                                log::warn!("failed to drill into container: {}", e);
                             };
                         }
                     });
@@ -241,10 +247,7 @@ impl Glass {
                     parent_transform_and_bounds: &parent.transform_and_bounds.get(),
                     node_decomposition_config: &Default::default(),
                 },
-                type_id: &TypeId::build_singleton(
-                    "pax_std::core::image::Image",
-                    None,
-                ),
+                type_id: &TypeId::build_singleton("pax_std::core::image::Image", None),
                 custom_props: &[("path", &format!("\"assets/{}\"", event.args.name))],
                 mock_children: 0,
             }

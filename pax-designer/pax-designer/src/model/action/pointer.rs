@@ -69,80 +69,86 @@ impl Action for MouseEntryPointAction<'_> {
                     Tool::CreateComponent(component) => {
                         tool_behaviour.set(Some(Rc::new(RefCell::new(match component {
                             Component::Rectangle => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
                                     "pax_std::drawing::rectangle::Rectangle",
                                     None,
                                 ),
                                 0,
+                                &[],
                             ),
                             Component::Ellipse => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
                                     "pax_std::drawing::ellipse::Ellipse",
                                     None,
                                 ),
                                 0,
+                                &[],
                             ),
                             Component::Text => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::core::text::Text", None),
                                 0,
+                                &[],
+                            ),
+                            Component::Scroller => CreateComponentTool::new(
+                                point_glass,
+                                &TypeId::build_singleton("pax_std::core::scroller::Scroller", None),
+                                1,
+                                &[("scroll_width", "100%"), ("scroll_height", "200%")],
                             ),
                             Component::Stacker => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::layout::stacker::Stacker", None),
                                 5,
+                                &[],
                             ),
 
                             Component::Checkbox => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
                                     "pax_std::forms::checkbox::Checkbox",
                                     None,
                                 ),
                                 0,
+                                &[],
                             ),
                             Component::Textbox => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::forms::textbox::Textbox", None),
                                 0,
+                                &[],
                             ),
                             Component::Button => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::forms::button::Button", None),
                                 0,
+                                &[],
                             ),
                             Component::Slider => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::forms::slider::Slider", None),
                                 0,
+                                &[],
                             ),
                             Component::Dropdown => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
                                     "pax_std::forms::dropdown::Dropdown",
                                     None,
                                 ),
                                 0,
+                                &[],
                             ),
                             Component::RadioSet => CreateComponentTool::new(
-                                ctx,
                                 point_glass,
                                 &TypeId::build_singleton(
                                     "pax_std::forms::radio_set::RadioSet",
                                     None,
                                 ),
                                 0,
+                                &[],
                             ),
                         }))));
                     }

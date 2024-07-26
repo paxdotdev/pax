@@ -39,20 +39,22 @@ pub struct CreateComponentTool {
     origin: Point2<Glass>,
     bounds: Property<AxisAlignedBox>,
     mock_children: usize,
+    custom_props: &'static [(&'static str, &'static str)],
 }
 
 impl CreateComponentTool {
     pub fn new(
-        _ctx: &mut ActionContext,
         point: Point2<Glass>,
         type_id: &TypeId,
         mock_children: usize,
+        custom_props: &'static [(&'static str, &'static str)],
     ) -> Self {
         Self {
             type_id: type_id.clone(),
             origin: point,
-            bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
             mock_children,
+            custom_props,
+            bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
         }
     }
 }
@@ -110,7 +112,7 @@ impl ToolBehaviour for CreateComponentTool {
                 node_decomposition_config: &Default::default(),
             },
             type_id: &self.type_id,
-            custom_props: &[],
+            custom_props: self.custom_props,
             mock_children: self.mock_children,
         }
         .perform(ctx))

@@ -36,6 +36,7 @@ if 0 == 1 {
     <Button/>
     <Dropdown/>
     <RadioSet/>
+    <Scroller/>
 }
 
 @settings {
