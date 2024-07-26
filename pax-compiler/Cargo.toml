@@ -1,6 +1,6 @@
 [package]
 name = "pax-compiler"
-version = "0.21.1"
+version = "0.22.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -36,12 +36,12 @@ itertools = "0.10.5"
 lazy_static = "1.4.0"
 libc = "0.2"
 log = "0.4"
-pax-manifest = {version= "0.21.1", path="../pax-manifest"}
-pax-message = {version = "0.21.1", path="../pax-message"}
-pax-runtime = {path = "../pax-runtime", version="0.21.1" }
-pax-runtime-api = {path = "../pax-runtime-api", version="0.21.1" }
+pax-manifest = {version= "0.22.0", path="../pax-manifest"}
+pax-message = {version = "0.22.0", path="../pax-message"}
+pax-runtime = {path = "../pax-runtime", version="0.22.0" }
+pax-runtime-api = {path = "../pax-runtime-api", version="0.22.0" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
-pax-lang = {version = "0.21.1", path="../pax-lang"}
+pax-lang = {version = "0.22.0", path="../pax-lang"}
 rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
