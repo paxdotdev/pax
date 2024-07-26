@@ -1,7 +1,7 @@
 use std::ops::Mul;
 
 #[allow(unused)]
-use pax_runtime_api::math::{Generic};
+use pax_runtime_api::math::Generic;
 use pax_runtime_api::math::{Parts, Point2, Space};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
