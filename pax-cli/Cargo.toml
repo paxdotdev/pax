@@ -15,7 +15,7 @@ description = "Command line interface tool for developing, packaging, and managi
 [dependencies]
 clap = "2.33.3"
 pax-compiler = {path = "../pax-compiler", version = "0.16.2"}
-pax-language-server = {version = "0.16.2"}
+pax-language-server = {path = "../pax-language-server", version = "0.16.2"}
 rustc_version = "0.4.0"
 tokio = { version = "1", features = ["full"] }
 colored = "2.0.0"

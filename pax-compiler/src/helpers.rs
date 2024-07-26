@@ -23,16 +23,16 @@ lazy_static! {
 
 pub static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
 pub static PAX_WEB_INTERFACE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web/interface/public/");
+    include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/web/public/");
 pub static PAX_MACOS_INTERFACE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos/interface/pax-app-macos/");
+    include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/macos/");
 pub static PAX_IOS_INTERFACE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios/interface/pax-app-ios/");
+    include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/ios/");
 
 pub static PAX_SWIFT_CARTRIDGE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-common/pax-swift-cartridge/");
+    include_dir!("$CARGO_MANIFEST_DIR/files/swift/pax-swift-cartridge/");
 pub static PAX_SWIFT_COMMON_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-common/pax-swift-common/");
+    include_dir!("$CARGO_MANIFEST_DIR/files/swift/pax-swift-common/");
 
 pub const PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME: &str = "new-libdev-project-template";
 pub const INTERFACE_DIR_NAME: &str = "interface";

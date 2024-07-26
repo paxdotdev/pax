@@ -77,8 +77,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
             let mut cmd = Command::new("bash");
             cmd.arg("./build-interface.sh");
-            let chassis_web_path = Path::new(&root).join("pax-chassis-web");
-            cmd.current_dir(&chassis_web_path);
+            let web_interface_path = Path::new(&root).join("pax-compiler").join("files").join("interfaces").join("web");
+            cmd.current_dir(&web_interface_path);
             if !cmd
                 .output()
                 .expect("failed to start process")
@@ -87,7 +87,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
             {
                 panic!(
                     "failed to build js files running ./build-interface.sh at {:?}",
-                    chassis_web_path
+                    web_interface_path
                 );
             };
         } else {
@@ -152,22 +152,22 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
     // If ctx.is_libdev_mode, we copy our monorepo @/pax-chassis-`ctx.target.into()`/interface directory
     // Otherwise, we use the include_dir! macro to copy the interface files
     if ctx.is_libdev_mode {
-        let pax_chassis_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let interface_src = match ctx.target {
-            RunTarget::Web => pax_chassis_cargo_root
-                .join("..")
-                .join("pax-chassis-web")
-                .join(INTERFACE_DIR_NAME)
+            RunTarget::Web => pax_compiler_root
+                .join("files")
+                .join("interfaces")
+                .join("web")
                 .join("public"),
-            RunTarget::macOS => pax_chassis_cargo_root
-                .join("..")
-                .join("pax-chassis-macos")
-                .join(INTERFACE_DIR_NAME)
+            RunTarget::macOS => pax_compiler_root
+                .join("files")
+                .join("interfaces")
+                .join("macos")
                 .join("pax-app-macos"),
-            RunTarget::iOS => pax_chassis_cargo_root
-                .join("..")
-                .join("pax-chassis-ios")
-                .join(INTERFACE_DIR_NAME)
+            RunTarget::iOS => pax_compiler_root
+                .join("files")
+                .join("interfaces")
+                .join("ios")
                 .join("pax-app-ios"),
         };
 
@@ -177,13 +177,13 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
         // also copy pax-chassis-common into interface/common for macos and ios builds
         match ctx.target {
             RunTarget::macOS | RunTarget::iOS => {
-                let common_swift_cartridge_src = pax_chassis_cargo_root
-                    .join("..")
-                    .join("pax-chassis-common")
+                let common_swift_cartridge_src = pax_compiler_root
+                    .join("files")
+                    .join("swift")
                     .join("pax-swift-cartridge");
-                let common_swift_common_src = pax_chassis_cargo_root
-                    .join("..")
-                    .join("pax-chassis-common")
+                let common_swift_common_src = pax_compiler_root
+                    .join("files")
+                    .join("swift")
                     .join("pax-swift-common");
                 let common_swift_cartridge_dest = pax_dir
                     .join(INTERFACE_DIR_NAME)
