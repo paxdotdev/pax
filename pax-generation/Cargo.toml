@@ -1,6 +1,6 @@
 [package]
 name = "pax-generation"
-version = "0.16.2"
+version = "0.18.0"
 edition = "2021"
 description = "Tools for generating Pax with LLMs"
 license = "MIT OR Apache-2.0"
@@ -13,4 +13,4 @@ tokio = { version = "1", features = ["full"] }
 serde_json = "1.0"
 regex = "1.5"
 dotenv = "0.15"
-pax-lang = {version = "0.16.2", path="../pax-lang"}
+pax-lang = {version = "0.18.0", path="../pax-lang"}

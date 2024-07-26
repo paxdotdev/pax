@@ -46,7 +46,7 @@ PACKAGES = [
 # Compile ts to js and css for the web chassis
 original_dir = os.getcwd()
 try:
-    target_dir = os.path.join(original_dir, 'pax-compiler', 'interfaces', 'web')
+    target_dir = os.path.join(original_dir, 'pax-compiler', 'files', 'interfaces', 'web')
     os.chdir(target_dir)
     subprocess.run(['./build-interface.sh'], check=True)
 except: 
