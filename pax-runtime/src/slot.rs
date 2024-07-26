@@ -72,18 +72,11 @@ impl InstanceNode for SlotInstance {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
                     };
-
-                    let ret = if let Some(node) = showing_node.get().upgrade() {
-                        log::debug!(
-                            "slot is attaching {:?} with frame: {:?}",
-                            node.id,
-                            cloned_expanded_node.parent_frame.get()
-                        );
-                        cloned_expanded_node.attach_children(vec![node], &cloned_context)
-                    } else {
-                        vec![]
-                    };
-                    ret
+                    cloned_expanded_node.attach_children(
+                        showing_node.get().upgrade().as_slice().to_vec(),
+                        &cloned_context,
+                        &cloned_expanded_node.parent_frame,
+                    )
                 },
                 &deps,
                 &format!("slot_children (node id: {})", expanded_node.id.0),

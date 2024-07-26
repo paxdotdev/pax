@@ -373,7 +373,7 @@ impl PaxEngine {
             let parent_template = borrow!(parent.instance_node);
             let children = borrow!(parent_template.base().get_instance_children());
             let new_templates = children.clone().into_iter().zip(iter::repeat(env));
-            let children = parent.generate_children(new_templates, ctx);
+            let children = parent.generate_children(new_templates, ctx, &parent.parent_frame);
             parent.children.set(children);
             Rc::clone(&parent).recurse_mount(ctx);
         } else {
@@ -431,9 +431,6 @@ impl PaxEngine {
                 parent_frame: node.parent_frame.get().map(|v| v.to_u32()),
             };
             if layer == Layer::Native && node.occlusion.get() != new_occlusion {
-                if format!("{:?}", node.instance_node).contains("Button") {
-                    log::debug!("sending button {:?} update: {:?}", node.id, new_occlusion);
-                }
                 ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
                     OcclusionPatch {
                         id: node.id.to_u32(),

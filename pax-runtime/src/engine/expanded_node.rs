@@ -54,7 +54,7 @@ pub struct ExpandedNode {
     /// included as a parameter on AnyCreatePatch when
     /// creating a native element to know what clipping context
     /// to attach to
-    pub parent_frame: Cell<Option<ExpandedNodeIdentifier>>,
+    pub parent_frame: Property<Option<ExpandedNodeIdentifier>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
     /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
@@ -330,6 +330,7 @@ impl ExpandedNode {
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
+        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
         let mut curr_children = borrow_mut!(self.mounted_children);
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
@@ -338,12 +339,11 @@ impl ExpandedNode {
             // set parent and connect up viewport bounds to new parent
             *borrow_mut!(child.render_parent) = Rc::downgrade(self);
             // set frame clipping reference
-            child.parent_frame.set(self.parent_frame.get());
-            log::debug!(
-                "child parent frame is now: {:?} for {:?}",
-                child.parent_frame,
-                child.id
-            );
+            let parent_frame = parent_frame.clone();
+            let deps = [parent_frame.untyped()];
+            child
+                .parent_frame
+                .replace_with(Property::computed(move || parent_frame.get(), &deps));
         }
         if *borrow!(self.attached) > 0 {
             for child in curr_children.iter() {
@@ -402,9 +402,10 @@ impl ExpandedNode {
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
+        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context, &Rc::downgrade(&self));
-        let res = self.attach_children(new_children, context);
+        let res = self.attach_children(new_children, context, parent_frame);
         res
     }
 
