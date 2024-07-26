@@ -86,10 +86,6 @@ impl InstanceNode for ButtonInstance {
         context: &Rc<RuntimeContext>,
     ) {
         // Send creation message
-        log::debug!(
-            "button parent_frame: {:?}",
-            expanded_node.parent_frame.get().map(|v| v.to_u32())
-        );
         let id = expanded_node.id.clone();
         context.enqueue_native_message(pax_message::NativeMessage::ButtonCreate(AnyCreatePatch {
             id: id.to_u32(),

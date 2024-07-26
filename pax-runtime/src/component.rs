@@ -71,7 +71,11 @@ impl InstanceNode for ComponentInstance {
         let children = borrow!(self.template);
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.children.replace_with(Property::new_with_name(
-            expanded_node.generate_children(children_with_envs, context),
+            expanded_node.generate_children(
+                children_with_envs,
+                context,
+                &expanded_node.parent_frame,
+            ),
             &format!("component (node id: {})", expanded_node.id.0),
         ));
         // update slot children

@@ -169,7 +169,7 @@ impl InstanceNode for RepeatInstance {
                                 .zip(iter::repeat(new_env))
                         });
                     let ret =
-                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context);
+                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context,&cloned_expanded_node.parent_frame);
                     ret
                 },
                 &deps,
