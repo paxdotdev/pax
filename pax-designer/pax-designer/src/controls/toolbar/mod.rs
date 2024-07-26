@@ -105,6 +105,10 @@ thread_local! {
                         icon: "assets/icons/toolbar/icon-13-stacker.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Stacker))
                     },
+                    ToolbarItem {
+                        icon: "assets/icons/tree/tree-icon-11-scroller.png",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Scroller))
+                    },
                 ]
             },
             ToolbarEntry {

@@ -402,6 +402,7 @@ pub enum Component {
     Ellipse,
     Text,
     Stacker,
+    Scroller,
 
     // form controls
     Checkbox,
