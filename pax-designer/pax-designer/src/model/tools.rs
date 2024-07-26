@@ -8,7 +8,9 @@ use super::action::{Action, ActionContext, RaycastMode};
 use super::input::InputEvent;
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::outline::PathOutline;
-use crate::glass::wireframe_editor::editor_generation::slot_control::raycast_slot;
+use crate::glass::wireframe_editor::editor_generation::slot_control::{
+    raycast_slot, wants_slot_behavior,
+};
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::glass::{RectTool, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
@@ -349,8 +351,9 @@ impl ToolBehaviour for PointerTool {
                     .into_iter()
                     .next()
                     .unwrap();
-                let curr_container = curr_node.template_parent().unwrap();
-                let glass_curr_container = GlassNode::new(&curr_container, &ctx.glass_transform());
+                let curr_render_container = curr_node.render_parent().unwrap();
+                let curr_render_container_glass =
+                    GlassNode::new(&curr_render_container, &ctx.glass_transform());
 
                 let move_translation = TransformAndBounds {
                     transform: Transform2::translate(translation),
@@ -395,7 +398,7 @@ impl ToolBehaviour for PointerTool {
                     {
                         log::warn!("failed to swap nodes: {}", e);
                     };
-                } else if !glass_curr_container
+                } else if !curr_render_container_glass
                     .transform_and_bounds
                     .get()
                     .contains_point(point)
@@ -405,9 +408,13 @@ impl ToolBehaviour for PointerTool {
                         .into_iter()
                         .next()
                         .unwrap()
-                        != curr_container
+                        != curr_render_container
                 {
-                    let container_parent = curr_container.template_parent().unwrap();
+                    let container_parent = curr_node
+                        .template_parent()
+                        .unwrap()
+                        .template_parent()
+                        .unwrap();
                     let container_parent =
                         GlassNode::new(&container_parent, &ctx.glass_transform());
                     if let Err(e) = (MoveNode {
@@ -475,7 +482,9 @@ impl ToolBehaviour for PointerTool {
                         .into_iter()
                         .next()
                         .unwrap();
-                    if curr_node.render_parent().unwrap().is_of_type::<Slot>() {
+                    if curr_node.render_parent().unwrap().is_of_type::<Slot>()
+                        && wants_slot_behavior(&curr_node.template_parent().unwrap())
+                    {
                         if let Err(e) = (SetNodeLayout {
                             id: &hit_id,
                             node_layout: &NodeLayoutSettings::Fill::<Glass>,
