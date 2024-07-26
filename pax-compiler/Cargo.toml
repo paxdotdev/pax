@@ -8,7 +8,7 @@ homepage = "https://pax.dev/"
 repository = "https://www.github.com/paxproject/pax"
 description = "Compiler APIs for parsing and building Pax projects into application executables"
 include = [
-    "new-project-template/**/*",
+    "files/**/*",
     "src/**/*",
     "templates/**/*",
     "README.md",
