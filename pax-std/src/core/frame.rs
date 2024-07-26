@@ -24,7 +24,18 @@ use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 #[pax]
 #[primitive("pax_std::core::frame::FrameInstance")]
-pub struct Frame {}
+#[custom(Default)]
+pub struct Frame {
+    pub _clip_content: Property<bool>,
+}
+
+impl Default for Frame {
+    fn default() -> Self {
+        Self {
+            _clip_content: Property::new(true),
+        }
+    }
+}
 
 pub struct FrameInstance {
     base: BaseInstance,
@@ -64,6 +75,9 @@ impl InstanceNode for FrameInstance {
         _context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
+        if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
+            return;
+        }
         let t_and_b = expanded_node.transform_and_bounds.get();
         let transform = t_and_b.transform;
         let (width, height) = t_and_b.bounds;
@@ -90,10 +104,13 @@ impl InstanceNode for FrameInstance {
 
     fn handle_post_render(
         &self,
-        _expanded_node: &ExpandedNode,
+        expanded_node: &ExpandedNode,
         _context: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
+        if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
+            return;
+        }
         let layers = rcs.layers();
         let layers: Vec<String> = layers.iter().map(|s| s.to_string()).collect();
         for layer in layers {
@@ -152,11 +169,16 @@ impl InstanceNode for FrameInstance {
                         id,
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(|_properties: &mut Frame| {
+                    expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
 
                         let updates = [
+                            patch_if_needed(
+                                &mut old_state.clip_content,
+                                &mut patch.clip_content,
+                                properties._clip_content.get(),
+                            ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
                             patch_if_needed(
@@ -200,5 +222,9 @@ impl InstanceNode for FrameInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn clips_content(&self, expanded_node: &ExpandedNode) -> bool {
+        expanded_node.with_properties_unwrapped(|props: &mut Frame| props._clip_content.get())
     }
 }

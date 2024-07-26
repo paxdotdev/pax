@@ -156,37 +156,29 @@ impl RuntimeContext {
         //Finally: check whether element itself satisfies hit_test(ray)
 
         let root_node = borrow!(self.root_node).upgrade().unwrap();
-        root_node.recurse_visit_postorder(&mut |node| {
-            if node.ray_cast_test(ray, hit_invisible) {
-                //We only care about the topmost node getting hit, and the element
-                //pool is ordered by z-index so we can just resolve the whole
-                //calculation when we find the first matching node
-
-                let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<ExpandedNode>> = borrow!(node.render_parent).upgrade();
-
-                loop {
-                    if let Some(unwrapped_parent) = parent {
-                        if let Some(_) = unwrapped_parent.get_clipping_size() {
-                            ancestral_clipping_bounds_are_satisfied =
-                                (*unwrapped_parent).ray_cast_test(ray, hit_invisible);
-                            break;
-                        }
-                        parent = borrow!(unwrapped_parent.render_parent).upgrade();
-                    } else {
-                        break;
+        let mut to_process = vec![root_node];
+        while let Some(node) = to_process.pop() {
+            let hit = node.ray_cast_test(ray);
+            if hit {
+                if hit_invisible
+                    || !borrow!(node.instance_node)
+                        .base()
+                        .flags()
+                        .invisible_to_raycasting
+                {
+                    //We only care about the topmost node getting hit, and the element
+                    //pool is ordered by z-index so we can just resolve the whole
+                    //calculation when we find the first matching node
+                    if limit_one {
+                        return vec![node];
                     }
-                }
-
-                if ancestral_clipping_bounds_are_satisfied {
                     accum.push(Rc::clone(&node));
                 }
             }
-        });
-        // TODO this isn't efficient, should make a iterator impl for expanded node instead
-        accum.reverse();
-        if limit_one {
-            accum.truncate(1);
+
+            if hit || !borrow!(node.instance_node).clips_content(&node) {
+                to_process.extend(node.children.get().iter().cloned().rev())
+            }
         }
         accum
     }
