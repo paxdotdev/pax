@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "designer_project"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "chrono",
  "getrandom",
@@ -1980,7 +1980,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-chassis-common"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "core-graphics",
  "env_logger 0.11.2",
@@ -1996,14 +1996,14 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-ios"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "pax-chassis-common",
 ]
 
 [[package]]
 name = "pax-chassis-macos"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "core-graphics",
  "flexbuffers",
@@ -2018,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-web"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2040,7 +2040,7 @@ dependencies = [
 
 [[package]]
 name = "pax-compiler"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designer"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "anyhow",
  "designer_project",
@@ -2097,7 +2097,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "anyhow",
  "env_logger 0.11.2",
@@ -2120,7 +2120,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "log",
  "pax-chassis-ios",
@@ -2138,7 +2138,7 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "pest",
  "pest_derive",
@@ -2146,7 +2146,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "litrs",
  "pax-lang",
@@ -2162,7 +2162,7 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "log",
  "pax-lang",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "serde",
  "wasm-bindgen",
@@ -2182,7 +2182,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2201,7 +2201,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2215,7 +2215,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.15.5"
+version = "0.21.0"
 dependencies = [
  "kurbo",
  "lazy_static",
