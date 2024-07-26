@@ -17,7 +17,7 @@
             y={self.tool_visual.rect_tool.y}
             width={self.tool_visual.rect_tool.width}
             height={self.tool_visual.rect_tool.height}
-            raycast=false
+            _raycastable=false
         />
     </Group>
 
@@ -30,7 +30,7 @@
                 width: 4px
             }
             fill=TRANSPARENT
-            raycast=false
+            _raycastable=false
         />
     </Group>
 

@@ -1,12 +1,12 @@
 use std::{f64::consts::PI, ops::Mul};
 
+use pax_engine::api::{Axis, Interpolatable, Percent, Rotation, Size};
 use pax_engine::{
     layout::{LayoutProperties, TransformAndBounds},
     log,
     math::{Generic, Parts, Point2, Space, Transform2, Vector2},
     NodeLocal,
 };
-use pax_engine::api::{Axis, Interpolatable, Percent, Rotation, Size};
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -449,10 +449,27 @@ pub(crate) fn transform_and_bounds_decomposition<S: Space>(
                 valid_pos_and_anchor(x, y, ax, ay).then_some((x, y))
             });
 
-            let (x, y) = solutions
-                .next()
-                .expect("transform inversion to common properties didn't find a solution");
-            (x, y)
+            if let Some((x, y)) = solutions.next() {
+                (x, y)
+            } else {
+                log::warn!(
+                    "
+                    transform decomposition into common properties didn't successfully validate a solution for x/y.
+                    debug info:
+                    target_box parts = {:#?},
+                    possible_solutions (all invalidated) = {:#?},
+                    denom (interior solution) = {:?}.
+
+                    returning best guess (interior solution) even if not valid.
+                    ",
+                    parts,
+                    possible_solutions,
+                    denom,
+                );
+                let x = dx + ax * M[0][0] + ay * M[0][1];
+                let y = dy + ax * M[1][0] + ay * M[1][1];
+                (x, y)
+            }
         }
         // ax = w*x, ay fixed
         (None, Some(anchor_y)) => {

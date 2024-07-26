@@ -104,6 +104,7 @@ impl Glass {
         if event.cancelled() {
             return;
         }
+        // TODO move to another file (need to figure out structure)
         let info = model::read_app_state(|app_state| {
             let selected_nodes = app_state.selected_template_node_ids.get();
 
@@ -125,9 +126,9 @@ impl Glass {
                     model::perform_action(&TextEdit { uid }, ctx);
                 }
                 Some(
-                    "pax_std::core::group::Group"
+                    path @ ("pax_std::core::group::Group"
                     | "pax_std::layout::stacker::Stacker"
-                    | "pax_std::core::scroller::Scroller",
+                    | "pax_std::core::scroller::Scroller"),
                 ) => {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(
@@ -145,6 +146,30 @@ impl Glass {
                             {
                                 log::warn!("failed to drill into container: {}", e);
                             };
+                        }
+                        // make scroller not clip if a child is selected
+                        // for now only scroller needs somewhat special behavior
+                        // might want to create more general double click framework at some point
+                        if path.contains("Scroller") {
+                            let node = ac
+                                .engine_context
+                                .get_nodes_by_global_id(uid)
+                                .into_iter()
+                                .next()
+                                .unwrap();
+                            let id = node.global_id().unwrap();
+                            let open_containers = ac.derived_state.open_containers.clone();
+                            node.with_properties(|scroller: &mut Scroller| {
+                                let deps = [open_containers.untyped()];
+                                scroller._clip_content.replace_with(Property::computed(
+                                    move || {
+                                        let is_open = open_containers.get().contains(&id);
+                                        !is_open
+                                    },
+                                    &deps,
+                                ));
+                            })
+                            .unwrap();
                         }
                     });
                 }
