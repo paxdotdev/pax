@@ -1,5 +1,7 @@
 use std::{any::Any, cell::RefCell, ops::ControlFlow, rc::Rc};
 
+use pax_engine::api::{borrow, borrow_mut, Color};
+use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{
     api::NodeContext,
     layout::TransformAndBounds,
@@ -7,8 +9,6 @@ use pax_engine::{
     math::{Point2, Transform2},
     NodeInterface, NodeLocal, Property, Slot,
 };
-use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_engine::api::{borrow, borrow_mut, Color};
 use pax_std::stacker::Stacker;
 
 use crate::{
@@ -350,5 +350,9 @@ pub fn raycast_slot(
         .unwrap()
         .template_parent()
         .unwrap();
-    Some((container, slot_hit))
+    wants_slot_behavior(&container).then_some((container, slot_hit))
+}
+
+pub fn wants_slot_behavior(container: &NodeInterface) -> bool {
+    container.is_of_type::<Stacker>()
 }

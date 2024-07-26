@@ -142,8 +142,9 @@ impl Settings {
                     .into_iter()
                     .filter_map(|(propdef, _)| match propdef.name.as_str() {
                         "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
-                        | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform"
-                        | "raycast" => None,
+                        | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => {
+                            None
+                        }
                         custom => (!custom.starts_with('_')).then_some(PropertyArea {
                             vertical_space: 10.0,
                             vertical_pos: Default::default(),
