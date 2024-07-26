@@ -1,9 +1,7 @@
 use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::{
-    ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
-};
+use crate::{ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame};
 pub use pax_runtime_api::*;
 
 #[cfg(feature = "designtime")]
