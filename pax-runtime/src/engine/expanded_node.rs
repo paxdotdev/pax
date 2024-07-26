@@ -595,23 +595,12 @@ impl ExpandedNode {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: Point2<Window>, hit_invisible: bool) -> bool {
+    pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         let cp = borrow!(self.common_properties);
 
         // skip raycast if false
-        if !borrow!(&*cp).raycast.get().unwrap_or(true) {
+        if !borrow!(&*cp)._raycastable.get().unwrap_or(true) {
             return false;
-        }
-
-        if !hit_invisible {
-            // Don't vacuously hit for `invisible_to_raycasting` nodes
-            if borrow!(self.instance_node)
-                .base()
-                .flags()
-                .invisible_to_raycasting
-            {
-                return false;
-            }
         }
         let t_and_b = self.transform_and_bounds.get();
 
@@ -624,24 +613,6 @@ impl ExpandedNode {
             && transformed_ray.x < width
             && transformed_ray.y < height;
         res
-    }
-
-    /// Used at least by ray-casting; only nodes that clip content (and thus should
-    /// not allow outside content to respond to ray-casting) should return a value
-    pub fn get_clipping_size(&self) -> Option<(Size, Size)> {
-        None
-    }
-
-    /// Returns the clipping bounds of this node in pixels, requiring
-    /// parent bounds for calculation of `Percent` values
-    pub fn get_clipping_size_computed(&self, bounds: (f64, f64)) -> (f64, f64) {
-        match self.get_clipping_size() {
-            None => bounds,
-            Some(size_raw) => (
-                size_raw.0.evaluate(bounds, Axis::X),
-                size_raw.1.evaluate(bounds, Axis::Y),
-            ),
-        }
     }
 
     /// Returns the scroll offset from a Scroller component

@@ -1,16 +1,17 @@
+#[allow(unused)]
 use crate::*;
 use pax_engine::api::Numeric;
 use pax_engine::api::{Event, Wheel};
-use pax_engine::api::{Property, Size, Transform2D};
+use pax_engine::api::{Property, Size};
 use pax_engine::*;
-use pax_runtime::api::{NodeContext, Platform, TouchEnd, TouchMove, TouchStart, OS};
+use pax_runtime::api::{NodeContext, TouchEnd, TouchMove, TouchStart, OS};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 /// A scrolling container for arbitrary content.
 #[pax]
 #[inlined(
-    <Frame>
+    <Frame _clip_content={self._clip_content}>
         <Scrollbar
             scroll_y={self.scroll_pos_y}
             width=20px
@@ -26,7 +27,7 @@ use std::collections::HashMap;
             size_inner_pane_x={self.scroll_width}
         />
         <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width} height={self.scroll_height}>
-            for i in 0..self.slot_children_count {
+            for i in 0..self._slot_children_count {
                 slot(i)
             }
         </Group>
@@ -43,18 +44,39 @@ use std::collections::HashMap;
     }
 
 )]
+#[custom(Default)]
 pub struct Scroller {
     pub scroll_pos_x: Property<Numeric>,
     pub scroll_pos_y: Property<Numeric>,
     pub scroll_width: Property<Size>,
     pub scroll_height: Property<Size>,
 
+    // used by pax create (might want to just make public at some point)
+    pub _clip_content: Property<bool>,
+
     // private fields
-    pub platform_params: Property<PlatformSpecificScrollParams>,
-    pub momentum_x: Property<f64>,
-    pub momentum_y: Property<f64>,
-    pub damping: Property<f64>,
-    pub slot_children_count: Property<usize>,
+    pub _platform_params: Property<PlatformSpecificScrollParams>,
+    pub _momentum_x: Property<f64>,
+    pub _momentum_y: Property<f64>,
+    pub _damping: Property<f64>,
+    pub _slot_children_count: Property<usize>,
+}
+
+impl Default for Scroller {
+    fn default() -> Self {
+        Self {
+            scroll_pos_x: Default::default(),
+            scroll_pos_y: Default::default(),
+            scroll_width: Default::default(),
+            scroll_height: Default::default(),
+            _clip_content: Property::new(true),
+            _platform_params: Default::default(),
+            _momentum_x: Default::default(),
+            _momentum_y: Default::default(),
+            _damping: Default::default(),
+            _slot_children_count: Default::default(),
+        }
+    }
 }
 
 #[pax]
@@ -83,7 +105,7 @@ impl Scroller {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let slot_children_count = ctx.slot_children_count.clone();
         let deps = [slot_children_count.untyped()];
-        self.slot_children_count
+        self._slot_children_count
             .replace_with(Property::computed(move || slot_children_count.get(), &deps));
         let scroll_params = match ctx.os {
             OS::Android => PlatformSpecificScrollParams {
@@ -103,17 +125,17 @@ impl Scroller {
                 fling: false,
             },
         };
-        self.platform_params.set(scroll_params);
+        self._platform_params.set(scroll_params);
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
-        let mom_x = self.momentum_x.get();
-        let mom_y = self.momentum_y.get();
+        let mom_x = self._momentum_x.get();
+        let mom_y = self._momentum_y.get();
         if no_touches() {
             self.add_position(ctx, mom_x, mom_y);
         }
-        let platform_data = self.platform_params.get();
-        let damping = self.damping.get();
+        let platform_data = self._platform_params.get();
+        let damping = self._damping.get();
 
         let mut new_mom_x;
         let mut new_mom_y;
@@ -145,8 +167,8 @@ impl Scroller {
             new_mom_y = 0.0;
         }
 
-        self.momentum_x.set(new_mom_x);
-        self.momentum_y.set(new_mom_y);
+        self._momentum_x.set(new_mom_x);
+        self._momentum_y.set(new_mom_y);
     }
 
     pub fn add_position(&self, ctx: &NodeContext, dx: f64, dy: f64) {
@@ -166,10 +188,10 @@ impl Scroller {
     }
 
     pub fn add_momentum(&self, ddx: f64, ddy: f64) {
-        let mom_x = self.momentum_x.get();
-        let mom_y = self.momentum_y.get();
-        self.momentum_x.set(mom_x + ddx);
-        self.momentum_y.set(mom_y + ddy);
+        let mom_x = self._momentum_x.get();
+        let mom_y = self._momentum_y.get();
+        self._momentum_x.set(mom_x + ddx);
+        self._momentum_y.set(mom_y + ddy);
     }
 
     pub fn process_new_touch_pos(&self, ctx: &NodeContext, x: f64, y: f64, ident: i64) {
@@ -199,12 +221,12 @@ impl Scroller {
     pub fn touch_start(&mut self, _ctx: &NodeContext, args: Event<TouchStart>) {
         if no_touches() {
             // this is first touch
-            let cached_damping = self.platform_params.get().damping;
+            let cached_damping = self._platform_params.get().damping;
             let temp_damping = cached_damping.max(0.5);
-            self.damping.set(temp_damping);
+            self._damping.set(temp_damping);
         }
-        self.momentum_x.set(0.0);
-        self.momentum_y.set(0.0);
+        self._momentum_x.set(0.0);
+        self._momentum_y.set(0.0);
         TOUCH_TRACKER.with_borrow_mut(|touches| {
             touches.extend(
                 args.touches
@@ -223,19 +245,19 @@ impl Scroller {
             touches.retain(|k, _| !idents.contains(k));
         });
         if no_touches() {
-            let params = self.platform_params.get();
-            self.damping.set(params.damping);
+            let params = self._platform_params.get();
+            self._damping.set(params.damping);
 
-            let mut mom_x = self.momentum_x.get();
-            let mut mom_y = self.momentum_y.get();
+            let mut mom_x = self._momentum_x.get();
+            let mut mom_y = self._momentum_y.get();
             if params.fling && mom_x.abs() > 50.0 {
                 mom_x *= 1.7;
             }
             if params.fling && mom_y.abs() > 50.0 {
                 mom_y *= 1.7;
             }
-            self.momentum_x.set(mom_x);
-            self.momentum_y.set(mom_y);
+            self._momentum_x.set(mom_x);
+            self._momentum_y.set(mom_y);
         }
     }
 }

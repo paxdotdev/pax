@@ -372,6 +372,7 @@ pub struct AddedLayerArgs {
 #[repr(C)]
 pub struct FramePatch {
     pub id: u32,
+    pub clip_content: Option<bool>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,

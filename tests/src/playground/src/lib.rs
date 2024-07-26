@@ -9,6 +9,7 @@ use pax_std::*;
 pub struct Example {
     pub ticks: Property<usize>,
     pub num_clicks: Property<usize>,
+    pub frame_clip: Property<bool>,
 }
 
 impl Example {
@@ -20,5 +21,9 @@ impl Example {
     pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
+    }
+
+    pub fn toggle_frame_clip(&mut self, ctx: &NodeContext, args: Event<ButtonClick>) {
+        self.frame_clip.set(!self.frame_clip.get());
     }
 }

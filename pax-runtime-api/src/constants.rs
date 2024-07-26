@@ -64,5 +64,5 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("transform", "pax_engine::api::Transform2D"),
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),
-    ("raycast", "bool"),
+    ("_raycastable", "bool"),
 ];

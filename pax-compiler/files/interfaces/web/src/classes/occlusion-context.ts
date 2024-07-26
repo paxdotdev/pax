@@ -146,10 +146,15 @@ class Container {
 
     updateClippingPath(patch: Partial<ContainerStyle>) {
         this.styles = {...this.styles, ...patch};
-        let polygonDef = getQuadClipPolygonCommand(this.styles.width!, this.styles.height!, this.styles.transform!)
-        // element.style.clipPath = polygonDef;
-        // element.style.webkitClipPath = polygonDef;
         let var_name = containerCssClipPathVar(this.id);
+        let polygonDef;
+        if (this.styles.clipContent) {
+            polygonDef = getQuadClipPolygonCommand(this.styles.width!, this.styles.height!, this.styles.transform!)
+            // element.style.clipPath = polygonDef;
+            // element.style.webkitClipPath = polygonDef;
+        } else {
+            polygonDef = "none";
+        }
         document.documentElement.style.setProperty(var_name, polygonDef);
     }
 }
@@ -159,11 +164,13 @@ function containerCssClipPathVar(id: number) {
 }
 
 export class ContainerStyle {
+    clipContent: boolean;
     transform: number[];
     width: number;
     height: number;
 
     constructor() {
+        this.clipContent = true;
         this.transform = [0, 0, 0, 0, 0, 0];
         this.width = 0;
         this.height = 0;

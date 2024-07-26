@@ -165,6 +165,11 @@ pub trait InstanceNode {
         None
     }
 
+    /// Used by frame to control content clipping
+    fn clips_content(&self, _expanded_node: &ExpandedNode) -> bool {
+        false
+    }
+
     fn handle_native_interrupt(
         &self,
         _expanded_node: &Rc<ExpandedNode>,
