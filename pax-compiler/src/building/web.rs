@@ -1,6 +1,6 @@
 use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
-    PAX_BADGE, PUBLIC_DIR_NAME,
+    PAX_BADGE,
 };
 use crate::{copy_dir_recursively, RunContext, RunTarget};
 

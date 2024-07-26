@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;

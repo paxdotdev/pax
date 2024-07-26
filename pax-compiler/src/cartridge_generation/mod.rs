@@ -3,17 +3,12 @@
 //! The `code_generation` module provides structures and functions for generating Pax Cartridges
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
-use crate::helpers::INTERFACE_DIR_NAME;
 use itertools::Itertools;
 use std::fs;
-use std::str::FromStr;
 
-use pax_manifest::{
-    cartridge_generation::CommonProperty, ExpressionSpec, HostCrateInfo, PaxManifest, TypeId,
-};
+use pax_manifest::{cartridge_generation::CommonProperty, ExpressionSpec, PaxManifest};
 
 use std::path::PathBuf;
-use toml_edit::Item;
 
 pub mod templating;
 
@@ -22,11 +17,7 @@ pub const CARTRIDGE_PARTIAL_PATH: &str = "cartridge.partial.rs";
 // Generates (codegens) the PaxCartridge definition, abiding by the PaxCartridge trait.
 // Side-effect: writes the generated string to disk as .pax/cartridge.partial.rs,
 // so that it may be `include!`d by the  #[pax] #[main] macro
-pub fn generate_cartridge_partial_rs(
-    pax_dir: &PathBuf,
-    manifest: &PaxManifest,
-    host_crate_info: &HostCrateInfo,
-) -> PathBuf {
+pub fn generate_cartridge_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) -> PathBuf {
     #[allow(unused_mut)]
     let mut generated_lib_rs;
 

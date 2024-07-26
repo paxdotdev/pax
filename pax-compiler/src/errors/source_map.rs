@@ -1,10 +1,9 @@
 use pax_manifest::{MappedString, Token};
 use pax_runtime::api::serde::{Deserialize, Serialize};
 use regex::Regex;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::{
     collections::{BTreeMap, HashMap},
-    fs::{File, OpenOptions},
     io::{BufRead, BufReader},
 };
 

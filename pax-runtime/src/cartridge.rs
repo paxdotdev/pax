@@ -1,14 +1,13 @@
 use_RefCell!();
 use crate::api::NodeContext;
 use crate::{
-    ComponentInstance, ExpressionContext, ExpressionTable, HandlerRegistry, InstanceNode,
+    ExpressionContext, ExpressionTable, HandlerRegistry, InstanceNode,
     InstantiationArgs, RuntimePropertiesStackFrame,
 };
-use pax_manifest::PaxType::Slot;
-use pax_manifest::{PaxManifest, TemplateNodeDefinition, TemplateNodeId, TypeId, ValueDefinition};
+use pax_manifest::{ValueDefinition};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
-use pax_runtime_api::{borrow_mut, use_RefCell, CommonProperties, Numeric, Property};
+use pax_runtime_api::{use_RefCell, CommonProperties, Numeric, Property};
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -66,7 +65,6 @@ pub trait DefinitionToInstanceTraverser {
         type_id: &pax_manifest::TypeId,
     ) -> crate::rendering::InstantiationArgs {
         let manifest = self.get_manifest();
-        let property_names = manifest.get_all_property_names(type_id);
         if let None = manifest.components.get(type_id) {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
@@ -292,7 +290,7 @@ pub trait DefinitionToInstanceTraverser {
                             }
                         }
 
-                        properties.source_expression_vec = if let Some(t) = &rsd.symbolic_binding {
+                        properties.source_expression_vec = if let Some(_t) = &rsd.symbolic_binding {
                             let cloned_table = table.clone();
                             let cloned_stack = stack_frame.clone();
                             Some(Property::computed_with_name(
@@ -315,7 +313,7 @@ pub trait DefinitionToInstanceTraverser {
                             None
                         };
 
-                        properties.source_expression_range = if let Some(t) =
+                        properties.source_expression_range = if let Some(_) =
                             &rsd.range_expression_paxel
                         {
                             let cloned_table = table.clone();

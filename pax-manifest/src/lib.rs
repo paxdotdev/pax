@@ -4,7 +4,6 @@ use std::fmt::Display;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
-use constants::{TYPE_ID_COMMENT, TYPE_ID_IF, TYPE_ID_REPEAT, TYPE_ID_SLOT};
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{ImplToFromPaxAny, Interpolatable};

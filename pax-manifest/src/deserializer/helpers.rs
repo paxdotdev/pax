@@ -321,6 +321,7 @@ impl<'de> SeqAccess<'de> for PaxSeq {
 }
 
 pub struct PaxObject {
+    #[allow(unused)]
     name: Option<String>,
     elements: Vec<(String, String)>,
     index: usize,
@@ -357,6 +358,7 @@ impl PaxObject {
         }
     }
 
+    #[allow(unused)]
     pub fn new(name: Option<String>, elements: Vec<(String, String)>) -> Self {
         PaxObject {
             name,
