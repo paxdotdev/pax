@@ -13,4 +13,3 @@ description = "Pax language parser"
 [dependencies]
 pest = {version = "2.7.10", features = ["std"]}
 pest_derive = {version = "2.7.10", features = ["std"]}
-
