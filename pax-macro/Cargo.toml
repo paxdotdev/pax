@@ -1,6 +1,6 @@
 [package]
 name = "pax-macro"
-version = "0.21.0"
+version = "0.21.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -17,8 +17,8 @@ proc-macro = true
 syn = {version = "1.0", features=["derive", "extra-traits"]}
 proc-macro2 = "1.0"
 quote = "1.0"
-pax-runtime = {version = "0.21.0", path="../pax-runtime"}
-pax-lang = {version = "0.21.0", path="../pax-lang"}
+pax-runtime = {version = "0.21.1", path="../pax-runtime"}
+pax-lang = {version = "0.21.1", path="../pax-lang"}
 sailfish = "0.6.0"
 serde = { version = "1.0.159", features=["derive"] }
 serde_json = { version = "1.0.95" }
