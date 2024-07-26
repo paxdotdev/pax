@@ -110,7 +110,7 @@ pub struct ExpandedNode {
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
     // occlusionID (clanvas/native layer) + z-index
-    pub occlusion: RefCell<(u32, i32)>,
+    pub occlusion: Cell<Occlusion>,
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
@@ -119,6 +119,16 @@ pub struct ExpandedNode {
     /// The flattened index of this node in its container (if this container
     /// cares about slot children, ex: component, path).
     pub slot_index: Property<Option<usize>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct Occlusion {
+    pub occlusion_layer_id: u32,
+    pub z_index: i32,
+    // this is used to perform last patches logic,
+    // and is updated to reflect this nodes parent_frame
+    // when occlusion is calculated
+    pub parent_frame: Option<u32>,
 }
 
 impl ImplToFromPaxAny for ExpandedNode {}
@@ -242,7 +252,7 @@ impl ExpandedNode {
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
-            occlusion: RefCell::new((0, 0)),
+            occlusion: Default::default(),
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
         });
@@ -267,7 +277,7 @@ impl ExpandedNode {
         *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
         *borrow_mut!(self.common_properties) =
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
-        *borrow_mut!(self.occlusion) = (0, 0);
+        self.occlusion.set(Default::default());
 
         Rc::clone(self).recurse_mount(context);
         Rc::clone(self).recurse_update(context);
@@ -323,9 +333,17 @@ impl ExpandedNode {
     ) -> Vec<Rc<ExpandedNode>> {
         let mut curr_children = borrow_mut!(self.mounted_children);
         //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
+
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
             *borrow_mut!(child.render_parent) = Rc::downgrade(self);
+            // set frame clipping reference
+            child.parent_frame.set(self.parent_frame.get());
+            log::debug!(
+                "child parent frame is now: {:?} for {:?}",
+                child.parent_frame,
+                child.id
+            );
         }
         if *borrow!(self.attached) > 0 {
             for child in curr_children.iter() {
@@ -334,8 +352,6 @@ impl ExpandedNode {
             for child in new_children.iter() {
                 Rc::clone(child).recurse_mount(context);
                 child.bind_to_parent_bounds();
-                // set frame clipping reference
-                child.parent_frame.set(self.parent_frame.get());
             }
         }
         *curr_children = new_children.clone();
@@ -485,7 +501,7 @@ impl ExpandedNode {
                 }
             }
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
-            *borrow_mut!(self.occlusion) = (0, 0);
+            self.occlusion.set(Default::default());
 
             borrow!(self.instance_node).handle_unmount(&self, context);
         }
@@ -868,7 +884,7 @@ impl std::fmt::Debug for ExpandedNode {
                     .map(|v| v.id)
                     .collect::<Vec<_>>(),
             )
-            .field("occlusion_id", &borrow!(self.occlusion))
+            .field("occlusion_id", &self.occlusion.get())
             .field(
                 "containing_component",
                 &self.containing_component.upgrade().map(|v| v.id.clone()),

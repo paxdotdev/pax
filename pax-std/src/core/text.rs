@@ -81,7 +81,7 @@ impl InstanceNode for TextInstance {
         if DEBUG_TEXT_GREEN_BACKGROUND {
             let computed_props = borrow!(expanded_node.layout_properties);
             let tab = &computed_props.as_ref().unwrap().computed_tab;
-            let layer_id = format!("{}", borrow!(expanded_node.occlusion).0);
+            let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
             let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);

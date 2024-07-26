@@ -272,6 +272,7 @@ impl PaxManifestORM {
             command.redo(&mut self.manifest)?;
             self.undo_stack.push((id, command));
             self.manifest_version.update(|v| *v += 1);
+            self.set_reload(ReloadType::FullEdit);
         }
         Ok(())
     }
@@ -286,6 +287,16 @@ impl PaxManifestORM {
                 break;
             }
             self.undo()?;
+        }
+        Ok(())
+    }
+
+    pub fn redo_including(&mut self, command_id: usize) -> Result<(), String> {
+        while let Some(&(id, _)) = self.redo_stack.last() {
+            self.redo()?;
+            if id == command_id {
+                break;
+            }
         }
         Ok(())
     }

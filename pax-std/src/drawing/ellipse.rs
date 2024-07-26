@@ -62,7 +62,7 @@ impl InstanceNode for EllipseInstance {
                 unimplemented!("gradients not supported on ellipse")
             };
 
-            let layer_id = format!("{}", borrow!(expanded_node.occlusion).0);
+            let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
             rc.fill(&layer_id, transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web

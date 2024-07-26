@@ -501,6 +501,7 @@ pub struct OcclusionPatch {
     pub id: u32,
     pub occlusion_layer_id: u32,
     pub z_index: i32,
+    pub parent_frame: Option<u32>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
