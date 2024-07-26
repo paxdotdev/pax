@@ -1,15 +1,15 @@
 <Frame width=50%>
 	<Group width=200%>
-		<Button x=50% y=30% width=10% height=10%/>
+		<Button x=50% y=30% width=10% height=10% @button_click=self.toggle_frame_clip/>
 	</Group>
 </Frame>
 
-<Scroller scroll_height=200% x=100% width=50%>
+<Frame _clip_content={self.frame_clip} x=100% width=50%>
 	<Group x=100% width=200%>
 		<Button x=50% y=70% width=10% height=10%/>
 	</Group>
 	<Button x=0% anchor_x=50% y=90% width=10% height=10%/>
-</Scroller>
+</Frame>
 
 @settings {
      @pre_render: handle_pre_render,

@@ -619,7 +619,12 @@ pub trait ComponentFactory {
                     skew_x: resolve_property("skew_x", &defined_properties, &stack_frame, &table),
                     skew_y: resolve_property("skew_y", &defined_properties, &stack_frame, &table),
                     rotate: resolve_property("rotate", &defined_properties, &stack_frame, &table),
-                    raycast: resolve_property("raycast", &defined_properties, &stack_frame, &table),
+                    _raycastable: resolve_property(
+                        "_raycastable",
+                        &defined_properties,
+                        &stack_frame,
+                        &table,
+                    ),
                     transform: resolve_property(
                         "transform",
                         &defined_properties,

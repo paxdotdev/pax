@@ -760,6 +760,9 @@ export class NativeElementPool {
          if (patch.transform != null) {
             styles.transform = patch.transform;
          }
+         if (patch.clipContent != null) {
+             styles.clipContent = patch.clipContent;
+         }
         
         this.layers.updateContainer(patch.id!, styles);
     }
