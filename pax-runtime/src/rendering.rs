@@ -141,7 +141,11 @@ pub trait InstanceNode {
         let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
-        let new_children = expanded_node.generate_children(children_with_envs, context);
+        let new_children = expanded_node.generate_children(
+            children_with_envs,
+            context,
+            &expanded_node.parent_frame,
+        );
         expanded_node.children.set(new_children);
     }
 

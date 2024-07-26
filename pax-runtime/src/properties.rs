@@ -4,7 +4,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Store};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Store};
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::{ExpandedNode, ExpressionTable, Globals};
+
+impl Interpolatable for ExpandedNodeIdentifier {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExpandedNodeIdentifier(pub u32);

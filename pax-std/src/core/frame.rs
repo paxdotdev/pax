@@ -114,23 +114,16 @@ impl InstanceNode for FrameInstance {
             occlusion_layer_id: 0,
         }));
 
-        // When a frame has been mounted (and it's sucessfully attached itself
-        // already to it's own parent) it sets itself as it's parent frame, so
-        // that children of this frame created below end up attaching to it
-        let old_val = expanded_node.parent_frame.get();
-        expanded_node.parent_frame.set(Some(expanded_node.id));
-
         // bellow is the same as default impl for adding children in instance_node
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
-        let new_children = expanded_node.generate_children(children_with_envs, context);
+        // NOTE: overwrite frame to be a new prop for all deps
+        let this_frame_prop = Property::new(Some(expanded_node.id));
+        let new_children =
+            expanded_node.generate_children(children_with_envs, context, &this_frame_prop);
         expanded_node.children.set(new_children);
-
-        // reset parent_frame. Needed for if multiple mounts/dissmounts of this
-        // frame occurs
-        expanded_node.parent_frame.set(old_val);
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);

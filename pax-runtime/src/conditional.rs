@@ -77,11 +77,18 @@ impl InstanceNode for ConditionalInstance {
                         let env = Rc::clone(&cloned_expanded_node.stack);
                         let children = borrow!(cloned_self.base().get_instance_children());
                         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                        let res = cloned_expanded_node
-                            .generate_children(children_with_envs, &cloned_context);
+                        let res = cloned_expanded_node.generate_children(
+                            children_with_envs,
+                            &cloned_context,
+                            &cloned_expanded_node.parent_frame,
+                        );
                         res
                     } else {
-                        cloned_expanded_node.generate_children(vec![], &cloned_context)
+                        cloned_expanded_node.generate_children(
+                            vec![],
+                            &cloned_context,
+                            &cloned_expanded_node.parent_frame,
+                        )
                     }
                 },
                 &[dep],
