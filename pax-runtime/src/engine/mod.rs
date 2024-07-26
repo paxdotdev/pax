@@ -30,6 +30,7 @@ pub mod node_interface;
 mod expanded_node;
 pub use expanded_node::ExpandedNode;
 
+use self::expanded_node::Occlusion;
 use self::node_interface::NodeLocal;
 
 #[cfg(feature = "designtime")]
@@ -424,18 +425,25 @@ impl PaxEngine {
         self.root_node.recurse_visit_postorder(&mut |node| {
             let layer = borrow!(node.instance_node).base().flags().layer;
             occlusion_ind.update_z_index(layer);
-            let new_occlusion_ind = occlusion_ind.get_level();
-            let mut curr_occlusion = borrow_mut!(node.occlusion);
-            if layer == Layer::Native && *curr_occlusion != (new_occlusion_ind, z_index) {
+            let new_occlusion = Occlusion {
+                occlusion_layer_id: occlusion_ind.get_level(),
+                z_index,
+                parent_frame: node.parent_frame.get().map(|v| v.to_u32()),
+            };
+            if layer == Layer::Native && node.occlusion.get() != new_occlusion {
+                if format!("{:?}", node.instance_node).contains("Button") {
+                    log::debug!("sending button {:?} update: {:?}", node.id, new_occlusion);
+                }
                 ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
                     OcclusionPatch {
                         id: node.id.to_u32(),
-                        z_index,
-                        occlusion_layer_id: new_occlusion_ind,
+                        z_index: new_occlusion.z_index,
+                        occlusion_layer_id: new_occlusion.occlusion_layer_id,
+                        parent_frame: new_occlusion.parent_frame,
                     },
                 ));
             }
-            *curr_occlusion = (new_occlusion_ind, z_index);
+            node.occlusion.set(new_occlusion);
             z_index += 1;
         });
 
