@@ -22,7 +22,7 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser"]
+parser = ["pax-std/parser"]
 designtime = ["pax-engine/designtime"]
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]

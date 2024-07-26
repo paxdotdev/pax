@@ -695,7 +695,7 @@ fn compile_paxel_to_ril<'a>(
     ctx: &ExpressionCompilationContext<'a>,
 ) -> Result<(String, Vec<ExpressionSpecInvocation>), eyre::Report> {
     //1. run Pratt parser; generate output RIL and collected symbolic_ids
-    let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(&paxel.token_value);
+    let (output_string, symbolic_ids) = pax_manifest::parsing::run_pratt_parser(&paxel.token_value);
 
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations_result: Result<Vec<_>, _> = symbolic_ids
@@ -756,22 +756,7 @@ lazy_static! {
     ]);
 }
 
-pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
-    let entire_symbol = if possibly_nested_symbols.starts_with("self.") {
-        possibly_nested_symbols.replacen("self.", "", 1)
-    } else if possibly_nested_symbols.starts_with("this.") {
-        possibly_nested_symbols.replacen("this.", "", 1)
-    } else {
-        possibly_nested_symbols.to_string()
-    };
-
-    let trimmed_symbol = entire_symbol.trim();
-
-    trimmed_symbol
-        .split(".")
-        .map(|atomic_symbol| atomic_symbol.to_string())
-        .collect::<Vec<_>>()
-}
+pub use pax_manifest::parsing::clean_and_split_symbols;
 
 impl<'a> ExpressionCompilationContext<'a> {
     /// for an input symbol like `i` or `self.num_clicks`

@@ -7,6 +7,7 @@ use std::{cmp::Ordering, hash::Hash};
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{ImplToFromPaxAny, Interpolatable};
+pub mod parsing;
 
 #[cfg(feature = "parsing")]
 pub mod utils;
@@ -1917,6 +1918,9 @@ pub struct HostCrateInfo {
     /// for example: `some_crate::pax_reexports`,
     pub import_prefix: String,
 }
+
+
+
 
 //Effectively our `Prelude` types
 pub const IMPORTS_BUILTINS: &[&str] = &[

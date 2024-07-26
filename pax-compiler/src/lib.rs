@@ -16,7 +16,6 @@ pub mod errors;
 pub mod expressions;
 pub mod formatting;
 pub mod helpers;
-pub mod parsing;
 
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
