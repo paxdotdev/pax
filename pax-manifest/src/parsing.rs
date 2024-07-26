@@ -1,9 +1,11 @@
+use crate::*;
+use pax_lang::{
+    get_pax_pratt_parser, parse_pax_str, Pair, Pairs, PaxParser, PrattParser, Rule, Span,
+};
+use pax_runtime_api::{Color, Fill, Size, Stroke};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
-use pax_lang::{get_pax_pratt_parser, Pair, Pairs, parse_pax_str, PaxParser, PrattParser, Rule, Span};
-use pax_runtime_api::{Color, Fill, Size, Stroke};
-use crate::*;
 
 use pax_lang::Parser;
 
