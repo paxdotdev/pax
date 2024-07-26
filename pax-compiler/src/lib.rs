@@ -40,11 +40,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use crate::helpers::{
-    get_host_crate_info, get_or_create_pax_directory, get_version_of_whitelisted_packages,
-    set_path_on_pax_dependencies, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
-    PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE,
-    PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE, PAX_SWIFT_COMMON_TEMPLATE,
-    PAX_WEB_INTERFACE_TEMPLATE,
+    get_host_crate_info, get_or_create_pax_directory, update_pax_dependency_versions,
+    INTERFACE_DIR_NAME, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE,
+    PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE,
+    PAX_SWIFT_COMMON_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE,
 };
 
 const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
@@ -134,7 +133,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    generate_cartridge_partial_rs(&pax_dir, &manifest, &host_crate_info);
+    generate_cartridge_partial_rs(&pax_dir, &manifest);
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build full project from source

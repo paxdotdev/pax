@@ -2,7 +2,7 @@ use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
 use_RefCell!();
 use std::iter;
 use std::rc::Rc;
-use std::{borrow::Borrow, collections::HashMap};
+use std::{collections::HashMap};
 
 use kurbo::Affine;
 use pax_manifest::UniqueTemplateNodeIdentifier;

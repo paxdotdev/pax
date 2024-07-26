@@ -2,7 +2,7 @@ use std::rc::{Rc, Weak};
 
 use_RefCell!();
 use crate::{
-    node_interface::NodeInterface, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
+    ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
 };
 pub use pax_runtime_api::*;
 

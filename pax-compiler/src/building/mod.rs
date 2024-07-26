@@ -3,24 +3,14 @@
 //! The `building` module provides structures and functions for building the complete chassis.
 //! The `build_chassis_with_cartridge` function is the main entrypoint
 
-use flate2::read::GzDecoder;
-use libc::EXIT_FAILURE;
-use pax_manifest::{HostCrateInfo, PaxManifest};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
     path::PathBuf,
-    str::FromStr,
     sync::{Arc, Mutex},
 };
 
 use color_eyre::eyre;
-use tar::Archive;
 
-use crate::{
-    helpers::{copy_dir_recursively, ALL_PKGS, DIR_IGNORE_LIST_MACOS, INTERFACE_DIR_NAME},
-    RunContext, RunTarget,
-};
+use crate::{RunContext, RunTarget};
 
 use self::{apple::build_apple_project_with_cartridge, web::build_web_project_with_cartridge};
 
