@@ -13,9 +13,6 @@ pub use pax_runtime::layout;
 pub use pax_runtime::rendering;
 pub use pax_runtime::Slot;
 
-#[cfg(feature = "parser")]
-pub use pax_compiler;
-
 #[cfg(feature = "web")]
 pub use pax_chassis_web;
 
