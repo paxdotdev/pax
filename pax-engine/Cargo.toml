@@ -15,7 +15,6 @@ pax-macro = {path="../pax-macro", version="0.21.1"}
 pax-manifest = {path="../pax-manifest", version="0.21.1"}
 pax-message = {path="../pax-message", version="0.21.1"}
 pax-runtime = {path="../pax-runtime", version="0.21.1"}
-pax-compiler = {path="../pax-compiler", optional=true, version="0.21.1"}
 pax-chassis-web = {version = "0.21.1", path="../pax-chassis-web", optional=true }
 pax-chassis-macos = {version = "0.21.1", path="../pax-chassis-macos", optional=true }
 pax-chassis-ios = {version = "0.21.1", path="../pax-chassis-ios", optional=true }
@@ -26,7 +25,6 @@ wasm-bindgen-futures = {version = "0.4.42", optional=true}
 log = "0.4.20"
 
 [features]
-parser = ["dep:pax-compiler"]
 designtime = ["pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime"]
 web = ["dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 macos = ["dep:pax-chassis-macos", "dep:pax-chassis-common"]

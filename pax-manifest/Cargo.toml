@@ -18,5 +18,6 @@ serde = { version="1.0.95", features=["derive"]}
 pax-message = {path="../pax-message", version="0.21.1"}
 pax-runtime-api = {path="../pax-runtime-api", version="0.21.1"}
 pax-lang = {version = "0.21.1", path="../pax-lang"}
+kurbo = "0.9.0"
 serde_with = { version= "3.6.1", features = ["json"]} 
 log = "0.4.20"
