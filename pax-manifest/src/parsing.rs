@@ -1,21 +1,11 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
-
-use pax_lang::{
-    get_pax_pratt_parser, parse_pax_str, Pair, Pairs, Parser, PaxParser, PrattParser, Rule, Span,
-};
-use pax_manifest::{
-    escape_identifier, get_primitive_type_table, ComponentDefinition, ComponentTemplate,
-    ControlFlowRepeatPredicateDefinition, ControlFlowRepeatSourceDefinition,
-    ControlFlowSettingsDefinition, LiteralBlockDefinition, LocationInfo, PropertyDefinition,
-    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    TemplateNodeId, Token, TokenType, TreeLocation, TypeDefinition, TypeId, TypeTable,
-    ValueDefinition,
-};
+use pax_lang::{get_pax_pratt_parser, Pair, Pairs, parse_pax_str, PaxParser, PrattParser, Rule, Span};
 use pax_runtime_api::{Color, Fill, Size, Stroke};
+use crate::*;
 
-use crate::expressions::clean_and_split_symbols;
+use pax_lang::Parser;
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
@@ -1218,7 +1208,7 @@ fn span_to_location(span: &Span) -> LocationInfo {
 /// on primitive types
 pub trait Reflectable {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
-        //Default impl for primitives and pax_runtime::api
+        //Default impl for primitives and pax_runtime_api
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
             type_id: type_id.clone(),
@@ -1544,7 +1534,7 @@ impl Reflectable for Stroke {
     }
 }
 
-impl Reflectable for pax_runtime::api::Size {
+impl Reflectable for pax_runtime_api::Size {
     fn get_import_path() -> String {
         "pax_engine::api::Size".to_string()
     }
@@ -1561,7 +1551,7 @@ impl Reflectable for pax_runtime::api::Size {
     }
 }
 
-impl Reflectable for pax_runtime::api::Color {
+impl Reflectable for pax_runtime_api::Color {
     fn get_import_path() -> String {
         "pax_engine::api::Color".to_string()
     }
@@ -1578,7 +1568,7 @@ impl Reflectable for pax_runtime::api::Color {
     }
 }
 
-impl Reflectable for pax_runtime::api::ColorChannel {
+impl Reflectable for pax_runtime_api::ColorChannel {
     fn get_import_path() -> String {
         "pax_engine::api::ColorChannel".to_string()
     }
@@ -1595,7 +1585,7 @@ impl Reflectable for pax_runtime::api::ColorChannel {
     }
 }
 
-impl Reflectable for pax_runtime::api::Rotation {
+impl Reflectable for pax_runtime_api::Rotation {
     fn get_import_path() -> String {
         "pax_engine::api::Rotation".to_string()
     }
@@ -1613,7 +1603,7 @@ impl Reflectable for pax_runtime::api::Rotation {
     }
 }
 
-impl Reflectable for pax_runtime::api::Numeric {
+impl Reflectable for pax_runtime_api::Numeric {
     fn get_import_path() -> String {
         "pax_engine::api::Numeric".to_string()
     }
@@ -1645,7 +1635,7 @@ impl Reflectable for kurbo::Point {
     }
 }
 
-impl Reflectable for pax_runtime::api::Transform2D {
+impl Reflectable for pax_runtime_api::Transform2D {
     fn get_import_path() -> String {
         "pax_engine::api::Transform2D".to_string()
     }
@@ -1721,4 +1711,21 @@ impl<T: Reflectable> Reflectable for VecDeque<T> {
     fn get_iterable_type_id() -> Option<TypeId> {
         Some(T::get_type_id())
     }
+}
+
+pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
+    let entire_symbol = if possibly_nested_symbols.starts_with("self.") {
+        possibly_nested_symbols.replacen("self.", "", 1)
+    } else if possibly_nested_symbols.starts_with("this.") {
+        possibly_nested_symbols.replacen("this.", "", 1)
+    } else {
+        possibly_nested_symbols.to_string()
+    };
+
+    let trimmed_symbol = entire_symbol.trim();
+
+    trimmed_symbol
+        .split(".")
+        .map(|atomic_symbol| atomic_symbol.to_string())
+        .collect::<Vec<_>>()
 }
