@@ -27,3 +27,10 @@ designtime = ["pax-engine/designtime"]
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]
+
+[profile.release]
+lto = true
+opt-level = "z"
+
+[profile.dev.package."*"]
+debug = false

@@ -25,3 +25,10 @@ path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler"]
+
+[profile.release]
+lto = true
+opt-level = "z"
+
+[profile.dev.package."*"]
+debug = false

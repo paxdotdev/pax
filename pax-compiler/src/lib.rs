@@ -342,7 +342,6 @@ pub fn run_parser_binary(
     let mut cmd = Command::new("cargo");
     cmd.current_dir(project_path)
         .arg("run")
-        .arg("--release") // --release speeds up Pest parsing substantially
         .arg("--bin")
         .arg("parser")
         .arg("--features")

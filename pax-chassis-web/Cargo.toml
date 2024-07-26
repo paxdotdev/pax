@@ -50,10 +50,3 @@ features = [
   "Location",
 ]
 
-[profile.release]
-lto = true
-# opt-level = "z" 
-codegen-units = 1  
-
-[profile.dev]
-opt-level = 2
