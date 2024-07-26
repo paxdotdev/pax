@@ -21,7 +21,8 @@ lazy_static! {
     pub static ref DIR_IGNORE_LIST_WEB : Vec<&'static str> = vec![".git"];
 }
 
-pub static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/files/new-project/new-project-template");
+pub static PAX_CREATE_TEMPLATE: Dir<'_> =
+    include_dir!("$CARGO_MANIFEST_DIR/files/new-project/new-project-template");
 pub static PAX_WEB_INTERFACE_TEMPLATE: Dir<'_> =
     include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/web/public/");
 pub static PAX_MACOS_INTERFACE_TEMPLATE: Dir<'_> =

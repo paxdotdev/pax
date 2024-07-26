@@ -77,7 +77,11 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
             let mut cmd = Command::new("bash");
             cmd.arg("./build-interface.sh");
-            let web_interface_path = Path::new(&root).join("pax-compiler").join("files").join("interfaces").join("web");
+            let web_interface_path = Path::new(&root)
+                .join("pax-compiler")
+                .join("files")
+                .join("interfaces")
+                .join("web");
             cmd.current_dir(&web_interface_path);
             if !cmd
                 .output()
@@ -262,7 +266,10 @@ pub fn perform_create(ctx: &CreateContext) {
         //to the target directly.  This enables iterating on new-project-template during libdev
         //without the sticky caches associated with `include_dir`
         let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let template_src = pax_compiler_cargo_root.join("files").join("new-project").join(PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME);
+        let template_src = pax_compiler_cargo_root
+            .join("files")
+            .join("new-project")
+            .join(PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME);
 
         let mut options = CopyOptions::new();
         options.overwrite = true;
