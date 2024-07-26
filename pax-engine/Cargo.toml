@@ -1,6 +1,6 @@
 [package]
 name = "pax-engine"
-version = "0.21.1"
+version = "0.22.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -11,14 +11,14 @@ description = "Root import entry-point for using Pax in a Rust program"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pax-macro = {path="../pax-macro", version="0.21.1"}
-pax-manifest = {path="../pax-manifest", version="0.21.1"}
-pax-message = {path="../pax-message", version="0.21.1"}
-pax-runtime = {path="../pax-runtime", version="0.21.1"}
-pax-chassis-web = {version = "0.21.1", path="../pax-chassis-web", optional=true }
-pax-chassis-macos = {version = "0.21.1", path="../pax-chassis-macos", optional=true }
-pax-chassis-ios = {version = "0.21.1", path="../pax-chassis-ios", optional=true }
-pax-chassis-common = {version = "0.21.1", path="../pax-chassis-common", optional=true }
+pax-macro = {path="../pax-macro", version="0.22.0"}
+pax-manifest = {path="../pax-manifest", version="0.22.0"}
+pax-message = {path="../pax-message", version="0.22.0"}
+pax-runtime = {path="../pax-runtime", version="0.22.0"}
+pax-chassis-web = {version = "0.22.0", path="../pax-chassis-web", optional=true }
+pax-chassis-macos = {version = "0.22.0", path="../pax-chassis-macos", optional=true }
+pax-chassis-ios = {version = "0.22.0", path="../pax-chassis-ios", optional=true }
+pax-chassis-common = {version = "0.22.0", path="../pax-chassis-common", optional=true }
 serde_json = {version = "1.0.95"}
 wasm-bindgen = {version = "0.2.92", optional=true}
 wasm-bindgen-futures = {version = "0.4.42", optional=true}
