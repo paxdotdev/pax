@@ -1,6 +1,6 @@
 use std::ops::Mul;
 
-use pax_runtime_api::math::{Parts, Point2, Space};
+use pax_runtime_api::math::{Generic, Parts, Point2, Space};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
