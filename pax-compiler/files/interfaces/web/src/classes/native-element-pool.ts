@@ -80,19 +80,11 @@ export class NativeElementPool {
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (node){
-            let parent = node.parentElement;
-            let id_str = parent?.dataset.containerId;
-            let id;
-            if (id_str !== undefined) {
-                id = parseInt(id_str!);
-            } else {
-                id = undefined;
-            }
-            this.layers.addElement(node, id, patch.occlusionLayerId!);
-            node.style.zIndex = patch.zIndex;
+            this.layers.addElement(node, patch.parentFrame, patch.occlusionLayerId!);
+            node.style.zIndex = patch.zIndex!.toString();
             const focusableElements = node.querySelectorAll('input, button, select, textarea, a[href]');
             focusableElements.forEach((element, _index) => {
-                element.setAttribute('tabindex', 1000000 - patch.zIndex);
+                element.setAttribute('tabindex', (1000000 - patch.zIndex!).toString());
             });
         }
     }

@@ -49,7 +49,7 @@ impl InstanceNode for RectangleInstance {
         let tab = expanded_node.transform_and_bounds.get();
         let (width, height) = tab.bounds;
 
-        let layer_id = format!("{}", borrow!(expanded_node.occlusion).0);
+        let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
