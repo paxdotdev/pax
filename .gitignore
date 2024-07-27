@@ -29,3 +29,5 @@ Cargo.lock
 
 pax-chassis-macos/interface/interface.xcodeproj/project.xcworkspace/xcuserdata/**/*
 pax-chassis-macos/interface/interface.xcodeproj/xcuserdata/**/*
+
+pax-chassis-web/interface/
