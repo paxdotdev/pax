@@ -151,25 +151,21 @@ impl Glass {
                         // for now only scroller needs somewhat special behavior
                         // might want to create more general double click framework at some point
                         if path.contains("Scroller") {
-                            let node = ac
-                                .engine_context
-                                .get_nodes_by_global_id(uid)
-                                .into_iter()
-                                .next()
-                                .unwrap();
-                            let id = node.global_id().unwrap();
+                            let node = ac.get_glass_node_by_global_id(&uid);
                             let open_containers = ac.derived_state.open_containers.clone();
-                            node.with_properties(|scroller: &mut Scroller| {
-                                let deps = [open_containers.untyped()];
-                                scroller._clip_content.replace_with(Property::computed(
-                                    move || {
-                                        let is_open = open_containers.get().contains(&id);
-                                        !is_open
-                                    },
-                                    &deps,
-                                ));
-                            })
-                            .unwrap();
+                            let id = node.id.clone();
+                            node.raw_node_interface
+                                .with_properties(|scroller: &mut Scroller| {
+                                    let deps = [open_containers.untyped()];
+                                    scroller._clip_content.replace_with(Property::computed(
+                                        move || {
+                                            let is_open = open_containers.get().contains(&id);
+                                            !is_open
+                                        },
+                                        &deps,
+                                    ));
+                                })
+                                .unwrap();
                         }
                     });
                 }
@@ -186,32 +182,6 @@ impl Glass {
             &crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Down,
-                button: args.mouse.button.clone(),
-                point: Point2::new(args.mouse.x, args.mouse.y),
-            },
-            ctx,
-        );
-    }
-
-    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
-        let prevent_default = || args.prevent_default();
-        model::perform_action(
-            &crate::model::action::pointer::MouseEntryPointAction {
-                prevent_default: &prevent_default,
-                event: Pointer::Move,
-                button: args.mouse.button.clone(),
-                point: Point2::new(args.mouse.x, args.mouse.y),
-            },
-            ctx,
-        );
-    }
-
-    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
-        let prevent_default = || args.prevent_default();
-        model::perform_action(
-            &crate::model::action::pointer::MouseEntryPointAction {
-                prevent_default: &prevent_default,
-                event: Pointer::Up,
                 button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
             },

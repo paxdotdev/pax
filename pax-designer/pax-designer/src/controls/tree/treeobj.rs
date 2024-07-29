@@ -60,10 +60,4 @@ impl TreeObj {
             cn.set(super::TreeMsg::ObjMouseMove(self.ind.get().clone().into()));
         });
     }
-
-    pub fn mouse_up(&mut self, _ctx: &NodeContext, _event: Event<MouseUp>) {
-        super::TREE_CLICK_PROP.with(|cn| {
-            cn.set(super::TreeMsg::ObjMouseUp(self.ind.get().clone().into()));
-        });
-    }
 }

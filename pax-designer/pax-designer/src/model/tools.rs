@@ -230,19 +230,22 @@ impl PointerTool {
             let ctx_e = ctx.engine_context.clone();
             let vis = Property::computed(
                 move || {
-                    let slot_child_parent = ctx_e
+                    if let Some(slot_child_parent) = ctx_e
                         .get_nodes_by_global_id(slot_child_index.clone())
                         .into_iter()
                         .next()
-                        .unwrap()
-                        .render_parent()
-                        .unwrap();
-                    let slot_child_parent = GlassNode::new(&slot_child_parent, &glass_transform);
-                    let outline =
-                        PathOutline::from_bounds(slot_child_parent.transform_and_bounds.get());
-                    ToolVisualizationState {
-                        rect_tool: Default::default(),
-                        outline,
+                        .and_then(|n| n.render_parent())
+                    {
+                        let slot_child_parent =
+                            GlassNode::new(&slot_child_parent, &glass_transform);
+                        let outline =
+                            PathOutline::from_bounds(slot_child_parent.transform_and_bounds.get());
+                        ToolVisualizationState {
+                            rect_tool: Default::default(),
+                            outline,
+                        }
+                    } else {
+                        Default::default()
                     }
                 },
                 &deps,
@@ -314,19 +317,13 @@ impl ToolBehaviour for PointerTool {
                 };
 
                 for item in &initial_selection.items {
-                    let curr_node = ctx
-                        .engine_context
-                        .get_nodes_by_global_id(item.id.clone())
-                        .into_iter()
-                        .next()
-                        .unwrap();
-                    let glass_curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
+                    let curr_node = ctx.get_glass_node_by_global_id(&item.id);
                     if let Err(e) = (SetNodeLayout {
                         id: &item.id,
                         node_layout: &NodeLayoutSettings::KeepScreenBounds {
                             node_transform_and_bounds: &(move_translation
                                 * item.transform_and_bounds),
-                            parent_transform_and_bounds: &glass_curr_node
+                            parent_transform_and_bounds: &curr_node
                                 .parent_transform_and_bounds
                                 .get(),
                             node_decomposition_config: &item
@@ -345,24 +342,19 @@ impl ToolBehaviour for PointerTool {
 
                 let item = initial_selection.items[0].clone();
 
-                let curr_node = ctx
-                    .engine_context
-                    .get_nodes_by_global_id(item.id.clone())
-                    .into_iter()
-                    .next()
-                    .unwrap();
-                let curr_render_container = curr_node.render_parent().unwrap();
+                let curr_node = ctx.get_glass_node_by_global_id(&item.id);
+                let curr_slot = curr_node.raw_node_interface.render_parent().unwrap();
                 let curr_render_container_glass =
-                    GlassNode::new(&curr_render_container, &ctx.glass_transform());
+                    GlassNode::new(&curr_slot, &ctx.glass_transform());
 
                 let move_translation = TransformAndBounds {
                     transform: Transform2::translate(translation),
                     bounds: (1.0, 1.0),
                 };
 
-                if let Some((container, slot_hit)) = raycast_slot(ctx, &curr_node, point) {
-                    let curr_slot = curr_node.render_parent().unwrap();
-
+                if let Some((container, slot_hit)) =
+                    raycast_slot(ctx, &curr_node.raw_node_interface, point)
+                {
                     let new_index =
                         slot_hit.with_properties(|f: &mut Slot| f.index.get().to_int() as usize);
                     let old_index =
@@ -408,9 +400,10 @@ impl ToolBehaviour for PointerTool {
                         .into_iter()
                         .next()
                         .unwrap()
-                        != curr_render_container
+                        != curr_slot
                 {
                     let container_parent = curr_node
+                        .raw_node_interface
                         .template_parent()
                         .unwrap()
                         .template_parent()
@@ -476,14 +469,15 @@ impl ToolBehaviour for PointerTool {
             } => {
                 if *has_moved {
                     let hit_id = hit.global_id().unwrap();
-                    let curr_node = ctx
-                        .engine_context
-                        .get_nodes_by_global_id(hit_id.clone())
-                        .into_iter()
-                        .next()
-                        .unwrap();
-                    if curr_node.render_parent().unwrap().is_of_type::<Slot>()
-                        && wants_slot_behavior(&curr_node.template_parent().unwrap())
+                    let curr_node = ctx.get_glass_node_by_global_id(&hit_id);
+                    if curr_node
+                        .raw_node_interface
+                        .render_parent()
+                        .unwrap()
+                        .is_of_type::<Slot>()
+                        && wants_slot_behavior(
+                            &&curr_node.raw_node_interface.template_parent().unwrap(),
+                        )
                     {
                         if let Err(e) = (SetNodeLayout {
                             id: &hit_id,

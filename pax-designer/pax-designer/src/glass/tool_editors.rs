@@ -1,8 +1,8 @@
 use std::{cell::RefCell, ops::ControlFlow, rc::Rc};
 
-use pax_engine::{log, math::Point2, Property};
 use pax_engine::api::borrow_mut;
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_engine::{log, math::Point2, Property};
 use pax_std::core::text::Text;
 
 use crate::{
@@ -46,14 +46,9 @@ impl TextEditTool {
         let text_binding = Property::default();
         match import_path.as_ref().map(|v| v.as_str()) {
             Some("pax_std::core::text::Text") => {
-                let node = ctx
-                    .engine_context
-                    .get_nodes_by_global_id(uid.clone())
-                    .into_iter()
-                    .next()
-                    .unwrap();
+                let node = ctx.get_glass_node_by_global_id(&uid);
 
-                node.with_properties(|text: &mut Text| {
+                node.raw_node_interface.with_properties(|text: &mut Text| {
                     text.editable.replace_with(Property::new(true));
                     let text = text.text.clone();
                     let deps = [text.untyped()];
@@ -74,14 +69,8 @@ impl ToolBehaviour for TextEditTool {
                 return ControlFlow::Continue(());
             }
         }
-        let node = ctx
-            .engine_context
-            .get_nodes_by_global_id(self.uid.clone())
-            .into_iter()
-            .next()
-            .unwrap();
-
-        node.with_properties(|text: &mut Text| {
+        let node = ctx.get_glass_node_by_global_id(&self.uid);
+        node.raw_node_interface.with_properties(|text: &mut Text| {
             text.editable.replace_with(Property::new(false));
         });
 
