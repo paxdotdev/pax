@@ -65,7 +65,10 @@ impl NodeCache {
     fn remove_from_cache(&mut self, node: &Rc<ExpandedNode>) {
         self.eid_to_node.remove(&node.id);
         if let Some(uni) = &borrow!(node.instance_node).base().template_node_identifier {
-            self.uni_to_eid.remove(uni);
+            self.uni_to_eid
+                .entry(uni.clone())
+                .or_default()
+                .retain(|&n| n != node.id);
         }
     }
 }
