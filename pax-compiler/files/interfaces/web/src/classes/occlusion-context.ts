@@ -103,6 +103,30 @@ export class OcclusionLayerManager {
         container.updateClippingPath(styles);
     }
 
+    updateContainerParent(id: number, new_parent_id: number | undefined) {
+        // Check if the container exists
+        const container = this.containers.get(id);
+        if (container == null) {
+            throw new Error(`Container with id ${id} does not exist`);
+        }
+
+        // Update the container's parent in our internal data structure
+        container.parentFrame = new_parent_id;
+
+        // Update the DOM for each layer
+        this.layers!.forEach((layer, layerIndex) => {
+            const currentElement = layer.native!.querySelector(`[data-container-id="${id}"]`) as HTMLElement;
+            if (currentElement) {
+                // Remove from current parent
+                currentElement.parentElement!.removeChild(currentElement);
+
+                // Add to new parent
+                const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
+                newParentElement.appendChild(currentElement);
+            }
+        });
+    }
+
     removeContainer(id: number) {
         let container = this.containers.get(id);
         if (container == null) {

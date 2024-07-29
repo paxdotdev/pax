@@ -53,7 +53,7 @@ impl InstanceNode for FrameInstance {
                 InstanceFlags {
                     invisible_to_slot: false,
                     invisible_to_raycasting: true,
-                    layer: Layer::Canvas,
+                    layer: Layer::DontCare,
                     is_component: false,
                 },
             ),

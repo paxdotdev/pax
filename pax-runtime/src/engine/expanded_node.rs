@@ -19,6 +19,7 @@ use core::fmt;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use std::sync::atomic::AtomicUsize;
 
 use crate::api::{
     Axis, ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick,
@@ -472,9 +473,6 @@ impl ExpandedNode {
             }
         }
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
-        for child in self.children.get().iter() {
-            Rc::clone(child).recurse_mount(context);
-        }
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
