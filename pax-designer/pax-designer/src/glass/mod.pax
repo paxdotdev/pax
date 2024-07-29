@@ -1,6 +1,4 @@
 <Group
-    @mouse_move=handle_mouse_move
-    @mouse_up=handle_mouse_up
     @wheel=handle_wheel
     @drop=handle_drop
 >
@@ -43,7 +41,7 @@
 
 @settings {
     @mount: on_mount,
-    @pre_render: on_pre_render,
+    @tick: on_pre_render,
     @key_down: handle_key_down,
     @key_up: handle_key_up,
     @double_click: handle_double_click

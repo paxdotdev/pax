@@ -40,6 +40,8 @@ if 0 == 1 {
 }
 
 @settings {
+    @mouse_move: handle_mouse_move
+    @mouse_up: handle_mouse_up
     @mount: on_mount,
 
     #global_background {

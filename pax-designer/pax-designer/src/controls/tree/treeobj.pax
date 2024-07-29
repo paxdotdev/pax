@@ -5,10 +5,7 @@ if self.is_not_leaf {
 		@click=self.arrow_clicked
 	/>
 }
-<Rectangle fill=TRANSPARENT
-	@double_click=obj_double_clicked
-	@mouse_down=mouse_down
-/>
+<Rectangle fill=TRANSPARENT/>
 
 // Icon
 <Image
@@ -26,7 +23,8 @@ if self.is_selected {
 @settings {
     @mount: on_mount,
 	@mouse_move: mouse_move
-	@mouse_up: mouse_up
+	@mouse_down: mouse_down
+	@double_click: obj_double_clicked
 
     #text {
         style: {
