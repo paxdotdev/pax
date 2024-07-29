@@ -217,7 +217,7 @@ impl Model {
                     let Some(node) = ctx_cp
                         .get_nodes_by_global_id(unid.clone())
                         .into_iter()
-                        .next()
+                        .max()
                     else {
                         discarded = true;
                         return false;

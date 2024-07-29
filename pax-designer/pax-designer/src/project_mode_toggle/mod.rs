@@ -1,4 +1,4 @@
-use crate::model::ProjectMode;
+use crate::model::{tools::SelectNodes, ProjectMode};
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -41,6 +41,14 @@ impl ProjectModeToggle {
                 ProjectMode::Playing
             }
         };
+        // Ideally we don't do this, but bounds returned on first change aren't correct atm
+        model::perform_action(
+            &SelectNodes {
+                ids: &[],
+                overwrite: true,
+            },
+            ctx,
+        );
         model::perform_action(&ProjectMsg(mode), ctx);
     }
 }

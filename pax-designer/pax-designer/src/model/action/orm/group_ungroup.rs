@@ -13,16 +13,16 @@ use crate::{
     ROOT_PROJECT_ID,
 };
 use anyhow::{anyhow, Context, Result};
+use pax_engine::api::borrow_mut;
+use pax_engine::pax_manifest::{
+    NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_engine::{
     layout::{LayoutProperties, TransformAndBounds},
     log,
     math::{Point2, Transform2},
     NodeInterface,
 };
-use pax_engine::pax_manifest::{
-    NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
-};
-use pax_engine::api::borrow_mut;
 use pax_std::core::group::Group;
 
 use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodePropertiesFromTransform};
@@ -44,14 +44,7 @@ impl Action for GroupSelected {
             .unwrap();
 
         // -------- Create a group ------------
-        let group_parent_data = ctx
-            .engine_context
-            .get_nodes_by_global_id(root_parent)
-            .first()
-            .unwrap()
-            .clone();
-
-        let group_parent_data = GlassNode::new(&group_parent_data, &ctx.glass_transform());
+        let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent);
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
 
         let group_uid = CreateComponent {
@@ -62,10 +55,7 @@ impl Action for GroupSelected {
                 node_decomposition_config: &Default::default(),
             },
             parent_index: TreeIndexPosition::Top,
-            type_id: &TypeId::build_singleton(
-                "pax_std::core::group::Group",
-                None,
-            ),
+            type_id: &TypeId::build_singleton("pax_std::core::group::Group", None),
             custom_props: &[],
             mock_children: 0,
         }
@@ -103,16 +93,8 @@ impl Action for UngroupSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
         for group in selected.items {
-            let parent = ctx
-                .engine_context
-                .get_nodes_by_global_id(group.id.clone())
-                .first()
-                .unwrap()
-                .template_parent()
-                .unwrap();
-
-            let parent_id = parent.global_id();
-            let group_parent_bounds = parent.transform_and_bounds().get();
+            let parent = ctx.get_glass_node_by_global_id(&group.id);
+            let group_parent_bounds = parent.transform_and_bounds.get();
 
             let group_children = borrow_mut!(ctx.engine_context.designtime)
                 .get_orm_mut()
@@ -121,19 +103,14 @@ impl Action for UngroupSelected {
 
             // ---------- Move Nodes to group parent --------------
             for child in group_children.iter().rev() {
-                let child_runtime_node = ctx
-                    .engine_context
-                    .get_nodes_by_global_id(child.clone())
-                    .first()
-                    .cloned()
-                    .unwrap();
+                let child_runtime_node = ctx.get_glass_node_by_global_id(&child);
                 let child_inv_config = child_runtime_node
-                    .layout_properties()
+                    .layout_properties
                     .into_decomposition_config();
-                let child_t_and_b = child_runtime_node.transform_and_bounds().get();
+                let child_t_and_b = child_runtime_node.transform_and_bounds.get();
                 MoveNode {
                     node_id: &child,
-                    new_parent_uid: parent_id.as_ref().unwrap(),
+                    new_parent_uid: &parent.id,
                     index: TreeIndexPosition::Top,
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
                         parent_transform_and_bounds: &group_parent_bounds,

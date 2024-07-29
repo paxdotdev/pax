@@ -138,6 +138,16 @@ impl ActionContext<'_> {
         Some(target)
     }
 
+    pub fn get_glass_node_by_global_id(&mut self, uid: &UniqueTemplateNodeIdentifier) -> GlassNode {
+        let node_interface = self
+            .engine_context
+            .get_nodes_by_global_id(uid.clone())
+            .into_iter()
+            .max()
+            .unwrap();
+        GlassNode::new(&node_interface, &self.glass_transform())
+    }
+
     pub fn undo_save(&mut self) {
         let before_undo_id = borrow!(self.engine_context.designtime)
             .get_orm()

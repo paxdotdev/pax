@@ -41,7 +41,6 @@ pub enum TreeMsg {
     ObjDoubleClicked(usize),
     ObjMouseDown(usize),
     ObjMouseMove(usize),
-    ObjMouseUp(usize),
     #[default]
     None,
 }
@@ -207,21 +206,6 @@ impl Tree {
                     TreeMsg::ObjMouseMove(sender) => {
                         drag_id.set(sender);
                     }
-                    TreeMsg::ObjMouseUp(to) => {
-                        let from = drag_id_start.get();
-                        if dragging.get() && from != to {
-                            let (from, to) = tree_obj.read(|tree| {
-                                let from = &tree[from];
-                                let to = &tree[to];
-                                (
-                                    (from.node_id.clone(), from.is_container),
-                                    (to.node_id.clone(), to.is_container),
-                                )
-                            });
-                            Self::tree_move(from, to, &ctxp);
-                        }
-                        dragging.set(false);
-                    }
                     TreeMsg::ArrowClicked(_) => (),
                     TreeMsg::None => (),
                 };
@@ -256,6 +240,23 @@ impl Tree {
         });
     }
 
+    pub fn mouse_up(&mut self, ctx: &NodeContext, _event: Event<MouseUp>) {
+        let from = self.drag_id_start.get();
+        let to = self.drag_id.get();
+        if self.dragging.get() && from != to {
+            let (from, to) = self.tree_objects.read(|tree| {
+                let from = &tree[from];
+                let to = &tree[to];
+                (
+                    (from.node_id.clone(), from.is_container),
+                    (to.node_id.clone(), to.is_container),
+                )
+            });
+            Self::tree_move(from, to, &ctx);
+        }
+        self.dragging.set(false);
+    }
+
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         // because of lazy eval. Need to make sure closure fires
         // if it's dependents have changed
@@ -271,23 +272,12 @@ impl Tree {
             let comp_id = ctx.app_state.selected_component_id.get();
             let from_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), from_id);
             let to_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), to_id);
-            let from_node = ctx
-                .engine_context
-                .get_nodes_by_global_id(from_uid)
-                .into_iter()
-                .next()
-                .unwrap();
-            let to_node = ctx
-                .engine_context
-                .get_nodes_by_global_id(to_uid)
-                .into_iter()
-                .next()
-                .unwrap();
-            let from_node = GlassNode::new(&from_node, &ctx.glass_transform());
+            let from_node = ctx.get_glass_node_by_global_id(&from_uid);
+            let to_node = ctx.get_glass_node_by_global_id(&to_uid);
             let to_node_container = match to_is_container {
-                true => GlassNode::new(&to_node, &ctx.glass_transform()),
+                true => to_node.clone(),
                 false => {
-                    let parent = to_node.template_parent().unwrap();
+                    let parent = to_node.raw_node_interface.template_parent().unwrap();
                     // let index = parent
                     GlassNode::new(&parent, &ctx.glass_transform())
                 }
@@ -296,10 +286,11 @@ impl Tree {
             let is_stacker = to_node_container.raw_node_interface.is_of_type::<Stacker>();
             let index = match is_stacker {
                 true => {
-                    if to_node_container.raw_node_interface == to_node {
+                    if to_node_container.raw_node_interface == to_node.raw_node_interface {
                         TreeIndexPosition::Top
                     } else {
                         let slot = to_node
+                            .raw_node_interface
                             .render_parent()
                             .unwrap()
                             .with_properties(|slot: &mut Slot| slot.index.get().to_int() as usize);
@@ -311,7 +302,9 @@ impl Tree {
                     .children()
                     .into_iter()
                     .enumerate()
-                    .find_map(|(i, c)| (c == to_node).then_some(TreeIndexPosition::At(i)))
+                    .find_map(|(i, c)| {
+                        (c == to_node.raw_node_interface).then_some(TreeIndexPosition::At(i))
+                    })
                     .unwrap_or_default(),
             };
             ctx.undo_save();

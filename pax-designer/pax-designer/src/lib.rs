@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 use crate::math::coordinate_spaces::{self, World};
 use model::{
-    action::{Action, ActionContext},
+    action::{pointer::Pointer, Action, ActionContext},
     ProjectMode, StageInfo,
 };
 
@@ -102,6 +102,32 @@ impl PaxDesigner {
         let deps = [glass_active.untyped()];
         self.play_active
             .replace_with(Property::computed(move || !glass_active.get(), &deps));
+    }
+
+    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
+        let prevent_default = || args.prevent_default();
+        model::perform_action(
+            &crate::model::action::pointer::MouseEntryPointAction {
+                prevent_default: &prevent_default,
+                event: Pointer::Move,
+                button: args.mouse.button.clone(),
+                point: Point2::new(args.mouse.x, args.mouse.y),
+            },
+            ctx,
+        );
+    }
+
+    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
+        let prevent_default = || args.prevent_default();
+        model::perform_action(
+            &crate::model::action::pointer::MouseEntryPointAction {
+                prevent_default: &prevent_default,
+                event: Pointer::Up,
+                button: args.mouse.button.clone(),
+                point: Point2::new(args.mouse.x, args.mouse.y),
+            },
+            ctx,
+        );
     }
 }
 
