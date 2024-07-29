@@ -372,7 +372,7 @@ pub struct MoveToComponentEntry {
     pub id: UniqueTemplateNodeIdentifier,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ReloadType {
     FullEdit,
     Partial(UniqueTemplateNodeIdentifier),
