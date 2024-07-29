@@ -18,7 +18,7 @@ if self.library_active {
         style: {
             font_size: 23px,
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -29,7 +29,7 @@ if self.library_active {
         height: 30px,
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -43,7 +43,7 @@ if self.library_active {
         y: 90%,
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::ExtraLight
             )},

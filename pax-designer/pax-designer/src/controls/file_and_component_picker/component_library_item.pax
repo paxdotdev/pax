@@ -9,7 +9,7 @@
         style: {
             font_size: 22px,
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -23,7 +23,7 @@
         style: {
             font_size: 10px,
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
