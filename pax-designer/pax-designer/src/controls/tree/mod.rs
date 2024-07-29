@@ -1,4 +1,5 @@
 use pax_engine::api::*;
+use pax_engine::layout::LayoutProperties;
 use pax_engine::*;
 use pax_manifest::{
     ComponentTemplate, PaxType, TemplateNodeId, TreeIndexPosition, TypeId,
@@ -309,15 +310,14 @@ impl Tree {
             };
             ctx.undo_save();
 
-            let keep_screen_bounds = NodeLayoutSettings::KeepScreenBounds {
-                node_transform_and_bounds: &from_node.transform_and_bounds.get(),
-                node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
-                parent_transform_and_bounds: &to_node_container.transform_and_bounds.get(),
-            };
             let node_layout = if is_stacker {
-                NodeLayoutSettings::Fill
+                NodeLayoutSettings::Fill::<NodeLocal>
             } else {
-                keep_screen_bounds
+                NodeLayoutSettings::WithProperties(LayoutProperties {
+                    x: Some(Size::ZERO()),
+                    y: Some(Size::ZERO()),
+                    ..from_node.layout_properties
+                })
             };
 
             if let Err(e) = (MoveNode {

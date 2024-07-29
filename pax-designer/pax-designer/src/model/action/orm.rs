@@ -526,7 +526,7 @@ pub enum NodeLayoutSettings<'a, S> {
         node_decomposition_config: &'a DecompositionConfiguration,
         parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
     },
-    KeepProperties(LayoutProperties),
+    WithProperties(LayoutProperties),
 }
 
 pub struct SetNodeLayout<'a, S> {
@@ -554,7 +554,7 @@ impl<S: Space> Action for SetNodeLayout<'_, S> {
                 reset_anchor: true,
             }
             .perform(ctx),
-            NodeLayoutSettings::KeepProperties(props) => SetNodeProperties {
+            NodeLayoutSettings::WithProperties(props) => SetNodeProperties {
                 id: &self.id,
                 properties: props,
                 reset_anchor: false,

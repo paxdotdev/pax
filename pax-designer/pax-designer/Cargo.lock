@@ -1058,28 +1058,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
-name = "futures"
-version = "0.3.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "645c6916888f6cb6350d2550b80fb63e734897a8498abe35cfb732b6487804b0"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eac8f7d7865dcb88bd4373ab671c8cf4508703796caa2b1985a9ca867b3fcb78"
 dependencies = [
  "futures-core",
- "futures-sink",
 ]
 
 [[package]]
@@ -1134,11 +1118,9 @@ version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d6401deb83407ab3da39eba7e33987a73c3df0c82b4bb5813ee871c19c41d48"
 dependencies = [
- "futures-channel",
  "futures-core",
  "futures-io",
  "futures-macro",
- "futures-sink",
  "futures-task",
  "memchr",
  "pin-project-lite",
@@ -1697,15 +1679,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 
 [[package]]
-name = "memoffset"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
-dependencies = [
- "autocfg",
-]
-
-[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1767,19 +1740,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nix"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5e06129fb611568ef4e868c14b326274959aa70ff7776e9d55323531c374945"
-dependencies = [
- "bitflags 1.2.1",
- "cc",
- "cfg-if",
- "libc",
- "memoffset",
 ]
 
 [[package]]
@@ -1980,7 +1940,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-chassis-common"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "core-graphics",
  "env_logger 0.11.2",
@@ -1996,14 +1956,14 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-ios"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "pax-chassis-common",
 ]
 
 [[package]]
 name = "pax-chassis-macos"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "core-graphics",
  "flexbuffers",
@@ -2018,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-web"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2040,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "pax-compiler"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -2048,38 +2008,30 @@ dependencies = [
  "cargo_metadata",
  "color-eyre",
  "colored",
- "console_error_panic_hook",
  "env_logger 0.9.3",
- "flate2",
  "fs_extra",
- "futures",
  "include_dir",
  "itertools",
  "kurbo",
  "lazy_static",
  "libc",
  "log",
- "nix",
  "pax-lang",
  "pax-manifest",
  "pax-message",
  "pax-runtime",
  "pax-runtime-api",
- "portpicker",
  "proc-macro2",
  "rand",
  "regex",
  "reqwest",
- "rust-format",
  "serde_derive",
  "serde_json",
  "serde_with",
  "syn 1.0.109",
- "tar",
  "tera",
  "tokio",
  "toml_edit 0.14.4",
- "uuid",
  "walkdir",
  "wasm-bindgen",
 ]
@@ -2097,7 +2049,7 @@ dependencies = [
 
 [[package]]
 name = "pax-designtime"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anyhow",
  "env_logger 0.11.2",
@@ -2120,7 +2072,7 @@ dependencies = [
 
 [[package]]
 name = "pax-engine"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "log",
  "pax-chassis-ios",
@@ -2138,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "pest",
  "pest_derive",
@@ -2146,7 +2098,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "litrs",
  "pax-lang",
@@ -2162,7 +2114,7 @@ dependencies = [
 
 [[package]]
 name = "pax-manifest"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "log",
  "pax-lang",
@@ -2174,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "serde",
  "wasm-bindgen",
@@ -2182,7 +2134,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2201,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "cfg-if",
  "kurbo",
@@ -2215,7 +2167,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -2424,15 +2376,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2900ede94e305130c13ddd391e0ab7cbaeb783945ae07a279c268cb05109c6cb"
 
 [[package]]
-name = "portpicker"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be97d76faf1bfab666e1375477b23fde79eccf0276e9b63b92a39d676a889ba9"
-dependencies = [
- "rand",
-]
-
-[[package]]
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2623,12 +2566,6 @@ dependencies = [
  "rmp",
  "serde",
 ]
-
-[[package]]
-name = "rust-format"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60e7c00b6c3bf5e38a880eec01d7e829d12ca682079f8238a464def3c4b31627"
 
 [[package]]
 name = "rustc-demangle"
@@ -3001,17 +2938,6 @@ dependencies = [
  "pkg-config",
  "toml 0.8.8",
  "version-compare",
-]
-
-[[package]]
-name = "tar"
-version = "0.4.40"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b16afcea1f22891c49a00c751c7b63b2233284064f11a200fc624137c51e2ddb"
-dependencies = [
- "filetime",
- "libc",
- "xattr",
 ]
 
 [[package]]
@@ -3484,15 +3410,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
-name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom",
-]
-
-[[package]]
 name = "v_htmlescape"
 version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3823,17 +3740,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d129932f4644ac2396cb456385cbf9e63b5b30c6e8dc4820bdca4eb082037a5"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "xattr"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8da84f1a25939b27f6820d92aed108f83ff920fdf11a7b19366c27c4cda81d4f"
-dependencies = [
- "libc",
- "linux-raw-sys",
- "rustix",
 ]
 
 [[package]]
