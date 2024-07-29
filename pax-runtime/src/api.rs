@@ -7,8 +7,8 @@ pub use pax_runtime_api::*;
 use crate::node_interface::NodeInterface;
 #[cfg(feature = "designtime")]
 use {
-    crate::api::math::Point2, crate::HandlerLocation, pax_designtime::DesigntimeManager,
-    pax_manifest::UniqueTemplateNodeIdentifier,
+    crate::api::math::Point2, crate::node_interface::NodeInterface, crate::HandlerLocation,
+    pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier,
 };
 
 #[derive(Clone)]
