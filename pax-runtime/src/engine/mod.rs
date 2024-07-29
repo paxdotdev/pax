@@ -430,7 +430,10 @@ impl PaxEngine {
                 z_index,
                 parent_frame: node.parent_frame.get().map(|v| v.to_u32()),
             };
-            if layer == Layer::Native && node.occlusion.get() != new_occlusion {
+            // either native layer, or something that clips content (ex: Frame)
+            if (layer == Layer::Native || borrow!(node.instance_node).clips_content(node))
+                && node.occlusion.get() != new_occlusion
+            {
                 ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
                     OcclusionPatch {
                         id: node.id.to_u32(),

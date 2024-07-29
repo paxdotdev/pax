@@ -86,6 +86,9 @@ export class NativeElementPool {
             focusableElements.forEach((element, _index) => {
                 element.setAttribute('tabindex', (1000000 - patch.zIndex!).toString());
             });
+        } else {
+            // must be container
+            this.layers.updateContainerParent(patch.id!, patch.parentFrame);
         }
     }
 
