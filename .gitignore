@@ -1,4 +1,5 @@
 node_modules
+pax-compiler/files/interfaces/web/public/pax-interface-web.js
 target/
 vendor/
 
