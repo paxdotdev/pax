@@ -702,7 +702,11 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
-        let reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
+        let mut reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
+        // erase unnessessary reloads
+        if reload_queue.contains(&ReloadType::FullEdit) {
+            reload_queue = vec![ReloadType::FullEdit];
+        };
         if current_manifest_version.get() != self.last_manifest_version_rendered {
             for reload_type in reload_queue {
                 match reload_type {

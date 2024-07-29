@@ -19,11 +19,10 @@ use core::fmt;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
-use std::sync::atomic::AtomicUsize;
 
 use crate::api::{
-    Axis, ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick,
-    Drop, Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
+    ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick, Drop,
+    Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
     NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
     TouchStart, Wheel, Window,
 };
@@ -106,7 +105,7 @@ pub struct ExpandedNode {
     /// since an entire "shadow tree" needs to be expanded and updated for
     /// each slot child, but only the ones that have a "connected" slot should
     /// trigger mount/dismount updates
-    pub attached: RefCell<u32>,
+    pub attached: Cell<u32>,
 
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
@@ -232,7 +231,7 @@ impl ExpandedNode {
             id,
             stack: env,
             instance_node: RefCell::new(Rc::clone(&template)),
-            attached: RefCell::new(0),
+            attached: Cell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
             rendered_size: Property::default(),
@@ -346,7 +345,7 @@ impl ExpandedNode {
                 .parent_frame
                 .replace_with(Property::computed(move || parent_frame.get(), &deps));
         }
-        if *borrow!(self.attached) > 0 {
+        if self.attached.get() > 0 {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
@@ -446,8 +445,8 @@ impl ExpandedNode {
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        if *borrow!(self.attached) == 0 {
-            *borrow_mut!(self.attached) += 1;
+        if self.attached.get() == 0 {
+            self.attached.set(self.attached.get() + 1);
             context.add_to_cache(&self);
             borrow!(self.instance_node)
                 .clone()
@@ -472,7 +471,9 @@ impl ExpandedNode {
                 slot_child.recurse_mount(context);
             }
         }
-        Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
+        // this is needed to reslove slot connections in a single tick (otherwise
+        // self.compute_flattened_slot_children() isn't run)
+        self.recurse_update(context);
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -483,8 +484,8 @@ impl ExpandedNode {
         for child in borrow!(self.mounted_children).iter() {
             Rc::clone(child).recurse_unmount(context);
         }
-        if *borrow!(self.attached) == 1 {
-            *borrow_mut!(self.attached) -= 1;
+        if self.attached.get() == 1 {
+            self.attached.set(self.attached.get() - 1);
             context.remove_from_cache(&self);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 for handler in borrow!(registry)
