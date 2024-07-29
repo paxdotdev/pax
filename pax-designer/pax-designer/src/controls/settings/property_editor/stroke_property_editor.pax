@@ -55,7 +55,7 @@
         x: 86.5%,
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light,
             )},
@@ -69,7 +69,7 @@
 		height: 30px
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -91,11 +91,11 @@
         border_radius: 5,
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
-            font_size: 16px,
+            font_size: 14px,
             fill: WHITE,
         }
     }

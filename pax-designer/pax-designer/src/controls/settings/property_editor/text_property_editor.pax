@@ -6,7 +6,7 @@
     #text {
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Bold
             )},
@@ -29,7 +29,7 @@
         border_radius: 5,
         style: {
             font: {Font::system(
-                "Real Head Pro",
+                "ff-real-headline-pro",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
