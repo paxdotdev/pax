@@ -93,7 +93,14 @@ impl Action for UngroupSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
         for group in selected.items {
-            let parent = ctx.get_glass_node_by_global_id(&group.id);
+            let parent = ctx.get_glass_node_by_global_id(
+                &group
+                    .raw_node_interface
+                    .template_parent()
+                    .unwrap()
+                    .global_id()
+                    .unwrap(),
+            );
             let group_parent_bounds = parent.transform_and_bounds.get();
 
             let group_children = borrow_mut!(ctx.engine_context.designtime)
