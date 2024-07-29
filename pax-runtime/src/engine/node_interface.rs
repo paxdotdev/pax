@@ -17,6 +17,20 @@ impl PartialEq for NodeInterface {
     }
 }
 
+impl Eq for NodeInterface {}
+
+impl PartialOrd for NodeInterface {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.inner.id.partial_cmp(&other.inner.id)
+    }
+}
+
+impl Ord for NodeInterface {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.id.cmp(&other.inner.id)
+    }
+}
+
 #[derive(Clone)]
 pub struct NodeInterface {
     inner: Rc<ExpandedNode>,
