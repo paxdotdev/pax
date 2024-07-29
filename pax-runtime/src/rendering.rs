@@ -153,8 +153,11 @@ pub trait InstanceNode {
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     #[allow(unused_variables)]
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
-        //no-op default implementation
+        // let new_children =
+        //     expanded_node.generate_children(vec![], context, &expanded_node.parent_frame);
+        // expanded_node.children.set(new_children);
     }
+
     /// Invoked by event interrupts to pass scroll information to render node
     #[allow(unused_variables)]
     fn handle_scroll(&self, args_scroll: Scroll) {

@@ -464,16 +464,16 @@ impl ExpandedNode {
                     )
                 }
             }
-        }
-        // Mount slot children and children AFTER mounting self
-        if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-            for slot_child in slot_children {
-                slot_child.recurse_mount(context);
+            // Mount slot children and children AFTER mounting self
+            if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
+                for slot_child in slot_children {
+                    slot_child.recurse_mount(context);
+                }
             }
+            // this is needed to reslove slot connections in a single tick (otherwise
+            // self.compute_flattened_slot_children() isn't run)
+            self.recurse_update(context);
         }
-        // this is needed to reslove slot connections in a single tick (otherwise
-        // self.compute_flattened_slot_children() isn't run)
-        self.recurse_update(context);
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -481,12 +481,13 @@ impl ExpandedNode {
         // in this case: do not refer to self.children expression.
         // expr evaluation in this context can trigger get's of "old data", ie try to get
         // an index of a for loop source that doesn't exist anymore
-        for child in borrow!(self.mounted_children).iter() {
-            Rc::clone(child).recurse_unmount(context);
-        }
         if self.attached.get() == 1 {
             self.attached.set(self.attached.get() - 1);
             context.remove_from_cache(&self);
+            for child in borrow!(self.mounted_children).iter() {
+                Rc::clone(child).recurse_unmount(context);
+            }
+            borrow!(self.instance_node).handle_unmount(&self, context);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 for handler in borrow!(registry)
                     .handlers
@@ -502,8 +503,6 @@ impl ExpandedNode {
             }
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
             self.occlusion.set(Default::default());
-
-            borrow!(self.instance_node).handle_unmount(&self, context);
         }
     }
 
