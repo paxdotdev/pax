@@ -1673,15 +1673,15 @@ impl RectangleCornerRadii {
 /// Image fit/layout options
 #[pax]
 pub enum ImageFit {
-    /// Scale the image to perfectly fit within it's bounds vertically
+    /// Scale the image to perfectly fit within its bounds vertically
     FillVertical,
-    /// Scale the image to perfectly fit within it's bounds horizontally
+    /// Scale the image to perfectly fit within its bounds horizontally
     FillHorizontal,
-    /// Scale the image to perfectly fit within it's bounds, choosing vertical or horizontal
+    /// Scale the image to perfectly fit within its bounds, choosing vertical or horizontal
     /// based on which of them makes it fill the container, possibly clipping parts of the image
     Fill,
-    /// Scale the image to perfectly fit within it's bounds, without clipping the image, possibly leaving some
-    /// of the available container area embty.
+    /// Scale the image to perfectly fit within its bounds, without clipping the image, possibly leaving some
+    /// of the available container area empty.
     #[default]
     Fit,
     /// Stretch the image to fit the container

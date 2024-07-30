@@ -19,7 +19,7 @@ impl PropertyTable {
         }
     }
 
-    /// Removes id from it's dependents
+    /// Removes id from its dependents
     /// NOTE: does NOT modify the outbound list
     pub fn disconnect_outbound(&self, id: PropertyId) {
         self.with_property_data(id, |property_data| {
@@ -31,7 +31,7 @@ impl PropertyTable {
         });
     }
 
-    /// Removes id from it's dependencies
+    /// Removes id from its dependencies
     /// NOTE: does NOT modify the inbound list
     pub fn disconnect_inbound(&self, id: PropertyId) {
         self.with_property_data_mut(id, |property_data| {
@@ -43,8 +43,8 @@ impl PropertyTable {
         });
     }
 
-    /// Adds it's own PropertyId to the outbound list
-    /// of it's dependencies, letting them know to dirty
+    /// Adds its own PropertyId to the outbound list
+    /// of its dependencies, letting them know to dirty
     /// it if it changes
     /// NOTE: does NOT modify the inbound list of self (id), only
     /// uses it to hook up dependencies

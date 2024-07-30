@@ -81,7 +81,7 @@ pub trait InstanceNode {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result;
 
-    /// Updates the expanded node, recomputing it's properties and possibly updating it's children
+    /// Updates the expanded node, recomputing its properties and possibly updating its children
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     /// Second lifecycle method during each render loop, occurs after

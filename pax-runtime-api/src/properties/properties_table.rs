@@ -81,7 +81,7 @@ impl PropertyTable {
 
     // Main function to set a value of a property.
     // NOTE: This always assumes the underlying data was changed, and marks
-    // it and it's dependents as dirty irrespective of actual modification
+    // it and its dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data.typed_data();
@@ -224,7 +224,7 @@ impl PropertyTable {
     }
 
     /// Replaces the way the source parameters property is being
-    /// computed / it's value to the way target does.
+    /// computed / its value to the way target does.
     /// NOTE: source_id and target_id need to both contain
     /// the type T, or else this panics
     pub fn replace_property_keep_outbound_connections<T: Clone + 'static>(
@@ -232,7 +232,7 @@ impl PropertyTable {
         source_id: PropertyId,
         target_id: PropertyId,
     ) {
-        // disconnect self from it's dependents, in preparation of overwriting
+        // disconnect self from its dependents, in preparation of overwriting
         // with targets inbound. (only does something for computed values)
         self.disconnect_inbound(source_id);
 
@@ -249,7 +249,7 @@ impl PropertyTable {
             });
         });
 
-        // connect self to it's new dependents (found in property_types Expr
+        // connect self to its new dependents (found in property_types Expr
         // type as inbound) (only does something for computed values)
         self.connect_inbound(source_id);
 
