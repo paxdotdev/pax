@@ -40,8 +40,8 @@ pub struct Glass {
 
 impl Glass {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let tool_behaviour = model::read_app_state(|app_state| app_state.tool_behaviour.clone());
-        let deps = [tool_behaviour.untyped()];
+        let tool_behavior = model::read_app_state(|app_state| app_state.tool_behavior.clone());
+        let deps = [tool_behavior.untyped()];
         let tool_visual = self.tool_visual.clone();
         let (mouse_pos, world_transform) = model::read_app_state(|app_state| {
             (
@@ -52,10 +52,10 @@ impl Glass {
         let ctx = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
-                tool_visual.replace_with(if let Some(tool_behaviour) = tool_behaviour.get() {
-                    tool_behaviour.borrow_mut().get_visual()
+                tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
+                    tool_behavior.borrow_mut().get_visual()
                 } else {
-                    // Default ToolVisualziation behaviour
+                    // Default ToolVisualziation behavior
                     let deps = [mouse_pos.untyped(), world_transform.untyped()];
                     let mouse_pos = mouse_pos.clone();
                     let ctx = ctx.clone();
@@ -169,7 +169,7 @@ impl Glass {
                         }
                     });
                 }
-                // Assume it's a component if it didn't have a custom impl for double click behaviour
+                // Assume it's a component if it didn't have a custom impl for double click behavior
                 Some(_) => model::perform_action(&SetEditingComponent(node_id), ctx),
                 None => (),
             }
@@ -301,7 +301,7 @@ impl Action for SetEditingComponent {
             .selected_template_node_ids
             .update(|v| v.clear());
         ctx.app_state.selected_component_id.set(type_id.clone());
-        ctx.app_state.tool_behaviour.set(None);
+        ctx.app_state.tool_behavior.set(None);
         Ok(())
     }
 }

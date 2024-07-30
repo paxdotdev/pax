@@ -7,7 +7,7 @@ use pax_engine::{
 
 use crate::{
     glass::control_point::{
-        ControlPointBehaviour, ControlPointBehaviourFactory, ControlPointStyling,
+        ControlPointBehavior, ControlPointBehaviorFactory, ControlPointStyling,
     },
     math::{
         coordinate_spaces::{Glass, SelectionSpace},
@@ -15,7 +15,7 @@ use crate::{
     },
     model::{
         action::{self, Action, ActionContext},
-        GlassNodeSnapshot, SelectionState, SelectionStateSnapshot, ToolBehaviour,
+        GlassNodeSnapshot, SelectionState, SelectionStateSnapshot, ToolBehavior,
     },
 };
 
@@ -85,12 +85,12 @@ impl Editor {
         p3: Point2<Glass>,
         p4: Point2<Glass>,
     ) -> ControlPointSet {
-        struct RotationBehaviour {
+        struct RotationBehavior {
             initial_selection: SelectionStateSnapshot,
             start_pos: Point2<Glass>,
         }
 
-        impl ControlPointBehaviour for RotationBehaviour {
+        impl ControlPointBehavior for RotationBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 if let Err(e) = (action::orm::RotateSelected {
                     curr_pos: point,
@@ -104,16 +104,16 @@ impl Editor {
             }
         }
 
-        fn rotate_factory() -> ControlPointBehaviourFactory {
-            ControlPointBehaviourFactory {
-                tool_behaviour: Rc::new(|ctx, point| {
+        fn rotate_factory() -> ControlPointBehaviorFactory {
+            ControlPointBehaviorFactory {
+                tool_behavior: Rc::new(|ctx, point| {
                     let initial_selection = (&ctx.derived_state.selection_state.get()).into();
-                    Rc::new(RefCell::new(RotationBehaviour {
+                    Rc::new(RefCell::new(RotationBehavior {
                         start_pos: point,
                         initial_selection,
                     }))
                 }),
-                double_click_behaviour: Rc::new(|_| ()),
+                double_click_behavior: Rc::new(|_| ()),
             }
         }
 
@@ -124,12 +124,12 @@ impl Editor {
             CPoint::new(p4, rotate_factory()),
         ];
         let rotate_control_point_styling = ControlPointStyling {
-            round: false,
+            round: true,
             stroke: Color::TRANSPARENT,
             fill: Color::TRANSPARENT,
             stroke_width_pixels: 0.0,
-            width: 27.0,
-            height: 27.0,
+            width: 42.0,
+            height: 42.0,
             affected_by_transform: false,
         };
 
@@ -145,12 +145,12 @@ impl Editor {
         p3: Point2<Glass>,
         p4: Point2<Glass>,
     ) -> ControlPointSet {
-        struct ResizeBehaviour {
+        struct ResizeBehavior {
             attachment_point: Point2<BoxPoint>,
             initial_selection: SelectionStateSnapshot,
         }
 
-        impl ControlPointBehaviour for ResizeBehaviour {
+        impl ControlPointBehavior for ResizeBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 if let Err(e) = (action::orm::Resize {
                     initial_selection: &self.initial_selection,
@@ -164,15 +164,15 @@ impl Editor {
             }
         }
 
-        fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviourFactory {
-            ControlPointBehaviourFactory {
-                tool_behaviour: Rc::new(move |ac, _p| {
-                    Rc::new(RefCell::new(ResizeBehaviour {
+        fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviorFactory {
+            ControlPointBehaviorFactory {
+                tool_behavior: Rc::new(move |ac, _p| {
+                    Rc::new(RefCell::new(ResizeBehavior {
                         attachment_point: anchor,
                         initial_selection: (&ac.derived_state.selection_state.get()).into(),
                     }))
                 }),
-                double_click_behaviour: Rc::new(|_| ()),
+                double_click_behavior: Rc::new(|_| ()),
             }
         }
 
@@ -217,8 +217,8 @@ impl Editor {
             stroke: Color::BLUE,
             fill: Color::WHITE,
             stroke_width_pixels: 1.0,
-            width: 7.0,
-            height: 7.0,
+            width: 10.0,
+            height: 10.0,
             affected_by_transform: false,
         };
 
@@ -229,11 +229,11 @@ impl Editor {
     }
 
     fn anchor_control_point_set(anchor: Point2<Glass>) -> ControlPointSet {
-        struct AnchorBehaviour {
+        struct AnchorBehavior {
             initial_object: Option<GlassNodeSnapshot>,
         }
 
-        impl ControlPointBehaviour for AnchorBehaviour {
+        impl ControlPointBehavior for AnchorBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
                 if let Some(initial_object) = &self.initial_object {
                     let t_and_b = initial_object.transform_and_bounds;
@@ -250,24 +250,23 @@ impl Editor {
             }
         }
 
-        fn anchor_factory() -> ControlPointBehaviourFactory {
-            ControlPointBehaviourFactory {
-                tool_behaviour: Rc::new(move |ac, _p| {
-                    Rc::new(RefCell::new(AnchorBehaviour {
+        fn anchor_factory() -> ControlPointBehaviorFactory {
+            ControlPointBehaviorFactory {
+                tool_behavior: Rc::new(move |ac, _p| {
+                    Rc::new(RefCell::new(AnchorBehavior {
                         initial_object: (&ac.derived_state.selection_state.get())
                             .items
                             .first()
                             .map(Into::into),
                     }))
                 }),
-                double_click_behaviour: Rc::new(|_| ()),
+                double_click_behavior: Rc::new(|_| ()),
             }
         }
 
-        // resize points
-        let resize_control_points = vec![CPoint::new(anchor, anchor_factory())];
+        let anchor_control_point = vec![CPoint::new(anchor, anchor_factory())];
 
-        let resize_control_point_styling = ControlPointStyling {
+        let anchor_control_point_styling = ControlPointStyling {
             round: true,
             stroke: Color::BLUE,
             fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
@@ -278,8 +277,8 @@ impl Editor {
         };
 
         ControlPointSet {
-            points: resize_control_points,
-            styling: resize_control_point_styling,
+            points: anchor_control_point,
+            styling: anchor_control_point_styling,
         }
     }
 
@@ -317,12 +316,12 @@ impl Interpolatable for CPoint {}
 pub struct CPoint {
     // make this point a prop?
     pub point: Point2<Glass>,
-    pub behaviour: ControlPointBehaviourFactory,
+    pub behavior: ControlPointBehaviorFactory,
 }
 
 impl CPoint {
-    fn new(point: Point2<Glass>, behaviour: ControlPointBehaviourFactory) -> Self {
-        Self { point, behaviour }
+    fn new(point: Point2<Glass>, behavior: ControlPointBehaviorFactory) -> Self {
+        Self { point, behavior }
     }
 }
 

@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
-use crate::model::{input::InputEvent, AppState, ToolBehaviour};
+use crate::model::{input::InputEvent, AppState, ToolBehavior};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::{
@@ -17,7 +17,7 @@ pub struct Pan {
     pub original_transform: Transform2<Glass, World>,
 }
 
-impl ToolBehaviour for Pan {
+impl ToolBehavior for Pan {
     fn pointer_down(
         &mut self,
         _point: Point2<Glass>,

@@ -13,7 +13,7 @@ pub mod toolbar_item;
 use crate::llm_interface::OpenLLMPrompt;
 use crate::math::coordinate_spaces::Glass;
 use crate::model::action::{Action, ActionContext};
-use crate::model::{self, Component, ProjectMode, Tool, ToolBehaviour};
+use crate::model::{self, Component, ProjectMode, Tool, ToolBehavior};
 use crate::ProjectMsg;
 use anyhow::Result;
 use toolbar_item::ToolbarItemVisual;
