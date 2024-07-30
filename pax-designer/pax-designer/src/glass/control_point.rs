@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use crate::math::AxisAlignedBox;
 use crate::model::{self, action};
-use crate::model::{AppState, ToolBehaviour};
+use crate::model::{AppState, ToolBehavior};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, Glass, World};
@@ -34,18 +34,18 @@ pub struct ControlPoint {
 }
 
 #[derive(Clone)]
-pub struct ControlPointBehaviourFactory {
-    pub tool_behaviour:
-        Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehaviour>>>,
-    pub double_click_behaviour: Rc<dyn Fn(&mut ActionContext)>,
+pub struct ControlPointBehaviorFactory {
+    pub tool_behavior:
+        Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehavior>>>,
+    pub double_click_behavior: Rc<dyn Fn(&mut ActionContext)>,
 }
 
-pub trait ControlPointBehaviour {
+pub trait ControlPointBehavior {
     fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>);
     // used for pushing an undo id to the stack
 }
 
-impl<C: ControlPointBehaviour> ToolBehaviour for C {
+impl<C: ControlPointBehavior> ToolBehavior for C {
     fn pointer_down(
         &mut self,
         _point: Point2<Glass>,
@@ -86,14 +86,14 @@ impl<C: ControlPointBehaviour> ToolBehaviour for C {
 }
 
 pub struct ActivateControlPoint {
-    behaviour: Rc<RefCell<dyn ToolBehaviour>>,
+    behavior: Rc<RefCell<dyn ToolBehavior>>,
 }
 
 impl Action for ActivateControlPoint {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         ctx.app_state
-            .tool_behaviour
-            .set(Some(Rc::clone(&self.behaviour)));
+            .tool_behavior
+            .set(Some(Rc::clone(&self.behavior)));
         Ok(())
     }
 }
@@ -120,23 +120,23 @@ impl ControlPoint {
         super::wireframe_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
-                let behaviour = model::with_action_context(ctx, |ac| {
-                    // save-point before we start executing control point behaviour
+                let behavior = model::with_action_context(ctx, |ac| {
+                    // save-point before we start executing control point behavior
                     let before_undo_id = borrow!(ac.engine_context.designtime)
                         .get_orm()
                         .get_last_undo_id()
                         .unwrap_or(0);
                     ac.undo_stack.push(before_undo_id);
 
-                    (funcs[self.ind.get().to_int() as usize].tool_behaviour)(
+                    (funcs[self.ind.get().to_int() as usize].tool_behavior)(
                         ac,
                         ac.glass_transform().get() * pos,
                     )
                 });
-                model::perform_action(&ActivateControlPoint { behaviour }, ctx);
+                model::perform_action(&ActivateControlPoint { behavior }, ctx);
             } else {
                 pax_engine::log::warn!(
-                    "tried to grigger control point tool behaviour while none exist"
+                    "tried to trigger control point tool behavior while none exist"
                 );
             }
         })
@@ -147,11 +147,11 @@ impl ControlPoint {
         super::wireframe_editor::CONTROL_POINT_FUNCS.with_borrow(|funcs| {
             if let Some(funcs) = funcs {
                 model::with_action_context(ctx, |ac| {
-                    (funcs[self.ind.get().to_int() as usize].double_click_behaviour)(ac)
+                    (funcs[self.ind.get().to_int() as usize].double_click_behavior)(ac)
                 });
             } else {
                 pax_engine::log::warn!(
-                    "tried to grigger control point double click behaviour while none exist"
+                    "tried to grigger control point double click behavior while none exist"
                 );
             }
         })

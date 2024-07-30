@@ -20,7 +20,7 @@ use crate::model::action::ActionContext;
 use crate::model::input::Dir;
 use crate::model::input::InputEvent;
 use crate::model::GlassNode;
-use crate::model::ToolBehaviour;
+use crate::model::ToolBehavior;
 use crate::ROOT_PROJECT_ID;
 use math::Point2;
 
@@ -45,7 +45,7 @@ struct DropComponent {
     bounds_pixels: (f64, f64),
 }
 
-impl ToolBehaviour for DropComponent {
+impl ToolBehavior for DropComponent {
     fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }
@@ -109,7 +109,7 @@ impl ComponentLibraryItem {
         model::with_action_context(ctx, |ctx| {
             let data = self.data.get();
             ctx.app_state
-                .tool_behaviour
+                .tool_behavior
                 .set(Some(Rc::new(RefCell::new(DropComponent {
                     type_id: data.type_id.clone(),
                     bounds_pixels: data.bounds_pixels,

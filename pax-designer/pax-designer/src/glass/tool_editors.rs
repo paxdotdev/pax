@@ -9,7 +9,7 @@ use crate::{
     math::coordinate_spaces::Glass,
     model::{
         action::{Action, ActionContext, RaycastMode},
-        ToolBehaviour,
+        ToolBehavior,
     },
 };
 
@@ -19,11 +19,11 @@ pub struct TextEdit {
 
 impl Action for TextEdit {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-        let tool: Option<Rc<RefCell<dyn ToolBehaviour>>> = Some(Rc::new(RefCell::new(
+        let tool: Option<Rc<RefCell<dyn ToolBehavior>>> = Some(Rc::new(RefCell::new(
             TextEditTool::new(ctx, self.uid.clone())
                 .expect("should only edit text with text editing tool"),
         )));
-        ctx.app_state.tool_behaviour.set(tool);
+        ctx.app_state.tool_behavior.set(tool);
         Ok(())
     }
 }
@@ -61,7 +61,7 @@ impl TextEditTool {
     }
 }
 
-impl ToolBehaviour for TextEditTool {
+impl ToolBehavior for TextEditTool {
     fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         if let Some(hit) = ctx.raycast_glass(point, RaycastMode::Top, &[]) {
             let node_id = hit.global_id().unwrap().get_template_node_id();

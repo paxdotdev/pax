@@ -13,7 +13,7 @@ use pax_std::stacker::Stacker;
 
 use crate::{
     glass::{
-        control_point::{ControlPointBehaviourFactory, ControlPointStyling},
+        control_point::{ControlPointBehaviorFactory, ControlPointStyling},
         outline::PathOutline,
         wireframe_editor::editor_generation::CPoint,
         ToolVisualizationState,
@@ -26,7 +26,7 @@ use crate::{
             Action, ActionContext, RaycastMode,
         },
         input::InputEvent,
-        GlassNode, GlassNodeSnapshot, ToolBehaviour,
+        GlassNode, GlassNodeSnapshot, ToolBehavior,
     },
     utils::filter_with_last::FilterWithLastExt,
     ROOT_PROJECT_ID,
@@ -35,11 +35,11 @@ use crate::{
 use super::ControlPointSet;
 
 // NOTE: a lot of this logic is very similar to that of movement performed with PointerTool.
-// TODO: decide if this should stay as separate logic (if we want different behaviour at times)
+// TODO: decide if this should stay as separate logic (if we want different behavior at times)
 // or if slot_dot dragging should always behave as normal movement. If so, make this use the
 // PointerTool with  a pre-defined target.
 pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
-    struct SlotBehaviour {
+    struct SlotBehavior {
         initial_node: GlassNodeSnapshot,
         pickup_point: Point2<Glass>,
         _before_move_undo_id: usize,
@@ -57,7 +57,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         .unwrap();
     let slot_count = slot_parent_node.flattened_slot_children_count();
 
-    impl ToolBehaviour for SlotBehaviour {
+    impl ToolBehavior for SlotBehavior {
         fn pointer_down(
             &mut self,
             _point: Point2<Glass>,
@@ -221,9 +221,9 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         }
     }
 
-    fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointBehaviourFactory {
-        ControlPointBehaviourFactory {
-            tool_behaviour: Rc::new(move |ctx, p| {
+    fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointBehaviorFactory {
+        ControlPointBehaviorFactory {
+            tool_behavior: Rc::new(move |ctx, p| {
                 let dt = borrow!(ctx.engine_context.designtime);
                 let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
 
@@ -253,14 +253,14 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     },
                     &deps,
                 );
-                Rc::new(RefCell::new(SlotBehaviour {
+                Rc::new(RefCell::new(SlotBehavior {
                     initial_node: (&slot_child).into(),
                     pickup_point: p,
                     _before_move_undo_id: before_move_undo_id,
                     vis,
                 }))
             }),
-            double_click_behaviour: Rc::new(|_| ()),
+            double_click_behavior: Rc::new(|_| ()),
         }
     }
 

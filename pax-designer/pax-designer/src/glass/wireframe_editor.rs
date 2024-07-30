@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use std::rc::Rc;
 use std::sync::Mutex;
 
-use super::model::ToolBehaviour;
+use super::model::ToolBehavior;
 use pax_engine::api::*;
 use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::{Generic, Parts, Point2, Transform2, Vector2};
@@ -14,9 +14,9 @@ use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::*;
 use serde::Deserialize;
 
-use super::control_point::{ControlPoint, ControlPointBehaviour};
+use super::control_point::{ControlPoint, ControlPointBehavior};
 use crate::glass::control_point::{
-    ControlPointBehaviourFactory, ControlPointDef, ControlPointStyling,
+    ControlPointBehaviorFactory, ControlPointDef, ControlPointStyling,
 };
 use crate::math::coordinate_spaces::{Glass, SelectionSpace};
 use crate::math::{AxisAlignedBox, BoxPoint, GetUnit, SizeUnit};
@@ -40,7 +40,7 @@ pub struct WireframeEditor {
 // Temporary solution - can be moved to private field on ObjectEditor
 // Once we have private variables/upwards data passing (from ControlPoint)
 thread_local!(
-    pub static CONTROL_POINT_FUNCS: RefCell<Option<Vec<ControlPointBehaviourFactory>>> =
+    pub static CONTROL_POINT_FUNCS: RefCell<Option<Vec<ControlPointBehaviorFactory>>> =
         RefCell::new(None);
 );
 
@@ -95,12 +95,12 @@ impl WireframeEditor {
         control_points.replace_with(Property::computed(
             move || {
                 let mut control_points = vec![];
-                let mut behaviours = vec![];
+                let mut behaviors = vec![];
                 for control_set in editorcp.get().controls {
-                    let (control_points_set, behaviour_set): (Vec<_>, Vec<_>) = control_set
+                    let (control_points_set, behavior_set): (Vec<_>, Vec<_>) = control_set
                         .points
                         .into_iter()
-                        .map(|c_point| (c_point.point, c_point.behaviour))
+                        .map(|c_point| (c_point.point, c_point.behavior))
                         .unzip();
                     let control_points_from_set: Vec<ControlPointDef> = control_points_set
                         .into_iter()
@@ -110,11 +110,11 @@ impl WireframeEditor {
                         })
                         .collect();
                     control_points.extend(control_points_from_set);
-                    behaviours.extend(behaviour_set);
+                    behaviors.extend(behavior_set);
                 }
 
                 CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
-                    *funcs = Some(behaviours);
+                    *funcs = Some(behaviors);
                 });
                 control_points
             },
