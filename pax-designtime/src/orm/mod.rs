@@ -22,8 +22,8 @@
 
 use pax_manifest::pax_runtime_api::Property;
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement, TypeId,
-    UniqueTemplateNodeIdentifier, ValueDefinition,
+    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement,
+    TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -144,6 +144,10 @@ impl PaxManifestORM {
             .unwrap();
         Ok(resp.children)
     }
+
+    pub fn copy_subtrees(_type_id: &TypeId, _nodes: &[TemplateNodeId]) -> () {}
+
+    pub fn paste_subtrees(_type_id: &TypeId, _subtrees: ()) -> () {}
 
     pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Option<NodeBuilder> {
         NodeBuilder::retrieve_node(self, uni)

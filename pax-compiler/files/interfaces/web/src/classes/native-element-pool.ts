@@ -781,8 +781,14 @@ export class NativeElementPool {
         let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
         scrollerDiv.addEventListener("scroll", (_event) => {
-            // TODO send interrupt
-            // console.log("scrolling!");
+            let message = {
+                "Scrollbar": {
+                    "id": patch.id!,
+                    "scroll_x": scrollerDiv.scrollLeft,
+                    "scroll_y": scrollerDiv.scrollTop
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
 
         scrollerDiv.appendChild(scroller);
