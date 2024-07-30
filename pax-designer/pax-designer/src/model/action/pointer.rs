@@ -166,7 +166,7 @@ impl Action for MouseEntryPointAction<'_> {
             };
         }
 
-        // Whatever tool behavior exists, let it do it's thing
+        // Whatever tool behavior exists, let it do its thing
         let point = ctx.app_state.mouse_position.get();
         let reset = tool_behavior.read(|tool_behavior| {
             if let Some(tool) = tool_behavior {

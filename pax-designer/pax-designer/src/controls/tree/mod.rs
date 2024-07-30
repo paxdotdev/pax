@@ -260,7 +260,7 @@ impl Tree {
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         // because of lazy eval. Need to make sure closure fires
-        // if it's dependents have changed
+        // if its dependents have changed
         self.on_click_handler.get();
     }
 
