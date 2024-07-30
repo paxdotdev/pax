@@ -133,8 +133,8 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
     }
 
-    /// Sets this properties value and sets the drity bit recursively of all of
-    /// it's dependencies if not already set
+    /// Sets this properties value and sets the dirty bit recursively of all of
+    /// its dependencies if not already set
     pub fn set(&self, val: T) {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
@@ -157,11 +157,11 @@ impl<T: PropertyValue> Property<T> {
     }
 
     /// replaces a properties evaluation/inbounds/value to be the same as
-    /// target, while keeping it's dependents.
+    /// target, while keeping its dependents.
     /// WARNING: this method can introduce circular dependencies if one is not careful.
-    /// Using it wrongly can introduce memory leaks and inconsistent property behaviour.
+    /// Using it wrongly can introduce memory leaks and inconsistent property behavior.
     /// This method can be used to replace an inner value from for example a literal to
-    /// a computed computed, while keeping the link to it's dependents
+    /// a computed computed, while keeping the link to its dependents
     pub fn replace_with(&self, target: Property<T>) {
         PROPERTY_TABLE.with(|t| {
             // we know self contains T, and that target contains T, so this should never panic
@@ -169,7 +169,7 @@ impl<T: PropertyValue> Property<T> {
         })
     }
 
-    /// Casts this property to it's untyped version
+    /// Casts this property to its untyped version
     pub fn untyped(&self) -> UntypedProperty {
         self.untyped.clone()
     }

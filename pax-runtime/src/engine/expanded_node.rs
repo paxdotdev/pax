@@ -86,7 +86,7 @@ pub struct ExpandedNode {
     /// computed property based on parent bounds + common properties
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
 
-    /// For component instances only, tracks the expanded slot_children in it's
+    /// For component instances only, tracks the expanded slot_children in its
     /// non-collapsed form (repeat and conditionals still present). This allows
     /// repeat/conditionals to update their children (handled in component.rs
     /// update_children method)
@@ -116,7 +116,7 @@ pub struct ExpandedNode {
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
 
-    /// The flattened index of this node in it's container (if this container
+    /// The flattened index of this node in its container (if this container
     /// cares about slot children, ex: component, path).
     pub slot_index: Property<Option<usize>>,
 }
