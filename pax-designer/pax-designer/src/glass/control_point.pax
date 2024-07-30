@@ -17,12 +17,11 @@
         anchor_y: 50%,
         x: {(self.data.point.x)px},
         y: {(self.data.point.y)px},
-        fill: NONE,
-        width: {(self.data.styling.width + 3)px}
-        height: {(self.data.styling.height + 3)px}
+        width: {(self.data.styling.width)px}
+        height: {(self.data.styling.height)px}
+        rotate: {self.applied_rotation}
     }
     .control_point {
-        rotate: {self.applied_rotation}
         stroke: {
             color: {self.data.styling.stroke}
             width: {(self.data.styling.stroke_width_pixels)px}

@@ -41,7 +41,7 @@ impl Action for MouseEntryPointAction<'_> {
             .keys_pressed
             .get()
             .contains(&InputEvent::Space);
-        let tool_behaviour = ctx.app_state.tool_behaviour.clone();
+        let tool_behavior = ctx.app_state.tool_behavior.clone();
         // Open context menu on right mouse button click no matter what
         if matches!(
             (self.event, self.button.clone()),
@@ -56,18 +56,18 @@ impl Action for MouseEntryPointAction<'_> {
         }
 
         // If no tool is active, activate a tool on mouse down
-        if matches!(self.event, Pointer::Down) && tool_behaviour.get().is_none() {
+        if matches!(self.event, Pointer::Down) && tool_behavior.get().is_none() {
             match (&self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     Tool::Pointer => {
                         (self.prevent_default)();
-                        tool_behaviour.set(Some(Rc::new(RefCell::new(PointerTool::new(
+                        tool_behavior.set(Some(Rc::new(RefCell::new(PointerTool::new(
                             ctx,
                             point_glass,
                         )))));
                     }
                     Tool::CreateComponent(component) => {
-                        tool_behaviour.set(Some(Rc::new(RefCell::new(match component {
+                        tool_behavior.set(Some(Rc::new(RefCell::new(match component {
                             Component::Rectangle => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton(
@@ -153,11 +153,11 @@ impl Action for MouseEntryPointAction<'_> {
                         }))));
                     }
                     Tool::TodoTool => {
-                        log::warn!("tool has no implemented behaviour");
+                        log::warn!("tool has no implemented behavior");
                     }
                 },
                 (MouseButton::Left, true) | (MouseButton::Middle, _) => {
-                    tool_behaviour.set(Some(Rc::new(RefCell::new(Pan {
+                    tool_behavior.set(Some(Rc::new(RefCell::new(Pan {
                         start_point: point_glass,
                         original_transform: ctx.app_state.glass_to_world_transform.get(),
                     }))));
@@ -166,10 +166,10 @@ impl Action for MouseEntryPointAction<'_> {
             };
         }
 
-        // Whatever tool behaviour exists, let it do it's thing
+        // Whatever tool behavior exists, let it do it's thing
         let point = ctx.app_state.mouse_position.get();
-        let reset = tool_behaviour.read(|tool_behaviour| {
-            if let Some(tool) = tool_behaviour {
+        let reset = tool_behavior.read(|tool_behavior| {
+            if let Some(tool) = tool_behavior {
                 let mut tool = tool.borrow_mut();
                 let res = match self.event {
                     Pointer::Down => tool.pointer_down(point, ctx),
@@ -188,7 +188,7 @@ impl Action for MouseEntryPointAction<'_> {
             }
         });
         if reset {
-            tool_behaviour.set(None);
+            tool_behavior.set(None);
         }
         Ok(())
     }

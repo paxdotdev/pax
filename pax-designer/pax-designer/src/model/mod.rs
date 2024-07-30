@@ -3,7 +3,7 @@ pub mod input;
 pub mod tools;
 
 use crate::glass;
-use crate::glass::control_point::ControlPointBehaviour;
+use crate::glass::control_point::ControlPointBehavior;
 use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
@@ -90,19 +90,19 @@ pub struct AppState {
     /// INVALID_IF: Composed of other transforms than uniform (positive) scaling
     /// and translation.
     pub glass_to_world_transform: Property<Transform2<Glass, World>>,
-    /// Last known glass mouse position, useful to be able to query positon
+    /// Last known glass mouse position, useful to be able to query position
     /// from keystrokes.
     /// INVALID_IF: doesn't represent current mouse pos
     pub mouse_position: Property<Point2<Glass>>,
     /// Current tool state while in use (ie in the process of drawing a rect,
-    /// moving an object, moving a control point, drawing a sline)
-    /// OBS: needs to be wrapped in Rc<RefCell since tool_behaviour itself needs
+    /// moving an object, moving a control point, drawing a line)
+    /// OBS: needs to be wrapped in Rc<RefCell since tool_behavior itself needs
     /// action_context which contains app_state
     /// INVALID_IF: no invalid states
-    pub tool_behaviour: Property<Option<Rc<RefCell<dyn ToolBehaviour>>>>,
+    pub tool_behavior: Property<Option<Rc<RefCell<dyn ToolBehavior>>>>,
 
     //---------------toolbar----------------
-    /// Currently selected tool in the top tool bar
+    /// Currently selected tool in the top toolbar
     /// INVALID_IF: no currently invalid states, note that tool_state is
     /// usually in some way derived from this selected tool state, but non-matching
     /// types should still be fine
@@ -373,12 +373,12 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
         Err(e) => pax_engine::log::warn!("couldn't keyboard mapping: {:?}", e),
     }
     // Trigger tool move in case the current tool
-    // changes behaviour when for example Alt is pressed.
+    // changes behavior when for example Alt is pressed.
     // No-op if no tool is in use
     with_action_context(ctx, |ctx| {
-        let tool_behaviour = ctx.app_state.tool_behaviour.clone();
-        tool_behaviour.update(|tool_behaviour| {
-            if let Some(tool) = tool_behaviour {
+        let tool_behavior = ctx.app_state.tool_behavior.clone();
+        tool_behavior.update(|tool_behavior| {
+            if let Some(tool) = tool_behavior {
                 let mut tool = tool.borrow_mut();
                 tool.pointer_move(ctx.app_state.mouse_position.get(), ctx);
             }
@@ -413,7 +413,7 @@ pub enum Component {
     RadioSet,
 }
 
-pub trait ToolBehaviour {
+pub trait ToolBehavior {
     fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;

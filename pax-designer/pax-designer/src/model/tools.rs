@@ -19,7 +19,7 @@ use crate::math::{
 };
 use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
 use crate::model::Tool;
-use crate::model::{AppState, ToolBehaviour};
+use crate::model::{AppState, ToolBehavior};
 use crate::{SetStage, ROOT_PROJECT_ID};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
@@ -61,7 +61,7 @@ impl CreateComponentTool {
     }
 }
 
-impl ToolBehaviour for CreateComponentTool {
+impl ToolBehavior for CreateComponentTool {
     fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }
@@ -285,7 +285,7 @@ impl PointerTool {
     }
 }
 
-impl ToolBehaviour for PointerTool {
+impl ToolBehavior for PointerTool {
     fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }

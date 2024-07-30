@@ -7,7 +7,7 @@ use pax_std::*;
 
 use crate::{
     glass::control_point::{
-        ControlPointBehaviour, ControlPointBehaviourFactory, ControlPointStyling,
+        ControlPointBehavior, ControlPointBehaviorFactory, ControlPointStyling,
     },
     math::{coordinate_spaces::Glass, GetUnit},
     model::{
@@ -20,7 +20,7 @@ use crate::{
 use super::{CPoint, ControlPointSet};
 
 pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
-    struct StackerDividerControlBehaviour {
+    struct StackerDividerControlBehavior {
         stacker_node: GlassNodeSnapshot,
         resize_ind: usize,
         start_sizes: Vec<Option<Size>>,
@@ -28,7 +28,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         dir: StackerDirection,
     }
 
-    impl ControlPointBehaviour for StackerDividerControlBehaviour {
+    impl ControlPointBehavior for StackerDividerControlBehavior {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
             let t = self.stacker_node.transform_and_bounds.as_transform();
             let (_, u, v) = t.decompose();
@@ -83,11 +83,11 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         start_sizes: Vec<Option<Size>>,
         item: GlassNode,
         dir: StackerDirection,
-    ) -> ControlPointBehaviourFactory {
+    ) -> ControlPointBehaviorFactory {
         let stacker_id = item.id.clone();
-        ControlPointBehaviourFactory {
-            tool_behaviour: Rc::new(move |_ac, _p| {
-                Rc::new(RefCell::new(StackerDividerControlBehaviour {
+        ControlPointBehaviorFactory {
+            tool_behavior: Rc::new(move |_ac, _p| {
+                Rc::new(RefCell::new(StackerDividerControlBehavior {
                     stacker_node: (&item).into(),
                     resize_ind,
                     boundaries: boundaries.clone(),
@@ -95,7 +95,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                     dir: dir.clone(),
                 }))
             }),
-            double_click_behaviour: Rc::new(move |ctx| {
+            double_click_behavior: Rc::new(move |ctx| {
                 let stacker_node = ctx
                     .engine_context
                     .get_nodes_by_global_id(stacker_id.clone())
