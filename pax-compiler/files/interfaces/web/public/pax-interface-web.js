@@ -93,6 +93,7 @@ var Pax = (() => {
         this.sizeX = jsonMessage["size_x"];
         this.sizeY = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.clipContent = jsonMessage["clip_content"];
       }
     }
     cleanUp() {
@@ -366,6 +367,21 @@ var Pax = (() => {
       }
       container.updateClippingPath(styles);
     }
+    updateContainerParent(id, new_parent_id) {
+      const container = this.containers.get(id);
+      if (container == null) {
+        throw new Error(`Container with id ${id} does not exist`);
+      }
+      container.parentFrame = new_parent_id;
+      this.layers.forEach((layer, layerIndex) => {
+        const currentElement = layer.native.querySelector(`[data-container-id="${id}"]`);
+        if (currentElement) {
+          currentElement.parentElement.removeChild(currentElement);
+          const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
+          newParentElement.appendChild(currentElement);
+        }
+      });
+    }
     removeContainer(id) {
       let container = this.containers.get(id);
       if (container == null) {
@@ -401,8 +417,13 @@ var Pax = (() => {
     }
     updateClippingPath(patch) {
       this.styles = { ...this.styles, ...patch };
-      let polygonDef = getQuadClipPolygonCommand(this.styles.width, this.styles.height, this.styles.transform);
       let var_name = containerCssClipPathVar(this.id);
+      let polygonDef;
+      if (this.styles.clipContent) {
+        polygonDef = getQuadClipPolygonCommand(this.styles.width, this.styles.height, this.styles.transform);
+      } else {
+        polygonDef = "none";
+      }
       document.documentElement.style.setProperty(var_name, polygonDef);
     }
   };
@@ -411,6 +432,7 @@ var Pax = (() => {
   }
   var ContainerStyle = class {
     constructor() {
+      this.clipContent = true;
       this.transform = [0, 0, 0, 0, 0, 0];
       this.width = 0;
       this.height = 0;
@@ -649,11 +671,13 @@ var Pax = (() => {
       this.id = jsonMessage["id"];
       this.occlusionLayerId = jsonMessage["occlusion_layer_id"];
       this.zIndex = jsonMessage["z_index"];
+      this.parentFrame = jsonMessage["parent_frame"];
     }
     cleanUp() {
       this.id = void 0;
       this.occlusionLayerId = -1;
       this.zIndex = -1;
+      this.parentFrame = void 0;
     }
   };
 
@@ -1130,20 +1154,14 @@ var Pax = (() => {
     occlusionUpdate(patch) {
       let node = this.nodesLookup.get(patch.id);
       if (node) {
-        let parent = node.parentElement;
-        let id_str = parent?.dataset.containerId;
-        let id;
-        if (id_str !== void 0) {
-          id = parseInt(id_str);
-        } else {
-          id = void 0;
-        }
-        this.layers.addElement(node, id, patch.occlusionLayerId);
-        node.style.zIndex = patch.zIndex;
+        this.layers.addElement(node, patch.parentFrame, patch.occlusionLayerId);
+        node.style.zIndex = patch.zIndex.toString();
         const focusableElements = node.querySelectorAll("input, button, select, textarea, a[href]");
         focusableElements.forEach((element, _index) => {
-          element.setAttribute("tabindex", 1e6 - patch.zIndex);
+          element.setAttribute("tabindex", (1e6 - patch.zIndex).toString());
         });
+      } else {
+        this.layers.updateContainerParent(patch.id, patch.parentFrame);
       }
     }
     checkboxCreate(patch) {
@@ -1685,6 +1703,9 @@ var Pax = (() => {
       }
       if (patch.transform != null) {
         styles.transform = patch.transform;
+      }
+      if (patch.clipContent != null) {
+        styles.clipContent = patch.clipContent;
       }
       this.layers.updateContainer(patch.id, styles);
     }
