@@ -76,6 +76,7 @@ pub enum NativeInterrupt {
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
+    Scrollbar(ScrollbarInterruptArgs),
     DropFile(DropFileArgs),
 }
 
@@ -154,6 +155,14 @@ pub struct ClapInterruptArgs {
 pub struct ScrollInterruptArgs {
     pub delta_x: f64,
     pub delta_y: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ScrollbarInterruptArgs {
+    pub id: u32,
+    pub scroll_x: f64,
+    pub scroll_y: f64,
 }
 
 #[derive(Deserialize)]

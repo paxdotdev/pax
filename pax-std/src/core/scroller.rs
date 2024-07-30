@@ -1,6 +1,5 @@
 #[allow(unused)]
 use crate::*;
-use pax_engine::api::Numeric;
 use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size};
 use pax_engine::*;
@@ -13,14 +12,14 @@ use std::collections::HashMap;
 #[inlined(
     <Frame _clip_content={self._clip_content}>
         <Scrollbar
-            scroll_y={self.scroll_pos_y}
+            bind:scroll_y=scroll_pos_y
             width=20px
             anchor_x=100%
             x=100%
             size_inner_pane_y={self.scroll_height}
         />
         <Scrollbar
-            scroll_x={self.scroll_pos_x}
+            bind:scroll_x=scroll_pos_x
             height=20px
             anchor_y=100%
             y=100%
@@ -46,8 +45,8 @@ use std::collections::HashMap;
 )]
 #[custom(Default)]
 pub struct Scroller {
-    pub scroll_pos_x: Property<Numeric>,
-    pub scroll_pos_y: Property<Numeric>,
+    pub scroll_pos_x: Property<f64>,
+    pub scroll_pos_y: Property<f64>,
     pub scroll_width: Property<Size>,
     pub scroll_height: Property<Size>,
 
@@ -177,14 +176,14 @@ impl Scroller {
             self.scroll_width.get().get_pixels(bounds_x),
             self.scroll_height.get().get_pixels(bounds_y),
         );
-        let old_x = self.scroll_pos_x.get().to_float();
-        let old_y = self.scroll_pos_y.get().to_float();
+        let old_x = self.scroll_pos_x.get();
+        let old_y = self.scroll_pos_y.get();
         let target_x = old_x + dx;
         let target_y = old_y + dy;
         let clamped_target_x = target_x.clamp(0.0, (max_bounds_x - bounds_x).max(0.0));
         let clamped_target_y = target_y.clamp(0.0, (max_bounds_y - bounds_y).max(0.0));
-        self.scroll_pos_x.set(Numeric::F64(clamped_target_x));
-        self.scroll_pos_y.set(Numeric::F64(clamped_target_y));
+        self.scroll_pos_x.set(clamped_target_x);
+        self.scroll_pos_y.set(clamped_target_y);
     }
 
     pub fn add_momentum(&self, ddx: f64, ddy: f64) {

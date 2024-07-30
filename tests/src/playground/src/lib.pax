@@ -1,17 +1,19 @@
-<Frame width=50%>
+<Scroller scroll_height=300% width=50%>
 	<Stacker>
-		<Frame x=50% anchor_x=0%>
-			<Button x=50% y=50% width=10% height=10% @button_click=self.toggle_frame_clip/>
-		</Frame>
+		<Button @button_click=self.toggle_frame_clip/>
+		<Rectangle fill=RED/>
+		<Rectangle fill=BLUE/>
+		<Rectangle fill=RED/>
+		<Rectangle fill=YELLOW/>
 	</Stacker>
-</Frame>
+</Scroller>
 
-// <Frame _clip_content={self.frame_clip} x=100% width=50%>
-// 	<Group x=100% width=200%>
-// 		<Button x=50% y=70% width=10% height=10%/>
-// 	</Group>
-// 	<Button x=0% anchor_x=50% y=90% width=10% height=10%/>
-// </Frame>
+<Frame _clip_content={self.frame_clip} x=100% width=50%>
+	<Group x=100% width=200%>
+		<Button x=50% y=70% width=10% height=10%/>
+	</Group>
+	<Button x=0% anchor_x=50% y=90% width=10% height=10%/>
+</Frame>
 
 @settings {
      @pre_render: handle_pre_render,

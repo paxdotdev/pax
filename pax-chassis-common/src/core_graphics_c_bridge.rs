@@ -94,6 +94,7 @@ pub extern "C" fn pax_interrupt(
                 _ => {}
             };
         }
+        NativeInterrupt::Scrollbar(_args) => {}
         NativeInterrupt::Scroll(_args) => {}
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(_ref_args) => {
