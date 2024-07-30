@@ -8,7 +8,7 @@ use pax_engine::pax;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use pax_message::{AnyCreatePatch, ScrollerPatch};
+use pax_message::{AnyCreatePatch, NativeInterrupt, ScrollerPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{ExpandedNode, InstanceNode, InstantiationArgs};
 
@@ -167,5 +167,18 @@ impl InstanceNode for ScrollbarInstance {
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Scrollbar").finish_non_exhaustive()
+    }
+
+    fn handle_native_interrupt(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        interrupt: &NativeInterrupt,
+    ) {
+        if let NativeInterrupt::Scrollbar(args) = interrupt {
+            expanded_node.with_properties_unwrapped(|props: &mut Scrollbar| {
+                props.scroll_x.set(args.scroll_x);
+                props.scroll_y.set(args.scroll_y);
+            });
+        }
     }
 }

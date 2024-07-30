@@ -361,7 +361,14 @@ impl PaxChassisWeb {
                     false
                 }
             }
-            NativeInterrupt::Scroll(_args) => false,
+            NativeInterrupt::Scrollbar(args) => {
+                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                if let Some(node) = node {
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                }
+                false
+            }
+            NativeInterrupt::Scroll(_) => false,
             NativeInterrupt::Clap(args) => {
                 let prospective_hit = engine
                     .runtime_context
