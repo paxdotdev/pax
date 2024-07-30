@@ -20,17 +20,19 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use pax_manifest::pax_runtime_api::Property;
+use std::collections::{HashMap, VecDeque};
+
+use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement,
-    TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    TemplateNodeDefinition, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
 use self::template::{builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest};
-use self::template::{GetChildrenRequest, MoveTemplateNodeRequest};
+use self::template::{GetChildrenRequest, MoveTemplateNodeRequest, PasteSubTreeRequest};
 
 use anyhow::{anyhow, Result};
 pub mod template;
@@ -145,9 +147,38 @@ impl PaxManifestORM {
         Ok(resp.children)
     }
 
-    pub fn copy_subtrees(_type_id: &TypeId, _nodes: &[TemplateNodeId]) -> () {}
+    pub fn copy_subtrees(&self, type_id: &TypeId, nodes: &[TemplateNodeId]) -> Option<SubTrees> {
+        let roots: Vec<_> = nodes.iter().cloned().collect();
+        let mut children = HashMap::new();
+        let mut nodes = HashMap::new();
 
-    pub fn paste_subtrees(_type_id: &TypeId, _subtrees: ()) -> () {}
+        let component = self.manifest.components.get(type_id)?;
+        let template = component.template.as_ref()?;
+        let mut to_visit: Vec<_> = roots.iter().cloned().collect();
+        while let Some(node) = to_visit.pop() {
+            if let Some(node_def) = template.get_node(&node) {
+                nodes.insert(node.clone(), node_def.clone());
+                let node_children = template.get_children(&node).unwrap_or_default();
+                children.insert(node.clone(), node_children.clone());
+                to_visit.extend(node_children);
+            }
+        }
+
+        Some(SubTrees {
+            roots,
+            children,
+            nodes,
+        })
+    }
+
+    pub fn paste_subtrees(
+        &mut self,
+        location: NodeLocation,
+        subtrees: SubTrees,
+    ) -> Result<Vec<TemplateNodeId>, String> {
+        let res = self.execute_command(PasteSubTreeRequest::new(location, subtrees))?;
+        Ok(res.get_created().to_vec())
+    }
 
     pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Option<NodeBuilder> {
         NodeBuilder::retrieve_node(self, uni)
@@ -324,8 +355,9 @@ pub trait Undo {
 pub enum UndoRedoCommand {
     AddTemplateNodeRequest(Box<template::AddTemplateNodeRequest>),
     RemoveTemplateNodeRequest(Box<template::RemoveTemplateNodeRequest>),
-    UpdateTemplateNodeRequest(Box<template::UpdateTemplateNodeRequest>),
     MoveTemplateNodeRequest(Box<template::MoveTemplateNodeRequest>),
+    UpdateTemplateNodeRequest(Box<template::UpdateTemplateNodeRequest>),
+    PasteSubTreeRequest(Box<template::PasteSubTreeRequest>),
     ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
     ConvertToComponentRequest(Box<template::ConvertToComponentRequest>),
 }
@@ -333,10 +365,11 @@ pub enum UndoRedoCommand {
 impl UndoRedoCommand {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         match self {
+            UndoRedoCommand::MoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::AddTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
-            UndoRedoCommand::MoveTemplateNodeRequest(command) => command.undo(manifest),
+            UndoRedoCommand::PasteSubTreeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
             UndoRedoCommand::ConvertToComponentRequest(command) => command.undo(manifest),
         }
@@ -350,10 +383,13 @@ impl UndoRedoCommand {
             UndoRedoCommand::RemoveTemplateNodeRequest(command) => {
                 let _ = command.execute(manifest);
             }
+            UndoRedoCommand::MoveTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => {
                 let _ = command.execute(manifest);
             }
-            UndoRedoCommand::MoveTemplateNodeRequest(command) => {
+            UndoRedoCommand::PasteSubTreeRequest(command) => {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::ReplaceTemplateRequest(command) => {
@@ -381,4 +417,13 @@ pub enum ReloadType {
     FullEdit,
     Partial(UniqueTemplateNodeIdentifier),
     FullPlay,
+}
+
+impl Interpolatable for SubTrees {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct SubTrees {
+    roots: Vec<TemplateNodeId>,
+    children: HashMap<TemplateNodeId, Vec<TemplateNodeId>>,
+    nodes: HashMap<TemplateNodeId, TemplateNodeDefinition>,
 }

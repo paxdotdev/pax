@@ -8,7 +8,9 @@ use pax_manifest::{
 };
 use serde_derive::{Deserialize, Serialize};
 
-use super::{Command, MoveToComponentEntry, ReloadType, Request, Response, Undo, UndoRedoCommand};
+use super::{
+    Command, MoveToComponentEntry, ReloadType, Request, Response, SubTrees, Undo, UndoRedoCommand,
+};
 
 pub mod builder;
 
@@ -377,6 +379,117 @@ impl Undo for MoveTemplateNodeRequest {
                 template.move_node(&self.uni.get_template_node_id(), location.clone());
             }
         }
+        Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PasteSubTreeRequest {
+    new_location: NodeLocation,
+    subtrees: SubTrees,
+    _cached_template: Option<ComponentTemplate>,
+}
+
+impl PasteSubTreeRequest {
+    pub fn new(new_location: NodeLocation, subtrees: SubTrees) -> Self {
+        Self {
+            new_location,
+            subtrees,
+            _cached_template: None,
+        }
+    }
+}
+
+pub struct PasteSubTreeResponse {
+    command_id: Option<usize>,
+    root_ids: Vec<TemplateNodeId>,
+    _affected_component_type_id: TypeId,
+}
+
+impl PasteSubTreeResponse {
+    pub fn get_created(&self) -> &[TemplateNodeId] {
+        &self.root_ids
+    }
+}
+
+impl Request for PasteSubTreeRequest {
+    type Response = PasteSubTreeResponse;
+}
+
+impl Response for PasteSubTreeResponse {
+    fn set_id(&mut self, id: usize) {
+        self.command_id = Some(id);
+    }
+    fn get_id(&self) -> usize {
+        self.command_id.unwrap()
+    }
+
+    fn get_affected_component_type_id(&self) -> Option<TypeId> {
+        Some(self._affected_component_type_id.clone())
+    }
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
+    }
+}
+
+impl Command<PasteSubTreeRequest> for PasteSubTreeRequest {
+    fn execute(&mut self, manifest: &mut PaxManifest) -> Result<PasteSubTreeResponse, String> {
+        let type_id = self.new_location.get_type_id();
+        let component = manifest.components.get_mut(type_id).unwrap();
+
+        if component.is_primitive || component.is_struct_only_component {
+            unreachable!("Component doesn't accept template nodes.");
+        }
+        if component.template.is_none() {
+            unreachable!("Component doesn't have a template.");
+        }
+
+        let template = component.template.as_mut().unwrap();
+        self._cached_template = Some(template.clone());
+
+        let mut root_ids = vec![];
+        for r in self.subtrees.roots.iter().rev() {
+            let def = self.subtrees.nodes.get(r).unwrap();
+            let id = template
+                .add_at(def.clone(), self.new_location.clone())
+                .get_template_node_id();
+            root_ids.push(id.clone());
+            let mut to_visit = vec![];
+            if let Some(children) = self.subtrees.children.get(r) {
+                to_visit.push((id, children.clone()));
+            }
+            while let Some((id, children)) = to_visit.pop() {
+                for c in children {
+                    let c_def = self.subtrees.nodes.get(&c).unwrap();
+                    let c_id = template
+                        .add_child_back(id.clone(), c_def.clone())
+                        .get_template_node_id();
+                    if let Some(c_children) = self.subtrees.children.get(&c) {
+                        to_visit.push((c_id, c_children.clone()));
+                    }
+                }
+            }
+        }
+
+        Ok(PasteSubTreeResponse {
+            command_id: None,
+            root_ids,
+            _affected_component_type_id: type_id.clone(),
+        })
+    }
+
+    fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
+        Some(UndoRedoCommand::PasteSubTreeRequest(Box::new(self.clone())))
+    }
+}
+
+impl Undo for PasteSubTreeRequest {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        let component = manifest
+            .components
+            .get_mut(&self.new_location.type_id)
+            .unwrap();
+        component.template.clone_from(&self._cached_template);
         Ok(())
     }
 }
@@ -993,7 +1106,7 @@ pub enum NodeAction {
     Add(AddTemplateNodeRequest),
     Update(UpdateTemplateNodeRequest),
     Remove(RemoveTemplateNodeRequest),
-    Move(MoveTemplateNodeRequest),
+    Move(PasteSubTreeRequest),
 }
 
 pub fn update_position_if_exists(new_x: f64, new_y: f64, settings: &mut [SettingElement]) {
