@@ -22,14 +22,14 @@ members = [
     "pax-lang",
     "pax-language-server",
     "pax-designtime",
+    "pax-design-server",
+    "pax-designer",
 ]
 
 exclude = [
-    "pax-compiler/files/new-project/new-project-template",
-    "pax-create-sandbox",
+    "pax-compiler/files",
     "examples",
     "tests",
-    "www.pax.dev/src/website",
     "pax-generation",
 ]
 
