@@ -1,6 +1,6 @@
 [package]
 name = "pax-monorepo"
-version = "0.12.0"
+version = "0.22.0"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 
