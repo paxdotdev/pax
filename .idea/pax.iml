@@ -35,6 +35,9 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/src/one-rect/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-chassis-ios/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-compiler/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-design-server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-design-server/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-designer/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-designtime/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-engine/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-language-server/src" isTestSource="false" />
