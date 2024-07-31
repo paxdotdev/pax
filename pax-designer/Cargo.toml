@@ -1,14 +1,13 @@
 [package]
 name = "pax-designer"
-version = "0.21.0"
+version = "0.22.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.21.0" , path = "../pax/pax-engine" }
-pax-std = { version = "0.21.0" , path = "../pax/pax-std" }
-designer_project = { version = "0.21.0", path = "../designer-project" }
-pax-designtime = {version = "0.21.0", path = "../pax/pax-designtime" }
+pax-engine = { version = "0.22.0" , path = "../pax-engine" }
+pax-std = { version = "0.22.0" , path = "../pax-std" }
+pax-designtime = {version = "0.22.0", path = "../pax-designtime" }
 anyhow = "1.0.79"
 
 [lib]
@@ -25,9 +24,9 @@ path = "bin/run.rs"
 
 [features]
 default = ["designtime"]
-parser = ["pax-std/parser", "pax-engine/parser", "designer_project/parser"]
+parser = ["pax-std/parser"]
 designtime = ["pax-engine/designtime"]
-web = ["pax-engine/web", "designer_project/web"]
+web = ["pax-engine/web"]
 
 [profile.dev]
 opt-level = 2
