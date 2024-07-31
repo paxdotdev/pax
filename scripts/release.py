@@ -31,6 +31,8 @@ PACKAGES = [
     "pax-cli",
     "pax-compiler",
     "pax-designtime",
+    "pax-designer",
+    "pax-design-server",
     "pax-generation",
     "pax-runtime",
     "pax-runtime-api",
@@ -79,6 +81,8 @@ def update_crate_versions_in_examples(new_version, package_names, examples_dir):
         with open(cargo_toml_path, 'r') as file:
             doc = tomlkit.parse(file.read())
 
+        doc['package']['version'] = new_version
+
         # Check and update dependencies
         if 'dependencies' in doc:
             for dep in doc['dependencies']:
@@ -124,7 +128,7 @@ def topological_sort(source):
 for root in root_packages:
     order = topological_sort(root)
 
-    for elem in order:
+    for elem in ["."] + order: //addition of "." hits the root workspace Cargo.toml with the version update
         with open("{}/Cargo.toml".format(elem), 'r') as file:
             doc = tomlkit.parse(file.read())
 
