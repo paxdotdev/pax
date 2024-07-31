@@ -1,7 +1,7 @@
 [package]
-name = "pax-monorepo"
+name = "pax"
 version = "0.22.0"
-authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
+authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>", "Samuel Selleck <samuel@pax.dev>"]
 edition = "2021"
 
 [workspace]
