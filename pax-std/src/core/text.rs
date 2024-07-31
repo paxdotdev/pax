@@ -335,49 +335,15 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 #[pax]
 #[custom(Default)]
 pub enum Font {
-    System(SystemFont),
-    Web(WebFont),
-    Local(LocalFont),
+    System(String, FontStyle, FontWeight),
+    Web(String, String, FontStyle, FontWeight),
+    Local(String, String, FontStyle, FontWeight),
 }
 
 impl Default for Font {
     fn default() -> Self {
-        Self::System(SystemFont::default())
+        Self::System("Arial".to_string(), FontStyle::Normal, FontWeight::Normal)
     }
-}
-
-#[pax]
-#[custom(Default)]
-pub struct SystemFont {
-    pub family: String,
-    pub style: FontStyle,
-    pub weight: FontWeight,
-}
-
-impl Default for SystemFont {
-    fn default() -> Self {
-        Self {
-            family: "Arial".to_string(),
-            style: FontStyle::Normal,
-            weight: FontWeight::Normal,
-        }
-    }
-}
-
-#[pax]
-pub struct WebFont {
-    pub family: String,
-    pub url: String,
-    pub style: FontStyle,
-    pub weight: FontWeight,
-}
-
-#[pax]
-pub struct LocalFont {
-    pub family: String,
-    pub path: String,
-    pub style: FontStyle,
-    pub weight: FontWeight,
 }
 
 #[pax]
@@ -484,22 +450,22 @@ impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
 impl From<Font> for FontPatch {
     fn from(font: Font) -> Self {
         match font {
-            Font::System(system_font) => FontPatch::System(SystemFontMessage {
-                family: Some(system_font.family),
-                style: Some(system_font.style.into()),
-                weight: Some(system_font.weight.into()),
+            Font::System(family, style, weight) => FontPatch::System(SystemFontMessage {
+                family: Some(family),
+                style: Some(style.into()),
+                weight: Some(weight.into()),
             }),
-            Font::Web(web_font) => FontPatch::Web(WebFontMessage {
-                family: Some(web_font.family),
-                url: Some(web_font.url),
-                style: Some(web_font.style.into()),
-                weight: Some(web_font.weight.into()),
+            Font::Web(family, url, style, weight) => FontPatch::Web(WebFontMessage {
+                family: Some(family),
+                url: Some(url),
+                style: Some(style.into()),
+                weight: Some(weight.into()),
             }),
-            Font::Local(local_font) => FontPatch::Local(LocalFontMessage {
-                family: Some(local_font.family),
-                path: Some(local_font.path),
-                style: Some(local_font.style.into()),
-                weight: Some(local_font.weight.into()),
+            Font::Local(family, path, style, weight) => FontPatch::Local(LocalFontMessage {
+                family: Some(family),
+                path: Some(path),
+                style: Some(style.into()),
+                weight: Some(weight.into()),
             }),
         }
     }
@@ -536,86 +502,49 @@ impl PartialEq<FontWeightMessage> for FontWeight {
 impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
         match (self, other) {
-            (Font::System(system_font), FontPatch::System(system_font_patch)) => {
+            (Font::System(family, style, weight), FontPatch::System(system_font_patch)) => {
                 system_font_patch
                     .family
                     .as_ref()
-                    .map_or(false, |family| *family == system_font.family)
+                    .map_or(false, |f| f == family)
                     && system_font_patch
                         .style
                         .as_ref()
-                        .map_or(false, |style| system_font.style.eq(style))
+                        .map_or(false, |s| style.eq(&s))
                     && system_font_patch
                         .weight
                         .as_ref()
-                        .map_or(false, |weight| system_font.weight.eq(weight))
+                        .map_or(false, |w| weight.eq(&w))
             }
-            (Font::Web(web_font), FontPatch::Web(web_font_patch)) => {
+            (Font::Web(family, url, style, weight), FontPatch::Web(web_font_patch)) => {
                 web_font_patch
                     .family
                     .as_ref()
-                    .map_or(false, |family| *family == web_font.family)
-                    && web_font_patch
-                        .url
-                        .as_ref()
-                        .map_or(false, |url| *url == web_font.url)
-                    && web_font_patch
-                        .style
-                        .as_ref()
-                        .map_or(false, |style| web_font.style.eq(style))
+                    .map_or(false, |f| f == family)
+                    && web_font_patch.url.as_ref().map_or(false, |u| u == url)
+                    && web_font_patch.style.as_ref().map_or(false, |s| style.eq(s))
                     && web_font_patch
                         .weight
                         .as_ref()
-                        .map_or(false, |weight| web_font.weight.eq(weight))
+                        .map_or(false, |w| weight.eq(w))
             }
-            (Font::Local(local_font), FontPatch::Local(local_font_patch)) => {
+            (Font::Local(family, path, style, weight), FontPatch::Local(local_font_patch)) => {
                 local_font_patch
                     .family
                     .as_ref()
-                    .map_or(false, |family| *family == local_font.family)
-                    && local_font_patch
-                        .path
-                        .as_ref()
-                        .map_or(false, |path| *path == local_font.path)
+                    .map_or(false, |f| f == family)
+                    && local_font_patch.path.as_ref().map_or(false, |p| p == path)
                     && local_font_patch
                         .style
                         .as_ref()
-                        .map_or(false, |style| local_font.style.eq(style))
+                        .map_or(false, |s| style.eq(s))
                     && local_font_patch
                         .weight
                         .as_ref()
-                        .map_or(false, |weight| local_font.weight.eq(weight))
+                        .map_or(false, |w| weight.eq(w))
             }
             _ => false,
         }
-    }
-}
-
-impl Font {
-    pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::System(SystemFont {
-            family,
-            style,
-            weight,
-        })
-    }
-
-    pub fn web(family: String, url: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Web(WebFont {
-            family,
-            url,
-            style,
-            weight,
-        })
-    }
-
-    pub fn local(family: String, path: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Local(LocalFont {
-            family,
-            path,
-            style,
-            weight,
-        })
     }
 }
 

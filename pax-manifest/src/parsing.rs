@@ -1246,6 +1246,16 @@ pub trait Reflectable {
     }
 }
 
+impl Reflectable for () {
+    fn get_self_pascal_identifier() -> String {
+        "usize".to_string()
+    }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_primitive(&Self::get_self_pascal_identifier())
+    }
+}
+
 impl Reflectable for usize {
     fn get_self_pascal_identifier() -> String {
         "usize".to_string()
