@@ -9,6 +9,8 @@
 //! - `utilities`: Helper functions and common routines used across the library.
 //!
 
+#[macro_use] extern crate serde;
+
 extern crate core;
 mod building;
 mod cartridge_generation;

@@ -17,7 +17,6 @@ static MACROS_TEMPLATE: &str = "macros.tera";
 
 #[serde_with::serde_as]
 #[derive(Serialize)]
-#[serde(crate = "pax_runtime::api::serde")]
 pub struct TemplateArgsCodegenCartridgeSnippet {
     /// Identifier (name) for the cartridge struct to generate, i.e. the
     /// struct that will implement PaxCartridge

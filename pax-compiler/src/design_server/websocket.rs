@@ -1,5 +1,5 @@
-use crate::llm::constants::TRAINING_DATA_PATH;
-use crate::{
+use crate::design_server::llm::constants::TRAINING_DATA_PATH;
+use crate::design_server::{
     code_serialization::serialize_component_to_file,
     llm::{
         constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
@@ -109,11 +109,11 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                         )
                         .expect("Unsuccessful parse");
                         let settings =
-                            pax_compiler::parsing::parse_settings_from_component_definition_string(
+                            pax_manifest::parsing::parse_settings_from_component_definition_string(
                                 &content,
                                 ast.clone(),
                             );
-                        pax_compiler::parsing::parse_template_from_component_definition_string(
+                        pax_manifest::parsing::parse_template_from_component_definition_string(
                             &mut tpc,
                             &content,
                             ast.clone(),
