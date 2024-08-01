@@ -13,3 +13,5 @@ description = "Pax language parser"
 [dependencies]
 pest = {version = "2.7.10", features = ["std"]}
 pest_derive = {version = "2.7.10", features = ["std"]}
+serde = { version="1.0.95", features=["derive"]}
+pax-runtime-api = {path="../pax-runtime-api", version="0.22.0"}

@@ -9,5 +9,5 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Paxel Interpreter"
 
 [dependencies]
-pax-lang = {version = "0.21.1", path="../pax-lang"}
-pax-runtime-api = {version = "0.21.1", path="../pax-runtime-api"}
+pax-lang = {version = "0.22.0", path="../pax-lang"}
+pax-runtime-api = {version = "0.22.0", path="../pax-runtime-api"}

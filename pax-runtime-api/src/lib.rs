@@ -926,7 +926,7 @@ impl OcclusionLayerGen {
 /// into downstream types, e.g. ColorChannel, Rotation, and Size.  This allows us to be "dumb"
 /// about how we parse `%`, and allow the context in which it is used to pull forward a specific
 /// type through `into` inference.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Percent(pub Numeric);
 
 impl Interpolatable for Percent {
@@ -967,6 +967,7 @@ impl Into<Rotation> for Percent {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ColorChannel {
+    Rotation(Rotation),
     /// [0,255]
     Integer(Numeric),
     /// [0.0, 100.0]
@@ -1000,6 +1001,7 @@ impl ColorChannel {
                 let f_zero: f64 = (*zero_to_255).to_float();
                 (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
             }
+            Self::Rotation(rot) => rot.to_float_0_1(),
         }
     }
 }
@@ -1482,13 +1484,19 @@ impl Default for Stroke {
     }
 }
 
+impl PartialEq for Stroke {
+    fn eq(&self, other: &Self) -> bool {
+        self.color.get() == other.color.get() && self.width.get() == other.width.get()
+    }
+}
+
 impl Interpolatable for Stroke {
     fn interpolate(&self, _other: &Self, _t: f64) -> Self {
         // TODO interpolation
         self.clone()
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum Fill {
     Solid(Color),
@@ -1503,7 +1511,7 @@ impl Interpolatable for Fill {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct LinearGradient {
     pub start: (Size, Size),
@@ -1511,7 +1519,7 @@ pub struct LinearGradient {
     pub stops: Vec<GradientStop>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct RadialGradient {
     pub end: (Size, Size),
@@ -1520,7 +1528,7 @@ pub struct RadialGradient {
     pub stops: Vec<GradientStop>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct GradientStop {
     pub position: Size,
