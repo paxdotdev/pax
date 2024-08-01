@@ -11,7 +11,7 @@ use crate::{
 use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
-use pax_compiler::parsing::TemplateNodeParseContext;
+use pax_manifest::parsing::TemplateNodeParseContext;
 use pax_designtime::{
     messages::{
         AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
