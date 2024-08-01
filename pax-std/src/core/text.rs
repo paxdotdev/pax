@@ -23,7 +23,6 @@ use std::rc::Rc;
 use {
     kurbo::{RoundedRect, Shape},
     pax_runtime::DEBUG_TEXT_GREEN_BACKGROUND,
-    piet::Color,
 };
 
 use crate::common::patch_if_needed;
@@ -72,16 +71,15 @@ impl InstanceNode for TextInstance {
 
     fn render(
         &self,
-        _expanded_node: &ExpandedNode,
+        expanded_node: &ExpandedNode,
         _context: &Rc<RuntimeContext>,
-        _rc: &mut dyn RenderContext,
+        rc: &mut dyn RenderContext,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
 
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {
-            let computed_props = borrow!(expanded_node.layout_properties);
-            let tab = &computed_props.as_ref().unwrap().computed_tab;
+            let tab = expanded_node.transform_and_bounds.get();
             let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
@@ -91,7 +89,7 @@ impl InstanceNode for TextInstance {
             rc.fill(
                 &layer_id,
                 transformed_bez_path,
-                &piet::PaintBrush::Color(Color::rgba8(0, 255, 0, 100)),
+                &piet::PaintBrush::Color(piet::Color::rgba8(0, 255, 0, 100)),
             );
         }
     }

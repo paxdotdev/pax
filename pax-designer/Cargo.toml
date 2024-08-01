@@ -6,7 +6,7 @@ default-run = "run"
 
 [dependencies]
 pax-engine = { version = "0.22.0" , path = "../pax-engine", features=["designtime"] }
-pax-std = { version = "0.22.0" , path = "../pax-std" }
+pax-std = { version = "0.22.0" , path = "../pax-std", features=["designtime"] }
 pax-designtime = {version = "0.22.0", path = "../pax-designtime"}
 anyhow = "1.0.79"
 
