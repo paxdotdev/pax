@@ -86,6 +86,7 @@ impl PropertyTable {
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data.typed_data();
             typed_data.value = new_val;
+            property_data.dirty = false;
         });
         self.dirtify_outbound(id);
     }

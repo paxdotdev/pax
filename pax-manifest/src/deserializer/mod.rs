@@ -53,17 +53,20 @@ fn from_pax<T: ToFromPaxAny + CoercionRules + Clone + 'static>(str: &str) -> Res
 where
     T: DeserializeOwned,
 {
-    if let Some(cached) = CACHED_VALUES.with(|cache| {
-        let cache = cache.borrow();
-        let option_cached_dyn_any = cache.get(str);
-        // down cast val to T
-        if let Some(data) = option_cached_dyn_any {
-            return data.downcast_ref::<T>().cloned();
-        }
-        None
-    }) {
-        return Ok(cached.to_pax_any());
-    }
+    // WARNING: This cache impl doesn't work for structs like TextStyle that
+    // has nested properties. a value can be inserted with sub-properties as one
+    // type, but then modified to contain something else accidentally
+    // if let Some(cached) = CACHED_VALUES.with(|cache| {
+    //     let cache = cache.borrow();
+    //     let option_cached_dyn_any = cache.get(str);
+    //     // down cast val to T
+    //     if let Some(data) = option_cached_dyn_any {
+    //         return data.downcast_ref::<T>().cloned();
+    //     }
+    //     None
+    // }) {
+    //     return Ok(cached.to_pax_any());
+    // }
 
     let type_id = TypeId::of::<T>();
     if type_id != TypeId::of::<Color>()
@@ -92,11 +95,14 @@ where
     let deserializer: Deserializer = Deserializer::from_string(str.trim().to_string());
     let t = T::deserialize(deserializer)?;
 
-    CACHED_VALUES.with(|cache| {
-        cache
-            .borrow_mut()
-            .insert(str.to_string(), Box::new(t.clone()));
-    });
+    // WARNING: This cache impl doesn't work for structs like TextStyle that
+    // has nested properties. a value can be inserted with sub-properties as one
+    // type, but then modified to contain something else accidentally
+    // CACHED_VALUES.with(|cache| {
+    //     cache
+    //         .borrow_mut()
+    //         .insert(str.to_string(), Box::new(t.clone()));
+    // });
 
     Ok(t.to_pax_any())
 }
