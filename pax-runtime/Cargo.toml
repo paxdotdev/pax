@@ -10,20 +10,20 @@ description = "Core shared runtime and rendering engine for Pax"
 
 
 [dependencies]
-log = "0.4.20"
-piet = "0.6.0"
-piet-common = "0.6.0"
+cfg-if = "1.0.0"
 kurbo = "0.9.0"
-serde = {version="1.0.196", features=["derive"]}
 lazy_static = "1.4.0"
+log = "0.4.20"
 mut_static = "5.0.0"
 pax-message = {path = "../pax-message", version="0.23.0"}
-wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
 pax-manifest = {version="0.23.0", path = "../pax-manifest"}
 pax-lang = {version="0.23.0", path = "../pax-lang"}
 pax-designtime = {version="0.23.0", path = "../pax-designtime", optional = true}
 pax-runtime-api = {version="0.23.0", path = "../pax-runtime-api"}
-cfg-if = "1.0.0"
+piet = "0.6.0"
+piet-common = "0.6.0"
+serde = {version="1.0.196", features=["derive"]}
+wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
 
 [features]
-designtime = ["pax-designtime"]
+designtime = ["dep:pax-designtime"]

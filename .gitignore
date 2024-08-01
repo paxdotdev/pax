@@ -17,6 +17,10 @@ pax-create-sandbox/
 examples/src/*/.pax/
 tests/src/*/.pax/
 
+pax-compiler/files/interfaces/web/public/pax-interface-web.css
+pax-compiler/files/interfaces/web/public/pax-interface-web.js
+
+
 **/*.rs.bk
 Cargo.lock
 .DS_Store
@@ -28,5 +32,3 @@ Cargo.lock
 
 pax-chassis-macos/interface/interface.xcodeproj/project.xcworkspace/xcuserdata/**/*
 pax-chassis-macos/interface/interface.xcodeproj/xcuserdata/**/*
-
-pax-chassis-web/interface/
