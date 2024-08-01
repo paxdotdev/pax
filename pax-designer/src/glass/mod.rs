@@ -150,23 +150,23 @@ impl Glass {
                         // make scroller not clip if a child is selected
                         // for now only scroller needs somewhat special behavior
                         // might want to create more general double click framework at some point
-                        if path.contains("Scroller") {
-                            let node = ac.get_glass_node_by_global_id(&uid);
-                            let open_containers = ac.derived_state.open_containers.clone();
-                            let id = node.id.clone();
-                            node.raw_node_interface
-                                .with_properties(|scroller: &mut Scroller| {
-                                    let deps = [open_containers.untyped()];
-                                    scroller._clip_content.replace_with(Property::computed(
-                                        move || {
-                                            let is_open = open_containers.get().contains(&id);
-                                            !is_open
-                                        },
-                                        &deps,
-                                    ));
-                                })
-                                .unwrap();
-                        }
+                        // if path.contains("Scroller") {
+                        //     let node = ac.get_glass_node_by_global_id(&uid);
+                        //     let open_containers = ac.derived_state.open_containers.clone();
+                        //     let id = node.id.clone();
+                        //     node.raw_node_interface
+                        //         .with_properties(|scroller: &mut Scroller| {
+                        //             let deps = [open_containers.untyped()];
+                        //             scroller._clip_content.replace_with(Property::computed(
+                        //                 move || {
+                        //                     let is_open = open_containers.get().contains(&id);
+                        //                     !is_open
+                        //                 },
+                        //                 &deps,
+                        //             ));
+                        //         })
+                        //         .unwrap();
+                        // }
                     });
                 }
                 // Assume it's a component if it didn't have a custom impl for double click behavior
@@ -260,19 +260,18 @@ impl Action for SetEditingComponent {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         let type_id = &self.0;
 
-        let user_import_prefix = format!("{}::", USER_PROJ_ROOT_IMPORT_PATH);
-        let is_userland_component = type_id
-            .import_path()
-            .is_some_and(|p| p.starts_with(&user_import_prefix));
-
-        let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
-
-        if !is_userland_component && !is_mock {
-            return Err(anyhow!(
-                "tried to edit a non-userland comp: {:?}",
-                type_id.import_path()
-            ));
-        }
+        // let is_userland_component = type_id
+        //     .import_path()
+        //     .is_some_and(|p| p.starts_with(&user_import_prefix));
+        //
+        // let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+        //
+        // if !is_userland_component && !is_mock {
+        //     return Err(anyhow!(
+        //         "tried to edit a non-userland comp: {:?}",
+        //         type_id.import_path()
+        //     ));
+        // }
         SetLibraryState { open: false }.perform(ctx)?;
 
         // TODO set stage defaults for opened component using "SetStage" action
