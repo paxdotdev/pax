@@ -32,7 +32,6 @@ PACKAGES = [
     "pax-compiler",
     "pax-designtime",
     "pax-designer",
-    "pax-design-server",
     "pax-generation",
     "pax-runtime",
     "pax-runtime-api",

@@ -15,6 +15,8 @@ mod cartridge_generation;
 pub mod formatting;
 pub mod helpers;
 
+pub mod design_server;
+
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use eyre::eyre;
