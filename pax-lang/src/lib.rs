@@ -8,6 +8,8 @@ pub use pest_derive::Parser;
 mod parsing;
 pub use parsing::get_pax_pratt_parser;
 
+mod deserializer;
+
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
@@ -109,6 +111,7 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::literal_option => "option".to_string(),
         Rule::literal_some => "Some".to_string(),
         Rule::literal_none => "None".to_string(),
+        Rule::literal_list_access => "list access".to_string(),
     }
 }
 

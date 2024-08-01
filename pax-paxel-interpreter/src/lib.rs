@@ -13,9 +13,8 @@ pub enum PaxExpression {
 }
 
 pub enum PaxPrimary {
-    Literal(PaxValue),
-    Identifier(PaxIdentifier),
-    Expression(Box<PaxExpression>),
+    Literal(PaxValue), // deserializer
+    Identifier(PaxIdentifier),  // untyped -> 
 }
 
 pub struct PaxPrefix {
