@@ -6,7 +6,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::{Deserialize, Serialize};
+use serde_derive::{Serialize, Deserialize};
+
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
@@ -16,7 +17,7 @@ use pax_manifest::{
     ValueDefinition,
 };
 
-use pax_compiler::{
+use crate::{
     formatting::format_pax_template,
     helpers::{replace_by_line_column, InlinedTemplateFinder},
 };

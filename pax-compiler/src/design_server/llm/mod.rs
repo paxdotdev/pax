@@ -14,7 +14,7 @@ use serde_json::json;
 pub mod helpers;
 use schemars::gen::SchemaSettings;
 
-use crate::llm::{
+use crate::design_server::llm::{
     constants::{ADD_FUNCTION, TEMPERATURE},
     simple::SimpleAddRequest,
 };
