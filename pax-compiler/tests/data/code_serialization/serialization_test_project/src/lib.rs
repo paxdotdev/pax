@@ -26,7 +26,7 @@ use pax_std::*;
     }
     #text {
         style: {
-            font: {Font::System("Times New Roman", FontStyle::Normal, FontWeight::Bold)}
+            font: {Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)}
             font_size: 32px
             fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)}
             align_vertical: TextAlignVertical::Center
