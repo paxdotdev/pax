@@ -10,17 +10,18 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Standard library for Pax, including layouts, drawing primitives, and form controls"
 
 [dependencies]
-piet = "0.6.0"
 kurbo = "0.9.0"
-pax-engine = {path = "../pax-engine", version="0.23.0"}
-pax-message = {path = "../pax-message", version="0.23.0"}
 lazy_static = "1.4.0"
-serde_json = {version="1.0.95", optional = true}
-pax-manifest = {path = "../pax-manifest", version="0.23.0"}
-pax-runtime = {path = "../pax-runtime", version="0.23.0"}
-pax-lang = {path = "../pax-lang", version="0.23.0"}
-serde = { version = "1.0.159", features=["derive"]}
 log = "0.4.20"
+pax-engine = {path = "../pax-engine", version="0.23.0"}
+pax-lang = {path = "../pax-lang", version="0.23.0"}
+pax-manifest = {path = "../pax-manifest", version="0.23.0"}
+pax-message = {path = "../pax-message", version="0.23.0"}
+pax-runtime = {path = "../pax-runtime", version="0.23.0"}
+piet = "0.6.0"
+serde = { version = "1.0.159", features=["derive"]}
+serde_json = {version="1.0.95", optional = true}
 
 [features]
 parser = ["dep:serde_json"]
+designtime = ["pax-engine/designtime"]

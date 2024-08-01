@@ -17,11 +17,6 @@ use properties::{PropertyValue, UntypedProperty};
 /// instead create a local type only used for a single purpose
 pub trait Store: 'static {}
 
-#[cfg(feature = "designtime")]
-use {
-    crate::math::Point2, crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,
-};
-
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
 
