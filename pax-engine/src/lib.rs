@@ -14,12 +14,9 @@ pub use pax_runtime::rendering;
 pub use pax_runtime::Slot;
 
 #[cfg(feature = "web")]
-pub use pax_chassis_web;
-
-#[cfg(feature = "web")]
-pub use wasm_bindgen;
-#[cfg(feature = "web")]
-pub use wasm_bindgen_futures;
+pub use {
+    console_error_panic_hook, console_log, pax_chassis_web, wasm_bindgen, wasm_bindgen_futures,
+};
 
 #[cfg(any(feature = "macos", feature = "ios"))]
 pub use pax_chassis_common;

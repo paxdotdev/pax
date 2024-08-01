@@ -135,11 +135,11 @@ export class NativeElementPool {
             checkbox.checked = patch.checked!;
         }
 
-        if (patch.background) {
+        if (patch.background != null) {
             checkbox.style.background = toCssColor(patch.background);
         }
 
-        if (patch.borderRadius) {
+        if (patch.borderRadius != null) {
             checkbox.style.borderRadius = patch.borderRadius + "px";
         }
 
@@ -147,11 +147,11 @@ export class NativeElementPool {
             checkbox.style.borderWidth = patch.outlineWidth + "px";
         }
 
-        if (patch.outlineColor) {
+        if (patch.outlineColor != null) {
             checkbox.style.borderColor = toCssColor(patch.outlineColor);
         }
 
-        if (patch.backgroundChecked) {
+        if (patch.backgroundChecked != null) {
             checkbox.style.setProperty("--checked-color", toCssColor(patch.backgroundChecked));
         }
     }
@@ -222,19 +222,19 @@ export class NativeElementPool {
         //We may support styles other than solid in the future; this is a better default than the browser's for now
         textbox.style.borderStyle = "solid";
 
-        if (patch.background) {
+        if (patch.background != null) {
             textbox.style.background = toCssColor(patch.background);
         }
 
-        if (patch.border_radius) {
+        if (patch.border_radius != null) {
             textbox.style.borderRadius = patch.border_radius + "px";
         }
 
-        if (patch.stroke_color) {
+        if (patch.stroke_color != null) {
             textbox.style.borderColor = toCssColor(patch.stroke_color);
         }
 
-        if (patch.stroke_width) {
+        if (patch.stroke_width != null) {
             textbox.style.borderWidth = patch.stroke_width + "px";
 
         }
@@ -318,12 +318,12 @@ export class NativeElementPool {
     radioSetUpdate(patch: RadioSetUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         updateCommonProps(leaf!, patch);
-        if (patch.style) {
+        if (patch.style != null) {
             applyTextTyle(leaf!, leaf!, patch.style);
         }
 
         let fields = leaf!.firstChild as HTMLFieldSetElement;
-        if (patch.options) {
+        if (patch.options != null) {
             fields!.innerHTML = "";
             patch.options.forEach((optionText, _index) => {
                 let div = document.createElement('div') as HTMLDivElement;
@@ -343,18 +343,18 @@ export class NativeElementPool {
             });
         }
 
-        if (patch.selected_id) {
+        if (patch.selected_id != null) {
             let radio = fields.children[patch.selected_id].firstChild as HTMLInputElement;
             if (radio.checked == false) {
                 radio.checked = true;
             }
         }
 
-        if (patch.background) {
+        if (patch.background != null) {
            fields.style.setProperty("--background-color", toCssColor(patch.background));
         }
 
-        if (patch.backgroundChecked) {
+        if (patch.backgroundChecked != null) {
            fields.style.setProperty("--selected-color", toCssColor(patch.backgroundChecked));
         }
 
@@ -362,7 +362,7 @@ export class NativeElementPool {
             fields.style.setProperty("--border-width", patch.outlineWidth + "px");
         }
 
-        if (patch.outlineColor) {
+        if (patch.outlineColor != null) {
             fields.style.setProperty("--border-color",  toCssColor(patch.outlineColor));
         }
     }
@@ -415,30 +415,30 @@ export class NativeElementPool {
         updateCommonProps(leaf!, patch);
         let slider = leaf!.firstChild as HTMLInputElement;
 
-        if (patch.value && patch.value.toString() != slider.value) {
+        if (patch.value != null && patch.value.toString() != slider.value) {
             slider.value = patch.value.toString();
         }
-        if (patch.step && patch.step.toString() != slider.step) {
+        if (patch.step != null && patch.step.toString() != slider.step) {
             slider.step = patch.step.toString();
         }
-        if (patch.min && patch.min.toString() != slider.min) {
+        if (patch.min != null && patch.min.toString() != slider.min) {
             slider.min = patch.min.toString();
         }
-        if (patch.max && patch.max.toString() != slider.max) {
+        if (patch.max != null && patch.max.toString() != slider.max) {
             slider.max = patch.max.toString();
         }
 
-        if (patch.accent) {
+        if (patch.accent != null) {
             let color =  toCssColor(patch.accent);   
             slider.style.accentColor = color;
         }
 
-        if (patch.background) {
+        if (patch.background != null) {
             let color =  toCssColor(patch.background);   
             slider.style.backgroundColor = color;
         }
 
-        if (patch.borderRadius) {
+        if (patch.borderRadius != null) {
             slider.style.borderRadius = patch.borderRadius + "px";
         }
     }
@@ -487,13 +487,10 @@ export class NativeElementPool {
         applyTextTyle(dropdown, dropdown, patch.style);
         dropdown.style.borderStyle = "solid";
 
-        if (patch.selected_id && dropdown.options.selectedIndex != patch.selected_id) {
-            dropdown.options.selectedIndex = patch.selected_id;
-        }
-        if (patch.background) {
+        if (patch.background != null) {
             dropdown.style.backgroundColor = toCssColor(patch.background);
         }
-        if (patch.stroke_color) {
+        if (patch.stroke_color != null) {
             dropdown.style.borderColor = toCssColor(patch.stroke_color);
         }
         if (patch.stroke_width != null) {
@@ -517,6 +514,10 @@ export class NativeElementPool {
                 option.textContent = optionText;
                 dropdown.appendChild(option);
             });
+        }
+
+        if (patch.selected_id != null && dropdown.options.selectedIndex != patch.selected_id) {
+            dropdown.options.selectedIndex = patch.selected_id;
         }
     }
 
@@ -581,20 +582,20 @@ export class NativeElementPool {
             textChild.innerHTML = " ";
         }
 
-        if (patch.color) {
+        if (patch.color != null) {
             button.style.background = toCssColor(patch.color);
         }
 
-        if (patch.hoverColor) {
+        if (patch.hoverColor != null) {
             let color = toCssColor(patch.hoverColor);
             button.style.setProperty("--hover-color", color);
         }
 
-        if (patch.borderRadius) {
+        if (patch.borderRadius != null) {
             button.style.borderRadius = patch.borderRadius + "px";
         }
 
-        if (patch.outlineStrokeColor) {
+        if (patch.outlineStrokeColor != null) {
             button.style.borderColor = toCssColor(patch.outlineStrokeColor);
         }
 
@@ -668,7 +669,7 @@ export class NativeElementPool {
             }
         }
 
-        if (start_listening) {
+        if (start_listening != null) {
             this.resizeObserver.observe(leaf);
         }
 
@@ -696,7 +697,7 @@ export class NativeElementPool {
                 textChild.innerHTML = patch.content;
             }
             // Apply the link styles if they exist
-            if (patch.style_link) {
+            if (patch.style_link != null) {
                 let linkStyle = patch.style_link;
                 const links = textChild.querySelectorAll('a');
                 links.forEach((link: HTMLElement) => {

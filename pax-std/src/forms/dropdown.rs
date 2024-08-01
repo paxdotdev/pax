@@ -212,7 +212,9 @@ impl InstanceNode for DropdownInstance {
     ) {
         if let NativeInterrupt::FormDropdownChange(args) = interrupt {
             expanded_node.with_properties_unwrapped(|props: &mut Dropdown| {
-                props.selected_id.set(args.selected_id)
+                if props.selected_id.get() != args.selected_id {
+                    props.selected_id.set(args.selected_id)
+                }
             });
         }
     }

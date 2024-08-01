@@ -20,7 +20,7 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
@@ -102,6 +102,12 @@ impl PaxManifestORM {
 
     pub fn get_manifest(&self) -> &PaxManifest {
         &self.manifest
+    }
+
+    pub fn set_manifest(&mut self, manifest: PaxManifest) {
+        self.manifest = manifest;
+        self.increment_manifest_version();
+        self.set_reload(ReloadType::FullEdit);
     }
 
     pub fn get_manifest_version(&self) -> Property<usize> {
