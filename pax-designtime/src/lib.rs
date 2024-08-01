@@ -147,10 +147,12 @@ impl DesigntimeManager {
         if current_manifest_version != self.last_written_manifest_version
             && current_manifest_version % 5 == 0
         {
-            self.send_component_update(&TypeId::build_singleton(
-                "designer_project::Example",
-                None,
-            ))?;
+            if self.priv_agent_connection.borrow().alive {
+                self.send_component_update(&TypeId::build_singleton(
+                    "designer_project::Example",
+                    None,
+                ))?;
+            }
             self.last_written_manifest_version = current_manifest_version;
         }
         self.priv_agent_connection
