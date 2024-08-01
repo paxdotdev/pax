@@ -1,29 +1,24 @@
 use crate::design_server::llm::constants::TRAINING_DATA_PATH;
 use crate::design_server::{
     code_serialization::serialize_component_to_file,
-    llm::{
-        constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
-        query_open_ai,
-        simple::{SimpleNodeAction, SimpleWorldInformation},
-    },
+    llm::constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
     AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
 };
+
+use pax_manifest::parsing::TemplateNodeParseContext;
+
 use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
-use pax_manifest::parsing::TemplateNodeParseContext;
-use pax_designtime::{
-    messages::{
-        AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
-        LoadFileToStaticDirRequest, ManifestSerializationRequest, UpdateTemplateRequest,
-    },
-    orm::template::NodeAction,
+use pax_designtime::messages::{
+    AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
+    LoadFileToStaticDirRequest, ManifestSerializationRequest, UpdateTemplateRequest,
 };
 use pax_generation::{AIModel, PaxAppGenerator};
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::os::unix::process::CommandExt;
 use std::process::Command;
-use std::{collections::HashMap, env, fs, path::Path, time::SystemTime};
+use std::{collections::HashMap, env, fs};
 
 use self::socket_message_accumulator::SocketMessageAccumulator;
 
