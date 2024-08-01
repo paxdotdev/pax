@@ -104,9 +104,6 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
     let _watcher =
         setup_file_watcher(state.clone(), folder_to_watch).expect("Failed to setup file watcher");
 
-    let _watcher =
-        setup_file_watcher(state.clone(), "../pax-designer").expect("Failed to setup file watcher");
-
     let server = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
