@@ -28,6 +28,9 @@ actix-files = "0.6"
 actix-web = "4"
 actix-web-actors = "4.3.0"
 actix-http = "3.6"
+
+async-openai = "0.19.0"
+
 cargo_metadata = "0.18.1"
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -38,6 +41,7 @@ itertools = "0.10.5"
 lazy_static = "1.4.0"
 libc = "0.2"
 log = "0.4"
+notify = "6.1.1"
 pax-manifest = {version= "0.23.0", path="../pax-manifest"}
 pax-message = {version = "0.23.0", path="../pax-message"}
 pax-runtime = {path = "../pax-runtime", version="0.23.0" }
@@ -50,7 +54,8 @@ rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
 rmp-serde = "1.1.2"
-serde = { version = "1.0.159", features=["derive"], optional = true }
+schemars = "0.8.16"
+serde = { version = "1.0.159", features=["derive"] }
 serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
 serde_with = { version= "3.6.1", features = ["json"] }

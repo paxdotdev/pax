@@ -64,13 +64,11 @@ pub const ALL_PKGS: &[&str] = &[
 ];
 
 #[derive(Debug, Deserialize)]
-#[serde(crate = "pax_runtime::api::serde")]
 struct Metadata {
     packages: Vec<Package>,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(crate = "pax_runtime::api::serde")]
 struct Package {
     name: String,
     version: String,

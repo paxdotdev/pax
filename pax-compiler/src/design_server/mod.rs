@@ -7,13 +7,14 @@ use actix_web::{post, HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
 use pax_generation::{AIModel, PaxAppGenerator};
-use serde::Deserialize;
+use serde_with::serde::de::Deserialize;
+use serde_with::serde::ser::Serialize;
 use serde_json::json;
 use std::{env, fs, thread};
 
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use pax_compiler::helpers::PAX_BADGE;
-use pax_compiler::{RunContext, RunTarget};
+use crate::helpers::PAX_BADGE;
+use crate::{RunContext, RunTarget};
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::{PaxManifest, TypeId};
@@ -88,7 +89,7 @@ pub async fn web_socket(
 pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
     std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
     let ctx = RunContext {
-        target: pax_compiler::RunTarget::Web,
+        target: crate::RunTarget::Web,
         project_path: PathBuf::from("../pax-designer".to_string()),
         verbose: false,
         should_also_run: false,
@@ -282,7 +283,7 @@ fn create_run_context() -> RunContext {
 fn perform_build() -> std::io::Result<(PaxManifest, Option<PathBuf>)> {
     std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
     let ctx = create_run_context();
-    pax_compiler::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    crate::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
 
 fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> std::io::Result<()> {
