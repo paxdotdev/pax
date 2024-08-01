@@ -12,7 +12,8 @@ use actix_web::web::Data;
 use actix_web_actors::ws::{self};
 use pax_designtime::messages::{
     AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
-    LoadFileToStaticDirRequest, ManifestSerializationRequest, UpdateTemplateRequest,
+    LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
+    UpdateTemplateRequest,
 };
 use pax_generation::{AIModel, PaxAppGenerator};
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
@@ -69,7 +70,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
         println!("File changed: {:?}", msg.path);
         if self.state.active_websocket_client.lock().unwrap().is_some() {
             if let FileContent::Pax(content) = msg.contents {
-                if let Some(manifest) = &self.state.manifest.lock().unwrap().as_ref() {
+                if let Some(manifest) = self.state.manifest.lock().unwrap().as_mut() {
                     let mut template_map: HashMap<String, TypeId> = HashMap::new();
                     let mut matched_component: Option<TypeId> = None;
                     let mut original_template: Option<ComponentTemplate> = None;
@@ -117,6 +118,10 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                         let mut new_template = tpc.template;
                         new_template.merge_with_settings(&Some(settings));
                         new_template.populate_template_with_known_entities(&original_template);
+
+                        // update the manifest with this new template
+                        let comp = manifest.components.get_mut(&self_type_id).unwrap();
+                        comp.template = Some(new_template.clone());
                         let msg =
                             AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
                                 type_id: self_type_id,
@@ -146,13 +151,25 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
         let processed_message = self.socket_msg_accum.process(msg);
         if let Ok(Some(bin_data)) = processed_message {
             match rmp_serde::from_slice::<AgentMessage>(&bin_data) {
+                Ok(AgentMessage::LoadManifestRequest) => {
+                    let manifest =
+                        rmp_serde::to_vec(&*self.state.manifest.lock().unwrap()).unwrap();
+
+                    let message =
+                        AgentMessage::LoadManifestResponse(LoadManifestResponse { manifest });
+                    ctx.binary(rmp_serde::to_vec(&message).unwrap());
+                }
                 Ok(AgentMessage::ComponentSerializationRequest(request)) => {
-                    handle_component_serialization_request(request);
+                    handle_component_serialization_request(
+                        request,
+                        self.state.manifest.lock().unwrap().as_mut().unwrap(),
+                    );
                     self.state.update_last_written_timestamp();
                 }
                 Ok(AgentMessage::ManifestSerializationRequest(request)) => {
                     handle_manifest_serialization_request(
                         request,
+                        self.state.manifest.lock().unwrap().as_mut().unwrap(),
                         self.state.generate_request_id(),
                         ctx,
                     );
@@ -232,7 +249,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                 Ok(
                     AgentMessage::LLMHelpResponse(_)
                     | AgentMessage::UpdateTemplateRequest(_)
-                    | AgentMessage::ProjectFileChangedNotification(_),
+                    | AgentMessage::ProjectFileChangedNotification(_)
+                    | AgentMessage::LoadManifestResponse(_),
                 ) => {}
                 Err(e) => {
                     eprintln!("Deserialization error: {:?}", e);
@@ -246,7 +264,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
     }
 }
 
-fn handle_component_serialization_request(request: ComponentSerializationRequest) {
+fn handle_component_serialization_request(
+    request: ComponentSerializationRequest,
+    manifest: &mut PaxManifest,
+) {
     let component: ComponentDefinition = rmp_serde::from_slice(&request.component_bytes).unwrap();
     let file_path = component
         .template
@@ -255,17 +276,28 @@ fn handle_component_serialization_request(request: ComponentSerializationRequest
         .get_file_path()
         .unwrap()
         .to_owned();
-    serialize_component_to_file(&component, file_path);
+    serialize_component_to_file(&component, file_path.clone());
+    // update in memory manifest
+    for (_, comp) in &mut manifest.components {
+        if comp
+            .template
+            .as_ref()
+            .is_some_and(|t| t.get_file_path().is_some_and(|p| p == file_path))
+        {
+            *comp = component;
+            break;
+        }
+    }
 }
 
 fn handle_manifest_serialization_request(
     request: ManifestSerializationRequest,
+    manifest: &mut PaxManifest,
     _id: usize,
     _ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
 ) {
-    let manifest: PaxManifest = rmp_serde::from_slice(&request.manifest).unwrap();
-
-    for (_, component) in manifest.components {
+    *manifest = rmp_serde::from_slice(&request.manifest).unwrap();
+    for (_, component) in &manifest.components {
         let file_path = component.template.as_ref().unwrap().get_file_path();
         if let Some(file_path) = &file_path {
             serialize_component_to_file(&component, file_path.clone());
