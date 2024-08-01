@@ -278,7 +278,7 @@ fn handle_component_serialization_request(
         .to_owned();
     serialize_component_to_file(&component, file_path.clone());
     // update in memory manifest
-    for (_, comp) in &mut manifest.components {
+    for comp in manifest.components.values_mut() {
         if comp
             .template
             .as_ref()
@@ -297,10 +297,10 @@ fn handle_manifest_serialization_request(
     _ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
 ) {
     *manifest = rmp_serde::from_slice(&request.manifest).unwrap();
-    for (_, component) in &manifest.components {
+    for component in manifest.components.values() {
         let file_path = component.template.as_ref().unwrap().get_file_path();
         if let Some(file_path) = &file_path {
-            serialize_component_to_file(&component, file_path.clone());
+            serialize_component_to_file(component, file_path.clone());
         }
     }
 }
@@ -315,6 +315,7 @@ impl actix::Message for LLMRequestMessage {
     type Result = ();
 }
 
+#[allow(unused)]
 fn build_llm_request(request: LLMRequestMessage) -> String {
     let mut req = format!("User Request:\n {}\n\n", request.request);
     req.push_str(&format!(

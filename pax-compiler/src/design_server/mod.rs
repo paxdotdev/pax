@@ -10,7 +10,7 @@ use pax_generation::{AIModel, PaxAppGenerator};
 use serde_with::serde::de::Deserialize;
 use serde_with::serde::ser::Serialize;
 use serde_json::json;
-use std::{env, fs, thread};
+use std::{env, fs};
 
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use crate::helpers::PAX_BADGE;
@@ -22,11 +22,12 @@ use pax_manifest::{PaxManifest, TypeId};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use websocket::PrivilegedAgentWebSocket;
 
 pub mod code_serialization;
+#[allow(unused)]
 mod llm;
 pub mod websocket;
 const PORT: u16 = 8252;
