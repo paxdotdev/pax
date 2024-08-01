@@ -7,6 +7,10 @@ use crate::orm::template::NodeAction;
 pub enum AgentMessage {
     ProjectFileChangedNotification(FileChangedNotification),
     ManifestSerializationRequest(ManifestSerializationRequest),
+    // Request to retrieve the manifest from the design server
+    // sent from designtime to design-server
+    LoadManifestRequest,
+    LoadManifestResponse(LoadManifestResponse),
     ComponentSerializationRequest(ComponentSerializationRequest),
     UpdateTemplateRequest(Box<UpdateTemplateRequest>),
     LLMHelpRequest(LLMHelpRequest),
@@ -30,6 +34,14 @@ pub struct FileChangedNotification {}
 /// This is sent from `pax-designtime` to `pax-design-server`.
 #[derive(Serialize, Deserialize)]
 pub struct ManifestSerializationRequest {
+    pub manifest: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LoadManifestRequest {}
+
+#[derive(Serialize, Deserialize)]
+pub struct LoadManifestResponse {
     pub manifest: Vec<u8>,
 }
 

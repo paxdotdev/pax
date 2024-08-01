@@ -34,7 +34,7 @@ pub struct Text {
     pub editable: Property<bool>,
     pub text: Property<String>,
     pub style: Property<TextStyle>,
-    pub style_link: Property<TextStyle>,
+    pub _style_link: Property<TextStyle>,
 }
 
 pub struct TextInstance {
@@ -164,7 +164,7 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.style_link,
                                 &mut patch.style_link,
-                                (&properties.style_link.get()).into(),
+                                (&properties._style_link.get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.editable,
@@ -235,12 +235,19 @@ impl InstanceNode for TextInstance {
 #[pax]
 #[custom(Default)]
 pub struct TextStyle {
+    #[serde(default)]
     pub font: Property<Font>,
+    #[serde(default)]
     pub font_size: Property<Size>,
+    #[serde(default)]
     pub fill: Property<Color>,
+    #[serde(default)]
     pub underline: Property<bool>,
+    #[serde(default)]
     pub align_multiline: Property<TextAlignHorizontal>,
+    #[serde(default)]
     pub align_vertical: Property<TextAlignVertical>,
+    #[serde(default)]
     pub align_horizontal: Property<TextAlignHorizontal>,
 }
 
@@ -275,6 +282,13 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
                 &self.align_horizontal.get(),
             )),
         }
+    }
+}
+
+impl PartialEq for TextStyle {
+    fn eq(&self, other: &Self) -> bool {
+        let text_style_message: TextStyleMessage = other.into();
+        self == &text_style_message
     }
 }
 
@@ -335,14 +349,17 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 #[pax]
 #[custom(Default)]
 pub enum Font {
-    System(String, FontStyle, FontWeight),
+    // System(String, FontStyle, FontWeight),
     Web(String, String, FontStyle, FontWeight),
-    Local(String, String, FontStyle, FontWeight),
+    // Local(String, String, FontStyle, FontWeight),
 }
 
 impl Default for Font {
     fn default() -> Self {
-        Self::System("Arial".to_string(), FontStyle::Normal, FontWeight::Normal)
+        Self::Web("Roboto".to_string(),
+    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap".to_string()
+                  , FontStyle::Normal, FontWeight::Normal)
+        // Self::System("Arial".to_string(), FontStyle::Normal, FontWeight::Normal)
     }
 }
 
@@ -355,6 +372,7 @@ pub enum FontStyle {
 }
 
 #[pax]
+#[derive(PartialEq)]
 pub enum FontWeight {
     Thin,
     ExtraLight,
@@ -450,23 +468,23 @@ impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
 impl From<Font> for FontPatch {
     fn from(font: Font) -> Self {
         match font {
-            Font::System(family, style, weight) => FontPatch::System(SystemFontMessage {
-                family: Some(family),
-                style: Some(style.into()),
-                weight: Some(weight.into()),
-            }),
+            // Font::System(family, style, weight) => FontPatch::System(SystemFontMessage {
+            //     family: Some(family),
+            //     style: Some(style.into()),
+            //     weight: Some(weight.into()),
+            // }),
             Font::Web(family, url, style, weight) => FontPatch::Web(WebFontMessage {
                 family: Some(family),
                 url: Some(url),
                 style: Some(style.into()),
                 weight: Some(weight.into()),
             }),
-            Font::Local(family, path, style, weight) => FontPatch::Local(LocalFontMessage {
-                family: Some(family),
-                path: Some(path),
-                style: Some(style.into()),
-                weight: Some(weight.into()),
-            }),
+            // Font::Local(family, path, style, weight) => FontPatch::Local(LocalFontMessage {
+            //     family: Some(family),
+            //     path: Some(path),
+            //     style: Some(style.into()),
+            //     weight: Some(weight.into()),
+            // }),
         }
     }
 }
@@ -482,40 +500,23 @@ impl PartialEq<FontStyleMessage> for FontStyle {
     }
 }
 
-impl PartialEq<FontWeightMessage> for FontWeight {
-    fn eq(&self, other: &FontWeightMessage) -> bool {
-        match (self, other) {
-            (FontWeight::Thin, FontWeightMessage::Thin) => true,
-            (FontWeight::ExtraLight, FontWeightMessage::ExtraLight) => true,
-            (FontWeight::Light, FontWeightMessage::Light) => true,
-            (FontWeight::Normal, FontWeightMessage::Normal) => true,
-            (FontWeight::Medium, FontWeightMessage::Medium) => true,
-            (FontWeight::SemiBold, FontWeightMessage::SemiBold) => true,
-            (FontWeight::Bold, FontWeightMessage::Bold) => true,
-            (FontWeight::ExtraBold, FontWeightMessage::ExtraBold) => true,
-            (FontWeight::Black, FontWeightMessage::Black) => true,
-            _ => false,
-        }
-    }
-}
-
 impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
         match (self, other) {
-            (Font::System(family, style, weight), FontPatch::System(system_font_patch)) => {
-                system_font_patch
-                    .family
-                    .as_ref()
-                    .map_or(false, |f| f == family)
-                    && system_font_patch
-                        .style
-                        .as_ref()
-                        .map_or(false, |s| style.eq(&s))
-                    && system_font_patch
-                        .weight
-                        .as_ref()
-                        .map_or(false, |w| weight.eq(&w))
-            }
+            // (Font::System(family, style, weight), FontPatch::System(system_font_patch)) => {
+            //     system_font_patch
+            //         .family
+            //         .as_ref()
+            //         .map_or(false, |f| f == family)
+            //         && system_font_patch
+            //             .style
+            //             .as_ref()
+            //             .map_or(false, |s| style.eq(&s))
+            //         && system_font_patch
+            //             .weight
+            //             .as_ref()
+            //             .map_or(false, |w| FontWeightMessage::from(weight.clone()).eq(&w))
+            // }
             (Font::Web(family, url, style, weight), FontPatch::Web(web_font_patch)) => {
                 web_font_patch
                     .family
@@ -526,23 +527,23 @@ impl PartialEq<FontPatch> for Font {
                     && web_font_patch
                         .weight
                         .as_ref()
-                        .map_or(false, |w| weight.eq(w))
+                        .map_or(false, |w| FontWeightMessage::from(weight.clone()).eq(w))
             }
-            (Font::Local(family, path, style, weight), FontPatch::Local(local_font_patch)) => {
-                local_font_patch
-                    .family
-                    .as_ref()
-                    .map_or(false, |f| f == family)
-                    && local_font_patch.path.as_ref().map_or(false, |p| p == path)
-                    && local_font_patch
-                        .style
-                        .as_ref()
-                        .map_or(false, |s| style.eq(s))
-                    && local_font_patch
-                        .weight
-                        .as_ref()
-                        .map_or(false, |w| weight.eq(w))
-            }
+            // (Font::Local(family, path, style, weight), FontPatch::Local(local_font_patch)) => {
+            //     local_font_patch
+            //         .family
+            //         .as_ref()
+            //         .map_or(false, |f| f == family)
+            //         && local_font_patch.path.as_ref().map_or(false, |p| p == path)
+            //         && local_font_patch
+            //             .style
+            //             .as_ref()
+            //             .map_or(false, |s| style.eq(s))
+            //         && local_font_patch
+            //             .weight
+            //             .as_ref()
+            //             .map_or(false, |w| FontWeightMessage::from(weight.clone()).eq(&w))
+            // }
             _ => false,
         }
     }

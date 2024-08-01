@@ -126,16 +126,6 @@ impl PaxChassisWeb {
     }
 
     fn init_common(cartridge: Box<dyn PaxCartridge>) -> (f64, f64, OS, ExpressionTable) {
-        #[cfg(feature = "console_error_panic_hook")]
-        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-
-        #[cfg(debug_assertions)]
-        console_log::init_with_level(Level::Debug)
-            .expect("console_log::init_with_level initialized correctly");
-        #[cfg(not(debug_assertions))]
-        console_log::init_with_level(Level::Error)
-            .expect("console_log::init_with_level initialized correctly");
-
         let window = window().unwrap();
         let user_agent_str = window.navigator().user_agent().ok();
         let os_info = user_agent_str
