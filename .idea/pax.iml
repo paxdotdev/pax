@@ -68,6 +68,7 @@
       <excludeFolder url="file://$MODULE_DIR$/examples/src/one-rect/target" />
       <excludeFolder url="file://$MODULE_DIR$/.idea/copilot/chatSessions" />
       <excludeFolder url="file://$MODULE_DIR$/pax-language-server/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-designer/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

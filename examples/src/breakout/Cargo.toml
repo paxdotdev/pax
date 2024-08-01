@@ -5,6 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
+serde_json = {version = "1.0.95", optional = true}
 pax-engine = { version = "0.23.0", path="../../../pax-engine" }
 pax-std = { version = "0.23.0", path="../../../pax-std"}
 rand = { version = "0.8.5", features = ["getrandom"] }
@@ -37,4 +38,3 @@ opt-level = "z"
 
 [profile.dev.package."*"]
 debug = false
-
