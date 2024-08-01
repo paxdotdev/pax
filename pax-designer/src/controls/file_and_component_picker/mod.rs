@@ -6,7 +6,6 @@ use std::rc::Rc;
 
 use crate::model;
 use crate::model::action::{Action, ActionContext};
-use crate::USER_PROJ_ROOT_IMPORT_PATH;
 
 pub mod component_library_item;
 use component_library_item::{ComponentLibraryItem, ComponentLibraryItemData};

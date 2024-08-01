@@ -28,7 +28,6 @@ use glass::Glass;
 use llm_interface::LLMInterface;
 use project_mode_toggle::ProjectModeToggle;
 
-use designer_project::Example;
 use pax_std::*;
 
 // TODO:
@@ -40,8 +39,7 @@ use pax_std::*;
 
 pub const ROOT_PROJECT_ID: &str = "userland_project";
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
-pub const USER_PROJ_ROOT_IMPORT_PATH: &str = "designer_project";
-pub const USER_PROJ_ROOT_COMPONENT: &str = "Example";
+
 
 #[pax]
 #[main]
