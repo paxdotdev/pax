@@ -104,14 +104,14 @@ impl FileAndComponentPicker {
         type_id: &TypeId,
         filter: &[TypeId],
     ) -> Option<ComponentLibraryItemData> {
-        let is_userland_or_mock = type_id
-            .import_path()
-            .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH))
-            || matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
-
-        if !is_userland_or_mock {
-            return None;
-        }
+        // let is_userland_or_mock = type_id
+        //     .import_path()
+        //     .is_some_and(|p| p.starts_with(USER_PROJ_ROOT_IMPORT_PATH))
+        //     || matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
+        //
+        // if !is_userland_or_mock {
+        //     return None;
+        // }
 
         let comp = dt.get_orm().get_component(type_id).ok()?;
 

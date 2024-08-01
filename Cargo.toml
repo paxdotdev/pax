@@ -13,7 +13,7 @@ members = [
     "pax-cli",
     "pax-compiler",
     "pax-compiler",
-    "pax-designer",
+    #"pax-designer",
     "pax-designtime",
     "pax-engine",
     "pax-lang",
@@ -28,7 +28,7 @@ members = [
 
 exclude = [
     "pax-compiler/files",
-
+    "pax-designer",
     "examples",
     "tests",
     "pax-generation",
