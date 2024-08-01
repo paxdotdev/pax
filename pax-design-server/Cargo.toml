@@ -30,7 +30,7 @@ notify = "6.1.1"
 pax-manifest = { path="../pax-manifest", version = "0.22.0"}
 pax-lang = { path="../pax-lang", version = "0.22.0"}
 
-rmp-serde = "1.1.2"
+
 schemars = "0.8.16"
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_derive = "1.0.159"
