@@ -146,7 +146,7 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
         .init();
 
     // Create a Runtime
-    let runtime = actix_rt::System::new().block_on(async {
+    let runtime = actix_web::rt::System::new().block_on(async {
         let mut port = 8080;
         let server = loop {
             // Check if the port is available

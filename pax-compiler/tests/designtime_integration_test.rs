@@ -5,7 +5,7 @@ use std::{
 };
 
 use actix_web::{web::Data, App};
-use pax_design_server::{web_socket, AppState};
+use pax_compiler::design_server::{web_socket, AppState};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
     SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId,
