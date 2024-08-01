@@ -1,7 +1,7 @@
 [package]
 name = "pax-compiler"
 version = "0.23.0"
-authors = ["Zack Brown <zack@pax.dev>"]
+authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -40,6 +40,7 @@ pax-manifest = {version= "0.23.0", path="../pax-manifest"}
 pax-message = {version = "0.23.0", path="../pax-message"}
 pax-runtime = {path = "../pax-runtime", version="0.23.0" }
 pax-runtime-api = {path = "../pax-runtime-api", version="0.23.0" }
+pax-design-server = { path = "../pax-design-server", version="0.23.0" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 pax-lang = {version = "0.23.0", path="../pax-lang"}
 rand = "0.8.4"
@@ -48,10 +49,10 @@ reqwest = { version = "0.11.18", features = ["blocking"] }
 serde = { version = "1.0.159", features=["derive"], optional = true }
 serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
-serde_with = { version= "3.6.1", features = ["json"]} 
+serde_with = { version= "3.6.1", features = ["json"] }
 syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 tera = "1"
 tokio = { version = "1", features = ["full"] }
 toml_edit = "0.14.4"
 walkdir = "2.3.2"
-wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
+wasm-bindgen = { version = "0.2.92", features=["serde-serialize"] }
