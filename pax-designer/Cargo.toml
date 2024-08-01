@@ -5,7 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.22.0" , path = "../pax-engine" }
+pax-engine = { version = "0.22.0" , path = "../pax-engine", features=["designtime"] }
 pax-std = { version = "0.22.0" , path = "../pax-std" }
 pax-designtime = {version = "0.22.0", path = "../pax-designtime"}
 anyhow = "1.0.79"
@@ -25,7 +25,7 @@ path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser"]
-designtime = ["pax-engine/designtime"]
+designtime = [] # no-op feature exposed; pax-designer assumes designtime is always on, so we hard-code the feature flags for downstream deps
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]

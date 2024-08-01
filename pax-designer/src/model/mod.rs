@@ -143,7 +143,8 @@ pub struct Model {
 
 impl Model {
     pub fn init(ctx: &NodeContext) {
-        let app_state = Self::create_initial_app_state();
+        let main_component_id = (*ctx.designtime).borrow().get_manifest().main_component_type_id;
+        let app_state = Self::create_initial_app_state(main_component_id);
         let derived_state = Self::create_derived_state(ctx, &app_state);
 
         MODEL.with_borrow_mut(|state| {
@@ -155,16 +156,10 @@ impl Model {
         });
     }
 
-    fn create_initial_app_state() -> AppState {
-        let userland_project_root_type_id = TypeId::build_singleton(
-            &format!(
-                "{}::{}",
-                USER_PROJ_ROOT_IMPORT_PATH, USER_PROJ_ROOT_COMPONENT
-            ),
-            None,
-        );
+    fn create_initial_app_state(main_component_type_id: TypeId) -> AppState {
+
         AppState {
-            selected_component_id: Property::new(userland_project_root_type_id.to_owned()),
+            selected_component_id: Property::new(main_component_type_id),
             stage: Property::new(StageInfo {
                 width: 1380,
                 height: 786,
