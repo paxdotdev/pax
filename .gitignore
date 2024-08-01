@@ -7,19 +7,13 @@ vendor/
 .swiftpm
 .build
 
-
 xcuserdata
 
-pax-chassis-macos/interface/build
-pax-example/build
-pax-example/.pax/
-pax-create-sandbox/
 examples/src/*/.pax/
 tests/src/*/.pax/
 
 pax-compiler/files/interfaces/web/public/pax-interface-web.css
 pax-compiler/files/interfaces/web/public/pax-interface-web.js
-
 
 **/*.rs.bk
 Cargo.lock
@@ -30,5 +24,3 @@ Cargo.lock
 ## VScode project configuration files
 .vscode/
 
-pax-chassis-macos/interface/interface.xcodeproj/project.xcworkspace/xcuserdata/**/*
-pax-chassis-macos/interface/interface.xcodeproj/xcuserdata/**/*
