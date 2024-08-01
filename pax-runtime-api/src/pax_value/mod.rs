@@ -1,8 +1,9 @@
 use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, Stroke, Transform2D};
-use std::any::Any;
+use std::{any::Any, collections::HashMap};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
+use serde::{Deserialize, Serialize};
 
 mod arithmetic;
 mod coercion_impls;
@@ -16,27 +17,29 @@ mod to_from_impls;
 /// String, Color, etc)
 /// CoercionRules - responsible for coercing a PaxValue to a specific type
 /// (possibly from multiple different variants)
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// #[serde(crate = "crate::serde")]
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
 pub enum PaxValue {
     Bool(bool),
     Numeric(Numeric),
     String(String),
     Transform2D(Transform2D),
     Size(Size),
-    Percent(Percent),
+    Percent(Percent), 
     Color(Color),
     ColorChannel(ColorChannel),
     Rotation(Rotation),
     Fill(Fill),
     Stroke(Stroke),
+    Option(Box<Option<PaxValue>>),
     // Ideally this is later changed to Vec<PaxValue>, once structs can be
     // represented in PaxValue as a map, enabling serialize/deserialization
     // debug impl, etc.
-    Vec(Vec<PaxAny>),
-    Component {},
+    Vec(Vec<PaxValue>),
+    Object(HashMap<String, PaxValue>),
+    Enum(String, Vec<PaxValue>),
 }
+
 
 /// This type serves a similar purpose as Box<dyn Any>, but allows for special
 /// handling of some types, enabling things like coercion.

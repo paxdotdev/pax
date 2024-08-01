@@ -89,12 +89,46 @@ impl Neg for PaxValue {
     }
 }
 
+
+// pub enum PaxValue {
+//     Bool(bool),
+//     Numeric(Numeric),
+//     String(String),
+//     Transform2D(Transform2D),
+//     Size(Size),
+//     Percent(Percent),
+//     Color(Color),
+//     ColorChannel(ColorChannel),
+//     Rotation(Rotation),
+//     Fill(Fill),
+//     Stroke(Stroke),
+//     Option(Vec<PaxValue>),
+//     // Ideally this is later changed to Vec<PaxValue>, once structs can be
+//     // represented in PaxValue as a map, enabling serialize/deserialization
+//     // debug impl, etc.
+//     Vec(Vec<PaxValue>),
+//     Object(HashMap<String, PaxValue>),
+//     Enum(String, Vec<PaxValue>),
+//     Component {},
+// }
+
 impl PartialEq for PaxValue {
     fn eq(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => a == b,
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a == b,
             (PaxValue::String(a), PaxValue::String(b)) => a == b,
+            (PaxValue::Size(a), PaxValue::Size(b)) => a == b,   
+            (PaxValue::Percent(a), PaxValue::Percent(b)) => a == b,
+            (PaxValue::Color(a), PaxValue::Color(b)) => a == b,
+            (PaxValue::ColorChannel(a), PaxValue::ColorChannel(b)) => a == b,
+            (PaxValue::Rotation(a), PaxValue::Rotation(b)) => a == b,
+            (PaxValue::Fill(a), PaxValue::Fill(b)) => a == b,
+            (PaxValue::Stroke(a), PaxValue::Stroke(b)) => a == b,
+            (PaxValue::Option(a), PaxValue::Option(b)) => a == b,
+            (PaxValue::Vec(a), PaxValue::Vec(b)) => a == b,
+            (PaxValue::Object(a), PaxValue::Object(b)) => a == b,
+            (PaxValue::Enum(a, b), PaxValue::Enum(c, d)) => a == c && b == d,
             (a, b) => panic!("can't compare {:?} and {:?}", a, b),
         }
     }
