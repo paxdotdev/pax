@@ -13,7 +13,7 @@ use crate::model::action::orm::CreateComponent;
 use crate::model::action::world::Translate;
 use crate::model::tools::SelectNodes;
 use crate::model::{AppState, GlassNode};
-use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID, USER_PROJ_ROOT_IMPORT_PATH};
+use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID};
 
 use crate::math::coordinate_spaces::{self, World};
 use crate::math::{self, AxisAlignedBox};

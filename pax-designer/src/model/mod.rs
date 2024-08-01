@@ -10,8 +10,6 @@ use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::DESIGNER_GLASS_ID;
-use crate::USER_PROJ_ROOT_COMPONENT;
-use crate::USER_PROJ_ROOT_IMPORT_PATH;
 use action::Action;
 use anyhow::anyhow;
 use anyhow::Context;

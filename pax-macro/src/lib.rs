@@ -5,7 +5,8 @@ mod templating;
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
-use std::{fs, path::PathBuf};
+use std::{env, fs, path::PathBuf};
+use std::path::Path;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
@@ -508,12 +509,18 @@ pub fn pax(
     let is_pax_inlined = config.inlined_contents.is_some();
 
     let appended_tokens = if is_pax_file {
-        let filename = config.file_path.unwrap();
-        let current_dir = std::env::current_dir().expect("Unable to get current directory");
-        let path = current_dir.join("src").join(&filename);
-        // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
-        let name = Ident::new("PaxFile", Span::call_site());
+        let file_name = config.file_path.unwrap();
 
+        let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+
+        let path = if Path::new(&root).join(&file_name).exists() {
+            Path::new(&root).join(&file_name)
+        } else {
+            Path::new(&root).join("src/").join(&file_name)
+        };
+
+
+        // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new(&pascal_identifier, Span::call_site());
         let include_fix = generate_include(&name, &path);
         let associated_pax_file = Some(path.clone());
