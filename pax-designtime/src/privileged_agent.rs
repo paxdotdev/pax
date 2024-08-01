@@ -14,13 +14,18 @@ use pax_manifest::{ComponentDefinition, PaxManifest};
 pub struct PrivilegedAgentConnection {
     sender: ewebsock::WsSender,
     recver: ewebsock::WsReceiver,
+    pub alive: bool,
 }
 
 impl PrivilegedAgentConnection {
     pub fn new(addr: SocketAddr) -> Result<Self> {
         let (sender, recver) = ewebsock::connect(format!("ws://{}/ws", addr))
             .map_err(|_| anyhow!("couldn't create socket connection"))?;
-        Ok(Self { sender, recver })
+        Ok(Self {
+            sender,
+            recver,
+            alive: true,
+        })
     }
 
     pub fn send_manifest_load_request(&mut self) -> Result<()> {
@@ -30,30 +35,47 @@ impl PrivilegedAgentConnection {
     }
 
     pub fn send_component_update(&mut self, component: &ComponentDefinition) -> Result<()> {
-        let component_bytes = rmp_serde::to_vec(&component)?;
-        let msg_bytes = rmp_serde::to_vec(&AgentMessage::ComponentSerializationRequest(
-            ComponentSerializationRequest { component_bytes },
-        ))?;
-
-        self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
-        Ok(())
+        if self.alive {
+            let component_bytes = rmp_serde::to_vec(&component)?;
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::ComponentSerializationRequest(
+                ComponentSerializationRequest { component_bytes },
+            ))?;
+            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send component update: connection to design-server was lost"
+            ))
+        }
     }
 
     pub fn send_file_to_static_dir(&mut self, name: &str, data: Vec<u8>) -> Result<()> {
-        let msg_bytes = rmp_serde::to_vec(&AgentMessage::LoadFileToStaticDirRequest(
-            LoadFileToStaticDirRequest {
-                name: name.to_owned(),
-                data,
-            },
-        ))?;
-        self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
-        Ok(())
+        if self.alive {
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::LoadFileToStaticDirRequest(
+                LoadFileToStaticDirRequest {
+                    name: name.to_owned(),
+                    data,
+                },
+            ))?;
+            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send file: connection to design-server was lost"
+            ))
+        }
     }
 
     pub fn send_llm_request(&mut self, request: LLMHelpRequest) -> Result<()> {
-        let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMHelpRequest(request))?;
-        self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
-        Ok(())
+        if self.alive {
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMHelpRequest(request))?;
+            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send llm request: connection to design-server was lost"
+            ))
+        }
     }
 
     pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<()> {
@@ -115,7 +137,10 @@ impl PrivilegedAgentConnection {
                     }
                 }
                 WsEvent::Error(e) => log::warn!("web socket error: {e}"),
-                WsEvent::Closed => log::warn!("web socket was closed"),
+                WsEvent::Closed => {
+                    self.alive = false;
+                    log::warn!("web socket was closed")
+                }
             }
         }
         Ok(())
