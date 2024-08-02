@@ -1,12 +1,16 @@
 use std::rc::{Rc, Weak};
 
 use_RefCell!();
-use crate::{ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame};
+use crate::{
+    node_interface::NodeLocal, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
+    TransformAndBounds,
+};
+use pax_runtime_api::math::Point2;
 pub use pax_runtime_api::*;
 
 #[cfg(feature = "designtime")]
 use {
-    crate::api::math::Point2, crate::node_interface::NodeInterface, crate::HandlerLocation,
+    crate::node_interface::NodeInterface, crate::HandlerLocation,
     pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier,
 };
 
@@ -33,6 +37,8 @@ pub struct NodeContext {
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     pub(crate) runtime_context: Rc<RuntimeContext>,
 
+    pub(crate) node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
 }
@@ -44,6 +50,10 @@ impl NodeContext {
 
     pub fn peek_local_store<T: Store, V>(&self, f: impl FnOnce(&mut T) -> V) -> Result<V, String> {
         self.local_stack_frame.peek_stack_local_store(f)
+    }
+
+    pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
+        self.node_transform_and_bounds.as_transform().inverse() * p
     }
 
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {

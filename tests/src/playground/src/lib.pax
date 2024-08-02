@@ -1,21 +1,7 @@
-<Scroller scroll_height=300% width=50%>
-	<Stacker>
-		<Button @button_click=self.toggle_frame_clip/>
-		<Rectangle fill=RED/>
-		<Rectangle fill=BLUE/>
-		<Rectangle fill=RED/>
-		<Rectangle fill=YELLOW/>
-	</Stacker>
-</Scroller>
-
-<Frame _clip_content={self.frame_clip} x=100% width=50%>
-	<Group x=100% width=200%>
-		<Button x=50% y=70% width=10% height=10%/>
-	</Group>
-	<Button x=0% anchor_x=50% y=90% width=10% height=10%/>
-</Frame>
-
+<Image x=50% y=50% width=300px height=300px fit=ImageFit::Fill source={ImageSource::Data(2, 3, self.data)}/>
+<Rectangle fill=YELLOW/>
 @settings {
+ 	@mount: on_mount,
      @pre_render: handle_pre_render,
     #text {
         style: {

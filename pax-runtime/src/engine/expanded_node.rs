@@ -582,6 +582,7 @@ impl ExpandedNode {
             platform: globals.platform.clone(),
             os: globals.os.clone(),
             slot_children_count,
+            node_transform_and_bounds: self.transform_and_bounds.get(),
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }
