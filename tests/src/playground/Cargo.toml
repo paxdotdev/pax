@@ -5,8 +5,8 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.21.0", path="../../../pax-engine" }
-pax-std = { version = "0.21.0", path="../../../pax-std"}
+pax-engine = { version = "0.22.0", path="../../../pax-engine" }
+pax-std = { version = "0.22.0", path="../../../pax-std"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -22,7 +22,7 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser"]
+parser = ["pax-std/parser"]
 designtime = ["pax-engine/designtime"]
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]

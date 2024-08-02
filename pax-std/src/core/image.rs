@@ -1,7 +1,8 @@
+use kurbo::Shape;
 use pax_engine::*;
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
@@ -18,13 +19,23 @@ use crate::common::patch_if_needed;
 #[pax]
 #[primitive("pax_std::core::image::ImageInstance")]
 pub struct Image {
-    pub path: Property<String>,
+    pub source: Property<ImageSource>,
     pub fit: Property<ImageFit>,
+}
+
+#[pax]
+pub enum ImageSource {
+    #[default]
+    Empty,
+    Url(String),
+    /// width, height, vec.len() = width * height * 4 (one u8 for each rgba value)
+    Data(usize, usize, Vec<u8>),
 }
 
 pub struct ImageInstance {
     base: BaseInstance,
     native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
+    needs_to_load_data: Rc<RefCell<HashSet<ExpandedNodeIdentifier>>>,
 }
 
 impl InstanceNode for ImageInstance {
@@ -43,6 +54,7 @@ impl InstanceNode for ImageInstance {
                 },
             ),
             native_message_props: Default::default(),
+            needs_to_load_data: Default::default(),
         })
     }
 
@@ -69,11 +81,9 @@ impl InstanceNode for ImageInstance {
             ..Default::default()
         }));
 
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
-            .values()
-            .cloned()
-            .chain([expanded_node.transform_and_bounds.untyped()])
-            .collect();
+        let deps =
+            [expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.untyped())];
+        let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
         borrow_mut!(self.native_message_props).insert(
             expanded_node.id,
             Property::computed(
@@ -87,15 +97,26 @@ impl InstanceNode for ImageInstance {
                         id,
                         ..Default::default()
                     };
-                    let path_val = expanded_node
-                        .with_properties_unwrapped(|props: &mut Image| props.path.get().clone());
+                    expanded_node.with_properties_unwrapped(|props: &mut Image| {
+                        let source = props.source.get();
+                        match source {
+                            ImageSource::Empty => (),
+                            ImageSource::Url(url) => {
+                                let update =
+                                    patch_if_needed(&mut old_state.path, &mut patch.path, url);
 
-                    let update = patch_if_needed(&mut old_state.path, &mut patch.path, path_val);
-
-                    if update {
-                        context
-                            .enqueue_native_message(pax_message::NativeMessage::ImageLoad(patch));
-                    }
+                                if update {
+                                    context.enqueue_native_message(
+                                        pax_message::NativeMessage::ImageLoad(patch),
+                                    );
+                                }
+                            }
+                            ImageSource::Data(_width, _height, data) => {
+                                // insert to notify during render it needs to reload
+                                borrow_mut!(needs_to_load_data).insert(expanded_node.id.clone());
+                            }
+                        }
+                    });
                     ()
                 },
                 &deps,
@@ -107,6 +128,7 @@ impl InstanceNode for ImageInstance {
         let id = expanded_node.id.clone();
         // Reset so that native_message stops sending updates while unmounted
         borrow_mut!(self.native_message_props).remove(&id);
+        borrow_mut!(self.needs_to_load_data).remove(&id);
     }
 
     fn render(
@@ -119,9 +141,31 @@ impl InstanceNode for ImageInstance {
         let (container_width, container_height) = t_and_b.bounds;
 
         expanded_node.with_properties_unwrapped(|props: &mut Image| {
-            let path = props.path.get();
-            let Some((image_width, image_height)) = rc.get_image_size(&path) else {
-                // image not loaded yet
+            let image_size_and_load_path = props.source.read(|source| {
+                match source {
+                    ImageSource::Empty => return None,
+                    ImageSource::Url(url) => {
+                        let Some((image_width, image_height)) = rc.get_image_size(&url) else {
+                            // image not loaded yet
+                            return None;
+                        };
+                        Some((image_width, image_height, url.to_string()))
+                    }
+                    &ImageSource::Data(width, height, ref data) => {
+                        let mut last_images = borrow_mut!(self.needs_to_load_data);
+                        let unique_ident = format!("raw-image-ref-{}", expanded_node.id.to_u32());
+                        if last_images.contains(&expanded_node.id) {
+                            let mut data_of_correct_len = vec![0; width * height * 4];
+                            data_of_correct_len[0..data.len()].copy_from_slice(&data);
+                            rc.load_image(&unique_ident, &data_of_correct_len, width, height);
+                            last_images.remove(&expanded_node.id);
+                        }
+                        Some((width, height, unique_ident))
+                    }
+                }
+            });
+
+            let Some((image_width, image_height, path)) = image_size_and_load_path else {
                 return;
             };
             let (image_width, image_height) = (image_width as f64, image_height as f64);
@@ -143,9 +187,11 @@ impl InstanceNode for ImageInstance {
             let x = (container_width - width) / 2.0;
             let y = (container_height - height) / 2.0;
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
+            let clip_path = kurbo::Rect::new(0.0, 0.0, container_width, container_height);
             let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
             rc.save(&layer_id);
             rc.transform(&layer_id, t_and_b.transform.into());
+            rc.clip(&layer_id, clip_path.into_path(0.01));
             rc.draw_image(&layer_id, &path, transformed_bounds);
             rc.restore(&layer_id);
         });

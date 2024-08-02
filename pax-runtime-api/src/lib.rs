@@ -1264,6 +1264,35 @@ impl Color {
             .to_rgba_0_1(),
         }
     }
+
+    //Credit: Claude 3.5 Sonnet
+    pub fn to_hsla_0_1(&self) -> [f64; 4] {
+        let [r, g, b, a] = self.to_rgba_0_1();
+
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let chroma = max - min;
+
+        let h = if chroma == 0.0 {
+            0.0
+        } else if max == r {
+            ((g - b) / chroma + 6.0) % 6.0 / 6.0
+        } else if max == g {
+            ((b - r) / chroma + 2.0) / 6.0
+        } else {
+            ((r - g) / chroma + 4.0) / 6.0
+        };
+
+        let l = (max + min) / 2.0;
+
+        let s = if l == 0.0 || l == 1.0 {
+            0.0
+        } else {
+            (max - l) / l.min(1.0 - l)
+        };
+
+        [h, s, l, a]
+    }
 }
 
 //hsl_to_rgb logic borrowed & modified from https://github.com/emgyrz/colorsys.rs, licensed MIT Copyright (c) 2019 mz <emgyrz@gmail.com>
