@@ -15,7 +15,6 @@ pub mod utils;
 pub mod cartridge_generation;
 pub mod constants;
 
-pub mod deserializer;
 
 /// Definition container for an entire Pax cartridge
 #[serde_with::serde_as]

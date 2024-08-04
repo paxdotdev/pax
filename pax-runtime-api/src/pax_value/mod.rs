@@ -9,6 +9,7 @@ mod arithmetic;
 mod coercion_impls;
 mod macros;
 pub mod numeric;
+pub mod functions;
 mod to_from_impls;
 
 /// Container for all internal pax types
@@ -76,14 +77,8 @@ impl PaxAny {
 /// representation (see to_from_impls module) This is NOT responsible for
 /// coercing between types, but returns an err in all cases where the underlying
 /// type is not exactly what is expected
-pub trait ToFromPaxValue
-where
-    Self: Sized + 'static,
-{
+pub trait ToPaxValue{
     fn to_pax_value(self) -> PaxValue;
-    fn from_pax_value(pax_value: PaxValue) -> Result<Self, String>;
-    fn ref_from_pax_value(pax_value: &PaxValue) -> Result<&Self, String>;
-    fn mut_from_pax_value(pax_value: &mut PaxValue) -> Result<&mut Self, String>;
 }
 
 /// Trait that marks a type as being representable as a PaxAny, and provides

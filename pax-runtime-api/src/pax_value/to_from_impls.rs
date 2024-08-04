@@ -1,10 +1,7 @@
 use super::ImplToFromPaxAny;
 use super::Numeric;
-use super::PaxAny;
 use super::PaxValue;
-use super::ToFromPaxAny;
-use super::ToFromPaxValue;
-use crate::impl_from_to_pax_any_for_from_to_pax_value;
+use super::ToPaxValue;
 use crate::impl_to_from_pax_value;
 use crate::math::Space;
 use crate::math::Transform2;
@@ -55,57 +52,19 @@ impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(Fill, PaxValue::Fill);
 impl_to_from_pax_value!(Stroke, PaxValue::Stroke);
 
-impl From<PaxAny> for bool {
-    fn from(pax_any: PaxAny) -> Self {
-        match pax_any {
-            PaxAny::Builtin(b) => bool::from_pax_value(b).unwrap(),
-            PaxAny::Any(_) => panic!("can't convert Any to bool"),
-        }
+
+// Pax Vec type
+impl<T: ToPaxValue> ToPaxValue for Vec<T> {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Vec(self.into_iter().map(|v| v.to_pax_value()).collect::<Vec<_>>())
     }
 }
 
-// Pax Vec type
-// impl<T: ToFromPaxAny + 'static> ToFromPaxValue for Vec<T> {
-//     fn to_pax_value(self) -> PaxValue {
-//         PaxValue::Vec(self.into_iter().map(|v| v.to_pax_any()).collect::<Vec<_>>())
-//     }
-
-//     fn from_pax_value(pax_value: PaxValue) -> Result<Self, String> {
-//         match pax_value {
-//             PaxValue::Vec(vec) => vec
-//                 .into_iter()
-//                 .map(|v| T::from_pax_any(v))
-//                 .collect::<Result<Vec<_>, _>>(),
-//             v => return Err(format!("can't coerce {:?} into Vec<PaxAny>", v)),
-//         }
-//     }
-
-//     fn ref_from_pax_value(_pax_value: &PaxValue) -> Result<&Self, String> {
-//         panic!("can't get a reference to a a container type");
-//     }
-
-//     fn mut_from_pax_value(_pax_value: &mut PaxValue) -> Result<&mut Self, String> {
-//         panic!("can't get a reference to a a container type");
-//     }
-// }
-
-// impl<T: ToFromPaxAny> ToFromPaxAny for Vec<T> {
-//     fn to_pax_any(self) -> PaxAny {
-//         PaxAny::Builtin(self.to_pax_value())
-//     }
-
-//     fn from_pax_any(pax_any: PaxAny) -> Result<Self, String> {
-//         match pax_any {
-//             PaxAny::Builtin(b) => <Vec<T>>::from_pax_value(b),
-//             PaxAny::Any(_) => panic!("can't create a vec from an any type"),
-//         }
-//     }
-
-//     fn ref_from_pax_any(_pax_any: &PaxAny) -> Result<&Self, String> {
-//         panic!("can't get a reference to a a container type");
-//     }
-
-//     fn mut_from_pax_any(_pax_any: &mut PaxAny) -> Result<&mut Self, String> {
-//         panic!("can't get a reference to a a container type");
-//     }
-// }
+impl<T: ToPaxValue> ToPaxValue for Option<T> {
+    fn to_pax_value(self) -> PaxValue {
+        match self {
+            Some(v) => PaxValue::Option(Box::new(Some(v.to_pax_value()))),
+            None => PaxValue::Option(Box::new(None)),
+        }
+    }
+}

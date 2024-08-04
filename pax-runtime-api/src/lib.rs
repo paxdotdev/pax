@@ -4,7 +4,7 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
-pub use pax_value::{ImplToFromPaxAny, PaxValue, ToFromPaxValue};
+pub use pax_value::{ImplToFromPaxAny, PaxValue, ToPaxValue, CoercionRules};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
 pub mod refcell_debug;

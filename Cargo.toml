@@ -22,7 +22,6 @@ members = [
     "pax-lang",
     "pax-language-server",
     "pax-designtime",
-    "pax-paxel-interpreter",
 ]
 
 exclude = [

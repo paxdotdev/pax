@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Not, Rem, Sub},
 };
 
-use crate::{Numeric, PaxValue, Percent, Size, ToFromPaxValue};
+use crate::{Numeric, PaxValue, Percent, Size, ToPaxValue};
 
 use super::{PaxAny, ToFromPaxAny};
 
