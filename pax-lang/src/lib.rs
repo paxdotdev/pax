@@ -8,7 +8,8 @@ pub use pest_derive::Parser;
 mod parsing;
 pub use parsing::get_pax_pratt_parser;
 
-mod deserializer;
+pub mod deserializer;
+mod interpreter;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -136,6 +137,17 @@ pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Err
             let pair = pairs.next().unwrap();
             Ok(pair)
         }
+        Err(err) => {
+            let named_error = err.renamed_rules(renamed_rules);
+            Err(named_error)
+        }
+    }
+}
+
+pub fn parse_pax_pairs(expected_rule: Rule, input: &str) -> Result<Pairs<Rule>, Error<Rule>> {
+    let pairs = PaxParser::parse(expected_rule, input);
+    match pairs {
+        Ok(pairs) => Ok(pairs),
         Err(err) => {
             let named_error = err.renamed_rules(renamed_rules);
             Err(named_error)

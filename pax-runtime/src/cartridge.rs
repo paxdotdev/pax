@@ -524,7 +524,7 @@ pub trait DefinitionToInstanceTraverser {
     }
 }
 
-fn resolve_property<T: ToFromPaxAny + CoercionRules + PropertyValue + DeserializeOwned>(
+fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
     name: &str,
     defined_properties: &BTreeMap<String, ValueDefinition>,
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -535,9 +535,9 @@ fn resolve_property<T: ToFromPaxAny + CoercionRules + PropertyValue + Deserializ
     };
     let resolved_property: Property<Option<T>> = match value_def.clone() {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
-            let val = pax_manifest::deserializer::from_pax_try_coerce::<T>(&lv.raw_value)
+            let val = T::try_coerce(pax_lang::deserializer::from_pax(&lv.raw_value)
                 .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e))
-                .unwrap();
+                .unwrap()).unwrap();
             Property::new_with_name(Some(val), &lv.raw_value)
         }
         pax_manifest::ValueDefinition::DoubleBinding(token, _info) => {
@@ -560,16 +560,17 @@ fn resolve_property<T: ToFromPaxAny + CoercionRules + PropertyValue + Deserializ
                 }
                 let cloned_stack = stack.clone();
                 let cloned_table = table.clone();
-                Property::computed_with_name(
-                    move || {
-                        let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table
-                            .compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                        let coerced = new_value_wrapped.try_coerce::<T>().unwrap();
-                        Some(coerced)
-                    },
-                    &dependents,
-                    &token.raw_value,
-                )
+                Property::new(Some(T::default()))
+                // Property::computed_with_name(
+                //     move || {
+                //         // let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table
+                //         //     .compute_vtable_value(&cloned_stack, info.vtable_id.clone());
+                //         // let coerced = new_value_wrapped.try_coerce::<T>().unwrap();
+                //         Some(coerced)
+                //     },
+                //     &dependents,
+                //     &token.raw_value,
+                // )
             } else {
                 unreachable!("No info for expression")
             }

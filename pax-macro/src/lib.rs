@@ -11,8 +11,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
 use templating::{
-    ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, StaticPropertyDefinition,
-    TemplateArgsDerivePax,
+    ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition, TemplateArgsDerivePax
 };
 
 use sailfish::TemplateOnce;
@@ -29,9 +28,14 @@ fn pax_primitive(
 ) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
+    let is_enum = match &input_parsed.data {
+        Data::Enum(_) => true,
+        _ => false,
+    };
 
-    let static_property_definitions =
-        get_static_property_definitions_from_tokens(&input_parsed.data);
+
+    let internal_definitions =
+        get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
         args_primitive: Some(ArgsPrimitive {
@@ -39,9 +43,10 @@ fn pax_primitive(
         }),
         args_struct_only_component: None,
         args_full_component: None,
-        static_property_definitions,
+        internal_definitions,
         pascal_identifier,
         is_custom_interpolatable,
+        is_enum,
     }
     .render_once()
     .unwrap()
@@ -55,9 +60,13 @@ fn pax_struct_only_component(
     is_custom_interpolatable: bool,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
+    let is_enum = match &input_parsed.data {
+        Data::Enum(_) => true,
+        _ => false,
+    };
 
-    let static_property_definitions =
-        get_static_property_definitions_from_tokens(&input_parsed.data);
+    let internal_definitions =
+        get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = templating::TemplateArgsDerivePax {
         args_full_component: None,
@@ -65,8 +74,9 @@ fn pax_struct_only_component(
         args_struct_only_component: Some(ArgsStructOnlyComponent {}),
 
         pascal_identifier: pascal_identifier.clone(),
-        static_property_definitions,
+        internal_definitions,
         is_custom_interpolatable,
+        is_enum,
     }
     .render_once()
     .unwrap()
@@ -191,12 +201,16 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
     }
 }
 
-fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropertyDefinition> {
+fn index_to_ascii_lowercase(index: usize) -> char {
+    (b'a' + (index as u8)) as char
+}
+
+fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
     let ret = match data {
         Data::Struct(ref data) => {
             match data.fields {
                 Fields::Named(ref fields) => {
-                    let mut ret = vec![];
+                    let mut spds = vec![];
                     fields.named.iter().for_each(|f| {
                         let field_name = f.ident.as_ref().unwrap();
                         let _field_type = match get_field_type(f) {
@@ -208,7 +222,7 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
                                     get_scoped_resolvable_types(&ty.0);
                                 let pascal_identifier =
                                     type_name.split("::").last().unwrap().to_string();
-                                ret.push(StaticPropertyDefinition {
+                                    spds.push(StaticPropertyDefinition {
                                     original_type: type_name,
                                     field_name: quote!(#field_name).to_string(),
                                     scoped_resolvable_types,
@@ -220,7 +234,7 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
                             }
                         };
                     });
-                    ret
+                    InternalDefinitions::Struct(spds)
                 }
                 _ => {
                     unimplemented!("Pax may only be attached to `struct`s with named fields");
@@ -228,20 +242,20 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
             }
         }
         Data::Enum(ref data) => {
-            let mut ret = vec![];
+            let mut evds = vec![];
             data.variants.iter().for_each(|variant| {
-                let variant_name = &variant.ident;
-
-                variant.fields.iter().for_each(|f| {
+                let variant_name = variant.ident.to_string();
+                let mut variant_fields = vec![];
+                for (i, f) in variant.fields.iter().enumerate(){
                     if let Some(ty) = get_field_type(f) {
                         let original_type = quote!(#(ty.0)).to_string().replace(" ", "");
                         let (scoped_resolvable_types, root_scoped_resolvable_type) =
                             get_scoped_resolvable_types(&ty.0);
                         let pascal_identifier =
                             original_type.split("::").last().unwrap().to_string();
-                        ret.push(StaticPropertyDefinition {
+                        variant_fields.push(StaticPropertyDefinition {
                             original_type,
-                            field_name: quote!(#variant_name).to_string(),
+                            field_name: index_to_ascii_lowercase(i).to_string(),
                             scoped_resolvable_types,
                             root_scoped_resolvable_type,
                             pascal_identifier,
@@ -249,10 +263,14 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
                             is_enum: true,
                         })
                     }
-                })
+                }
+                evds.push(EnumVariantDefinition {
+                    variant_name,
+                    variant_fields,
+                });
             });
 
-            ret
+            InternalDefinitions::Enum(evds)
         }
 
         _ => {
@@ -263,6 +281,8 @@ fn get_static_property_definitions_from_tokens(data: &Data) -> Vec<StaticPropert
     ret
 }
 
+
+
 fn pax_full_component(
     raw_pax: String,
     input_parsed: &DeriveInput,
@@ -272,9 +292,13 @@ fn pax_full_component(
     associated_pax_file_path: Option<PathBuf>,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
+    let is_enum = match &input_parsed.data {
+        Data::Enum(_) => true,
+        _ => false,
+    };
 
-    let static_property_definitions =
-        get_static_property_definitions_from_tokens(&input_parsed.data);
+    let internal_definitions =
+        get_internal_definitions_from_tokens(&input_parsed.data);
 
     let mut template_dependencies = vec![];
     let mut error_message: Option<String> = None;
@@ -312,8 +336,9 @@ fn pax_full_component(
             error_message,
         }),
         pascal_identifier,
-        static_property_definitions,
+        internal_definitions,
         is_custom_interpolatable,
+        is_enum,
     }
     .render_once()
     .unwrap()
@@ -451,6 +476,7 @@ fn validate_config(
     }
     Ok(())
 }
+
 
 #[proc_macro_attribute]
 pub fn pax(

@@ -139,28 +139,41 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
         let mut property_definitions : Vec<pax_engine::pax_manifest::PropertyDefinition> = vec![];
 
         // Populate `PropertyDefinition`s
-        <% for spd in &static_property_definitions { %>
+        <% if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
+            <% for spd in static_property_definitions { %>
 
-            //Special-handle the root scoped_resolvable_type (the one whose properties
-            //must be available as nested symbols in PAXEL, like `foo.bar`).
-            let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_to_manifest(ctx);
+                //Special-handle the root scoped_resolvable_type (the one whose properties
+                //must be available as nested symbols in PAXEL, like `foo.bar`).
+                let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_to_manifest(ctx);
 
-            <% for scoped_resolvable_type in &spd.scoped_resolvable_types { %>
+                <% for scoped_resolvable_type in &spd.scoped_resolvable_types { %>
 
-                //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
-                let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_to_manifest(ctx);
+                    //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
+                    let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_to_manifest(ctx);
+                <% } %>
+
+                let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
+
+                let mut flags = pax_engine::pax_manifest::PropertyDefinitionFlags::default();
+                flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
+                flags.is_enum = <%= spd.is_enum %>;
+                property_definitions.push(pax_engine::pax_manifest::PropertyDefinition {
+                    name: "<%= spd.field_name %>".to_string(),
+                    type_id: property_type_id,
+                    flags,
+                });
             <% } %>
+        <% } %>
 
-            let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
-
-            let mut flags = pax_engine::pax_manifest::PropertyDefinitionFlags::default();
-            flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
-            flags.is_enum = <%= spd.is_enum %>;
-            property_definitions.push(pax_engine::pax_manifest::PropertyDefinition {
-                name: "<%= spd.field_name %>".to_string(),
-                type_id: property_type_id,
-                flags,
-            });
+        <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
+            <% for vd in variant_definitions { %>
+                <% for spd in &vd.variant_fields { %>
+                    let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_to_manifest(ctx);
+                    <% for scoped_resolvable_type in &spd.scoped_resolvable_types { %>
+                        let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_to_manifest(ctx);
+                    <% } %>
+                <% } %>
+            <% } %>
         <% } %>
 
         match &ctx.visited_type_ids.get(&self_type_id) {
@@ -236,3 +249,97 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
     }
 
 }
+
+
+impl pax_engine::CoercionRules for <%= pascal_identifier %> {
+    fn try_coerce(value: pax_engine::PaxValue) -> Result<Self, String> {
+            <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
+                match value {
+                    pax_engine::PaxValue::Enum(variant_name, values) => {
+                        match variant_name.as_str() {
+                            <% for vd in variant_definitions { %>
+                                "<%= vd.variant_name %>" => {
+                                    let mut values = values.into_iter();
+                                    Ok(Self::<%= vd.variant_name %>
+                                    <% if vd.variant_fields.len() > 0 { %>
+                                    (
+                                        <% for spd in &vd.variant_fields { %>
+                                            <%= spd.root_scoped_resolvable_type %>::try_coerce(values.next().unwrap().clone())?,
+                                        <% } %>
+                                    )
+                                    <% } %>
+                                    )
+                                },
+                            <% } %>
+                            _ => Err("Invalid variant name".to_string()),
+                        }
+                    },
+                    _ => Err("Expected Enum".to_string()),
+                }
+            <% } else if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
+                match value {
+                    pax_engine::PaxValue::Object(map) => {
+                        let mut map = map;
+                        let mut ret = Self::default();
+                        <% for spd in static_property_definitions { %>
+                            // check if the map contains the field
+                            if let Some(value) = map.get("<%= spd.field_name %>") {
+                                let value = <%= spd.root_scoped_resolvable_type %>::try_coerce(value.clone())?;
+                                // if property wrapped set it to Property::new(value)
+                                <% if spd.is_property_wrapped { %>
+                                    ret.<%= spd.field_name %> = Property::new(value);
+                                <% } else { %>
+                                    ret.<%= spd.field_name %> = value;
+                                <% } %>
+                            }
+                        <% } %>
+                        Ok(ret)
+                    },
+                    _ => Err("Expected Object".to_string()),
+                }
+            <% } %>
+    }
+}
+
+
+impl pax_engine::ToPaxValue for <%= pascal_identifier %> {
+    fn to_pax_value(self) -> pax_engine::PaxValue {
+         <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
+                match self {
+                    <% for vd in variant_definitions { %>
+                        Self::<%= vd.variant_name %>
+                        <% if vd.variant_fields.len() > 0 { %>
+                        (
+                            <% for spd in &vd.variant_fields { %>
+                                <%= spd.field_name %>,
+                            <% } %>
+                        )
+                        <% } %> => {
+                            pax_engine::PaxValue::Enum(
+                                "<%= vd.variant_name %>".to_string(),
+                                vec![
+                                    <% for spd in &vd.variant_fields { %>
+                                        <%= spd.field_name %>.to_pax_value(),
+                                    <% } %>
+                                ].into_iter().collect()
+                            )
+                        },
+                    <% } %>
+                }
+
+            <% } else if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
+                pax_engine::PaxValue::Object(
+                    vec![
+                        <% for spd in static_property_definitions { %>
+                            <% if spd.is_property_wrapped { %>
+                                ("<%= spd.field_name %>".to_string(), self.<%= spd.field_name %>.get().to_pax_value()),
+                            <% } else { %>
+                                ("<%= spd.field_name %>".to_string(), self.<%= spd.field_name %>.to_pax_value()),
+                            <% } %>
+                        <% } %>
+                    ].into_iter().collect()
+                )
+            <% } %>
+    }
+}
+

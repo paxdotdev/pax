@@ -24,7 +24,7 @@ const VEC: &str = "Vec";
 const ENUM: &str = "Enum";
 const OBJECT: &str = "Object";
 
-fn from_pax(str: &str) -> Result<PaxValue> {
+pub fn from_pax(str: &str) -> Result<PaxValue> {
     let ast = if let Ok(mut ast) = PaxParser::parse(Rule::literal_value, &str) {
         ast.next().unwrap()
     } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_object, &str) {
@@ -32,6 +32,12 @@ fn from_pax(str: &str) -> Result<PaxValue> {
     } else {
         return Err(Error::Message(format!("Could not parse: {}", str)));
     };
+    let deserializer: PaxDeserializer = PaxDeserializer::from(ast);
+    let t = PaxValue::deserialize(deserializer)?;
+    Ok(t)
+}
+
+pub fn from_pax_ast(ast: Pair<Rule>) -> Result<PaxValue> {
     let deserializer: PaxDeserializer = PaxDeserializer::from(ast);
     let t = PaxValue::deserialize(deserializer)?;
     Ok(t)

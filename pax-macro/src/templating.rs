@@ -15,6 +15,17 @@ pub struct StaticPropertyDefinition {
     pub is_enum: bool,
 }
 
+#[derive(Serialize, Debug)]
+pub struct EnumVariantDefinition {
+    pub variant_name: String,
+    pub variant_fields: Vec<StaticPropertyDefinition>,
+}
+
+pub enum InternalDefinitions {
+    Struct(Vec<StaticPropertyDefinition>),
+    Enum(Vec<EnumVariantDefinition>),
+}
+
 #[derive(Serialize)]
 pub struct ArgsPrimitive {
     /// For example: "pax_std::drawing::rectangle::RectangleInstance" for Rectangle (pax_std::drawing::rectangle::Rectangle)
@@ -43,7 +54,8 @@ pub struct TemplateArgsDerivePax {
     pub args_full_component: Option<ArgsFullComponent>,
 
     /// Shared properties
-    pub static_property_definitions: Vec<StaticPropertyDefinition>,
+    pub internal_definitions: InternalDefinitions,
     pub pascal_identifier: String,
     pub is_custom_interpolatable: bool,
+    pub is_enum: bool,
 }
