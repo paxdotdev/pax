@@ -3,11 +3,9 @@
 // custom coercion rules can be implemented by a type
 
 use crate::{
-    impl_default_coercion_rule, Color, ColorChannel, Fill, ImplToFromPaxAny, Numeric, PaxValue,
+    impl_default_coercion_rule, Color, ColorChannel, Fill, Numeric, PaxValue,
     Percent, Property, Rotation, Size, Stroke, Transform2D,
 };
-
-use super::ToFromPaxAny;
 
 // Default coersion rules:
 // call Into::<first param>::into() on contents of second enum variant
@@ -135,29 +133,60 @@ impl CoercionRules for Numeric {
     }
 }
 
-// Impl for all T that implement ImplToFromPaxAny
-impl<T: ImplToFromPaxAny> CoercionRules for T {
+
+impl<T: CoercionRules> CoercionRules for Vec<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
-        Err(format!(
-            "can't coerce pax type {:?} into rust any type {:?}",
-            value,
-            std::any::type_name::<T>(),
-        ))
+        match value {
+            PaxValue::Vec(vec) => {
+                let res: Result<Vec<T>, _> = vec.into_iter().map(|v| T::try_coerce(v)).collect();
+                res.map_err(|e| format!("couldn't coerce vec, element {:?}", e))
+            }
+            v => Err(format!(
+                "{:?} can't be coerced into {:?}",
+                v,
+                std::any::type_name::<Vec<T>>(),
+            )),
+        }
     }
 }
 
-// impl<T: ToFromPaxAny + CoercionRules> CoercionRules for Vec<T> {
-//     fn try_coerce(value: PaxValue) -> Result<Self, String> {
-//         match value {
-//             PaxValue::Vec(vec) => {
-//                 let res: Result<Vec<_>, _> = vec.into_iter().map(|v| v.try_coerce()).collect();
-//                 res.map_err(|e| format!("couldn't coerce vec, element {:?}", e))
-//             }
-//             v => Err(format!(
-//                 "{:?} can't be coerced into {:?}",
-//                 v,
-//                 std::any::type_name::<Vec<T>>(),
-//             )),
-//         }
-//     }
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// #[serde(crate = "crate::serde")]
+// pub enum PaxValue {
+//     Bool(bool),
+//     Numeric(Numeric),
+//     String(String),
+//     Transform2D(Transform2D),
+//     Size(Size),
+//     Percent(Percent), 
+//     Color(Color),
+//     ColorChannel(ColorChannel),
+//     Rotation(Rotation),
+//     Fill(Fill),
+//     Stroke(Stroke),
+//     Option(Box<Option<PaxValue>>),
+//     // Ideally this is later changed to Vec<PaxValue>, once structs can be
+//     // represented in PaxValue as a map, enabling serialize/deserialization
+//     // debug impl, etc.
+//     Vec(Vec<PaxValue>),
+//     Object(HashMap<String, PaxValue>),
+//     Enum(String, Vec<PaxValue>),
 // }
+
+
+
+impl<T: CoercionRules> CoercionRules for Option<T> {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Option(opt) => {
+                let res: Result<Option<T>, _> = opt.map(|v| T::try_coerce(v)).transpose();
+                res.map_err(|e| format!("couldn't coerce option, element {:?}", e))
+            }
+            v => Err(format!(
+                "{:?} can't be coerced into {:?}",
+                v,
+                std::any::type_name::<Option<T>>(),
+            )),
+        }
+    }
+}
