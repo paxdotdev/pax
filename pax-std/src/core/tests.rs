@@ -1,9 +1,8 @@
+use crate::FontWeight;
 use pax_engine::api::functions::print_all_functions;
 use pax_engine::{CoercionRules, Property, ToPaxValue};
-use crate::FontWeight;
 
 use crate::TextStyle;
-
 
 #[test]
 fn test_font_style_to_pax_value() {
@@ -12,7 +11,6 @@ fn test_font_style_to_pax_value() {
 
     let font_weight = FontWeight::default();
     FontWeight::increase(font_weight);
-
 
     let pax_value = expected.clone().to_pax_value();
     let translated = TextStyle::try_coerce(pax_value).unwrap();
@@ -24,7 +22,7 @@ fn test_font_style_to_pax_value() {
 }
 
 #[test]
-fn test_helper(){
+fn test_helper() {
     // let pv = pax_lang::compute_paxel("increase({})".to_string()).unwrap();
     // let fw = FontWeight::try_coerce(pv).unwrap();
     print_all_functions();

@@ -12,13 +12,15 @@ use quote::{format_ident, quote, ToTokens};
 
 use syn::punctuated::Punctuated;
 use templating::{
-    ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition, TemplateArgsDerivePax
+    ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, EnumVariantDefinition,
+    InternalDefinitions, StaticPropertyDefinition, TemplateArgsDerivePax,
 };
 
 use sailfish::TemplateOnce;
 
 use syn::{
-    parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem, ImplItemMethod, ItemFn, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type
+    parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem,
+    ImplItemMethod, ItemFn, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
 };
 
 fn pax_primitive(
@@ -33,9 +35,7 @@ fn pax_primitive(
         _ => false,
     };
 
-
-    let internal_definitions =
-        get_internal_definitions_from_tokens(&input_parsed.data);
+    let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
         args_primitive: Some(ArgsPrimitive {
@@ -65,8 +65,7 @@ fn pax_struct_only_component(
         _ => false,
     };
 
-    let internal_definitions =
-        get_internal_definitions_from_tokens(&input_parsed.data);
+    let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = templating::TemplateArgsDerivePax {
         args_full_component: None,
@@ -222,7 +221,7 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
                                     get_scoped_resolvable_types(&ty.0);
                                 let pascal_identifier =
                                     type_name.split("::").last().unwrap().to_string();
-                                    spds.push(StaticPropertyDefinition {
+                                spds.push(StaticPropertyDefinition {
                                     original_type: type_name,
                                     field_name: quote!(#field_name).to_string(),
                                     scoped_resolvable_types,
@@ -246,7 +245,7 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
             data.variants.iter().for_each(|variant| {
                 let variant_name = variant.ident.to_string();
                 let mut variant_fields = vec![];
-                for (i, f) in variant.fields.iter().enumerate(){
+                for (i, f) in variant.fields.iter().enumerate() {
                     if let Some(ty) = get_field_type(f) {
                         let original_type = quote!(#(ty.0)).to_string().replace(" ", "");
                         let (scoped_resolvable_types, root_scoped_resolvable_type) =
@@ -281,8 +280,6 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
     ret
 }
 
-
-
 fn pax_full_component(
     raw_pax: String,
     input_parsed: &DeriveInput,
@@ -297,8 +294,7 @@ fn pax_full_component(
         _ => false,
     };
 
-    let internal_definitions =
-        get_internal_definitions_from_tokens(&input_parsed.data);
+    let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
     let mut template_dependencies = vec![];
     let mut error_message: Option<String> = None;
@@ -477,15 +473,12 @@ fn validate_config(
     Ok(())
 }
 
-
 #[proc_macro_attribute]
 pub fn pax(
     _args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
-
-    
 
     let pascal_identifier = input.ident.to_string();
     let config = parse_config(&mut input.attrs);
@@ -587,11 +580,14 @@ fn generate_include(name: &Ident, path: &PathBuf) -> TokenStream {
     }
 }
 #[proc_macro_attribute]
-pub fn helpers(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn helpers(
+    attr: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let scope = parse_macro_input!(attr as syn::LitStr);
     let input = parse_macro_input!(item as ItemImpl);
     let struct_name = &input.self_ty;
-    
+
     let mut helper_functions = vec![];
     let mut registration_functions = vec![];
 
@@ -602,7 +598,12 @@ pub fn helpers(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> 
             let helper_name = format_ident!("_{}", func_name);
 
             // Check if the function is static (doesn't use `self`)
-            if method.sig.inputs.iter().any(|arg| matches!(arg, FnArg::Receiver(_))) {
+            if method
+                .sig
+                .inputs
+                .iter()
+                .any(|arg| matches!(arg, FnArg::Receiver(_)))
+            {
                 return syn::Error::new_spanned(
                     method.sig.clone(),
                     "Helpers macro can only be used on static methods (methods that don't take self)",
@@ -630,8 +631,7 @@ pub fn helpers(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> 
             registration_functions.push(quote! {
                 #[pax_engine::api::ctor]
                 fn #registration_name() {
-                    let boxed_func: std::sync::Arc<dyn Fn(Vec<PaxValue>) -> Result<PaxValue, String> + Send + Sync> = 
-                        std::sync::Arc::new(move |args| #helper_name(args));
+                    let boxed_func: std::sync::Arc<dyn Fn(Vec<PaxValue>) -> Result<PaxValue, String> + Send + Sync> = std::sync::Arc::new(move |args| #helper_name(args));
                     pax_engine::api::register_function(#scope.to_string(), stringify!(#func_name).to_string(), boxed_func);
                 }
             });
