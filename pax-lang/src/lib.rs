@@ -9,7 +9,9 @@ mod parsing;
 pub use parsing::get_pax_pratt_parser;
 
 pub mod deserializer;
-mod interpreter;
+pub mod interpreter;
+
+pub use interpreter::compute_paxel;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]

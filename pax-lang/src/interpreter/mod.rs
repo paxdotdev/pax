@@ -31,7 +31,10 @@ impl Computable for PaxExpression {
 pub enum PaxPrimary {
     Literal(PaxValue), // deserializer
     Identifier(PaxIdentifier),  // untyped -> 
+    // FunctionCall(PaxFunctionCall),
 }
+
+
 
 impl Computable for PaxPrimary {
     fn compute(&self) -> Result<PaxValue, String> {
@@ -55,7 +58,7 @@ impl Computable for PaxPrefix {
     fn compute(&self) -> Result<PaxValue, String> {
         let rhs = self.rhs.compute()?;
         let operator = &self.operator.name;
-        call_function(operator.to_string(), vec![rhs])
+        call_function("Math".to_string(),operator.to_string(), vec![rhs])
     }
 }
 
@@ -72,7 +75,7 @@ impl Computable for PaxInfix {
         let lhs = self.lhs.compute()?;
         let rhs = self.rhs.compute()?;
         let operator = &self.operator.name;
-        call_function(operator.to_string(), vec![lhs, rhs])
+        call_function("Math".to_string(),operator.to_string(), vec![lhs, rhs])
     }
 }
 
@@ -86,7 +89,7 @@ impl Computable for PaxPostfix {
     fn compute(&self) -> Result<PaxValue, String> {
         let lhs = self.lhs.compute()?;
         let operator = &self.operator.name;
-        call_function(operator.to_string(), vec![lhs])
+        call_function("Math".to_string(), operator.to_string(), vec![lhs])
     }
 }
 
