@@ -194,6 +194,20 @@ impl Numeric {
             _ => Numeric::F64(self.to_float().powf(exp.to_float())),
         }
     }
+
+    pub fn min(self, other: Self) -> Self {
+        match (self.is_float(), other.is_float()) {
+            (false, false) => Numeric::I64(self.to_int().min(other.to_int())),
+            _ => Numeric::F64(self.to_float().min(other.to_float())),
+        }
+    }
+
+    pub fn max(self, other: Self) -> Self {
+        match (self.is_float(), other.is_float()) {
+            (false, false) => Numeric::I64(self.to_int().max(other.to_int())),
+            _ => Numeric::F64(self.to_float().max(other.to_float())),
+        }
+    }
 }
 
 impl Interpolatable for Numeric {

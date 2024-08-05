@@ -100,11 +100,14 @@ fn test_vec() {
 #[test]
 fn test_enum() {
     let enum_pax = "Test::Enum(10, 20, 30)".to_string();
-    let expected = PaxValue::Enum("Enum".to_string(), vec![
-        PaxValue::Numeric(Numeric::I64(10)),
-        PaxValue::Numeric(Numeric::I64(20)),
-        PaxValue::Numeric(Numeric::I64(30)),
-    ]);
+    let expected = PaxValue::Enum(
+        "Enum".to_string(),
+        vec![
+            PaxValue::Numeric(Numeric::I64(10)),
+            PaxValue::Numeric(Numeric::I64(20)),
+            PaxValue::Numeric(Numeric::I64(30)),
+        ],
+    );
     let v = from_pax(&enum_pax).unwrap();
     assert_eq!(expected, v);
 }
@@ -131,10 +134,16 @@ fn test_complex_vec() {
         PaxValue::Numeric(Numeric::I64(10)),
         PaxValue::Numeric(Numeric::I64(20)),
         PaxValue::Numeric(Numeric::I64(30)),
-        PaxValue::Vec(vec![PaxValue::Numeric(Numeric::I64(40)), PaxValue::Numeric(Numeric::I64(50))]),
+        PaxValue::Vec(vec![
+            PaxValue::Numeric(Numeric::I64(40)),
+            PaxValue::Numeric(Numeric::I64(50)),
+        ]),
         PaxValue::Object(
-            vec![("a".to_string(), PaxValue::Numeric(Numeric::I64(60)))].into_iter().collect()
-        )]);
+            vec![("a".to_string(), PaxValue::Numeric(Numeric::I64(60)))]
+                .into_iter()
+                .collect(),
+        ),
+    ]);
     let v = from_pax(&vec_pax).unwrap();
     assert_eq!(expected, v);
 }
@@ -142,14 +151,23 @@ fn test_complex_vec() {
 #[test]
 fn test_complex_enum() {
     let enum_pax = "Test::Enum(10, 20, 30, [40, 50], { a: 60 })".to_string();
-    let expected = PaxValue::Enum("Enum".to_string(), vec![
-        PaxValue::Numeric(Numeric::I64(10)),
-        PaxValue::Numeric(Numeric::I64(20)),
-        PaxValue::Numeric(Numeric::I64(30)),
-        PaxValue::Vec(vec![PaxValue::Numeric(Numeric::I64(40)), PaxValue::Numeric(Numeric::I64(50))]),
-        PaxValue::Object(
-            vec![("a".to_string(), PaxValue::Numeric(Numeric::I64(60)))].into_iter().collect()
-        )]);
+    let expected = PaxValue::Enum(
+        "Enum".to_string(),
+        vec![
+            PaxValue::Numeric(Numeric::I64(10)),
+            PaxValue::Numeric(Numeric::I64(20)),
+            PaxValue::Numeric(Numeric::I64(30)),
+            PaxValue::Vec(vec![
+                PaxValue::Numeric(Numeric::I64(40)),
+                PaxValue::Numeric(Numeric::I64(50)),
+            ]),
+            PaxValue::Object(
+                vec![("a".to_string(), PaxValue::Numeric(Numeric::I64(60)))]
+                    .into_iter()
+                    .collect(),
+            ),
+        ],
+    );
     let v = from_pax(&enum_pax).unwrap();
     assert_eq!(expected, v);
 }
@@ -161,10 +179,21 @@ fn test_complex_object() {
         vec![
             ("a".to_string(), PaxValue::Numeric(Numeric::F64(10.0))),
             ("b".to_string(), PaxValue::Numeric(Numeric::I64(20))),
-            ("c".to_string(), PaxValue::Vec(vec![PaxValue::Numeric(Numeric::I64(30)), PaxValue::Numeric(Numeric::I64(40))])),
-            ("d".to_string(), PaxValue::Object(
-                vec![("e".to_string(), PaxValue::Numeric(Numeric::I64(50)))].into_iter().collect()
-            )),
+            (
+                "c".to_string(),
+                PaxValue::Vec(vec![
+                    PaxValue::Numeric(Numeric::I64(30)),
+                    PaxValue::Numeric(Numeric::I64(40)),
+                ]),
+            ),
+            (
+                "d".to_string(),
+                PaxValue::Object(
+                    vec![("e".to_string(), PaxValue::Numeric(Numeric::I64(50)))]
+                        .into_iter()
+                        .collect(),
+                ),
+            ),
         ]
         .into_iter()
         .collect(),

@@ -89,7 +89,6 @@ impl Neg for PaxValue {
     }
 }
 
-
 // pub enum PaxValue {
 //     Bool(bool),
 //     Numeric(Numeric),
@@ -118,7 +117,7 @@ impl PartialEq for PaxValue {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => a == b,
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a == b,
             (PaxValue::String(a), PaxValue::String(b)) => a == b,
-            (PaxValue::Size(a), PaxValue::Size(b)) => a == b,   
+            (PaxValue::Size(a), PaxValue::Size(b)) => a == b,
             (PaxValue::Percent(a), PaxValue::Percent(b)) => a == b,
             (PaxValue::Color(a), PaxValue::Color(b)) => a == b,
             (PaxValue::ColorChannel(a), PaxValue::ColorChannel(b)) => a == b,
@@ -190,6 +189,20 @@ impl PaxValue {
         match (self, exp) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.pow(b).to_pax_value(),
             (a, b) => panic!("exponentiation not valid between {:?} and {:?}", a, b),
+        }
+    }
+
+    pub fn min(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.min(b).to_pax_value(),
+            (a, b) => panic!("min not valid between {:?} and {:?}", a, b),
+        }
+    }
+
+    pub fn max(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.max(b).to_pax_value(),
+            (a, b) => panic!("max not valid between {:?} and {:?}", a, b),
         }
     }
 }

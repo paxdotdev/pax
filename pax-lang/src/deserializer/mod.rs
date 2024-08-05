@@ -14,7 +14,7 @@ use self::helpers::{PaxEnum, PaxObject, PaxSeq};
 pub use error::{Error, Result};
 
 use pax_runtime_api::constants::{
-    COLOR, DEGREES, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, INTEGER
+    COLOR, DEGREES, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE,
 };
 
 const STRING: &str = "String";
@@ -90,10 +90,10 @@ impl<'de> PaxDeserializer<'de> {
             Rule::literal_option => {
                 visitor.visit_enum(PaxEnum::new_pax_value(OPTION, Some(self.ast)))
             }
-            Rule::literal_boolean => {
-                visitor.visit_enum(PaxEnum::new(BOOL, Some(self.ast)))
+            Rule::literal_boolean => visitor.visit_enum(PaxEnum::new(BOOL, Some(self.ast))),
+            Rule::literal_object => {
+                visitor.visit_enum(PaxEnum::new_pax_value(OBJECT, Some(self.ast)))
             }
-            Rule::literal_object => visitor.visit_enum(PaxEnum::new_pax_value(OBJECT, Some(self.ast))),
             _ => Err(Error::UnsupportedType(self.ast.to_string())),
         }
     }
@@ -117,7 +117,6 @@ impl<'de> PaxDeserializer<'de> {
 
                         let color_args = Some(what_kind_of_color);
 
-                        
                         visitor.visit_enum(PaxEnum::new(func, color_args))
                     }
                     Rule::literal_color_const => {
@@ -135,7 +134,7 @@ impl<'de> PaxDeserializer<'de> {
                 match channel.as_rule() {
                     Rule::literal_number_integer => {
                         visitor.visit_enum(PaxEnum::new(INTEGER, Some(channel)))
-                    },
+                    }
                     Rule::literal_number_with_unit => {
                         let unit = channel.clone().into_inner().nth(1).unwrap().as_str();
                         let number = channel.clone().into_inner().next().unwrap();
@@ -143,14 +142,16 @@ impl<'de> PaxDeserializer<'de> {
                             "%" => visitor.visit_enum(PaxEnum::new(PERCENT, Some(number))),
                             "rad" => visitor.visit_enum(PaxEnum::new(ROTATION, Some(channel))),
                             "deg" => visitor.visit_enum(PaxEnum::new(ROTATION, Some(channel))),
-                            _ => {
-                                Err(Error::Message(format!("Unsupported unit: {} for ColorChannel", unit)))
-                            }
+                            _ => Err(Error::Message(format!(
+                                "Unsupported unit: {} for ColorChannel",
+                                unit
+                            ))),
                         }
                     }
-                    _ => {
-                        Err(Error::Message(format!("Unsupported type: {} for ColorChannel", channel.as_str())))
-                    }
+                    _ => Err(Error::Message(format!(
+                        "Unsupported type: {} for ColorChannel",
+                        channel.as_str()
+                    ))),
                 }
             }
             Rule::literal_number => {
@@ -169,30 +170,24 @@ impl<'de> PaxDeserializer<'de> {
                     "px" => visitor.visit_enum(PaxEnum::new(PIXELS, number)),
                     "rad" => visitor.visit_enum(PaxEnum::new(RADIANS, number)),
                     "deg" => visitor.visit_enum(PaxEnum::new(DEGREES, number)),
-                    _ => {
-                        Err(Error::Message(format!("Unsupported unit: {}", unit)))
-                    }
+                    _ => Err(Error::Message(format!("Unsupported unit: {}", unit))),
                 }
             }
             Rule::string => {
                 let string_within_quotes =
-                self.ast.into_inner().next().unwrap().as_str().to_string();
+                    self.ast.into_inner().next().unwrap().as_str().to_string();
                 visitor.visit_string(string_within_quotes)
             }
             Rule::literal_boolean => {
                 let bool_str = self.ast.as_str();
                 visitor.visit_bool(bool_str.parse::<bool>().unwrap())
-            },
-            Rule::identifier | Rule::pascal_identifier => {
-                visitor.visit_str(self.ast.as_str())
             }
+            Rule::identifier | Rule::pascal_identifier => visitor.visit_str(self.ast.as_str()),
             _ => Err(Error::UnsupportedType(self.ast.to_string())),
         }?;
 
         Ok(ret)
     }
-
-
 }
 
 impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
@@ -202,7 +197,7 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-       self.deserialize_builtin(visitor)
+        self.deserialize_builtin(visitor)
     }
 
     forward_to_deserialize_any! {
@@ -210,7 +205,7 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
         bytes byte_buf unit unit_struct newtype_struct tuple identifier
         tuple_struct struct ignored_any
     }
-    
+
     fn deserialize_enum<V>(
         self,
         name: &'static str,
@@ -218,35 +213,42 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
         visitor: V,
     ) -> std::result::Result<V::Value, Self::Error>
     where
-        V: Visitor<'de> {
+        V: Visitor<'de>,
+    {
         if name == "PaxValue" {
             return self.deserialize_pax_value(visitor);
-        } 
+        }
         self.deserialize_any(visitor)
     }
-    
+
     fn deserialize_seq<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
     where
-        V: Visitor<'de> {
-            visitor.visit_seq(PaxSeq::new(self.ast.into_inner()))
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(PaxSeq::new(self.ast.into_inner()))
     }
-    
+
     fn deserialize_option<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
     where
-        V: Visitor<'de> {
+        V: Visitor<'de>,
+    {
         let unwrapped_option = self.ast.into_inner().next().unwrap();
         match unwrapped_option.as_rule() {
             Rule::literal_none => visitor.visit_none(),
-            Rule::literal_some => visitor.visit_some(PaxDeserializer::from(unwrapped_option.into_inner().next().unwrap())),
-            _ => Err(Error::Message(format!("Unexpected format for Option: {}", unwrapped_option.as_str())))
+            Rule::literal_some => visitor.visit_some(PaxDeserializer::from(
+                unwrapped_option.into_inner().next().unwrap(),
+            )),
+            _ => Err(Error::Message(format!(
+                "Unexpected format for Option: {}",
+                unwrapped_option.as_str()
+            ))),
         }
     }
-    
+
     fn deserialize_map<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
     where
-        V: Visitor<'de> {
+        V: Visitor<'de>,
+    {
         visitor.visit_map(PaxObject::new(self.ast.into_inner()))
     }
-
-    
 }

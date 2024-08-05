@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 
 mod arithmetic;
 mod coercion_impls;
+pub mod functions;
 mod macros;
 pub mod numeric;
-pub mod functions;
 mod to_from_impls;
 
 /// Container for all internal pax types
@@ -26,7 +26,7 @@ pub enum PaxValue {
     String(String),
     Transform2D(Transform2D),
     Size(Size),
-    Percent(Percent), 
+    Percent(Percent),
     Color(Color),
     ColorChannel(ColorChannel),
     Rotation(Rotation),
@@ -40,7 +40,6 @@ pub enum PaxValue {
     Object(HashMap<String, PaxValue>),
     Enum(String, Vec<PaxValue>),
 }
-
 
 /// This type serves a similar purpose as Box<dyn Any>, but allows for special
 /// handling of some types, enabling things like coercion.
@@ -77,7 +76,7 @@ impl PaxAny {
 /// representation (see to_from_impls module) This is NOT responsible for
 /// coercing between types, but returns an err in all cases where the underlying
 /// type is not exactly what is expected
-pub trait ToPaxValue{
+pub trait ToPaxValue {
     fn to_pax_value(self) -> PaxValue;
 }
 

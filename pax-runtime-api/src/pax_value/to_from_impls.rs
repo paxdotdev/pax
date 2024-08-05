@@ -52,11 +52,14 @@ impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(Fill, PaxValue::Fill);
 impl_to_from_pax_value!(Stroke, PaxValue::Stroke);
 
-
 // Pax Vec type
 impl<T: ToPaxValue> ToPaxValue for Vec<T> {
     fn to_pax_value(self) -> PaxValue {
-        PaxValue::Vec(self.into_iter().map(|v| v.to_pax_value()).collect::<Vec<_>>())
+        PaxValue::Vec(
+            self.into_iter()
+                .map(|v| v.to_pax_value())
+                .collect::<Vec<_>>(),
+        )
     }
 }
 
