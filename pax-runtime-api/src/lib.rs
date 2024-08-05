@@ -995,18 +995,8 @@ impl ColorChannel {
     ///Normalizes this ColorChannel as a float [0.0, 1.0]
     pub fn to_float_0_1(&self) -> f64 {
         match self {
-            Self::Percent(per) => {
-                assert!(
-                    per.to_float() >= -0.000001 && per.to_float() <= 100.000001,
-                    ""
-                );
-                (per.to_float() / 100.0).clamp(0_f64, 1_f64)
-            }
+            Self::Percent(per) => (per.to_float() / 100.0).clamp(0_f64, 1_f64),
             Self::Integer(zero_to_255) => {
-                assert!(
-                    zero_to_255.to_int() >= 0 && zero_to_255.to_int() <= 255,
-                    "Integer color channel values must be between 0 and 255"
-                );
                 let f_zero: f64 = (*zero_to_255).to_float();
                 (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
             }
