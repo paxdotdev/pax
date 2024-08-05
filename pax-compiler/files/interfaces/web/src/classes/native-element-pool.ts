@@ -415,9 +415,6 @@ export class NativeElementPool {
         updateCommonProps(leaf!, patch);
         let slider = leaf!.firstChild as HTMLInputElement;
 
-        if (patch.value != null && patch.value.toString() != slider.value) {
-            slider.value = patch.value.toString();
-        }
         if (patch.step != null && patch.step.toString() != slider.step) {
             slider.step = patch.step.toString();
         }
@@ -426,6 +423,9 @@ export class NativeElementPool {
         }
         if (patch.max != null && patch.max.toString() != slider.max) {
             slider.max = patch.max.toString();
+        }
+        if (patch.value != null && patch.value.toString() != slider.value) {
+            slider.value = patch.value.toString();
         }
 
         if (patch.accent != null) {

@@ -65,6 +65,10 @@ impl NodeInterface {
         self.inner.layout_properties().get()
     }
 
+    pub fn auto_size(&self) -> Option<(f64, f64)> {
+        self.inner.rendered_size.get()
+    }
+
     pub fn with_properties<V, T: ToFromPaxAny>(&self, f: impl FnOnce(&mut T) -> V) -> Option<V> {
         self.inner.try_with_properties_unwrapped(|tp: &mut T| f(tp))
     }
