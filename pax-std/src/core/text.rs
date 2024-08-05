@@ -557,3 +557,33 @@ impl From<FontWeight> for FontWeightMessage {
         }
     }
 }
+
+#[helpers("FontWeight")]
+impl FontWeight {
+    pub fn increase(weight: FontWeight) -> FontWeight {
+        match weight {
+            FontWeight::Thin => FontWeight::ExtraLight,
+            FontWeight::ExtraLight => FontWeight::Light,
+            FontWeight::Light => FontWeight::Normal,
+            FontWeight::Normal => FontWeight::Medium,
+            FontWeight::Medium => FontWeight::SemiBold,
+            FontWeight::SemiBold => FontWeight::Bold,
+            FontWeight::Bold => FontWeight::ExtraBold,
+            FontWeight::ExtraBold => FontWeight::Black,
+            FontWeight::Black => FontWeight::Black,
+        }
+    }
+    pub fn decrease(weight: FontWeight) -> FontWeight {
+        match weight {
+            FontWeight::Thin => FontWeight::Thin,
+            FontWeight::ExtraLight => FontWeight::Thin,
+            FontWeight::Light => FontWeight::ExtraLight,
+            FontWeight::Normal => FontWeight::Light,
+            FontWeight::Medium => FontWeight::Normal,
+            FontWeight::SemiBold => FontWeight::Medium,
+            FontWeight::Bold => FontWeight::SemiBold,
+            FontWeight::ExtraBold => FontWeight::Bold,
+            FontWeight::Black => FontWeight::ExtraBold,
+        }
+    }
+}

@@ -18,6 +18,7 @@ lazy_static = "1.4.0"
 serde_json = {version="1.0.95", optional = true}
 pax-manifest = {path = "../pax-manifest", version="0.22.0"}
 pax-runtime = {path = "../pax-runtime", version="0.22.0"}
+pax-lang = {path = "../pax-lang", version="0.22.0"}
 serde = { version = "1.0.159", features=["derive"]}
 log = "0.4.20"
 

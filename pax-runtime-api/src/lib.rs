@@ -31,9 +31,15 @@ pub mod pax_value;
 pub mod properties;
 
 pub use properties::Property;
+pub use pax_value::functions;
+pub use ctor::ctor;
+
+pub use pax_value::functions::register_function;
+
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
 pub use pax_message::serde;
+pub use paste;
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
 
