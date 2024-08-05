@@ -8,8 +8,9 @@ use std::str::FromStr;
 use std::{fs, path::PathBuf};
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 
+use syn::punctuated::Punctuated;
 use templating::{
     ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition, TemplateArgsDerivePax
 };
@@ -17,8 +18,7 @@ use templating::{
 use sailfish::TemplateOnce;
 
 use syn::{
-    parse_macro_input, Data, DeriveInput, Field, Fields, GenericArgument, Lit, Meta, PathArguments,
-    Type,
+    parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem, ImplItemMethod, ItemFn, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type
 };
 
 fn pax_primitive(
@@ -484,6 +484,9 @@ pub fn pax(
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
+
+    
+
     let pascal_identifier = input.ident.to_string();
     let config = parse_config(&mut input.attrs);
     validate_config(&input, &config).unwrap();
@@ -581,5 +584,100 @@ fn generate_include(name: &Ident, path: &PathBuf) -> TokenStream {
     quote! {
         #[allow(non_upper_case_globals)]
         const #const_name: &'static str = include_str!(#path_str);
+    }
+}
+#[proc_macro_attribute]
+pub fn helpers(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let scope = parse_macro_input!(attr as syn::LitStr);
+    let input = parse_macro_input!(item as ItemImpl);
+    let struct_name = &input.self_ty;
+    
+    let mut helper_functions = vec![];
+    let mut registration_functions = vec![];
+
+    for item in input.items.iter() {
+        if let ImplItem::Method(method) = item {
+            let func_name = &method.sig.ident;
+            let registration_name = format_ident!("register_{}", func_name);
+            let helper_name = format_ident!("_{}", func_name);
+
+            // Check if the function is static (doesn't use `self`)
+            if method.sig.inputs.iter().any(|arg| matches!(arg, FnArg::Receiver(_))) {
+                return syn::Error::new_spanned(
+                    method.sig.clone(),
+                    "Helpers macro can only be used on static methods (methods that don't take self)",
+                )
+                .to_compile_error()
+                .into();
+            }
+
+            let arg_count = method.sig.inputs.len();
+            let param_checks = generate_param_checks(&method.sig.inputs);
+            let func_call = generate_function_call(&method.sig, struct_name);
+
+            helper_functions.push(quote! {
+                fn #helper_name(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+                    if args.len() != #arg_count {
+                        return Err(format!("Expected {} arguments for function {}", #arg_count, stringify!(#func_name)));
+                    }
+
+                    #param_checks
+
+                    #func_call
+                }
+            });
+
+            registration_functions.push(quote! {
+                #[pax_engine::api::ctor]
+                fn #registration_name() {
+                    let boxed_func: std::sync::Arc<dyn Fn(Vec<PaxValue>) -> Result<PaxValue, String> + Send + Sync> = 
+                        std::sync::Arc::new(move |args| #helper_name(args));
+                    pax_engine::api::register_function(#scope.to_string(), stringify!(#func_name).to_string(), boxed_func);
+                }
+            });
+        }
+    }
+
+    let expanded = quote! {
+        #input
+
+        #(#helper_functions)*
+
+        #(#registration_functions)*
+    };
+
+    expanded.into()
+}
+
+fn generate_param_checks(inputs: &Punctuated<FnArg, Token![,]>) -> proc_macro2::TokenStream {
+    let checks = inputs.iter().enumerate().filter_map(|(i, arg)| {
+        if let FnArg::Typed(PatType { ty, .. }) = arg {
+            let ty_string = quote!(#ty).to_string();
+            let arg_name = format_ident!("arg_{}", i);
+            Some(quote! {
+                let #arg_name = #ty::try_coerce(args[#i].clone())
+                    .map_err(|_| format!("Failed to coerce argument {} to {}", #i, #ty_string))?;
+            })
+        } else {
+            None
+        }
+    });
+
+    quote! { #(#checks)* }
+}
+
+fn generate_function_call(sig: &Signature, struct_name: &Box<Type>) -> proc_macro2::TokenStream {
+    let func_name = &sig.ident;
+    let args = sig.inputs.iter().enumerate().filter_map(|(i, arg)| {
+        if let FnArg::Typed(_) = arg {
+            let arg_name = format_ident!("arg_{}", i);
+            Some(quote! { #arg_name })
+        } else {
+            None
+        }
+    });
+
+    quote! {
+        Ok(#struct_name::#func_name(#(#args),*).to_pax_value())
     }
 }
