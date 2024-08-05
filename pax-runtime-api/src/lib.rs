@@ -4,7 +4,7 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 use crate::math::Space;
 use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
-pub use pax_value::{ImplToFromPaxAny, PaxValue, ToPaxValue, CoercionRules};
+pub use pax_value::{CoercionRules, ImplToFromPaxAny, PaxValue, ToPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::UntypedProperty;
 pub mod refcell_debug;
@@ -30,16 +30,15 @@ pub mod math;
 pub mod pax_value;
 pub mod properties;
 
-pub use properties::Property;
-pub use pax_value::functions;
 pub use ctor::ctor;
+pub use pax_value::functions;
+pub use properties::Property;
 
 pub use pax_value::functions::register_function;
 
-
 use crate::constants::COMMON_PROPERTIES_TYPE;
-pub use pax_message::serde;
 pub use paste;
+pub use pax_message::serde;
 use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
 

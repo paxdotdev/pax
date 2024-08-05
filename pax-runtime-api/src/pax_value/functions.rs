@@ -1,12 +1,16 @@
-use std::{collections::HashMap, sync::{Arc, RwLock}};
+use crate::{Numeric, PaxValue};
 use once_cell::sync::Lazy;
-use crate::PaxValue;
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
+use super::{CoercionRules, ToPaxValue};
 
 type FunctionType = Arc<dyn Fn(Vec<PaxValue>) -> Result<PaxValue, String> + Send + Sync>;
 
-static FUNCTIONS: Lazy<Arc<RwLock<HashMap<String, HashMap<String, FunctionType>>>>> = Lazy::new(|| {
-    Arc::new(RwLock::new(HashMap::new()))
-});
+static FUNCTIONS: Lazy<Arc<RwLock<HashMap<String, HashMap<String, FunctionType>>>>> =
+    Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
 pub fn print_all_functions() {
     let functions = FUNCTIONS.read().unwrap();
@@ -21,13 +25,20 @@ pub fn print_all_functions() {
 
 pub fn register_function(scope: String, name: String, func: FunctionType) {
     let mut functions = FUNCTIONS.write().unwrap();
-    functions.entry(scope).or_insert_with(HashMap::new).insert(name, func);
+    functions
+        .entry(scope)
+        .or_insert_with(HashMap::new)
+        .insert(name, func);
 }
 
 pub fn call_function(scope: String, name: String, args: Vec<PaxValue>) -> Result<PaxValue, String> {
     let functions = FUNCTIONS.read().unwrap();
-    let scope_funcs = functions.get(&scope).ok_or_else(|| format!("Scope {} not found", scope))?;
-    let func = scope_funcs.get(&name).ok_or_else(|| format!("Function {} not found in scope {}", name, scope))?;
+    let scope_funcs = functions
+        .get(&scope)
+        .ok_or_else(|| format!("Scope {} not found", scope))?;
+    let func = scope_funcs
+        .get(&name)
+        .ok_or_else(|| format!("Function {} not found in scope {}", name, scope))?;
     func(args)
 }
 
@@ -147,6 +158,20 @@ fn bool_or(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(args[0].clone().op_or(args[1].clone()))
 }
 
+fn min(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 2 {
+        return Err("Expected 2 arguments for function min".to_string());
+    }
+    Ok(args[0].clone().min(args[1].clone()))
+}
+
+fn max(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 2 {
+        return Err("Expected 2 arguments for function max".to_string());
+    }
+    Ok(args[0].clone().max(args[1].clone()))
+}
+
 // Register functions with scopes
 register_scoped_func!("Math", add, "+");
 register_scoped_func!("Math", sub, "-");
@@ -162,3 +187,5 @@ register_scoped_func!("Math", rel_lte, "<=");
 register_scoped_func!("Math", rel_neq, "!=");
 register_scoped_func!("Math", bool_and, "&&");
 register_scoped_func!("Math", bool_or, "||");
+register_scoped_func!("Math", min);
+register_scoped_func!("Math", max);

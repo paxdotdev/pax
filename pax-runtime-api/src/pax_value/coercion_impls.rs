@@ -3,8 +3,8 @@
 // custom coercion rules can be implemented by a type
 
 use crate::{
-    impl_default_coercion_rule, Color, ColorChannel, Fill, Numeric, PaxValue,
-    Percent, Property, Rotation, Size, Stroke, Transform2D,
+    impl_default_coercion_rule, Color, ColorChannel, Fill, Numeric, PaxValue, Percent, Property,
+    Rotation, Size, Stroke, Transform2D,
 };
 
 // Default coersion rules:
@@ -133,7 +133,6 @@ impl CoercionRules for Numeric {
     }
 }
 
-
 impl<T: CoercionRules> CoercionRules for Vec<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
@@ -158,7 +157,7 @@ impl<T: CoercionRules> CoercionRules for Vec<T> {
 //     String(String),
 //     Transform2D(Transform2D),
 //     Size(Size),
-//     Percent(Percent), 
+//     Percent(Percent),
 //     Color(Color),
 //     ColorChannel(ColorChannel),
 //     Rotation(Rotation),
@@ -172,8 +171,6 @@ impl<T: CoercionRules> CoercionRules for Vec<T> {
 //     Object(HashMap<String, PaxValue>),
 //     Enum(String, Vec<PaxValue>),
 // }
-
-
 
 impl<T: CoercionRules> CoercionRules for Option<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {

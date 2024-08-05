@@ -47,10 +47,18 @@ pub struct PaxEnum<'de> {
 
 impl<'de> PaxEnum<'de> {
     pub fn new(variant: &'de str, args: Option<Pair<'de, Rule>>) -> Self {
-        PaxEnum { variant, args , is_pax_value: false}
+        PaxEnum {
+            variant,
+            args,
+            is_pax_value: false,
+        }
     }
     pub fn new_pax_value(variant: &'de str, args: Option<Pair<'de, Rule>>) -> Self {
-        PaxEnum { variant, args, is_pax_value: true }
+        PaxEnum {
+            variant,
+            args,
+            is_pax_value: true,
+        }
     }
 }
 
@@ -105,7 +113,9 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(Error::Message("Enums with struct arguments are not supported".to_string()))
+        Err(Error::Message(
+            "Enums with struct arguments are not supported".to_string(),
+        ))
     }
 }
 
@@ -170,20 +180,23 @@ impl<'de> MapAccess<'de> for PaxObject<'de> {
                     let mut pairs = pair.into_inner();
                     let key = pairs.next().unwrap().into_inner().next().unwrap();
                     self.current_value = Some(pairs.next().unwrap());
-                    return Ok(Some(seed
-                        .deserialize(StringDeserializer::new(key.as_str()))?));
+                    return Ok(Some(
+                        seed.deserialize(StringDeserializer::new(key.as_str()))?,
+                    ));
                 }
                 Rule::comment => {
                     continue;
                 }
                 _ => {
-                    return Err(Error::Message(format!("Object should not include {:?}", pair.as_rule())));
+                    return Err(Error::Message(format!(
+                        "Object should not include {:?}",
+                        pair.as_rule()
+                    )));
                 }
             }
         }
-            Ok(None)
+        Ok(None)
     }
-    
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
     where
@@ -191,9 +204,11 @@ impl<'de> MapAccess<'de> for PaxObject<'de> {
     {
         if let Some(settings_value) = self.current_value.take() {
             let inner = settings_value.into_inner().next().unwrap();
-            return seed.deserialize(PaxDeserializer::from(inner))
+            return seed.deserialize(PaxDeserializer::from(inner));
         } else {
-            return Err(Error::Message("Did not find corresponding value for a key".to_string()));
+            return Err(Error::Message(
+                "Did not find corresponding value for a key".to_string(),
+            ));
         }
     }
 }
