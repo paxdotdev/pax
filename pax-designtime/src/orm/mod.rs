@@ -72,6 +72,7 @@ pub struct PaxManifestORM {
     next_new_component_id: usize,
     new_components: Vec<TypeId>,
     reload_queue: Vec<ReloadType>,
+    pub manifest_loaded_from_server: Property<bool>,
 }
 
 impl PaxManifestORM {
@@ -85,6 +86,7 @@ impl PaxManifestORM {
             next_new_component_id: 1,
             new_components: Vec::new(),
             reload_queue: Vec::new(),
+            manifest_loaded_from_server: Property::new(false),
         }
     }
 
@@ -107,6 +109,7 @@ impl PaxManifestORM {
     pub fn set_manifest(&mut self, manifest: PaxManifest) {
         self.manifest = manifest;
         self.increment_manifest_version();
+        self.manifest_loaded_from_server.set(true);
         self.set_reload(ReloadType::FullEdit);
     }
 
