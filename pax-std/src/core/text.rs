@@ -349,9 +349,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 #[pax]
 #[custom(Default)]
 pub enum Font {
-    // System(String, FontStyle, FontWeight),
     Web(String, String, FontStyle, FontWeight),
-    // Local(String, String, FontStyle, FontWeight),
 }
 
 impl Default for Font {
@@ -359,7 +357,6 @@ impl Default for Font {
         Self::Web("Roboto".to_string(),
     "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap".to_string()
                   , FontStyle::Normal, FontWeight::Normal)
-        // Self::System("Arial".to_string(), FontStyle::Normal, FontWeight::Normal)
     }
 }
 
@@ -468,23 +465,12 @@ impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
 impl From<Font> for FontPatch {
     fn from(font: Font) -> Self {
         match font {
-            // Font::System(family, style, weight) => FontPatch::System(SystemFontMessage {
-            //     family: Some(family),
-            //     style: Some(style.into()),
-            //     weight: Some(weight.into()),
-            // }),
             Font::Web(family, url, style, weight) => FontPatch::Web(WebFontMessage {
                 family: Some(family),
                 url: Some(url),
                 style: Some(style.into()),
                 weight: Some(weight.into()),
             }),
-            // Font::Local(family, path, style, weight) => FontPatch::Local(LocalFontMessage {
-            //     family: Some(family),
-            //     path: Some(path),
-            //     style: Some(style.into()),
-            //     weight: Some(weight.into()),
-            // }),
         }
     }
 }
@@ -503,20 +489,6 @@ impl PartialEq<FontStyleMessage> for FontStyle {
 impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
         match (self, other) {
-            // (Font::System(family, style, weight), FontPatch::System(system_font_patch)) => {
-            //     system_font_patch
-            //         .family
-            //         .as_ref()
-            //         .map_or(false, |f| f == family)
-            //         && system_font_patch
-            //             .style
-            //             .as_ref()
-            //             .map_or(false, |s| style.eq(&s))
-            //         && system_font_patch
-            //             .weight
-            //             .as_ref()
-            //             .map_or(false, |w| FontWeightMessage::from(weight.clone()).eq(&w))
-            // }
             (Font::Web(family, url, style, weight), FontPatch::Web(web_font_patch)) => {
                 web_font_patch
                     .family
@@ -529,21 +501,6 @@ impl PartialEq<FontPatch> for Font {
                         .as_ref()
                         .map_or(false, |w| FontWeightMessage::from(weight.clone()).eq(w))
             }
-            // (Font::Local(family, path, style, weight), FontPatch::Local(local_font_patch)) => {
-            //     local_font_patch
-            //         .family
-            //         .as_ref()
-            //         .map_or(false, |f| f == family)
-            //         && local_font_patch.path.as_ref().map_or(false, |p| p == path)
-            //         && local_font_patch
-            //             .style
-            //             .as_ref()
-            //             .map_or(false, |s| style.eq(s))
-            //         && local_font_patch
-            //             .weight
-            //             .as_ref()
-            //             .map_or(false, |w| FontWeightMessage::from(weight.clone()).eq(&w))
-            // }
             _ => false,
         }
     }

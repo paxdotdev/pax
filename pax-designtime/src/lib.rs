@@ -75,6 +75,10 @@ impl DesigntimeManager {
         Ok(())
     }
 
+    pub fn get_manifest_loaded_from_server_prop(&self) -> Property<bool> {
+        self.orm.manifest_loaded_from_server.clone()
+    }
+
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         let component = self.orm.get_component(type_id)?;
         self.priv_agent_connection
