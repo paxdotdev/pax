@@ -15,6 +15,7 @@ pax-macro = {path="../pax-macro", version="0.22.0"}
 pax-manifest = {path="../pax-manifest", version="0.22.0"}
 pax-message = {path="../pax-message", version="0.22.0"}
 pax-runtime = {path="../pax-runtime", version="0.22.0"}
+pax-lang = {path="../pax-lang", version="0.22.0"}
 pax-chassis-web = {version = "0.22.0", path="../pax-chassis-web", optional=true }
 pax-chassis-macos = {version = "0.22.0", path="../pax-chassis-macos", optional=true }
 pax-chassis-ios = {version = "0.22.0", path="../pax-chassis-ios", optional=true }

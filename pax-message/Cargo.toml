@@ -15,3 +15,4 @@ description = "Shared message structs used by Pax runtimes"
 [dependencies]
 serde = {version = "1.0.159", features=["derive"] }
 wasm-bindgen = {version = "0.2.92", features=["serde-serialize"]}
+cfg-if = "1.0.0"

@@ -257,7 +257,8 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
     ) -> Self {
-        use pax_runtime_api::properties;
+        use pax_runtime_api::{properties, GlobalFunctions, HelperFunctions};
+        GlobalFunctions::register_all_functions();
 
         let frames_elapsed = Property::new(0);
         properties::register_time(&frames_elapsed);
@@ -291,6 +292,7 @@ impl PaxEngine {
         os: OS,
     ) -> Self {
         use pax_runtime_api::math::Transform2;
+        GlobalFunctions::register_all_functions();
         let frames_elapsed = Property::new(0);
         properties::register_time(&frames_elapsed);
         let globals = Globals {

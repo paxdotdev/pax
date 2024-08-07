@@ -1,5 +1,5 @@
 use std::{collections::HashMap, rc::Rc};
-
+use pax_runtime_api::Numeric;
 use pax_runtime_api::{
     borrow_mut, pax_value::functions::call_function, PaxValue, Percent, RefCell, Rotation, Size,
 };
@@ -27,7 +27,7 @@ pub trait IdentifierResolver {
     fn resolve(&self, name: String) -> Result<PaxValue, String>;
 }
 
-trait Computable {
+pub trait Computable {
     fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String>;
 }
 
@@ -45,8 +45,23 @@ impl Computable for PaxExpression {
 #[derive(PartialEq, Debug)]
 pub enum PaxPrimary {
     Literal(PaxValue),         // deserializer
+    Grouped(Box<PaxExpression>, Option<PaxUnit>),
     Identifier(PaxIdentifier), // untyped ->
+    TupleAccess(PaxIdentifier, usize),
+    ListAccess(PaxIdentifier, usize),
     FunctionCall(PaxFunctionCall),
+    Object(HashMap<String, PaxExpression>),
+    Range(PaxExpression, PaxExpression),
+    Tuple(Vec<PaxExpression>),
+    List(Vec<PaxExpression>),
+}
+
+#[derive(PartialEq, Debug)]
+pub enum PaxUnit {
+    Percent,
+    Pixels,
+    Radians,
+    Degrees,
 }
 
 impl Computable for PaxPrimary {
@@ -55,6 +70,63 @@ impl Computable for PaxPrimary {
             PaxPrimary::Literal(v) => Ok(v.clone()),
             PaxPrimary::Identifier(i) => i.compute(idr),
             PaxPrimary::FunctionCall(f) => f.compute(idr),
+            PaxPrimary::Object(o) => {
+                let mut obj = HashMap::new();
+                for (k, v) in o.iter() {
+                    obj.insert(k.clone(), v.compute(idr.clone())?);
+                }
+                Ok(PaxValue::Object(obj))
+            } 
+            PaxPrimary::Range(start, end) => {
+                let start = start.compute(idr.clone())?;
+                let end = end.compute(idr)?;
+                Ok(PaxValue::Range(Box::new(start), Box::new(end)))
+            }
+            PaxPrimary::Tuple(t) => {
+                let tuple = t
+                    .iter()
+                    .map(|e| e.compute(idr.clone()))
+                    .collect::<Result<Vec<PaxValue>, String>>()?;
+                Ok(PaxValue::Vec(tuple))
+            }
+            PaxPrimary::List(l) => {
+                let list = l
+                    .iter()
+                    .map(|e| e.compute(idr.clone()))
+                    .collect::<Result<Vec<PaxValue>, String>>()?;
+                Ok(PaxValue::Vec(list))
+            }
+            PaxPrimary::Grouped(expr, unit) => {
+                let expr_val = expr.compute(idr.clone())?;
+                if let PaxValue::Numeric(n) = expr_val {
+                    let ret: Result<PaxValue, String> = if let Some(unit) = unit {
+                        match unit {
+                            PaxUnit::Percent => Ok(PaxValue::Percent(Percent(n))),
+                            PaxUnit::Pixels => Ok(PaxValue::Size(Size::Pixels(n))),
+                            PaxUnit::Radians => Ok(PaxValue::Rotation(Rotation::Radians(n))),
+                            PaxUnit::Degrees => Ok(PaxValue::Rotation(Rotation::Degrees(n))),
+                        }
+                    } else {
+                        Ok(expr_val)
+                    };
+                    return ret;
+                }
+                return Err("Grouped expression must be a numeric value".to_string());
+            },
+            PaxPrimary::TupleAccess(ident, index) => {
+                let ident = ident.compute(idr.clone())?;
+                if let PaxValue::Vec(v) = ident {
+                    return Ok(v[*index].clone());
+                }
+                return Err("Tuple access must be performed on a tuple".to_string());
+            },
+            PaxPrimary::ListAccess(ident, index) => {
+                let ident = ident.compute(idr.clone())?;
+                if let PaxValue::Vec(v) = ident {
+                    return Ok(v[*index].clone());
+                }
+                return Err("List access must be performed on a list".to_string());
+            },
         }
     }
 }
@@ -163,6 +235,22 @@ pub fn recurse_pratt_parse(
                         let value = PaxPrimary::Literal(pax_value);
                         let exp = PaxExpression::Primary(Box::new(value));
                         Ok(exp)
+                    },
+                    Rule::literal_tuple_access => {
+                        let mut inner = inner.into_inner();
+                        let ident = inner.next().unwrap().as_str().trim().to_string();
+                        let index = inner.next().unwrap().as_str().parse::<usize>().unwrap();
+                        let value = PaxPrimary::TupleAccess(PaxIdentifier { name: ident }, index);
+                        let exp = PaxExpression::Primary(Box::new(value));
+                        Ok(exp)
+                    },
+                    Rule::literal_list_access => {
+                        let mut inner = inner.into_inner();
+                        let ident = inner.next().unwrap().as_str().trim().to_string();
+                        let index = inner.next().unwrap().as_str().parse::<usize>().unwrap();
+                        let value = PaxPrimary::ListAccess(PaxIdentifier { name: ident }, index);
+                        let exp = PaxExpression::Primary(Box::new(value));
+                        Ok(exp)
                     }
                     _ => {
                         return Err(format!("Unexpected rule: {:?}", inner.as_rule()));
@@ -175,29 +263,35 @@ pub fn recurse_pratt_parse(
             Rule::expression_grouped => {
                 let mut inner = primary.clone().into_inner();
                 let expr = inner.next().unwrap();
-                let expr_val = recurse_pratt_parse(expr.into_inner(), pratt_parser, idr.clone())?
-                    .compute(idr.clone())?;
-                let ret: Result<PaxValue, String> = if let Some(unit) = inner.next() {
-                    match expr_val {
-                        PaxValue::Numeric(n) => {
-                            let unit = unit.as_str();
-                            match unit {
-                                "%" => Ok(PaxValue::Percent(Percent(n))),
-                                "px" => Ok(PaxValue::Size(Size::Pixels(n))),
-                                "rad" => Ok(PaxValue::Rotation(Rotation::Radians(n))),
-                                "deg" => Ok(PaxValue::Rotation(Rotation::Degrees(n))),
-                                _ => Err(format!("Unsupported unit: {}", unit)),
-                            }
+                let expr_val = recurse_pratt_parse(expr.into_inner(), pratt_parser, idr.clone())?;
+                let ret: Result<PaxExpression, String> = if let Some(unit) = inner.next() {
+                        let unit = unit.as_str();
+                        match unit {
+                            "%" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                                Box::new(expr_val),
+                                Some(PaxUnit::Percent)))
+                            )),
+                            "px" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                                Box::new(expr_val),
+                                Some(PaxUnit::Pixels)))
+                            )),
+                            "rad" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                                Box::new(expr_val),
+                                Some(PaxUnit::Radians)))
+                            )),
+                            "deg" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                                Box::new(expr_val),
+                                Some(PaxUnit::Degrees)))
+                            )),
+                            _ => Err(format!("Unsupported unit: {}", unit)),
                         }
-                        _ => Err(format!(
-                            "Unsupported value for unit conversion: {:?}",
-                            expr_val
-                        )),
-                    }
                 } else {
-                    Ok(expr_val)
+                    Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                        Box::new(expr_val),
+                        None,
+                    ))))
                 };
-                ret.map(|v| PaxExpression::Primary(Box::new(PaxPrimary::Literal(v))))
+                ret
             }
             Rule::xo_enum_or_function_call => {
                 let mut inner = primary.into_inner();
@@ -218,6 +312,68 @@ pub fn recurse_pratt_parse(
                     args,
                 };
                 let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionCall(value)));
+                Ok(exp)
+            }
+            Rule::xo_color_space_func => {
+                let func = primary.as_str().trim().split("(").next().unwrap();
+                let inner = primary.into_inner();
+                let args = inner
+                    .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser, idr.clone()))
+                    .collect::<Result<Vec<PaxExpression>, String>>()?;
+                let value = PaxFunctionCall {
+                    scope: "Color".to_string(),
+                    function_name: func.to_string(),
+                    args,
+                };
+                let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionCall(value)));
+                Ok(exp)
+            }
+            Rule::xo_object => {
+                let mut inner = primary.into_inner();
+                while inner.peek().unwrap().as_rule() == Rule::identifier {
+                    inner.next();
+                }
+                let mut obj = HashMap::new();
+                for pair in inner {
+                    let mut pair = pair.into_inner();
+                    // settings_key = { identifier ~ (":" | "=") }
+                    let key = pair.next().unwrap().as_str().trim().trim_end_matches(':').trim_end_matches('=').to_string();
+                    let value = pair.next().unwrap();
+                    let value = recurse_pratt_parse(value.into_inner(), pratt_parser, idr.clone())?;
+                    obj.insert(key, value);
+                }
+                let value = PaxPrimary::Object(obj);
+                let exp = PaxExpression::Primary(Box::new(value));
+                Ok(exp)
+            }
+            Rule::xo_range => {
+                let mut inner = primary.into_inner();
+                let start_rule = Pairs::single(inner.next().unwrap());
+                let start = recurse_pratt_parse(start_rule, pratt_parser, idr.clone())?;
+                // xo_range_exclusive
+                inner.next();
+                let end_rule = Pairs::single(inner.next().unwrap());
+                let end = recurse_pratt_parse(end_rule, pratt_parser, idr.clone())?;
+                let value = PaxPrimary::Range(start, end);
+                let exp = PaxExpression::Primary(Box::new(value));
+                Ok(exp)
+            }
+            Rule::xo_tuple => {
+                let inner = primary.into_inner();
+                let tuple = inner
+                    .map(|e| recurse_pratt_parse(e.into_inner(), pratt_parser, idr.clone()))
+                    .collect::<Result<Vec<PaxExpression>, String>>()?;
+                let value = PaxPrimary::Tuple(tuple);
+                let exp = PaxExpression::Primary(Box::new(value));
+                Ok(exp)
+            }
+            Rule::xo_list => {
+                let inner = primary.into_inner();
+                let list = inner
+                    .map(|e| recurse_pratt_parse(e.into_inner(), pratt_parser, idr.clone()))
+                    .collect::<Result<Vec<PaxExpression>, String>>()?;
+                let value = PaxPrimary::List(list);
+                let exp = PaxExpression::Primary(Box::new(value));
                 Ok(exp)
             }
             Rule::xo_symbol => {

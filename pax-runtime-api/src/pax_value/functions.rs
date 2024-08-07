@@ -1,4 +1,4 @@
-use crate::{Numeric, PaxValue};
+use crate::{Color, ColorChannel, Numeric, PaxValue, Rotation};
 use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
@@ -42,22 +42,7 @@ pub fn call_function(scope: String, name: String, args: Vec<PaxValue>) -> Result
     func(args)
 }
 
-macro_rules! register_scoped_func {
-    ($scope:expr, $func:ident) => {
-        register_scoped_func!($scope, $func, stringify!($func));
-    };
-    ($scope:expr, $func:ident, $name:expr) => {
-        const _: () = {
-            #[ctor::ctor]
-            fn _generated_func() {
-                let scope = $scope.to_string();
-                let name = $name.to_string();
-                let boxed_func: FunctionType = Arc::new(move |args| $func(args));
-                register_function(scope, name, boxed_func);
-            }
-        };
-    };
-}
+
 
 // Helper functions
 fn add(args: Vec<PaxValue>) -> Result<PaxValue, String> {
@@ -172,20 +157,87 @@ fn max(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(args[0].clone().max(args[1].clone()))
 }
 
-// Register functions with scopes
-register_scoped_func!("Math", add, "+");
-register_scoped_func!("Math", sub, "-");
-register_scoped_func!("Math", mul, "*");
-register_scoped_func!("Math", div, "/");
-register_scoped_func!("Math", exp, "^");
-register_scoped_func!("Math", mod_, "%%");
-register_scoped_func!("Math", rel_eq, "==");
-register_scoped_func!("Math", rel_gt, ">");
-register_scoped_func!("Math", rel_gte, ">=");
-register_scoped_func!("Math", rel_lt, "<");
-register_scoped_func!("Math", rel_lte, "<=");
-register_scoped_func!("Math", rel_neq, "!=");
-register_scoped_func!("Math", bool_and, "&&");
-register_scoped_func!("Math", bool_or, "||");
-register_scoped_func!("Math", min);
-register_scoped_func!("Math", max);
+fn rgb(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 3 {
+        return Err("Expected 3 arguments for function rgb".to_string());
+    }
+    let r = ColorChannel::try_coerce(args[0].clone())?;
+    let g = ColorChannel::try_coerce(args[1].clone())?;
+    let b = ColorChannel::try_coerce(args[2].clone())?;
+    Ok(Color::rgb(r, g, b).to_pax_value())
+}
+
+fn rgba(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 4 {
+        return Err("Expected 4 arguments for function rgba".to_string());
+    }
+    let r = ColorChannel::try_coerce(args[0].clone())?;
+    let g = ColorChannel::try_coerce(args[1].clone())?;
+    let b = ColorChannel::try_coerce(args[2].clone())?;
+    let a = ColorChannel::try_coerce(args[3].clone())?;
+    Ok(Color::rgba(r, g, b, a).to_pax_value())
+}
+
+fn hsl(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 3 {
+        return Err("Expected 3 arguments for function hsl".to_string());
+    }
+    let h = Rotation::try_coerce(args[0].clone())?;
+    let s = ColorChannel::try_coerce(args[1].clone())?;
+    let l = ColorChannel::try_coerce(args[2].clone())?;
+    Ok(Color::hsl(h, s, l).to_pax_value())
+}
+
+fn hsla(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 4 {
+        return Err("Expected 4 arguments for function hsla".to_string());
+    }
+    let h = Rotation::try_coerce(args[0].clone())?;
+    let s = ColorChannel::try_coerce(args[1].clone())?;
+    let l = ColorChannel::try_coerce(args[2].clone())?;
+    let a = ColorChannel::try_coerce(args[3].clone())?;
+    Ok(Color::hsla(h, s, l, a).to_pax_value())
+}
+
+fn hex(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 1 {
+        return Err("Expected 1 argument for function hex".to_string());
+    }
+    let hex = String::try_coerce(args[0].clone())?;
+    Ok(Color::from_hex(&hex).to_pax_value())
+}
+
+pub trait HelperFunctions {
+    fn register_all_functions();
+}
+
+
+pub struct GlobalFunctions;
+
+impl HelperFunctions for GlobalFunctions {
+    fn register_all_functions() {
+        // Math
+        register_function("Math".to_string(), "+".to_string(), Arc::new(add));
+        register_function("Math".to_string(), "-".to_string(), Arc::new(sub));
+        register_function("Math".to_string(), "*".to_string(), Arc::new(mul));
+        register_function("Math".to_string(), "/".to_string(), Arc::new(div));
+        register_function("Math".to_string(), "^".to_string(), Arc::new(exp));
+        register_function("Math".to_string(), "%%".to_string(), Arc::new(mod_));
+        register_function("Math".to_string(), "==".to_string(), Arc::new(rel_eq));
+        register_function("Math".to_string(), ">".to_string(), Arc::new(rel_gt));
+        register_function("Math".to_string(), ">=".to_string(), Arc::new(rel_gte));
+        register_function("Math".to_string(), "<".to_string(), Arc::new(rel_lt));
+        register_function("Math".to_string(), "<=".to_string(), Arc::new(rel_lte));
+        register_function("Math".to_string(), "!=".to_string(), Arc::new(rel_neq));
+        register_function("Math".to_string(), "&&".to_string(), Arc::new(bool_and));
+        register_function("Math".to_string(), "||".to_string(), Arc::new(bool_or));
+        register_function("Math".to_string(), "min".to_string(), Arc::new(min));
+        register_function("Math".to_string(), "max".to_string(), Arc::new(max));
+        // Colors
+        register_function("Color".to_string(), "rgb".to_string(), Arc::new(rgb));
+        register_function("Color".to_string(), "rgba".to_string(), Arc::new(rgba));
+        register_function("Color".to_string(), "hsl".to_string(), Arc::new(hsl));
+        register_function("Color".to_string(), "hsla".to_string(), Arc::new(hsla));
+        register_function("Color".to_string(), "#".to_string(), Arc::new(hex));
+    }
+}

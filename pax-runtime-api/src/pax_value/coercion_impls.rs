@@ -2,6 +2,8 @@
 // default coercion only allows a single type: the type expected
 // custom coercion rules can be implemented by a type
 
+use std::ops::Range;
+
 use crate::{
     impl_default_coercion_rule, Color, ColorChannel, Fill, Numeric, PaxValue, Percent, Property,
     Rotation, Size, Stroke, Transform2D,
@@ -149,29 +151,6 @@ impl<T: CoercionRules> CoercionRules for Vec<T> {
     }
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// #[serde(crate = "crate::serde")]
-// pub enum PaxValue {
-//     Bool(bool),
-//     Numeric(Numeric),
-//     String(String),
-//     Transform2D(Transform2D),
-//     Size(Size),
-//     Percent(Percent),
-//     Color(Color),
-//     ColorChannel(ColorChannel),
-//     Rotation(Rotation),
-//     Fill(Fill),
-//     Stroke(Stroke),
-//     Option(Box<Option<PaxValue>>),
-//     // Ideally this is later changed to Vec<PaxValue>, once structs can be
-//     // represented in PaxValue as a map, enabling serialize/deserialization
-//     // debug impl, etc.
-//     Vec(Vec<PaxValue>),
-//     Object(HashMap<String, PaxValue>),
-//     Enum(String, Vec<PaxValue>),
-// }
-
 impl<T: CoercionRules> CoercionRules for Option<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
@@ -185,5 +164,28 @@ impl<T: CoercionRules> CoercionRules for Option<T> {
                 std::any::type_name::<Option<T>>(),
             )),
         }
+    }
+}
+
+impl<T: CoercionRules> CoercionRules for Range<T> {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Range(start, end) => {
+                let start = T::try_coerce(*start)?;
+                let end = T::try_coerce(*end)?;
+                Ok(start..end)
+            }
+            v => Err(format!(
+                "{:?} can't be coerced into {:?}",
+                v,
+                std::any::type_name::<Range<T>>(),
+            )),
+        }
+    }
+}
+
+impl CoercionRules for PaxValue {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        Ok(value)
     }
 }

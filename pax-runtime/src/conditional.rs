@@ -2,7 +2,7 @@ use std::{iter, rc::Rc};
 use_RefCell!();
 
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Property};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, PaxValue, Property, ToPaxValue};
 
 use crate::api::Layer;
 use crate::{
@@ -24,6 +24,19 @@ impl ImplToFromPaxAny for ConditionalProperties {}
 #[derive(Default)]
 pub struct ConditionalProperties {
     pub boolean_expression: Property<bool>,
+}
+
+impl ToPaxValue for ConditionalProperties {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![(
+                "boolean_expression".to_string(),
+                self.boolean_expression.to_pax_value(),
+            )]
+            .into_iter()
+            .collect(),
+        )
+    }
 }
 
 impl InstanceNode for ConditionalInstance {

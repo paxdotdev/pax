@@ -16,6 +16,8 @@ use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use_RefCell!();
 
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -136,7 +138,7 @@ impl PaxChassisWeb {
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
         let expression_table = ExpressionTable {
-            table: cartridge.instantiate_expression_table(),
+            table: HashMap::new(),
         };
         (width, height, os_info, expression_table)
     }

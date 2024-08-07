@@ -1,14 +1,23 @@
 use std::{collections::HashMap, hash::Hash, rc::Rc};
 
 use crate::interpreter::compute_paxel;
-use pax_runtime_api::{CoercionRules, Numeric, PaxValue, Size};
+use pax_runtime_api::{functions::{GlobalFunctions, HelperFunctions}, CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size};
+use serde::de::Expected;
 
 use super::{parse_pax_expression, PaxExpression, PaxInfix, PaxOperator, PaxPrimary};
 
 fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {
+    GlobalFunctions::register_all_functions();
     let mut idr = HashMap::new();
     idr.insert("a".to_string(), PaxValue::Numeric(Numeric::I64(10)));
     idr.insert("b".to_string(), PaxValue::Numeric(Numeric::I64(4)));
+    idr.insert(
+        "c".to_string(),
+        PaxValue::Vec(vec![
+            PaxValue::Numeric(Numeric::I64(1)),
+            PaxValue::Numeric(Numeric::I64(2)),
+        ]),
+    );
     Rc::new(idr)
 }
 
@@ -89,7 +98,7 @@ fn test_modulus() {
 fn test_rel_eq() {
     let idr = initialize_test_resolver();
     let expr = "10 == 4";
-    let expected = PaxValue::Bool(false);
+    let expected: PaxValue = PaxValue::Bool(false);
     let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
 }
@@ -217,5 +226,115 @@ fn test_expr_to_numeric() {
     let expr = "Math::min(a,Math::max(3,1))";
     let expected = Numeric::from(3);
     let result = Numeric::try_coerce(compute_paxel(expr, idr).unwrap()).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_object_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "{a: 10+4, b: true || false }";
+    let expected = PaxValue::Object(
+        vec![
+            ("a".to_string(), PaxValue::Numeric(Numeric::I64(14))),
+            ("b".to_string(), PaxValue::Bool(true)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_nested_object_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "{a: 10+4, b: {c: 10, d: 50-30} }";
+    let expected = PaxValue::Object(
+        vec![
+            ("a".to_string(), PaxValue::Numeric(Numeric::I64(14))),
+            (
+                "b".to_string(),
+                PaxValue::Object(
+                    vec![
+                        ("c".to_string(), PaxValue::Numeric(Numeric::I64(10))),
+                        ("d".to_string(), PaxValue::Numeric(Numeric::I64(20))),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_range_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "a..b";
+    let expected = PaxValue::Range(
+        Box::new(PaxValue::Numeric(Numeric::I64(10))),
+        Box::new(PaxValue::Numeric(Numeric::I64(4))),
+    );
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_tuple_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "(a, b)";
+    let expected = PaxValue::Vec(vec![
+        PaxValue::Numeric(Numeric::I64(10)),
+        PaxValue::Numeric(Numeric::I64(4)),
+    ]);
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_list_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "[a, b]";
+    let expected = PaxValue::Vec(vec![
+        PaxValue::Numeric(Numeric::I64(10)),
+        PaxValue::Numeric(Numeric::I64(4)),
+    ]);
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_tuple_access() {
+    let idr = initialize_test_resolver();
+    let expr = "c.0";
+    let expected = PaxValue::Numeric(Numeric::I64(1));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_list_access() {
+    let idr = initialize_test_resolver();
+    let expr = "c[1]";
+    let expected = PaxValue::Numeric(Numeric::I64(2));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_color_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "rgba(10, 20, 30,4)";
+    let result = compute_paxel(expr, idr).unwrap();
+    let expected = PaxValue::Color(Color::rgba(
+        ColorChannel::Integer(Numeric::I64(10)),
+        ColorChannel::Integer(Numeric::I64(20)),
+        ColorChannel::Integer(Numeric::I64(30)),
+        ColorChannel::Integer(Numeric::I64(4)),
+    ));
     assert_eq!(expected, result);
 }

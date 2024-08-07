@@ -109,6 +109,7 @@ impl InstanceNode for RadioSetInstance {
         let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
             .cloned()
+            .map(|v| v.get_untyped_property().clone())
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
         borrow_mut!(self.native_message_props).insert(
