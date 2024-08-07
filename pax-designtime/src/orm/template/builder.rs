@@ -18,6 +18,7 @@ pub struct NodeBuilder<'a> {
     updated_property_map: HashMap<Token, Option<ValueDefinition>>,
     unique_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     location: Option<NodeLocation>,
+    overwrite_expressions: bool,
 }
 
 pub struct SaveData {
@@ -30,6 +31,7 @@ impl<'a> NodeBuilder<'a> {
         orm: &'a mut PaxManifestORM,
         containing_component_type_id: TypeId,
         node_type_id: TypeId,
+        overwrite_expressions: bool,
     ) -> Self {
         NodeBuilder {
             orm,
@@ -38,12 +40,14 @@ impl<'a> NodeBuilder<'a> {
             updated_property_map: HashMap::new(),
             unique_node_identifier: None,
             location: None,
+            overwrite_expressions,
         }
     }
 
     pub fn retrieve_node(
         orm: &'a mut PaxManifestORM,
         uni: UniqueTemplateNodeIdentifier,
+        overwrite_expressions: bool,
     ) -> Option<Self> {
         let resp = orm
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
@@ -57,6 +61,7 @@ impl<'a> NodeBuilder<'a> {
                 updated_property_map: HashMap::new(),
                 unique_node_identifier: Some(uni),
                 location,
+                overwrite_expressions,
             })
         } else {
             None
@@ -114,7 +119,31 @@ impl<'a> NodeBuilder<'a> {
         self.set_property(key, &value)
     }
 
+    pub fn is_literal(&mut self, key: &str) -> Option<bool> {
+        if let Some(uni) = &self.unique_node_identifier {
+            let resp = self
+                .orm
+                .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
+                .unwrap();
+            if let Some(node) = resp.node {
+                if let Some(settings) = node.settings {
+                    for setting in settings {
+                        if let SettingElement::Setting(token, value) = setting {
+                            if token.token_value == key {
+                                return Some(matches!(value, ValueDefinition::LiteralValue(_)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
+        if !self.overwrite_expressions && !self.is_literal(key).unwrap_or(true) {
+            return Err(anyhow!("the property {key:?} is bound to an expression"));
+        }
         if value.is_empty() {
             self.remove_property(key);
             return Ok(());
