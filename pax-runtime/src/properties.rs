@@ -1,10 +1,11 @@
 use crate::api::math::Point2;
 use crate::api::Window;
+use pax_lang::interpreter::IdentifierResolver;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Store};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, PaxValue, Interpolatable, Store, Variable};
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
@@ -249,7 +250,7 @@ impl RuntimeContext {
 /// hierarchical store of node-relevant data that can be bound to symbols in expressions.
 
 pub struct RuntimePropertiesStackFrame {
-    symbols_within_frame: HashMap<String, UntypedProperty>,
+    symbols_within_frame: HashMap<String, Variable>,
     local_stores: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
     properties: Rc<RefCell<PaxAny>>,
     parent: Weak<RuntimePropertiesStackFrame>,
@@ -257,7 +258,7 @@ pub struct RuntimePropertiesStackFrame {
 
 impl RuntimePropertiesStackFrame {
     pub fn new(
-        symbols_within_frame: HashMap<String, UntypedProperty>,
+        symbols_within_frame: HashMap<String, Variable>,
         properties: Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(Self {
@@ -270,7 +271,7 @@ impl RuntimePropertiesStackFrame {
 
     pub fn push(
         self: &Rc<Self>,
-        symbols_within_frame: HashMap<String, UntypedProperty>,
+        symbols_within_frame: HashMap<String, Variable>,
         properties: &Rc<RefCell<PaxAny>>,
     ) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
@@ -332,7 +333,7 @@ impl RuntimePropertiesStackFrame {
 
     pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {
         if let Some(e) = self.symbols_within_frame.get(symbol) {
-            Some(e.clone())
+            Some(e.clone().get_untyped_property().clone())
         } else {
             self.parent
                 .upgrade()?
@@ -340,8 +341,25 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
+    pub fn resolve_symbol_as_pax_value(&self, symbol: &str) -> Option<PaxValue> {
+        if let Some(e) = self.symbols_within_frame.get(symbol) {
+            Some(e.get_as_pax_value())
+        } else {
+            self.parent
+                .upgrade()?
+                .resolve_symbol_as_pax_value(symbol)
+        }
+    }
+
     pub fn get_properties(&self) -> Rc<RefCell<PaxAny>> {
         Rc::clone(&self.properties)
+    }
+}
+
+impl IdentifierResolver for RuntimePropertiesStackFrame {
+    fn resolve(&self, name: String) -> Result<PaxValue, String> {
+        self.resolve_symbol_as_pax_value(&name)
+            .ok_or_else(|| format!("Could not resolve symbol {}", name))
     }
 }
 

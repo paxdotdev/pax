@@ -6,7 +6,7 @@ use std::{cmp::Ordering, hash::Hash};
 
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
-use pax_runtime_api::{ImplToFromPaxAny, Interpolatable};
+use pax_runtime_api::Interpolatable;
 pub mod parsing;
 
 #[cfg(feature = "parsing")]
@@ -394,8 +394,6 @@ impl Ord for TypeId {
     }
 }
 
-impl ImplToFromPaxAny for TypeId {}
-impl ImplToFromPaxAny for TemplateNodeId {}
 impl Interpolatable for TypeId {}
 impl Interpolatable for TemplateNodeId {}
 
@@ -1182,7 +1180,7 @@ impl ComponentTemplate {
                         if let ValueDefinition::Expression(t, id) = v {
                             ret.insert(t.raw_value.clone(), id.clone().unwrap());
                         }
-                        if let ValueDefinition::Block(b) = v {
+                        if let ValueDefinition::Block(s,b) = v {
                             Self::recurse_get_known_expressions(b, &mut ret);
                         }
                     }
@@ -1201,7 +1199,7 @@ impl ComponentTemplate {
                 if let ValueDefinition::Expression(t, e) = v {
                     known_expressions.insert(t.raw_value.clone(), e.clone().unwrap());
                 }
-                if let ValueDefinition::Block(b) = v {
+                if let ValueDefinition::Block(s, b) = v {
                     Self::recurse_get_known_expressions(b, known_expressions);
                 }
             }
@@ -1222,7 +1220,7 @@ impl ComponentTemplate {
                                 *ec = Some(new_ec.clone());
                             }
                         }
-                        if let ValueDefinition::Block(b) = v {
+                        if let ValueDefinition::Block(s, b) = v {
                             Self::recurse_update_block(b, known_expressions);
                         }
                     }
@@ -1242,7 +1240,7 @@ impl ComponentTemplate {
                         *ec = Some(new_ec.clone());
                     }
                 }
-                if let ValueDefinition::Block(b) = v {
+                if let ValueDefinition::Block(s,b) = v {
                     Self::recurse_update_block(b, known_expressions);
                 }
             }
@@ -1486,7 +1484,7 @@ pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
     LiteralValue(Token),
-    Block(LiteralBlockDefinition),
+    Block(String, LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
     Expression(Token, Option<ExpressionCompilationInfo>),
     /// (Expression contents, vtable id binding)
@@ -1505,7 +1503,7 @@ impl Hash for ValueDefinition {
             ValueDefinition::LiteralValue(t) => {
                 t.hash(state);
             }
-            ValueDefinition::Block(lbd) => {
+            ValueDefinition::Block(s, lbd) => {
                 lbd.hash(state);
             }
             ValueDefinition::Expression(t, _) => {
@@ -1541,8 +1539,8 @@ impl PartialEq for ValueDefinition {
                     false
                 }
             }
-            ValueDefinition::Block(lbd) => {
-                if let ValueDefinition::Block(olbd) = other {
+            ValueDefinition::Block(s, lbd) => {
+                if let ValueDefinition::Block(s2, olbd) = other {
                     lbd == olbd
                 } else {
                     false

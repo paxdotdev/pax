@@ -2,7 +2,7 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Variable};
 
 use crate::api::math::Point2;
 use crate::constants::{
@@ -114,7 +114,7 @@ pub struct ExpandedNode {
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
-    pub properties_scope: RefCell<HashMap<String, UntypedProperty>>,
+    pub properties_scope: RefCell<HashMap<String, Variable>>,
 
     /// The flattened index of this node in its container (if this container
     /// cares about slot children, ex: component, path).

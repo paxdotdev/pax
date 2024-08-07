@@ -1,14 +1,24 @@
+use std::ops::Range;
+use std::rc::Rc;
+
+
+use pax_message::RefCell;
+
 use super::ImplToFromPaxAny;
 use super::Numeric;
+use super::PaxAny;
 use super::PaxValue;
+use super::ToFromPaxAny;
 use super::ToPaxValue;
 use crate::impl_to_from_pax_value;
 use crate::math::Space;
 use crate::math::Transform2;
+use crate::properties::PropertyValue;
 use crate::Color;
 use crate::ColorChannel;
 use crate::Fill;
 use crate::Percent;
+use crate::Property;
 use crate::Rotation;
 use crate::Size;
 use crate::Stroke;
@@ -69,5 +79,33 @@ impl<T: ToPaxValue> ToPaxValue for Option<T> {
             Some(v) => PaxValue::Option(Box::new(Some(v.to_pax_value()))),
             None => PaxValue::Option(Box::new(None)),
         }
+    }
+}
+
+impl<T: ToPaxValue> ToPaxValue for Range<T> {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Range(
+            Box::new(self.start.to_pax_value()),
+            Box::new(self.end.to_pax_value()),
+        )
+    }
+}
+
+
+impl<T: ToPaxValue + Clone> ToPaxValue for Rc<RefCell<T>> {
+    fn to_pax_value(self) -> PaxValue {
+        crate::borrow!(self).clone().to_pax_value()
+    }
+}
+
+impl ToPaxValue for PaxValue {
+    fn to_pax_value(self) -> PaxValue {
+        self
+    }
+}
+
+impl<T: ToPaxValue + PropertyValue> ToPaxValue for Property<T> {
+    fn to_pax_value(self) -> PaxValue {
+        self.get().to_pax_value()
     }
 }

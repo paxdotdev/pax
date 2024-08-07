@@ -10,53 +10,57 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
     fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,pax_engine::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
         Box::new(move |stack_frame , table | std::rc::Rc::new(RefCell::new(
             {
-        let mut properties = {{component.type_id.import_path}}::default();
-        {% for property in component.properties %}
-            if let Some(vd) = defined_properties.get("{{property.name}}") {
-                    match vd.clone() {
-                        pax_engine::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                let val = pax_engine::pax_manifest::deserializer::from_pax_try_coerce::<{{property.property_type.type_id._type_id}}>(&lv.raw_value)
-                                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
-                            properties.{{property.name}}.replace_with(Property::new_with_name(val, &lv.raw_value));
-                        },
-                        pax_engine::pax_manifest::ValueDefinition::DoubleBinding(token,info) => {
-                            let identifier = token.token_value.clone();
-                            let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
-                            properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
-                        },
-                        pax_engine::pax_manifest::ValueDefinition::Expression(token, info) | pax_engine::pax_manifest::ValueDefinition::Identifier(token,info) =>
-                        {
-                            if let Some(info) = info {
-                                let mut dependents = vec![];
-                                for dependency in &info.dependencies {
-                                    if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
-                                        dependents.push(p);
+                let mut properties = {{component.type_id.import_path}}::default();
+                {% for property in component.properties %}
+                    if let Some(vd) = defined_properties.get("{{property.name}}") {
+                            match vd.clone() {
+                                pax_engine::pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                        let val = pax_engine::pax_lang::from_pax(&lv.raw_value)
+                                            .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                    let value = <{{property.property_type.type_id._type_id}}>::try_coerce(val).unwrap();
+                                    properties.{{property.name}}.replace_with(Property::new_with_name(value, &lv.raw_value));
+                                },
+                                pax_engine::pax_manifest::ValueDefinition::DoubleBinding(token,info) => {
+                                    let identifier = token.token_value.clone();
+                                    let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
+                                    properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
+                                },
+                                pax_engine::pax_manifest::ValueDefinition::Expression(token, info) | pax_engine::pax_manifest::ValueDefinition::Identifier(token,info) =>
+                                {
+                                    if let Some(info) = info {
+                                        let mut dependents = vec![];
+                                        for dependency in &info.dependencies {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
+                                            }
+                                        }
+                                        let cloned_stack = stack_frame.clone();
+                                        let expr = token.token_value.clone();
+                                        let expr_ast = pax_engine::pax_lang::parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
+                                        properties.{{property.name}}.replace_with( Property::computed_with_name(move || {
+                                            let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                            let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap();
+                                            coerced
+                                        }, &dependents, &token.token_value));
                                     } else {
-                                        panic!("Failed to resolve symbol {}", dependency);
+                                        unreachable!("No info for expression")
                                     }
+                                },
+                                pax_engine::pax_manifest::ValueDefinition::Block(expr, block) => {
+                                    let cloned_stack = stack_frame.clone();
+                                    properties.{{property.name}}.replace_with(
+                                        Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone(), table.clone()), "block")
+                                    );
                                 }
-                                let cloned_stack = stack_frame.clone();
-                                let cloned_table = table.clone();
-                                properties.{{property.name}}.replace_with( Property::computed_with_name(move || {
-                                    let new_value_wrapped: pax_engine::api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                                    let coerced = new_value_wrapped.try_coerce::<{{property.property_type.type_id._type_id}}>().unwrap();
-                                    coerced
-                                }, &dependents, &token.raw_value));
-                            } else {
-                                unreachable!("No info for expression")
+                                _ => unreachable!("Invalid value definition for {{property.name}}")
                             }
-                        },
-                        pax_engine::pax_manifest::ValueDefinition::Block(block) => {
-                            properties.{{property.name}}.replace_with(
-                                Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
-                            );
-                            }
-                        _ => unreachable!("Invalid value definition for {{property.name}}")
                     }
+                {% endfor %}
+                properties.to_pax_any()
             }
-        {% endfor %}
-        properties.to_pax_any()
-        })))
+        )))
     }
 
     fn build_handler(&self,fn_name: &str) -> fn(std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>, &NodeContext, Option::<pax_engine::api::pax_value::PaxAny>) {
@@ -120,13 +124,13 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
         {% endif %}    
     }
 
-    fn get_properties_scope_factory(&self) -> Box<dyn Fn(std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>) -> std::collections::HashMap<String, pax_engine::api::properties::UntypedProperty>>  {
+    fn get_properties_scope_factory(&self) -> Box<dyn Fn(std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>) -> std::collections::HashMap<String, pax_engine::api::Variable>>  {
         Box::new(|props| {
             let properties = &mut *borrow_mut!(props.as_ref());
             if let Ok(properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
                 let mut scope = std::collections::HashMap::new();
                 {% for prop in component.properties %}
-                    scope.insert("{{prop.name}}".to_string(), properties.{{prop.name}}.untyped());
+                    scope.insert("{{prop.name}}".to_string(), pax_engine::api::Variable::new::<{{prop.property_type.type_id._type_id}}>(properties.{{prop.name}}.untyped()));
                 {% endfor %}
                 scope
             } else {
@@ -158,8 +162,10 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
                                     pax_engine::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                        let val = pax_engine::pax_manifest::deserializer::from_pax_try_coerce::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap();
-                                        Property::new_with_name(val, &lv.raw_value)
+                                        let val = pax_engine::pax_lang::from_pax(&lv.raw_value)
+                                        .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                        let value = <{{prop.type_id._type_id}}>::try_coerce(val).unwrap();
+                                        Property::new_with_name(value, &lv.raw_value)
                                     },
                                     pax_engine::pax_manifest::ValueDefinition::Expression(token, info) | pax_engine::pax_manifest::ValueDefinition::Identifier(token, info ) =>
                                     {
@@ -173,18 +179,18 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                                 }
                                             }
                                             let cloned_stack = stack_frame.clone();
-                                            let cloned_table = table.clone();
-                                            let cloned_info = info.clone();
+                                            let expr = token.token_value.clone();
+                                            let expr_ast = pax_engine::pax_lang::parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
                                             Property::computed_with_name(move || {
-                                                let new_value_wrapped: pax_engine::api::pax_value::PaxAny = cloned_table.compute_vtable_value(&cloned_stack, cloned_info.vtable_id);
-                                                let coerced = new_value_wrapped.try_coerce::<{{prop.type_id._type_id}}>().unwrap();
+                                                let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                                let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap();
                                                 coerced
-                                            }, &dependents, &token.raw_value)
+                                            }, &dependents, &token.token_value)
                                         } else {
                                             unreachable!("No info for expression")
                                         }
                                     },
-                                    pax_engine::pax_manifest::ValueDefinition::Block(block) => {
+                                    pax_engine::pax_manifest::ValueDefinition::Block(s, block) => {
                                         Property::new_with_name({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
@@ -192,9 +198,11 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% else %}
                                 match vd {
                                     pax_engine::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                        pax_engine::pax_manifest::deserializer::from_pax_try_coerce::<{{prop.type_id._type_id}}>(&lv.raw_value).unwrap()
+                                        let val = pax_engine::pax_lang::from_pax(&lv.raw_value)
+                                        .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
+                                        <{{prop.type_id._type_id}}>::try_coerce(val).unwrap()
                                     },
-                                    pax_engine::pax_manifest::ValueDefinition::Block(block) => {
+                                    pax_engine::pax_manifest::ValueDefinition::Block(s, block) => {
                                         {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone(), table.clone())
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")

@@ -119,6 +119,7 @@ impl InstanceNode for TextInstance {
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
             .cloned()
+            .map(|v| v.get_untyped_property().clone())
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
 
@@ -558,7 +559,6 @@ impl From<FontWeight> for FontWeightMessage {
     }
 }
 
-#[helpers("FontWeight")]
 impl FontWeight {
     pub fn increase(weight: FontWeight) -> FontWeight {
         match weight {

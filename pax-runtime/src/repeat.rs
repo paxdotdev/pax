@@ -5,7 +5,7 @@ use_RefCell!();
 
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, Property};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable};
 
 use crate::api::Layer;
 use crate::{
@@ -26,17 +26,55 @@ impl ImplToFromPaxAny for RepeatProperties {}
 ///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression_vec: Option<Property<Vec<Rc<RefCell<PaxAny>>>>>,
+    pub source_expression_vec: Option<Property<Vec<PaxValue>>>,
     pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
     pub iterator_i_symbol: Option<String>,
     pub iterator_elem_symbol: Option<String>,
 }
 
-impl ImplToFromPaxAny for RepeatItem {}
+impl ToPaxValue for RepeatProperties {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                (
+                    "source_expression_vec".to_string(),
+                    self.source_expression_vec.to_pax_value(),
+                ),
+                (
+                    "source_expression_range".to_string(),
+                    self.source_expression_range.to_pax_value(),
+                ),
+                (
+                    "iterator_i_symbol".to_string(),
+                    self.iterator_i_symbol.to_pax_value(),
+                ),
+                (
+                    "iterator_elem_symbol".to_string(),
+                    self.iterator_elem_symbol.to_pax_value(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
 
 pub struct RepeatItem {
-    pub elem: Property<Option<Rc<RefCell<PaxAny>>>>,
+    pub elem: Property<PaxValue>,
     pub i: Property<usize>,
+}
+
+impl ToPaxValue for RepeatItem {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("elem".to_string(), self.elem.get().to_pax_value()),
+                ("i".to_string(), self.i.get().to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
 }
 
 impl InstanceNode for RepeatInstance {
@@ -90,7 +128,7 @@ impl InstanceNode for RepeatInstance {
                         move || {
                             cp_range
                                 .get()
-                                .map(|v| Rc::new(RefCell::new(v.to_pax_any())))
+                                .map(|v| v.to_pax_value())
                                 .collect::<Vec<_>>()
                         },
                         &dep,
@@ -138,10 +176,10 @@ impl InstanceNode for RepeatInstance {
                             let cp_source_expression = source_expression.clone();
                             let property_elem = Property::computed_with_name(
                                 move || {
-                                    Some(Rc::clone(&cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
+                                    cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
                                         "engine error: tried to access index {} of an array source that now only contains {} elements",
                                         i, cp_source_expression.get().len()
-                                    ))))
+                                    )).clone()
                                 },
                                 &[source_expression.untyped()],
                                 "repeat elem",
@@ -151,15 +189,15 @@ impl InstanceNode for RepeatInstance {
                                     i: property_i.clone(),
                                     elem: property_elem.clone(),
                                 }
-                                .to_pax_any(),
+                                .to_pax_value().to_pax_any(),
                             ));
 
-                            let mut scope: HashMap<String, UntypedProperty> = HashMap::new();
+                            let mut scope: HashMap<String, Variable> = HashMap::new();
                             if let Some(ref i_symbol) = i_symbol {
-                                scope.insert(i_symbol.clone(), property_i.untyped());
+                                scope.insert(i_symbol.clone(), Variable::new_from_typed_property(property_i));
                             }
                             if let Some(ref elem_symbol) = elem_symbol {
-                                scope.insert(elem_symbol.clone(), property_elem.untyped());
+                                scope.insert(elem_symbol.clone(), Variable::new_from_typed_property(property_elem));
                             }
 
                             let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);

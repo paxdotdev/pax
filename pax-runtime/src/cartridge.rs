@@ -4,18 +4,16 @@ use crate::{
     ExpressionContext, ExpressionTable, HandlerRegistry, InstanceNode, InstantiationArgs,
     RuntimePropertiesStackFrame,
 };
+use pax_lang::{parse_pax_expression, Computable};
 use pax_manifest::ValueDefinition;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
-use pax_runtime_api::{use_RefCell, CommonProperties, Numeric, Property};
+use pax_runtime_api::{use_RefCell, CommonProperties, Numeric, Property, Variable};
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 pub trait PaxCartridge {
-    fn instantiate_expression_table(
-        &self,
-    ) -> HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>>;
 }
 pub trait DefinitionToInstanceTraverser {
     fn new(manifest: pax_manifest::PaxManifest) -> Self
@@ -141,7 +139,7 @@ pub trait DefinitionToInstanceTraverser {
                     .condition_expression_info
                     .as_ref()
                     .unwrap();
-                let vtable_id = expression_info.vtable_id;
+                let expr_str = tnd.control_flow_settings.as_ref().unwrap().condition_expression_paxel.as_ref().unwrap().raw_value.clone();
                 let dep_symbols = expression_info.dependencies.clone();
                 let prototypical_properties_factory: Box<
                     dyn Fn(
@@ -152,7 +150,6 @@ pub trait DefinitionToInstanceTraverser {
                 > = Box::new(move |stack_frame, table| {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::ConditionalProperties::default();
-                        let cloned_table = table.clone();
                         let cloned_stack = stack_frame.clone();
 
                         let mut dependencies = Vec::new();
@@ -165,15 +162,14 @@ pub trait DefinitionToInstanceTraverser {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
-
+                        let expr_str = expr_str.clone();
+                        let expr_ast = parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
                         properties.boolean_expression = Property::computed_with_name(
                             move || {
-                                let new_value_wrapped: pax_runtime_api::pax_value::PaxAny =
-                                    cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                let coerced = new_value_wrapped
-                                    .try_coerce::<bool>()
+                                let new_value =expr_ast.compute(cloned_stack.clone()).unwrap();
+                                let coerced = bool::try_coerce(new_value)
                                     .map_err(|e| {
-                                        format!("expr with vtable_id {} failed: {}", vtable_id, e)
+                                        format!("Failed to parse boolean expression: {}", expr_str)
                                     })
                                     .unwrap();
                                 coerced
@@ -203,7 +199,15 @@ pub trait DefinitionToInstanceTraverser {
                     .as_ref()
                     .unwrap();
 
-                let vtable_id = expression_info.vtable_id;
+                let expr_str = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .slot_index_expression_paxel
+                    .as_ref()
+                    .unwrap()
+                    .raw_value
+                    .clone();
                 let dep_symbols = expression_info.dependencies.clone();
 
                 let prototypical_properties_factory: Box<
@@ -215,7 +219,6 @@ pub trait DefinitionToInstanceTraverser {
                 > = Box::new(move |stack_frame, table| {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::Slot::default();
-                        let cloned_table = table.clone();
                         let cloned_stack = stack_frame.clone();
 
                         let mut dependencies = Vec::new();
@@ -228,11 +231,16 @@ pub trait DefinitionToInstanceTraverser {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
+                        let expr_str = expr_str.clone();
+                        let expr_ast = parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
                         properties.index = Property::computed_with_name(
                             move || {
-                                let new_value_wrapped: pax_runtime_api::pax_value::PaxAny =
-                                    cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                let coerced = new_value_wrapped.try_coerce::<Numeric>().unwrap();
+                                let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                let coerced: Numeric = Numeric::try_coerce(new_value)
+                                    .map_err(|_| {
+                                        format!("Failed to parse slot index expression: {}", expr_str)
+                                    })
+                                    .unwrap();
                                 coerced
                             },
                             &dependencies,
@@ -267,7 +275,6 @@ pub trait DefinitionToInstanceTraverser {
                     .clone()
                     .unwrap();
                 let expression_info = rsd.expression_info.as_ref().unwrap();
-                let vtable_id = expression_info.vtable_id.clone();
                 let dep_symbols = expression_info.dependencies.clone();
                 let prototypical_properties_factory: Box<
                     dyn Fn(
@@ -289,20 +296,18 @@ pub trait DefinitionToInstanceTraverser {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
-
-                        properties.source_expression_vec = if let Some(_t) = &rsd.symbolic_binding {
-                            let cloned_table = table.clone();
+                        properties.source_expression_vec = if let Some(t) = &rsd.symbolic_binding {
                             let cloned_stack = stack_frame.clone();
+                            let expr = t.token_value.clone();
+                            let expr_ast = parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
                             Some(Property::computed_with_name(
                                 move || {
-                                    let new_value_wrapped: pax_runtime_api::pax_value::PaxAny =
-                                        cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                    let coerced = new_value_wrapped
-                                        .try_coerce::<Vec<
-                                            std::rc::Rc<
-                                                RefCell<pax_runtime_api::pax_value::PaxAny>,
-                                            >,
-                                        >>()
+                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+
+                                    let coerced = Vec::try_coerce(new_value)
+                                        .map_err(|e| {
+                                            format!("Failed to parse repeat source expression: {}",&expr)
+                                        })
                                         .unwrap();
                                     coerced
                                 },
@@ -313,17 +318,20 @@ pub trait DefinitionToInstanceTraverser {
                             None
                         };
 
-                        properties.source_expression_range = if let Some(_) =
+                        properties.source_expression_range = if let Some(expr) =
                             &rsd.range_expression_paxel
                         {
-                            let cloned_table = table.clone();
                             let cloned_stack = stack_frame.clone();
+                            let source_expr_str = expr.raw_value.clone();
+                            let expr_ast = parse_pax_expression(&source_expr_str, cloned_stack.clone())
+                                .unwrap();
                             Some(Property::computed_with_name(
                                 move || {
-                                    let new_value_wrapped: pax_runtime_api::pax_value::PaxAny =
-                                        cloned_table.compute_vtable_value(&cloned_stack, vtable_id);
-                                    let coerced = new_value_wrapped
-                                        .try_coerce::<std::ops::Range<isize>>()
+                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                    let coerced = std::ops::Range::<isize>::try_coerce(new_value)
+                                        .map_err(|e| {
+                                            format!("Failed to parse repeat source expression: {}", source_expr_str)
+                                        })
                                         .unwrap();
                                     coerced
                                 },
@@ -679,7 +687,7 @@ pub trait ComponentFactory {
     // Returns the property scope for the component
     fn get_properties_scope_factory(
         &self,
-    ) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>> {
+    ) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>> {
         Box::new(|_| HashMap::new())
     }
 }

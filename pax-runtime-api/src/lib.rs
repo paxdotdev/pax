@@ -6,9 +6,8 @@ use kurbo::BezPath;
 pub use pax_value::numeric::Numeric;
 pub use pax_value::{CoercionRules, ImplToFromPaxAny, PaxValue, ToPaxValue};
 use piet::{PaintBrush, UnitPoint};
-use properties::UntypedProperty;
-pub mod refcell_debug;
-pub use refcell_debug::*;
+use properties::{PropertyValue, UntypedProperty};
+pub use pax_message::*;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store
@@ -35,6 +34,8 @@ pub use pax_value::functions;
 pub use properties::Property;
 
 pub use pax_value::functions::register_function;
+pub use pax_value::functions::GlobalFunctions;
+pub use pax_value::functions::HelperFunctions;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
 pub use paste;
@@ -577,23 +578,23 @@ impl CommonProperties {
             .collect()
     }
 
-    pub fn retrieve_property_scope(&self) -> HashMap<String, UntypedProperty> {
+    pub fn retrieve_property_scope(&self) -> HashMap<String, Variable> {
         let mut scope = HashMap::new();
 
-        scope.insert("id".to_string(), self.id.untyped());
-        scope.insert("x".to_string(), self.x.untyped());
-        scope.insert("y".to_string(), self.y.untyped());
-        scope.insert("scale_x".to_string(), self.scale_x.untyped());
-        scope.insert("scale_y".to_string(), self.scale_y.untyped());
-        scope.insert("skew_x".to_string(), self.skew_x.untyped());
-        scope.insert("skew_y".to_string(), self.skew_y.untyped());
-        scope.insert("rotate".to_string(), self.rotate.untyped());
-        scope.insert("anchor_x".to_string(), self.anchor_x.untyped());
-        scope.insert("anchor_y".to_string(), self.anchor_y.untyped());
-        scope.insert("transform".to_string(), self.transform.untyped());
-        scope.insert("width".to_string(), self.width.untyped());
-        scope.insert("height".to_string(), self.height.untyped());
-        scope.insert("_raycastable".to_string(), self._raycastable.untyped());
+        scope.insert("id".to_string(), Variable::new_from_typed_property(self.id.clone()));
+        scope.insert("x".to_string(), Variable::new_from_typed_property(self.x.clone()));
+        scope.insert("y".to_string(), Variable::new_from_typed_property(self.y.clone()));
+        scope.insert("scale_x".to_string(), Variable::new_from_typed_property(self.scale_x.clone()));
+        scope.insert("scale_y".to_string(), Variable::new_from_typed_property(self.scale_y.clone()));
+        scope.insert("skew_x".to_string(), Variable::new_from_typed_property(self.skew_x.clone()));
+        scope.insert("skew_y".to_string(), Variable::new_from_typed_property(self.skew_y.clone()));
+        scope.insert("rotate".to_string(), Variable::new_from_typed_property(self.rotate.clone()));
+        scope.insert("anchor_x".to_string(), Variable::new_from_typed_property(self.anchor_x.clone()));
+        scope.insert("anchor_y".to_string(), Variable::new_from_typed_property(self.anchor_y.clone()));
+        scope.insert("transform".to_string(), Variable::new_from_typed_property(self.transform.clone()));
+        scope.insert("width".to_string(), Variable::new_from_typed_property(self.width.clone()));
+        scope.insert("height".to_string(), Variable::new_from_typed_property(self.height.clone()));
+        scope.insert("_raycastable".to_string(), Variable::new_from_typed_property(self._raycastable.clone()));
 
         scope
     }
@@ -1056,6 +1057,22 @@ pub enum Color {
 impl Color {
     //TODO: build out tint api and consider other color transforms
     //pub fn tint(tint_offset_amount) -> Self {...}
+
+    pub fn rgb(r: ColorChannel, g: ColorChannel, b: ColorChannel) -> Self {
+        Self::rgb(r, g, b)
+    }
+
+    pub fn rgba(r: ColorChannel, g: ColorChannel, b: ColorChannel, a: ColorChannel) -> Self {
+        Self::rgba(r, g, b, a)
+    }
+
+    pub fn hsl(h: Rotation, s: ColorChannel, l: ColorChannel) -> Self {
+        Self::hsl(h, s, l)
+    }
+
+    pub fn hsla(h: Rotation, s: ColorChannel, l: ColorChannel, a: ColorChannel) -> Self {
+        Self::hsla(h, s, l, a)
+    }
 
     pub fn to_piet_color(&self) -> piet::Color {
         let rgba = self.to_rgba_0_1();
@@ -1753,5 +1770,46 @@ impl Transform2D {
         let mut ret = Transform2D::default();
         ret.anchor = Some([x, y]);
         ret
+    }
+}
+
+#[derive(Clone)]
+pub struct Variable {
+    untyped_property: UntypedProperty,
+    convert_to_pax_value: Rc<dyn Fn(UntypedProperty) -> PaxValue>,
+}
+
+impl Variable {
+    pub fn new<T: PropertyValue + ToPaxValue>(untyped_property: UntypedProperty) -> Self {
+
+        let closure = |untyped_property: UntypedProperty| {
+            let property: Property<T> = Property::new_from_untyped(untyped_property.clone());
+            property.get().to_pax_value()
+        };
+
+        Variable {
+            untyped_property,
+            convert_to_pax_value: Rc::new(closure),
+        }
+    }
+
+    pub fn new_from_typed_property<T: PropertyValue + ToPaxValue>(property: Property<T>) -> Self {
+        let untyped_property = property.untyped();
+        let closure = |untyped_property: UntypedProperty| {
+            let property: Property<T> = Property::new_from_untyped(untyped_property.clone());
+            property.get().to_pax_value()
+        };
+
+        Variable {
+            untyped_property,
+            convert_to_pax_value: Rc::new(closure),
+        }
+    }
+
+    pub fn get_untyped_property(&self) -> &UntypedProperty {
+        &self.untyped_property
+    }
+    pub fn get_as_pax_value(&self) -> PaxValue {
+        (self.convert_to_pax_value)(self.untyped_property.clone())
     }
 }

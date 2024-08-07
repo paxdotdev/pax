@@ -5,7 +5,7 @@
     // also returns the parsed, serialized PaxManifest via stdio (println)
     #[cfg(feature = "parser")]
     pub fn main() {
-
+        pax_engine::api::GlobalFunctions::register_all_functions();
         let mut ctx = pax_engine::pax_manifest::parsing::ParsingContext::default();
 
         ctx.main_component_type_id = <<%= pascal_identifier %> as pax_engine::pax_manifest::parsing::Reflectable>::get_type_id();

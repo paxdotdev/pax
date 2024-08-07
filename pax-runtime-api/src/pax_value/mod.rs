@@ -1,5 +1,5 @@
-use crate::{Color, ColorChannel, Fill, Percent, Rotation, Size, Stroke, Transform2D};
-use std::{any::Any, collections::HashMap};
+use crate::{properties::PropertyValue, Color, ColorChannel, Fill, Interpolatable, Percent, Rotation, Size, Stroke, Transform2D};
+use std::{any::Any, collections::HashMap, default};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
@@ -37,8 +37,15 @@ pub enum PaxValue {
     // represented in PaxValue as a map, enabling serialize/deserialization
     // debug impl, etc.
     Vec(Vec<PaxValue>),
+    Range(Box<PaxValue>, Box<PaxValue>),
     Object(HashMap<String, PaxValue>),
     Enum(String, Vec<PaxValue>),
+}
+
+impl Default for PaxValue {
+    fn default() -> Self {
+        PaxValue::Numeric(Numeric::F64(0.0))
+    }
 }
 
 /// This type serves a similar purpose as Box<dyn Any>, but allows for special
@@ -54,23 +61,26 @@ impl std::fmt::Debug for PaxAny {
     }
 }
 
-impl PaxAny {
-    /// Try to co coerce the inner type to type T. For the any type, just make
-    /// sure the stored any value is of type T. For a PaxValue, try to coerce it
-    /// into the expected type
-    pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<T, String> {
-        let res = match self {
-            PaxAny::Builtin(pax_type) => T::try_coerce(pax_type),
-            PaxAny::Any(any) => any.downcast().map(|v| *v).map_err(|_| {
-                format!(
-                    "tried to coerce PaxAny into {} which wasn't the underlying type",
-                    std::any::type_name::<T>()
-                )
-            }),
-        };
-        res
-    }
+impl Interpolatable for PaxValue {
 }
+
+// impl PaxAny {
+//     /// Try to co coerce the inner type to type T. For the any type, just make
+//     /// sure the stored any value is of type T. For a PaxValue, try to coerce it
+//     /// into the expected type
+//     pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<T, String> {
+//         let res = match self {
+//             PaxAny::Builtin(pax_type) => T::try_coerce(pax_type),
+//             PaxAny::Any(any) => any.downcast().map(|v| *v).map_err(|_| {
+//                 format!(
+//                     "tried to coerce PaxAny into {} which wasn't the underlying type",
+//                     std::any::type_name::<T>()
+//                 )
+//             }),
+//         };
+//         res
+//     }
+// }
 
 /// This trait is implemented by all types that has a bultin equivalent
 /// representation (see to_from_impls module) This is NOT responsible for

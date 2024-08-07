@@ -10,8 +10,9 @@ pub use parsing::get_pax_pratt_parser;
 
 pub mod deserializer;
 pub mod interpreter;
+pub use deserializer::from_pax;
 
-pub use interpreter::compute_paxel;
+pub use interpreter::{parse_pax_expression, Computable};
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
