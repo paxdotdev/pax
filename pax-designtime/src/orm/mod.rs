@@ -134,7 +134,7 @@ impl PaxManifestORM {
         containing_component_type_id: TypeId,
         node_type_id: TypeId,
     ) -> NodeBuilder {
-        NodeBuilder::new(self, containing_component_type_id, node_type_id)
+        NodeBuilder::new(self, containing_component_type_id, node_type_id, true)
     }
 
     pub fn move_node(
@@ -189,17 +189,12 @@ impl PaxManifestORM {
         Ok(res.get_created().to_vec())
     }
 
-    pub fn get_node(&mut self, uni: UniqueTemplateNodeIdentifier) -> Option<NodeBuilder> {
-        NodeBuilder::retrieve_node(self, uni)
-    }
-
-    pub fn get_node_by_str_id(&mut self, component: &TypeId, id: &str) -> Option<NodeBuilder> {
-        let temp = self.get_component(component).ok()?.template.as_ref()?;
-        let template_id = temp.find_node_with_str_id(id)?;
-        NodeBuilder::retrieve_node(
-            self,
-            UniqueTemplateNodeIdentifier::build(component.clone(), template_id.clone()),
-        )
+    pub fn get_node(
+        &mut self,
+        uni: UniqueTemplateNodeIdentifier,
+        overwrite_expressions: bool,
+    ) -> Option<NodeBuilder> {
+        NodeBuilder::retrieve_node(self, uni, overwrite_expressions)
     }
 
     pub fn get_main_component(&self) -> &TypeId {
