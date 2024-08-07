@@ -108,7 +108,7 @@ fn recurse_compile_literal_block<'a>(
                 ValueDefinition::LiteralValue(_)
                 | ValueDefinition::EventBindingTarget(_)
                 | ValueDefinition::DoubleBinding(_, _) => {}
-                ValueDefinition::Block(block) => {
+                ValueDefinition::Block(_, block) => {
                     let type_def = (current_property_definitions
                         .iter()
                         .find(|property_def| property_def.name == token.token_value))

@@ -18,7 +18,7 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
             ValueDefinition::LiteralValue(literal_value_token)
         }
         Rule::literal_object => {
-            ValueDefinition::Block(derive_value_definition_from_literal_object_pair(value))
+            ValueDefinition::Block(value.as_str().to_string(),derive_value_definition_from_literal_object_pair(value))
         }
         Rule::expression_body => {
             let expression_token =
@@ -89,7 +89,7 @@ fn derive_value_definition_from_literal_object_pair(
                                 ValueDefinition::LiteralValue(token)
                             }
                             Rule::literal_object => {
-                                ValueDefinition::Block(
+                                ValueDefinition::Block(value.as_str().to_string(),
                                     //Recurse
                                     derive_value_definition_from_literal_object_pair(value),
                                 )

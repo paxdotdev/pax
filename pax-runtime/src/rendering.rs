@@ -8,7 +8,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, use_RefCell};
+use pax_runtime_api::{borrow, use_RefCell, Variable};
 use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll};
@@ -38,7 +38,7 @@ pub struct InstantiationArgs {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
 }
 
 #[derive(Clone)]
@@ -194,7 +194,7 @@ pub struct BaseInstance {
     >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, UntypedProperty>>>,
+        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }

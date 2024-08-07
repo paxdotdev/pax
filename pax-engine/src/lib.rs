@@ -4,6 +4,7 @@ pub use pax_macro::*;
 pub use log;
 pub use pax_manifest;
 pub use pax_runtime;
+pub use pax_lang;
 pub use pax_runtime::api;
 pub use pax_runtime::api::math;
 pub use pax_runtime::api::serde;

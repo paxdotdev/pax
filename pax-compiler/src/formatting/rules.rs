@@ -136,6 +136,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::literal_number_unit
         | Rule::literal_boolean
         | Rule::literal_tuple_access
+        | Rule::literal_list_access
         | Rule::closing_tag
         | Rule::xo_symbol
         | Rule::id_binding

@@ -89,28 +89,6 @@ impl Neg for PaxValue {
     }
 }
 
-// pub enum PaxValue {
-//     Bool(bool),
-//     Numeric(Numeric),
-//     String(String),
-//     Transform2D(Transform2D),
-//     Size(Size),
-//     Percent(Percent),
-//     Color(Color),
-//     ColorChannel(ColorChannel),
-//     Rotation(Rotation),
-//     Fill(Fill),
-//     Stroke(Stroke),
-//     Option(Vec<PaxValue>),
-//     // Ideally this is later changed to Vec<PaxValue>, once structs can be
-//     // represented in PaxValue as a map, enabling serialize/deserialization
-//     // debug impl, etc.
-//     Vec(Vec<PaxValue>),
-//     Object(HashMap<String, PaxValue>),
-//     Enum(String, Vec<PaxValue>),
-//     Component {},
-// }
-
 impl PartialEq for PaxValue {
     fn eq(&self, rhs: &Self) -> bool {
         match (self, rhs) {
@@ -128,6 +106,7 @@ impl PartialEq for PaxValue {
             (PaxValue::Vec(a), PaxValue::Vec(b)) => a == b,
             (PaxValue::Object(a), PaxValue::Object(b)) => a == b,
             (PaxValue::Enum(a, b), PaxValue::Enum(c, d)) => a == c && b == d,
+            (PaxValue::Range(a,b), PaxValue::Range(c,d)) => a == c && b == d,
             (a, b) => panic!("can't compare {:?} and {:?}", a, b),
         }
     }

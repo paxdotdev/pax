@@ -173,7 +173,7 @@ impl PaxManifest {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
                         ValueDefinition::LiteralValue(_)
-                        | ValueDefinition::Block(_)
+                        | ValueDefinition::Block(_,_)
                         | ValueDefinition::Expression(_, _)
                         | ValueDefinition::Identifier(_, _)
                         | ValueDefinition::DoubleBinding(_, _) => {
@@ -201,7 +201,7 @@ impl PaxManifest {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
                         ValueDefinition::LiteralValue(_)
-                        | ValueDefinition::Block(_)
+                        | ValueDefinition::Block(_,_)
                         | ValueDefinition::Expression(_, _)
                         | ValueDefinition::Identifier(_, _) => {
                             if CommonProperty::get_common_properties().contains(&key.token_value) {
