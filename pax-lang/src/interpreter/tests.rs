@@ -6,6 +6,8 @@ use pax_runtime_api::{
 };
 use serde::de::Expected;
 
+use crate::{interpreter::compute_paxel, DependencyCollector};
+
 use super::{parse_pax_expression, PaxExpression, PaxInfix, PaxOperator, PaxPrimary};
 
 fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {

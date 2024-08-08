@@ -14,7 +14,7 @@ description = "Macros for Pax, used both for parser codegen and for showing Pax 
 proc-macro = true
 
 [dependencies]
-syn = {version = "1.0", features=["derive", "extra-traits"]}
+syn = {version = "1.0", features=["derive", "extra-traits", "full"]}
 proc-macro2 = "1.0"
 quote = "1.0"
 pax-runtime = {version = "0.22.0", path="../pax-runtime"}

@@ -29,7 +29,6 @@ pub mod math;
 pub mod pax_value;
 pub mod properties;
 
-pub use ctor::ctor;
 pub use pax_value::functions;
 pub use properties::Property;
 
