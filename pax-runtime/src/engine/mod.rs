@@ -223,7 +223,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
     ) -> Self {
-        use pax_runtime_api::{properties, Functions, HelperFunctions};
+        use pax_runtime_api::{properties, Functions};
         Functions::register_all_functions();
 
         let frames_elapsed = Property::new(0);
@@ -256,7 +256,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
     ) -> Self {
-        use pax_runtime_api::math::Transform2;
+        use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
         let frames_elapsed = Property::new(0);
         properties::register_time(&frames_elapsed);
@@ -271,7 +271,7 @@ impl PaxEngine {
             designtime: designtime.clone(),
         };
 
-        let mut runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
+        let mut runtime_context = Rc::new(RuntimeContext::new(globals));
         let root_node =
             ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
         runtime_context.register_root_node(&root_node);
