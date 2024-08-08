@@ -12,7 +12,9 @@ pub mod deserializer;
 pub mod interpreter;
 pub use deserializer::from_pax;
 
-pub use interpreter::{parse_pax_expression, Computable, DependencyCollector};
+pub use interpreter::{
+    computable::Computable, parse_pax_expression, property_resolution::DependencyCollector,
+};
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]

@@ -1,11 +1,11 @@
-use pax_runtime_api::{
-    borrow_mut, pax_value::functions::call_function, PaxValue, Percent, RefCell, Rotation, Size,
-};
+use computable::Computable;
+use pax_runtime_api::{pax_value::functions::call_function, PaxValue, Percent, Rotation, Size};
 use pax_runtime_api::{CoercionRules, Functions, Numeric};
 use pest::{
     iterators::{Pair, Pairs},
     pratt_parser::{self, PrattParser},
 };
+use property_resolution::IdentifierResolver;
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
@@ -13,6 +13,8 @@ use crate::{
     Rule,
 };
 
+pub(crate) mod computable;
+pub mod property_resolution;
 mod tests;
 
 #[derive(PartialEq, Debug)]
@@ -21,98 +23,6 @@ pub enum PaxExpression {
     Prefix(Box<PaxPrefix>),
     Infix(Box<PaxInfix>),
     Postfix(Box<PaxPostfix>),
-}
-
-pub trait IdentifierResolver {
-    fn resolve(&self, name: String) -> Result<PaxValue, String>;
-}
-
-pub trait DependencyCollector {
-    fn collect_dependencies(&self) -> Vec<String>;
-}
-
-impl DependencyCollector for PaxExpression {
-    fn collect_dependencies(&self) -> Vec<String> {
-        match self {
-            PaxExpression::Primary(p) => p.collect_dependencies(),
-            PaxExpression::Prefix(p) => p.collect_dependencies(),
-            PaxExpression::Infix(p) => p.collect_dependencies(),
-            PaxExpression::Postfix(p) => p.collect_dependencies(),
-        }
-    }
-}
-
-impl DependencyCollector for PaxPrimary {
-    fn collect_dependencies(&self) -> Vec<String> {
-        match self {
-            PaxPrimary::Literal(_) => vec![],
-            PaxPrimary::Grouped(expr, _) => expr.collect_dependencies(),
-            PaxPrimary::Identifier(i, _) => vec![i.name.clone()],
-            PaxPrimary::FunctionCall(f) => f.collect_dependencies(),
-            PaxPrimary::Object(o) => o
-                .iter()
-                .flat_map(|(k, v)| {
-                    let mut deps = v.collect_dependencies();
-                    deps.push(k.clone());
-                    deps
-                })
-                .collect(),
-            PaxPrimary::Enum(_, args) => {
-                args.iter().flat_map(|a| a.collect_dependencies()).collect()
-            }
-            PaxPrimary::Range(start, end) => {
-                let mut deps = start.collect_dependencies();
-                deps.extend(end.collect_dependencies());
-                deps
-            }
-            PaxPrimary::Tuple(t) => t.iter().flat_map(|e| e.collect_dependencies()).collect(),
-            PaxPrimary::List(l) => l.iter().flat_map(|e| e.collect_dependencies()).collect(),
-        }
-    }
-}
-
-impl DependencyCollector for PaxPrefix {
-    fn collect_dependencies(&self) -> Vec<String> {
-        self.rhs.collect_dependencies()
-    }
-}
-
-impl DependencyCollector for PaxInfix {
-    fn collect_dependencies(&self) -> Vec<String> {
-        let mut deps = self.lhs.collect_dependencies();
-        deps.extend(self.rhs.collect_dependencies());
-        deps
-    }
-}
-
-impl DependencyCollector for PaxPostfix {
-    fn collect_dependencies(&self) -> Vec<String> {
-        self.lhs.collect_dependencies()
-    }
-}
-
-impl DependencyCollector for PaxFunctionCall {
-    fn collect_dependencies(&self) -> Vec<String> {
-        self.args
-            .iter()
-            .flat_map(|a| a.collect_dependencies())
-            .collect()
-    }
-}
-
-pub trait Computable {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String>;
-}
-
-impl Computable for PaxExpression {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        match self {
-            PaxExpression::Primary(p) => p.compute(idr),
-            PaxExpression::Prefix(p) => p.compute(idr),
-            PaxExpression::Infix(p) => p.compute(idr),
-            PaxExpression::Postfix(p) => p.compute(idr),
-        }
-    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -143,113 +53,10 @@ pub enum PaxAccessor {
     Struct(String),
 }
 
-impl Computable for PaxPrimary {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        match self {
-            PaxPrimary::Literal(v) => Ok(v.clone()),
-            PaxPrimary::Identifier(i, accessors) => {
-                let mut value = i.compute(idr.clone())?;
-                for accessor in accessors {
-                    match accessor {
-                        PaxAccessor::Tuple(index) => {
-                            if let PaxValue::Vec(v) = value {
-                                value = v[*index].clone();
-                            } else {
-                                return Err("Tuple access must be performed on a tuple".to_string());
-                            }
-                        }
-                        PaxAccessor::List(index) => {
-                            if let PaxValue::Vec(v) = value {
-                                let index = Numeric::try_coerce(index.compute(idr.clone())?)?
-                                    .to_int() as usize;
-                                value = v[index].clone();
-                            } else {
-                                return Err("List access must be performed on a list".to_string());
-                            }
-                        }
-                        PaxAccessor::Struct(field) => {
-                            if let PaxValue::Object(obj) = value {
-                                value = obj
-                                    .get(field)
-                                    .map(|v| v.clone())
-                                    .ok_or(format!("Field not found: {}", field))?;
-                            } else {
-                                return Err(
-                                    "Struct access must be performed on an object".to_string()
-                                );
-                            }
-                        }
-                    }
-                }
-                Ok(value)
-            }
-            PaxPrimary::FunctionCall(f) => f.compute(idr),
-            PaxPrimary::Object(o) => {
-                let mut obj = HashMap::new();
-                for (k, v) in o.iter() {
-                    obj.insert(k.clone(), v.compute(idr.clone())?);
-                }
-                Ok(PaxValue::Object(obj))
-            }
-            PaxPrimary::Range(start, end) => {
-                let start = start.compute(idr.clone())?;
-                let end = end.compute(idr)?;
-                Ok(PaxValue::Range(Box::new(start), Box::new(end)))
-            }
-            PaxPrimary::Tuple(t) => {
-                let tuple = t
-                    .iter()
-                    .map(|e| e.compute(idr.clone()))
-                    .collect::<Result<Vec<PaxValue>, String>>()?;
-                Ok(PaxValue::Vec(tuple))
-            }
-            PaxPrimary::List(l) => {
-                let list = l
-                    .iter()
-                    .map(|e| e.compute(idr.clone()))
-                    .collect::<Result<Vec<PaxValue>, String>>()?;
-                Ok(PaxValue::Vec(list))
-            }
-            PaxPrimary::Grouped(expr, unit) => {
-                let expr_val = expr.compute(idr.clone())?;
-                if let PaxValue::Numeric(n) = expr_val {
-                    let ret: Result<PaxValue, String> = if let Some(unit) = unit {
-                        match unit {
-                            PaxUnit::Percent => Ok(PaxValue::Percent(Percent(n))),
-                            PaxUnit::Pixels => Ok(PaxValue::Size(Size::Pixels(n))),
-                            PaxUnit::Radians => Ok(PaxValue::Rotation(Rotation::Radians(n))),
-                            PaxUnit::Degrees => Ok(PaxValue::Rotation(Rotation::Degrees(n))),
-                        }
-                    } else {
-                        Ok(expr_val)
-                    };
-                    return ret;
-                }
-                return Err("Grouped expression must be a numeric value".to_string());
-            }
-            PaxPrimary::Enum(variant, args) => {
-                let args = args
-                    .iter()
-                    .map(|a| a.compute(idr.clone()))
-                    .collect::<Result<Vec<PaxValue>, String>>()?;
-                Ok(PaxValue::Enum(variant.clone(), args))
-            }
-        }
-    }
-}
-
 #[derive(PartialEq, Debug)]
 pub struct PaxPrefix {
     operator: PaxOperator,
     rhs: Box<PaxExpression>,
-}
-
-impl Computable for PaxPrefix {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        let rhs = self.rhs.compute(idr)?;
-        let operator = &self.operator.name;
-        call_function("Math".to_string(), operator.to_string(), vec![rhs])
-    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -259,27 +66,10 @@ pub struct PaxInfix {
     rhs: Box<PaxExpression>,
 }
 
-impl Computable for PaxInfix {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        let lhs = self.lhs.compute(idr.clone())?;
-        let rhs = self.rhs.compute(idr)?;
-        let operator = &self.operator.name;
-        call_function("Math".to_string(), operator.to_string(), vec![lhs, rhs])
-    }
-}
-
 #[derive(PartialEq, Debug)]
 pub struct PaxPostfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
-}
-
-impl Computable for PaxPostfix {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        let lhs = self.lhs.compute(idr)?;
-        let operator = &self.operator.name;
-        call_function("Math".to_string(), operator.to_string(), vec![lhs])
-    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -292,12 +82,6 @@ pub struct PaxIdentifier {
     name: String,
 }
 
-impl Computable for PaxIdentifier {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        idr.resolve(self.name.clone())
-    }
-}
-
 #[derive(PartialEq, Debug)]
 pub struct PaxFunctionCall {
     scope: String,
@@ -305,17 +89,7 @@ pub struct PaxFunctionCall {
     args: Vec<PaxExpression>,
 }
 
-impl Computable for PaxFunctionCall {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        let args = self
-            .args
-            .iter()
-            .map(|a| a.compute(idr.clone()))
-            .collect::<Result<Vec<PaxValue>, String>>()?;
-        call_function(self.scope.clone(), self.function_name.clone(), args)
-    }
-}
-
+/// Parse a pax expression into a computable AST
 pub fn parse_pax_expression(
     expr: &str,
     idr: Rc<dyn IdentifierResolver>,
@@ -326,7 +100,7 @@ pub fn parse_pax_expression(
     recurse_pratt_parse(parsed_expr, &pratt_parser, idr)
 }
 
-pub fn recurse_pratt_parse(
+fn recurse_pratt_parse(
     expr: Pairs<Rule>,
     pratt_parser: &PrattParser<Rule>,
     idr: Rc<dyn IdentifierResolver>,
@@ -594,15 +368,8 @@ pub fn recurse_pratt_parse(
         .parse(expr)
 }
 
+/// Compute a pax expression to a PaxValue
 pub fn compute_paxel(expr: &str, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
     let expr = parse_pax_expression(expr, idr.clone())?;
     expr.compute(idr)
-}
-
-impl IdentifierResolver for HashMap<String, PaxValue> {
-    fn resolve(&self, name: String) -> Result<PaxValue, String> {
-        self.get(&name)
-            .map(|v| v.clone())
-            .ok_or(format!("Identifier not found: {}", name))
-    }
 }
