@@ -12,7 +12,7 @@ mod tests {
     #[test]
     fn test_parse_identifier() {
         let res = utils::parse_value("identifier");
-        if let Ok(ValueDefinition::Identifier(token, _)) = res {
+        if let Ok(ValueDefinition::Identifier(token)) = res {
             assert_eq!(&token.raw_value, "identifier");
         } else {
             panic!("unexpected result: {:?}", res);
@@ -32,7 +32,7 @@ mod tests {
     #[test]
     fn test_parse_expression() {
         let res = utils::parse_value("{5 + 3}");
-        if let Ok(ValueDefinition::Expression(token, _)) = res {
+        if let Ok(ValueDefinition::Expression(token)) = res {
             assert_eq!(&token.raw_value, "{5 + 3}");
         } else {
             panic!("unexpected result: {:?}", res);

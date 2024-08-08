@@ -13,7 +13,6 @@
         let manifest = pax_engine::pax_manifest::PaxManifest {
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,
-            expression_specs: None,
             type_table: ctx.type_table,
         };
 
@@ -44,10 +43,9 @@
         pax_engine::console_log::init_with_level(pax_engine::log::Level::Error)
             .expect("console_log::init_with_level initialized correctly");
 
-        let cartridge = init_cartridge();
         let manifest = init_manifest();
         let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-        JsValue::from(pax_engine::pax_chassis_web::PaxChassisWeb::new(cartridge, definition_to_instance_traverser).await)
+        JsValue::from(pax_engine::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
     }
 
     //cdylib exports
@@ -61,21 +59,16 @@
     pub extern "C" fn pax_init() -> *mut pax_engine::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         pax_engine::pax_chassis_common::env_logger::init();
 
-        let cartridge = init_cartridge();
         let manifest = init_manifest();
         let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();
-        let expression_table = pax_runtime::engine::ExpressionTable {
-            table: cartridge.instantiate_expression_table(),
-        };
 
         //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
         //engine can be passed back to Swift via the C (FFI) bridge
         //This could presumably be cleaned up -- see `pax_dealloc_engine`
         let engine: std::mem::ManuallyDrop<Box<pax_engine::pax_runtime::engine::PaxEngine>> = std::mem::ManuallyDrop::new(Box::new(pax_engine::pax_runtime::engine::PaxEngine::new(
             main_component_instance,
-            expression_table,
             (1.0, 1.0),
             Platform::Native,
             #[cfg(feature="macos")]

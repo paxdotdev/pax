@@ -14,7 +14,7 @@ use flexbuffers;
 use flexbuffers::DeserializationError;
 use serde::Serialize;
 
-use pax_runtime::{ExpressionTable, PaxEngine, Renderer};
+use pax_runtime::{PaxEngine, Renderer};
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`

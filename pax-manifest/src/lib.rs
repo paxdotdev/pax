@@ -23,7 +23,6 @@ pub struct PaxManifest {
     #[serde_as(as = "BTreeMap<serde_with::json::JsonString, _>")]
     pub components: BTreeMap<TypeId, ComponentDefinition>,
     pub main_component_type_id: TypeId,
-    pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
 }
@@ -1169,111 +1168,6 @@ impl ComponentTemplate {
         }
     }
 
-    /// Returns a map from string to expression id.
-    /// This is used for live reloading without compilation
-    pub fn get_known_expressions(&self) -> HashMap<String, ExpressionCompilationInfo> {
-        let mut ret = HashMap::new();
-        for (_, tnd) in self.nodes.iter() {
-            if let Some(settings) = &tnd.settings {
-                for setting in settings {
-                    if let SettingElement::Setting(_, v) = setting {
-                        if let ValueDefinition::Expression(t, id) = v {
-                            ret.insert(t.raw_value.clone(), id.clone().unwrap());
-                        }
-                        if let ValueDefinition::Block(s, b) = v {
-                            Self::recurse_get_known_expressions(b, &mut ret);
-                        }
-                    }
-                }
-            }
-        }
-        ret
-    }
-
-    fn recurse_get_known_expressions(
-        block: &LiteralBlockDefinition,
-        known_expressions: &mut HashMap<String, ExpressionCompilationInfo>,
-    ) {
-        for s in block.elements.iter() {
-            if let SettingElement::Setting(_, v) = s {
-                if let ValueDefinition::Expression(t, e) = v {
-                    known_expressions.insert(t.raw_value.clone(), e.clone().unwrap());
-                }
-                if let ValueDefinition::Block(s, b) = v {
-                    Self::recurse_get_known_expressions(b, known_expressions);
-                }
-            }
-        }
-    }
-
-    /// Given a list of known expressions, this function will update the expression ids in the template
-    pub fn update_expression_ids(
-        &mut self,
-        known_expressions: &HashMap<String, ExpressionCompilationInfo>,
-    ) {
-        for (_, tnd) in self.nodes.iter_mut() {
-            if let Some(settings) = &mut tnd.settings {
-                for setting in settings {
-                    if let SettingElement::Setting(_k, v) = setting {
-                        if let ValueDefinition::Expression(t, ec) = v {
-                            if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
-                                *ec = Some(new_ec.clone());
-                            }
-                        }
-                        if let ValueDefinition::Block(s, b) = v {
-                            Self::recurse_update_block(b, known_expressions);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn recurse_update_block(
-        block: &mut LiteralBlockDefinition,
-        known_expressions: &HashMap<String, ExpressionCompilationInfo>,
-    ) {
-        for s in block.elements.iter_mut() {
-            if let SettingElement::Setting(_k, v) = s {
-                if let ValueDefinition::Expression(t, ec) = v {
-                    if let Some(new_ec) = known_expressions.get(t.raw_value.trim()) {
-                        *ec = Some(new_ec.clone());
-                    }
-                }
-                if let ValueDefinition::Block(s, b) = v {
-                    Self::recurse_update_block(b, known_expressions);
-                }
-            }
-        }
-    }
-
-    /// Returns a set of known control flow settings.
-    /// This is used for live reloading without compilation
-    pub fn get_known_control_flow_settings(&self) -> HashSet<ControlFlowSettingsDefinition> {
-        let mut ret = HashSet::new();
-        for (_, tnd) in self.nodes.iter() {
-            if let Some(cfsd) = &tnd.control_flow_settings {
-                ret.insert(cfsd.clone());
-            }
-        }
-        ret
-    }
-
-    /// Populates this template with a previously compiled template
-    /// This is used for live reloading without compilation
-    pub fn populate_template_with_known_entities(&mut self, original_template: &ComponentTemplate) {
-        let known_expressions = original_template.get_known_expressions();
-        let known_control_flow_settings = original_template.get_known_control_flow_settings();
-        self.update_expression_ids(&known_expressions);
-        for (_, tnd) in self.nodes.iter_mut() {
-            if let Some(cfsd) = &mut tnd.control_flow_settings {
-                if known_control_flow_settings.contains(cfsd) {
-                    *cfsd = known_control_flow_settings.get(cfsd).unwrap().clone();
-                }
-            }
-        }
-    }
-
     pub fn get_all_children_relationships(
         &self,
     ) -> HashMap<TemplateNodeId, VecDeque<TemplateNodeId>> {
@@ -1484,13 +1378,13 @@ pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
     LiteralValue(Token),
-    Block(String, LiteralBlockDefinition),
+    Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
-    Expression(Token, Option<ExpressionCompilationInfo>),
+    Expression(Token),
     /// (Expression contents, vtable id binding)
-    Identifier(Token, Option<ExpressionCompilationInfo>),
+    Identifier(Token),
     /// (Expression contents, vtable id binding)
-    DoubleBinding(Token, Option<ExpressionCompilationInfo>),
+    DoubleBinding(Token),
     EventBindingTarget(Token),
 }
 
@@ -1503,16 +1397,16 @@ impl Hash for ValueDefinition {
             ValueDefinition::LiteralValue(t) => {
                 t.hash(state);
             }
-            ValueDefinition::Block(s, lbd) => {
+            ValueDefinition::Block(lbd) => {
                 lbd.hash(state);
             }
-            ValueDefinition::Expression(t, _) => {
+            ValueDefinition::Expression(t) => {
                 t.hash(state);
             }
-            ValueDefinition::Identifier(t, _) => {
+            ValueDefinition::Identifier(t) => {
                 t.hash(state);
             }
-            ValueDefinition::DoubleBinding(t, _) => {
+            ValueDefinition::DoubleBinding(t) => {
                 t.hash(state);
             }
             ValueDefinition::EventBindingTarget(t) => {
@@ -1539,22 +1433,22 @@ impl PartialEq for ValueDefinition {
                     false
                 }
             }
-            ValueDefinition::Block(s, lbd) => {
-                if let ValueDefinition::Block(s2, olbd) = other {
+            ValueDefinition::Block(lbd) => {
+                if let ValueDefinition::Block(olbd) = other {
                     lbd == olbd
                 } else {
                     false
                 }
             }
-            ValueDefinition::Expression(t, _) => {
-                if let ValueDefinition::Expression(ot, _) = other {
+            ValueDefinition::Expression(t) => {
+                if let ValueDefinition::Expression(ot) = other {
                     t == ot
                 } else {
                     false
                 }
             }
-            ValueDefinition::Identifier(t, _) => {
-                if let ValueDefinition::Identifier(ot, _) = other {
+            ValueDefinition::Identifier(t) => {
+                if let ValueDefinition::Identifier(ot) = other {
                     t == ot
                 } else {
                     false
@@ -1567,8 +1461,8 @@ impl PartialEq for ValueDefinition {
                     false
                 }
             }
-            ValueDefinition::DoubleBinding(t, _) => {
-                if let ValueDefinition::DoubleBinding(ot, _) = other {
+            ValueDefinition::DoubleBinding(t) => {
+                if let ValueDefinition::DoubleBinding(ot) = other {
                     t == ot
                 } else {
                     false
