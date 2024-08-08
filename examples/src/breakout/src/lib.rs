@@ -1,9 +1,9 @@
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::primitives::*;
-use std::f64::consts::PI;
+use pax_std::*;
 use rand::Rng;
 use rand_distr::{Distribution, Exp};
+use std::f64::consts::PI;
 
 const INITIAL_PADDLE_WIDTH: f64 = 100.0;
 const PADDLE_HEIGHT: f64 = 20.0;
@@ -20,8 +20,8 @@ const MIN_PADDLE_WIDTH: f64 = 25.0;
 const PADDLE_WIDTH_INCREMENT: f64 = 25.0;
 const PADDLE_REVERSE_BOUNCE_PORTION: f64 = 0.05;
 const APPROXIMATE_FPS: u64 = 60;
-const RANDOMIZE_VELOCITY_MIN: f64 = PI/8.0; // in absolute value
-const RANDOMIZE_VELOCITY_MAX: f64 = PI/2.0-PI/8.0; // in absolute value
+const RANDOMIZE_VELOCITY_MIN: f64 = PI / 8.0; // in absolute value
+const RANDOMIZE_VELOCITY_MAX: f64 = PI / 2.0 - PI / 8.0; // in absolute value
 const INTEREVENT_INF: u64 = 1; // measured in number of frames
 const INTEREVENT_SUP: u64 = 4; // measured in number of frames
 const SHOW_DEBUG_MARKERS: bool = false;
@@ -58,8 +58,8 @@ pub struct Ball {
     pub dy: f64,
     pub radius: f64,
     pub fill: Color,
-    pub visible: bool,  // used by event loop as despawn signal
-    pub trigger: Option<ExpTrigger>,  // balls may randomly change direction
+    pub visible: bool,               // used by event loop as despawn signal
+    pub trigger: Option<ExpTrigger>, // balls may randomly change direction
 }
 
 #[pax]
@@ -70,11 +70,14 @@ pub struct ExpTrigger {
 
 impl ExpTrigger {
     pub fn new(rate: f64, current_frame: u64) -> Self {
-        let mut trigger = Self { rate: rate, next_trigger: 0 };
+        let mut trigger = Self {
+            rate: rate,
+            next_trigger: 0,
+        };
         trigger.schedule(current_frame);
         trigger
     }
-    
+
     pub fn check(&mut self, current_frame: u64) -> bool {
         if current_frame >= self.next_trigger {
             self.schedule(current_frame);
@@ -107,7 +110,7 @@ pub enum BrickType {
 pub struct Brick {
     pub x: f64,
     pub y: f64,
-    pub visible: bool,  // used by event loop as despawn signal
+    pub visible: bool, // used by event loop as despawn signal
     pub kind: BrickType,
     pub fill: Color,
 }
@@ -175,7 +178,7 @@ impl Ball {
 
     fn spawn(width: f64, height: f64, upwards: bool) -> Self {
         let mut rng = rand::thread_rng();
-        let mut angle = rng.gen_range(PI/4.0..3.0*PI/4.0);
+        let mut angle = rng.gen_range(PI / 4.0..3.0 * PI / 4.0);
         if upwards {
             angle *= -1.0
         }
@@ -225,7 +228,7 @@ impl Ball {
             }
 
             if dy.abs() >= MIN_BALL_DY {
-                break (dx, dy)
+                break (dx, dy);
             }
         };
         self.dx = dx;
@@ -268,34 +271,35 @@ impl BreakoutGame {
         let mut rng = rand::thread_rng();
 
         // Update ball positions and handle collisions
-        for ball in &mut balls {            
-            match &mut ball.trigger {  // Randomize velocity event?
-                None => {},
+        for ball in &mut balls {
+            match &mut ball.trigger {
+                // Randomize velocity event?
+                None => {}
                 Some(trigger) => {
                     if trigger.check(current_frame) {
                         ball.randomize_velocity();
                     }
-                },
+                }
             }
-            
-            let mut nx = ball.x + ball.dx;  // next x
-            let mut ny = ball.y + ball.dy;  // next y
-            
+
+            let mut nx = ball.x + ball.dx; // next x
+            let mut ny = ball.y + ball.dy; // next y
+
             if nx - ball.radius <= 0.0 {
-                ball.dx = -ball.dx;        // left wall bounce
-                nx = ball.radius;          // prevent interpenetration
+                ball.dx = -ball.dx; // left wall bounce
+                nx = ball.radius; // prevent interpenetration
             } else if nx + ball.radius >= width {
-                ball.dx = -ball.dx;        // right wall bounce
-                nx = width - ball.radius;  // prevent interpenetration
+                ball.dx = -ball.dx; // right wall bounce
+                nx = width - ball.radius; // prevent interpenetration
             }
 
             if ny - ball.radius <= 0.0 {
-                ball.dy = -ball.dy;        // top wall bounce
-                ny = ball.radius;          // prevent interpenetration
+                ball.dy = -ball.dy; // top wall bounce
+                ny = ball.radius; // prevent interpenetration
             } else if ny + ball.radius >= height {
-                ball.visible = false;      // flag for removal
+                ball.visible = false; // flag for removal
             }
-    
+
             // Check for paddle collision:
             // Find closest point C := (cx, cy) on rectangle to circle center,
             // then compare distance from C to ball center to the ball radius:
@@ -306,7 +310,7 @@ impl BreakoutGame {
             // TODO: this does not prevent "tunnelling" at high-enough speeds
             if (nx - cx).powi(2) + (ny - cy).powi(2) <= ball.radius.powi(2) {
                 if paddle.x + dx <= nx && nx <= paddle.x + paddle.width - dx {
-                    ball.dy = -ball.dy;    // normal bounce on the long side
+                    ball.dy = -ball.dy; // normal bounce on the long side
                     if ball.y <= paddle.y {
                         // prevent interpenetration from above
                         ny = paddle.y - ball.radius;
@@ -323,48 +327,53 @@ impl BreakoutGame {
                     ball.dy = -ball.dy;    // weird bounce on the short side
                  */
                 } else {
-                    ball.dx = -ball.dx;    // weird bounce on the short side
-                    ball.dy = -ball.dy;    // weird bounce on the short side
+                    ball.dx = -ball.dx; // weird bounce on the short side
+                    ball.dy = -ball.dy; // weird bounce on the short side
                 }
             }
 
             // Check for brick collisions
             for brick in &mut bricks {
                 if !brick.visible {
-                    continue  // bricks can only be destroyed once
+                    continue; // bricks can only be destroyed once
                 }
 
-                if nx >= brick.x && nx <= brick.x + BRICK_WIDTH &&
-                   ny >= brick.y && ny <= brick.y + BRICK_HEIGHT {
+                if nx >= brick.x
+                    && nx <= brick.x + BRICK_WIDTH
+                    && ny >= brick.y
+                    && ny <= brick.y + BRICK_HEIGHT
+                {
                     brick.visible = false;
                     ball.dy = -ball.dy;
                     let score = self.score.get() + 1;
                     self.score.set(score);
-    
+
                     match brick.kind {
                         BrickType::SPAWN => {
                             new_balls.push(Ball::spawn(width, height, true));
-                        },
-                        BrickType::ACCELERATE => { // Red brick: increase ball speed
+                        }
+                        BrickType::ACCELERATE => {
+                            // Red brick: increase ball speed
                             ball.dx *= BALL_SPEED_MULTIPLIER;
                             ball.dy *= BALL_SPEED_MULTIPLIER;
                             ball.fill = brick.fill.clone();
-                        },
-                        BrickType::PERTURB => { // Green brick: randomize ball velocity
+                        }
+                        BrickType::PERTURB => {
+                            // Green brick: randomize ball velocity
                             // Compute the event occurrence rate from the intended average
                             // number of frames between each event in a Poisson process:
                             let interevent = rng.gen_range(INTEREVENT_INF..INTEREVENT_SUP);
                             let rate = 1.0 / interevent as f64 / APPROXIMATE_FPS as f64;
                             ball.trigger = Some(ExpTrigger::new(rate, current_frame));
                             ball.fill = brick.fill.clone();
-                        },
+                        }
                         BrickType::LONGER => {
                             paddle.width += PADDLE_WIDTH_INCREMENT;
-                        },
+                        }
                         BrickType::SHORTER => {
                             paddle.width -= PADDLE_WIDTH_INCREMENT;
                             paddle.width = paddle.width.max(MIN_PADDLE_WIDTH);
-                        },
+                        }
                         BrickType::NEUTRAL => {}
                     }
                     break;
@@ -375,17 +384,17 @@ impl BreakoutGame {
             ball.x = nx;
             ball.y = ny;
         }
-    
+
         balls.append(&mut new_balls);
         balls.retain(|ball| ball.visible);
         bricks.retain(|brick| brick.visible);
-    
+
         if bricks.is_empty() {
             self.game_state.set(GameState::Won as u32);
         } else if balls.is_empty() {
             self.game_state.set(GameState::GameOver as u32);
         }
-    
+
         self.paddle.set(paddle);
         self.balls.set(balls);
         self.bricks.set(bricks);
@@ -416,25 +425,21 @@ impl BreakoutGame {
 
         for row in 0..BRICK_ROWS {
             for col in 0..BRICK_COLS {
-                /* 
+                /*
                  * Populate bricks and spawn each kind of brick randomly:
                  * - 50% chance for normal bricks
                  * - 25% chance for positive-effect bricks
                  * - 25% chance for negative-effect bricks
                  */
                 let (kind, fill) = match rng.gen_range(0..100) {
-                    0..=25 => {
-                        match rng.gen_range(0..100) {
-                            0..=50 => (BrickType::LONGER, Theme::LEAF.as_color()),
-                            _ => (BrickType::SPAWN, Theme::CERULEAN.as_color()),
-                        }
+                    0..=25 => match rng.gen_range(0..100) {
+                        0..=50 => (BrickType::LONGER, Theme::LEAF.as_color()),
+                        _ => (BrickType::SPAWN, Theme::CERULEAN.as_color()),
                     },
-                    26..=50 => {
-                        match rng.gen_range(0..100) {
-                            0..=40 => (BrickType::ACCELERATE, Theme::TANGERINE.as_color()),
-                            41..=80 => (BrickType::PERTURB, Theme::LILAC.as_color()),
-                            _ => (BrickType::SHORTER, Theme::SIENNA.as_color()),
-                        }
+                    26..=50 => match rng.gen_range(0..100) {
+                        0..=40 => (BrickType::ACCELERATE, Theme::TANGERINE.as_color()),
+                        41..=80 => (BrickType::PERTURB, Theme::LILAC.as_color()),
+                        _ => (BrickType::SHORTER, Theme::SIENNA.as_color()),
                     },
                     _ => (BrickType::NEUTRAL, Theme::GOLD.as_color()),
                 };

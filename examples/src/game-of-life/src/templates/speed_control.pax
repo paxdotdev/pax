@@ -6,7 +6,7 @@
 @settings {
     .text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,

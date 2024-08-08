@@ -23,7 +23,7 @@
 	@mouse_move: on_mouse_move
     #text {
         style: TextStyle {
-            font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
+            font: Font::Web("Esenka", "", FontStyle::Normal, FontWeight::Normal),
             font_size: 40px,
             fill: BLACK,
             align_vertical: TextAlignVertical::Center,

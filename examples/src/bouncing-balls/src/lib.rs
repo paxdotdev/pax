@@ -1,11 +1,12 @@
+#![allow(unused_imports)]
 use pax_engine::api::*;
 use pax_engine::*;
-use pax_std::primitives::*;
-use pax_std::types::*;
-use std::f64::consts::PI;
-use rand::SeedableRng;
+use pax_std::*;
+
 use rand::rngs::StdRng;
 use rand::Rng;
+use rand::SeedableRng;
+use std::f64::consts::PI;
 
 const SQUARE_SIZE: f64 = 100.0;
 const BALL_SIZE: f64 = SQUARE_SIZE / 4.0;
@@ -37,7 +38,11 @@ pub struct Ball {
 impl Ball {
     fn new(x: f64, y: f64, vx: f64, vy: f64, hue: f64) -> Self {
         Self {
-            x, y, vx, vy, hue,
+            x,
+            y,
+            vx,
+            vy,
+            hue,
             size: BALL_SIZE,
             collision_animation: 0,
         }
@@ -53,14 +58,14 @@ impl RotatingSquareWithBalls {
 
     pub fn handle_tick(&mut self, ctx: &NodeContext) {
         let (width, height) = ctx.bounds_parent.get();
-        
+
         // Update rotation
         let current_rotation = self.rotation.get();
         self.rotation.set((current_rotation + 0.5) % 360.0);
 
         // Update ball positions and handle collisions
         let mut balls = self.balls.get();
-        
+
         // First, update positions and handle wall/square collisions
         for ball in balls.iter_mut() {
             // Update position
@@ -68,11 +73,11 @@ impl RotatingSquareWithBalls {
             ball.y += ball.vy;
 
             // Bounce off viewport boundaries
-            if ball.x - BALL_SIZE/2.0 < 0.0 || ball.x + BALL_SIZE/2.0 > width {
+            if ball.x - BALL_SIZE / 2.0 < 0.0 || ball.x + BALL_SIZE / 2.0 > width {
                 ball.vx = -ball.vx;
                 ball.collision_animation = COLLISION_ANIMATION_DURATION;
             }
-            if ball.y - BALL_SIZE/2.0 < 0.0 || ball.y + BALL_SIZE/2.0 > height {
+            if ball.y - BALL_SIZE / 2.0 < 0.0 || ball.y + BALL_SIZE / 2.0 > height {
                 ball.vy = -ball.vy;
                 ball.collision_animation = COLLISION_ANIMATION_DURATION;
             }
@@ -82,20 +87,20 @@ impl RotatingSquareWithBalls {
             let square_y = height / 2.0;
             let dx = ball.x - square_x;
             let dy = ball.y - square_y;
-            let distance = (dx*dx + dy*dy).sqrt();
+            let distance = (dx * dx + dy * dy).sqrt();
 
-            if distance < SQUARE_SIZE/2.0 + BALL_SIZE/2.0 {
+            if distance < SQUARE_SIZE / 2.0 + BALL_SIZE / 2.0 {
                 // Collision detected, calculate bounce
                 let angle = dy.atan2(dx);
                 let normal_angle = angle - current_rotation.to_radians();
-                
-                let speed = (ball.vx*ball.vx + ball.vy*ball.vy).sqrt();
+
+                let speed = (ball.vx * ball.vx + ball.vy * ball.vy).sqrt();
                 ball.vx = speed * normal_angle.cos();
                 ball.vy = speed * normal_angle.sin();
 
                 // Move ball outside the square
-                ball.x = square_x + (SQUARE_SIZE/2.0 + BALL_SIZE/2.0) * angle.cos();
-                ball.y = square_y + (SQUARE_SIZE/2.0 + BALL_SIZE/2.0) * angle.sin();
+                ball.x = square_x + (SQUARE_SIZE / 2.0 + BALL_SIZE / 2.0) * angle.cos();
+                ball.y = square_y + (SQUARE_SIZE / 2.0 + BALL_SIZE / 2.0) * angle.sin();
 
                 ball.collision_animation = COLLISION_ANIMATION_DURATION;
             }
@@ -104,7 +109,8 @@ impl RotatingSquareWithBalls {
             ball.hue = (ball.hue + 0.5) % 360.0;
             if ball.collision_animation > 0 {
                 ball.collision_animation -= 1;
-                let progress = ball.collision_animation as f64 / COLLISION_ANIMATION_DURATION as f64;
+                let progress =
+                    ball.collision_animation as f64 / COLLISION_ANIMATION_DURATION as f64;
                 ball.size = BALL_SIZE * (1.0 + 0.2 * (1.0 - progress).powi(2));
             } else {
                 ball.size = BALL_SIZE;
@@ -113,10 +119,10 @@ impl RotatingSquareWithBalls {
 
         // Then, handle ball-to-ball collisions
         for i in 0..balls.len() {
-            for j in (i+1)..balls.len() {
+            for j in (i + 1)..balls.len() {
                 let dx = balls[j].x - balls[i].x;
                 let dy = balls[j].y - balls[i].y;
-                let distance = (dx*dx + dy*dy).sqrt();
+                let distance = (dx * dx + dy * dy).sqrt();
 
                 if distance < BALL_SIZE {
                     // Collision detected, calculate new velocities
@@ -175,13 +181,14 @@ impl RotatingSquareWithBalls {
 
         for _ in 0..NUM_BALLS {
             loop {
-                let x = rng.gen_range(BALL_SIZE/2.0..width-BALL_SIZE/2.0);
-                let y = rng.gen_range(BALL_SIZE/2.0..height-BALL_SIZE/2.0);
+                let x = rng.gen_range(BALL_SIZE / 2.0..width - BALL_SIZE / 2.0);
+                let y = rng.gen_range(BALL_SIZE / 2.0..height - BALL_SIZE / 2.0);
 
                 // Ensure the ball doesn't overlap with the square
-                if (x - width/2.0).abs() > SQUARE_SIZE/2.0 + BALL_SIZE/2.0 ||
-                   (y - height/2.0).abs() > SQUARE_SIZE/2.0 + BALL_SIZE/2.0 {
-                    let angle = rng.gen_range(0.0..2.0*PI);
+                if (x - width / 2.0).abs() > SQUARE_SIZE / 2.0 + BALL_SIZE / 2.0
+                    || (y - height / 2.0).abs() > SQUARE_SIZE / 2.0 + BALL_SIZE / 2.0
+                {
+                    let angle = rng.gen_range(0.0..2.0 * PI);
                     new_balls.push(Ball::new(
                         x,
                         y,

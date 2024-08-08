@@ -55,7 +55,7 @@
         x=2%
         y=2%
         style={
-            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font: Font::Web("Arial", "", FontStyle::Normal, FontWeight::Bold),
             font_size: 20px,
             fill=WHITE
         }
@@ -70,7 +70,7 @@
             anchor_x=50%
             anchor_y=50%
             style={
-                font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+                font: Font::Web("Arial", "", FontStyle::Normal, FontWeight::Bold),
                 font_size: 30px,
                 fill: WHITE,
                 align_horizontal: TextAlignHorizontal::Center,
@@ -88,7 +88,7 @@
             anchor_x=50%
             anchor_y=50%
             style={
-                font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+                font: Font::Web("Arial", "", FontStyle::Normal, FontWeight::Bold),
                 font_size: 30px,
                 fill: WHITE,
                 align_horizontal: TextAlignHorizontal::Center,
