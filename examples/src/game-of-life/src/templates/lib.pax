@@ -32,7 +32,7 @@
     @tick: tick
     .h1 {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
                 font_size: 64px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -42,7 +42,7 @@
     }
     .btn {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
                 font_size: 24px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,

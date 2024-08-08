@@ -361,37 +361,11 @@ impl ExpandedNode {
     fn bind_to_parent_bounds(self: &Rc<Self>) {
         let parent = borrow!(self.render_parent).upgrade().unwrap();
         let parent_transform_and_bounds = parent.transform_and_bounds.clone();
-        let layout_properties = self.layout_properties();
-        let rendered_size = self.rendered_size.clone();
-
-        let deps = [layout_properties.untyped(), rendered_size.untyped()];
-        let layout_properties_with_fallback = Property::computed(
-            move || {
-                let mut lp = layout_properties.get();
-                let fallback = rendered_size.get();
-                let (w_fallback, h_fallback) = match fallback {
-                    Some((wf, hf)) => (Some(wf), Some(hf)),
-                    None => (None, None),
-                };
-                lp.width = if lp.width.is_none() {
-                    w_fallback.map(|v| Size::Pixels(v.into()))
-                } else {
-                    lp.width
-                };
-                lp.height = if lp.height.is_none() {
-                    h_fallback.map(|v| Size::Pixels(v.into()))
-                } else {
-                    lp.height
-                };
-                lp
-            },
-            &deps,
-        );
         let common_props = borrow!(self.common_properties);
         let extra_transform = borrow!(common_props).transform.clone();
 
         let transform_and_bounds = compute_tab(
-            layout_properties_with_fallback,
+            self.layout_properties(),
             extra_transform,
             parent_transform_and_bounds,
         );
@@ -760,6 +734,7 @@ impl ExpandedNode {
         let cp_rotate = common_props.rotate.clone();
         let cp_x = common_props.x.clone();
         let cp_y = common_props.y.clone();
+        let rendered_size = self.rendered_size.clone();
         let deps = [
             cp_width.untyped(),
             cp_height.untyped(),
@@ -773,26 +748,40 @@ impl ExpandedNode {
             cp_rotate.untyped(),
             cp_x.untyped(),
             cp_y.untyped(),
+            rendered_size.untyped(),
         ];
 
         Property::computed(
-            move || LayoutProperties {
-                x: cp_x.get(),
-                y: cp_y.get(),
-                width: cp_width.get(),
-                height: cp_height.get(),
-                rotate: cp_rotate.get(),
-                // TODO make the common prop only accept percent
-                scale_x: cp_scale_x
-                    .get()
-                    .map(|v| Percent((100.0 * v.expect_percent()).into())),
-                scale_y: cp_scale_y
-                    .get()
-                    .map(|v| Percent((100.0 * v.expect_percent()).into())),
-                anchor_x: cp_anchor_x.get(),
-                anchor_y: cp_anchor_y.get(),
-                skew_x: cp_skew_x.get(),
-                skew_y: cp_skew_y.get(),
+            move || {
+                // Used for auto sized text, might be used for other things later
+                let fallback = rendered_size.get();
+                let (w_fallback, h_fallback) = match fallback {
+                    Some((wf, hf)) => (Some(wf), Some(hf)),
+                    None => (None, None),
+                };
+
+                LayoutProperties {
+                    x: cp_x.get(),
+                    y: cp_y.get(),
+                    width: cp_width
+                        .get()
+                        .or(w_fallback.map(|v| Size::Pixels(v.into()))),
+                    height: cp_height
+                        .get()
+                        .or(h_fallback.map(|v| Size::Pixels(v.into()))),
+                    rotate: cp_rotate.get(),
+                    // TODO make the common prop only accept percent
+                    scale_x: cp_scale_x
+                        .get()
+                        .map(|v| Percent((100.0 * v.expect_percent()).into())),
+                    scale_y: cp_scale_y
+                        .get()
+                        .map(|v| Percent((100.0 * v.expect_percent()).into())),
+                    anchor_x: cp_anchor_x.get(),
+                    anchor_y: cp_anchor_y.get(),
+                    skew_x: cp_skew_x.get(),
+                    skew_y: cp_skew_y.get(),
+                }
             },
             &deps,
         )
