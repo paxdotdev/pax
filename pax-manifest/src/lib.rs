@@ -1180,7 +1180,7 @@ impl ComponentTemplate {
                         if let ValueDefinition::Expression(t, id) = v {
                             ret.insert(t.raw_value.clone(), id.clone().unwrap());
                         }
-                        if let ValueDefinition::Block(s,b) = v {
+                        if let ValueDefinition::Block(s, b) = v {
                             Self::recurse_get_known_expressions(b, &mut ret);
                         }
                     }
@@ -1240,7 +1240,7 @@ impl ComponentTemplate {
                         *ec = Some(new_ec.clone());
                     }
                 }
-                if let ValueDefinition::Block(s,b) = v {
+                if let ValueDefinition::Block(s, b) = v {
                     Self::recurse_update_block(b, known_expressions);
                 }
             }

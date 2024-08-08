@@ -8,7 +8,7 @@ use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, 
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{Layer, RenderContext, Stroke};
 use_RefCell!();
-use pax_engine::{pax, Property};
+use pax_engine::{helpers, pax, Property};
 use pax_manifest::pax_runtime_api::Numeric;
 use std::rc::Rc;
 
@@ -125,6 +125,7 @@ impl InstanceNode for RectangleInstance {
 }
 
 #[pax]
+#[has_helpers]
 pub struct RectangleCornerRadii {
     pub top_left: Property<Numeric>,
     pub top_right: Property<Numeric>,
@@ -143,6 +144,7 @@ impl Into<RoundedRectRadii> for &RectangleCornerRadii {
     }
 }
 
+#[helpers]
 impl RectangleCornerRadii {
     pub fn radii(
         top_left: Numeric,

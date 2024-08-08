@@ -3,11 +3,11 @@ use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
 use kurbo::BezPath;
+pub use pax_message::*;
 pub use pax_value::numeric::Numeric;
 pub use pax_value::{CoercionRules, ImplToFromPaxAny, PaxValue, ToPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::{PropertyValue, UntypedProperty};
-pub use pax_message::*;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store
@@ -34,7 +34,7 @@ pub use pax_value::functions;
 pub use properties::Property;
 
 pub use pax_value::functions::register_function;
-pub use pax_value::functions::GlobalFunctions;
+pub use pax_value::functions::Functions;
 pub use pax_value::functions::HelperFunctions;
 
 use crate::constants::COMMON_PROPERTIES_TYPE;
@@ -1408,7 +1408,7 @@ impl Interpolatable for Color {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Copy)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
@@ -1781,7 +1781,6 @@ pub struct Variable {
 
 impl Variable {
     pub fn new<T: PropertyValue + ToPaxValue>(untyped_property: UntypedProperty) -> Self {
-
         let closure = |untyped_property: UntypedProperty| {
             let property: Property<T> = Property::new_from_untyped(untyped_property.clone());
             property.get().to_pax_value()

@@ -813,7 +813,8 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             );
                             ValueDefinition::LiteralValue(literal_value_token)
                         }
-                        Rule::literal_object => ValueDefinition::Block(value.as_str().to_string(),
+                        Rule::literal_object => ValueDefinition::Block(
+                            value.as_str().to_string(),
                             derive_value_definition_from_literal_object_pair(value, pax),
                         ),
                         Rule::expression_body => {
@@ -918,7 +919,8 @@ fn derive_value_definition_from_literal_object_pair(
                                 ValueDefinition::LiteralValue(token)
                             }
                             Rule::literal_object => {
-                                ValueDefinition::Block(value.as_str().to_string(),
+                                ValueDefinition::Block(
+                                    value.as_str().to_string(),
                                     //Recurse
                                     derive_value_definition_from_literal_object_pair(value, pax),
                                 )

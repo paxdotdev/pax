@@ -14,7 +14,7 @@ fn test_font_style_to_pax_value() {
     let expected_str = format!("{:?}", expected);
     let translated_str = format!("{:?}", translated);
     // println!("expected: {:?}", expected_str);
-     println!("translated: {:?}", translated_str);
+    println!("translated: {:?}", translated_str);
     // assert_eq!(translated_str, expected_str);
 }
 
