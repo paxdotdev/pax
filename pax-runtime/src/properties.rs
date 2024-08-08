@@ -5,14 +5,14 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, PaxValue, Interpolatable, Store, Variable};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, Store, Variable};
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use crate::{ExpandedNode, ExpressionTable, Globals};
+use crate::{ExpandedNode, Globals};
 
 impl Interpolatable for ExpandedNodeIdentifier {}
 
@@ -32,7 +32,6 @@ pub struct RuntimeContext {
     messages: RefCell<Vec<NativeMessage>>,
     globals: RefCell<Globals>,
     root_node: RefCell<Weak<ExpandedNode>>,
-    expression_table: Rc<ExpressionTable>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
 }
@@ -75,12 +74,11 @@ impl NodeCache {
 }
 
 impl RuntimeContext {
-    pub fn new(expression_table: ExpressionTable, globals: Globals) -> Self {
+    pub fn new(globals: Globals) -> Self {
         Self {
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
-            expression_table: Rc::new(expression_table),
             root_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
@@ -220,10 +218,6 @@ impl RuntimeContext {
     pub fn edit_globals(&self, f: impl Fn(&mut Globals)) {
         let mut globals = borrow_mut!(self.globals);
         f(&mut globals);
-    }
-
-    pub fn expression_table(&self) -> Rc<ExpressionTable> {
-        self.expression_table.clone()
     }
 
     pub fn queue_custom_event(&self, source_expanded_node: Rc<ExpandedNode>, name: &'static str) {

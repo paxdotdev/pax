@@ -3,13 +3,13 @@ struct {{component.pascal_identifier}}Factory{}
 
 impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier}}Factory {
 
-    fn build_default_properties(&self) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
-        Box::new(|_,_| std::rc::Rc::new(RefCell::new({{component.type_id.import_path}}::default().to_pax_any())))
+    fn build_default_properties(&self) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
+        Box::new(|_| std::rc::Rc::new(RefCell::new({{component.type_id.import_path}}::default().to_pax_any())))
     }
 
-    fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,pax_engine::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
+    fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,pax_engine::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
        
-        Box::new(move |stack_frame , table | std::rc::Rc::new(RefCell::new(
+        Box::new(move |stack_frame | std::rc::Rc::new(RefCell::new(
             {
                 let mut properties = {{component.type_id.import_path}}::default();
                 {% for property in component.properties %}
@@ -21,38 +21,36 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
                                     let value = <{{property.property_type.type_id._type_id}}>::try_coerce(val).unwrap();
                                     properties.{{property.name}}.replace_with(Property::new_with_name(value, &lv.raw_value));
                                 },
-                                pax_engine::pax_manifest::ValueDefinition::DoubleBinding(token,info) => {
+                                pax_engine::pax_manifest::ValueDefinition::DoubleBinding(token) => {
                                     let identifier = token.token_value.clone();
                                     let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
                                     properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
                                 },
-                                pax_engine::pax_manifest::ValueDefinition::Expression(token, info) | pax_engine::pax_manifest::ValueDefinition::Identifier(token,info) =>
+                                pax_engine::pax_manifest::ValueDefinition::Expression(token) | pax_engine::pax_manifest::ValueDefinition::Identifier(token) =>
                                 {
-                                    if let Some(info) = info {
-                                        let mut dependents = vec![];
-                                        for dependency in &info.dependencies {
-                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
-                                                dependents.push(p);
-                                            } else {
-                                                panic!("Failed to resolve symbol {}", dependency);
-                                            }
+                                    let expr = token.token_value.clone();
+                                    let expr_ast = pax_engine::pax_lang::parse_pax_expression(&expr, stack_frame.clone()).unwrap();
+                                    let expr_deps = expr_ast.collect_dependencies();
+                                    let mut dependents = vec![];
+                                    for dependency in &expr_deps {
+                                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                            dependents.push(p);
+                                        } else {
+                                            panic!("Failed to resolve symbol {}", dependency);
                                         }
-                                        let cloned_stack = stack_frame.clone();
-                                        let expr = token.token_value.clone();
-                                        let expr_ast = pax_engine::pax_lang::parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
-                                        properties.{{property.name}}.replace_with( Property::computed_with_name(move || {
-                                            let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                                            let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap();
-                                            coerced
-                                        }, &dependents, &token.token_value));
-                                    } else {
-                                        unreachable!("No info for expression")
                                     }
+                                    let cloned_stack = stack_frame.clone();
+                                    
+                                    properties.{{property.name}}.replace_with( Property::computed_with_name(move || {
+                                        let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                        let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap();
+                                        coerced
+                                    }, &dependents, &token.token_value));
                                 },
-                                pax_engine::pax_manifest::ValueDefinition::Block(expr, block) => {
+                                pax_engine::pax_manifest::ValueDefinition::Block(block) => {
                                     let cloned_stack = stack_frame.clone();
                                     properties.{{property.name}}.replace_with(
-                                        Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone(), table.clone()), "block")
+                                        Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone()), "block")
                                     );
                                 }
                                 _ => unreachable!("Invalid value definition for {{property.name}}")
@@ -151,7 +149,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
 
     type Output={{active_type.type_id._type_id}};
 
-    fn build_type(&self, args: &pax_engine::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, table: std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> Self::Output {
+    fn build_type(&self, args: &pax_engine::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output {
         let mut properties: {{active_type.type_id._type_id}} = Default::default();
         for setting in &args.elements {
             if let pax_engine::pax_manifest::SettingElement::Setting(k, vd) = setting {
@@ -168,32 +166,29 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         let value = <{{prop.type_id._type_id}}>::try_coerce(val).unwrap();
                                         Property::new_with_name(value, &lv.raw_value)
                                     },
-                                    pax_engine::pax_manifest::ValueDefinition::Expression(token, info) | pax_engine::pax_manifest::ValueDefinition::Identifier(token, info ) =>
+                                    pax_engine::pax_manifest::ValueDefinition::Expression(token) | pax_engine::pax_manifest::ValueDefinition::Identifier(token ) =>
                                     {
-                                        if let Some(info) = info {
-                                            let mut dependents = vec![];
-                                            for dependency in &info.dependencies {
-                                                if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
-                                                    dependents.push(p);
-                                                } else {
-                                                    panic!("Failed to resolve symbol {}", dependency);
-                                                }
+                                        let expr = token.token_value.clone();
+                                        let expr_ast = pax_engine::pax_lang::parse_pax_expression(&expr, stack_frame.clone()).unwrap();
+                                        let expr_deps = expr_ast.collect_dependencies();
+                                        let mut dependents = vec![];
+                                        for dependency in &expr_deps {
+                                            if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                                dependents.push(p);
+                                            } else {
+                                                panic!("Failed to resolve symbol {}", dependency);
                                             }
-                                            let cloned_stack = stack_frame.clone();
-                                            let expr = token.token_value.clone();
-                                            let expr_ast = pax_engine::pax_lang::parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
-                                            Property::computed_with_name(move || {
-                                                let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                                                let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap();
-                                                coerced
-                                                
-                                            }, &dependents, &token.token_value)
-                                        } else {
-                                            unreachable!("No info for expression")
                                         }
+                                        let cloned_stack = stack_frame.clone();
+                                        Property::computed_with_name(move || {
+                                            let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                            let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap();
+                                            coerced
+                                            
+                                        }, &dependents, &token.token_value)
                                     },
-                                    pax_engine::pax_manifest::ValueDefinition::Block(s, block) => {
-                                        Property::new_with_name({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone(), table.clone()), "block")
+                                    pax_engine::pax_manifest::ValueDefinition::Block(block) => {
+                                        Property::new_with_name({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone()), "block")
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
@@ -204,8 +199,8 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e)).unwrap();
                                         <{{prop.type_id._type_id}}>::try_coerce(val).unwrap()
                                     },
-                                    pax_engine::pax_manifest::ValueDefinition::Block(s, block) => {
-                                        {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone(), table.clone())
+                                    pax_engine::pax_manifest::ValueDefinition::Block(block) => {
+                                        {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone())
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };

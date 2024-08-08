@@ -1,10 +1,7 @@
 use_RefCell!();
 use crate::api::NodeContext;
-use crate::{
-    ExpressionContext, ExpressionTable, HandlerRegistry, InstanceNode, InstantiationArgs,
-    RuntimePropertiesStackFrame,
-};
-use pax_lang::{parse_pax_expression, Computable};
+use crate::{HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame};
+use pax_lang::{parse_pax_expression, Computable, DependencyCollector};
 use pax_manifest::ValueDefinition;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
@@ -118,7 +115,7 @@ pub trait DefinitionToInstanceTraverser {
     ) -> std::rc::Rc<dyn crate::rendering::InstanceNode> {
         let manifest = self.get_manifest();
         let prototypical_common_properties_factory =
-            Box::new(|_, _| std::rc::Rc::new(RefCell::new(CommonProperties::default())));
+            Box::new(|_| std::rc::Rc::new(RefCell::new(CommonProperties::default())));
 
         let containing_component = manifest
             .components
@@ -134,13 +131,6 @@ pub trait DefinitionToInstanceTraverser {
         let children = self.build_children(containing_component_type_id, &node_id);
         match tnd.type_id.get_pax_type() {
             pax_manifest::PaxType::If => {
-                let expression_info = tnd
-                    .control_flow_settings
-                    .as_ref()
-                    .unwrap()
-                    .condition_expression_info
-                    .as_ref()
-                    .unwrap();
                 let expr_str = tnd
                     .control_flow_settings
                     .as_ref()
@@ -150,20 +140,21 @@ pub trait DefinitionToInstanceTraverser {
                     .unwrap()
                     .raw_value
                     .clone();
-                let dep_symbols = expression_info.dependencies.clone();
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        std::rc::Rc<crate::ExpressionTable>,
                     )
                         -> std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>,
-                > = Box::new(move |stack_frame, table| {
+                > = Box::new(move |stack_frame| {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::ConditionalProperties::default();
                         let cloned_stack = stack_frame.clone();
+                        let expr_str = expr_str.clone();
+                        let expr_ast =
+                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
 
                         let mut dependencies = Vec::new();
-                        for dependency in &dep_symbols {
+                        for dependency in &expr_ast.collect_dependencies() {
                             if let Some(p) =
                                 stack_frame.resolve_symbol_as_erased_property(dependency)
                             {
@@ -172,9 +163,6 @@ pub trait DefinitionToInstanceTraverser {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
-                        let expr_str = expr_str.clone();
-                        let expr_ast =
-                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
                         properties.boolean_expression = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -202,14 +190,6 @@ pub trait DefinitionToInstanceTraverser {
                 })
             }
             pax_manifest::PaxType::Slot => {
-                let expression_info = tnd
-                    .control_flow_settings
-                    .as_ref()
-                    .unwrap()
-                    .slot_index_expression_info
-                    .as_ref()
-                    .unwrap();
-
                 let expr_str = tnd
                     .control_flow_settings
                     .as_ref()
@@ -219,21 +199,22 @@ pub trait DefinitionToInstanceTraverser {
                     .unwrap()
                     .raw_value
                     .clone();
-                let dep_symbols = expression_info.dependencies.clone();
 
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        std::rc::Rc<crate::ExpressionTable>,
                     )
                         -> std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>,
-                > = Box::new(move |stack_frame, table| {
+                > = Box::new(move |stack_frame| {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::Slot::default();
                         let cloned_stack = stack_frame.clone();
+                        let expr_str = expr_str.clone();
+                        let expr_ast =
+                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
 
                         let mut dependencies = Vec::new();
-                        for dependency in &dep_symbols {
+                        for dependency in &expr_ast.collect_dependencies() {
                             if let Some(p) =
                                 stack_frame.resolve_symbol_as_erased_property(dependency)
                             {
@@ -242,9 +223,6 @@ pub trait DefinitionToInstanceTraverser {
                                 panic!("Failed to resolve symbol {}", dependency);
                             }
                         }
-                        let expr_str = expr_str.clone();
-                        let expr_ast =
-                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
                         properties.index = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -289,33 +267,31 @@ pub trait DefinitionToInstanceTraverser {
                     .repeat_predicate_definition
                     .clone()
                     .unwrap();
-                let expression_info = rsd.expression_info.as_ref().unwrap();
-                let dep_symbols = expression_info.dependencies.clone();
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        std::rc::Rc<crate::ExpressionTable>,
                     )
                         -> std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>,
-                > = Box::new(move |stack_frame, table| {
+                > = Box::new(move |stack_frame| {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::RepeatProperties::default();
-
-                        let mut dependencies = Vec::new();
-                        for dependency in &dep_symbols {
-                            if let Some(p) =
-                                stack_frame.resolve_symbol_as_erased_property(dependency)
-                            {
-                                dependencies.push(p);
-                            } else {
-                                panic!("Failed to resolve symbol {}", dependency);
-                            }
-                        }
                         properties.source_expression_vec = if let Some(t) = &rsd.symbolic_binding {
                             let cloned_stack = stack_frame.clone();
                             let expr = t.token_value.clone();
                             let expr_ast =
                                 parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
+
+                            let mut dependencies = Vec::new();
+                            for dependency in &expr_ast.collect_dependencies() {
+                                if let Some(p) =
+                                    stack_frame.resolve_symbol_as_erased_property(dependency)
+                                {
+                                    dependencies.push(p);
+                                } else {
+                                    panic!("Failed to resolve symbol {}", dependency);
+                                }
+                            }
+
                             Some(Property::computed_with_name(
                                 move || {
                                     let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -345,6 +321,18 @@ pub trait DefinitionToInstanceTraverser {
                             let expr_ast =
                                 parse_pax_expression(&source_expr_str, cloned_stack.clone())
                                     .unwrap();
+
+                            let mut dependencies = Vec::new();
+                            for dependency in &expr_ast.collect_dependencies() {
+                                if let Some(p) =
+                                    stack_frame.resolve_symbol_as_erased_property(dependency)
+                                {
+                                    dependencies.push(p);
+                                } else {
+                                    panic!("Failed to resolve symbol {}", dependency);
+                                }
+                            }
+
                             Some(Property::computed_with_name(
                                 move || {
                                     let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -559,7 +547,6 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
     name: &str,
     defined_properties: &BTreeMap<String, ValueDefinition>,
     stack: &Rc<RuntimePropertiesStackFrame>,
-    table: &Rc<ExpressionTable>,
 ) -> Property<Option<T>> {
     let Some(value_def) = defined_properties.get(name) else {
         return Property::default();
@@ -580,47 +567,45 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
             .unwrap();
             Property::new_with_name(Some(val), &lv.raw_value)
         }
-        pax_manifest::ValueDefinition::DoubleBinding(token, _info) => {
+        pax_manifest::ValueDefinition::DoubleBinding(token) => {
             let identifier = token.token_value.clone();
             let untyped_property = stack
                 .resolve_symbol_as_erased_property(&identifier)
                 .expect("failed to resolve identifier");
             Property::new_from_untyped(untyped_property.clone())
         }
-        pax_manifest::ValueDefinition::Expression(token, info)
-        | pax_manifest::ValueDefinition::Identifier(token, info) => {
-            if let Some(info) = info {
-                let mut dependents = vec![];
-                for dependency in &info.dependencies {
-                    if let Some(p) = stack.resolve_symbol_as_erased_property(dependency) {
-                        dependents.push(p);
-                    } else {
-                        panic!("Failed to resolve symbol {}", dependency);
-                    }
+        pax_manifest::ValueDefinition::Expression(token)
+        | pax_manifest::ValueDefinition::Identifier(token) => {
+            let expr = token.token_value.clone();
+            let expr_ast = pax_lang::parse_pax_expression(&expr, stack.clone()).unwrap();
+            let expr_deps = expr_ast.collect_dependencies();
+            let mut dependents = vec![];
+            for dependency in &expr_deps {
+                if let Some(p) = stack.resolve_symbol_as_erased_property(dependency) {
+                    dependents.push(p);
+                } else {
+                    panic!("Failed to resolve symbol {}", dependency);
                 }
-                let cloned_stack = stack.clone();
-                let expr = token.token_value.clone();
-                let expr_ast = pax_lang::parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
-                Property::computed_with_name(
-                    move || {
-                        let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                        let coerced = T::try_coerce(new_value.clone());
-                        let coerced = if let Err(e) = coerced {
-                            panic!(
-                                "Failed to coerce value: {},\n {:?}\n, {}\n , {:?}",
-                                e, new_value, expr, expr_ast
-                            );
-                        } else {
-                            coerced.unwrap()
-                        };
-                        Some(coerced)
-                    },
-                    &dependents,
-                    &token.token_value,
-                )
-            } else {
-                unreachable!("No info for expression")
             }
+            let cloned_stack = stack.clone();
+
+            Property::computed_with_name(
+                move || {
+                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                    let coerced = T::try_coerce(new_value.clone());
+                    let coerced = if let Err(e) = coerced {
+                        panic!(
+                            "Failed to coerce value: {},\n {:?}\n, {}\n , {:?}",
+                            e, new_value, expr, expr_ast
+                        );
+                    } else {
+                        coerced.unwrap()
+                    };
+                    Some(coerced)
+                },
+                &dependents,
+                &token.token_value,
+            )
         }
         _ => unreachable!("Invalid value definition for {}", stringify!($prop_name)),
     };
@@ -631,66 +616,42 @@ pub trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(
         &self,
-    ) -> Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Rc<ExpressionTable>,
-        ) -> Rc<RefCell<CommonProperties>>,
-    > {
-        Box::new(|_, _| Rc::new(RefCell::new(CommonProperties::default())))
+    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<CommonProperties>>> {
+        Box::new(|_| Rc::new(RefCell::new(CommonProperties::default())))
     }
 
     /// Returns the default properties factory for this component
     fn build_default_properties(
         &self,
-    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>;
+    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>;
 
     fn build_inline_common_properties(
         &self,
         defined_properties: std::collections::BTreeMap<String, pax_manifest::ValueDefinition>,
     ) -> Box<
-        dyn Fn(
-            std::rc::Rc<RuntimePropertiesStackFrame>,
-            std::rc::Rc<ExpressionTable>,
-        ) -> std::rc::Rc<RefCell<CommonProperties>>,
+        dyn Fn(std::rc::Rc<RuntimePropertiesStackFrame>) -> std::rc::Rc<RefCell<CommonProperties>>,
     > {
-        Box::new(move |stack_frame, table| {
+        Box::new(move |stack_frame| {
             std::rc::Rc::new(RefCell::new({
                 CommonProperties {
-                    id: resolve_property("id", &defined_properties, &stack_frame, &table),
-                    x: resolve_property("x", &defined_properties, &stack_frame, &table),
-                    y: resolve_property("y", &defined_properties, &stack_frame, &table),
-                    width: resolve_property("width", &defined_properties, &stack_frame, &table),
-                    height: resolve_property("height", &defined_properties, &stack_frame, &table),
-                    scale_x: resolve_property("scale_x", &defined_properties, &stack_frame, &table),
-                    scale_y: resolve_property("scale_y", &defined_properties, &stack_frame, &table),
-                    skew_x: resolve_property("skew_x", &defined_properties, &stack_frame, &table),
-                    skew_y: resolve_property("skew_y", &defined_properties, &stack_frame, &table),
-                    rotate: resolve_property("rotate", &defined_properties, &stack_frame, &table),
+                    id: resolve_property("id", &defined_properties, &stack_frame),
+                    x: resolve_property("x", &defined_properties, &stack_frame),
+                    y: resolve_property("y", &defined_properties, &stack_frame),
+                    width: resolve_property("width", &defined_properties, &stack_frame),
+                    height: resolve_property("height", &defined_properties, &stack_frame),
+                    scale_x: resolve_property("scale_x", &defined_properties, &stack_frame),
+                    scale_y: resolve_property("scale_y", &defined_properties, &stack_frame),
+                    skew_x: resolve_property("skew_x", &defined_properties, &stack_frame),
+                    skew_y: resolve_property("skew_y", &defined_properties, &stack_frame),
+                    rotate: resolve_property("rotate", &defined_properties, &stack_frame),
                     _raycastable: resolve_property(
                         "_raycastable",
                         &defined_properties,
                         &stack_frame,
-                        &table,
                     ),
-                    transform: resolve_property(
-                        "transform",
-                        &defined_properties,
-                        &stack_frame,
-                        &table,
-                    ),
-                    anchor_x: resolve_property(
-                        "anchor_x",
-                        &defined_properties,
-                        &stack_frame,
-                        &table,
-                    ),
-                    anchor_y: resolve_property(
-                        "anchor_y",
-                        &defined_properties,
-                        &stack_frame,
-                        &table,
-                    ),
+                    transform: resolve_property("transform", &defined_properties, &stack_frame),
+                    anchor_x: resolve_property("anchor_x", &defined_properties, &stack_frame),
+                    anchor_y: resolve_property("anchor_y", &defined_properties, &stack_frame),
                 }
             }))
         })
@@ -700,7 +661,7 @@ pub trait ComponentFactory {
     fn build_inline_properties(
         &self,
         defined_properties: BTreeMap<String, ValueDefinition>,
-    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>;
+    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>;
 
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template

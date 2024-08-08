@@ -212,39 +212,6 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
     }
 }
 
-pub struct ExpressionTable {
-    pub table: HashMap<usize, Box<dyn Fn(ExpressionContext) -> PaxAny>>,
-}
-
-#[cfg(debug_assertions)]
-impl std::fmt::Debug for ExpressionTable {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unimplemented!()
-    }
-}
-
-impl ExpressionTable {
-    pub fn new() -> Self {
-        Self {
-            table: HashMap::new(),
-        }
-    }
-
-    pub fn compute_vtable_value(
-        &self,
-        stack: &Rc<RuntimePropertiesStackFrame>,
-        vtable_id: usize,
-    ) -> PaxAny {
-        if let Some(evaluator) = self.table.get(&vtable_id) {
-            let stack_frame = Rc::clone(stack);
-            let ec = ExpressionContext { stack_frame };
-            (**evaluator)(ec)
-        } else {
-            panic!() //unhandled error if an invalid id is passed or if vtable is incorrectly initialized
-        }
-    }
-}
-
 /// Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 /// Contains all rendering and runtime logic.
 ///
@@ -252,7 +219,6 @@ impl PaxEngine {
     #[cfg(not(feature = "designtime"))]
     pub fn new(
         main_component_instance: Rc<ComponentInstance>,
-        expression_table: ExpressionTable,
         viewport_size: (f64, f64),
         platform: Platform,
         os: OS,
@@ -271,7 +237,7 @@ impl PaxEngine {
             platform,
             os,
         };
-        let runtime_context = Rc::new(RuntimeContext::new(expression_table, globals));
+        let runtime_context = Rc::new(RuntimeContext::new(globals));
         let root_node = ExpandedNode::root(Rc::clone(&main_component_instance), &runtime_context);
         runtime_context.register_root_node(&root_node);
 
@@ -285,7 +251,6 @@ impl PaxEngine {
     #[cfg(feature = "designtime")]
     pub fn new_with_designtime(
         main_component_instance: Rc<ComponentInstance>,
-        expression_table: ExpressionTable,
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
         platform: Platform,

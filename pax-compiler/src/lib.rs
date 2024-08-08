@@ -13,7 +13,6 @@ extern crate core;
 mod building;
 mod cartridge_generation;
 pub mod errors;
-pub mod expressions;
 pub mod formatting;
 pub mod helpers;
 
@@ -121,15 +120,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     }
 
     let out = String::from_utf8(output.stdout).unwrap();
-    let mut manifest: PaxManifest =
+    let manifest: PaxManifest =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
-    let host_cargo_toml_path = Path::new(&ctx.project_path).join("Cargo.toml");
-    let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
-
-    let mut source_map = SourceMap::new();
-
-    println!("{} 🧮 Compiling expressions", *PAX_BADGE);
-    expressions::compile_all_expressions(&mut manifest, &mut source_map, &host_crate_info)?;
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_cartridge_partial_rs(&pax_dir, &manifest);

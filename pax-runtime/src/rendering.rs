@@ -13,9 +13,7 @@ use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll};
 
-use crate::{
-    ExpandedNode, ExpressionTable, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame,
-};
+use crate::{ExpandedNode, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -23,14 +21,10 @@ pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
 pub struct InstantiationArgs {
-    pub prototypical_common_properties_factory: Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Rc<ExpressionTable>,
-        ) -> Rc<RefCell<CommonProperties>>,
-    >,
+    pub prototypical_common_properties_factory:
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<CommonProperties>>>,
     pub prototypical_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>,
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
@@ -185,13 +179,9 @@ pub trait InstanceNode {
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_prototypical_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, Rc<ExpressionTable>) -> Rc<RefCell<PaxAny>>>,
-    pub instance_prototypical_common_properties_factory: Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Rc<ExpressionTable>,
-        ) -> Rc<RefCell<CommonProperties>>,
-    >,
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>,
+    pub instance_prototypical_common_properties_factory:
+        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<CommonProperties>>>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
         Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,

@@ -17,19 +17,18 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
                 Token::new_only_raw(value.as_str().to_string(), TokenType::LiteralValue);
             ValueDefinition::LiteralValue(literal_value_token)
         }
-        Rule::literal_object => ValueDefinition::Block(
-            value.as_str().to_string(),
-            derive_value_definition_from_literal_object_pair(value),
-        ),
+        Rule::literal_object => {
+            ValueDefinition::Block(derive_value_definition_from_literal_object_pair(value))
+        }
         Rule::expression_body => {
             let expression_token =
                 Token::new_only_raw(raw_value.to_string(), TokenType::Expression);
-            ValueDefinition::Expression(expression_token, None)
+            ValueDefinition::Expression(expression_token)
         }
         Rule::identifier => {
             let identifier_token =
                 Token::new_only_raw(value.as_str().to_string(), TokenType::Identifier);
-            ValueDefinition::Identifier(identifier_token, None)
+            ValueDefinition::Identifier(identifier_token)
         }
         _ => {
             return Err(
@@ -91,7 +90,6 @@ fn derive_value_definition_from_literal_object_pair(
                             }
                             Rule::literal_object => {
                                 ValueDefinition::Block(
-                                    value.as_str().to_string(),
                                     //Recurse
                                     derive_value_definition_from_literal_object_pair(value),
                                 )
@@ -102,7 +100,7 @@ fn derive_value_definition_from_literal_object_pair(
                                     raw_value.to_string(),
                                     TokenType::Expression,
                                 );
-                                ValueDefinition::Expression(token, None)
+                                ValueDefinition::Expression(token)
                             }
                             _ => {
                                 unreachable!("Parsing error 231453468: {:?}", value.as_rule());

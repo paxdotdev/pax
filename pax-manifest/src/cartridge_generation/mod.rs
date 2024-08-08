@@ -173,10 +173,10 @@ impl PaxManifest {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
                         ValueDefinition::LiteralValue(_)
-                        | ValueDefinition::Block(_, _)
-                        | ValueDefinition::Expression(_, _)
-                        | ValueDefinition::Identifier(_, _)
-                        | ValueDefinition::DoubleBinding(_, _) => {
+                        | ValueDefinition::Block(_)
+                        | ValueDefinition::Expression(_)
+                        | ValueDefinition::Identifier(_)
+                        | ValueDefinition::DoubleBinding(_) => {
                             map.insert(key.token_value.clone(), value.clone());
                         }
                         ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => {}
@@ -201,9 +201,9 @@ impl PaxManifest {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
                         ValueDefinition::LiteralValue(_)
-                        | ValueDefinition::Block(_, _)
-                        | ValueDefinition::Expression(_, _)
-                        | ValueDefinition::Identifier(_, _) => {
+                        | ValueDefinition::Block(_)
+                        | ValueDefinition::Expression(_)
+                        | ValueDefinition::Identifier(_) => {
                             if CommonProperty::get_common_properties().contains(&key.token_value) {
                                 map.insert(key.token_value.clone(), value.clone());
                             }
@@ -250,7 +250,7 @@ impl PaxManifest {
                 if let SettingElement::Setting(_, value) = e {
                     match value {
                         ValueDefinition::LiteralValue(s) => ret.push(s.clone()),
-                        ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
+                        ValueDefinition::Identifier(s) => ret.push(s.clone()),
                         _ => {}
                     };
                 }

@@ -18,25 +18,12 @@ pub const CARTRIDGE_PARTIAL_PATH: &str = "cartridge.partial.rs";
 // Side-effect: writes the generated string to disk as .pax/cartridge.partial.rs,
 // so that it may be `include!`d by the  #[pax] #[main] macro
 pub fn generate_cartridge_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) -> PathBuf {
-    #[allow(unused_mut)]
-    let mut generated_lib_rs;
-
-    let mut expression_specs: Vec<ExpressionSpec> = manifest
-        .expression_specs
-        .as_ref()
-        .unwrap()
-        .values()
-        .map(|es: &ExpressionSpec| es.clone())
-        .collect();
-    expression_specs = expression_specs.iter().sorted().cloned().collect();
-
     //press template into String
-    generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
+    let generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
         templating::TemplateArgsCodegenCartridgeSnippet {
             cartridge_struct_id: manifest.get_main_cartridge_struct_id(),
             definition_to_instance_traverser_struct_id: manifest
                 .get_main_definition_to_instance_traverser_struct_id(),
-            expression_specs,
             components: manifest.generate_codegen_component_info(),
             common_properties: CommonProperty::get_as_common_property(),
             type_table: manifest.type_table.clone(),
