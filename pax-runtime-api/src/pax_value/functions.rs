@@ -50,11 +50,14 @@ fn add(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(args[0].clone() + args[1].clone())
 }
 
-fn sub(args: Vec<PaxValue>) -> Result<PaxValue, String> {
-    if args.len() != 2 {
-        return Err("Expected 2 arguments for function sub".to_string());
+fn sub_or_neg(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() == 1 {
+        Ok(-args[0].clone())
+    } else if args.len() == 2 {
+        Ok(args[0].clone() - args[1].clone())
+    } else {
+        Err("Expected 1 or 2 arguments for function sub_or_neg".to_string())
     }
-    Ok(args[0].clone() - args[1].clone())
 }
 
 fn mul(args: Vec<PaxValue>) -> Result<PaxValue, String> {
@@ -222,7 +225,7 @@ impl Functions {
     pub fn register_all_functions() {
         // Math
         register_function("Math".to_string(), "+".to_string(), Arc::new(add));
-        register_function("Math".to_string(), "-".to_string(), Arc::new(sub));
+        register_function("Math".to_string(), "-".to_string(), Arc::new(sub_or_neg));
         register_function("Math".to_string(), "*".to_string(), Arc::new(mul));
         register_function("Math".to_string(), "/".to_string(), Arc::new(div));
         register_function("Math".to_string(), "^".to_string(), Arc::new(exp));

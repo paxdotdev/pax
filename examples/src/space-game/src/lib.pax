@@ -14,7 +14,7 @@ if self.game_state == "GAME_OVER" {
 		<Image
 			width=32px
 			height=32px
-			path="assets/spaceship.png"
+			source=ImageSource::Url("assets/spaceship.png")
 			anchor_x=50%
 			anchor_y=50%
 			x={self.ship_x}
@@ -24,7 +24,7 @@ if self.game_state == "GAME_OVER" {
 
 	for asteroid in self.asteroids {
 		<Image
-			path={asteroid.animation.frame}
+			source={asteroid.animation.frame}
 			anchor_x=50%
 			anchor_y=50%
 			x={asteroid.x}
@@ -38,7 +38,7 @@ if self.game_state == "GAME_OVER" {
 		<Image
 			width=16px
 			height=16px
-			path="assets/bullet.png"
+			source=ImageSource::Url("assets/bullet.png")
 			anchor_x=50%
 			anchor_y=50%
 			x={bullet.x}
@@ -53,10 +53,11 @@ if self.game_state == "GAME_OVER" {
 		<Image
 			x={background.x}
 			y={background.y}
-			path="assets/starfield0.png"
+			source=ImageSource::Url("assets/starfield0.png")
 		/>
 	}
 </Group>
+
 
 @settings {
 	@mount: handle_mount,

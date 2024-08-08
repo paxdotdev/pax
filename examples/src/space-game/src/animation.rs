@@ -1,10 +1,12 @@
 
 use pax_engine::api::*;
 use pax_engine::*;
+use pax_std::*;
+
 #[pax]
 pub struct Animation {
-    pub frame: String,
-    pub frames: Vec<String>,
+    pub frame: ImageSource,
+    pub frames: Vec<ImageSource>,
     pub running: bool,
     pub finished: bool,
     pub time: u64,
@@ -15,7 +17,7 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn new(frames: Vec<String>) -> Self {
+    pub fn new(frames: Vec<ImageSource>) -> Self {
         Self {
             frame: frames[0].clone(),
             frames,
