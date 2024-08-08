@@ -11,7 +11,7 @@ use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::{cartridge, DefinitionToInstanceTraverser, ExpressionTable, PaxCartridge};
+use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use_RefCell!();
@@ -71,10 +71,9 @@ pub struct InterruptResult {
 impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub async fn new(
-        cartridge: Box<dyn PaxCartridge>,
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, expression_table) = Self::init_common(cartridge);
+        let (width, height, os_info) = Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -87,7 +86,6 @@ impl PaxChassisWeb {
             .unwrap();
         let engine = pax_runtime::PaxEngine::new_with_designtime(
             main_component_instance,
-            expression_table,
             (width, height),
             designtime_manager.clone(),
             Platform::Web,
@@ -105,15 +103,13 @@ impl PaxChassisWeb {
 
     #[cfg(not(feature = "designtime"))]
     pub async fn new(
-        cartridge: Box<dyn PaxCartridge>,
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, expression_table) = Self::init_common(cartridge);
+        let (width, height, os_info) = Self::init_common();
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();
         let engine = pax_runtime::PaxEngine::new(
             main_component_instance,
-            expression_table,
             (width, height),
             Platform::Web,
             os_info,
@@ -127,7 +123,7 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common(cartridge: Box<dyn PaxCartridge>) -> (f64, f64, OS, ExpressionTable) {
+    fn init_common() -> (f64, f64, OS) {
         let window = window().unwrap();
         let user_agent_str = window.navigator().user_agent().ok();
         let os_info = user_agent_str
@@ -136,11 +132,7 @@ impl PaxChassisWeb {
 
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
-
-        let expression_table = ExpressionTable {
-            table: HashMap::new(),
-        };
-        (width, height, os_info, expression_table)
+        (width, height, os_info)
     }
 }
 

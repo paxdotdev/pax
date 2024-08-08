@@ -1,6 +1,6 @@
 use std::{cell::Cell, collections::HashMap, hash::Hash, marker::PhantomData, rc::Rc};
 
-use crate::interpreter::compute_paxel;
+use crate::interpreter::{compute_paxel, DependencyCollector};
 use pax_runtime_api::{
     functions::{Functions, HelperFunctions},
     CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size,
@@ -390,5 +390,14 @@ fn test_triple_nesting_struct_access() {
     let expr = "e.c.a";
     let expected = PaxValue::Numeric(Numeric::I64(1));
     let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_collect_dependencies() {
+    let idr = initialize_test_resolver();
+    let expr = "a + b";
+    let expected = vec!["a".to_string(), "b".to_string()];
+    let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr, idr).unwrap());
     assert_eq!(expected, result);
 }

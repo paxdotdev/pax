@@ -211,16 +211,11 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let properties = (&template.base().instance_prototypical_properties_factory)(
-            env.clone(),
-            context.expression_table(),
-        );
-        let common_properties = (&template
-            .base()
-            .instance_prototypical_common_properties_factory)(
-            env.clone(),
-            context.expression_table(),
-        );
+        let properties = (&template.base().instance_prototypical_properties_factory)(env.clone());
+        let common_properties =
+            (&template
+                .base()
+                .instance_prototypical_common_properties_factory)(env.clone());
 
         let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
 

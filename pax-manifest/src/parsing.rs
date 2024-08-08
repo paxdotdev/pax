@@ -738,7 +738,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 
                     SettingElement::Setting(
                         setting_token,
-                        ValueDefinition::DoubleBinding(property_token, None),
+                        ValueDefinition::DoubleBinding(property_token),
                     )
                 }
                 Rule::attribute_event_binding => {
@@ -814,7 +814,6 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                             ValueDefinition::LiteralValue(literal_value_token)
                         }
                         Rule::literal_object => ValueDefinition::Block(
-                            value.as_str().to_string(),
                             derive_value_definition_from_literal_object_pair(value, pax),
                         ),
                         Rule::expression_body => {
@@ -825,7 +824,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                                 location_info,
                                 pax,
                             );
-                            ValueDefinition::Expression(expression_token, None)
+                            ValueDefinition::Expression(expression_token)
                         }
                         Rule::identifier => {
                             let identifier_token = Token::new_with_raw_value(
@@ -838,7 +837,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                                 location_info,
                                 pax,
                             );
-                            ValueDefinition::Identifier(identifier_token, None)
+                            ValueDefinition::Identifier(identifier_token)
                         }
                         _ => {
                             unreachable!("Parsing error 3342638857230: {:?}", value.as_rule());
@@ -920,7 +919,6 @@ fn derive_value_definition_from_literal_object_pair(
                             }
                             Rule::literal_object => {
                                 ValueDefinition::Block(
-                                    value.as_str().to_string(),
                                     //Recurse
                                     derive_value_definition_from_literal_object_pair(value, pax),
                                 )
@@ -934,7 +932,7 @@ fn derive_value_definition_from_literal_object_pair(
                                     location_info,
                                     pax,
                                 );
-                                ValueDefinition::Expression(token, None)
+                                ValueDefinition::Expression(token)
                             }
                             _ => {
                                 unreachable!("Parsing error 231453468: {:?}", value.as_rule());

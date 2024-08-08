@@ -350,7 +350,6 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 
 #[pax]
 #[custom(Default)]
-#[has_helpers]
 pub enum Font {
     Web(String, String, FontStyle, FontWeight),
 }
@@ -506,35 +505,6 @@ impl PartialEq<FontPatch> for Font {
             }
             _ => false,
         }
-    }
-}
-
-#[helpers]
-impl Font {
-    pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::System(SystemFont {
-            family,
-            style,
-            weight,
-        })
-    }
-
-    pub fn web(family: String, url: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Web(WebFont {
-            family,
-            url,
-            style,
-            weight,
-        })
-    }
-
-    pub fn local(family: String, path: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Local(LocalFont {
-            family,
-            path,
-            style,
-            weight,
-        })
     }
 }
 

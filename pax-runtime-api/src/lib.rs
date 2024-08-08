@@ -581,20 +581,62 @@ impl CommonProperties {
     pub fn retrieve_property_scope(&self) -> HashMap<String, Variable> {
         let mut scope = HashMap::new();
 
-        scope.insert("id".to_string(), Variable::new_from_typed_property(self.id.clone()));
-        scope.insert("x".to_string(), Variable::new_from_typed_property(self.x.clone()));
-        scope.insert("y".to_string(), Variable::new_from_typed_property(self.y.clone()));
-        scope.insert("scale_x".to_string(), Variable::new_from_typed_property(self.scale_x.clone()));
-        scope.insert("scale_y".to_string(), Variable::new_from_typed_property(self.scale_y.clone()));
-        scope.insert("skew_x".to_string(), Variable::new_from_typed_property(self.skew_x.clone()));
-        scope.insert("skew_y".to_string(), Variable::new_from_typed_property(self.skew_y.clone()));
-        scope.insert("rotate".to_string(), Variable::new_from_typed_property(self.rotate.clone()));
-        scope.insert("anchor_x".to_string(), Variable::new_from_typed_property(self.anchor_x.clone()));
-        scope.insert("anchor_y".to_string(), Variable::new_from_typed_property(self.anchor_y.clone()));
-        scope.insert("transform".to_string(), Variable::new_from_typed_property(self.transform.clone()));
-        scope.insert("width".to_string(), Variable::new_from_typed_property(self.width.clone()));
-        scope.insert("height".to_string(), Variable::new_from_typed_property(self.height.clone()));
-        scope.insert("_raycastable".to_string(), Variable::new_from_typed_property(self._raycastable.clone()));
+        scope.insert(
+            "id".to_string(),
+            Variable::new_from_typed_property(self.id.clone()),
+        );
+        scope.insert(
+            "x".to_string(),
+            Variable::new_from_typed_property(self.x.clone()),
+        );
+        scope.insert(
+            "y".to_string(),
+            Variable::new_from_typed_property(self.y.clone()),
+        );
+        scope.insert(
+            "scale_x".to_string(),
+            Variable::new_from_typed_property(self.scale_x.clone()),
+        );
+        scope.insert(
+            "scale_y".to_string(),
+            Variable::new_from_typed_property(self.scale_y.clone()),
+        );
+        scope.insert(
+            "skew_x".to_string(),
+            Variable::new_from_typed_property(self.skew_x.clone()),
+        );
+        scope.insert(
+            "skew_y".to_string(),
+            Variable::new_from_typed_property(self.skew_y.clone()),
+        );
+        scope.insert(
+            "rotate".to_string(),
+            Variable::new_from_typed_property(self.rotate.clone()),
+        );
+        scope.insert(
+            "anchor_x".to_string(),
+            Variable::new_from_typed_property(self.anchor_x.clone()),
+        );
+        scope.insert(
+            "anchor_y".to_string(),
+            Variable::new_from_typed_property(self.anchor_y.clone()),
+        );
+        scope.insert(
+            "transform".to_string(),
+            Variable::new_from_typed_property(self.transform.clone()),
+        );
+        scope.insert(
+            "width".to_string(),
+            Variable::new_from_typed_property(self.width.clone()),
+        );
+        scope.insert(
+            "height".to_string(),
+            Variable::new_from_typed_property(self.height.clone()),
+        );
+        scope.insert(
+            "_raycastable".to_string(),
+            Variable::new_from_typed_property(self._raycastable.clone()),
+        );
 
         scope
     }

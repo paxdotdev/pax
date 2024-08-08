@@ -25,9 +25,6 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
 
     pub definition_to_instance_traverser_struct_id: String,
 
-    /// List of compiled expression specs
-    pub expression_specs: Vec<ExpressionSpec>,
-
     // List of relevant component information for codegen (e.g handlers)
     pub components: Vec<ComponentInfo>,
 
