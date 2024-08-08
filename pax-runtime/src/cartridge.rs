@@ -591,7 +591,9 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
 
             Property::computed_with_name(
                 move || {
-                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                    let new_value = expr_ast
+                        .compute(cloned_stack.clone())
+                        .expect(&format!("Failed to compute expr: {}", expr));
                     let coerced = T::try_coerce(new_value.clone());
                     let coerced = if let Err(e) = coerced {
                         panic!(

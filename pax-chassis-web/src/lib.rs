@@ -53,7 +53,8 @@ pub struct PaxChassisWeb {
     drawing_contexts: Renderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
     #[cfg(feature = "designtime")]
-    definition_to_instance_traverser: Box<dyn cartridge::DefinitionToInstanceTraverser>,
+    definition_to_instance_traverser:
+        Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(feature = "designtime")]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
     #[cfg(feature = "designtime")]
