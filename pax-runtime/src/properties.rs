@@ -1,6 +1,6 @@
 use crate::api::math::Point2;
 use crate::api::Window;
-use pax_lang::interpreter::IdentifierResolver;
+use pax_lang::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
