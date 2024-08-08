@@ -8,6 +8,7 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
     }
 
     fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,pax_engine::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>, std::rc::Rc<pax_engine::pax_runtime::ExpressionTable>) -> std::rc::Rc<RefCell<pax_engine::api::pax_value::PaxAny>>> {
+       
         Box::new(move |stack_frame , table | std::rc::Rc::new(RefCell::new(
             {
                 let mut properties = {{component.type_id.import_path}}::default();
@@ -185,6 +186,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
                                                 let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap();
                                                 coerced
+                                                
                                             }, &dependents, &token.token_value)
                                         } else {
                                             unreachable!("No info for expression")

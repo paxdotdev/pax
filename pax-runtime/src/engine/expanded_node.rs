@@ -2,7 +2,9 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Variable};
+use pax_runtime_api::{
+    borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Variable,
+};
 
 use crate::api::math::Point2;
 use crate::constants::{

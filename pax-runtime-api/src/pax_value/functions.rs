@@ -1,4 +1,4 @@
-use crate::{Color, ColorChannel, Numeric, PaxValue, Rotation};
+use crate::{Color, ColorChannel, Fill, Numeric, PaxValue, Rotation};
 use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
@@ -41,8 +41,6 @@ pub fn call_function(scope: String, name: String, args: Vec<PaxValue>) -> Result
         .ok_or_else(|| format!("Function {} not found in scope {}", name, scope))?;
     func(args)
 }
-
-
 
 // Helper functions
 fn add(args: Vec<PaxValue>) -> Result<PaxValue, String> {
@@ -143,6 +141,13 @@ fn bool_or(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(args[0].clone().op_or(args[1].clone()))
 }
 
+fn bool_not(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 1 {
+        return Err("Expected 1 argument for function bool_not".to_string());
+    }
+    Ok(args[0].clone().op_not())
+}
+
 fn min(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function min".to_string());
@@ -208,14 +213,13 @@ fn hex(args: Vec<PaxValue>) -> Result<PaxValue, String> {
 }
 
 pub trait HelperFunctions {
-    fn register_all_functions();
+    fn register_all_functions() {}
 }
 
+pub struct Functions;
 
-pub struct GlobalFunctions;
-
-impl HelperFunctions for GlobalFunctions {
-    fn register_all_functions() {
+impl Functions {
+    pub fn register_all_functions() {
         // Math
         register_function("Math".to_string(), "+".to_string(), Arc::new(add));
         register_function("Math".to_string(), "-".to_string(), Arc::new(sub));
@@ -231,6 +235,7 @@ impl HelperFunctions for GlobalFunctions {
         register_function("Math".to_string(), "!=".to_string(), Arc::new(rel_neq));
         register_function("Math".to_string(), "&&".to_string(), Arc::new(bool_and));
         register_function("Math".to_string(), "||".to_string(), Arc::new(bool_or));
+        register_function("Math".to_string(), "!".to_string(), Arc::new(bool_not));
         register_function("Math".to_string(), "min".to_string(), Arc::new(min));
         register_function("Math".to_string(), "max".to_string(), Arc::new(max));
         // Colors
@@ -239,5 +244,108 @@ impl HelperFunctions for GlobalFunctions {
         register_function("Color".to_string(), "hsl".to_string(), Arc::new(hsl));
         register_function("Color".to_string(), "hsla".to_string(), Arc::new(hsla));
         register_function("Color".to_string(), "#".to_string(), Arc::new(hex));
+        // Transform2D
+        crate::Transform2D::register_all_functions();
+    }
+
+    pub fn has_function(scope: &str, name: &str) -> bool {
+        let functions = FUNCTIONS.read().unwrap();
+        if let Some(scope_funcs) = functions.get(scope) {
+            scope_funcs.contains_key(name)
+        } else {
+            false
+        }
+    }
+}
+
+impl HelperFunctions for crate::Size {}
+
+impl HelperFunctions for crate::Color {}
+
+impl HelperFunctions for crate::Rotation {}
+
+impl HelperFunctions for String {}
+
+impl HelperFunctions for crate::Numeric {}
+
+impl HelperFunctions for bool {}
+
+impl HelperFunctions for Fill {}
+
+impl HelperFunctions for crate::PaxValue {}
+
+impl HelperFunctions for crate::ColorChannel {}
+
+impl HelperFunctions for crate::Stroke {}
+
+impl HelperFunctions for u8 {}
+impl HelperFunctions for u16 {}
+impl HelperFunctions for u32 {}
+impl HelperFunctions for u64 {}
+impl HelperFunctions for u128 {}
+impl HelperFunctions for usize {}
+
+impl HelperFunctions for i8 {}
+impl HelperFunctions for i16 {}
+impl HelperFunctions for i32 {}
+impl HelperFunctions for i64 {}
+impl HelperFunctions for i128 {}
+impl HelperFunctions for isize {}
+
+impl HelperFunctions for f32 {}
+impl HelperFunctions for f64 {}
+
+impl<T: HelperFunctions> HelperFunctions for Vec<T> {}
+impl<T: HelperFunctions> HelperFunctions for Option<T> {}
+
+impl HelperFunctions for crate::Transform2D {
+    fn register_all_functions() {
+        register_function(
+            "Transform2D".to_string(),
+            "scale".to_string(),
+            Arc::new(|args| {
+                if args.len() != 2 {
+                    return Err("Expected 2 arguments for function scale".to_string());
+                }
+                let x = crate::Size::try_coerce(args[0].clone())?;
+                let y = crate::Size::try_coerce(args[1].clone())?;
+                Ok(crate::Transform2D::scale(x, y).to_pax_value())
+            }),
+        );
+        register_function(
+            "Transform2D".to_string(),
+            "rotate".to_string(),
+            Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function rotate".to_string());
+                }
+                let z = crate::Rotation::try_coerce(args[0].clone())?;
+                Ok(crate::Transform2D::rotate(z).to_pax_value())
+            }),
+        );
+        register_function(
+            "Transform2D".to_string(),
+            "translate".to_string(),
+            Arc::new(|args| {
+                if args.len() != 2 {
+                    return Err("Expected 2 arguments for function translate".to_string());
+                }
+                let x = crate::Size::try_coerce(args[0].clone())?;
+                let y = crate::Size::try_coerce(args[1].clone())?;
+                Ok(crate::Transform2D::translate(x, y).to_pax_value())
+            }),
+        );
+        register_function(
+            "Transform2D".to_string(),
+            "anchor".to_string(),
+            Arc::new(|args| {
+                if args.len() != 2 {
+                    return Err("Expected 2 arguments for function anchor".to_string());
+                }
+                let x = crate::Size::try_coerce(args[0].clone())?;
+                let y = crate::Size::try_coerce(args[1].clone())?;
+                Ok(crate::Transform2D::anchor(x, y).to_pax_value())
+            }),
+        );
     }
 }

@@ -359,6 +359,7 @@ struct Config {
     custom_values: Option<Vec<String>>,
     primitive_instance_import_path: Option<String>,
     is_primitive: bool,
+    has_helpers: bool,
 }
 
 fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
@@ -369,6 +370,7 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
         custom_values: None,
         primitive_instance_import_path: None,
         is_primitive: false,
+        has_helpers: false,
     };
 
     // iterate through `derive macro helper attributes` to gather config & args
@@ -412,6 +414,10 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                     config.inlined_contents = Some(content.to_string());
                     return false;
                 }
+            }
+            Some(s) if s == "has_helpers" => {
+                config.has_helpers = true;
+                return false;
             }
             _ => {
                 if let Ok(Meta::Path(path)) = attr.parse_meta() {
@@ -555,7 +561,20 @@ pub fn pax(
             }
         })
         .collect();
+
     let ident = &input.ident;
+    let helper_functions_impl = if !config.has_helpers {
+        quote! {
+            impl pax_engine::api::HelperFunctions for #ident {
+                fn register_all_functions() {
+                    // Do nothing
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let output = quote! {
         // TODO make this value represented in PaxValue instead (map of properties), and impl to/from that value
         impl pax_engine::api::ImplToFromPaxAny for #ident {}
@@ -564,6 +583,8 @@ pub fn pax(
         #[serde(crate = "pax_engine::serde")]
         #input
         #appended_tokens
+
+        #helper_functions_impl
     };
     output.into()
 }
@@ -581,21 +602,17 @@ fn generate_include(name: &Ident, path: &PathBuf) -> TokenStream {
 }
 #[proc_macro_attribute]
 pub fn helpers(
-    attr: proc_macro::TokenStream,
+    _attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    let scope = parse_macro_input!(attr as syn::LitStr);
     let input = parse_macro_input!(item as ItemImpl);
     let struct_name = &input.self_ty;
 
-    let mut helper_functions = vec![];
-    let mut registration_functions = vec![];
+    let mut register_functions = vec![];
 
     for item in input.items.iter() {
         if let ImplItem::Method(method) = item {
             let func_name = &method.sig.ident;
-            let registration_name = format_ident!("register_{}", func_name);
-            let helper_name = format_ident!("_{}", func_name);
 
             // Check if the function is static (doesn't use `self`)
             if method
@@ -616,24 +633,18 @@ pub fn helpers(
             let param_checks = generate_param_checks(&method.sig.inputs);
             let func_call = generate_function_call(&method.sig, struct_name);
 
-            helper_functions.push(quote! {
-                fn #helper_name(args: Vec<PaxValue>) -> Result<PaxValue, String> {
-                    if args.len() != #arg_count {
-                        return Err(format!("Expected {} arguments for function {}", #arg_count, stringify!(#func_name)));
-                    }
-
-                    #param_checks
-
-                    #func_call
-                }
-            });
-
-            registration_functions.push(quote! {
-                #[pax_engine::api::ctor]
-                fn #registration_name() {
-                    let boxed_func: std::sync::Arc<dyn Fn(Vec<PaxValue>) -> Result<PaxValue, String> + Send + Sync> = std::sync::Arc::new(move |args| #helper_name(args));
-                    pax_engine::api::register_function(#scope.to_string(), stringify!(#func_name).to_string(), boxed_func);
-                }
+            register_functions.push(quote! {
+                register_function(
+                    stringify!(#struct_name).to_string(),
+                    stringify!(#func_name).to_string(),
+                    Arc::new(move |args: Vec<PaxValue>| -> Result<PaxValue, String> {
+                        if args.len() != #arg_count {
+                            return Err(format!("Expected {} arguments for function {}", #arg_count, stringify!(#func_name)));
+                        }
+                        #param_checks
+                        #func_call
+                    })
+                );
             });
         }
     }
@@ -641,9 +652,13 @@ pub fn helpers(
     let expanded = quote! {
         #input
 
-        #(#helper_functions)*
-
-        #(#registration_functions)*
+        impl pax_engine::api::HelperFunctions for #struct_name {
+            fn register_all_functions() {
+                use std::sync::Arc;
+                use pax_engine::api::{PaxValue, register_function};
+                #(#register_functions)*
+            }
+        }
     };
 
     expanded.into()
@@ -655,7 +670,7 @@ fn generate_param_checks(inputs: &Punctuated<FnArg, Token![,]>) -> proc_macro2::
             let ty_string = quote!(#ty).to_string();
             let arg_name = format_ident!("arg_{}", i);
             Some(quote! {
-                let #arg_name = #ty::try_coerce(args[#i].clone())
+                let #arg_name = <#ty as pax_engine::api::CoercionRules>::try_coerce(args[#i].clone())
                     .map_err(|_| format!("Failed to coerce argument {} to {}", #i, #ty_string))?;
             })
         } else {
@@ -678,6 +693,7 @@ fn generate_function_call(sig: &Signature, struct_name: &Box<Type>) -> proc_macr
     });
 
     quote! {
-        Ok(#struct_name::#func_name(#(#args),*).to_pax_value())
+        let result = #struct_name::#func_name(#(#args),*);
+        Ok(<_ as pax_engine::api::ToPaxValue>::to_pax_value(result))
     }
 }
