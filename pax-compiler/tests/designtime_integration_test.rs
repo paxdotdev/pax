@@ -83,7 +83,6 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
     PaxManifest {
         components,
         main_component_type_id: component_type_id,
-        expression_specs: None,
         type_table: HashMap::new(),
     }
 }

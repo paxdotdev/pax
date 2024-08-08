@@ -265,7 +265,7 @@ fn unmerge_tnd_settings(
     let mut settings_to_remove: HashSet<SettingElement> = HashSet::new();
     if let Some(inline_settings) = &mut tnd.settings {
         inline_settings.iter().for_each(|setting| match setting {
-            SettingElement::Setting(_, ValueDefinition::Identifier(v, _))
+            SettingElement::Setting(_, ValueDefinition::Identifier(v))
             | SettingElement::Setting(_, ValueDefinition::LiteralValue(v)) => {
                 if let Some(selector_settings) = settings.get(v.raw_value.as_str()) {
                     settings_to_remove.extend(selector_settings.clone());
