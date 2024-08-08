@@ -32,9 +32,6 @@ pub enum PaxValue {
     Color(Color),
     Rotation(Rotation),
     Option(Box<Option<PaxValue>>),
-    // Ideally this is later changed to Vec<PaxValue>, once structs can be
-    // represented in PaxValue as a map, enabling serialize/deserialization
-    // debug impl, etc.
     Vec(Vec<PaxValue>),
     Range(Box<PaxValue>, Box<PaxValue>),
     Object(HashMap<String, PaxValue>),
