@@ -1,6 +1,5 @@
 use std::{cell::Cell, collections::HashMap, hash::Hash, marker::PhantomData, rc::Rc};
 
-use crate::interpreter::{compute_paxel, DependencyCollector};
 use pax_runtime_api::{
     functions::{Functions, HelperFunctions},
     CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size,
