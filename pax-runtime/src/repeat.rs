@@ -5,7 +5,9 @@ use_RefCell!();
 
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable};
+use pax_runtime_api::{
+    borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable,
+};
 
 use crate::api::Layer;
 use crate::{
@@ -125,12 +127,7 @@ impl InstanceNode for RepeatInstance {
                     let cp_range = range.clone();
                     let dep = [range.untyped()];
                     Property::computed(
-                        move || {
-                            cp_range
-                                .get()
-                                .map(|v| v.to_pax_value())
-                                .collect::<Vec<_>>()
-                        },
+                        move || cp_range.get().map(|v| v.to_pax_value()).collect::<Vec<_>>(),
                         &dep,
                     )
                 } else if let Some(vec) = &properties.source_expression_vec {

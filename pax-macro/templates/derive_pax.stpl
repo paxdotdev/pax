@@ -5,7 +5,6 @@
     // also returns the parsed, serialized PaxManifest via stdio (println)
     #[cfg(feature = "parser")]
     pub fn main() {
-        pax_engine::api::GlobalFunctions::register_all_functions();
         let mut ctx = pax_engine::pax_manifest::parsing::ParsingContext::default();
 
         ctx.main_component_type_id = <<%= pascal_identifier %> as pax_engine::pax_manifest::parsing::Reflectable>::get_type_id();
@@ -134,7 +133,7 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
                 std::process::exit(1);
             <% } %>
         <% } %>
-        
+
         let self_type_id = <%= pascal_identifier %>::get_type_id();
         let mut property_definitions : Vec<pax_engine::pax_manifest::PropertyDefinition> = vec![];
 
@@ -250,8 +249,7 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
 
 }
 
-
-impl pax_engine::CoercionRules for <%= pascal_identifier %> {
+impl pax_engine::api::CoercionRules for <%= pascal_identifier %> {
     fn try_coerce(value: pax_engine::PaxValue) -> Result<Self, String> {
             <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
                 match value {
@@ -264,17 +262,17 @@ impl pax_engine::CoercionRules for <%= pascal_identifier %> {
                                     <% if vd.variant_fields.len() > 0 { %>
                                     (
                                         <% for spd in &vd.variant_fields { %>
-                                            <%= spd.root_scoped_resolvable_type %>::try_coerce(values.next().unwrap().clone())?,
+                                            <<%=spd.root_scoped_resolvable_type%> as pax_engine::api::CoercionRules>::try_coerce(values.next().unwrap().clone())?,
                                         <% } %>
                                     )
                                     <% } %>
                                     )
                                 },
                             <% } %>
-                            _ => Err("Invalid variant name".to_string()),
+                            _ => Err(format!("Invalid variant name: {}", variant_name).to_string()),
                         }
                     },
-                    _ => Err("Expected Enum".to_string()),
+                    _ => Err(format!("Expected Enum for <%= pascal_identifier %> but got {:?}", value).to_string()),
                 }
             <% } else if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
                 match value {
@@ -284,7 +282,7 @@ impl pax_engine::CoercionRules for <%= pascal_identifier %> {
                         <% for spd in static_property_definitions { %>
                             // check if the map contains the field
                             if let Some(value) = map.get("<%= spd.field_name %>") {
-                                let value = <%= spd.root_scoped_resolvable_type %>::try_coerce(value.clone())?;
+                                let value = <<%=spd.root_scoped_resolvable_type%> as pax_engine::api::CoercionRules>::try_coerce(value.clone())?;
                                 // if property wrapped set it to Property::new(value)
                                 <% if spd.is_property_wrapped { %>
                                     ret.<%= spd.field_name %> = Property::new(value);
@@ -295,14 +293,13 @@ impl pax_engine::CoercionRules for <%= pascal_identifier %> {
                         <% } %>
                         Ok(ret)
                     },
-                    _ => Err("Expected Object".to_string()),
+                    _ => Err(format!("Expected Object for <%= pascal_identifier %> but got {:?}", value).to_string()),
                 }
             <% } %>
     }
 }
 
-
-impl pax_engine::ToPaxValue for <%= pascal_identifier %> {
+impl pax_engine::api::ToPaxValue for <%= pascal_identifier %> {
     fn to_pax_value(self) -> pax_engine::PaxValue {
          <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
                 match self {
@@ -319,7 +316,7 @@ impl pax_engine::ToPaxValue for <%= pascal_identifier %> {
                                 "<%= vd.variant_name %>".to_string(),
                                 vec![
                                     <% for spd in &vd.variant_fields { %>
-                                        <%= spd.field_name %>.to_pax_value(),
+                                        <<%=spd.root_scoped_resolvable_type%> as pax_engine::api::ToPaxValue>::to_pax_value(<%= spd.field_name %>),
                                     <% } %>
                                 ].into_iter().collect()
                             )
@@ -332,9 +329,9 @@ impl pax_engine::ToPaxValue for <%= pascal_identifier %> {
                     vec![
                         <% for spd in static_property_definitions { %>
                             <% if spd.is_property_wrapped { %>
-                                ("<%= spd.field_name %>".to_string(), self.<%= spd.field_name %>.get().to_pax_value()),
+                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as pax_engine::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>.get())),
                             <% } else { %>
-                                ("<%= spd.field_name %>".to_string(), self.<%= spd.field_name %>.to_pax_value()),
+                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as pax_engine::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>)),
                             <% } %>
                         <% } %>
                     ].into_iter().collect()
@@ -342,4 +339,3 @@ impl pax_engine::ToPaxValue for <%= pascal_identifier %> {
             <% } %>
     }
 }
-

@@ -345,9 +345,7 @@ impl RuntimePropertiesStackFrame {
         if let Some(e) = self.symbols_within_frame.get(symbol) {
             Some(e.get_as_pax_value())
         } else {
-            self.parent
-                .upgrade()?
-                .resolve_symbol_as_pax_value(symbol)
+            self.parent.upgrade()?.resolve_symbol_as_pax_value(symbol)
         }
     }
 

@@ -1,4 +1,7 @@
-use crate::{properties::PropertyValue, Color, ColorChannel, Fill, Interpolatable, Percent, Rotation, Size, Stroke, Transform2D};
+use crate::{
+    properties::PropertyValue, Color, ColorChannel, Fill, Interpolatable, Percent, Rotation, Size,
+    Stroke, Transform2D,
+};
 use std::{any::Any, collections::HashMap, default};
 
 use self::numeric::Numeric;
@@ -24,14 +27,10 @@ pub enum PaxValue {
     Bool(bool),
     Numeric(Numeric),
     String(String),
-    Transform2D(Transform2D),
     Size(Size),
     Percent(Percent),
     Color(Color),
-    ColorChannel(ColorChannel),
     Rotation(Rotation),
-    Fill(Fill),
-    Stroke(Stroke),
     Option(Box<Option<PaxValue>>),
     // Ideally this is later changed to Vec<PaxValue>, once structs can be
     // represented in PaxValue as a map, enabling serialize/deserialization
@@ -61,8 +60,7 @@ impl std::fmt::Debug for PaxAny {
     }
 }
 
-impl Interpolatable for PaxValue {
-}
+impl Interpolatable for PaxValue {}
 
 // impl PaxAny {
 //     /// Try to co coerce the inner type to type T. For the any type, just make

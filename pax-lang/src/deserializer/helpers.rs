@@ -1,3 +1,4 @@
+use pax_runtime_api::PaxValue;
 use pest::iterators::{Pair, Pairs};
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
@@ -96,8 +97,13 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
     {
         if self.is_pax_value && self.variant == "Enum" {
             let mut enum_pairs = self.args.unwrap().into_inner();
-            while enum_pairs.len() > 2 {
+            while enum_pairs.len() > 3 {
                 enum_pairs.next();
+            }
+            let _ = enum_pairs.next();
+            if enum_pairs.len() == 1 {
+                let variant = enum_pairs.next().unwrap().as_str();
+                return visitor.visit_seq(UnitVariant::new(variant));
             }
             return visitor.visit_seq(PaxSeq::new(enum_pairs));
         }
@@ -306,5 +312,67 @@ impl<'de> de::Deserializer<'de> for PaxNumeric<'de> {
             }
             _ => Err(Error::Message("Unsupported numeric type".to_string())),
         }
+    }
+}
+
+pub struct UnitVariant<'de> {
+    variant: &'de str,
+    read_variant: bool,
+}
+
+impl<'de> UnitVariant<'de> {
+    pub fn new(variant: &'de str) -> Self {
+        UnitVariant {
+            variant,
+            read_variant: false,
+        }
+    }
+}
+
+impl<'de> SeqAccess<'de> for UnitVariant<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        if !self.read_variant {
+            self.read_variant = true;
+            Ok(Some(
+                seed.deserialize(StringDeserializer::new(self.variant))?,
+            ))
+        } else {
+            Ok(Some(seed.deserialize(EmptyListDeserializer {})?))
+        }
+    }
+}
+
+pub struct EmptyListDeserializer {}
+
+impl<'de> SeqAccess<'de> for EmptyListDeserializer {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        Ok(None)
+    }
+}
+
+impl<'de> de::Deserializer<'de> for EmptyListDeserializer {
+    type Error = Error;
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple identifier
+        tuple_struct map struct enum ignored_any
+    }
+
+    fn deserialize_any<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(self)
     }
 }

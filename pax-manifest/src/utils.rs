@@ -17,9 +17,10 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
                 Token::new_only_raw(value.as_str().to_string(), TokenType::LiteralValue);
             ValueDefinition::LiteralValue(literal_value_token)
         }
-        Rule::literal_object => {
-            ValueDefinition::Block(value.as_str().to_string(),derive_value_definition_from_literal_object_pair(value))
-        }
+        Rule::literal_object => ValueDefinition::Block(
+            value.as_str().to_string(),
+            derive_value_definition_from_literal_object_pair(value),
+        ),
         Rule::expression_body => {
             let expression_token =
                 Token::new_only_raw(raw_value.to_string(), TokenType::Expression);
@@ -89,7 +90,8 @@ fn derive_value_definition_from_literal_object_pair(
                                 ValueDefinition::LiteralValue(token)
                             }
                             Rule::literal_object => {
-                                ValueDefinition::Block(value.as_str().to_string(),
+                                ValueDefinition::Block(
+                                    value.as_str().to_string(),
                                     //Recurse
                                     derive_value_definition_from_literal_object_pair(value),
                                 )

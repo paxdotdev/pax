@@ -98,15 +98,12 @@ impl PartialEq for PaxValue {
             (PaxValue::Size(a), PaxValue::Size(b)) => a == b,
             (PaxValue::Percent(a), PaxValue::Percent(b)) => a == b,
             (PaxValue::Color(a), PaxValue::Color(b)) => a == b,
-            (PaxValue::ColorChannel(a), PaxValue::ColorChannel(b)) => a == b,
             (PaxValue::Rotation(a), PaxValue::Rotation(b)) => a == b,
-            (PaxValue::Fill(a), PaxValue::Fill(b)) => a == b,
-            (PaxValue::Stroke(a), PaxValue::Stroke(b)) => a == b,
             (PaxValue::Option(a), PaxValue::Option(b)) => a == b,
             (PaxValue::Vec(a), PaxValue::Vec(b)) => a == b,
             (PaxValue::Object(a), PaxValue::Object(b)) => a == b,
             (PaxValue::Enum(a, b), PaxValue::Enum(c, d)) => a == c && b == d,
-            (PaxValue::Range(a,b), PaxValue::Range(c,d)) => a == c && b == d,
+            (PaxValue::Range(a, b), PaxValue::Range(c, d)) => a == c && b == d,
             (a, b) => panic!("can't compare {:?} and {:?}", a, b),
         }
     }
@@ -160,6 +157,13 @@ impl PaxValue {
         match (self, rhs) {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => PaxValue::Bool(a || b),
             (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
+        }
+    }
+
+    pub fn op_not(self) -> Self {
+        match self {
+            PaxValue::Bool(v) => PaxValue::Bool(!v),
+            v => panic!("! operator not valid for {:?}", v),
         }
     }
 

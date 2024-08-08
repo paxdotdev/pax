@@ -8,13 +8,15 @@ use pax_lang::{parse_pax_expression, Computable};
 use pax_manifest::ValueDefinition;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
-use pax_runtime_api::{use_RefCell, CommonProperties, Numeric, Property, Variable};
+use pax_runtime_api::{
+    use_RefCell, CommonProperties, HelperFunctions, Numeric, Property, Variable,
+};
 use serde::de::DeserializeOwned;
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-pub trait PaxCartridge {
-}
+pub trait PaxCartridge {}
 pub trait DefinitionToInstanceTraverser {
     fn new(manifest: pax_manifest::PaxManifest) -> Self
     where
@@ -139,7 +141,15 @@ pub trait DefinitionToInstanceTraverser {
                     .condition_expression_info
                     .as_ref()
                     .unwrap();
-                let expr_str = tnd.control_flow_settings.as_ref().unwrap().condition_expression_paxel.as_ref().unwrap().raw_value.clone();
+                let expr_str = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .condition_expression_paxel
+                    .as_ref()
+                    .unwrap()
+                    .raw_value
+                    .clone();
                 let dep_symbols = expression_info.dependencies.clone();
                 let prototypical_properties_factory: Box<
                     dyn Fn(
@@ -163,10 +173,11 @@ pub trait DefinitionToInstanceTraverser {
                             }
                         }
                         let expr_str = expr_str.clone();
-                        let expr_ast = parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
+                        let expr_ast =
+                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
                         properties.boolean_expression = Property::computed_with_name(
                             move || {
-                                let new_value =expr_ast.compute(cloned_stack.clone()).unwrap();
+                                let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
                                 let coerced = bool::try_coerce(new_value)
                                     .map_err(|e| {
                                         format!("Failed to parse boolean expression: {}", expr_str)
@@ -232,13 +243,17 @@ pub trait DefinitionToInstanceTraverser {
                             }
                         }
                         let expr_str = expr_str.clone();
-                        let expr_ast = parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
+                        let expr_ast =
+                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
                         properties.index = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
                                 let coerced: Numeric = Numeric::try_coerce(new_value)
                                     .map_err(|_| {
-                                        format!("Failed to parse slot index expression: {}", expr_str)
+                                        format!(
+                                            "Failed to parse slot index expression: {}",
+                                            expr_str
+                                        )
                                     })
                                     .unwrap();
                                 coerced
@@ -299,14 +314,18 @@ pub trait DefinitionToInstanceTraverser {
                         properties.source_expression_vec = if let Some(t) = &rsd.symbolic_binding {
                             let cloned_stack = stack_frame.clone();
                             let expr = t.token_value.clone();
-                            let expr_ast = parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
+                            let expr_ast =
+                                parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
                             Some(Property::computed_with_name(
                                 move || {
                                     let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
 
                                     let coerced = Vec::try_coerce(new_value)
                                         .map_err(|e| {
-                                            format!("Failed to parse repeat source expression: {}",&expr)
+                                            format!(
+                                                "Failed to parse repeat source expression: {}",
+                                                &expr
+                                            )
                                         })
                                         .unwrap();
                                     coerced
@@ -323,14 +342,18 @@ pub trait DefinitionToInstanceTraverser {
                         {
                             let cloned_stack = stack_frame.clone();
                             let source_expr_str = expr.raw_value.clone();
-                            let expr_ast = parse_pax_expression(&source_expr_str, cloned_stack.clone())
-                                .unwrap();
+                            let expr_ast =
+                                parse_pax_expression(&source_expr_str, cloned_stack.clone())
+                                    .unwrap();
                             Some(Property::computed_with_name(
                                 move || {
                                     let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
                                     let coerced = std::ops::Range::<isize>::try_coerce(new_value)
                                         .map_err(|e| {
-                                            format!("Failed to parse repeat source expression: {}", source_expr_str)
+                                            format!(
+                                                "Failed to parse repeat source expression: {}",
+                                                source_expr_str
+                                            )
                                         })
                                         .unwrap();
                                     coerced
@@ -543,9 +566,18 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
     };
     let resolved_property: Property<Option<T>> = match value_def.clone() {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
-            let val = T::try_coerce(pax_lang::deserializer::from_pax(&lv.raw_value)
-                .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e))
-                .unwrap()).unwrap();
+            let literal = if name == "id" || name == "class" {
+                // ids & classes look like identifiers but should be strings
+                format!("\"{}\"", lv.raw_value)
+            } else {
+                lv.raw_value.clone()
+            };
+            let val = T::try_coerce(
+                pax_lang::deserializer::from_pax(&literal)
+                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e))
+                    .unwrap(),
+            )
+            .unwrap();
             Property::new_with_name(Some(val), &lv.raw_value)
         }
         pax_manifest::ValueDefinition::DoubleBinding(token, _info) => {
@@ -567,18 +599,25 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
                     }
                 }
                 let cloned_stack = stack.clone();
-                let cloned_table = table.clone();
-                Property::new(Some(T::default()))
-                // Property::computed_with_name(
-                //     move || {
-                //         // let new_value_wrapped: pax_runtime_api::pax_value::PaxAny = cloned_table
-                //         //     .compute_vtable_value(&cloned_stack, info.vtable_id.clone());
-                //         // let coerced = new_value_wrapped.try_coerce::<T>().unwrap();
-                //         Some(coerced)
-                //     },
-                //     &dependents,
-                //     &token.raw_value,
-                // )
+                let expr = token.token_value.clone();
+                let expr_ast = pax_lang::parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
+                Property::computed_with_name(
+                    move || {
+                        let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                        let coerced = T::try_coerce(new_value.clone());
+                        let coerced = if let Err(e) = coerced {
+                            panic!(
+                                "Failed to coerce value: {},\n {:?}\n, {}\n , {:?}",
+                                e, new_value, expr, expr_ast
+                            );
+                        } else {
+                            coerced.unwrap()
+                        };
+                        Some(coerced)
+                    },
+                    &dependents,
+                    &token.token_value,
+                )
             } else {
                 unreachable!("No info for expression")
             }

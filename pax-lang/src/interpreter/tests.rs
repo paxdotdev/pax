@@ -1,13 +1,16 @@
-use std::{collections::HashMap, hash::Hash, rc::Rc};
+use std::{cell::Cell, collections::HashMap, hash::Hash, marker::PhantomData, rc::Rc};
 
 use crate::interpreter::compute_paxel;
-use pax_runtime_api::{functions::{GlobalFunctions, HelperFunctions}, CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size};
+use pax_runtime_api::{
+    functions::{Functions, HelperFunctions},
+    CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size,
+};
 use serde::de::Expected;
 
 use super::{parse_pax_expression, PaxExpression, PaxInfix, PaxOperator, PaxPrimary};
 
 fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {
-    GlobalFunctions::register_all_functions();
+    Functions::register_all_functions();
     let mut idr = HashMap::new();
     idr.insert("a".to_string(), PaxValue::Numeric(Numeric::I64(10)));
     idr.insert("b".to_string(), PaxValue::Numeric(Numeric::I64(4)));
@@ -17,6 +20,39 @@ fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {
             PaxValue::Numeric(Numeric::I64(1)),
             PaxValue::Numeric(Numeric::I64(2)),
         ]),
+    );
+    idr.insert(
+        "d".to_string(),
+        PaxValue::Object(
+            vec![
+                ("a".to_string(), PaxValue::Numeric(Numeric::I64(1))),
+                ("b".to_string(), PaxValue::Numeric(Numeric::I64(2))),
+            ]
+            .into_iter()
+            .collect(),
+        ),
+    );
+    idr.insert(
+        "e".to_string(),
+        PaxValue::Object(
+            vec![
+                ("a".to_string(), PaxValue::Numeric(Numeric::I64(1))),
+                ("b".to_string(), PaxValue::Numeric(Numeric::I64(2))),
+                (
+                    "c".to_string(),
+                    PaxValue::Object(
+                        vec![
+                            ("a".to_string(), PaxValue::Numeric(Numeric::I64(1))),
+                            ("b".to_string(), PaxValue::Numeric(Numeric::I64(2))),
+                        ]
+                        .into_iter()
+                        .collect(),
+                    ),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        ),
     );
     Rc::new(idr)
 }
@@ -336,5 +372,23 @@ fn test_color_expression() {
         ColorChannel::Integer(Numeric::I64(30)),
         ColorChannel::Integer(Numeric::I64(4)),
     ));
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_struct_access() {
+    let idr = initialize_test_resolver();
+    let expr = "d.a";
+    let expected = PaxValue::Numeric(Numeric::I64(1));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_triple_nesting_struct_access() {
+    let idr = initialize_test_resolver();
+    let expr = "e.c.a";
+    let expected = PaxValue::Numeric(Numeric::I64(1));
+    let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
 }

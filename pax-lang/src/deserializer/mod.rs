@@ -69,7 +69,14 @@ impl<'de> PaxDeserializer<'de> {
                 visitor.visit_enum(PaxEnum::new_pax_value(NUMERIC, Some(self.ast)))
             }
             Rule::literal_number_with_unit => {
-                let unit = self.ast.clone().into_inner().nth(1).unwrap().as_str();
+                let unit = self
+                    .ast
+                    .clone()
+                    .into_inner()
+                    .nth(1)
+                    .unwrap()
+                    .as_str()
+                    .trim();
                 match unit {
                     "%" => visitor.visit_enum(PaxEnum::new_pax_value(PERCENT, Some(self.ast))),
                     "px" => visitor.visit_enum(PaxEnum::new_pax_value(SIZE, Some(self.ast))),
@@ -136,7 +143,7 @@ impl<'de> PaxDeserializer<'de> {
                         visitor.visit_enum(PaxEnum::new(INTEGER, Some(channel)))
                     }
                     Rule::literal_number_with_unit => {
-                        let unit = channel.clone().into_inner().nth(1).unwrap().as_str();
+                        let unit = channel.clone().into_inner().nth(1).unwrap().as_str().trim();
                         let number = channel.clone().into_inner().next().unwrap();
                         match unit {
                             "%" => visitor.visit_enum(PaxEnum::new(PERCENT, Some(number))),
@@ -164,7 +171,7 @@ impl<'de> PaxDeserializer<'de> {
             Rule::literal_number_with_unit => {
                 let inner = self.ast.into_inner();
                 let number = inner.clone().next();
-                let unit = inner.clone().nth(1).unwrap().as_str();
+                let unit = inner.clone().nth(1).unwrap().as_str().trim();
                 match unit {
                     "%" => visitor.visit_newtype_struct(PaxDeserializer::from(number.unwrap())),
                     "px" => visitor.visit_enum(PaxEnum::new(PIXELS, number)),
