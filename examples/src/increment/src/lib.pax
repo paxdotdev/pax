@@ -10,7 +10,7 @@
      @pre_render: handle_pre_render,
     #text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
                 font_size: 22px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,

@@ -1393,7 +1393,7 @@ pub enum Rotation {
 
 impl Default for Rotation {
     fn default() -> Self {
-        Self::Percent(Numeric::F64(0.0))
+        Self::Degrees(Numeric::F64(0.0))
     }
 }
 
