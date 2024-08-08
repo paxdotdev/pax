@@ -401,3 +401,12 @@ fn test_collect_dependencies() {
     let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr, idr).unwrap());
     assert_eq!(expected, result);
 }
+
+#[test]
+fn test_negative_size() {
+    let idr = initialize_test_resolver();
+    let expr = "-10px";
+    let expected = PaxValue::Size(Size::Pixels(Numeric::I64(-10)));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}

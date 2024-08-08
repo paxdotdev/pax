@@ -71,9 +71,9 @@ impl Asteroid {
             w: radius,
             health: (radius as u64) / 3,
             animation: Animation::new(vec![
-                String::from("assets/asteroid0.png"),
-                String::from("assets/asteroid1.png"),
-                String::from("assets/asteroid2.png"),
+                ImageSource::Url(String::from("assets/asteroid0.png")),
+                ImageSource::Url(String::from("assets/asteroid1.png")),
+                ImageSource::Url(String::from("assets/asteroid2.png")),
             ]),
         }
     }

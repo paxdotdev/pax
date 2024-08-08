@@ -7,6 +7,7 @@ use pax_runtime::{
 };
 
 use crate::common::Point;
+use pax_engine::*;
 
 use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
@@ -410,6 +411,7 @@ impl PathCurve {
 }
 
 #[pax]
+#[has_helpers]
 pub enum PathElement {
     #[default]
     Empty,
@@ -419,6 +421,7 @@ pub enum PathElement {
     Close,
 }
 
+#[helpers]
 impl PathElement {
     pub fn line() -> Self {
         Self::Line

@@ -414,11 +414,7 @@ impl<T: CoercionRules> CoercionRules for Option<T> {
                 let res: Result<Option<T>, _> = opt.map(|v| T::try_coerce(v)).transpose();
                 res.map_err(|e| format!("couldn't coerce option, element {:?}", e))
             }
-            v => Err(format!(
-                "{:?} can't be coerced into {:?}",
-                v,
-                std::any::type_name::<Option<T>>(),
-            )),
+            v => Some(T::try_coerce(v)).transpose(),
         }
     }
 }
@@ -494,7 +490,12 @@ impl CoercionRules for Transform2D {
                                 None
                             }
                         }
-                        _ => return Err(format!("{:?} can't be coerced into a Transform2D", t)),
+                        _ => {
+                            return Err(format!(
+                                "translate of {:?} can't be coerced into a Transform2D",
+                                t
+                            ))
+                        }
                     },
                     None => None,
                 };
@@ -514,7 +515,12 @@ impl CoercionRules for Transform2D {
                                 None
                             }
                         }
-                        _ => return Err(format!("{:?} can't be coerced into a Transform2D", a)),
+                        _ => {
+                            return Err(format!(
+                                "anchor of {:?} can't be coerced into a Transform2D",
+                                a
+                            ))
+                        }
                     },
                     None => None,
                 };
@@ -534,7 +540,12 @@ impl CoercionRules for Transform2D {
                                 None
                             }
                         }
-                        _ => return Err(format!("{:?} can't be coerced into a Transform2D", s)),
+                        _ => {
+                            return Err(format!(
+                                "scale of {:?} can't be coerced into a Transform2D",
+                                s
+                            ))
+                        }
                     },
                     None => None,
                 };
@@ -554,7 +565,12 @@ impl CoercionRules for Transform2D {
                                 None
                             }
                         }
-                        _ => return Err(format!("{:?} can't be coerced into a Transform2D", s)),
+                        _ => {
+                            return Err(format!(
+                                "skew of {:?} can't be coerced into a Transform2D",
+                                s
+                            ))
+                        }
                     },
                     None => None,
                 };

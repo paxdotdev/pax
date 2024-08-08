@@ -6,7 +6,7 @@ use std::{cmp::Ordering, hash::Hash};
 
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
-use pax_runtime_api::Interpolatable;
+use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
 pub mod parsing;
 
 #[cfg(feature = "parsing")]
@@ -295,6 +295,23 @@ pub enum SettingsBlockElement {
 #[serde(crate = "pax_message::serde")]
 pub struct TemplateNodeId(usize);
 
+impl CoercionRules for TemplateNodeId {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Numeric(_) => Ok(TemplateNodeId(usize::try_coerce(value)?)),
+            _ => Err("Cannot coerce PaxValue into TemplateNodeId".to_string()),
+        }
+    }
+}
+
+impl HelperFunctions for TemplateNodeId {}
+
+impl ToPaxValue for TemplateNodeId {
+    fn to_pax_value(self) -> PaxValue {
+        self.0.to_pax_value()
+    }
+}
+
 impl TemplateNodeId {
     pub fn build(id: usize) -> Self {
         TemplateNodeId(id)
@@ -344,6 +361,98 @@ pub enum PaxType {
     Unknown,
 }
 
+impl HelperFunctions for PaxType {}
+
+impl CoercionRules for PaxType {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(variant, args) => match variant.as_str() {
+                "If" => Ok(PaxType::If),
+                "Slot" => Ok(PaxType::Slot),
+                "Repeat" => Ok(PaxType::Repeat),
+                "Comment" => Ok(PaxType::Comment),
+                "BlankComponent" => {
+                    let pascal_identifier = String::try_coerce(args[0].clone())?;
+                    Ok(PaxType::BlankComponent { pascal_identifier })
+                }
+                "Primitive" => {
+                    let pascal_identifier = String::try_coerce(args[0].clone())?;
+                    Ok(PaxType::Primitive { pascal_identifier })
+                }
+                "Singleton" => {
+                    let pascal_identifier = String::try_coerce(args[0].clone())?;
+                    Ok(PaxType::Singleton { pascal_identifier })
+                }
+                "Range" => {
+                    let identifier = String::try_coerce(args[0].clone())?;
+                    Ok(PaxType::Range { identifier })
+                }
+                "Option" => {
+                    let identifier = String::try_coerce(args[0].clone())?;
+                    Ok(PaxType::Option { identifier })
+                }
+                "Vector" => {
+                    let elem_identifier = String::try_coerce(args[0].clone())?;
+                    Ok(PaxType::Vector { elem_identifier })
+                }
+                "Map" => {
+                    let key_identifier = String::try_coerce(args[0].clone())?;
+                    let value_identifier = String::try_coerce(args[1].clone())?;
+                    Ok(PaxType::Map {
+                        key_identifier,
+                        value_identifier,
+                    })
+                }
+                _ => Ok(PaxType::Unknown),
+            },
+            _ => Err("Cannot coerce PaxValue into PaxType".to_string()),
+        }
+    }
+}
+
+impl ToPaxValue for PaxType {
+    fn to_pax_value(self) -> PaxValue {
+        match self {
+            PaxType::If => PaxValue::Enum("If".to_string(), vec![]),
+            PaxType::Slot => PaxValue::Enum("Slot".to_string(), vec![]),
+            PaxType::Repeat => PaxValue::Enum("Repeat".to_string(), vec![]),
+            PaxType::Comment => PaxValue::Enum("Comment".to_string(), vec![]),
+            PaxType::BlankComponent { pascal_identifier } => PaxValue::Enum(
+                "BlankComponent".to_string(),
+                vec![pascal_identifier.to_pax_value()],
+            ),
+            PaxType::Primitive { pascal_identifier } => PaxValue::Enum(
+                "Primitive".to_string(),
+                vec![pascal_identifier.to_pax_value()],
+            ),
+            PaxType::Singleton { pascal_identifier } => PaxValue::Enum(
+                "Singleton".to_string(),
+                vec![pascal_identifier.to_pax_value()],
+            ),
+            PaxType::Range { identifier } => {
+                PaxValue::Enum("Range".to_string(), vec![identifier.to_pax_value()])
+            }
+            PaxType::Option { identifier } => {
+                PaxValue::Enum("Option".to_string(), vec![identifier.to_pax_value()])
+            }
+            PaxType::Vector { elem_identifier } => {
+                PaxValue::Enum("Vector".to_string(), vec![elem_identifier.to_pax_value()])
+            }
+            PaxType::Map {
+                key_identifier,
+                value_identifier,
+            } => PaxValue::Enum(
+                "Map".to_string(),
+                vec![
+                    key_identifier.to_pax_value(),
+                    value_identifier.to_pax_value(),
+                ],
+            ),
+            PaxType::Unknown => PaxValue::Enum("Unknown".to_string(), vec![]),
+        }
+    }
+}
+
 impl Display for PaxType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -381,9 +490,63 @@ pub struct TypeId {
     _type_id_escaped: String,
 }
 
+impl HelperFunctions for TypeId {}
+
 impl PartialOrd for TypeId {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self._type_id.partial_cmp(&other._type_id)
+    }
+}
+
+impl CoercionRules for TypeId {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Object(map) => {
+                let pax_type = PaxType::try_coerce(map.get("pax_type").unwrap().clone())?;
+                let import_path = map
+                    .get("import_path")
+                    .map(|v| Option::<String>::try_coerce(v.clone()))
+                    .unwrap_or(Ok(None))?;
+                let is_intoable_downstream_type = map
+                    .get("is_intoable_downstream_type")
+                    .map(|v| bool::try_coerce(v.clone()))
+                    .unwrap_or(Ok(false))?;
+                let _type_id = map
+                    .get("_type_id")
+                    .map(|v| String::try_coerce(v.clone()))
+                    .unwrap_or(Ok("".to_string()))?;
+                let _type_id_escaped = map
+                    .get("_type_id_escaped")
+                    .map(|v| String::try_coerce(v.clone()))
+                    .unwrap_or(Ok("".to_string()))?;
+                Ok(Self {
+                    pax_type,
+                    import_path,
+                    is_intoable_downstream_type,
+                    _type_id,
+                    _type_id_escaped,
+                })
+            }
+            _ => Err("Cannot coerce PaxValue into TypeId".to_string()),
+        }
+    }
+}
+
+impl ToPaxValue for TypeId {
+    fn to_pax_value(self) -> PaxValue {
+        let mut map = HashMap::new();
+        map.insert("pax_type".to_string(), self.pax_type.to_pax_value());
+        map.insert("import_path".to_string(), self.import_path.to_pax_value());
+        map.insert(
+            "is_intoable_downstream_type".to_string(),
+            self.is_intoable_downstream_type.to_pax_value(),
+        );
+        map.insert("_type_id".to_string(), self._type_id.to_pax_value());
+        map.insert(
+            "_type_id_escaped".to_string(),
+            self._type_id_escaped.to_pax_value(),
+        );
+        PaxValue::Object(map)
     }
 }
 
