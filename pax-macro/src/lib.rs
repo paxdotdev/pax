@@ -614,7 +614,7 @@ pub fn helpers(
         if let ImplItem::Method(method) = item {
             let func_name = &method.sig.ident;
 
-            // Check if the function is static (doesn't use `self`)
+            // Make sure it's associated function (doesn't use `self`)
             if method
                 .sig
                 .inputs
@@ -623,7 +623,7 @@ pub fn helpers(
             {
                 return syn::Error::new_spanned(
                     method.sig.clone(),
-                    "Helpers macro can only be used on static methods (methods that don't take self)",
+                    "Helpers macro can only be used on associated functions (methods that don't take self)",
                 )
                 .to_compile_error()
                 .into();

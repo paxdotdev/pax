@@ -59,24 +59,6 @@ impl std::fmt::Debug for PaxAny {
 
 impl Interpolatable for PaxValue {}
 
-// impl PaxAny {
-//     /// Try to co coerce the inner type to type T. For the any type, just make
-//     /// sure the stored any value is of type T. For a PaxValue, try to coerce it
-//     /// into the expected type
-//     pub fn try_coerce<T: ToFromPaxAny + CoercionRules + 'static>(self) -> Result<T, String> {
-//         let res = match self {
-//             PaxAny::Builtin(pax_type) => T::try_coerce(pax_type),
-//             PaxAny::Any(any) => any.downcast().map(|v| *v).map_err(|_| {
-//                 format!(
-//                     "tried to coerce PaxAny into {} which wasn't the underlying type",
-//                     std::any::type_name::<T>()
-//                 )
-//             }),
-//         };
-//         res
-//     }
-// }
-
 /// This trait is implemented by all types that has a bultin equivalent
 /// representation (see to_from_impls module) This is NOT responsible for
 /// coercing between types, but returns an err in all cases where the underlying

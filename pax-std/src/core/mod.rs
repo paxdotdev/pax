@@ -15,4 +15,3 @@ pub use image::*;
 pub use scrollbar::*;
 pub use scroller::*;
 pub use text::*;
-mod tests;
