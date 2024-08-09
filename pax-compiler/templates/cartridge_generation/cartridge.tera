@@ -41,16 +41,13 @@ trait TypeFactory {
 }
 {% for key, value in type_table -%}
     {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
-    {% if value.type_id.pax_type.Singleton %}
-    {% endif %}
 {%- endfor %}
 
 
 pub fn register_helper_functions() {
     {% for key, value in type_table -%}
         <{{ value.type_id._type_id }}>::register_all_functions();
-    
-        {% endfor %}
+    {% endfor %}
 }
 
 pub struct {{ definition_to_instance_traverser_struct_id }} {

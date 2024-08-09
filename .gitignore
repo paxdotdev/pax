@@ -17,7 +17,6 @@ pax-create-sandbox/
 examples/src/*/.pax/
 tests/src/*/.pax/
 
-
 **/*.rs.bk
 Cargo.lock
 .DS_Store
