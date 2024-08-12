@@ -12,15 +12,29 @@
         ctx.main_component_type_id = <<%= pascal_identifier %> as pax_engine::pax_manifest::parsing::Reflectable>::get_type_id();
         let (mut ctx, _) = <<%= pascal_identifier %> as pax_engine::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
 
-        let manifest = pax_engine::pax_manifest::PaxManifest {
+        let userland_manifest = pax_engine::pax_manifest::PaxManifest {
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,
             type_table: ctx.type_table,
         };
 
+        let mut ctx = pax_engine::pax_manifest::parsing::ParsingContext::default();
+        ctx.main_component_type_id = <pax_engine::pax_designer::PaxDesigner as pax_engine::pax_manifest::parsing::Reflectable>::get_type_id();
+        let (mut ctx, _) = pax_engine::pax_designer::PaxDesigner as pax_engine::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
+
+        let designer_manifest = pax_engine::pax_manifest::PaxManifest {
+            components: ctx.component_definitions,
+            main_component_type_id: ctx.main_component_type_id,
+            expression_specs: None,
+            type_table: ctx.type_table,
+        };
 
         //Send data back to parent process by printing to stdout
-        println!("{}", &pax_engine::serde_json::to_string_pretty(&manifest).unwrap());
+        //Note presence of second manifest when designtime (manifest for PaxDesigner)
+        #[cfg(feature = "designtime")]
+        println!("{}", &pax_engine::serde_json::to_string_pretty((&userland_manifest.unwrap(), &designer_manifest.unwrap()));
+        #[cfg(not(feature = "designtime"))]
+        println!("{}", &pax_engine::serde_json::to_string_pretty(&userland_manifest.unwrap());
         std::process::exit(0);
 
     }

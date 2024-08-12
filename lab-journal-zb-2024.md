@@ -3,11 +3,16 @@
 
 **Broad flow**
 
+[ ] Merge / rebase expression interpreting
+[ ] Update init logic, two manifests, two designtimes on other side of serialization
+
+ 
 if we’re in main and designtime
     (AND this is not PaxDesigner itself — note that this code will be included in #[main] logic,
         which we’ll have at least two of: userland and designer)
     then parse PaxDesigner to manifest alongside parsing the userland component tree
-    keep two definition_to_instance_traversers (each of which surfaces a get_main_component)
+    deserialize, then
+    initialize a definition_to_instance_traverser from each manifest (each of which surfaces a get_main_component)
         the <PaxFrame> component just traverses this singular boundary (register-ed) for now; can make extensible later with different cartridges
     the root component for the engine should be PaxDesigner; the inner component is the userland component
 
